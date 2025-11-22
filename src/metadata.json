@@ -1,0 +1,5 @@
+{
+  "name": "PSX Portfolio Tracker",
+  "description": "A real-time Profit & Loss tracker for Pakistan Stock Exchange (PSX) investors using Gemini for live price updates via Google Search.",
+  "requestFramePermissions": []
+}
