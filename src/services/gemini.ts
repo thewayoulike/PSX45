@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 
-// Safe access for Vite environment
+// 1. Safe access for Vite environment
 const getApiKey = () => {
   try {
     // @ts-ignore
@@ -19,15 +19,16 @@ const getApiKey = () => {
   return undefined;
 };
 
-// --- LAZY INITIALIZATION FIX ---
-// Instead of "const ai = new GoogleGenAI...", we use a function.
+// 2. LAZY INITIALIZATION (The Fix)
+// We do NOT create 'new GoogleGenAI' here. We just create a variable.
 let aiClient: GoogleGenAI | null = null;
 
+// This function creates the client ONLY when we need it, not when the page loads.
 const getAi = (): GoogleGenAI | null => {
-    // If we already started it, return the existing client
     if (aiClient) return aiClient;
     
     const key = getApiKey();
+    // If key is missing, we return null instead of crashing the app
     if (!key) {
         console.warn("Gemini API Key is missing. AI features will be disabled.");
         return null;
@@ -44,8 +45,9 @@ const getAi = (): GoogleGenAI | null => {
 
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
   try {
-    const ai = getAi(); // <--- SAFELY GET CLIENT HERE
-    if (!ai) throw new Error("API Key missing");
+    // 3. Use getAi() here instead of the global variable
+    const ai = getAi(); 
+    if (!ai) throw new Error("API Key missing. Please check Vercel Environment Variables.");
 
     const base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -111,7 +113,8 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
 
 export const fetchDividends = async (tickers: string[]): Promise<DividendAnnouncement[]> => {
     try {
-        const ai = getAi(); // <--- SAFELY GET CLIENT HERE
+        // 4. Use getAi() here as well
+        const ai = getAi(); 
         if (!ai) return [];
 
         const tickerList = tickers.join(", ");
