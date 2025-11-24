@@ -146,4 +146,4 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
       </div>
     </div>
   );
-};
+}; 
