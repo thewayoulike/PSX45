@@ -19,10 +19,34 @@ const getApiKey = () => {
   return undefined;
 };
 
-const ai = new GoogleGenAI({ apiKey: getApiKey() });
+// --- LAZY INITIALIZATION FIX ---
+// Instead of "const ai = new GoogleGenAI...", we use a function.
+let aiClient: GoogleGenAI | null = null;
+
+const getAi = (): GoogleGenAI | null => {
+    // If we already started it, return the existing client
+    if (aiClient) return aiClient;
+    
+    const key = getApiKey();
+    if (!key) {
+        console.warn("Gemini API Key is missing. AI features will be disabled.");
+        return null;
+    }
+
+    try {
+        aiClient = new GoogleGenAI({ apiKey: key });
+        return aiClient;
+    } catch (e) {
+        console.error("Failed to initialize Gemini Client", e);
+        return null;
+    }
+}
 
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
   try {
+    const ai = getAi(); // <--- SAFELY GET CLIENT HERE
+    if (!ai) throw new Error("API Key missing");
+
     const base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -87,6 +111,9 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
 
 export const fetchDividends = async (tickers: string[]): Promise<DividendAnnouncement[]> => {
     try {
+        const ai = getAi(); // <--- SAFELY GET CLIENT HERE
+        if (!ai) return [];
+
         const tickerList = tickers.join(", ");
         
         const response = await ai.models.generateContent({
