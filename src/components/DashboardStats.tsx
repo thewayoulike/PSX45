@@ -126,4 +126,4 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
 
     </div>
   );
-};
+}; 
