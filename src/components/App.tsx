@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio } from './types';
-import { Dashboard } from './components/Dashboard';
+import { Dashboard } from './components/DashboardStats';
 import { HoldingsTable } from './components/HoldingsTable';
 import { RealizedTable } from './components/RealizedTable';
 import { TransactionList } from './components/TransactionList';
