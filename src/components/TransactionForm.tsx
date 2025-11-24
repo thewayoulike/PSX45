@@ -658,4 +658,4 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
       </div>
     </div>
   );
-};
+}; 
