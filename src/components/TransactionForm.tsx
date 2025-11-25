@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Transaction, ParsedTrade, Broker } from '../types';
+import { Transaction, Broker } from '../types';
 import { X, Plus, ChevronDown, RefreshCw, Loader2 } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 
@@ -77,6 +77,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCommission(''); setTax(''); setCdcCharges('');
             setMode('MANUAL'); setIsAutoCalc(true);
             setDate(new Date().toISOString().split('T')[0]);
+            setScanFiles(null);
+            setScanError('');
         }
     }
   }, [isOpen, editingTransaction, brokers]);
@@ -160,11 +162,30 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     setScanError('');
     
     try {
-        // Logic for scanning would go here (omitted for brevity as requested focus is on Broker UI)
-        // In real app, you'd call parseTradeDocumentOCRSpace here
-        alert("Scanner requires API implementation.");
+        const result = await parseTradeDocumentOCRSpace(scanFiles[0]);
+        
+        if (result.trades.length > 0) {
+            const trade = result.trades[0];
+            
+            // Populate Form State
+            setTicker(trade.ticker);
+            setType(trade.type);
+            setQuantity(trade.quantity);
+            setPrice(trade.price);
+            
+            if (trade.date) setDate(trade.date);
+            if (trade.commission) setCommission(trade.commission);
+            if (trade.tax) setTax(trade.tax || 0);
+            if (trade.cdcCharges) setCdcCharges(trade.cdcCharges || 0);
+            
+            // Switch back to manual view to review data
+            setMode('MANUAL');
+            setIsAutoCalc(false); // Disable auto-calc so OCR values stick
+        } else {
+            setScanError("No valid trades found in document.");
+        }
     } catch (err: any) {
-        setScanError(err.message);
+        setScanError(err.message || "Failed to scan document");
     } finally {
         setIsScanning(false);
     }
@@ -273,11 +294,43 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     </button>
                 </form>
             ) : (
-                <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                    <p>Scanner feature requires OCR API setup.</p>
-                    {isScanning && <Loader2 className="animate-spin mt-2" />}
-                    {scanError && <p className="text-rose-500 text-sm mt-2">{scanError}</p>}
-                    <button onClick={() => setMode('MANUAL')} className="text-emerald-600 underline mt-2">Go Back</button>
+                <div className="flex flex-col items-center justify-center h-full space-y-4">
+                    <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center w-full hover:bg-slate-50 transition-colors cursor-pointer relative">
+                        <input 
+                            type="file" 
+                            accept="image/*,.pdf"
+                            onChange={(e) => setScanFiles(e.target.files)}
+                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                        />
+                        <div className="flex flex-col items-center text-slate-500">
+                            {scanFiles && scanFiles.length > 0 ? (
+                                <span className="font-bold text-emerald-600">{scanFiles[0].name}</span>
+                            ) : (
+                                <>
+                                    <span className="font-bold text-lg mb-1">Click to Upload</span>
+                                    <span className="text-xs">Supports Images & PDF</span>
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {scanError && (
+                        <div className="text-rose-500 text-xs bg-rose-50 p-2 rounded w-full text-center border border-rose-100">
+                            {scanError}
+                        </div>
+                    )}
+
+                    <button 
+                        onClick={handleScan}
+                        disabled={!scanFiles || isScanning}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                        {isScanning ? <Loader2 className="animate-spin" /> : 'Process Document'}
+                    </button>
+                    
+                    <button onClick={() => setMode('MANUAL')} className="text-slate-400 hover:text-slate-600 text-sm">
+                        Cancel
+                    </button>
                 </div>
             )}
         </div>
