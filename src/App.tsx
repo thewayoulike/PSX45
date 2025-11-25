@@ -10,10 +10,10 @@ import { DividendScanner } from './components/DividendScanner';
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, AlertTriangle, Copy, Settings } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save } from 'lucide-react';
 
 // Drive Storage Imports
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, updateClientId, DriveUser } from './services/driveStorage';
+import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
 
 // Initial Data: Empty array so the app is blank when logged out
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
@@ -365,13 +365,6 @@ const App: React.FC = () => {
       }
   };
 
-  const getCleanOrigin = () => {
-      if (typeof window !== 'undefined') {
-          return window.location.origin; 
-      }
-      return '';
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
       {/* Ambient Orbs (Crystal Light Effect) */}
@@ -428,37 +421,7 @@ const App: React.FC = () => {
                         </button>
                     )}
                 </div>
-                
-                {/* ORIGIN URL DISPLAY - Highly Visible */}
-                {!driveUser && (
-                    <div className="mt-2 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 shadow-sm max-w-[300px] animate-in fade-in slide-in-from-top-2">
-                        <div className="flex items-center gap-1.5 mb-1 font-bold text-[10px] uppercase tracking-wide text-amber-700">
-                            <AlertTriangle size={12} />
-                            Config Required
-                        </div>
-                        <p className="text-[10px] mb-1 opacity-80">Add this URL to Google Cloud Console:</p>
-                        <div className="flex items-center gap-2 bg-white border border-amber-100 rounded px-2 py-1">
-                            <code className="font-mono text-[10px] truncate flex-1 select-all cursor-text">
-                                {getCleanOrigin()}
-                            </code>
-                            <button 
-                                onClick={() => navigator.clipboard.writeText(getCleanOrigin())} 
-                                className="text-amber-500 hover:text-amber-700"
-                                title="Copy URL"
-                            >
-                                <Copy size={12} />
-                            </button>
-                            <div className="h-3 w-[1px] bg-amber-200"></div>
-                            <button
-                                onClick={() => updateClientId()}
-                                className="text-amber-500 hover:text-amber-700"
-                                title="Edit Client ID"
-                            >
-                                <Settings size={12} />
-                            </button>
-                        </div>
-                    </div>
-                )}
+                {/* REMOVED YELLOW CONFIG BOX HERE */}
             </div>
 
             {/* Portfolio Selector */}
