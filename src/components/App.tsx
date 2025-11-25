@@ -8,11 +8,11 @@ import { TransactionForm } from './components/TransactionForm';
 import { BrokerManager } from './components/BrokerManager';
 import { PriceEditor } from './components/PriceEditor';
 import { DividendScanner } from './components/DividendScanner';
-import { ApiKeyManager } from './components/ApiKeyManager'; // NEW IMPORT
+import { ApiKeyManager } from './components/ApiKeyManager';
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { setGeminiApiKey } from './services/gemini'; // NEW IMPORT
+import { setGeminiApiKey } from './services/gemini';
 import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Settings } from 'lucide-react';
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
@@ -92,7 +92,7 @@ const App: React.FC = () => {
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
   const [showBrokerManager, setShowBrokerManager] = useState(false);
-  const [showApiKeyManager, setShowApiKeyManager] = useState(false); // NEW MODAL STATE
+  const [showApiKeyManager, setShowApiKeyManager] = useState(false);
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
@@ -339,25 +339,28 @@ const App: React.FC = () => {
     return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, totalDividends, dailyPL: 0 };
   }, [holdings, realizedTrades, totalDividends]);
 
-  // ... Transaction Handlers (same as before) ...
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
     const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
     const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
     setTransactions(prev => [...prev, newTx]);
   };
+
   const handleUpdateTransaction = (updatedTx: Transaction) => {
     setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
     setEditingTransaction(null);
   };
+
   const handleDeleteTransaction = (id: string) => {
     if (window.confirm("Are you sure you want to delete this transaction?")) {
         setTransactions(prev => prev.filter(t => t.id !== id));
     }
   };
+
   const handleEditClick = (tx: Transaction) => {
       setEditingTransaction(tx);
       setShowAddModal(true);
   };
+
   const handleUpdatePrices = (newPrices: Record<string, number>) => {
       setManualPrices(prev => ({ ...prev, ...newPrices }));
   };
@@ -541,7 +544,6 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* MODALS */}
       <TransactionForm 
         isOpen={showAddModal} 
         onClose={() => setShowAddModal(false)} 
@@ -562,7 +564,6 @@ const App: React.FC = () => {
         onDeleteBroker={handleDeleteBroker}
       />
 
-      {/* --- NEW: API Key Manager --- */}
       <ApiKeyManager 
         isOpen={showApiKeyManager}
         onClose={() => setShowApiKeyManager(false)}
@@ -593,4 +594,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-}
