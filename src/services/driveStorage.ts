@@ -1,4 +1,3 @@
-
 // Google Drive Storage Service
 // Stores the entire application state in a single JSON file in the user's Google Drive.
 
@@ -32,7 +31,8 @@ const getEnv = (key: string) => {
 const RAW_ID = getEnv(CLIENT_ID_KEY) || getEnv('REACT_APP_GOOGLE_CLIENT_ID') || HARDCODED_CLIENT_ID;
 const CLIENT_ID = (RAW_ID && RAW_ID.includes('.apps.googleusercontent.com')) ? RAW_ID : undefined;
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+// --- FIX: Added 'email profile openid' to scopes ---
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid';
 const DB_FILE_NAME = 'psx_tracker_data.json';
 
 let tokenClient: any = null;
@@ -86,6 +86,7 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             accessToken = tokenResponse.access_token;
                             try {
+                                // Fetch user details using the access token
                                 const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                                     headers: { Authorization: `Bearer ${accessToken}` }
                                 });
@@ -96,6 +97,8 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
                                         email: user.email,
                                         picture: user.picture
                                     });
+                                } else {
+                                    console.error("Failed to fetch user profile", response.status);
                                 }
                             } catch (e) {
                                 console.error("Failed to fetch user info", e);
@@ -136,7 +139,8 @@ export const signInWithDrive = () => {
     // 3. Attempt Sign In
     try {
         if (tokenClient) {
-            tokenClient.requestAccessToken();
+            // Force prompt to ensure we get the new permissions
+            tokenClient.requestAccessToken({ prompt: 'consent' });
         } else {
             // Force init if waiting failed
             tokenClient = window.google.accounts.oauth2.initTokenClient({
@@ -145,11 +149,13 @@ export const signInWithDrive = () => {
                 callback: (resp: any) => { 
                     if (resp.access_token) {
                         accessToken = resp.access_token; 
-                        alert("Connected! Click Sync again if data doesn't load.");
+                        // Re-trigger initAuth callback logic manually if needed, 
+                        // but typically initDriveAuth's callback handles this.
+                        // We just alert here for the first successful connection.
                     }
                 }
             });
-            tokenClient.requestAccessToken();
+            tokenClient.requestAccessToken({ prompt: 'consent' });
         }
     } catch (e: any) {
         const changeId = confirm(
