@@ -21,7 +21,6 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   const [rate2, setRate2] = useState<number | ''>(0.05);
   const [sstRate, setSstRate] = useState<number | ''>(15);
 
-  // Pre-fill form for editing
   const handleEdit = (b: Broker) => {
     setEditingId(b.id);
     setName(b.name);
@@ -63,7 +62,8 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    // UPDATED Z-INDEX HERE: z-[60]
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
       <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-4xl flex flex-col max-h-[90vh]">
         
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
