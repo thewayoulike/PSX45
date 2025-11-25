@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from './types';
 import { Dashboard } from './components/DashboardStats';
 import { HoldingsTable } from './components/HoldingsTable';
@@ -35,18 +35,52 @@ const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
-  // App Data State
+  // --- LAZY INITIALIZATION (Fixes "Not Saving" on Refresh) ---
+  // We read LocalStorage *before* the component mounts so state is never empty.
+  
+  const [brokers, setBrokers] = useState<Broker[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_brokers');
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+      } catch (e) { console.error(e); }
+      return [DEFAULT_BROKER];
+  });
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_transactions');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return INITIAL_TRANSACTIONS as Transaction[];
+  });
+
+  const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_portfolios');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return [DEFAULT_PORTFOLIO];
+  });
+
+  const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(() => {
+      return localStorage.getItem('psx_current_portfolio_id') || DEFAULT_PORTFOLIO.id;
+  });
+
+  const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
+      try {
+          const saved = localStorage.getItem('psx_manual_prices');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return {};
+  });
+
+  // App Data State (UI)
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
-
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([DEFAULT_PORTFOLIO]);
-  const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(DEFAULT_PORTFOLIO.id);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   
-  // Brokers State
-  const [brokers, setBrokers] = useState<Broker[]>([DEFAULT_BROKER]);
-
   // UI State
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
@@ -61,90 +95,59 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
+  // Ref to track if we have done the initial cloud merge
+  const hasMergedCloud = useRef(false);
+
   // --- AUTHENTICATION & DATA LOADING ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
-          setIsCloudSyncing(true);
-          try {
-              const cloudData = await loadFromDrive();
-              if (cloudData) {
-                  if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
-                  if (cloudData.transactions) setTransactions(cloudData.transactions);
-                  if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
-                  if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                  
-                  // --- FIX: Smart Broker Merge (Prioritize Local Changes) ---
-                  if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
-                      setBrokers(prevBrokers => {
-                          const cloudBrokers = cloudData.brokers as Broker[];
-                          const localMap = new Map(prevBrokers.map(b => [b.id, b]));
-                          const cloudMap = new Map(cloudBrokers.map(b => [b.id, b]));
-
-                          // 1. Start with Local Brokers (Preserve your edits/adds)
-                          const merged = [...prevBrokers];
-
-                          // 2. Add any Cloud Brokers that are MISSING locally (Sync from other devices)
-                          cloudBrokers.forEach(cb => {
-                              if (!localMap.has(cb.id)) {
-                                  merged.push(cb);
-                              }
+          // Only load from drive if we haven't already merged this session
+          if (!hasMergedCloud.current) {
+              setIsCloudSyncing(true);
+              try {
+                  const cloudData = await loadFromDrive();
+                  if (cloudData) {
+                      hasMergedCloud.current = true; // Mark as merged
+                      
+                      if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
+                      if (cloudData.transactions) setTransactions(cloudData.transactions);
+                      if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
+                      if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
+                      
+                      // --- ROBUST BROKER MERGE ---
+                      if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
+                          setBrokers(currentLocalBrokers => {
+                              const cloudBrokers = cloudData.brokers as Broker[];
+                              const cloudIds = new Set(cloudBrokers.map(b => b.id));
+                              
+                              // Keep all Cloud Brokers
+                              // PLUS any Local Brokers that don't exist in Cloud (prevent data loss)
+                              const uniqueLocal = currentLocalBrokers.filter(b => !cloudIds.has(b.id));
+                              
+                              return [...cloudBrokers, ...uniqueLocal];
                           });
-
-                          return merged;
-                      });
+                      }
                   }
+              } catch (e) {
+                  console.error("Drive Load Error", e);
+              } finally {
+                  setIsCloudSyncing(false);
               }
-          } catch (e) {
-              console.error("Drive Load Error", e);
-          } finally {
-              setIsCloudSyncing(false);
           }
       });
-      loadFromLocalStorage();
   }, []);
 
-  const loadFromLocalStorage = () => {
-      try {
-          const savedPortfolios = localStorage.getItem('psx_portfolios');
-          const savedTx = localStorage.getItem('psx_transactions');
-          const savedPrices = localStorage.getItem('psx_manual_prices');
-          const savedPortId = localStorage.getItem('psx_current_portfolio_id');
-          const savedBrokers = localStorage.getItem('psx_brokers'); 
-
-          if (savedPortfolios) setPortfolios(JSON.parse(savedPortfolios));
-          if (savedPrices) setManualPrices(JSON.parse(savedPrices));
-          if (savedPortId) setCurrentPortfolioId(savedPortId);
-          
-          if (savedBrokers) {
-              const parsed = JSON.parse(savedBrokers);
-              if (Array.isArray(parsed) && parsed.length > 0) {
-                  setBrokers(parsed);
-              }
-          }
-
-          if (savedTx) {
-              let parsed: any[] = JSON.parse(savedTx);
-              if (parsed.length > 0 && !parsed[0].portfolioId) {
-                  parsed = parsed.map((t: any) => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
-              }
-              setTransactions(parsed);
-          } else {
-              setTransactions(INITIAL_TRANSACTIONS as Transaction[]);
-          }
-      } catch (e) { console.error("Local storage error", e); }
-  };
-
   // --- DATA SAVING ---
+  // We save to LocalStorage on EVERY change to ensure persistence
   useEffect(() => {
-      // 1. Local Backup
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
-      // 2. Cloud Sync
+      // Debounced Cloud Save
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
@@ -153,7 +156,7 @@ const App: React.FC = () => {
                   portfolios,
                   currentPortfolioId,
                   manualPrices,
-                  brokers // Ensure Brokers are passed to Save function
+                  brokers
               });
               setIsCloudSyncing(false);
           }, 3000); 
@@ -161,33 +164,45 @@ const App: React.FC = () => {
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser]);
 
-  // --- ACTIONS ---
-  
-  // FIX: Prompt to Sign In
-  const ensureAuth = () => {
+  // --- BROKER ACTIONS ---
+
+  // Helper: Prompt AFTER local save
+  const checkAuthAndPrompt = () => {
+      // We use a small timeout to let the UI update first, then alert
       if (!driveUser) {
-          const shouldLogin = confirm("You are currently using local storage.\n\nTo safely backup your Broker settings to the cloud, please Sign In to Google Drive.\n\nClick OK to Sign In.\nClick Cancel to continue locally.");
-          if (shouldLogin) {
-              signInWithDrive();
-          }
+          setTimeout(() => {
+              const shouldLogin = confirm("Broker saved to device.\n\n⚠️ Not backed up to Google Drive.\n\nSign in now to backup?");
+              if (shouldLogin) {
+                  signInWithDrive();
+              }
+          }, 200);
       }
   };
 
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
-      ensureAuth(); // Trigger Prompt
       const id = Date.now().toString();
+      // 1. SAVE LOCALLY FIRST (Reliable)
       setBrokers(prev => [...prev, { ...newBroker, id }]);
+      
+      // 2. Then check auth
+      checkAuthAndPrompt();
   };
 
   const handleUpdateBroker = (updated: Broker) => {
-      ensureAuth(); // Trigger Prompt
+      // 1. SAVE LOCALLY FIRST
       setBrokers(prev => prev.map(b => b.id === updated.id ? updated : b));
+      
+      // 2. Then check auth
+      checkAuthAndPrompt();
   };
 
   const handleDeleteBroker = (id: string) => {
-      ensureAuth(); // Trigger Prompt
-      if (confirm("Delete this broker setting? Existing transactions will retain their data.")) {
+      if (confirm("Delete this broker setting?")) {
+          // 1. SAVE LOCALLY FIRST
           setBrokers(prev => prev.filter(b => b.id !== id));
+          
+          // 2. Then check auth
+          checkAuthAndPrompt();
       }
   };
 
@@ -201,16 +216,11 @@ const App: React.FC = () => {
       setManualPrices({});
       setBrokers([DEFAULT_BROKER]);
       
-      localStorage.removeItem('psx_portfolios');
-      localStorage.removeItem('psx_transactions');
-      localStorage.removeItem('psx_manual_prices');
-      localStorage.removeItem('psx_current_portfolio_id');
-      localStorage.removeItem('psx_brokers');
-      
+      localStorage.clear(); // Clear all app data
       signOutDrive();
   };
 
-  // --- APP LOGIC ---
+  // --- APP LOGIC (Derived State) ---
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
           setCurrentPortfolioId(portfolios[0].id);
