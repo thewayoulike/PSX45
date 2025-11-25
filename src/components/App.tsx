@@ -19,7 +19,7 @@ import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDriv
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
-// --- NEW: Default Broker Definition ---
+// Default Broker Definition
 const DEFAULT_BROKER: Broker = {
     id: 'default_01',
     name: 'Standard Broker',
@@ -44,7 +44,7 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   
-  // --- NEW: Brokers State ---
+  // Brokers State
   const [brokers, setBrokers] = useState<Broker[]>([DEFAULT_BROKER]);
 
   // UI State
@@ -74,11 +74,11 @@ const App: React.FC = () => {
                   if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   
-                  // --- NEW: Load Brokers from Drive ---
+                  // FIXED: Only update brokers if the Cloud file actually HAS them.
+                  // We do NOT use an 'else' block here, so we don't accidentally overwrite 
+                  // your local/default brokers with nothing if the file is old.
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
-                  } else {
-                      setBrokers([DEFAULT_BROKER]);
                   }
               }
           } catch (e) {
@@ -102,16 +102,11 @@ const App: React.FC = () => {
           if (savedPrices) setManualPrices(JSON.parse(savedPrices));
           if (savedPortId) setCurrentPortfolioId(savedPortId);
           
-          // --- NEW: Load Brokers from Local Storage ---
           if (savedBrokers) {
               const parsed = JSON.parse(savedBrokers);
               if (Array.isArray(parsed) && parsed.length > 0) {
                   setBrokers(parsed);
-              } else {
-                  setBrokers([DEFAULT_BROKER]);
               }
-          } else { 
-              setBrokers([DEFAULT_BROKER]);
           }
 
           if (savedTx) {
@@ -128,23 +123,24 @@ const App: React.FC = () => {
 
   // --- DATA SAVING ---
   useEffect(() => {
+      // Even if you don't rely on local storage, we save it as a backup
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
-      
-      // --- NEW: Save Brokers to Local Storage ---
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
+      // Sync to Google Drive
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
+              // This object structure MUST match what loadFromDrive expects
               await saveToDrive({
                   transactions,
                   portfolios,
                   currentPortfolioId,
                   manualPrices,
-                  brokers // --- NEW: Sync Brokers to Drive ---
+                  brokers // Passing the 'brokers' state variable here
               });
               setIsCloudSyncing(false);
           }, 3000); 
@@ -154,7 +150,6 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
   
-  // --- NEW: Broker Handlers ---
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       setBrokers(prev => [...prev, { ...newBroker, id }]);
@@ -178,7 +173,7 @@ const App: React.FC = () => {
       setHoldings([]);
       setRealizedTrades([]);
       setManualPrices({});
-      setBrokers([DEFAULT_BROKER]); // Reset brokers
+      setBrokers([DEFAULT_BROKER]);
       
       localStorage.removeItem('psx_portfolios');
       localStorage.removeItem('psx_transactions');
