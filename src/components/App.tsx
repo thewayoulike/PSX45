@@ -1,5 +1,9 @@
+{
+type: uploaded file
+fileName: src/components/App.tsx
+fullContent:
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from './types';
+import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from '../types';
 import { Dashboard } from './components/DashboardStats';
 import { HoldingsTable } from './components/HoldingsTable';
 import { RealizedTable } from './components/RealizedTable';
@@ -8,10 +12,12 @@ import { TransactionForm } from './components/TransactionForm';
 import { BrokerManager } from './components/BrokerManager';
 import { PriceEditor } from './components/PriceEditor';
 import { DividendScanner } from './components/DividendScanner';
+import { ApiKeyManager } from './components/ApiKeyManager'; // NEW IMPORT
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase } from 'lucide-react';
+import { setGeminiApiKey } from './services/gemini'; // NEW IMPORT
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Settings } from 'lucide-react';
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
 
@@ -72,6 +78,9 @@ const App: React.FC = () => {
       return {};
   });
 
+  // --- NEW: API Key State ---
+  const [userApiKey, setUserApiKey] = useState<string>('');
+
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
   
@@ -87,13 +96,14 @@ const App: React.FC = () => {
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
   const [showBrokerManager, setShowBrokerManager] = useState(false);
+  const [showApiKeyManager, setShowApiKeyManager] = useState(false); // NEW MODAL STATE
 
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
   const hasMergedCloud = useRef(false);
 
-  // --- AUTH ---
+  // --- AUTH & LOAD ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -117,6 +127,12 @@ const App: React.FC = () => {
                               return merged;
                           });
                       }
+
+                      // --- LOAD API KEY ---
+                      if (cloudData.geminiApiKey) {
+                          setUserApiKey(cloudData.geminiApiKey);
+                          setGeminiApiKey(cloudData.geminiApiKey); // Initialize Service
+                      }
                   }
               } catch (e) { console.error("Drive Load Error", e); } 
               finally { setIsCloudSyncing(false); }
@@ -131,44 +147,51 @@ const App: React.FC = () => {
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
+      // Note: We don't save API Key to localStorage for security, only to Drive.
       
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
               await saveToDrive({
-                  transactions, portfolios, currentPortfolioId, manualPrices, brokers
+                  transactions, 
+                  portfolios, 
+                  currentPortfolioId, 
+                  manualPrices, 
+                  brokers,
+                  geminiApiKey: userApiKey // --- SAVE API KEY ---
               });
               setIsCloudSyncing(false);
           }, 3000); 
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser, userApiKey]);
 
   // --- HANDLERS ---
+  const handleSaveApiKey = (key: string) => {
+      setUserApiKey(key);
+      setGeminiApiKey(key);
+      // Trigger a save immediately if connected
+      if (driveUser) {
+          saveToDrive({
+              transactions, portfolios, currentPortfolioId, manualPrices, brokers,
+              geminiApiKey: key
+          });
+      }
+  };
+
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       const updatedBrokers = [...brokers, { ...newBroker, id }];
-      
       setBrokers(updatedBrokers);
       localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
-
-      if (!driveUser) {
-          if (window.confirm("Broker saved locally. Sign in to Google Drive to backup?")) {
-              signInWithDrive();
-          }
-      }
+      if (!driveUser && window.confirm("Broker saved locally. Sign in to Drive to backup?")) signInWithDrive();
   };
 
   const handleUpdateBroker = (updated: Broker) => {
       const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b);
       setBrokers(updatedBrokers);
       localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
-      
-      if (!driveUser) {
-          if (window.confirm("Broker updated locally. Sign in to Google Drive to backup?")) {
-              signInWithDrive();
-          }
-      }
+      if (!driveUser && window.confirm("Broker updated locally. Sign in to Drive to backup?")) signInWithDrive();
   };
 
   const handleDeleteBroker = (id: string) => {
@@ -176,19 +199,15 @@ const App: React.FC = () => {
           const updatedBrokers = brokers.filter(b => b.id !== id);
           setBrokers(updatedBrokers);
           localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
-          
-          if (!driveUser) {
-              if (window.confirm("Broker deleted. Sign in to Google Drive to sync?")) {
-                  signInWithDrive();
-              }
-          }
+          if (!driveUser && window.confirm("Broker deleted. Sign in to Drive to sync?")) signInWithDrive();
       }
   };
 
   const handleLogin = () => signInWithDrive();
   const handleLogout = () => {
       if (window.confirm("Logout and clear local data?")) {
-          setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); setManualPrices({}); setBrokers([DEFAULT_BROKER]);
+          setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
+          setManualPrices({}); setBrokers([DEFAULT_BROKER]); setUserApiKey(''); setGeminiApiKey(null);
           localStorage.clear();
           signOutDrive();
       }
@@ -324,28 +343,25 @@ const App: React.FC = () => {
     return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, totalDividends, dailyPL: 0 };
   }, [holdings, realizedTrades, totalDividends]);
 
+  // ... Transaction Handlers (same as before) ...
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
     const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
     const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
     setTransactions(prev => [...prev, newTx]);
   };
-
   const handleUpdateTransaction = (updatedTx: Transaction) => {
     setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
     setEditingTransaction(null);
   };
-
   const handleDeleteTransaction = (id: string) => {
     if (window.confirm("Are you sure you want to delete this transaction?")) {
         setTransactions(prev => prev.filter(t => t.id !== id));
     }
   };
-
   const handleEditClick = (tx: Transaction) => {
       setEditingTransaction(tx);
       setShowAddModal(true);
   };
-
   const handleUpdatePrices = (newPrices: Record<string, number>) => {
       setManualPrices(prev => ({ ...prev, ...newPrices }));
   };
@@ -353,38 +369,24 @@ const App: React.FC = () => {
   const handleSyncPrices = async () => {
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
       if (uniqueTickers.length === 0) return;
-
       setIsSyncing(true);
       setPriceError(false);
       setFailedTickers(new Set()); 
-
       try {
           const newPrices = await fetchBatchPSXPrices(uniqueTickers);
           const failed = new Set<string>();
           const validUpdates: Record<string, number> = {};
-
           uniqueTickers.forEach(ticker => {
               const price = newPrices[ticker];
-              if (price !== undefined && price > 0) {
-                  validUpdates[ticker] = price;
-              } else {
-                  failed.add(ticker); 
-              }
+              if (price !== undefined && price > 0) validUpdates[ticker] = price;
+              else failed.add(ticker); 
           });
-
-          if (Object.keys(validUpdates).length > 0) {
-              setManualPrices(prev => ({ ...prev, ...validUpdates }));
-          }
+          if (Object.keys(validUpdates).length > 0) setManualPrices(prev => ({ ...prev, ...validUpdates }));
           if (failed.size > 0) {
               setFailedTickers(failed);
               setPriceError(true);
           }
-      } catch (e) {
-          console.error(e);
-          setPriceError(true);
-      } finally {
-          setIsSyncing(false);
-      }
+      } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); }
   };
 
   const handleCreatePortfolio = (e: React.FormEvent) => {
@@ -399,10 +401,7 @@ const App: React.FC = () => {
   };
 
   const handleDeletePortfolio = () => {
-      if (portfolios.length === 1) {
-          alert("You cannot delete the last portfolio.");
-          return;
-      }
+      if (portfolios.length === 1) return alert("You cannot delete the last portfolio.");
       if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
           const idToDelete = currentPortfolioId;
           const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
@@ -494,6 +493,11 @@ const App: React.FC = () => {
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
                         <Coins size={18} /> Scan Dividends
                     </button>
+
+                    {/* --- NEW: API Key Button --- */}
+                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 px-3 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings">
+                        <Settings size={18} />
+                    </button>
                 </div>
                 
                 <div className="flex flex-wrap gap-3">
@@ -562,6 +566,15 @@ const App: React.FC = () => {
         onDeleteBroker={handleDeleteBroker}
       />
 
+      {/* --- NEW: API Key Manager --- */}
+      <ApiKeyManager 
+        isOpen={showApiKeyManager}
+        onClose={() => setShowApiKeyManager(false)}
+        apiKey={userApiKey}
+        onSave={handleSaveApiKey}
+        isDriveConnected={!!driveUser}
+      />
+
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
       
@@ -584,3 +597,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+}
