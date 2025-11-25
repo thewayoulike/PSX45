@@ -74,19 +74,18 @@ const App: React.FC = () => {
                   if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   
-                  // --- IMPROVED LOGIC: Merge Cloud Brokers with Local Brokers ---
-                  // This prevents the "Add Broker" -> "Login" -> "Overwrite/Loss" issue.
+                  // --- SMART MERGING LOGIC ---
+                  // Check if Cloud has brokers. If so, merge them with Local brokers 
+                  // to ensure we don't lose the one you just added before logging in.
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(prevBrokers => {
                           const cloudBrokers = cloudData.brokers as Broker[];
                           const cloudIds = new Set(cloudBrokers.map(b => b.id));
                           
-                          // Keep all cloud brokers + any local brokers that aren't in the cloud yet
+                          // Find local brokers that are NOT in the cloud yet (e.g., the one you just added)
                           const newLocalBrokers = prevBrokers.filter(b => !cloudIds.has(b.id));
                           
-                          // If local broker has same ID but is "newer", we might want logic, 
-                          // but for now, we prioritize preserving the list structure.
-                          // Merging ensures newly added brokers survive the sync.
+                          // Merge: Keep Cloud data as source of truth + append new local items
                           return [...cloudBrokers, ...newLocalBrokers];
                       });
                   }
@@ -133,14 +132,14 @@ const App: React.FC = () => {
 
   // --- DATA SAVING ---
   useEffect(() => {
-      // Local Backup
+      // 1. Always save to Local Storage (Backup)
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
-      // Cloud Sync
+      // 2. Sync to Google Drive (if logged in)
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
@@ -149,7 +148,7 @@ const App: React.FC = () => {
                   portfolios,
                   currentPortfolioId,
                   manualPrices,
-                  brokers // Broker state is saved here
+                  brokers // Broker state is synced here
               });
               setIsCloudSyncing(false);
           }, 3000); 
@@ -159,31 +158,31 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
   
-  // Helper to Prompt Login
-  const ensureAuthForBroker = () => {
+  // Helper: Prompt user to login if they try to save broker data while logged out
+  const ensureAuth = () => {
       if (!driveUser) {
-          const proceed = confirm("Sync with Google Drive to save Brokers securely?\n\nClick OK to Sign In to Drive.\nClick Cancel to continue locally (unsaved in cloud).");
-          if (proceed) {
+          const shouldLogin = confirm("You are currently using local storage.\n\nTo safely backup your Broker settings to the cloud, please Sign In to Google Drive.\n\nClick OK to Sign In, or Cancel to continue locally.");
+          if (shouldLogin) {
               signInWithDrive();
           }
       }
   };
 
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
-      ensureAuthForBroker(); // Trigger Prompt
+      ensureAuth(); // Trigger Login Prompt
       
       const id = Date.now().toString();
       setBrokers(prev => [...prev, { ...newBroker, id }]);
   };
 
   const handleUpdateBroker = (updated: Broker) => {
-      ensureAuthForBroker(); // Trigger Prompt
+      ensureAuth(); // Trigger Login Prompt
       
       setBrokers(prev => prev.map(b => b.id === updated.id ? updated : b));
   };
 
   const handleDeleteBroker = (id: string) => {
-      ensureAuthForBroker(); // Trigger Prompt
+      ensureAuth(); // Trigger Login Prompt
       
       if (confirm("Delete this broker setting? Existing transactions will retain their data.")) {
           setBrokers(prev => prev.filter(b => b.id !== id));
