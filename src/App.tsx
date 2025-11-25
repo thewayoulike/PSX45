@@ -46,6 +46,7 @@ const App: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   
   // NEW: Track which tickers failed to update
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
@@ -143,14 +144,21 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
-      // 1. Clear all local data so the screen goes blank immediately/on reload
+      // 1. Explicitly clear React State FIRST to ensure useEffect writes empty data to LS if triggered
+      setTransactions([]);
+      setPortfolios([DEFAULT_PORTFOLIO]);
+      setHoldings([]);
+      setRealizedTrades([]);
+      setManualPrices({});
+      
+      // 2. Clear all local data explicitly
       localStorage.removeItem('psx_portfolios');
       localStorage.removeItem('psx_transactions');
       localStorage.removeItem('psx_manual_prices');
       localStorage.removeItem('psx_current_portfolio_id');
       localStorage.removeItem('psx_custom_brokers');
       
-      // 2. Sign out (Revokes token & reloads page)
+      // 3. Sign out (Revokes token & reloads page)
       signOutDrive();
   };
 
@@ -307,8 +315,20 @@ const App: React.FC = () => {
     setTransactions(prev => [...prev, newTx]);
   };
 
+  const handleUpdateTransaction = (updatedTx: Transaction) => {
+    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setEditingTransaction(null);
+  };
+
   const handleDeleteTransaction = (id: string) => {
-    setTransactions(prev => prev.filter(t => t.id !== id));
+    if (confirm("Are you sure you want to delete this transaction?")) {
+        setTransactions(prev => prev.filter(t => t.id !== id));
+    }
+  };
+
+  const handleEditClick = (tx: Transaction) => {
+      setEditingTransaction(tx);
+      setShowAddModal(true);
   };
 
   const handleUpdatePrices = (newPrices: Record<string, number>) => {
@@ -461,7 +481,7 @@ const App: React.FC = () => {
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div className="flex items-center gap-2">
-                    <button onClick={() => setShowAddModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
+                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
                         <Plus size={18} /> Add Transaction
                     </button>
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
@@ -506,12 +526,23 @@ const App: React.FC = () => {
             />
 
             <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
-            <TransactionList transactions={portfolioTransactions} onDelete={handleDeleteTransaction} />
+            <TransactionList 
+                transactions={portfolioTransactions} 
+                onDelete={handleDeleteTransaction} 
+                onEdit={handleEditClick} 
+            />
         </main>
       </div>
 
       {/* MODALS */}
-      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} existingTransactions={transactions} />
+      <TransactionForm 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+        onAddTransaction={handleAddTransaction}
+        onUpdateTransaction={handleUpdateTransaction}
+        existingTransactions={transactions}
+        editingTransaction={editingTransaction} 
+      />
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
       
