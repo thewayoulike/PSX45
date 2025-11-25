@@ -1,41 +1,81 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio } from '../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from './types';
 import { Dashboard } from './components/DashboardStats';
 import { HoldingsTable } from './components/HoldingsTable';
 import { RealizedTable } from './components/RealizedTable';
 import { TransactionList } from './components/TransactionList';
 import { TransactionForm } from './components/TransactionForm';
+import { BrokerManager } from './components/BrokerManager'; // Import the new component
 import { PriceEditor } from './components/PriceEditor';
 import { DividendScanner } from './components/DividendScanner';
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, AlertTriangle, Copy, Settings } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase } from 'lucide-react';
 
-// Drive Storage Imports
+// ... imports for driveStorage ...
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
 
-// Initial Data: Empty array so the app is blank when logged out
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
-
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
+const DEFAULT_BROKER: Broker = {
+    id: 'default_01',
+    name: 'Standard Broker',
+    commissionType: 'HIGHER_OF',
+    rate1: 0.15, 
+    rate2: 0.05, 
+    sstRate: 15,
+    isDefault: true
+};
+
 const App: React.FC = () => {
-  // Auth State
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
-  // App Data State
+  // --- 1. ROBUST INITIALIZATION ---
+  const [brokers, setBrokers] = useState<Broker[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_brokers');
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+      } catch (e) { console.error(e); }
+      return [DEFAULT_BROKER];
+  });
+
+  const [transactions, setTransactions] = useState<Transaction[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_transactions');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return INITIAL_TRANSACTIONS as Transaction[];
+  });
+
+  const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_portfolios');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return [DEFAULT_PORTFOLIO];
+  });
+
+  const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(() => {
+      return localStorage.getItem('psx_current_portfolio_id') || DEFAULT_PORTFOLIO.id;
+  });
+
+  const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
+      try {
+          const saved = localStorage.getItem('psx_manual_prices');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return {};
+  });
+
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
-
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([DEFAULT_PORTFOLIO]);
-  const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(DEFAULT_PORTFOLIO.id);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
-  const [customBrokers, setCustomBrokers] = useState<any[]>([]);
-
-  // UI State
+  
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -43,127 +83,122 @@ const App: React.FC = () => {
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
+  
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
+  const [showBrokerManager, setShowBrokerManager] = useState(false); // NEW STATE
+
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-  
-  // NEW: Track which tickers failed to update
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
-  // --- AUTHENTICATION & DATA LOADING ---
+  const hasMergedCloud = useRef(false);
 
+  // --- AUTH ---
   useEffect(() => {
-      // Initialize Google Drive Auth
       initDriveAuth(async (user) => {
           setDriveUser(user);
-          // Load data from Drive upon Login
-          setIsCloudSyncing(true);
-          try {
-              const cloudData = await loadFromDrive();
-              if (cloudData) {
-                  if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
-                  if (cloudData.transactions) setTransactions(cloudData.transactions);
-                  if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
-                  if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                  if (cloudData.customBrokers) {
-                      localStorage.setItem('psx_custom_brokers', JSON.stringify(cloudData.customBrokers));
-                      setCustomBrokers(cloudData.customBrokers);
+          if (!hasMergedCloud.current) {
+              setIsCloudSyncing(true);
+              try {
+                  const cloudData = await loadFromDrive();
+                  if (cloudData) {
+                      hasMergedCloud.current = true;
+                      if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
+                      if (cloudData.transactions) setTransactions(cloudData.transactions);
+                      if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
+                      if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
+                      
+                      // SAFE MERGE
+                      if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
+                          setBrokers(currentLocal => {
+                              const localIds = new Set(currentLocal.map(b => b.id));
+                              const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
+                              const merged = [...currentLocal, ...missingLocally];
+                              localStorage.setItem('psx_brokers', JSON.stringify(merged));
+                              return merged;
+                          });
+                      }
                   }
-              }
-          } catch (e) {
-              console.error("Drive Load Error", e);
-          } finally {
-              setIsCloudSyncing(false);
+              } catch (e) { console.error("Drive Load Error", e); } 
+              finally { setIsCloudSyncing(false); }
           }
       });
-
-      // Load from LocalStorage initially
-      loadFromLocalStorage();
   }, []);
 
-  // Helper to load local data
-  const loadFromLocalStorage = () => {
-      try {
-          const savedPortfolios = localStorage.getItem('psx_portfolios');
-          const savedTx = localStorage.getItem('psx_transactions');
-          const savedPrices = localStorage.getItem('psx_manual_prices');
-          const savedPortId = localStorage.getItem('psx_current_portfolio_id');
-          const savedBrokers = localStorage.getItem('psx_custom_brokers');
-
-          if (savedPortfolios) setPortfolios(JSON.parse(savedPortfolios));
-          if (savedPrices) setManualPrices(JSON.parse(savedPrices));
-          if (savedPortId) setCurrentPortfolioId(savedPortId);
-          if (savedBrokers) setCustomBrokers(JSON.parse(savedBrokers));
-
-          if (savedTx) {
-              let parsed: any[] = JSON.parse(savedTx);
-              if (parsed.length > 0 && !parsed[0].portfolioId) {
-                  parsed = parsed.map(t => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
-              }
-              setTransactions(parsed);
-          } else {
-              setTransactions(INITIAL_TRANSACTIONS as Transaction[]);
-          }
-      } catch (e) {
-          console.error("Local storage error", e);
-      }
-  };
-
-  // --- DATA SAVING ---
-
+  // --- SAVE ---
   useEffect(() => {
-      // Always save to LocalStorage
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
+      localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
-      // If Logged In, Sync to Google Drive
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
               await saveToDrive({
-                  transactions,
-                  portfolios,
-                  currentPortfolioId,
-                  manualPrices,
-                  customBrokers: JSON.parse(localStorage.getItem('psx_custom_brokers') || '[]')
+                  transactions, portfolios, currentPortfolioId, manualPrices, brokers
               });
               setIsCloudSyncing(false);
-          }, 3000); // 3 second debounce to avoid spamming Drive API
+          }, 3000); 
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, driveUser]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser]);
 
+  // --- HANDLERS ---
+  const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
+      const id = Date.now().toString();
+      const updatedBrokers = [...brokers, { ...newBroker, id }];
+      
+      setBrokers(updatedBrokers);
+      localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
 
-  // --- AUTH ACTIONS ---
-
-  const handleLogin = () => {
-      signInWithDrive();
+      if (!driveUser) {
+          if (window.confirm("Broker saved locally. Sign in to Google Drive to backup?")) {
+              signInWithDrive();
+          }
+      }
   };
 
+  const handleUpdateBroker = (updated: Broker) => {
+      const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b);
+      setBrokers(updatedBrokers);
+      localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
+      
+      if (!driveUser) {
+          if (window.confirm("Broker updated locally. Sign in to Google Drive to backup?")) {
+              signInWithDrive();
+          }
+      }
+  };
+
+  const handleDeleteBroker = (id: string) => {
+      if (window.confirm("Delete this broker?")) {
+          const updatedBrokers = brokers.filter(b => b.id !== id);
+          setBrokers(updatedBrokers);
+          localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
+          
+          if (!driveUser) {
+              if (window.confirm("Broker deleted. Sign in to Google Drive to sync?")) {
+                  signInWithDrive();
+              }
+          }
+      }
+  };
+
+  // ... other handlers (handleLogin, handleLogout, etc - same as before)
+  const handleLogin = () => signInWithDrive();
   const handleLogout = () => {
-      // 1. Explicitly clear React State FIRST to ensure useEffect writes empty data to LS if triggered
-      setTransactions([]);
-      setPortfolios([DEFAULT_PORTFOLIO]);
-      setHoldings([]);
-      setRealizedTrades([]);
-      setManualPrices({});
-      
-      // 2. Clear all local data explicitly
-      localStorage.removeItem('psx_portfolios');
-      localStorage.removeItem('psx_transactions');
-      localStorage.removeItem('psx_manual_prices');
-      localStorage.removeItem('psx_current_portfolio_id');
-      localStorage.removeItem('psx_custom_brokers');
-      
-      // 3. Sign out (Revokes token & reloads page)
-      signOutDrive();
+      if (window.confirm("Logout and clear local data?")) {
+          setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); setManualPrices({}); setBrokers([DEFAULT_BROKER]);
+          localStorage.clear();
+          signOutDrive();
+      }
   };
 
-  // --- APP LOGIC ---
-
+  // ... calculations (same as before)
+  // --- APP LOGIC (Same Logic Block as previous code) ---
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
           setCurrentPortfolioId(portfolios[0].id);
@@ -195,13 +230,7 @@ const App: React.FC = () => {
     const sortedTx = [...displayedTransactions].sort((a, b) => {
         const dateA = a.date || '';
         const dateB = b.date || '';
-        if (!dateA && !dateB) return 0;
-        if (!dateA) return -1;
-        if (!dateB) return 1;
-        const dateCompare = dateA.localeCompare(dateB);
-        if (dateCompare !== 0) return dateCompare;
-        const typeOrder = { 'BUY': 0, 'DIVIDEND': 1, 'SELL': 2 };
-        return typeOrder[a.type] - typeOrder[b.type];
+        return dateA.localeCompare(dateB);
     });
 
     sortedTx.forEach(tx => {
@@ -288,27 +317,18 @@ const App: React.FC = () => {
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0;
     let totalCost = 0;
-
     holdings.forEach(h => {
       totalValue += h.quantity * h.currentPrice;
       totalCost += h.quantity * h.avgPrice;
     });
-
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
 
-    return {
-      totalValue,
-      totalCost,
-      unrealizedPL,
-      unrealizedPLPercent,
-      realizedPL,
-      totalDividends,
-      dailyPL: 0
-    };
+    return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, totalDividends, dailyPL: 0 };
   }, [holdings, realizedTrades, totalDividends]);
 
+  // ... Handlers for Transactions/Portfolio
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
     const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
     const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
@@ -321,7 +341,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    if (confirm("Are you sure you want to delete this transaction?")) {
+    if (window.confirm("Are you sure you want to delete this transaction?")) {
         setTransactions(prev => prev.filter(t => t.id !== id));
     }
   };
@@ -335,43 +355,35 @@ const App: React.FC = () => {
       setManualPrices(prev => ({ ...prev, ...newPrices }));
   };
   
-  // --- UPDATED SYNC FUNCTION (Handles Errors) ---
   const handleSyncPrices = async () => {
-      const uniqueTickers: string[] = Array.from(new Set(holdings.map(h => h.ticker)));
+      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
       if (uniqueTickers.length === 0) return;
 
       setIsSyncing(true);
       setPriceError(false);
-      setFailedTickers(new Set()); // Reset errors
+      setFailedTickers(new Set()); 
 
       try {
-          // 1. Bulk Fetch all prices
           const newPrices = await fetchBatchPSXPrices(uniqueTickers);
-          
-          // 2. Identify missing tickers OR tickers with zero price
           const failed = new Set<string>();
           const validUpdates: Record<string, number> = {};
 
           uniqueTickers.forEach(ticker => {
               const price = newPrices[ticker];
-              // STRICT CHECK: Must exist AND be greater than 0
               if (price !== undefined && price > 0) {
                   validUpdates[ticker] = price;
               } else {
-                  failed.add(ticker); // Flag as failed if price is missing or 0
+                  failed.add(ticker); 
               }
           });
 
-          // 3. Update State
           if (Object.keys(validUpdates).length > 0) {
               setManualPrices(prev => ({ ...prev, ...validUpdates }));
           }
-          
           if (failed.size > 0) {
               setFailedTickers(failed);
-              setPriceError(true); // Show global warning dot
+              setPriceError(true);
           }
-
       } catch (e) {
           console.error(e);
           setPriceError(true);
@@ -396,7 +408,7 @@ const App: React.FC = () => {
           alert("You cannot delete the last portfolio.");
           return;
       }
-      if (confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
+      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
           const idToDelete = currentPortfolioId;
           const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
           setCurrentPortfolioId(nextPort.id);
@@ -405,13 +417,9 @@ const App: React.FC = () => {
       }
   };
 
-  const getCleanOrigin = () => {
-      if (typeof window !== 'undefined') return window.location.origin; 
-      return '';
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
+      {/* ... Background Effect ... */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div>
@@ -439,7 +447,7 @@ const App: React.FC = () => {
                                 <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div>
                             )}
                             <div className="flex flex-col">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced (Drive)</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
                                 <span className="text-xs font-bold text-slate-800 max-w-[100px] truncate">{driveUser.name}</span>
                             </div>
                             <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
@@ -484,6 +492,12 @@ const App: React.FC = () => {
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
                         <Plus size={18} /> Add Transaction
                     </button>
+                    
+                    {/* --- NEW: Brokers Button --- */}
+                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
+                        <Briefcase size={18} /> Brokers
+                    </button>
+
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
                         <Coins size={18} /> Scan Dividends
                     </button>
@@ -522,7 +536,7 @@ const App: React.FC = () => {
             <HoldingsTable 
                 holdings={holdings} 
                 showBroker={groupByBroker} 
-                failedTickers={failedTickers} // Pass the error list
+                failedTickers={failedTickers} 
             />
 
             <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
@@ -541,8 +555,20 @@ const App: React.FC = () => {
         onAddTransaction={handleAddTransaction}
         onUpdateTransaction={handleUpdateTransaction}
         existingTransactions={transactions}
-        editingTransaction={editingTransaction} 
+        editingTransaction={editingTransaction}
+        brokers={brokers}
       />
+      
+      {/* --- NEW: Broker Manager Modal --- */}
+      <BrokerManager 
+        isOpen={showBrokerManager}
+        onClose={() => setShowBrokerManager(false)}
+        brokers={brokers}
+        onAddBroker={handleAddBroker}
+        onUpdateBroker={handleUpdateBroker}
+        onDeleteBroker={handleDeleteBroker}
+      />
+
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
       
