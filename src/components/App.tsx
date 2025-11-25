@@ -10,7 +10,7 @@ import { DividendScanner } from './components/DividendScanner';
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, CloudOff, Cloud } from 'lucide-react';
 
 // Drive Storage Imports
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
@@ -19,13 +19,12 @@ import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDriv
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
-// Default Broker Definition
 const DEFAULT_BROKER: Broker = {
     id: 'default_01',
     name: 'Standard Broker',
     commissionType: 'HIGHER_OF',
-    rate1: 0.15, // 0.15%
-    rate2: 0.05, // 0.05 per share
+    rate1: 0.15,
+    rate2: 0.05,
     sstRate: 15,
     isDefault: true
 };
@@ -34,10 +33,9 @@ const App: React.FC = () => {
   // Auth State
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [showSyncModal, setShowSyncModal] = useState(false); // NEW: Custom Sync Modal State
 
-  // --- LAZY INITIALIZATION (Fixes "Not Saving" on Refresh) ---
-  // We read LocalStorage *before* the component mounts so state is never empty.
-  
+  // --- LAZY INITIALIZATION (Ensures Local Data Loads First) ---
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
           const saved = localStorage.getItem('psx_brokers');
@@ -95,37 +93,33 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
-  // Ref to track if we have done the initial cloud merge
   const hasMergedCloud = useRef(false);
 
   // --- AUTHENTICATION & DATA LOADING ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
-          // Only load from drive if we haven't already merged this session
           if (!hasMergedCloud.current) {
               setIsCloudSyncing(true);
               try {
                   const cloudData = await loadFromDrive();
                   if (cloudData) {
-                      hasMergedCloud.current = true; // Mark as merged
+                      hasMergedCloud.current = true;
                       
                       if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                       
-                      // --- ROBUST BROKER MERGE ---
+                      // --- FIX: SAFE BROKER MERGE ---
+                      // We prioritize LOCAL data. Only add Cloud items if they are missing locally.
                       if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
-                          setBrokers(currentLocalBrokers => {
-                              const cloudBrokers = cloudData.brokers as Broker[];
-                              const cloudIds = new Set(cloudBrokers.map(b => b.id));
-                              
-                              // Keep all Cloud Brokers
-                              // PLUS any Local Brokers that don't exist in Cloud (prevent data loss)
-                              const uniqueLocal = currentLocalBrokers.filter(b => !cloudIds.has(b.id));
-                              
-                              return [...cloudBrokers, ...uniqueLocal];
+                          setBrokers(currentLocal => {
+                              const localIds = new Set(currentLocal.map(b => b.id));
+                              // Find cloud brokers that are NOT on this device
+                              const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
+                              // Keep local state exactly as is, append missing cloud items
+                              return [...currentLocal, ...missingLocally];
                           });
                       }
                   }
@@ -139,7 +133,6 @@ const App: React.FC = () => {
   }, []);
 
   // --- DATA SAVING ---
-  // We save to LocalStorage on EVERY change to ensure persistence
   useEffect(() => {
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
@@ -147,7 +140,6 @@ const App: React.FC = () => {
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
-      // Debounced Cloud Save
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
@@ -166,58 +158,48 @@ const App: React.FC = () => {
 
   // --- BROKER ACTIONS ---
 
-  // Helper: Prompt AFTER local save
-  const checkAuthAndPrompt = () => {
-      // We use a small timeout to let the UI update first, then alert
+  const checkAuth = () => {
       if (!driveUser) {
-          setTimeout(() => {
-              const shouldLogin = confirm("Broker saved to device.\n\n⚠️ Not backed up to Google Drive.\n\nSign in now to backup?");
-              if (shouldLogin) {
-                  signInWithDrive();
-              }
-          }, 200);
+          setShowSyncModal(true);
       }
   };
 
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
-      // 1. SAVE LOCALLY FIRST (Reliable)
+      // 1. Immediate Local Save
       setBrokers(prev => [...prev, { ...newBroker, id }]);
-      
-      // 2. Then check auth
-      checkAuthAndPrompt();
+      // 2. Prompt for Cloud
+      checkAuth();
   };
 
   const handleUpdateBroker = (updated: Broker) => {
-      // 1. SAVE LOCALLY FIRST
       setBrokers(prev => prev.map(b => b.id === updated.id ? updated : b));
-      
-      // 2. Then check auth
-      checkAuthAndPrompt();
+      checkAuth();
   };
 
   const handleDeleteBroker = (id: string) => {
       if (confirm("Delete this broker setting?")) {
-          // 1. SAVE LOCALLY FIRST
           setBrokers(prev => prev.filter(b => b.id !== id));
-          
-          // 2. Then check auth
-          checkAuthAndPrompt();
+          checkAuth();
       }
   };
 
-  const handleLogin = () => signInWithDrive();
+  const handleLogin = () => {
+      setShowSyncModal(false);
+      signInWithDrive();
+  };
 
   const handleLogout = () => {
-      setTransactions([]);
-      setPortfolios([DEFAULT_PORTFOLIO]);
-      setHoldings([]);
-      setRealizedTrades([]);
-      setManualPrices({});
-      setBrokers([DEFAULT_BROKER]);
-      
-      localStorage.clear(); // Clear all app data
-      signOutDrive();
+      if (confirm("Are you sure you want to logout? Local data will be cleared.")) {
+          setTransactions([]);
+          setPortfolios([DEFAULT_PORTFOLIO]);
+          setHoldings([]);
+          setRealizedTrades([]);
+          setManualPrices({});
+          setBrokers([DEFAULT_BROKER]);
+          localStorage.clear();
+          signOutDrive();
+      }
   };
 
   // --- APP LOGIC (Derived State) ---
@@ -579,6 +561,31 @@ const App: React.FC = () => {
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
       
+      {/* CUSTOM SYNC MODAL */}
+      {showSyncModal && (
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200">
+                  <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-600">
+                      <Save size={32} />
+                  </div>
+                  <h3 className="text-lg font-bold text-slate-800 mb-2">Broker Saved Locally</h3>
+                  <p className="text-slate-500 text-sm mb-6">
+                      Your broker settings are saved on this device. <br/>
+                      <span className="font-semibold text-slate-700">Sign in to Google Drive</span> to backup your data and access it from other devices.
+                  </p>
+                  
+                  <div className="flex flex-col gap-3">
+                      <button onClick={handleLogin} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2">
+                          <Cloud size={18} /> Sign In & Sync
+                      </button>
+                      <button onClick={() => setShowSyncModal(false)} className="w-full bg-white border border-slate-200 text-slate-500 hover:text-slate-700 font-bold py-3 rounded-xl transition-colors flex items-center justify-center gap-2">
+                          <CloudOff size={18} /> Continue Locally
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
