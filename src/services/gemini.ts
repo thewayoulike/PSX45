@@ -1,7 +1,3 @@
-{
-type: uploaded file
-fileName: src/services/gemini.ts
-fullContent:
 import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 
@@ -151,5 +147,4 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         console.error("Error fetching dividends:", error);
         return [];
     }
-}
 }
