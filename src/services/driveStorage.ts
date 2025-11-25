@@ -1,37 +1,15 @@
 // Google Drive Storage Service
-// Stores the entire application state in a single JSON file in the user's Google Drive.
+// Stores application state in a single JSON file in Google Drive.
+// Includes Session Persistence to handle page refreshes.
 
-// User's Client ID from screenshot (Fallback)
 const HARDCODED_CLIENT_ID = '76622516302-malmubqvj1ms3klfsgr5p6jaom2o7e8s.apps.googleusercontent.com';
-
-// Keys
 const CLIENT_ID_KEY = 'VITE_GOOGLE_CLIENT_ID';
 
-// Safe access to environment variables
-const getEnv = (key: string) => {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem(key);
-        if (stored && stored.length > 10) return stored;
-    }
-  } catch (e) { /* ignore */ }
+// LocalStorage Keys for Session Persistence
+const STORAGE_TOKEN_KEY = 'psx_drive_access_token';
+const STORAGE_USER_KEY = 'psx_drive_user_profile';
+const STORAGE_EXPIRY_KEY = 'psx_drive_token_expiry';
 
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
-      // @ts-ignore
-      return import.meta.env[key];
-    }
-  } catch (e) { /* ignore */ }
-
-  return undefined;
-};
-
-// Priority: LocalStorage (User Override) -> Env Var -> Hardcoded
-const RAW_ID = getEnv(CLIENT_ID_KEY) || getEnv('REACT_APP_GOOGLE_CLIENT_ID') || HARDCODED_CLIENT_ID;
-const CLIENT_ID = (RAW_ID && RAW_ID.includes('.apps.googleusercontent.com')) ? RAW_ID : undefined;
-
-// --- FIX: Added 'email profile openid' to scopes ---
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid';
 const DB_FILE_NAME = 'psx_tracker_data.json';
 
@@ -51,13 +29,28 @@ declare global {
   }
 }
 
-/**
- * Inject Google Script if missing
- */
-const loadGoogleScript = () => {
-    if (document.getElementById('google-gsi-script')) {
-        return;
+const getEnv = (key: string) => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = window.localStorage.getItem(key);
+        if (stored && stored.length > 10) return stored;
     }
+  } catch (e) { /* ignore */ }
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
+      // @ts-ignore
+      return import.meta.env[key];
+    }
+  } catch (e) { /* ignore */ }
+  return undefined;
+};
+
+const RAW_ID = getEnv(CLIENT_ID_KEY) || getEnv('REACT_APP_GOOGLE_CLIENT_ID') || HARDCODED_CLIENT_ID;
+const CLIENT_ID = (RAW_ID && RAW_ID.includes('.apps.googleusercontent.com')) ? RAW_ID : undefined;
+
+const loadGoogleScript = () => {
+    if (document.getElementById('google-gsi-script')) return;
     const script = document.createElement('script');
     script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
@@ -67,15 +60,41 @@ const loadGoogleScript = () => {
 };
 
 /**
- * Initialize the Google Identity Services client
+ * Initialize Auth & Attempt to Restore Session
  */
 export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
     loadGoogleScript();
 
+    // 1. TRY RESTORE SESSION IMMEDIATELY (Fix for "Logout on Refresh")
+    try {
+        const storedToken = localStorage.getItem(STORAGE_TOKEN_KEY);
+        const storedUserStr = localStorage.getItem(STORAGE_USER_KEY);
+        const storedExpiry = localStorage.getItem(STORAGE_EXPIRY_KEY);
+
+        if (storedToken && storedUserStr && storedExpiry) {
+            const now = Date.now();
+            // Check if token is valid (buffer of 5 mins)
+            if (now < parseInt(storedExpiry) - 300000) {
+                console.log("Restoring valid session...");
+                accessToken = storedToken;
+                const user = JSON.parse(storedUserStr);
+                // Trigger login immediately
+                onUserLoggedIn(user);
+            } else {
+                console.log("Session expired. Please sign in again.");
+                localStorage.removeItem(STORAGE_TOKEN_KEY);
+                localStorage.removeItem(STORAGE_USER_KEY);
+                localStorage.removeItem(STORAGE_EXPIRY_KEY);
+            }
+        }
+    } catch (e) {
+        console.error("Error restoring session", e);
+    }
+
+    // 2. SETUP GOOGLE CLIENT FOR NEW LOGINS
     const checkInterval = setInterval(() => {
         if (window.google && window.google.accounts && window.google.accounts.oauth2) {
             clearInterval(checkInterval);
-            
             if (!CLIENT_ID) return;
 
             try {
@@ -85,20 +104,29 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
                     callback: async (tokenResponse: any) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             accessToken = tokenResponse.access_token;
+                            
+                            // Save Session to LocalStorage
+                            const expiresIn = (tokenResponse.expires_in || 3599) * 1000;
+                            localStorage.setItem(STORAGE_TOKEN_KEY, accessToken!);
+                            localStorage.setItem(STORAGE_EXPIRY_KEY, (Date.now() + expiresIn).toString());
+
                             try {
-                                // Fetch user details using the access token
                                 const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
                                     headers: { Authorization: `Bearer ${accessToken}` }
                                 });
                                 if (response.ok) {
                                     const user = await response.json();
+                                    // Save User Profile
+                                    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify({
+                                        name: user.name,
+                                        email: user.email,
+                                        picture: user.picture
+                                    }));
                                     onUserLoggedIn({
                                         name: user.name,
                                         email: user.email,
                                         picture: user.picture
                                     });
-                                } else {
-                                    console.error("Failed to fetch user profile", response.status);
                                 }
                             } catch (e) {
                                 console.error("Failed to fetch user info", e);
@@ -114,62 +142,27 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
 };
 
 export const signInWithDrive = () => {
-    const currentOrigin = window.location.origin;
-
-    // 1. Check Google Script
-    if (!window.google || !window.google.accounts) {
-        alert("Google Script loading... please wait 3 seconds and try again.");
-        loadGoogleScript();
+    if (!tokenClient) {
+        alert("Google Service initializing... please wait 2 seconds and try again.");
         return;
     }
+    // Force 'consent' to ensure we get fresh permissions if needed
+    tokenClient.requestAccessToken({ prompt: 'consent' });
+};
 
-    // 2. Check Client ID
-    if (!CLIENT_ID) {
-        const manualKey = prompt(
-            "Configuration Missing\n\n" +
-            "Please paste your Google Client ID:"
-        );
-        if (manualKey) {
-            localStorage.setItem(CLIENT_ID_KEY, manualKey.trim());
+export const signOutDrive = () => {
+    // Clear Session Data
+    localStorage.removeItem(STORAGE_TOKEN_KEY);
+    localStorage.removeItem(STORAGE_USER_KEY);
+    localStorage.removeItem(STORAGE_EXPIRY_KEY);
+    accessToken = null;
+
+    if (window.google && accessToken) {
+        window.google.accounts.oauth2.revoke(accessToken, () => {
             window.location.reload();
-        }
-        return;
-    }
-
-    // 3. Attempt Sign In
-    try {
-        if (tokenClient) {
-            // Force prompt to ensure we get the new permissions
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        } else {
-            // Force init if waiting failed
-            tokenClient = window.google.accounts.oauth2.initTokenClient({
-                client_id: CLIENT_ID,
-                scope: SCOPES,
-                callback: (resp: any) => { 
-                    if (resp.access_token) {
-                        accessToken = resp.access_token; 
-                        // Re-trigger initAuth callback logic manually if needed, 
-                        // but typically initDriveAuth's callback handles this.
-                        // We just alert here for the first successful connection.
-                    }
-                }
-            });
-            tokenClient.requestAccessToken({ prompt: 'consent' });
-        }
-    } catch (e: any) {
-        const changeId = confirm(
-            "Authorization Error (Access Blocked)\n\n" +
-            "This usually means the URL is not authorized yet.\n" +
-            "1. Did you add '" + currentOrigin + "' to Google Cloud?\n" +
-            "2. Did you wait 5 minutes for it to propagate?\n\n" +
-            "Click OK to CHANGE the Client ID.\n" +
-            "Click CANCEL to keep trying with current ID."
-        );
-
-        if (changeId) {
-            updateClientId();
-        }
+        });
+    } else {
+        window.location.reload();
     }
 };
 
@@ -180,21 +173,6 @@ export const updateClientId = () => {
         localStorage.setItem(CLIENT_ID_KEY, newId.trim());
         alert("ID Updated! Page will reload.");
         window.location.reload();
-    } else if (newId === '') {
-        localStorage.removeItem(CLIENT_ID_KEY);
-        alert("ID Reset to default. Page will reload.");
-        window.location.reload();
-    }
-};
-
-export const signOutDrive = () => {
-    if (accessToken && window.google) {
-        window.google.accounts.oauth2.revoke(accessToken, () => {
-            accessToken = null;
-            window.location.reload();
-        });
-    } else {
-        window.location.reload();
     }
 };
 
@@ -202,6 +180,7 @@ export const signOutDrive = () => {
 
 const findDbFile = async () => {
     if (!accessToken) return null;
+    // 'trashed = false' ensures we don't read from Bin
     const query = `name = '${DB_FILE_NAME}' and trashed = false`;
     const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` } });
@@ -212,34 +191,42 @@ const findDbFile = async () => {
 
 export const saveToDrive = async (data: any) => {
     if (!accessToken) return;
-    const fileContent = JSON.stringify(data);
-    const fileId = await findDbFile();
-    
-    const metadata = { name: DB_FILE_NAME, mimeType: 'application/json' };
-    const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-    form.append('file', new Blob([fileContent], { type: 'application/json' }));
+    try {
+        const fileId = await findDbFile();
+        const fileContent = JSON.stringify(data);
+        
+        const metadata = { name: DB_FILE_NAME, mimeType: 'application/json' };
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
+        form.append('file', new Blob([fileContent], { type: 'application/json' }));
 
-    const method = fileId ? 'PATCH' : 'POST';
-    const endpoint = fileId 
-        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+        const method = fileId ? 'PATCH' : 'POST';
+        const endpoint = fileId 
+            ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+            : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
 
-    await fetch(endpoint, {
-        method,
-        headers: { Authorization: `Bearer ${accessToken}` },
-        body: form
-    });
+        await fetch(endpoint, {
+            method,
+            headers: { Authorization: `Bearer ${accessToken}` },
+            body: form
+        });
+    } catch (e) {
+        console.error("Save to Drive failed", e);
+    }
 };
 
 export const loadFromDrive = async () => {
     if (!accessToken) return null;
-    const fileId = await findDbFile();
-    if (!fileId) return null;
+    try {
+        const fileId = await findDbFile();
+        if (!fileId) return null;
 
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-        headers: { Authorization: `Bearer ${accessToken}` }
-    });
-    if (response.ok) return await response.json();
+        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+            headers: { Authorization: `Bearer ${accessToken}` }
+        });
+        if (response.ok) return await response.json();
+    } catch (e) {
+        console.error("Load from Drive failed", e);
+    }
     return null;
 };
