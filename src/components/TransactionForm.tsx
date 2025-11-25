@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, ParsedTrade } from '../types';
-import { X, Plus, Check, Upload, FileText, Loader2, Trash2, AlertCircle, ChevronDown, ChevronUp, Pencil, Save } from 'lucide-react';
+import { X, Plus, Check, Upload, FileText, Loader2, Trash2, AlertCircle, ChevronDown, ChevronUp, Pencil, Save, RefreshCw } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
+  onUpdateTransaction?: (transaction: Transaction) => void;
   isOpen: boolean;
   onClose: () => void;
   existingTransactions?: Transaction[];
+  editingTransaction?: Transaction | null;
 }
 
 const BROKERS = [
@@ -21,7 +23,14 @@ const SST_RATE = 0.15;
 const CDC_RATE = 0.005; 
 const WHT_RATE = 0.15;
 
-export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransaction, isOpen, onClose, existingTransactions = [] }) => {
+export const TransactionForm: React.FC<TransactionFormProps> = ({ 
+  onAddTransaction, 
+  onUpdateTransaction, 
+  isOpen, 
+  onClose, 
+  existingTransactions = [],
+  editingTransaction 
+}) => {
   const [mode, setMode] = useState<'MANUAL' | 'SCAN'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND'>('BUY');
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -52,6 +61,36 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
   const [editingRow, setEditingRow] = useState<number | null>(null);
   const [rawDebugText, setRawDebugText] = useState('');
   const [showDebug, setShowDebug] = useState(false);
+
+  // Populate form when editingTransaction changes
+  useEffect(() => {
+    if (editingTransaction && isOpen) {
+      setMode('MANUAL');
+      setType(editingTransaction.type);
+      setDate(editingTransaction.date);
+      setTicker(editingTransaction.ticker);
+      setQuantity(editingTransaction.quantity);
+      setPrice(editingTransaction.price);
+      
+      if (editingTransaction.broker) {
+        if (!BROKERS.includes(editingTransaction.broker) && !customBrokers.find(b => b.name === editingTransaction.broker)) {
+             // If broker is custom but not in list (legacy), just set it
+             setBroker(editingTransaction.broker);
+        } else {
+             setBroker(editingTransaction.broker);
+        }
+      } else {
+        setBroker(BROKERS[0]);
+      }
+
+      setCommission(editingTransaction.commission);
+      setTax(editingTransaction.tax || 0);
+      setCdcCharges(editingTransaction.cdcCharges || 0);
+      setIsAutoCalc(false); // Disable auto-calc so we don't overwrite existing values immediately
+    } else if (isOpen && !editingTransaction) {
+      resetForm();
+    }
+  }, [editingTransaction, isOpen]);
 
   useEffect(() => {
       localStorage.setItem('psx_custom_brokers', JSON.stringify(customBrokers));
@@ -104,7 +143,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
     e.preventDefault();
     if (!ticker || !quantity || !price) return;
 
-    onAddTransaction({
+    const txData = {
       ticker: ticker.toUpperCase(),
       type,
       quantity: Number(quantity),
@@ -114,7 +153,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
       commission: Number(commission) || 0,
       tax: Number(tax) || 0,
       cdcCharges: Number(cdcCharges) || 0
-    });
+    };
+
+    if (editingTransaction && onUpdateTransaction) {
+      onUpdateTransaction({
+        ...editingTransaction,
+        ...txData
+      });
+    } else {
+      onAddTransaction(txData);
+    }
 
     resetForm();
     onClose();
@@ -133,6 +181,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
       setRawDebugText('');
       setShowDebug(false);
       setEditingRow(null);
+      setIsAutoCalc(true);
+      setDate(new Date().toISOString().split('T')[0]);
   };
 
   const handleScan = async () => {
@@ -253,33 +303,38 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
         
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
-          <h2 className="text-xl font-bold text-slate-800">Add Transaction</h2>
+          <h2 className="text-xl font-bold text-slate-800">
+            {editingTransaction ? 'Edit Transaction' : 'Add Transaction'}
+          </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={24} />
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200">
-            <button 
-                onClick={() => setMode('MANUAL')}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'MANUAL' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}
-            >
-                Manual Entry
-            </button>
-            <button 
-                onClick={() => setMode('SCAN')}
-                className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'SCAN' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}
-            >
-                Scan Document
-            </button>
-        </div>
+        {/* Tabs - Only show if not editing */}
+        {!editingTransaction && (
+          <div className="flex border-b border-slate-200">
+              <button 
+                  onClick={() => setMode('MANUAL')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'MANUAL' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                  Manual Entry
+              </button>
+              <button 
+                  onClick={() => setMode('SCAN')}
+                  className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'SCAN' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                  Scan Document
+              </button>
+          </div>
+        )}
 
         {/* Content */}
         <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
             
             {mode === 'SCAN' ? (
                 <div className="space-y-6">
+                    {/* ... (Scan Logic remains identical to previous version) ... */}
                     {!parsedTrades.length && (
                         <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 text-center bg-slate-50 hover:bg-slate-100 transition-colors relative">
                             <input 
@@ -357,9 +412,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
                                 {parsedTrades.map((trade, idx) => {
                                     const isDup = checkDuplicate({ ...trade, date: trade.date || date });
                                     const isEditing = editingRow === idx;
-
+                                    // ... (Previous rendering logic for scanned items) ...
                                     if (isEditing) {
-                                        return (
+                                         return (
                                             <div key={idx} className="bg-white border border-emerald-200 rounded-xl p-3 space-y-3 shadow-sm">
                                                 <div className="grid grid-cols-3 gap-2">
                                                     <select 
@@ -644,13 +699,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
                     <button 
                         type="submit"
                         className={`w-full py-4 rounded-xl font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 flex items-center justify-center gap-2 ${
+                            editingTransaction ? 'bg-blue-600 hover:bg-blue-700 shadow-blue-500/20' :
                             type === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20' : 
                             type === 'SELL' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20' :
                             'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20'
                         }`}
                     >
-                        <Plus size={20} />
-                        Add {type}
+                        {editingTransaction ? <RefreshCw size={20} /> : <Plus size={20} />}
+                        {editingTransaction ? 'Update Transaction' : `Add ${type}`}
                     </button>
                 </form>
             )}
@@ -658,4 +714,4 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({ onAddTransacti
       </div>
     </div>
   );
-}; 
+};
