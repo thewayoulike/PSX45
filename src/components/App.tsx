@@ -44,7 +44,7 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   
-  // FIXED: Added Broker State
+  // BROKER STATE (This was missing before)
   const [brokers, setBrokers] = useState<Broker[]>([]);
 
   // UI State
@@ -110,7 +110,7 @@ const App: React.FC = () => {
           if (savedTx) {
               let parsed: any[] = JSON.parse(savedTx);
               if (parsed.length > 0 && !parsed[0].portfolioId) {
-                  parsed = parsed.map(t => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
+                  parsed = parsed.map((t: any) => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
               }
               setTransactions(parsed);
           } else {
@@ -145,7 +145,7 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
   
-  // FIXED: Broker Handlers
+  // Broker Handlers
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       setBrokers(prev => [...prev, { ...newBroker, id }]);
@@ -523,7 +523,6 @@ const App: React.FC = () => {
       </div>
 
       {/* MODALS */}
-      {/* FIXED: Passing required Broker props */}
       <TransactionForm 
         isOpen={showAddModal} 
         onClose={() => setShowAddModal(false)} 
