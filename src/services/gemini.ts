@@ -39,7 +39,6 @@ const getAi = (): GoogleGenAI | null => {
     const key = getApiKey();
     // If key is missing, we return null
     if (!key) {
-        console.warn("Gemini API Key is missing. AI features will be disabled.");
         return null;
     }
 
@@ -115,14 +114,15 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     return [];
   } catch (error) {
     console.error("Error parsing trade document with Gemini:", error);
-    throw error; // Re-throw so UI handles it
+    throw error; 
   }
 };
 
 export const fetchDividends = async (tickers: string[]): Promise<DividendAnnouncement[]> => {
     try {
         const ai = getAi(); 
-        if (!ai) return [];
+        // UPDATED: Throw error instead of returning empty array
+        if (!ai) throw new Error("API Key missing. Please go to Settings to add one.");
 
         const tickerList = tickers.join(", ");
         
@@ -145,6 +145,6 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         return [];
     } catch (error) {
         console.error("Error fetching dividends:", error);
-        return [];
+        throw error; // UPDATED: Re-throw so UI sees it
     }
 }
