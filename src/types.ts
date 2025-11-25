@@ -1,24 +1,25 @@
 export interface Transaction {
   id: string;
-  portfolioId: string; // NEW: Associates transaction with a specific portfolio
+  portfolioId: string;
   ticker: string;
   type: 'BUY' | 'SELL' | 'DIVIDEND';
   quantity: number;
-  price: number; // For BUY/SELL: Share Price. For DIVIDEND: Dividend Per Share (DPS)
+  price: number;
   date: string;
   broker?: string;
-  commission: number; // Brokerage Fee
-  tax?: number;       // SST, FED, or WHT (for Dividends)
-  cdcCharges?: number; // CDC, CVT, Regulatory
+  brokerId?: string; // Links to specific broker config
+  commission: number;
+  tax: number;
+  cdcCharges: number;
 }
 
 export interface Holding {
   ticker: string;
-  sector: string; // Industry Sector
-  broker?: string; // NEW: distinct broker for this holding
+  sector: string;
+  broker?: string;
   quantity: number;
-  avgPrice: number; // Break-even price (includes all fees)
-  currentPrice: number; // Fetched from Gemini
+  avgPrice: number;
+  currentPrice: number;
   lastUpdated?: string;
   totalCommission: number;
   totalTax: number;
@@ -28,13 +29,13 @@ export interface Holding {
 export interface RealizedTrade {
   id: string;
   ticker: string;
-  broker?: string; // NEW: Broker used for the trade
+  broker?: string;
   quantity: number;
-  buyAvg: number; // Cost basis per share at time of sale
+  buyAvg: number;
   sellPrice: number;
   date: string;
-  profit: number; // Net P&L after fees
-  fees: number; // Total fees paid on sale
+  profit: number;
+  fees: number;
 }
 
 export interface ParsedTrade {
@@ -52,25 +53,11 @@ export interface ParsedTrade {
 export interface PortfolioStats {
   totalValue: number;
   totalCost: number;
-  unrealizedPL: number; // Paper Profit/Loss
+  unrealizedPL: number;
   unrealizedPLPercent: number;
-  realizedPL: number; // Booked Profit/Loss
-  totalDividends: number; // New: Total Net Dividends Received
+  realizedPL: number;
+  totalDividends: number;
   dailyPL: number; 
-}
-
-export interface PriceUpdateResult {
-  ticker: string;
-  price: number;
-}
-
-export interface GroundingMetadata {
-  groundingChunks: Array<{
-    web?: {
-      uri: string;
-      title: string;
-    };
-  }>;
 }
 
 export interface Portfolio {
@@ -80,33 +67,23 @@ export interface Portfolio {
 
 export interface DividendAnnouncement {
     ticker: string;
-    amount: number; // DPS
-    exDate: string; // YYYY-MM-DD
+    amount: number;
+    exDate: string;
     payoutDate?: string;
     type: 'Interim' | 'Final';
-    period?: string; // e.g. "Year ended June 30"
+    period?: string;
 }
 
-export interface MarketAnalysisData {
-    name: string;
-    description: string;
-    sector: string;
-    currentPrice: string;
-    marketCap: string;
-    peRatio: string;
-    eps: string;
-    dividendYield: string;
-    yearHigh: string;
-    yearLow: string;
-    financialPeriod: string;
-    sentiment: 'Bullish' | 'Bearish' | 'Neutral';
-    sentimentReason: string;
-    supportLevel: string;
-    resistanceLevel: string;
-    news: Array<{
-        title: string;
-        source: string;
-        date: string;
-        url: string;
-    }>;
+// --- BROKER TYPES ---
+
+export type CommissionType = 'PERCENTAGE' | 'PER_SHARE' | 'HIGHER_OF' | 'FIXED';
+
+export interface Broker {
+  id: string;
+  name: string;
+  commissionType: CommissionType;
+  rate1: number; // Primary Rate (e.g., 0.15 for %, 0.05 for Per Share)
+  rate2?: number; // Secondary Rate (e.g., for "Higher Of" comparison)
+  sstRate: number; // Sales Tax Rate (default 15%)
+  isDefault?: boolean;
 }
