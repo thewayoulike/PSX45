@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, DividendAnnouncement } from '../types';
 import { fetchDividends } from '../services/gemini';
-import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2 } from 'lucide-react';
+import { Coins, Loader2, CheckCircle, Calendar, Search, X, AlertTriangle } from 'lucide-react';
 
 interface DividendScannerProps {
   transactions: Transaction[];
@@ -14,6 +14,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
   const [loading, setLoading] = useState(false);
   const [foundDividends, setFoundDividends] = useState<Array<DividendAnnouncement & { eligibleQty: number }>>([]);
   const [scanned, setScanned] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null); // NEW STATE
 
   const getHoldingsOnDate = (ticker: string, targetDate: string) => {
       const relevantTx = transactions.filter(t => 
@@ -34,6 +35,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
   const handleScan = async () => {
       setLoading(true);
       setFoundDividends([]);
+      setErrorMsg(null);
       
       const tickers = Array.from(new Set(transactions.map(t => t.ticker))) as string[];
       
@@ -56,11 +58,13 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
           });
           
           setFoundDividends(eligible);
-      } catch (e) {
+          setScanned(true);
+      } catch (e: any) {
           console.error(e);
+          setErrorMsg(e.message || "Failed to scan. Check API Key.");
+          setScanned(false);
       } finally {
           setLoading(false);
-          setScanned(true);
       }
   };
 
@@ -102,7 +106,8 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
             </div>
 
             <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
-                {!scanned && !loading && (
+                {/* INITIAL STATE */}
+                {!scanned && !loading && !errorMsg && (
                     <div className="text-center py-10">
                         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
                             <Search size={40} />
@@ -120,6 +125,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
                     </div>
                 )}
 
+                {/* LOADING STATE */}
                 {loading && (
                     <div className="text-center py-20">
                         <Loader2 size={40} className="animate-spin text-indigo-600 mx-auto mb-4" />
@@ -127,6 +133,21 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
                     </div>
                 )}
 
+                {/* ERROR STATE (Missing Key) */}
+                {errorMsg && (
+                    <div className="text-center py-10">
+                        <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
+                            <AlertTriangle size={32} />
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-2">Scanner Error</h3>
+                        <p className="text-slate-500 mb-6">{errorMsg}</p>
+                        <button onClick={onClose} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-6 rounded-lg transition-all">
+                            Close
+                        </button>
+                    </div>
+                )}
+
+                {/* SUCCESS STATE (Zero Found) */}
                 {scanned && !loading && foundDividends.length === 0 && (
                      <div className="text-center py-10">
                         <CheckCircle size={40} className="text-emerald-500 mx-auto mb-4" />
@@ -136,6 +157,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
                      </div>
                 )}
 
+                {/* RESULTS LIST */}
                 {foundDividends.length > 0 && (
                     <div className="space-y-4">
                         <div className="flex items-center justify-between mb-2">
