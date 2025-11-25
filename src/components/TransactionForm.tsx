@@ -45,10 +45,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState('');
   const [scannedTrades, setScannedTrades] = useState<ParsedTrade[]>([]);
+  const [scanDefaultBrokerId, setScanDefaultBrokerId] = useState<string>(''); // New: Select before scan
 
   // --- HELPER: Fee Calculation Logic ---
   const calculateFees = (broker: Broker | undefined, qty: number, prc: number, txType: string) => {
-      // Dividend Logic
       if (txType === 'DIVIDEND') {
           const totalDiv = qty * prc;
           return {
@@ -58,28 +58,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           };
       }
 
-      // If no broker, return 0 fees
       if (!broker) return { comm: 0, tax: 0, cdc: 0 };
 
       const val = qty * prc;
       let finalComm = 0;
 
-      // Broker Commission Logic
       switch (broker.commissionType) {
-          case 'PERCENTAGE': 
-              finalComm = val * (broker.rate1 / 100); 
-              break;
-          case 'PER_SHARE': 
-              finalComm = qty * broker.rate1; 
-              break;
+          case 'PERCENTAGE': finalComm = val * (broker.rate1 / 100); break;
+          case 'PER_SHARE': finalComm = qty * broker.rate1; break;
           case 'HIGHER_OF': 
               const commPct = val * (broker.rate1 / 100);
               const commShare = qty * (broker.rate2 || 0);
               finalComm = Math.max(commPct, commShare);
               break;
-          case 'FIXED': 
-              finalComm = broker.rate1; 
-              break;
+          case 'FIXED': finalComm = broker.rate1; break;
       }
 
       const sst = finalComm * (broker.sstRate / 100);
@@ -92,13 +84,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       };
   };
 
-  // Auto-Select Default Broker (Manual Form)
+  // Auto-Select Default Broker
   useEffect(() => {
-    if (brokers.length > 0 && !selectedBrokerId) {
+    if (brokers.length > 0) {
         const def = brokers.find(b => b.isDefault) || brokers[0];
-        if (def) setSelectedBrokerId(def.id);
+        if (!selectedBrokerId) setSelectedBrokerId(def.id);
+        if (!scanDefaultBrokerId) setScanDefaultBrokerId(def.id);
     }
-  }, [brokers, selectedBrokerId]);
+  }, [brokers, selectedBrokerId, scanDefaultBrokerId]);
 
   // Reset/Load on Open
   useEffect(() => {
@@ -115,12 +108,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setIsAutoCalc(false);
 
-            if (editingTransaction.brokerId) {
-                setSelectedBrokerId(editingTransaction.brokerId);
-            } else if (editingTransaction.broker) {
-                const match = brokers.find(b => b.name === editingTransaction.broker);
-                if (match) setSelectedBrokerId(match.id);
-            }
+            if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
         } else {
             resetManualForm();
             setScanFiles(null);
@@ -137,7 +125,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setDate(new Date().toISOString().split('T')[0]);
   };
 
-  // --- AUTO CALC (Manual Form) ---
+  // --- MANUAL CALCULATION ---
   useEffect(() => {
     if (!isAutoCalc) return;
     const qty = Number(quantity);
@@ -152,8 +140,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [quantity, price, selectedBrokerId, type, isAutoCalc, brokers]);
 
-
-  // --- MANUAL SUBMIT ---
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticker || !quantity || !price) return;
@@ -195,13 +181,24 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     try {
         const result = await parseTradeDocumentOCRSpace(scanFiles[0]);
         if (result.trades.length > 0) {
-            // Try to match brokers automatically
+            
+            // Pre-process with the selected default broker
+            const broker = brokers.find(b => b.id === scanDefaultBrokerId);
+            
             const processed = result.trades.map(t => {
-                const matched = brokers.find(b => 
-                    b.name.toLowerCase().includes((t.broker || '').toLowerCase()) ||
-                    (t.broker || '').toLowerCase().includes(b.name.toLowerCase())
-                );
-                return { ...t, brokerId: matched ? matched.id : undefined };
+                // Calculate fees immediately based on the selected broker
+                let fees = { comm: 0, tax: 0, cdc: 0 };
+                if (broker && t.quantity && t.price) {
+                    fees = calculateFees(broker, t.quantity, t.price, t.type);
+                }
+
+                return { 
+                    ...t, 
+                    brokerId: broker ? broker.id : undefined,
+                    commission: t.commission || fees.comm, // Prefer OCR comm if found, else calc
+                    tax: t.tax || fees.tax,
+                    cdcCharges: t.cdcCharges || fees.cdc
+                };
             });
             setScannedTrades(processed);
         } else {
@@ -214,15 +211,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
-  // --- BULK REVIEW ACTIONS ---
-  
-  // Update a field in the row
+  // --- REVIEW ACTIONS ---
   const updateScannedTrade = (index: number, field: string, value: any) => {
       const updatedTrades = [...scannedTrades];
       // @ts-ignore
       updatedTrades[index] = { ...updatedTrades[index], [field]: value };
       
-      // Auto-Calc Fees if Qty or Price changed and a Broker is selected
+      // Auto-Calc if Qty/Price changes
       const trade = updatedTrades[index];
       // @ts-ignore
       const brokerId = trade.brokerId;
@@ -238,18 +233,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setScannedTrades(updatedTrades);
   };
 
-  // Update Broker -> Recalculate Fees
   const handleBrokerSelectChange = (index: number, value: string) => {
-      if (value === 'ADD_NEW') {
-          if (onManageBrokers) onManageBrokers();
-          return;
-      }
-
       const updatedTrades = [...scannedTrades];
       // @ts-ignore
       updatedTrades[index] = { ...updatedTrades[index], brokerId: value };
       
-      // Calculate Fees for this row
       const trade = updatedTrades[index];
       const broker = brokers.find(b => b.id === value);
       
@@ -259,7 +247,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           updatedTrades[index].tax = tax;
           updatedTrades[index].cdcCharges = cdc;
       }
-
       setScannedTrades(updatedTrades);
   };
 
@@ -308,7 +295,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-[90vw]' : 'max-w-lg'}`}>
         
-        {/* HEADER */}
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
           <h2 className="text-xl font-bold text-slate-800">
             {scannedTrades.length > 0 ? 'Review Scanned Trades' : (editingTransaction ? 'Edit Transaction' : 'Add Transaction')}
@@ -319,7 +305,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
-            {/* TABS */}
             {!editingTransaction && scannedTrades.length === 0 && (
                 <div className="flex border-b border-slate-200 mb-6">
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'MANUAL' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}>Manual Entry</button>
@@ -372,6 +357,33 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <input type="number" required min="0.01" step="0.01" value={price} onChange={e => setPrice(e.target.value ? Number(e.target.value) : '')} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" />
                         </div>
                     </div>
+                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-xs font-bold text-slate-400 uppercase">Charges</span>
+                            <div className="flex items-center gap-2">
+                                <label className="text-[10px] text-slate-500 cursor-pointer select-none">Auto-Calc</label>
+                                <input type="checkbox" checked={isAutoCalc} onChange={e => setIsAutoCalc(e.target.checked)} className="accent-emerald-500 w-3 h-3 cursor-pointer" />
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3">
+                            {type !== 'DIVIDEND' && (
+                            <>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">Comm</label>
+                                    <input type="number" step="0.01" value={commission} readOnly={isAutoCalc} onChange={e => setCommission(e.target.value ? Number(e.target.value) : '')} className={`w-full bg-transparent border-b ${isAutoCalc ? 'border-slate-200 text-slate-400' : 'border-emerald-300 text-slate-800'} py-1 text-xs font-mono outline-none`} />
+                                </div>
+                                <div>
+                                    <label className="block text-[10px] text-slate-500 mb-1">CDC</label>
+                                    <input type="number" step="0.01" value={cdcCharges} readOnly={isAutoCalc} onChange={e => setCdcCharges(e.target.value ? Number(e.target.value) : '')} className={`w-full bg-transparent border-b ${isAutoCalc ? 'border-slate-200 text-slate-400' : 'border-emerald-300 text-slate-800'} py-1 text-xs font-mono outline-none`} />
+                                </div>
+                            </>
+                            )}
+                            <div className={type === 'DIVIDEND' ? 'col-span-3' : ''}>
+                                <label className="block text-[10px] text-slate-500 mb-1">{type === 'DIVIDEND' ? 'W.H. Tax (15%)' : 'Tax (SST/FED)'}</label>
+                                <input type="number" step="0.01" value={tax} readOnly={isAutoCalc} onChange={e => setTax(e.target.value ? Number(e.target.value) : '')} className={`w-full bg-transparent border-b ${isAutoCalc ? 'border-slate-200 text-slate-400' : 'border-emerald-300 text-slate-800'} py-1 text-xs font-mono outline-none`} />
+                            </div>
+                        </div>
+                    </div>
                     <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all">
                         {editingTransaction ? 'Update' : 'Save Transaction'}
                     </button>
@@ -381,9 +393,28 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             {/* SCANNER UPLOAD */}
             {mode === 'SCAN' && scannedTrades.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full space-y-4">
+                    <div className="w-full max-w-sm mb-4">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 text-center">Select Broker for Import</label>
+                        <div className="flex gap-2">
+                            <select 
+                                value={scanDefaultBrokerId} 
+                                onChange={e => setScanDefaultBrokerId(e.target.value)} 
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                            >
+                                {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                            {onManageBrokers && (
+                                <button onClick={onManageBrokers} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-xl transition-colors" title="Add Broker">
+                                    <Briefcase size={18} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
                     <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center w-full hover:bg-slate-50 transition-colors cursor-pointer relative">
                         <input type="file" accept="image/*,.pdf" onChange={(e) => setScanFiles(e.target.files)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
                         <span className="font-bold text-lg text-slate-500">Click to Upload</span>
+                        <div className="text-xs text-slate-400 mt-1">Image or PDF</div>
                     </div>
                     {scanError && <p className="text-rose-500 text-sm">{scanError}</p>}
                     <button onClick={handleScan} disabled={!scanFiles || isScanning} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl flex items-center justify-center">
@@ -449,7 +480,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                         <td className="p-2"><input type="number" step="0.01" value={trade.tax || 0} onChange={(e) => updateScannedTrade(idx, 'tax', Number(e.target.value))} className="w-full text-slate-500 bg-transparent outline-none" /></td>
                                         <td className="p-2"><input type="number" step="0.01" value={trade.cdcCharges || 0} onChange={(e) => updateScannedTrade(idx, 'cdcCharges', Number(e.target.value))} className="w-full text-slate-500 bg-transparent outline-none" /></td>
 
-                                        {/* BROKER COLUMN */}
+                                        {/* BROKER COLUMN (Simplified) */}
                                         <td className="p-2">
                                             <div className="flex items-center gap-1">
                                                 <select 
@@ -459,24 +490,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                                 >
                                                     <option value="">Select Broker...</option>
                                                     {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                                    {/* Fallback option, though we have a better button now */}
-                                                    <option value="ADD_NEW">+ Add New Broker</option>
                                                 </select>
-                                                
-                                                {/* Explicit ADD BUTTON to ensure it works */}
-                                                <button 
-                                                    type="button" 
-                                                    onClick={(e) => {
-                                                        e.preventDefault();
-                                                        if (onManageBrokers) onManageBrokers();
-                                                    }}
-                                                    className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 border border-emerald-200"
-                                                    title="Create New Broker"
-                                                >
-                                                    <Plus size={14} />
-                                                </button>
-
-                                                {!hasBroker && trade.broker && <div className="hidden text-[10px] text-slate-400">Scanned: {trade.broker}</div>}
                                             </div>
                                         </td>
 
