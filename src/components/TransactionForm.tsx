@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, RefreshCw, Loader2, Save, Trash2, Check, Briefcase, AlertCircle } from 'lucide-react';
+import { X, Plus, ChevronDown, RefreshCw, Loader2, Save, Trash2, Check, Briefcase } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 
 interface TransactionFormProps {
@@ -46,7 +46,44 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [scanError, setScanError] = useState('');
   const [scannedTrades, setScannedTrades] = useState<ParsedTrade[]>([]);
 
-  // Auto-Select Default Broker
+  // --- HELPER: Fee Calculation Logic ---
+  const calculateFees = (broker: Broker | undefined, qty: number, prc: number, txType: string) => {
+      if (txType === 'DIVIDEND') {
+          const totalDiv = qty * prc;
+          return {
+              comm: 0,
+              cdc: 0,
+              tax: parseFloat((totalDiv * DEFAULT_WHT_RATE).toFixed(2))
+          };
+      }
+
+      if (!broker) return { comm: 0, tax: 0, cdc: 0 };
+
+      const val = qty * prc;
+      let finalComm = 0;
+
+      switch (broker.commissionType) {
+          case 'PERCENTAGE': finalComm = val * (broker.rate1 / 100); break;
+          case 'PER_SHARE': finalComm = qty * broker.rate1; break;
+          case 'HIGHER_OF': 
+              const commPct = val * (broker.rate1 / 100);
+              const commShare = qty * (broker.rate2 || 0);
+              finalComm = Math.max(commPct, commShare);
+              break;
+          case 'FIXED': finalComm = broker.rate1; break;
+      }
+
+      const sst = finalComm * (broker.sstRate / 100);
+      const cdc = qty * DEFAULT_CDC_RATE;
+
+      return {
+          comm: parseFloat(finalComm.toFixed(2)),
+          tax: parseFloat(sst.toFixed(2)),
+          cdc: parseFloat(cdc.toFixed(2))
+      };
+  };
+
+  // Auto-Select Default Broker (Manual Form)
   useEffect(() => {
     if (brokers.length > 0 && !selectedBrokerId) {
         const def = brokers.find(b => b.isDefault) || brokers[0];
@@ -90,6 +127,22 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setMode('MANUAL'); setIsAutoCalc(true);
       setDate(new Date().toISOString().split('T')[0]);
   };
+
+  // --- AUTO CALC (Manual Form) ---
+  useEffect(() => {
+    if (!isAutoCalc) return;
+    const qty = Number(quantity);
+    const prc = Number(price);
+    const broker = brokers.find(b => b.id === selectedBrokerId);
+
+    if (qty && prc) {
+        const { comm, tax, cdc } = calculateFees(broker, qty, prc, type);
+        setCommission(comm);
+        setTax(tax);
+        setCdcCharges(cdc);
+    }
+  }, [quantity, price, selectedBrokerId, type, isAutoCalc, brokers]);
+
 
   // --- MANUAL SUBMIT ---
   const handleManualSubmit = (e: React.FormEvent) => {
@@ -153,19 +206,52 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   // --- BULK REVIEW ACTIONS ---
+  
+  // Update a field in the row
   const updateScannedTrade = (index: number, field: string, value: any) => {
-      const updated = [...scannedTrades];
+      const updatedTrades = [...scannedTrades];
       // @ts-ignore
-      updated[index] = { ...updated[index], [field]: value };
-      setScannedTrades(updated);
+      updatedTrades[index] = { ...updatedTrades[index], [field]: value };
+      
+      // Auto-Calc Fees if Qty or Price changed and a Broker is selected
+      const trade = updatedTrades[index];
+      // @ts-ignore
+      const brokerId = trade.brokerId;
+      
+      if (brokerId && (field === 'quantity' || field === 'price')) {
+         const broker = brokers.find(b => b.id === brokerId);
+         const { comm, tax, cdc } = calculateFees(broker, Number(trade.quantity), Number(trade.price), trade.type);
+         updatedTrades[index].commission = comm;
+         updatedTrades[index].tax = tax;
+         updatedTrades[index].cdcCharges = cdc;
+      }
+      
+      setScannedTrades(updatedTrades);
   };
 
+  // Update Broker -> Recalculate Fees
   const handleBrokerSelectChange = (index: number, value: string) => {
       if (value === 'ADD_NEW') {
           if (onManageBrokers) onManageBrokers();
-      } else {
-          updateScannedTrade(index, 'brokerId', value);
+          return;
       }
+
+      const updatedTrades = [...scannedTrades];
+      // @ts-ignore
+      updatedTrades[index] = { ...updatedTrades[index], brokerId: value };
+      
+      // Calculate Fees for this row
+      const trade = updatedTrades[index];
+      const broker = brokers.find(b => b.id === value);
+      
+      if (broker && trade.quantity && trade.price) {
+          const { comm, tax, cdc } = calculateFees(broker, Number(trade.quantity), Number(trade.price), trade.type);
+          updatedTrades[index].commission = comm;
+          updatedTrades[index].tax = tax;
+          updatedTrades[index].cdcCharges = cdc;
+      }
+
+      setScannedTrades(updatedTrades);
   };
 
   const saveTrade = (t: ParsedTrade & { brokerId?: string }) => {
