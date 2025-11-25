@@ -74,11 +74,21 @@ const App: React.FC = () => {
                   if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   
-                  // FIXED: Only update brokers if the Cloud file actually HAS them.
-                  // We do NOT use an 'else' block here, so we don't accidentally overwrite 
-                  // your local/default brokers with nothing if the file is old.
+                  // --- IMPROVED LOGIC: Merge Cloud Brokers with Local Brokers ---
+                  // This prevents the "Add Broker" -> "Login" -> "Overwrite/Loss" issue.
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
-                      setBrokers(cloudData.brokers);
+                      setBrokers(prevBrokers => {
+                          const cloudBrokers = cloudData.brokers as Broker[];
+                          const cloudIds = new Set(cloudBrokers.map(b => b.id));
+                          
+                          // Keep all cloud brokers + any local brokers that aren't in the cloud yet
+                          const newLocalBrokers = prevBrokers.filter(b => !cloudIds.has(b.id));
+                          
+                          // If local broker has same ID but is "newer", we might want logic, 
+                          // but for now, we prioritize preserving the list structure.
+                          // Merging ensures newly added brokers survive the sync.
+                          return [...cloudBrokers, ...newLocalBrokers];
+                      });
                   }
               }
           } catch (e) {
@@ -123,24 +133,23 @@ const App: React.FC = () => {
 
   // --- DATA SAVING ---
   useEffect(() => {
-      // Even if you don't rely on local storage, we save it as a backup
+      // Local Backup
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
-      // Sync to Google Drive
+      // Cloud Sync
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
-              // This object structure MUST match what loadFromDrive expects
               await saveToDrive({
                   transactions,
                   portfolios,
                   currentPortfolioId,
                   manualPrices,
-                  brokers // Passing the 'brokers' state variable here
+                  brokers // Broker state is saved here
               });
               setIsCloudSyncing(false);
           }, 3000); 
@@ -150,16 +159,32 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
   
+  // Helper to Prompt Login
+  const ensureAuthForBroker = () => {
+      if (!driveUser) {
+          const proceed = confirm("Sync with Google Drive to save Brokers securely?\n\nClick OK to Sign In to Drive.\nClick Cancel to continue locally (unsaved in cloud).");
+          if (proceed) {
+              signInWithDrive();
+          }
+      }
+  };
+
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
+      ensureAuthForBroker(); // Trigger Prompt
+      
       const id = Date.now().toString();
       setBrokers(prev => [...prev, { ...newBroker, id }]);
   };
 
   const handleUpdateBroker = (updated: Broker) => {
+      ensureAuthForBroker(); // Trigger Prompt
+      
       setBrokers(prev => prev.map(b => b.id === updated.id ? updated : b));
   };
 
   const handleDeleteBroker = (id: string) => {
+      ensureAuthForBroker(); // Trigger Prompt
+      
       if (confirm("Delete this broker setting? Existing transactions will retain their data.")) {
           setBrokers(prev => prev.filter(b => b.id !== id));
       }
