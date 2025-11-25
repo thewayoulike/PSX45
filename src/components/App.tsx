@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from '../types';
-import { Dashboard } from './components/DashboardStats';
-import { HoldingsTable } from './components/HoldingsTable';
-import { RealizedTable } from './components/RealizedTable';
-import { TransactionList } from './components/TransactionList';
-import { TransactionForm } from './components/TransactionForm';
-import { BrokerManager } from './components/BrokerManager';
-import { PriceEditor } from './components/PriceEditor';
-import { DividendScanner } from './components/DividendScanner';
-import { ApiKeyManager } from './components/ApiKeyManager';
-import { Logo } from './components/ui/Logo';
-import { getSector } from './services/sectors';
-import { fetchBatchPSXPrices } from './services/psxData';
-import { setGeminiApiKey } from './services/gemini';
+import { Dashboard } from './DashboardStats';
+import { HoldingsTable } from './HoldingsTable';
+import { RealizedTable } from './RealizedTable';
+import { TransactionList } from './TransactionList';
+import { TransactionForm } from './TransactionForm';
+import { BrokerManager } from './BrokerManager';
+import { PriceEditor } from './PriceEditor';
+import { DividendScanner } from './DividendScanner';
+import { ApiKeyManager } from './ApiKeyManager'; // FIXED IMPORT PATH
+import { Logo } from './ui/Logo';
+import { getSector } from '../services/sectors';
+import { fetchBatchPSXPrices } from '../services/psxData';
+import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Settings } from 'lucide-react';
 
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
+import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from '../services/driveStorage';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
@@ -594,4 +594,3 @@ const App: React.FC = () => {
 };
 
 export default App;
-}
