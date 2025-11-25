@@ -40,8 +40,8 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   
-  // NEW: Brokers State
-  const [brokers, setBrokers] = useState<Broker[]>([]);
+  // NEW: Brokers State - Initialize with Default to prevent undefined/empty crashes
+  const [brokers, setBrokers] = useState<Broker[]>([DEFAULT_BROKER]);
 
   // UI State
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
@@ -69,7 +69,7 @@ const App: React.FC = () => {
                   if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   // Load brokers from cloud, or fallback to default if empty
-                  if (cloudData.brokers && Array.isArray(cloudData.brokers)) {
+                  if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
                   } else {
                       setBrokers([DEFAULT_BROKER]);
@@ -97,8 +97,13 @@ const App: React.FC = () => {
           if (savedPortId) setCurrentPortfolioId(savedPortId);
           
           if (savedBrokers) {
-              setBrokers(JSON.parse(savedBrokers));
-          } else if (!savedTx) { // Only set default if fresh
+              const parsedBrokers = JSON.parse(savedBrokers);
+              if (Array.isArray(parsedBrokers) && parsedBrokers.length > 0) {
+                  setBrokers(parsedBrokers);
+              } else {
+                  setBrokers([DEFAULT_BROKER]);
+              }
+          } else {
               setBrokers([DEFAULT_BROKER]);
           }
 
