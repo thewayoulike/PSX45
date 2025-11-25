@@ -15,7 +15,9 @@ import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Load
 // Drive Storage Imports
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
 
+// Initial Data: Empty array so the app is blank when logged out
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
+
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
 const App: React.FC = () => {
@@ -51,8 +53,10 @@ const App: React.FC = () => {
   // --- AUTHENTICATION & DATA LOADING ---
 
   useEffect(() => {
+      // Initialize Google Drive Auth
       initDriveAuth(async (user) => {
           setDriveUser(user);
+          // Load data from Drive upon Login
           setIsCloudSyncing(true);
           try {
               const cloudData = await loadFromDrive();
@@ -72,9 +76,12 @@ const App: React.FC = () => {
               setIsCloudSyncing(false);
           }
       });
+
+      // Load from LocalStorage initially
       loadFromLocalStorage();
   }, []);
 
+  // Helper to load local data
   const loadFromLocalStorage = () => {
       try {
           const savedPortfolios = localStorage.getItem('psx_portfolios');
@@ -105,11 +112,13 @@ const App: React.FC = () => {
   // --- DATA SAVING ---
 
   useEffect(() => {
+      // Always save to LocalStorage
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       
+      // If Logged In, Sync to Google Drive
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
@@ -121,24 +130,31 @@ const App: React.FC = () => {
                   customBrokers: JSON.parse(localStorage.getItem('psx_custom_brokers') || '[]')
               });
               setIsCloudSyncing(false);
-          }, 3000);
+          }, 3000); // 3 second debounce to avoid spamming Drive API
           return () => clearTimeout(timer);
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, driveUser]);
 
 
-  // --- ACTIONS ---
+  // --- AUTH ACTIONS ---
 
-  const handleLogin = () => signInWithDrive();
+  const handleLogin = () => {
+      signInWithDrive();
+  };
 
   const handleLogout = () => {
+      // 1. Clear all local data so the screen goes blank immediately/on reload
       localStorage.removeItem('psx_portfolios');
       localStorage.removeItem('psx_transactions');
       localStorage.removeItem('psx_manual_prices');
       localStorage.removeItem('psx_current_portfolio_id');
       localStorage.removeItem('psx_custom_brokers');
+      
+      // 2. Sign out (Revokes token & reloads page)
       signOutDrive();
   };
+
+  // --- APP LOGIC ---
 
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
@@ -157,11 +173,12 @@ const App: React.FC = () => {
 
   const uniqueBrokers = useMemo(() => {
     const brokers = new Set<string>();
-    portfolioTransactions.forEach(t => { if (t.broker) brokers.add(t.broker); });
+    portfolioTransactions.forEach(t => {
+      if (t.broker) brokers.add(t.broker);
+    });
     return Array.from(brokers).sort();
   }, [portfolioTransactions]);
 
-  // --- Calculations ---
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
@@ -311,15 +328,17 @@ const App: React.FC = () => {
           // 1. Bulk Fetch all prices
           const newPrices = await fetchBatchPSXPrices(uniqueTickers);
           
-          // 2. Identify missing tickers
+          // 2. Identify missing tickers OR tickers with zero price
           const failed = new Set<string>();
           const validUpdates: Record<string, number> = {};
 
           uniqueTickers.forEach(ticker => {
-              if (newPrices[ticker] && newPrices[ticker] > 0) {
-                  validUpdates[ticker] = newPrices[ticker];
+              const price = newPrices[ticker];
+              // STRICT CHECK: Must exist AND be greater than 0
+              if (price !== undefined && price > 0) {
+                  validUpdates[ticker] = price;
               } else {
-                  failed.add(ticker);
+                  failed.add(ticker); // Flag as failed if price is missing or 0
               }
           });
 
