@@ -1,7 +1,3 @@
-{
-type: created file
-fileName: src/components/ApiKeyManager.tsx
-fullContent:
 import React, { useState, useEffect } from 'react';
 import { X, Key, ShieldCheck, Lock, ExternalLink, Save } from 'lucide-react';
 
@@ -34,7 +30,6 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
       <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
         
-        {/* Header */}
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <Key className="text-indigo-600" size={20} />
@@ -45,10 +40,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 space-y-6">
-            
-            {/* Status Banner */}
             {!isDriveConnected ? (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
                     <Lock className="text-amber-500 shrink-0 mt-0.5" size={18} />
@@ -71,7 +63,6 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                 </div>
             )}
 
-            {/* Form */}
             <form onSubmit={handleSave} className="space-y-4">
                 <div>
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Gemini API Key</label>
@@ -85,7 +76,6 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                     />
                 </div>
 
-                {/* Instructions */}
                 <div className="text-xs text-slate-500 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
                     <p className="font-bold text-slate-700">How to get a key:</p>
                     <ol className="list-decimal pl-4 space-y-1">
@@ -110,4 +100,3 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     </div>
   );
 };
-}
