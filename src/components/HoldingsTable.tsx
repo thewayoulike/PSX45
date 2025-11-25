@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Holding } from '../types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { PieChart as PieChartIcon, Layers, Search, AlertCircle } from 'lucide-react';
+import { PieChart as PieChartIcon, Layers, Search, AlertTriangle } from 'lucide-react';
 
 interface HoldingsTableProps {
   holdings: Holding[];
   showBroker?: boolean;
   onRemoveHolding?: (ticker: string) => void;
-  failedTickers?: Set<string>; // NEW PROP
+  failedTickers?: Set<string>;
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
@@ -110,7 +110,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         <div className="flex items-center gap-3">
                             <div className="w-1 h-6 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
                             <div>
-                                <div className="font-bold text-slate-800 text-sm">{holding.ticker}</div>
+                                <div className="font-bold text-slate-800 text-sm flex items-center gap-2">
+                                    {holding.ticker}
+                                    {isFailed && <AlertTriangle size={14} className="text-amber-500" title="Price update failed or data stale" />}
+                                </div>
                                 <div className="text-[10px] text-slate-500 uppercase tracking-wide truncate max-w-[100px]">{holding.sector}</div>
                             </div>
                         </div>
@@ -121,12 +124,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <td className="px-4 py-4 text-right text-slate-700 font-medium">{holding.quantity.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">{holding.avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
-                        <div className="flex items-center justify-end gap-1">
-                            {isFailed && <AlertCircle size={12} className="text-rose-500" title="Price update failed" />}
-                            <span className={isFailed ? "text-rose-500/60" : ""}>
-                                {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
-                            </span>
-                        </div>
+                        <span className={isFailed ? "text-amber-600 font-bold" : ""}>
+                            {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                        </span>
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
                         {holding.totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
