@@ -10,7 +10,6 @@ interface TransactionFormProps {
   onClose: () => void;
   existingTransactions?: Transaction[];
   editingTransaction?: Transaction | null;
-  // NEW PROPS FOR BROKER MANAGEMENT
   brokers: Broker[];
   onAddBroker: (broker: Omit<Broker, 'id'>) => void;
   onUpdateBroker: (broker: Broker) => void;
@@ -563,7 +562,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     </form>
                 ) : (
                    <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                      <p>Scanner feature not available in this view.</p>
+                      <p>Scanner feature requires OCR API setup.</p>
                       <button onClick={() => setMode('MANUAL')} className="text-emerald-600 underline mt-2">Go Back</button>
                    </div>
                 )}
