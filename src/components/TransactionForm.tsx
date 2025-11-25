@@ -45,7 +45,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState('');
   const [scannedTrades, setScannedTrades] = useState<ParsedTrade[]>([]);
-  const [scanDefaultBrokerId, setScanDefaultBrokerId] = useState<string>(''); // New: Select before scan
+  const [scanDefaultBrokerId, setScanDefaultBrokerId] = useState<string>(''); 
 
   // --- HELPER: Fee Calculation Logic ---
   const calculateFees = (broker: Broker | undefined, qty: number, prc: number, txType: string) => {
@@ -195,9 +195,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 return { 
                     ...t, 
                     brokerId: broker ? broker.id : undefined,
-                    commission: t.commission || fees.comm, // Prefer OCR comm if found, else calc
-                    tax: t.tax || fees.tax,
-                    cdcCharges: t.cdcCharges || fees.cdc
+                    // FIX: Prioritize calculated fees if a broker is selected, otherwise fallback to OCR
+                    commission: broker ? fees.comm : (t.commission || 0),
+                    tax: broker ? fees.tax : (t.tax || 0),
+                    cdcCharges: broker ? fees.cdc : (t.cdcCharges || 0)
                 };
             });
             setScannedTrades(processed);
