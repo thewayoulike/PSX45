@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, ParsedTrade, Broker, CommissionType } from '../types';
-import { X, Plus, Check, Upload, FileText, Loader2, Trash2, AlertCircle, ChevronDown, ChevronUp, Pencil, RefreshCw, Settings, Save, ArrowLeft } from 'lucide-react';
+import { X, Plus, Upload, FileText, Loader2, Trash2, AlertCircle, ChevronDown, ChevronUp, RefreshCw, Settings, Pencil, ArrowLeft } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 
 interface TransactionFormProps {
@@ -26,7 +26,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   onClose, 
   existingTransactions = [],
   editingTransaction,
-  brokers,
+  brokers = [], // Safety default
   onAddBroker,
   onUpdateBroker,
   onDeleteBroker
@@ -79,7 +79,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
       if (editingTransaction.brokerId) {
           setSelectedBrokerId(editingTransaction.brokerId);
-      } else if (editingTransaction.broker) {
+      } else if (editingTransaction.broker && brokers.length > 0) {
           // Legacy support: Try find by name
           const match = brokers.find(b => b.name === editingTransaction.broker);
           if (match) setSelectedBrokerId(match.id);
@@ -87,7 +87,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     } else {
       if (isOpen && !editingTransaction) {
         resetForm();
-        if (brokers.length > 0) {
+        if (brokers && brokers.length > 0) {
             const def = brokers.find(b => b.isDefault) || brokers[0];
             setSelectedBrokerId(def.id);
         } else {
@@ -116,7 +116,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
 
     // Buy/Sell Calc
-    if (qty && prc && selectedBrokerId) {
+    if (qty && prc && selectedBrokerId && brokers.length > 0) {
         const broker = brokers.find(b => b.id === selectedBrokerId);
         if (!broker) return;
 
@@ -420,7 +420,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 {/* List of Brokers */}
                 <div className="space-y-2">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Your Brokers</h4>
-                    {brokers.map(b => (
+                    {brokers?.map(b => (
                         <div key={b.id} className="flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
                             <div>
                                 <div className="font-bold text-slate-800 text-sm">{b.name}</div>
@@ -438,7 +438,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             </div>
                         </div>
                     ))}
-                    {brokers.length === 0 && (
+                    {(!brokers || brokers.length === 0) && (
                         <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
                             <p className="text-slate-400 text-sm">No brokers added yet.</p>
                         </div>
