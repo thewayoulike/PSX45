@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, RefreshCw, Loader2, Save, Trash2, Check, AlertCircle, Briefcase } from 'lucide-react';
+import { X, Plus, ChevronDown, RefreshCw, Loader2, Save, Trash2, Check, Briefcase, AlertCircle } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
   onUpdateTransaction?: (transaction: Transaction) => void;
-  onManageBrokers?: () => void; // NEW PROP
+  onManageBrokers?: () => void;
   isOpen: boolean;
   onClose: () => void;
   existingTransactions?: Transaction[];
@@ -26,7 +26,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   editingTransaction,
   brokers = []
 }) => {
-  // Mode State
   const [mode, setMode] = useState<'MANUAL' | 'SCAN'>('MANUAL');
   
   // --- MANUAL FORM STATE ---
@@ -77,7 +76,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 if (match) setSelectedBrokerId(match.id);
             }
         } else {
-            // Reset All
             resetManualForm();
             setScanFiles(null);
             setScanError('');
@@ -93,8 +91,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setDate(new Date().toISOString().split('T')[0]);
   };
 
-  // --- ACTIONS ---
-
+  // --- MANUAL SUBMIT ---
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!ticker || !quantity || !price) return;
@@ -126,6 +123,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     onClose();
   };
 
+  // --- SCANNER LOGIC ---
   const handleScan = async () => {
     if (!scanFiles || scanFiles.length === 0) return;
     setIsScanning(true);
@@ -155,7 +153,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   // --- BULK REVIEW ACTIONS ---
-
   const updateScannedTrade = (index: number, field: string, value: any) => {
       const updated = [...scannedTrades];
       // @ts-ignore
@@ -163,8 +160,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setScannedTrades(updated);
   };
 
+  const handleBrokerSelectChange = (index: number, value: string) => {
+      if (value === 'ADD_NEW') {
+          if (onManageBrokers) onManageBrokers();
+      } else {
+          updateScannedTrade(index, 'brokerId', value);
+      }
+  };
+
   const saveTrade = (t: ParsedTrade & { brokerId?: string }) => {
-      // Find broker details
       let brokerName = t.broker;
       let brokerId = t.brokerId;
 
@@ -207,7 +211,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-6xl' : 'max-w-lg'}`}>
+      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-[90vw]' : 'max-w-lg'}`}>
         
         {/* HEADER */}
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
@@ -220,6 +224,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         </div>
 
         <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
+            {/* TABS */}
             {!editingTransaction && scannedTrades.length === 0 && (
                 <div className="flex border-b border-slate-200 mb-6">
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'MANUAL' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}>Manual Entry</button>
@@ -227,11 +232,32 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </div>
             )}
             
+            {/* MANUAL FORM */}
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
-                    {/* ... (Keep Manual Form Code same as before) ... */}
-                    {/* For brevity, assume Manual Form code block here is identical to previous responses */}
-                     <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                        {(['BUY', 'SELL', 'DIVIDEND'] as const).map(t => (
+                            <button key={t} type="button" onClick={() => setType(t)} className={`py-2 rounded-lg text-xs font-bold transition-all ${type === t ? (t === 'BUY' ? 'bg-emerald-500 text-white shadow' : t === 'SELL' ? 'bg-rose-500 text-white shadow' : 'bg-indigo-500 text-white shadow') : 'text-slate-500 hover:text-slate-800'}`}>
+                                {t}
+                            </button>
+                        ))}
+                    </div>
+
+                    {type !== 'DIVIDEND' && (
+                        <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                                <label className="text-xs font-semibold text-slate-500 uppercase">Broker</label>
+                            </div>
+                            <div className="relative">
+                                <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none">
+                                    {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                </select>
+                                <div className="absolute right-3 top-3 pointer-events-none text-slate-400"><ChevronDown size={16} /></div>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Date</label>
                             <input type="date" required value={date} onChange={e => setDate(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" />
@@ -241,7 +267,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <input type="text" required placeholder="e.g. OGDC" value={ticker} onChange={e => setTicker(e.target.value.toUpperCase())} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-bold tracking-wide" />
                         </div>
                     </div>
-                     <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Quantity</label>
                             <input type="number" required min="1" value={quantity} onChange={e => setQuantity(e.target.value ? Number(e.target.value) : '')} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" />
@@ -251,25 +277,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <input type="number" required min="0.01" step="0.01" value={price} onChange={e => setPrice(e.target.value ? Number(e.target.value) : '')} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none font-mono" />
                         </div>
                     </div>
-                    {/* Broker Select for Manual */}
-                    <div>
-                        <div className="flex justify-between items-center mb-1.5">
-                            <label className="text-xs font-semibold text-slate-500 uppercase">Broker</label>
-                        </div>
-                        <div className="relative">
-                            <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none">
-                                {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                            </select>
-                            <div className="absolute right-3 top-3 pointer-events-none text-slate-400"><ChevronDown size={16} /></div>
-                        </div>
-                    </div>
-                    
                     <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all">
-                        Save Transaction
+                        {editingTransaction ? 'Update' : 'Save Transaction'}
                     </button>
                 </form>
             )}
 
+            {/* SCANNER UPLOAD */}
             {mode === 'SCAN' && scannedTrades.length === 0 && (
                 <div className="flex flex-col items-center justify-center h-full space-y-4">
                     <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center w-full hover:bg-slate-50 transition-colors cursor-pointer relative">
@@ -277,13 +291,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <span className="font-bold text-lg text-slate-500">Click to Upload</span>
                     </div>
                     {scanError && <p className="text-rose-500 text-sm">{scanError}</p>}
-                    <button onClick={handleScan} disabled={!scanFiles || isScanning} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl">
-                        {isScanning ? <Loader2 className="animate-spin inline mr-2"/> : ''} Process
+                    <button onClick={handleScan} disabled={!scanFiles || isScanning} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl flex items-center justify-center">
+                         {isScanning && <Loader2 className="animate-spin mr-2" size={18}/>} Process Document
                     </button>
                 </div>
             )}
 
-            {/* --- BULK REVIEW TABLE --- */}
+            {/* BULK REVIEW TABLE */}
             {scannedTrades.length > 0 && (
                 <div className="flex flex-col h-full">
                     <div className="flex items-center justify-between mb-4">
@@ -300,12 +314,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <table className="w-full text-left text-xs">
                             <thead className="bg-slate-50 text-slate-500 font-semibold uppercase sticky top-0 z-10">
                                 <tr>
-                                    <th className="px-3 py-2">Ticker</th>
-                                    <th className="px-3 py-2 w-20">Type</th>
-                                    <th className="px-3 py-2 w-20">Qty</th>
-                                    <th className="px-3 py-2 w-20">Price</th>
-                                    <th className="px-3 py-2 w-48">Broker</th>
-                                    <th className="px-3 py-2 text-right">Actions</th>
+                                    <th className="px-3 py-3 w-32">Ticker</th>
+                                    <th className="px-3 py-3 w-20">Type</th>
+                                    <th className="px-3 py-3 w-20">Qty</th>
+                                    <th className="px-3 py-3 w-20">Price</th>
+                                    <th className="px-3 py-3 w-16">Comm</th>
+                                    <th className="px-3 py-3 w-16">Tax</th>
+                                    <th className="px-3 py-3 w-16">CDC</th>
+                                    <th className="px-3 py-3 w-56">Broker</th>
+                                    <th className="px-3 py-3 text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -316,7 +333,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     
                                     return (
                                     <tr key={idx} className="hover:bg-slate-50 group">
-                                        <td className="p-2"><input type="text" value={trade.ticker} onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-16 font-bold bg-transparent outline-none" /></td>
+                                        <td className="p-2">
+                                            <input 
+                                                type="text" 
+                                                value={trade.ticker} 
+                                                onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} 
+                                                className="w-full font-bold bg-white border border-slate-200 rounded px-2 py-1 focus:ring-2 focus:ring-emerald-500 outline-none text-slate-700"
+                                            />
+                                        </td>
                                         <td className="p-2">
                                             <select value={trade.type} onChange={(e) => updateScannedTrade(idx, 'type', e.target.value)} className="bg-transparent font-bold outline-none">
                                                 <option value="BUY">BUY</option><option value="SELL">SELL</option>
@@ -325,24 +349,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                         <td className="p-2"><input type="number" value={trade.quantity} onChange={(e) => updateScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-transparent outline-none" /></td>
                                         <td className="p-2"><input type="number" value={trade.price} onChange={(e) => updateScannedTrade(idx, 'price', Number(e.target.value))} className="w-full bg-transparent outline-none" /></td>
                                         
+                                        {/* FEES */}
+                                        <td className="p-2"><input type="number" step="0.01" value={trade.commission || 0} onChange={(e) => updateScannedTrade(idx, 'commission', Number(e.target.value))} className="w-full text-slate-500 bg-transparent outline-none" /></td>
+                                        <td className="p-2"><input type="number" step="0.01" value={trade.tax || 0} onChange={(e) => updateScannedTrade(idx, 'tax', Number(e.target.value))} className="w-full text-slate-500 bg-transparent outline-none" /></td>
+                                        <td className="p-2"><input type="number" step="0.01" value={trade.cdcCharges || 0} onChange={(e) => updateScannedTrade(idx, 'cdcCharges', Number(e.target.value))} className="w-full text-slate-500 bg-transparent outline-none" /></td>
+
                                         {/* BROKER COLUMN */}
                                         <td className="p-2">
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex flex-col gap-1">
                                                 <select 
                                                     value={brokerId || ''} 
-                                                    onChange={(e) => updateScannedTrade(idx, 'brokerId', e.target.value)} 
+                                                    onChange={(e) => handleBrokerSelectChange(idx, e.target.value)} 
                                                     className={`w-full bg-transparent outline-none text-xs ${!hasBroker ? 'text-rose-500 font-bold' : ''}`}
                                                 >
                                                     <option value="">Select Broker...</option>
                                                     {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                    <option value="ADD_NEW" className="font-bold text-emerald-600 bg-emerald-50">+ Add New Broker</option>
                                                 </select>
-                                                {!hasBroker && onManageBrokers && (
-                                                    <button onClick={onManageBrokers} className="p-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200" title="Add New Broker">
-                                                        <Briefcase size={12} />
-                                                    </button>
-                                                )}
+                                                {!hasBroker && trade.broker && <div className="text-[10px] text-slate-400">Scanned: {trade.broker}</div>}
                                             </div>
-                                            {!hasBroker && trade.broker && <div className="text-[10px] text-slate-400">Scanned: {trade.broker}</div>}
                                         </td>
 
                                         <td className="p-2 text-right">
