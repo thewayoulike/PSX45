@@ -5,17 +5,16 @@ import { HoldingsTable } from './components/HoldingsTable';
 import { RealizedTable } from './components/RealizedTable';
 import { TransactionList } from './components/TransactionList';
 import { TransactionForm } from './components/TransactionForm';
+import { BrokerManager } from './components/BrokerManager';
 import { PriceEditor } from './components/PriceEditor';
 import { DividendScanner } from './components/DividendScanner';
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase } from 'lucide-react';
 
-// Drive Storage Imports
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
 
-// Initial Data
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
@@ -30,11 +29,10 @@ const DEFAULT_BROKER: Broker = {
 };
 
 const App: React.FC = () => {
-  // Auth State
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
-  // --- 1. ROBUST INITIALIZATION (Reads LocalStorage INSTANTLY) ---
+  // --- 1. ROBUST INITIALIZATION ---
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
           const saved = localStorage.getItem('psx_brokers');
@@ -42,7 +40,7 @@ const App: React.FC = () => {
               const parsed = JSON.parse(saved);
               if (Array.isArray(parsed) && parsed.length > 0) return parsed;
           }
-      } catch (e) { console.error("Error loading brokers:", e); }
+      } catch (e) { console.error(e); }
       return [DEFAULT_BROKER];
   });
 
@@ -74,11 +72,9 @@ const App: React.FC = () => {
       return {};
   });
 
-  // App Data State (UI)
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
   
-  // UI State
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -86,56 +82,49 @@ const App: React.FC = () => {
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
+  
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
+  const [showBrokerManager, setShowBrokerManager] = useState(false);
+
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
   const hasMergedCloud = useRef(false);
 
-  // --- AUTHENTICATION & CLOUD LOAD ---
+  // --- AUTH ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
-          // Only merge once per session to prevent overwrites
           if (!hasMergedCloud.current) {
               setIsCloudSyncing(true);
               try {
                   const cloudData = await loadFromDrive();
                   if (cloudData) {
                       hasMergedCloud.current = true;
-                      
                       if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                       
-                      // --- SAFE BROKER MERGE ---
-                      // We keep what is on the device, and only add what is missing from the cloud.
                       if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                           setBrokers(currentLocal => {
                               const localIds = new Set(currentLocal.map(b => b.id));
                               const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
-                              
-                              if (missingLocally.length === 0) return currentLocal;
-
                               const merged = [...currentLocal, ...missingLocally];
                               localStorage.setItem('psx_brokers', JSON.stringify(merged));
                               return merged;
                           });
                       }
                   }
-              } catch (e) {
-                  console.error("Drive Load Error", e);
-              } finally {
-                  setIsCloudSyncing(false);
-              }
+              } catch (e) { console.error("Drive Load Error", e); } 
+              finally { setIsCloudSyncing(false); }
           }
       });
   }, []);
 
-  // --- DATA SAVING (React Effect) ---
+  // --- SAVE ---
   useEffect(() => {
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
@@ -143,16 +132,11 @@ const App: React.FC = () => {
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
-      // Auto-save to cloud if logged in
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
               await saveToDrive({
-                  transactions,
-                  portfolios,
-                  currentPortfolioId,
-                  manualPrices,
-                  brokers
+                  transactions, portfolios, currentPortfolioId, manualPrices, brokers
               });
               setIsCloudSyncing(false);
           }, 3000); 
@@ -160,19 +144,16 @@ const App: React.FC = () => {
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser]);
 
-  // --- BROKER ACTIONS (WITH IMMEDIATE SAVE & PROMPT) ---
-
+  // --- HANDLERS ---
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       const updatedBrokers = [...brokers, { ...newBroker, id }];
       
-      // 1. Update State & LocalStorage IMMEDIATELY (Force Save)
       setBrokers(updatedBrokers);
       localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
 
-      // 2. Immediate Prompt (No setTimeout)
       if (!driveUser) {
-          if (window.confirm("Broker saved to device.\n\nSign in to Google Drive now to backup your settings?")) {
+          if (window.confirm("Broker saved locally. Sign in to Google Drive to backup?")) {
               signInWithDrive();
           }
       }
@@ -180,28 +161,24 @@ const App: React.FC = () => {
 
   const handleUpdateBroker = (updated: Broker) => {
       const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b);
-      
-      // 1. Update State & LocalStorage IMMEDIATELY
       setBrokers(updatedBrokers);
       localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
       
-      // 2. Immediate Prompt
       if (!driveUser) {
-          if (window.confirm("Broker updated locally.\n\nSign in to Google Drive now to backup?")) {
+          if (window.confirm("Broker updated locally. Sign in to Google Drive to backup?")) {
               signInWithDrive();
           }
       }
   };
 
   const handleDeleteBroker = (id: string) => {
-      if (window.confirm("Delete this broker setting?")) {
+      if (window.confirm("Delete this broker?")) {
           const updatedBrokers = brokers.filter(b => b.id !== id);
-          
           setBrokers(updatedBrokers);
           localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
           
           if (!driveUser) {
-              if (window.confirm("Broker deleted locally.\n\nSign in to Google Drive to sync this change?")) {
+              if (window.confirm("Broker deleted. Sign in to Google Drive to sync?")) {
                   signInWithDrive();
               }
           }
@@ -209,21 +186,15 @@ const App: React.FC = () => {
   };
 
   const handleLogin = () => signInWithDrive();
-
   const handleLogout = () => {
-      if (window.confirm("Are you sure you want to logout? Local data will be cleared.")) {
-          setTransactions([]);
-          setPortfolios([DEFAULT_PORTFOLIO]);
-          setHoldings([]);
-          setRealizedTrades([]);
-          setManualPrices({});
-          setBrokers([DEFAULT_BROKER]);
+      if (window.confirm("Logout and clear local data?")) {
+          setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); setManualPrices({}); setBrokers([DEFAULT_BROKER]);
           localStorage.clear();
           signOutDrive();
       }
   };
 
-  // --- APP LOGIC (Derived State) ---
+  // --- APP LOGIC ---
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
           setCurrentPortfolioId(portfolios[0].id);
@@ -470,7 +441,7 @@ const App: React.FC = () => {
                                 <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div>
                             )}
                             <div className="flex flex-col">
-                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced (Drive)</span>
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
                                 <span className="text-xs font-bold text-slate-800 max-w-[100px] truncate">{driveUser.name}</span>
                             </div>
                             <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
@@ -515,6 +486,11 @@ const App: React.FC = () => {
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
                         <Plus size={18} /> Add Transaction
                     </button>
+                    
+                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
+                        <Briefcase size={18} /> Brokers
+                    </button>
+
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
                         <Coins size={18} /> Scan Dividends
                     </button>
@@ -565,7 +541,7 @@ const App: React.FC = () => {
         </main>
       </div>
 
-     {/* MODALS */}
+      {/* MODALS */}
       <TransactionForm 
         isOpen={showAddModal} 
         onClose={() => setShowAddModal(false)} 
@@ -574,11 +550,18 @@ const App: React.FC = () => {
         existingTransactions={transactions}
         editingTransaction={editingTransaction}
         brokers={brokers}
-        // This is the new line you added (CORRECT):
         onManageBrokers={() => setShowBrokerManager(true)}
-        // REMOVE the lines for onAddBroker, onUpdateBroker, onDeleteBroker
       />
       
+      <BrokerManager 
+        isOpen={showBrokerManager}
+        onClose={() => setShowBrokerManager(false)}
+        brokers={brokers}
+        onAddBroker={handleAddBroker}
+        onUpdateBroker={handleUpdateBroker}
+        onDeleteBroker={handleDeleteBroker}
+      />
+
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
       
