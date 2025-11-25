@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from '../types';
+import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from './types';
 import { Dashboard } from './components/DashboardStats';
 import { HoldingsTable } from './components/HoldingsTable';
 import { RealizedTable } from './components/RealizedTable';
@@ -10,11 +10,10 @@ import { DividendScanner } from './components/DividendScanner';
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, AlertTriangle, Copy, Settings } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save } from 'lucide-react';
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
 
 // Initial Data
-const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
 // Default Broker Logic for new users
@@ -51,7 +50,6 @@ const App: React.FC = () => {
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [priceError, setPriceError] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
@@ -107,7 +105,7 @@ const App: React.FC = () => {
           if (savedTx) {
               let parsed: any[] = JSON.parse(savedTx);
               if (parsed.length > 0 && !parsed[0].portfolioId) {
-                  parsed = parsed.map(t => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
+                  parsed = parsed.map((t: any) => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
               }
               setTransactions(parsed);
           }
