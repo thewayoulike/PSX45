@@ -1,8 +1,25 @@
+{
+type: uploaded file
+fileName: src/services/gemini.ts
+fullContent:
 import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 
-// 1. Safe access for Vite environment
+// 1. Store the user's key in memory
+let userProvidedKey: string | null = null;
+let aiClient: GoogleGenAI | null = null;
+
+export const setGeminiApiKey = (key: string | null) => {
+    userProvidedKey = key;
+    // Reset client so it recreates with the new key next time getAi() is called
+    aiClient = null;
+};
+
+// 2. Safe access for Vite environment
 const getApiKey = () => {
+  // PRIORITIZE USER KEY
+  if (userProvidedKey) return userProvidedKey;
+
   try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
@@ -19,16 +36,12 @@ const getApiKey = () => {
   return undefined;
 };
 
-// 2. LAZY INITIALIZATION (The Fix)
-// We do NOT create 'new GoogleGenAI' here. We just create a variable.
-let aiClient: GoogleGenAI | null = null;
-
-// This function creates the client ONLY when we need it, not when the page loads.
+// 3. LAZY INITIALIZATION
 const getAi = (): GoogleGenAI | null => {
     if (aiClient) return aiClient;
     
     const key = getApiKey();
-    // If key is missing, we return null instead of crashing the app
+    // If key is missing, we return null
     if (!key) {
         console.warn("Gemini API Key is missing. AI features will be disabled.");
         return null;
@@ -45,9 +58,8 @@ const getAi = (): GoogleGenAI | null => {
 
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
   try {
-    // 3. Use getAi() here instead of the global variable
     const ai = getAi(); 
-    if (!ai) throw new Error("API Key missing. Please check Vercel Environment Variables.");
+    if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
 
     const base64Data = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -107,13 +119,12 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     return [];
   } catch (error) {
     console.error("Error parsing trade document with Gemini:", error);
-    return [];
+    throw error; // Re-throw so UI handles it
   }
 };
 
 export const fetchDividends = async (tickers: string[]): Promise<DividendAnnouncement[]> => {
     try {
-        // 4. Use getAi() here as well
         const ai = getAi(); 
         if (!ai) return [];
 
@@ -140,4 +151,5 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         console.error("Error fetching dividends:", error);
         return [];
     }
+}
 }
