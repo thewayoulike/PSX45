@@ -574,6 +574,7 @@ const App: React.FC = () => {
         existingTransactions={transactions}
         editingTransaction={editingTransaction}
         brokers={brokers}
+        onManageBrokers={() => setShowBrokerManager(true)}
         onAddBroker={handleAddBroker}
         onUpdateBroker={handleUpdateBroker}
         onDeleteBroker={handleDeleteBroker}
