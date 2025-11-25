@@ -1,100 +1,101 @@
-
 /**
- * Service to fetch live stock prices directly from the PSX website (dps.psx.com.pk).
- * 
- * NOTE: Since this is a client-side app, we cannot fetch directly from PSX due to CORS errors.
- * We use CORS proxies to fetch the HTML content.
+ * Service to fetch live stock prices from PSX.
+ * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
+ * * UPDATED FIX: Smart Column Detection
+ * - Dynamically finds "CURRENT" column to avoid fetching "HIGH" price.
+ * - Uses "4th from last" heuristic as robust fallback.
  */
 
 export const fetchPSXPrice = async (ticker: string): Promise<number | null> => {
-    if (!ticker) return null;
-    
-    const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
-    
-    // Strategy: Try Primary Proxy, if fail, try Backup Proxy
-    
-    // 1. Primary: AllOrigins (JSON wrapper, good for avoiding strict CORS headers issues)
+    const batch = await fetchBatchPSXPrices([ticker]);
+    return batch[ticker] || null;
+};
+
+export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, number>> => {
+    const results: Record<string, number> = {};
+    // Use the market-watch page which contains all tickers
+    const targetUrl = `https://dps.psx.com.pk/market-watch`;
+
     try {
-        // Add timestamp to prevent caching
+        // 1. Try Primary Proxy (AllOrigins)
         const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`;
         const response = await fetch(proxyUrl);
-        if (response.ok) {
-            const data = await response.json();
-            const price = parseHtmlForPrice(data.contents);
-            if (price !== null) return price;
+        if (!response.ok) throw new Error("Proxy failed");
+        
+        const data = await response.json();
+        if (data.contents) {
+            parseMarketWatchTable(data.contents, results);
         }
+
     } catch (e) {
-        console.warn(`Primary proxy failed for ${ticker}, trying backup...`);
+        console.warn("Primary proxy failed, trying backup...", e);
+        try {
+            // 2. Backup Proxy (CorsProxy.io)
+            const backupUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+            const response = await fetch(backupUrl);
+            if (response.ok) {
+                const html = await response.text();
+                parseMarketWatchTable(html, results);
+            }
+        } catch (err) {
+            console.error("All proxies failed", err);
+        }
     }
 
-    // 2. Backup: CorsProxy.io (Direct pipe, very fast)
-    try {
-        const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-        const response = await fetch(proxyUrl);
-        if (response.ok) {
-            const html = await response.text();
-            const price = parseHtmlForPrice(html);
-            if (price !== null) return price;
-        }
-    } catch (e) {
-         console.error(`Backup proxy failed for ${ticker}`, e);
-    }
-
-    return null;
+    return results;
 };
 
 /**
- * Helper to extract price from PSX HTML
+ * Smartly parses the HTML table, adjusting for extra columns like "Sector".
  */
-const parseHtmlForPrice = (html: string): number | null => {
-    if (!html) return null;
-    
+const parseMarketWatchTable = (html: string, results: Record<string, number>) => {
     try {
-        // 1. DOM Parser (Specific Class) - Most Accurate
-        // The PSX DPS site usually stores the main price in a div with class "quote__close"
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
-        const priceElement = doc.querySelector(".quote__close");
         
-        if (priceElement && priceElement.textContent) {
-            const priceText = priceElement.textContent.replace(/Rs\.|,/g, '').trim();
-            const price = parseFloat(priceText);
-            if (!isNaN(price)) return price;
-        }
-
-        // 2. Regex Fallback (If DOM structure changes)
-        // Regex to find "Rs.xxx.xx"
-        const match = html.match(/Rs\.\s*([\d,]+(?:\.\d+)?)/);
-
-        if (match && match[1]) {
-            const priceStr = match[1].replace(/,/g, "");
-            const price = parseFloat(priceStr);
-            if (!isNaN(price)) {
-                return price;
+        // 1. Determine "Current" column index dynamically from Headers
+        let currentIdx = -1;
+        const headers = doc.querySelectorAll("th");
+        headers.forEach((th, i) => {
+            const headerText = th.textContent?.trim().toUpperCase();
+            if (headerText === 'CURRENT' || headerText === 'PRICE') {
+                currentIdx = i;
             }
-        }
+        });
+
+        const rows = doc.querySelectorAll("tr");
+        rows.forEach(row => {
+            const cols = row.querySelectorAll("td");
+            
+            // We need enough data columns to be a valid stock row
+            if (cols.length > 5) {
+                // Symbol is almost always the first column
+                const symbol = cols[0]?.textContent?.trim().toUpperCase();
+                
+                // 2. Find the Price Column
+                let priceCol;
+                
+                if (currentIdx !== -1 && cols[currentIdx]) {
+                    // specific index found from headers
+                    priceCol = cols[currentIdx];
+                } else {
+                    // Fallback Heuristic: "Current" is usually the 4th column from the end
+                    // Layout: [ ... | Current | Change | % Change | Volume ]
+                    priceCol = cols[cols.length - 4];
+                }
+
+                if (symbol && priceCol) {
+                    const priceText = priceCol.textContent?.trim().replace(/,/g, '');
+                    const price = parseFloat(priceText || '');
+                    
+                    // Valid Ticker (2-5 chars) and Valid Price
+                    if (symbol.length >= 2 && !isNaN(price)) {
+                        results[symbol] = price;
+                    }
+                }
+            }
+        });
     } catch (e) {
         console.error("Error parsing HTML", e);
     }
-    
-    return null;
-}
-
-/**
- * Fetches prices for multiple tickers
- */
-export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, number>> => {
-    const results: Record<string, number> = {};
-    
-    for (const ticker of tickers) {
-        // Add delay to be polite to the proxy/server
-        await new Promise(r => setTimeout(r, 300));
-        
-        const price = await fetchPSXPrice(ticker);
-        if (price !== null) {
-            results[ticker] = price;
-        }
-    }
-    
-    return results;
 };
