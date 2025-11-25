@@ -11,12 +11,15 @@ import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
 import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save } from 'lucide-react';
+
+// Drive Storage Imports
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
 
 // Initial Data
+const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
-// Default Broker Logic for new users
+// Default Broker Logic
 const DEFAULT_BROKER: Broker = {
     id: 'default_01',
     name: 'Standard Broker',
@@ -35,12 +38,13 @@ const App: React.FC = () => {
   // App Data State
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
+
   const [portfolios, setPortfolios] = useState<Portfolio[]>([DEFAULT_PORTFOLIO]);
   const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(DEFAULT_PORTFOLIO.id);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   
-  // NEW: Brokers State
+  // FIXED: Added Broker State
   const [brokers, setBrokers] = useState<Broker[]>([]);
 
   // UI State
@@ -50,6 +54,7 @@ const App: React.FC = () => {
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [priceError, setPriceError] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
@@ -68,7 +73,7 @@ const App: React.FC = () => {
                   if (cloudData.transactions) setTransactions(cloudData.transactions);
                   if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                  // Load brokers from cloud, or fallback to default if empty
+                  // Load brokers from cloud or fallback
                   if (cloudData.brokers && Array.isArray(cloudData.brokers)) {
                       setBrokers(cloudData.brokers);
                   } else {
@@ -90,7 +95,7 @@ const App: React.FC = () => {
           const savedTx = localStorage.getItem('psx_transactions');
           const savedPrices = localStorage.getItem('psx_manual_prices');
           const savedPortId = localStorage.getItem('psx_current_portfolio_id');
-          const savedBrokers = localStorage.getItem('psx_brokers'); // New Key
+          const savedBrokers = localStorage.getItem('psx_brokers'); 
 
           if (savedPortfolios) setPortfolios(JSON.parse(savedPortfolios));
           if (savedPrices) setManualPrices(JSON.parse(savedPrices));
@@ -98,16 +103,18 @@ const App: React.FC = () => {
           
           if (savedBrokers) {
               setBrokers(JSON.parse(savedBrokers));
-          } else if (!savedTx) { // Only set default if fresh
+          } else if (!savedTx) { 
               setBrokers([DEFAULT_BROKER]);
           }
 
           if (savedTx) {
               let parsed: any[] = JSON.parse(savedTx);
               if (parsed.length > 0 && !parsed[0].portfolioId) {
-                  parsed = parsed.map((t: any) => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
+                  parsed = parsed.map(t => ({ ...t, portfolioId: DEFAULT_PORTFOLIO.id }));
               }
               setTransactions(parsed);
+          } else {
+              setTransactions(INITIAL_TRANSACTIONS as Transaction[]);
           }
       } catch (e) { console.error("Local storage error", e); }
   };
@@ -137,6 +144,8 @@ const App: React.FC = () => {
   }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser]);
 
   // --- ACTIONS ---
+  
+  // FIXED: Broker Handlers
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       setBrokers(prev => [...prev, { ...newBroker, id }]);
@@ -152,25 +161,26 @@ const App: React.FC = () => {
       }
   };
 
+  const handleLogin = () => signInWithDrive();
+
   const handleLogout = () => {
       setTransactions([]);
       setPortfolios([DEFAULT_PORTFOLIO]);
       setHoldings([]);
       setRealizedTrades([]);
       setManualPrices({});
-      setBrokers([DEFAULT_BROKER]); // Reset to default
+      setBrokers([DEFAULT_BROKER]);
       
       localStorage.removeItem('psx_portfolios');
       localStorage.removeItem('psx_transactions');
       localStorage.removeItem('psx_manual_prices');
       localStorage.removeItem('psx_current_portfolio_id');
-      localStorage.removeItem('psx_custom_brokers');
       localStorage.removeItem('psx_brokers');
       
       signOutDrive();
   };
 
-  // Boilerplate Logic specific to this view
+  // --- APP LOGIC ---
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
           setCurrentPortfolioId(portfolios[0].id);
@@ -194,7 +204,6 @@ const App: React.FC = () => {
     return Array.from(brokers).sort();
   }, [portfolioTransactions]);
 
-  // Holdings Calculation
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
@@ -290,12 +299,10 @@ const App: React.FC = () => {
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0;
     let totalCost = 0;
-
     holdings.forEach(h => {
       totalValue += h.quantity * h.currentPrice;
       totalCost += h.quantity * h.avgPrice;
     });
-
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
@@ -303,7 +310,6 @@ const App: React.FC = () => {
     return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, totalDividends, dailyPL: 0 };
   }, [holdings, realizedTrades, totalDividends]);
 
-  // Handlers
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
     const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
     const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
@@ -316,13 +322,57 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    if (confirm("Delete transaction?")) {
+    if (confirm("Are you sure you want to delete this transaction?")) {
         setTransactions(prev => prev.filter(t => t.id !== id));
     }
   };
 
-  const handleLogin = () => signInWithDrive();
+  const handleEditClick = (tx: Transaction) => {
+      setEditingTransaction(tx);
+      setShowAddModal(true);
+  };
+
+  const handleUpdatePrices = (newPrices: Record<string, number>) => {
+      setManualPrices(prev => ({ ...prev, ...newPrices }));
+  };
   
+  const handleSyncPrices = async () => {
+      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
+      if (uniqueTickers.length === 0) return;
+
+      setIsSyncing(true);
+      setPriceError(false);
+      setFailedTickers(new Set()); 
+
+      try {
+          const newPrices = await fetchBatchPSXPrices(uniqueTickers);
+          const failed = new Set<string>();
+          const validUpdates: Record<string, number> = {};
+
+          uniqueTickers.forEach(ticker => {
+              const price = newPrices[ticker];
+              if (price !== undefined && price > 0) {
+                  validUpdates[ticker] = price;
+              } else {
+                  failed.add(ticker); 
+              }
+          });
+
+          if (Object.keys(validUpdates).length > 0) {
+              setManualPrices(prev => ({ ...prev, ...validUpdates }));
+          }
+          if (failed.size > 0) {
+              setFailedTickers(failed);
+              setPriceError(true);
+          }
+      } catch (e) {
+          console.error(e);
+          setPriceError(true);
+      } finally {
+          setIsSyncing(false);
+      }
+  };
+
   const handleCreatePortfolio = (e: React.FormEvent) => {
       e.preventDefault();
       if (newPortfolioName.trim()) {
@@ -336,35 +386,16 @@ const App: React.FC = () => {
 
   const handleDeletePortfolio = () => {
       if (portfolios.length === 1) {
-          alert("Cannot delete last portfolio.");
+          alert("You cannot delete the last portfolio.");
           return;
       }
-      if (confirm("Delete Portfolio? This removes all its transactions.")) {
+      if (confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
           const idToDelete = currentPortfolioId;
           const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
           setCurrentPortfolioId(nextPort.id);
           setPortfolios(prev => prev.filter(p => p.id !== idToDelete));
           setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
       }
-  };
-
-  const handleUpdatePrices = (newPrices: Record<string, number>) => {
-      setManualPrices(prev => ({ ...prev, ...newPrices }));
-  };
-  
-  const handleSyncPrices = async () => {
-      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
-      if (uniqueTickers.length === 0) return;
-      setIsSyncing(true);
-      try {
-          const newPrices = await fetchBatchPSXPrices(uniqueTickers);
-          const validUpdates: Record<string, number> = {};
-          uniqueTickers.forEach(ticker => {
-              const price = newPrices[ticker];
-              if (price && price > 0) validUpdates[ticker] = price;
-          });
-          if (Object.keys(validUpdates).length > 0) setManualPrices(prev => ({ ...prev, ...validUpdates }));
-      } catch (e) { console.error(e); } finally { setIsSyncing(false); }
   };
 
   return (
@@ -400,7 +431,11 @@ const App: React.FC = () => {
                                 <span className="text-xs font-bold text-slate-800 max-w-[100px] truncate">{driveUser.name}</span>
                             </div>
                             <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
-                            {isCloudSyncing ? <Loader2 size={16} className="text-emerald-500 animate-spin" /> : <Save size={16} className="text-emerald-500" />}
+                            {isCloudSyncing ? (
+                                <Loader2 size={16} className="text-emerald-500 animate-spin" />
+                            ) : (
+                                <Save size={16} className="text-emerald-500" />
+                            )}
                             <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out">
                                 <LogOut size={16} />
                             </button>
@@ -465,6 +500,7 @@ const App: React.FC = () => {
                             {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
                             <span className="hidden sm:inline">Sync PSX</span>
                         </button>
+                        {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                     </div>
                 </div>
             </div>
@@ -481,24 +517,26 @@ const App: React.FC = () => {
             <TransactionList 
                 transactions={portfolioTransactions} 
                 onDelete={handleDeleteTransaction} 
-                onEdit={(tx) => { setEditingTransaction(tx); setShowAddModal(true); }}
+                onEdit={handleEditClick} 
             />
         </main>
       </div>
 
       {/* MODALS */}
+      {/* FIXED: Passing required Broker props */}
       <TransactionForm 
         isOpen={showAddModal} 
         onClose={() => setShowAddModal(false)} 
         onAddTransaction={handleAddTransaction}
         onUpdateTransaction={handleUpdateTransaction}
         existingTransactions={transactions}
-        editingTransaction={editingTransaction} 
+        editingTransaction={editingTransaction}
         brokers={brokers}
         onAddBroker={handleAddBroker}
         onUpdateBroker={handleUpdateBroker}
         onDeleteBroker={handleDeleteBroker}
       />
+      
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
       
