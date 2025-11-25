@@ -1,18 +1,18 @@
 import React, { useState, useMemo } from 'react';
 import { Holding } from '../types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import { PieChart as PieChartIcon, Layers, Search } from 'lucide-react';
+import { PieChart as PieChartIcon, Layers, Search, AlertCircle } from 'lucide-react';
 
 interface HoldingsTableProps {
   holdings: Holding[];
   showBroker?: boolean;
   onRemoveHolding?: (ticker: string) => void;
+  failedTickers?: Set<string>; // NEW PROP
 }
 
-// PSX / Corporate Palette
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, onRemoveHolding }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, onRemoveHolding, failedTickers = new Set() }) => {
   const [chartMode, setChartMode] = useState<'asset' | 'sector'>('asset');
   const [searchTerm, setSearchTerm] = useState('');
   
@@ -52,7 +52,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   return (
     <div className="grid lg:grid-cols-3 gap-6">
-      {/* Table Section */}
       <div className="lg:col-span-2 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50">
         <div className="p-6 border-b border-slate-200/60 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/40">
           <div className="flex items-center gap-3">
@@ -62,7 +61,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
              </div>
           </div>
           
-          {/* Search Filter */}
           <div className="relative w-full sm:w-64">
               <Search size={14} className="absolute left-3 top-3 text-slate-400" />
               <input 
@@ -104,6 +102,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const pnl = marketValue - costBasis;
                   const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
                   const isProfit = pnl >= 0;
+                  const isFailed = failedTickers.has(holding.ticker);
 
                   return (
                     <tr key={`${holding.ticker}-${holding.broker || idx}`} className="hover:bg-emerald-50/30 transition-colors group">
@@ -122,9 +121,13 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <td className="px-4 py-4 text-right text-slate-700 font-medium">{holding.quantity.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">{holding.avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
-                        {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                        <div className="flex items-center justify-end gap-1">
+                            {isFailed && <AlertCircle size={12} className="text-rose-500" title="Price update failed" />}
+                            <span className={isFailed ? "text-rose-500/60" : ""}>
+                                {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                            </span>
+                        </div>
                       </td>
-                      {/* Fee Columns */}
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
                         {holding.totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
@@ -153,23 +156,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
         </div>
       </div>
 
-      {/* Charts Section */}
       <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl p-6 shadow-xl shadow-slate-200/50 flex flex-col">
         <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight">Allocation</h2>
             <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
-                <button 
-                    onClick={() => setChartMode('asset')}
-                    className={`p-1.5 rounded transition-all ${chartMode === 'asset' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                    title="By Asset"
-                >
+                <button onClick={() => setChartMode('asset')} className={`p-1.5 rounded transition-all ${chartMode === 'asset' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`} title="By Asset">
                     <PieChartIcon size={16} />
                 </button>
-                <button 
-                    onClick={() => setChartMode('sector')}
-                    className={`p-1.5 rounded transition-all ${chartMode === 'sector' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                    title="By Sector"
-                >
+                <button onClick={() => setChartMode('sector')} className={`p-1.5 rounded transition-all ${chartMode === 'sector' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`} title="By Sector">
                     <Layers size={16} />
                 </button>
             </div>
@@ -193,11 +187,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
-                <Tooltip 
-                    contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                    itemStyle={{ color: '#64748b' }}
-                    formatter={(value: number) => `Rs. ${value.toLocaleString()}`}
-                />
+                <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} itemStyle={{ color: '#64748b' }} formatter={(value: number) => `Rs. ${value.toLocaleString()}`} />
               </PieChart>
             </ResponsiveContainer>
           ) : (
@@ -206,7 +196,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             </div>
           )}
           
-          {/* Center Text Overlay */}
           {currentChartData.length > 0 && (
              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                  <span className="text-slate-400 font-bold text-[10px] uppercase">{chartMode}</span>
