@@ -565,7 +565,7 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* MODALS */}
+     {/* MODALS */}
       <TransactionForm 
         isOpen={showAddModal} 
         onClose={() => setShowAddModal(false)} 
@@ -574,10 +574,9 @@ const App: React.FC = () => {
         existingTransactions={transactions}
         editingTransaction={editingTransaction}
         brokers={brokers}
+        // This is the new line you added (CORRECT):
         onManageBrokers={() => setShowBrokerManager(true)}
-        onAddBroker={handleAddBroker}
-        onUpdateBroker={handleUpdateBroker}
-        onDeleteBroker={handleDeleteBroker}
+        // REMOVE the lines for onAddBroker, onUpdateBroker, onDeleteBroker
       />
       
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
