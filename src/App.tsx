@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio } from './types';
+import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio } from '../types';
 import { Dashboard } from './components/DashboardStats';
 import { HoldingsTable } from './components/HoldingsTable';
 import { RealizedTable } from './components/RealizedTable';
@@ -15,10 +15,8 @@ import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Load
 // Drive Storage Imports
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, updateClientId, DriveUser } from './services/driveStorage';
 
-// Dummy initial data (Legacy support)
-const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [
-  { id: '1', ticker: 'OGDC', type: 'BUY', quantity: 500, price: 115.50, date: '2023-10-01', broker: 'AKD Securities', commission: 86.62, tax: 11.26, cdcCharges: 5.0 },
-];
+// Initial Data: Empty array so the app is blank when logged out
+const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
@@ -142,6 +140,14 @@ const App: React.FC = () => {
   };
 
   const handleLogout = () => {
+      // 1. Clear all local data so the screen goes blank immediately/on reload
+      localStorage.removeItem('psx_portfolios');
+      localStorage.removeItem('psx_transactions');
+      localStorage.removeItem('psx_manual_prices');
+      localStorage.removeItem('psx_current_portfolio_id');
+      localStorage.removeItem('psx_custom_brokers');
+      
+      // 2. Sign out (Revokes token & reloads page)
       signOutDrive();
   };
 
