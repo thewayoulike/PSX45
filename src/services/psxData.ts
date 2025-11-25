@@ -1,10 +1,11 @@
 /**
  * Service to fetch live stock prices from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * * UPDATED FIX: Smart Column Detection
- * - Dynamically finds "CURRENT" column to avoid fetching "HIGH" price.
- * - Uses "4th from last" heuristic as robust fallback.
+ * * UPDATED FIX: Blacklist & Smart Column Detection
  */
+
+// Ignore these "Ticker" names because they are actually table headers
+const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL'];
 
 export const fetchPSXPrice = async (ticker: string): Promise<number | null> => {
     const batch = await fetchBatchPSXPrices([ticker]);
@@ -13,7 +14,6 @@ export const fetchPSXPrice = async (ticker: string): Promise<number | null> => {
 
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, number>> => {
     const results: Record<string, number> = {};
-    // Use the market-watch page which contains all tickers
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
 
     try {
@@ -45,15 +45,12 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     return results;
 };
 
-/**
- * Smartly parses the HTML table, adjusting for extra columns like "Sector".
- */
 const parseMarketWatchTable = (html: string, results: Record<string, number>) => {
     try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // 1. Determine "Current" column index dynamically from Headers
+        // 1. Determine "Current" column index dynamically
         let currentIdx = -1;
         const headers = doc.querySelectorAll("th");
         headers.forEach((th, i) => {
@@ -67,28 +64,26 @@ const parseMarketWatchTable = (html: string, results: Record<string, number>) =>
         rows.forEach(row => {
             const cols = row.querySelectorAll("td");
             
-            // We need enough data columns to be a valid stock row
             if (cols.length > 5) {
                 // Symbol is almost always the first column
                 const symbol = cols[0]?.textContent?.trim().toUpperCase();
                 
                 // 2. Find the Price Column
                 let priceCol;
-                
                 if (currentIdx !== -1 && cols[currentIdx]) {
-                    // specific index found from headers
                     priceCol = cols[currentIdx];
                 } else {
-                    // Fallback Heuristic: "Current" is usually the 4th column from the end
-                    // Layout: [ ... | Current | Change | % Change | Volume ]
+                    // Fallback: 4th column from the end
                     priceCol = cols[cols.length - 4];
                 }
 
                 if (symbol && priceCol) {
+                    // 3. CHECK BLACKLIST (The Fix for "READY")
+                    if (TICKER_BLACKLIST.includes(symbol)) return;
+
                     const priceText = priceCol.textContent?.trim().replace(/,/g, '');
                     const price = parseFloat(priceText || '');
                     
-                    // Valid Ticker (2-5 chars) and Valid Price
                     if (symbol.length >= 2 && !isNaN(price)) {
                         results[symbol] = price;
                     }
