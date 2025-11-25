@@ -19,7 +19,7 @@ import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDriv
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
-// Default Broker Logic
+// --- NEW: Default Broker Definition ---
 const DEFAULT_BROKER: Broker = {
     id: 'default_01',
     name: 'Standard Broker',
@@ -44,8 +44,8 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [manualPrices, setManualPrices] = useState<Record<string, number>>({});
   
-  // BROKER STATE
-  const [brokers, setBrokers] = useState<Broker[]>([]);
+  // --- NEW: Brokers State ---
+  const [brokers, setBrokers] = useState<Broker[]>([DEFAULT_BROKER]);
 
   // UI State
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
@@ -73,7 +73,8 @@ const App: React.FC = () => {
                   if (cloudData.transactions) setTransactions(cloudData.transactions);
                   if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                  // Load brokers from cloud or fallback
+                  
+                  // --- NEW: Load Brokers from Drive ---
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
                   } else {
@@ -101,7 +102,7 @@ const App: React.FC = () => {
           if (savedPrices) setManualPrices(JSON.parse(savedPrices));
           if (savedPortId) setCurrentPortfolioId(savedPortId);
           
-          // FIXED LOGIC: Ensure we ALWAYS have at least the default broker
+          // --- NEW: Load Brokers from Local Storage ---
           if (savedBrokers) {
               const parsed = JSON.parse(savedBrokers);
               if (Array.isArray(parsed) && parsed.length > 0) {
@@ -110,7 +111,6 @@ const App: React.FC = () => {
                   setBrokers([DEFAULT_BROKER]);
               }
           } else { 
-              // Even if no brokers saved, provide default
               setBrokers([DEFAULT_BROKER]);
           }
 
@@ -132,7 +132,9 @@ const App: React.FC = () => {
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
-      localStorage.setItem('psx_brokers', JSON.stringify(brokers)); // Save Brokers
+      
+      // --- NEW: Save Brokers to Local Storage ---
+      localStorage.setItem('psx_brokers', JSON.stringify(brokers));
       
       if (driveUser) {
           setIsCloudSyncing(true);
@@ -142,7 +144,7 @@ const App: React.FC = () => {
                   portfolios,
                   currentPortfolioId,
                   manualPrices,
-                  brokers // Sync Brokers
+                  brokers // --- NEW: Sync Brokers to Drive ---
               });
               setIsCloudSyncing(false);
           }, 3000); 
@@ -152,7 +154,7 @@ const App: React.FC = () => {
 
   // --- ACTIONS ---
   
-  // Broker Handlers
+  // --- NEW: Broker Handlers ---
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       setBrokers(prev => [...prev, { ...newBroker, id }]);
@@ -176,7 +178,7 @@ const App: React.FC = () => {
       setHoldings([]);
       setRealizedTrades([]);
       setManualPrices({});
-      setBrokers([DEFAULT_BROKER]);
+      setBrokers([DEFAULT_BROKER]); // Reset brokers
       
       localStorage.removeItem('psx_portfolios');
       localStorage.removeItem('psx_transactions');
