@@ -466,7 +466,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                                 {/* Explicit ADD BUTTON to ensure it works */}
                                                 <button 
                                                     type="button" 
-                                                    onClick={onManageBrokers} 
+                                                    onClick={(e) => {
+                                                        e.preventDefault();
+                                                        if (onManageBrokers) onManageBrokers();
+                                                    }}
                                                     className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 border border-emerald-200"
                                                     title="Create New Broker"
                                                 >
