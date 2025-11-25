@@ -10,7 +10,7 @@ import { DividendScanner } from './components/DividendScanner';
 import { Logo } from './components/ui/Logo';
 import { getSector } from './services/sectors';
 import { fetchBatchPSXPrices } from './services/psxData';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, CloudOff, Cloud } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save } from 'lucide-react';
 
 // Drive Storage Imports
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from './services/driveStorage';
@@ -19,12 +19,13 @@ import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDriv
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
+// Default Broker Definition
 const DEFAULT_BROKER: Broker = {
     id: 'default_01',
     name: 'Standard Broker',
     commissionType: 'HIGHER_OF',
-    rate1: 0.15,
-    rate2: 0.05,
+    rate1: 0.15, 
+    rate2: 0.05, 
     sstRate: 15,
     isDefault: true
 };
@@ -33,10 +34,8 @@ const App: React.FC = () => {
   // Auth State
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
-  const [showSyncModal, setShowSyncModal] = useState(false);
-  const [unsyncedChanges, setUnsyncedChanges] = useState(false); // Track unsynced changes
 
-  // Lazy Initialization
+  // --- 1. ROBUST INITIALIZATION (Reads LocalStorage First) ---
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
           const saved = localStorage.getItem('psx_brokers');
@@ -79,7 +78,7 @@ const App: React.FC = () => {
   // App Data State (UI)
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
-
+  
   // UI State
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
@@ -96,7 +95,7 @@ const App: React.FC = () => {
 
   const hasMergedCloud = useRef(false);
 
-  // --- AUTH & DATA LOADING ---
+  // --- AUTHENTICATION & CLOUD LOAD ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -106,17 +105,21 @@ const App: React.FC = () => {
                   const cloudData = await loadFromDrive();
                   if (cloudData) {
                       hasMergedCloud.current = true;
-
+                      
                       if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-
+                      
+                      // --- SAFE MERGE: Keep Local Data, Add Missing Cloud Data ---
                       if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                           setBrokers(currentLocal => {
                               const localIds = new Set(currentLocal.map(b => b.id));
                               const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
-                              return [...currentLocal, ...missingLocally];
+                              const merged = [...currentLocal, ...missingLocally];
+                              // Update LocalStorage immediately after merge
+                              localStorage.setItem('psx_brokers', JSON.stringify(merged));
+                              return merged;
                           });
                       }
                   }
@@ -129,64 +132,110 @@ const App: React.FC = () => {
       });
   }, []);
 
-  // --- LOCAL SAVE ---
+  // --- DATA SAVING (React Effect) ---
   useEffect(() => {
       localStorage.setItem('psx_transactions', JSON.stringify(transactions));
       localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
-
-      if (driveUser && unsyncedChanges) {
+      
+      // Auto-save to cloud if logged in (Debounced)
+      if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
-              await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers });
+              await saveToDrive({
+                  transactions,
+                  portfolios,
+                  currentPortfolioId,
+                  manualPrices,
+                  brokers
+              });
               setIsCloudSyncing(false);
-              setUnsyncedChanges(false);
-          }, 3000);
+          }, 3000); 
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser, unsyncedChanges]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser]);
 
-  // --- BROKER ACTIONS ---
-  const checkAuth = () => {
-      if (!driveUser) setShowSyncModal(true);
-  };
+  // --- BROKER ACTIONS (WITH IMMEDIATE SAVE & PROMPT) ---
 
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
-      setBrokers(prev => [...prev, { ...newBroker, id }]);
-      setUnsyncedChanges(true);
-      checkAuth();
+      const updatedBrokers = [...brokers, { ...newBroker, id }];
+      
+      // 1. Update State & LocalStorage IMMEDIATELY
+      setBrokers(updatedBrokers);
+      localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
+
+      // 2. Logic Check
+      if (!driveUser) {
+          // Force Browser Native Popup (Guaranteed to show)
+          // We use setTimeout to let the UI update first (modal close etc)
+          setTimeout(() => {
+              if (confirm("Broker saved to this device.\n\nSign in to Google Drive to backup your settings?")) {
+                  signInWithDrive();
+              }
+          }, 100);
+      } else {
+          // Force Immediate Cloud Sync
+          setIsCloudSyncing(true);
+          saveToDrive({
+              transactions, portfolios, currentPortfolioId, manualPrices,
+              brokers: updatedBrokers 
+          }).then(() => setIsCloudSyncing(false));
+      }
   };
 
   const handleUpdateBroker = (updated: Broker) => {
-      setBrokers(prev => prev.map(b => b.id === updated.id ? updated : b));
-      setUnsyncedChanges(true);
-      checkAuth();
+      const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b);
+      
+      // 1. Update State & LocalStorage
+      setBrokers(updatedBrokers);
+      localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
+      
+      // 2. Logic Check
+      if (!driveUser) {
+          setTimeout(() => {
+              if (confirm("Broker updated locally.\n\nSign in to Google Drive to backup?")) {
+                  signInWithDrive();
+              }
+          }, 100);
+      } else {
+          setIsCloudSyncing(true);
+          saveToDrive({
+              transactions, portfolios, currentPortfolioId, manualPrices,
+              brokers: updatedBrokers
+          }).then(() => setIsCloudSyncing(false));
+      }
   };
 
   const handleDeleteBroker = (id: string) => {
       if (confirm("Delete this broker setting?")) {
-          setBrokers(prev => prev.filter(b => b.id !== id));
-          setUnsyncedChanges(true);
-          checkAuth();
+          const updatedBrokers = brokers.filter(b => b.id !== id);
+          
+          setBrokers(updatedBrokers);
+          localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
+          
+          if (!driveUser) {
+               setTimeout(() => {
+                  if (confirm("Broker deleted locally.\n\nSign in to Google Drive to sync this change?")) {
+                      signInWithDrive();
+                  }
+              }, 100);
+          } else {
+              setIsCloudSyncing(true);
+              saveToDrive({
+                  transactions, portfolios, currentPortfolioId, manualPrices,
+                  brokers: updatedBrokers
+              }).then(() => setIsCloudSyncing(false));
+          }
       }
   };
 
-  const handleLogin = async () => {
-      setShowSyncModal(false);
-      await signInWithDrive();
-      if (unsyncedChanges && driveUser) {
-          setIsCloudSyncing(true);
-          await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers });
-          setIsCloudSyncing(false);
-          setUnsyncedChanges(false);
-      }
-  };
+  const handleLogin = () => signInWithDrive();
 
   const handleLogout = () => {
-      if (confirm("Are you sure you want to logout? Local data will be cleared.")) {
+      if (confirm("Logout and clear local data?")) {
           setTransactions([]);
           setPortfolios([DEFAULT_PORTFOLIO]);
           setHoldings([]);
@@ -205,7 +254,9 @@ const App: React.FC = () => {
       }
   }, [portfolios, currentPortfolioId]);
 
-  const portfolioTransactions = useMemo(() => transactions.filter(t => t.portfolioId === currentPortfolioId), [transactions, currentPortfolioId]);
+  const portfolioTransactions = useMemo(() => {
+      return transactions.filter(t => t.portfolioId === currentPortfolioId);
+  }, [transactions, currentPortfolioId]);
 
   const displayedTransactions = useMemo(() => {
     if (filterBroker === 'All') return portfolioTransactions;
@@ -220,19 +271,23 @@ const App: React.FC = () => {
     return Array.from(brokers).sort();
   }, [portfolioTransactions]);
 
-  // --- HOLDINGS & REALIZED CALCULATION ---
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
     let dividendSum = 0;
 
-    const sortedTx = [...displayedTransactions].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+    const sortedTx = [...displayedTransactions].sort((a, b) => {
+        const dateA = a.date || '';
+        const dateB = b.date || '';
+        return dateA.localeCompare(dateB);
+    });
 
     sortedTx.forEach(tx => {
       if (tx.type === 'DIVIDEND') {
           const grossDiv = tx.quantity * tx.price;
-          dividendSum += grossDiv - (tx.tax || 0);
-          return;
+          const netDiv = grossDiv - (tx.tax || 0);
+          dividendSum += netDiv;
+          return; 
       }
 
       const brokerKey = groupByBroker ? (tx.broker || 'Unknown') : 'ALL';
@@ -242,11 +297,11 @@ const App: React.FC = () => {
         const sector = getSector(tx.ticker);
         tempHoldings[holdingKey] = {
           ticker: tx.ticker,
-          sector,
+          sector: sector,
           broker: groupByBroker ? (tx.broker || 'Unknown') : (filterBroker !== 'All' ? filterBroker : 'Multiple Brokers'),
           quantity: 0,
           avgPrice: 0,
-          currentPrice: 0,
+          currentPrice: 0, 
           totalCommission: 0,
           totalTax: 0,
           totalCDC: 0,
@@ -265,52 +320,63 @@ const App: React.FC = () => {
         h.totalCommission += (tx.commission || 0);
         h.totalTax += (tx.tax || 0);
         h.totalCDC += (tx.cdcCharges || 0);
-      } else if (tx.type === 'SELL' && h.quantity > 0) {
-        const qtyToSell = Math.min(h.quantity, tx.quantity);
-        const costBasisOfSale = qtyToSell * h.avgPrice;
-        const saleRevenue = qtyToSell * tx.price;
-        const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0);
-        const realizedProfit = saleRevenue - saleFees - costBasisOfSale;
 
-        tempRealized.push({
-          id: tx.id,
-          ticker: tx.ticker,
-          broker: tx.broker,
-          quantity: qtyToSell,
-          buyAvg: h.avgPrice,
-          sellPrice: tx.price,
-          date: tx.date,
-          profit: realizedProfit,
-          fees: saleFees
-        });
+      } else if (tx.type === 'SELL') {
+        if (h.quantity > 0) {
+          const qtyToSell = Math.min(h.quantity, tx.quantity);
+          const costBasisOfSale = qtyToSell * h.avgPrice;
+          const saleRevenue = qtyToSell * tx.price;
+          const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0);
+          const realizedProfit = saleRevenue - saleFees - costBasisOfSale;
 
-        const ratio = qtyToSell / h.quantity;
-        h.totalCommission *= (1 - ratio);
-        h.totalTax *= (1 - ratio);
-        h.totalCDC *= (1 - ratio);
-        h.quantity -= qtyToSell;
+          tempRealized.push({
+            id: tx.id,
+            ticker: tx.ticker,
+            broker: tx.broker,
+            quantity: qtyToSell,
+            buyAvg: h.avgPrice,
+            sellPrice: tx.price,
+            date: tx.date,
+            profit: realizedProfit,
+            fees: saleFees
+          });
+
+          const ratio = qtyToSell / h.quantity;
+          h.totalCommission = h.totalCommission * (1 - ratio);
+          h.totalTax = h.totalTax * (1 - ratio);
+          h.totalCDC = h.totalCDC * (1 - ratio);
+          h.quantity -= qtyToSell;
+        }
       }
     });
 
     const finalHoldings = Object.values(tempHoldings)
       .filter(h => h.quantity > 0.0001)
-      .map(h => ({ ...h, currentPrice: manualPrices[h.ticker] || h.avgPrice }));
+      .map(h => {
+        const current = manualPrices[h.ticker] || h.avgPrice;
+        return { ...h, currentPrice: current };
+      });
 
     setHoldings(finalHoldings);
     setRealizedTrades(tempRealized);
     setTotalDividends(dividendSum);
+    
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices]);
 
   const stats: PortfolioStats = useMemo(() => {
-    let totalValue = 0, totalCost = 0;
-    holdings.forEach(h => { totalValue += h.quantity * h.currentPrice; totalCost += h.quantity * h.avgPrice; });
+    let totalValue = 0;
+    let totalCost = 0;
+    holdings.forEach(h => {
+      totalValue += h.quantity * h.currentPrice;
+      totalCost += h.quantity * h.avgPrice;
+    });
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
+
     return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, totalDividends, dailyPL: 0 };
   }, [holdings, realizedTrades, totalDividends]);
 
-  // --- TRANSACTION ACTIONS ---
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
     const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
     const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
@@ -333,9 +399,47 @@ const App: React.FC = () => {
       setShowAddModal(true);
   };
 
-  const handleUpdatePrices = (newPrices: Record<string, number>) => setManualPrices(prev => ({ ...prev, ...newPrices }));
+  const handleUpdatePrices = (newPrices: Record<string, number>) => {
+      setManualPrices(prev => ({ ...prev, ...newPrices }));
+  };
+  
+  const handleSyncPrices = async () => {
+      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
+      if (uniqueTickers.length === 0) return;
 
-  // --- PORTFOLIO ACTIONS ---
+      setIsSyncing(true);
+      setPriceError(false);
+      setFailedTickers(new Set()); 
+
+      try {
+          const newPrices = await fetchBatchPSXPrices(uniqueTickers);
+          const failed = new Set<string>();
+          const validUpdates: Record<string, number> = {};
+
+          uniqueTickers.forEach(ticker => {
+              const price = newPrices[ticker];
+              if (price !== undefined && price > 0) {
+                  validUpdates[ticker] = price;
+              } else {
+                  failed.add(ticker); 
+              }
+          });
+
+          if (Object.keys(validUpdates).length > 0) {
+              setManualPrices(prev => ({ ...prev, ...validUpdates }));
+          }
+          if (failed.size > 0) {
+              setFailedTickers(failed);
+              setPriceError(true);
+          }
+      } catch (e) {
+          console.error(e);
+          setPriceError(true);
+      } finally {
+          setIsSyncing(false);
+      }
+  };
+
   const handleCreatePortfolio = (e: React.FormEvent) => {
       e.preventDefault();
       if (newPortfolioName.trim()) {
@@ -348,8 +452,11 @@ const App: React.FC = () => {
   };
 
   const handleDeletePortfolio = () => {
-      if (portfolios.length === 1) { alert("Cannot delete last portfolio."); return; }
-      if (confirm("Delete ALL transactions in this portfolio?")) {
+      if (portfolios.length === 1) {
+          alert("You cannot delete the last portfolio.");
+          return;
+      }
+      if (confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
           const idToDelete = currentPortfolioId;
           const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
           setCurrentPortfolioId(nextPort.id);
@@ -358,11 +465,161 @@ const App: React.FC = () => {
       }
   };
 
-  // --- RENDER ---
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* --- UI omitted for brevity, reuse your header/main/modals as is --- */}
-      {/* TransactionForm, PriceEditor, DividendScanner, SyncModal, PortfolioModal */}
+      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div>
+        <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[100px]"></div>
+      </div>
+
+      <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        
+        <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10 animate-in fade-in slide-in-from-top-5 duration-500">
+          <div className="flex flex-col gap-1">
+            <Logo />
+            <p className="text-sm ml-1 font-bold tracking-wide mt-1">
+              <span className="text-slate-700">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span>
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+            <div className="flex flex-col items-end mr-4">
+                <div className="flex items-center gap-3">
+                    {driveUser ? (
+                        <div className="flex items-center gap-3 bg-white p-1 pr-3 rounded-xl border border-emerald-200 shadow-sm">
+                            {driveUser.picture ? (
+                                <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" />
+                            ) : (
+                                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div>
+                            )}
+                            <div className="flex flex-col">
+                                <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced (Drive)</span>
+                                <span className="text-xs font-bold text-slate-800 max-w-[100px] truncate">{driveUser.name}</span>
+                            </div>
+                            <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
+                            {isCloudSyncing ? (
+                                <Loader2 size={16} className="text-emerald-500 animate-spin" />
+                            ) : (
+                                <Save size={16} className="text-emerald-500" />
+                            )}
+                            <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out">
+                                <LogOut size={16} />
+                            </button>
+                        </div>
+                    ) : (
+                        <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all">
+                            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" />
+                            Sync with Drive
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                <div className="relative group">
+                    <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
+                    <select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48">
+                        {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}
+                    </select>
+                </div>
+                <button onClick={() => setIsPortfolioModalOpen(true)} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio">
+                    <PlusCircle size={18} /> <span className="text-xs font-bold">New</span>
+                </button>
+                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio">
+                    <Trash2 size={18} />
+                </button>
+            </div>
+          </div>
+        </header>
+
+        <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
+                <div className="flex items-center gap-2">
+                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
+                        <Plus size={18} /> Add Transaction
+                    </button>
+                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
+                        <Coins size={18} /> Scan Dividends
+                    </button>
+                </div>
+                
+                <div className="flex flex-wrap gap-3">
+                    <div className="relative z-20">
+                         <div className="absolute left-3 top-3 text-slate-400 pointer-events-none"><Filter size={16} /></div>
+                         <select value={filterBroker} onChange={(e) => setFilterBroker(e.target.value)} className="appearance-none bg-white border border-slate-200 hover:border-emerald-400 text-slate-700 pl-10 pr-10 py-3 rounded-xl text-sm font-medium outline-none cursor-pointer min-w-[160px] shadow-sm transition-colors focus:ring-2 focus:ring-emerald-500/20">
+                             <option value="All">All Brokers</option>
+                             {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
+                         </select>
+                    </div>
+
+                    <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                         <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
+                         <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
+                    </div>
+
+                    <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
+                        <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span>
+                    </button>
+
+                     <div className="flex items-center gap-2">
+                        <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                            <span className="hidden sm:inline">Sync PSX</span>
+                        </button>
+                        {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
+                    </div>
+                </div>
+            </div>
+
+            <Dashboard stats={stats} />
+
+            <HoldingsTable 
+                holdings={holdings} 
+                showBroker={groupByBroker} 
+                failedTickers={failedTickers} 
+            />
+
+            <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
+            <TransactionList 
+                transactions={portfolioTransactions} 
+                onDelete={handleDeleteTransaction} 
+                onEdit={handleEditClick} 
+            />
+        </main>
+      </div>
+
+      {/* MODALS */}
+      <TransactionForm 
+        isOpen={showAddModal} 
+        onClose={() => setShowAddModal(false)} 
+        onAddTransaction={handleAddTransaction}
+        onUpdateTransaction={handleUpdateTransaction}
+        existingTransactions={transactions}
+        editingTransaction={editingTransaction}
+        brokers={brokers}
+        onAddBroker={handleAddBroker}
+        onUpdateBroker={handleUpdateBroker}
+        onDeleteBroker={handleDeleteBroker}
+      />
+      
+      <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
+      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
+      
+      {isPortfolioModalOpen && (
+          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+                  <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-lg font-bold text-slate-800">Create Portfolio</h3>
+                      <button onClick={() => setIsPortfolioModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                  </div>
+                  <form onSubmit={handleCreatePortfolio}>
+                      <input type="text" autoFocus placeholder="Portfolio Name" value={newPortfolioName} onChange={(e) => setNewPortfolioName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
+                      <button type="submit" disabled={!newPortfolioName.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all">Create</button>
+                  </form>
+              </div>
+          </div>
+      )}
     </div>
   );
 };
