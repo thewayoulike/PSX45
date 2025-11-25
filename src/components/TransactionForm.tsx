@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, RefreshCw, Loader2, Save, Trash2, Check, Briefcase } from 'lucide-react';
+import { X, Plus, ChevronDown, RefreshCw, Loader2, Save, Trash2, Check, Briefcase, AlertCircle } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 
 interface TransactionFormProps {
@@ -48,6 +48,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   // --- HELPER: Fee Calculation Logic ---
   const calculateFees = (broker: Broker | undefined, qty: number, prc: number, txType: string) => {
+      // Dividend Logic
       if (txType === 'DIVIDEND') {
           const totalDiv = qty * prc;
           return {
@@ -57,20 +58,28 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           };
       }
 
+      // If no broker, return 0 fees
       if (!broker) return { comm: 0, tax: 0, cdc: 0 };
 
       const val = qty * prc;
       let finalComm = 0;
 
+      // Broker Commission Logic
       switch (broker.commissionType) {
-          case 'PERCENTAGE': finalComm = val * (broker.rate1 / 100); break;
-          case 'PER_SHARE': finalComm = qty * broker.rate1; break;
+          case 'PERCENTAGE': 
+              finalComm = val * (broker.rate1 / 100); 
+              break;
+          case 'PER_SHARE': 
+              finalComm = qty * broker.rate1; 
+              break;
           case 'HIGHER_OF': 
               const commPct = val * (broker.rate1 / 100);
               const commShare = qty * (broker.rate2 || 0);
               finalComm = Math.max(commPct, commShare);
               break;
-          case 'FIXED': finalComm = broker.rate1; break;
+          case 'FIXED': 
+              finalComm = broker.rate1; 
+              break;
       }
 
       const sst = finalComm * (broker.sstRate / 100);
@@ -442,7 +451,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
                                         {/* BROKER COLUMN */}
                                         <td className="p-2">
-                                            <div className="flex flex-col gap-1">
+                                            <div className="flex items-center gap-1">
                                                 <select 
                                                     value={brokerId || ''} 
                                                     onChange={(e) => handleBrokerSelectChange(idx, e.target.value)} 
@@ -450,9 +459,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                                 >
                                                     <option value="">Select Broker...</option>
                                                     {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                                    <option value="ADD_NEW" className="font-bold text-emerald-600 bg-emerald-50">+ Add New Broker</option>
+                                                    {/* Fallback option, though we have a better button now */}
+                                                    <option value="ADD_NEW">+ Add New Broker</option>
                                                 </select>
-                                                {!hasBroker && trade.broker && <div className="text-[10px] text-slate-400">Scanned: {trade.broker}</div>}
+                                                
+                                                {/* Explicit ADD BUTTON to ensure it works */}
+                                                <button 
+                                                    type="button" 
+                                                    onClick={onManageBrokers} 
+                                                    className="p-1.5 bg-emerald-50 text-emerald-600 rounded hover:bg-emerald-100 border border-emerald-200"
+                                                    title="Create New Broker"
+                                                >
+                                                    <Plus size={14} />
+                                                </button>
+
+                                                {!hasBroker && trade.broker && <div className="hidden text-[10px] text-slate-400">Scanned: {trade.broker}</div>}
                                             </div>
                                         </td>
 
