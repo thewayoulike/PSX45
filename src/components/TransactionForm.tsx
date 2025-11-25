@@ -10,14 +10,14 @@ interface TransactionFormProps {
   onClose: () => void;
   existingTransactions?: Transaction[];
   editingTransaction?: Transaction | null;
-  brokers: Broker[];
-  onAddBroker: (broker: Omit<Broker, 'id'>) => void;
-  onUpdateBroker: (broker: Broker) => void;
-  onDeleteBroker: (id: string) => void;
+  brokers?: Broker[]; // Made optional for safety
+  onAddBroker?: (broker: Omit<Broker, 'id'>) => void;
+  onUpdateBroker?: (broker: Broker) => void;
+  onDeleteBroker?: (id: string) => void;
 }
 
-const DEFAULT_CDC_RATE = 0.005; // 0.5 paisa per share usually
-const DEFAULT_WHT_RATE = 0.15; // For Dividends
+const DEFAULT_CDC_RATE = 0.005; 
+const DEFAULT_WHT_RATE = 0.15; 
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ 
   onAddTransaction, 
@@ -26,10 +26,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   onClose, 
   existingTransactions = [],
   editingTransaction,
-  brokers,
-  onAddBroker,
-  onUpdateBroker,
-  onDeleteBroker
+  // ADD DEFAULT VALUES HERE TO PREVENT CRASH
+  brokers = [], 
+  onAddBroker = () => {},
+  onUpdateBroker = () => {},
+  onDeleteBroker = () => {}
 }) => {
   const [mode, setMode] = useState<'MANUAL' | 'SCAN'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND'>('BUY');
@@ -38,7 +39,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [quantity, setQuantity] = useState<number | ''>('');
   const [price, setPrice] = useState<number | ''>('');
   
-  // Selected Broker ID
   const [selectedBrokerId, setSelectedBrokerId] = useState<string>('');
   
   const [commission, setCommission] = useState<number | ''>('');
@@ -46,13 +46,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [cdcCharges, setCdcCharges] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
 
-  // Broker Management State
   const [showBrokerManager, setShowBrokerManager] = useState(false);
   const [editingBrokerId, setEditingBrokerId] = useState<string | null>(null);
   const [newBrokerName, setNewBrokerName] = useState('');
   const [commType, setCommType] = useState<CommissionType>('HIGHER_OF');
-  const [rate1, setRate1] = useState<number | ''>(0.15); // Default %
-  const [rate2, setRate2] = useState<number | ''>(0.05); // Default per share
+  const [rate1, setRate1] = useState<number | ''>(0.15); 
+  const [rate2, setRate2] = useState<number | ''>(0.05); 
   const [sstRate, setSstRate] = useState<number | ''>(15);
 
   const [scanFiles, setScanFiles] = useState<FileList | null>(null);
@@ -63,7 +62,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [rawDebugText, setRawDebugText] = useState('');
   const [showDebug, setShowDebug] = useState(false);
 
-  // Initialize selected broker when opening
   useEffect(() => {
     if (editingTransaction) {
       setMode('MANUAL');
@@ -80,31 +78,27 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (editingTransaction.brokerId) {
           setSelectedBrokerId(editingTransaction.brokerId);
       } else if (editingTransaction.broker) {
-          // Legacy support: Try find by name
           const match = brokers.find(b => b.name === editingTransaction.broker);
           if (match) setSelectedBrokerId(match.id);
       }
     } else {
       if (isOpen && !editingTransaction) {
         resetForm();
-        if (brokers.length > 0) {
+        if (brokers && brokers.length > 0) {
             const def = brokers.find(b => b.isDefault) || brokers[0];
             setSelectedBrokerId(def.id);
         } else {
-            // No brokers exist, prompt to add
             setShowBrokerManager(true);
         }
       }
     }
   }, [editingTransaction, isOpen, brokers]);
 
-  // Auto-Calculation Logic
   useEffect(() => {
     if (!isAutoCalc) return;
     const qty = Number(quantity);
     const prc = Number(price);
 
-    // Dividend Calc
     if (type === 'DIVIDEND') {
         if (qty && prc) {
             const totalDiv = qty * prc;
@@ -115,7 +109,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         return;
     }
 
-    // Buy/Sell Calc
     if (qty && prc && selectedBrokerId) {
         const broker = brokers.find(b => b.id === selectedBrokerId);
         if (!broker) return;
@@ -123,27 +116,24 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         const val = qty * prc;
         let finalComm = 0;
 
-        // --- COMMISSION TIER LOGIC ---
         switch (broker.commissionType) {
-            case 'PERCENTAGE': // Flat %
+            case 'PERCENTAGE': 
                 finalComm = val * (broker.rate1 / 100);
                 break;
-            case 'PER_SHARE': // Flat Rate per share
+            case 'PER_SHARE': 
                 finalComm = qty * broker.rate1;
                 break;
-            case 'HIGHER_OF': // The "Standard" Greater Of Logic
+            case 'HIGHER_OF': 
                 const commPct = val * (broker.rate1 / 100);
                 const commShare = qty * (broker.rate2 || 0);
                 finalComm = Math.max(commPct, commShare);
                 break;
-            case 'FIXED': // Flat Fixed Fee
+            case 'FIXED': 
                 finalComm = broker.rate1;
                 break;
         }
 
-        // Tax (SST)
         const sst = finalComm * (broker.sstRate / 100);
-        // CDC
         const cdc = qty * DEFAULT_CDC_RATE;
 
         setCommission(parseFloat(finalComm.toFixed(2)));
@@ -202,14 +192,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
       if (editingBrokerId) {
           const original = brokers.find(b => b.id === editingBrokerId);
-          if (original) {
+          if (original && onUpdateBroker) {
             onUpdateBroker({ ...original, ...brokerData });
           }
-      } else {
+      } else if (onAddBroker) {
           onAddBroker(brokerData);
       }
       
-      // Clear inputs but stay in manager view
       setNewBrokerName('');
       setEditingBrokerId(null);
       setRate1(0.15);
@@ -278,63 +267,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
-  const handleUpdateParsed = (index: number, updated: ParsedTrade) => {
-      const newList = [...parsedTrades];
-      newList[index] = updated;
-      setParsedTrades(newList);
-      setEditingRow(null);
-  };
-
-  const handleImportAll = () => {
-      let imported = 0;
-      let skipped = 0;
-
-      parsedTrades.forEach(trade => {
-          const isDup = checkDuplicate({
-              ticker: trade.ticker,
-              type: trade.type,
-              quantity: trade.quantity,
-              price: trade.price,
-              date: trade.date || date
-          });
-
-          if (!isDup) {
-              onAddTransaction({
-                  ticker: trade.ticker,
-                  type: trade.type,
-                  quantity: trade.quantity,
-                  price: trade.price,
-                  date: trade.date || date,
-                  broker: undefined,
-                  commission: trade.commission || 0,
-                  tax: trade.tax || 0,
-                  cdcCharges: trade.cdcCharges || 0
-              });
-              imported++;
-          } else {
-              skipped++;
-          }
-      });
-
-      alert(`Imported ${imported} trades.${skipped > 0 ? ` Skipped ${skipped} duplicates.` : ''}`);
-      resetForm();
-      onClose();
-  };
-
-  const handleRemoveParsed = (idx: number) => {
-      setParsedTrades(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  const checkDuplicate = (t: { ticker: string, type: string, quantity: number, price: number, date?: string }) => {
-      return existingTransactions.some(ex => 
-          ex.ticker === t.ticker &&
-          ex.type === t.type &&
-          Math.abs(ex.quantity - t.quantity) < 0.01 &&
-          Math.abs(ex.price - t.price) < 0.01 &&
-          (!t.date || ex.date === t.date)
-      );
-  };
-
   if (!isOpen) return null;
 
   return (
@@ -355,32 +287,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           </button>
         </div>
 
-        {/* --- BROKER MANAGER VIEW --- */}
         {showBrokerManager ? (
             <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
-                {/* Add/Edit Form */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 space-y-4">
                     <div className="flex justify-between items-center">
                         <h3 className="font-bold text-slate-700 text-sm">{editingBrokerId ? 'Edit Broker' : 'Add New Broker'}</h3>
                         {editingBrokerId && <button onClick={() => { setEditingBrokerId(null); setNewBrokerName(''); }} className="text-xs text-rose-500">Cancel Edit</button>}
                     </div>
                     
-                    <input 
-                        type="text" 
-                        placeholder="Broker Name (e.g., KASB)" 
-                        value={newBrokerName} 
-                        onChange={e => setNewBrokerName(e.target.value)}
-                        className="w-full p-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-emerald-500"
-                    />
+                    <input type="text" placeholder="Broker Name (e.g., KASB)" value={newBrokerName} onChange={e => setNewBrokerName(e.target.value)} className="w-full p-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-emerald-500" />
                     
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Fee Structure</label>
-                            <select 
-                                value={commType} 
-                                onChange={e => setCommType(e.target.value as CommissionType)} 
-                                className="w-full p-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-emerald-500 bg-white"
-                            >
+                            <select value={commType} onChange={e => setCommType(e.target.value as CommissionType)} className="w-full p-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-emerald-500 bg-white">
                                 <option value="HIGHER_OF">Max ( % or Rate )</option>
                                 <option value="PERCENTAGE">Flat Percentage</option>
                                 <option value="PER_SHARE">Per Share Only</option>
@@ -395,9 +315,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
                     <div className="grid grid-cols-2 gap-3">
                          <div>
-                             <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">
-                                {commType === 'FIXED' ? 'Amount (Rs)' : commType === 'PER_SHARE' ? 'Rate (Rs/sh)' : 'Rate (%)'}
-                             </label>
+                             <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">{commType === 'FIXED' ? 'Amount (Rs)' : commType === 'PER_SHARE' ? 'Rate (Rs/sh)' : 'Rate (%)'}</label>
                              <input type="number" step="0.01" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full p-2.5 rounded-lg border border-slate-300 text-sm outline-none focus:border-emerald-500" />
                          </div>
                          {(commType === 'HIGHER_OF') && (
@@ -408,16 +326,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                          )}
                     </div>
 
-                    <button 
-                        onClick={handleSaveBroker} 
-                        disabled={!newBrokerName} 
-                        className="w-full bg-emerald-600 text-white py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors"
-                    >
+                    <button onClick={handleSaveBroker} disabled={!newBrokerName} className="w-full bg-emerald-600 text-white py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors">
                         {editingBrokerId ? 'Update Broker' : 'Save Broker'}
                     </button>
                 </div>
 
-                {/* List of Brokers */}
                 <div className="space-y-2">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Your Brokers</h4>
                     {brokers.map(b => (
@@ -434,19 +347,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             </div>
                             <div className="flex gap-1">
                                 <button onClick={() => startEditBroker(b)} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"><Pencil size={14} /></button>
-                                <button onClick={() => onDeleteBroker(b.id)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
+                                <button onClick={() => onDeleteBroker && onDeleteBroker(b.id)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"><Trash2 size={14} /></button>
                             </div>
                         </div>
                     ))}
-                    {brokers.length === 0 && (
-                        <div className="text-center py-8 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                            <p className="text-slate-400 text-sm">No brokers added yet.</p>
-                        </div>
-                    )}
                 </div>
             </div>
         ) : (
-            // --- MAIN TRANSACTION FORM VIEW ---
             <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
                 {!editingTransaction && (
                   <div className="flex border-b border-slate-200 mb-6">
@@ -457,27 +364,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 
                 {mode === 'MANUAL' ? (
                     <form onSubmit={handleSubmit} className="space-y-5">
-                         {/* Type Selector */}
                          <div className="grid grid-cols-3 gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
                             {(['BUY', 'SELL', 'DIVIDEND'] as const).map(t => (
-                                <button
-                                    key={t}
-                                    type="button"
-                                    onClick={() => setType(t)}
-                                    className={`py-2 rounded-lg text-xs font-bold transition-all ${
-                                        type === t 
-                                        ? t === 'BUY' ? 'bg-emerald-500 text-white shadow' 
-                                        : t === 'SELL' ? 'bg-rose-500 text-white shadow'
-                                        : 'bg-indigo-500 text-white shadow'
-                                        : 'text-slate-500 hover:text-slate-800'
-                                    }`}
-                                >
+                                <button key={t} type="button" onClick={() => setType(t)} className={`py-2 rounded-lg text-xs font-bold transition-all ${type === t ? (t === 'BUY' ? 'bg-emerald-500 text-white shadow' : t === 'SELL' ? 'bg-rose-500 text-white shadow' : 'bg-indigo-500 text-white shadow') : 'text-slate-500 hover:text-slate-800'}`}>
                                     {t}
                                 </button>
                             ))}
                         </div>
 
-                        {/* Broker Selection (Replaces Old Input) */}
                         {type !== 'DIVIDEND' && (
                             <div>
                                 <div className="flex justify-between items-center mb-1.5">
@@ -487,22 +381,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     </button>
                                 </div>
                                 <div className="relative">
-                                    <select 
-                                        value={selectedBrokerId}
-                                        onChange={e => setSelectedBrokerId(e.target.value)}
-                                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none"
-                                    >
+                                    <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-slate-800 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none">
                                         {brokers.length === 0 && <option value="">No brokers found. Click Manage.</option>}
                                         {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                     </select>
-                                    <div className="absolute right-3 top-3 pointer-events-none text-slate-400">
-                                        <ChevronDown size={16} />
-                                    </div>
+                                    <div className="absolute right-3 top-3 pointer-events-none text-slate-400"><ChevronDown size={16} /></div>
                                 </div>
                             </div>
                         )}
 
-                        {/* Date & Ticker */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Date</label>
@@ -514,7 +401,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             </div>
                         </div>
 
-                        {/* Qty & Price */}
                         <div className="grid grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Quantity</label>
@@ -526,7 +412,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             </div>
                         </div>
 
-                         {/* Charges Section */}
                          <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                             <div className="flex justify-between items-center mb-3">
                                 <span className="text-xs font-bold text-slate-400 uppercase">Charges</span>
