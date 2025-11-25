@@ -58,28 +58,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [scanError, setScanError] = useState('');
   const [parsedTrades, setParsedTrades] = useState<ParsedTrade[]>([]);
 
-  // Initialize selected broker when opening
+  // 1. Force Manager Open if No Brokers Exist
   useEffect(() => {
-    // Only force manager if we open the modal and there are truly NO brokers
     if (isOpen) {
         if (brokers.length === 0) {
             setShowBrokerManager(true);
-        } else if (!selectedBrokerId) {
-            // If we have brokers but none selected, select default
-            const def = brokers.find(b => b.isDefault) || brokers[0];
-            if (def) setSelectedBrokerId(def.id);
         }
     }
-  }, [isOpen]); 
+  }, [isOpen, brokers.length]); 
 
-  // Reset form ONLY when opening a fresh transaction
+  // 2. CRITICAL FIX: Auto-Select Broker if none selected (Fixes "No brokers found" loop)
+  useEffect(() => {
+    if (brokers.length > 0 && !selectedBrokerId) {
+        const def = brokers.find(b => b.isDefault) || brokers[0];
+        if (def) setSelectedBrokerId(def.id);
+    }
+  }, [brokers, selectedBrokerId]);
+
+  // Reset form when opening fresh
   useEffect(() => {
     if (isOpen && !editingTransaction) {
         resetForm();
     }
   }, [isOpen, editingTransaction]);
 
-  // Load editing data
+  // Load data for editing
   useEffect(() => {
     if (editingTransaction && isOpen) {
       setMode('MANUAL');
@@ -214,7 +217,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setRate1(0.15);
       setRate2(0.05);
 
-      // FIXED: Automatically close manager logic if we added a broker and want to go back to transaction
+      // Auto-close manager to show user the transaction form
       if (showBrokerManager && !editingBrokerId) {
           setShowBrokerManager(false);
       }
