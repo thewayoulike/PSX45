@@ -34,6 +34,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
   const isRealizedProfitable = stats.netRealizedPL >= 0; // Use NET profit for color
 
+  // Helper for consistent formatting
+  const formatCurrency = (val: number) => 
+    val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   return (
     <div className="flex flex-col gap-4 md:gap-6 mb-6 md:mb-10">
         
@@ -45,7 +49,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="flex justify-between items-start">
                     <div className="w-full">
                         <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
-                            <span>Rs. {stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                            <span>Rs. {formatCurrency(stats.totalValue)}</span>
                         </div>
                         <div className="flex items-center gap-2 mt-2 md:mt-3">
                             <div className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
@@ -62,7 +66,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             {/* Total Invested Card */}
             <Card title="Invested" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
-                Rs. {stats.totalCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                Rs. {formatCurrency(stats.totalCost)}
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -78,7 +82,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             {/* Unrealized P&L Card */}
             <Card title="Unrealized P&L" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {isUnrealizedProfitable ? '+' : ''}Rs. {Math.abs(stats.unrealizedPL).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
                 </div>
                 
                 <div className="flex items-center justify-between mt-2">
@@ -96,14 +100,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             {/* Realized P&L Card (NET) */}
             <Card title="Realized Gains (Net)" icon={<CheckCircle2 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {isRealizedProfitable ? '+' : ''}Rs. {Math.abs(stats.netRealizedPL).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
                 </div>
                 
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Gross: {stats.realizedPL.toLocaleString()}</span>
-                        {/* FIX: Use totalCGT instead of estimatedCGT */}
-                        <span className="text-rose-500">Tax: -{stats.totalCGT.toLocaleString()}</span>
+                        <span>Gross: {formatCurrency(stats.realizedPL)}</span>
+                        <span className="text-rose-500">Tax: -{formatCurrency(stats.totalCGT)}</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
                         <div className={`h-full ${isRealizedProfitable ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
@@ -114,7 +117,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             {/* Dividend Income Card */}
             <Card title="Dividends" icon={<Coins className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
-                    Rs. {stats.totalDividends.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    Rs. {formatCurrency(stats.totalDividends)}
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -134,7 +137,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Receipt size={20} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Commission</div>
-                    <div className="text-lg font-bold text-slate-700">{stats.totalCommission.toLocaleString()}</div>
+                    <div className="text-lg font-bold text-slate-700">{formatCurrency(stats.totalCommission)}</div>
                 </div>
             </div>
             
@@ -142,7 +145,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Building2 size={20} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Taxes (SST/WHT)</div>
-                    <div className="text-lg font-bold text-slate-700">{(stats.totalSalesTax + stats.totalDividendTax).toLocaleString()}</div>
+                    <div className="text-lg font-bold text-slate-700">{formatCurrency(stats.totalSalesTax + stats.totalDividendTax)}</div>
                 </div>
             </div>
 
@@ -150,7 +153,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><FileText size={20} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CDC & Other</div>
-                    <div className="text-lg font-bold text-slate-700">{(stats.totalCDC + stats.totalOtherFees).toLocaleString()}</div>
+                    <div className="text-lg font-bold text-slate-700">{formatCurrency(stats.totalCDC + stats.totalOtherFees)}</div>
                 </div>
             </div>
 
@@ -158,8 +161,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><PiggyBank size={20} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Est. CGT (15%)</div>
-                    {/* FIX: Use totalCGT instead of estimatedCGT */}
-                    <div className="text-lg font-bold text-slate-700">{stats.totalCGT.toLocaleString()}</div>
+                    <div className="text-lg font-bold text-slate-700">{formatCurrency(stats.totalCGT)}</div>
                 </div>
             </div>
         </div>
