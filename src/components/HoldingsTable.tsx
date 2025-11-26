@@ -129,6 +129,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
                         </span>
                       </td>
+                      {/* UPDATED: Added ( || 0 ) to safeguard against undefined values */}
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
                         {(holding.totalCommission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
