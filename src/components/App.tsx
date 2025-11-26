@@ -30,10 +30,9 @@ const DEFAULT_BROKER: Broker = {
     isDefault: true
 };
 
-// Helper interface for FIFO Lots
 interface Lot {
     quantity: number;
-    costPerShare: number; // Includes fees
+    costPerShare: number; 
     date: string;
 }
 
@@ -81,9 +80,7 @@ const App: React.FC = () => {
       return {};
   });
 
-  // --- NEW: API Key State ---
   const [userApiKey, setUserApiKey] = useState<string>('');
-
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
   
@@ -130,11 +127,9 @@ const App: React.FC = () => {
                               return merged;
                           });
                       }
-
-                      // --- LOAD API KEY ---
                       if (cloudData.geminiApiKey) {
                           setUserApiKey(cloudData.geminiApiKey);
-                          setGeminiApiKey(cloudData.geminiApiKey); // Initialize Service
+                          setGeminiApiKey(cloudData.geminiApiKey); 
                       }
                   }
               } catch (e) { console.error("Drive Load Error", e); } 
@@ -155,12 +150,7 @@ const App: React.FC = () => {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
               await saveToDrive({
-                  transactions, 
-                  portfolios, 
-                  currentPortfolioId, 
-                  manualPrices, 
-                  brokers,
-                  geminiApiKey: userApiKey 
+                  transactions, portfolios, currentPortfolioId, manualPrices, brokers, geminiApiKey: userApiKey 
               });
               setIsCloudSyncing(false);
           }, 3000); 
@@ -172,14 +162,8 @@ const App: React.FC = () => {
   const handleSaveApiKey = (key: string) => {
       setUserApiKey(key);
       setGeminiApiKey(key);
-      if (driveUser) {
-          saveToDrive({
-              transactions, portfolios, currentPortfolioId, manualPrices, brokers,
-              geminiApiKey: key
-          });
-      }
+      if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, geminiApiKey: key });
   };
-
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       const updatedBrokers = [...brokers, { ...newBroker, id }];
@@ -187,14 +171,12 @@ const App: React.FC = () => {
       localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
       if (!driveUser && window.confirm("Broker saved locally. Sign in to Drive to backup?")) signInWithDrive();
   };
-
   const handleUpdateBroker = (updated: Broker) => {
       const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b);
       setBrokers(updatedBrokers);
       localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
       if (!driveUser && window.confirm("Broker updated locally. Sign in to Drive to backup?")) signInWithDrive();
   };
-
   const handleDeleteBroker = (id: string) => {
       if (window.confirm("Delete this broker?")) {
           const updatedBrokers = brokers.filter(b => b.id !== id);
@@ -203,7 +185,6 @@ const App: React.FC = () => {
           if (!driveUser && window.confirm("Broker deleted. Sign in to Drive to sync?")) signInWithDrive();
       }
   };
-
   const handleLogin = () => signInWithDrive();
   const handleLogout = () => {
       if (window.confirm("Logout and clear local data?")) {
@@ -213,8 +194,71 @@ const App: React.FC = () => {
           signOutDrive();
       }
   };
+  const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
+    const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
+    const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
+    setTransactions(prev => [...prev, newTx]);
+  };
+  const handleUpdateTransaction = (updatedTx: Transaction) => {
+    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setEditingTransaction(null);
+  };
+  const handleDeleteTransaction = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this transaction?")) {
+        setTransactions(prev => prev.filter(t => t.id !== id));
+    }
+  };
+  const handleEditClick = (tx: Transaction) => {
+      setEditingTransaction(tx);
+      setShowAddModal(true);
+  };
+  const handleUpdatePrices = (newPrices: Record<string, number>) => {
+      setManualPrices(prev => ({ ...prev, ...newPrices }));
+  };
+  const handleCreatePortfolio = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newPortfolioName.trim()) {
+          const newId = Date.now().toString();
+          setPortfolios(prev => [...prev, { id: newId, name: newPortfolioName.trim() }]);
+          setCurrentPortfolioId(newId);
+          setNewPortfolioName('');
+          setIsPortfolioModalOpen(false);
+      }
+  };
+  const handleDeletePortfolio = () => {
+      if (portfolios.length === 1) return alert("You cannot delete the last portfolio.");
+      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
+          const idToDelete = currentPortfolioId;
+          const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
+          setCurrentPortfolioId(nextPort.id);
+          setPortfolios(prev => prev.filter(p => p.id !== idToDelete));
+          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
+      }
+  };
+  const handleSyncPrices = async () => {
+      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
+      if (uniqueTickers.length === 0) return;
+      setIsSyncing(true);
+      setPriceError(false);
+      setFailedTickers(new Set()); 
+      try {
+          const newPrices = await fetchBatchPSXPrices(uniqueTickers);
+          const failed = new Set<string>();
+          const validUpdates: Record<string, number> = {};
+          uniqueTickers.forEach(ticker => {
+              const price = newPrices[ticker];
+              if (price !== undefined && price > 0) validUpdates[ticker] = price;
+              else failed.add(ticker); 
+          });
+          if (Object.keys(validUpdates).length > 0) setManualPrices(prev => ({ ...prev, ...validUpdates }));
+          if (failed.size > 0) {
+              setFailedTickers(failed);
+              setPriceError(true);
+          }
+      } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); }
+  };
 
-  // --- APP LOGIC ---
+  // --- APP LOGIC & FIFO ---
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
           setCurrentPortfolioId(portfolios[0].id);
@@ -238,11 +282,10 @@ const App: React.FC = () => {
     return Array.from(brokers).sort();
   }, [portfolioTransactions]);
 
-  // --- FIFO LOGIC IMPLEMENTATION ---
+  // 1. CALCULATE HOLDINGS & REALIZED (FIFO)
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
-    // Map to track FIFO Lots: Key = HoldingKey, Value = Array of Lots
     const lotMap: Record<string, Lot[]> = {}; 
     let dividendSum = 0;
 
@@ -258,6 +301,9 @@ const App: React.FC = () => {
           const netDiv = grossDiv - (tx.tax || 0);
           dividendSum += netDiv;
           return; 
+      }
+      if (tx.type === 'TAX') {
+          return; // Handle TAX later in stats, don't affect holdings
       }
 
       const brokerKey = groupByBroker ? (tx.broker || 'Unknown') : 'ALL';
@@ -275,7 +321,7 @@ const App: React.FC = () => {
           totalCommission: 0,
           totalTax: 0,
           totalCDC: 0,
-          totalOtherFees: 0, // Initialize
+          totalOtherFees: 0,
         };
         lotMap[holdingKey] = [];
       }
@@ -284,11 +330,9 @@ const App: React.FC = () => {
       const lots = lotMap[holdingKey];
 
       if (tx.type === 'BUY') {
-        // UPDATED: Include otherFees in cost basis
         const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
         const txTotalCost = (tx.quantity * tx.price) + txFees;
         
-        // FIFO: Add new lot
         const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0;
         lots.push({
             quantity: tx.quantity,
@@ -296,15 +340,13 @@ const App: React.FC = () => {
             date: tx.date
         });
 
-        // Update Holding Aggregate
         const currentHoldingValue = h.quantity * h.avgPrice;
         h.quantity += tx.quantity;
         h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0;
-        
         h.totalCommission += (tx.commission || 0);
         h.totalTax += (tx.tax || 0);
         h.totalCDC += (tx.cdcCharges || 0);
-        h.totalOtherFees += (tx.otherFees || 0); // UPDATED
+        h.totalOtherFees += (tx.otherFees || 0);
 
       } else if (tx.type === 'SELL') {
         if (h.quantity > 0) {
@@ -312,25 +354,20 @@ const App: React.FC = () => {
           let costBasis = 0;
           let remainingToSell = qtyToSell;
 
-          // --- FIFO CONSUMPTION LOGIC ---
           while (remainingToSell > 0 && lots.length > 0) {
-              const currentLot = lots[0]; // Oldest lot (First In)
-
+              const currentLot = lots[0]; 
               if (currentLot.quantity > remainingToSell) {
-                  // Lot has more than we need
                   costBasis += remainingToSell * currentLot.costPerShare;
                   currentLot.quantity -= remainingToSell;
                   remainingToSell = 0;
               } else {
-                  // We need the whole lot
                   costBasis += currentLot.quantity * currentLot.costPerShare;
                   remainingToSell -= currentLot.quantity;
-                  lots.shift(); // Remove empty lot
+                  lots.shift();
               }
           }
           
           const saleRevenue = qtyToSell * tx.price;
-          // UPDATED: Include otherFees in sale fees
           const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
           const realizedProfit = saleRevenue - saleFees - costBasis;
 
@@ -347,24 +384,21 @@ const App: React.FC = () => {
             commission: tx.commission || 0,
             tax: tx.tax || 0,
             cdcCharges: tx.cdcCharges || 0,
-            otherFees: tx.otherFees || 0 // UPDATED
+            otherFees: tx.otherFees || 0
           });
 
-          // Update Holding Aggregate
           const prevTotalValue = h.quantity * h.avgPrice;
           h.quantity -= qtyToSell;
-          
           if (h.quantity > 0) {
               h.avgPrice = (prevTotalValue - costBasis) / h.quantity;
           } else {
               h.avgPrice = 0;
           }
-
           const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0;
           h.totalCommission = h.totalCommission * ratio;
           h.totalTax = h.totalTax * ratio;
           h.totalCDC = h.totalCDC * ratio;
-          h.totalOtherFees = h.totalOtherFees * ratio; // UPDATED
+          h.totalOtherFees = h.totalOtherFees * ratio;
         }
       }
     });
@@ -379,113 +413,116 @@ const App: React.FC = () => {
     setHoldings(finalHoldings);
     setRealizedTrades(tempRealized);
     setTotalDividends(dividendSum);
-    
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices]);
 
+  // 2. AUTO-GENERATE MONTHLY TAX (CGT)
+  // Effect to check monthly profits and insert 'TAX' transaction if needed
+  useEffect(() => {
+    if (realizedTrades.length === 0) return;
+
+    const monthlyProfits: Record<string, number> = {};
+    realizedTrades.forEach(t => {
+        const month = t.date.substring(0, 7); // "YYYY-MM"
+        monthlyProfits[month] = (monthlyProfits[month] || 0) + t.profit;
+    });
+
+    const newTaxTransactions: Transaction[] = [];
+    const today = new Date();
+    const currentMonthStr = today.toISOString().substring(0, 7);
+
+    Object.entries(monthlyProfits).forEach(([month, profit]) => {
+        // Only process closed months (not current month)
+        if (month < currentMonthStr && profit > 0) {
+            const taxAmount = parseFloat((profit * 0.15).toFixed(2));
+            const taxDate = `${month}-28`; // Just a placeholder "end of month" or "start of next" logic
+            // Logic: We actually want 1st of NEXT month
+            // Let's calculate 1st of next month
+            const [y, m] = month.split('-');
+            const nextMonthDate = new Date(parseInt(y), parseInt(m), 1); // Month is 0-indexed in JS date ctor? No, wait.
+            // Actually: new Date(2023, 10, 1) creates Nov 1st (Month 10 is Nov).
+            // String splitting is safer.
+            let nextM = parseInt(m) + 1;
+            let nextY = parseInt(y);
+            if (nextM > 12) { nextM = 1; nextY++; }
+            const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`;
+            
+            // Check if tax transaction already exists for this month
+            // We look for a 'TAX' transaction with a note containing the month
+            const taxExists = transactions.some(t => 
+                t.type === 'TAX' && t.notes?.includes(`CGT for ${month}`)
+            );
+
+            if (!taxExists) {
+                // Create new transaction
+                const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString() + Math.random();
+                newTaxTransactions.push({
+                    id: newId,
+                    portfolioId: currentPortfolioId,
+                    ticker: 'CGT',
+                    type: 'TAX',
+                    quantity: 1,
+                    price: taxAmount,
+                    date: nextMonthStr,
+                    commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+                    notes: `CGT for ${month} (15% of ${profit.toFixed(0)})`
+                });
+            }
+        }
+    });
+
+    if (newTaxTransactions.length > 0) {
+        setTransactions(prev => [...prev, ...newTaxTransactions]);
+    }
+
+  }, [realizedTrades, transactions, currentPortfolioId]); // Careful with dependencies to avoid loop
+
+  // 3. CALCULATE STATS (Including Tax Transactions)
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0;
     let totalCost = 0;
+    
+    let totalCommission = 0;
+    let totalSalesTax = 0;
+    let totalDividendTax = 0;
+    let totalCDC = 0;
+    let totalOtherFees = 0;
+    let totalCGT = 0;
+
     holdings.forEach(h => {
       totalValue += h.quantity * h.currentPrice;
       totalCost += h.quantity * h.avgPrice;
     });
-    const unrealizedPL = totalValue - totalCost;
-    const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
+
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
 
-    return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, totalDividends, dailyPL: 0 };
-  }, [holdings, realizedTrades, totalDividends]);
+    displayedTransactions.forEach(t => {
+        totalCommission += (t.commission || 0);
+        totalCDC += (t.cdcCharges || 0);
+        totalOtherFees += (t.otherFees || 0);
+        
+        if (t.type === 'DIVIDEND') {
+            totalDividendTax += (t.tax || 0);
+        } else if (t.type === 'TAX') {
+            totalCGT += (t.price * t.quantity); // Tax is stored as price*qty
+        } else {
+            totalSalesTax += (t.tax || 0);
+        }
+    });
 
-  const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
-    const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
-    const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
-    setTransactions(prev => [...prev, newTx]);
-  };
+    const netRealizedPL = realizedPL - totalCGT;
+    const unrealizedPL = totalValue - totalCost;
+    const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
 
-  const handleUpdateTransaction = (updatedTx: Transaction) => {
-    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
-    setEditingTransaction(null);
-  };
-
-  const handleDeleteTransaction = (id: string) => {
-    if (window.confirm("Are you sure you want to delete this transaction?")) {
-        setTransactions(prev => prev.filter(t => t.id !== id));
-    }
-  };
-
-  const handleEditClick = (tx: Transaction) => {
-      setEditingTransaction(tx);
-      setShowAddModal(true);
-  };
-
-  const handleUpdatePrices = (newPrices: Record<string, number>) => {
-      setManualPrices(prev => ({ ...prev, ...newPrices }));
-  };
-  
-  const handleSyncPrices = async () => {
-      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
-      if (uniqueTickers.length === 0) return;
-
-      setIsSyncing(true);
-      setPriceError(false);
-      setFailedTickers(new Set()); 
-
-      try {
-          const newPrices = await fetchBatchPSXPrices(uniqueTickers);
-          const failed = new Set<string>();
-          const validUpdates: Record<string, number> = {};
-
-          uniqueTickers.forEach(ticker => {
-              const price = newPrices[ticker];
-              if (price !== undefined && price > 0) {
-                  validUpdates[ticker] = price;
-              } else {
-                  failed.add(ticker); 
-              }
-          });
-
-          if (Object.keys(validUpdates).length > 0) {
-              setManualPrices(prev => ({ ...prev, ...validUpdates }));
-          }
-          if (failed.size > 0) {
-              setFailedTickers(failed);
-              setPriceError(true);
-          }
-      } catch (e) {
-          console.error(e);
-          setPriceError(true);
-      } finally {
-          setIsSyncing(false);
-      }
-  };
-
-  const handleCreatePortfolio = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (newPortfolioName.trim()) {
-          const newId = Date.now().toString();
-          setPortfolios(prev => [...prev, { id: newId, name: newPortfolioName.trim() }]);
-          setCurrentPortfolioId(newId);
-          setNewPortfolioName('');
-          setIsPortfolioModalOpen(false);
-      }
-  };
-
-  const handleDeletePortfolio = () => {
-      if (portfolios.length === 1) {
-          alert("You cannot delete the last portfolio.");
-          return;
-      }
-      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
-          const idToDelete = currentPortfolioId;
-          const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
-          setCurrentPortfolioId(nextPort.id);
-          setPortfolios(prev => prev.filter(p => p.id !== idToDelete));
-          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
-      }
-  };
+    return { 
+        totalValue, totalCost, unrealizedPL, unrealizedPLPercent, 
+        realizedPL, netRealizedPL, totalDividends, dailyPL: 0,
+        totalCommission, totalSalesTax, totalDividendTax, totalCDC, totalOtherFees, totalCGT
+    };
+  }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
+      {/* Background Elements */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div>
@@ -493,7 +530,6 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
             <Logo />
@@ -501,30 +537,20 @@ const App: React.FC = () => {
               <span className="text-slate-700">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span>
             </p>
           </div>
-
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+            {/* Drive Auth & Sync UI */}
             <div className="flex flex-col items-end mr-4">
                 <div className="flex items-center gap-3">
                     {driveUser ? (
                         <div className="flex items-center gap-3 bg-white p-1 pr-3 rounded-xl border border-emerald-200 shadow-sm">
-                            {driveUser.picture ? (
-                                <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" />
-                            ) : (
-                                <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div>
-                            )}
+                            {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
                                 <span className="text-xs font-bold text-slate-800 max-w-[100px] truncate">{driveUser.name}</span>
                             </div>
                             <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
-                            {isCloudSyncing ? (
-                                <Loader2 size={16} className="text-emerald-500 animate-spin" />
-                            ) : (
-                                <Save size={16} className="text-emerald-500" />
-                            )}
-                            <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out">
-                                <LogOut size={16} />
-                            </button>
+                            {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500" /> )}
+                            <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
                         </div>
                     ) : (
                         <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all">
@@ -534,7 +560,7 @@ const App: React.FC = () => {
                     )}
                 </div>
             </div>
-
+            {/* Portfolio Selector */}
             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                 <div className="relative group">
                     <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
@@ -542,38 +568,29 @@ const App: React.FC = () => {
                         {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}
                     </select>
                 </div>
-                <button onClick={() => setIsPortfolioModalOpen(true)} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio">
-                    <PlusCircle size={18} /> <span className="text-xs font-bold">New</span>
-                </button>
-                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio">
-                    <Trash2 size={18} />
-                </button>
+                <button onClick={() => setIsPortfolioModalOpen(true)} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
+                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
             </div>
           </div>
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+            {/* Actions Toolbar */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div className="flex items-center gap-2">
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
                         <Plus size={18} /> Add Transaction
                     </button>
-                    
                     <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
                         <Briefcase size={18} /> Brokers
                     </button>
-
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
                         <Coins size={18} /> Scan Dividends
                     </button>
-
-                    {/* --- NEW: API Key Button --- */}
                     <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings">
-                        <Key size={18} className="text-emerald-500" />
-                        <span>API Key</span>
+                        <Key size={18} className="text-emerald-500" /> <span>API Key</span>
                     </button>
                 </div>
-                
                 <div className="flex flex-wrap gap-3">
                     <div className="relative z-20">
                          <div className="absolute left-3 top-3 text-slate-400 pointer-events-none"><Filter size={16} /></div>
@@ -582,16 +599,13 @@ const App: React.FC = () => {
                              {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
                          </select>
                     </div>
-
                     <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                          <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
                          <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
                     </div>
-
                     <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
                         <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span>
                     </button>
-
                      <div className="flex items-center gap-2">
                         <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                             {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
@@ -604,58 +618,20 @@ const App: React.FC = () => {
 
             <Dashboard stats={stats} />
 
-            <HoldingsTable 
-                holdings={holdings} 
-                showBroker={groupByBroker} 
-                failedTickers={failedTickers} 
-            />
-
+            <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
             <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
-            <TransactionList 
-                transactions={portfolioTransactions} 
-                onDelete={handleDeleteTransaction} 
-                onEdit={handleEditClick} 
-            />
+            <TransactionList transactions={portfolioTransactions} onDelete={handleDeleteTransaction} onEdit={handleEditClick} />
         </main>
       </div>
 
-      <TransactionForm 
-        isOpen={showAddModal} 
-        onClose={() => setShowAddModal(false)} 
-        onAddTransaction={handleAddTransaction}
-        onUpdateTransaction={handleUpdateTransaction}
-        existingTransactions={transactions}
-        editingTransaction={editingTransaction}
-        brokers={brokers}
-        onManageBrokers={() => setShowBrokerManager(true)}
-      />
-      
-      <BrokerManager 
-        isOpen={showBrokerManager}
-        onClose={() => setShowBrokerManager(false)}
-        brokers={brokers}
-        onAddBroker={handleAddBroker}
-        onUpdateBroker={handleUpdateBroker}
-        onDeleteBroker={handleDeleteBroker}
-      />
-
-      <ApiKeyManager 
-        isOpen={showApiKeyManager}
-        onClose={() => setShowApiKeyManager(false)}
-        apiKey={userApiKey}
-        onSave={handleSaveApiKey}
-        isDriveConnected={!!driveUser}
-      />
-
+      {/* Modals */}
+      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} />
+      <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
+      <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
-      <DividendScanner 
-        isOpen={showDividendScanner} 
-        onClose={() => setShowDividendScanner(false)} 
-        transactions={transactions} 
-        onAddTransaction={handleAddTransaction} 
-        onOpenSettings={() => setShowApiKeyManager(true)} 
-      />
+      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
       
+      {/* New Portfolio Modal */}
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
