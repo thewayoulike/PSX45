@@ -41,7 +41,6 @@ interface Lot {
 type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
 
 const App: React.FC = () => {
-  // ... (State declarations remain same) ...
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
@@ -482,10 +481,12 @@ const App: React.FC = () => {
     const cashInvestment = totalDeposits - withdrawalsFromPrincipal;
 
     // 2. Reinvested Profits Calculation
-    // Logic: Any stock cost that exceeds available principal is funded by profit
-    // Note: totalCost is cost of *Active* Stocks
+    // Logic: Surplus Invested (Cost > Principal) IS the reinvested profit.
+    // CAPPED by Total Net Profits available (you can't reinvest profit you don't have)
     const netPrincipalAvailable = Math.max(0, cashInvestment);
-    const reinvestedProfits = Math.max(0, totalCost - netPrincipalAvailable);
+    const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
+    // Use Math.max(0, ...) on totalProfits to handle overall loss scenarios
+    const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
 
     // 3. Free Cash
     let cashIn = totalDeposits + totalDividends; 
