@@ -13,22 +13,7 @@ export const setGeminiApiKey = (key: string | null) => {
 
 // 2. Safe access for Vite environment
 const getApiKey = () => {
-  // PRIORITIZE USER KEY
   if (userProvidedKey) return userProvidedKey;
-
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      // @ts-ignore
-      return import.meta.env.VITE_API_KEY;
-    }
-  } catch (e) { /* ignore */ }
-  
-  try {
-    // @ts-ignore
-    return process.env.API_KEY;
-  } catch (e) { /* ignore */ }
-  
   return undefined;
 };
 
@@ -37,10 +22,7 @@ const getAi = (): GoogleGenAI | null => {
     if (aiClient) return aiClient;
     
     const key = getApiKey();
-    // If key is missing, we return null
-    if (!key) {
-        return null;
-    }
+    if (!key) return null;
 
     try {
         aiClient = new GoogleGenAI({ apiKey: key });
@@ -81,7 +63,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
             }
           },
           {
-            text: "Extract the trade details from this document. Return a JSON array of trades. For each trade, include ticker, type (BUY/SELL), quantity, price, date (YYYY-MM-DD), broker (if visible), commission, tax, and cdcCharges. If specific fees aren't visible, omit them."
+            text: "Extract the trade details from this document. Return a JSON array of trades. For each trade, include ticker, type (BUY/SELL), quantity, price, date (YYYY-MM-DD), broker (if visible), commission, tax, cdcCharges, and otherFees (any extra charges like CVT, FED etc). If specific fees aren't visible, omit them."
           }
         ]
       },
@@ -100,7 +82,8 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
               broker: { type: Type.STRING, nullable: true },
               commission: { type: Type.NUMBER, nullable: true },
               tax: { type: Type.NUMBER, nullable: true },
-              cdcCharges: { type: Type.NUMBER, nullable: true }
+              cdcCharges: { type: Type.NUMBER, nullable: true },
+              otherFees: { type: Type.NUMBER, nullable: true } // NEW FIELD
             },
             required: ["ticker", "type", "quantity", "price"]
           }
@@ -121,7 +104,6 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
 export const fetchDividends = async (tickers: string[]): Promise<DividendAnnouncement[]> => {
     try {
         const ai = getAi(); 
-        // UPDATED: Throw error instead of returning empty array
         if (!ai) throw new Error("API Key missing. Please go to Settings to add one.");
 
         const tickerList = tickers.join(", ");
@@ -145,6 +127,6 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         return [];
     } catch (error) {
         console.error("Error fetching dividends:", error);
-        throw error; // UPDATED: Re-throw so UI sees it
+        throw error; 
     }
 }
