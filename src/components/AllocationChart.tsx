@@ -38,8 +38,8 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
   }, [holdings, chartMode]);
 
   return (
-    <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl p-6 shadow-xl shadow-slate-200/50 flex flex-col h-fit">
-      <div className="flex justify-between items-center mb-6">
+    <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl p-6 shadow-xl shadow-slate-200/50 flex flex-col h-fit w-full">
+      <div className="flex justify-between items-center mb-4">
           <h2 className="text-lg font-bold text-slate-800 tracking-tight">Allocation</h2>
           <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
               <button onClick={() => setChartMode('asset')} className={`p-1.5 rounded transition-all ${chartMode === 'asset' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-400 hover:text-slate-600'}`} title="By Asset">
@@ -52,10 +52,10 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
       </div>
 
       {/* Horizontal Content Container */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start h-[240px]">
+      <div className="flex flex-col md:flex-row items-center gap-8 h-full">
           
-          {/* Chart Side (Left) - 40% Width */}
-          <div className="w-full sm:w-[40%] h-full relative min-h-[180px]">
+          {/* Chart Side - Fixed Width (Keeps it close to the list) */}
+          <div className="w-full md:w-[280px] h-[260px] relative shrink-0">
             {currentChartData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -63,9 +63,9 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                     data={currentChartData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={45}
-                    outerRadius={65}
-                    paddingAngle={4}
+                    innerRadius={75}  // Bigger Inner Circle
+                    outerRadius={105} // Bigger Outer Circle
+                    paddingAngle={3}
                     dataKey="value"
                     stroke="none"
                   >
@@ -84,21 +84,22 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
             
             {currentChartData.length > 0 && (
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                   <span className="text-slate-400 font-bold text-[9px] uppercase">{chartMode}</span>
+                   <span className="text-slate-400 font-bold text-[10px] uppercase">{chartMode}</span>
+                   <span className="text-slate-800 font-bold text-sm tracking-widest">MIX</span>
                </div>
             )}
           </div>
           
-          {/* List Side (Right) - 60% Width */}
-          <div className="w-full sm:w-[60%] h-full overflow-y-auto custom-scrollbar pr-1">
-              <div className="space-y-2">
+          {/* List Side - Grid Layout to fill space */}
+          <div className="flex-1 h-[260px] overflow-y-auto custom-scrollbar w-full">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-3 pr-2">
                   {currentChartData.map((item, idx) => (
-                      <div key={item.name} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-emerald-50/50 transition-colors border border-transparent hover:border-emerald-100">
-                          <div className="flex items-center gap-2 overflow-hidden">
-                              <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
+                      <div key={item.name} className="flex items-center justify-between text-xs p-3 rounded-xl bg-slate-50/50 border border-slate-100 hover:bg-emerald-50/50 hover:border-emerald-100 transition-colors">
+                          <div className="flex items-center gap-3 overflow-hidden">
+                              <div className="w-3 h-3 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
                               <span className="text-slate-700 font-bold truncate" title={item.name}>{item.name}</span>
                           </div>
-                          <span className="text-slate-500 font-mono whitespace-nowrap">{(item.value / currentChartData.reduce((a,b) => a + b.value, 0) * 100).toFixed(1)}%</span>
+                          <span className="text-slate-600 font-mono font-medium whitespace-nowrap">{(item.value / currentChartData.reduce((a,b) => a + b.value, 0) * 100).toFixed(1)}%</span>
                       </div>
                   ))}
               </div>
