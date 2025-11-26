@@ -415,48 +415,64 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices]);
 
-  // 2. AUTO-GENERATE MONTHLY TAX (CGT)
-  // Effect to check monthly profits and insert 'TAX' transaction if needed
+  // 2. AUTO-GENERATE MONTHLY TAX (CGT) - UPDATED LOGIC
   useEffect(() => {
     if (realizedTrades.length === 0) return;
 
-    const monthlyProfits: Record<string, number> = {};
+    // Group by Broker -> Month -> Profit/Loss
+    const ledger: Record<string, Record<string, number>> = {}; 
+
     realizedTrades.forEach(t => {
+        const broker = t.broker || 'Unknown Broker';
         const month = t.date.substring(0, 7); // "YYYY-MM"
-        monthlyProfits[month] = (monthlyProfits[month] || 0) + t.profit;
+        if (!ledger[broker]) ledger[broker] = {};
+        ledger[broker][month] = (ledger[broker][month] || 0) + t.profit;
     });
 
-    const newTaxTransactions: Transaction[] = [];
-    const today = new Date();
-    const currentMonthStr = today.toISOString().substring(0, 7);
+    const todayStr = new Date().toISOString().substring(0, 7);
+    const generatedTaxTx: Transaction[] = [];
 
-    Object.entries(monthlyProfits).forEach(([month, profit]) => {
-        // Only process closed months (not current month)
-        if (month < currentMonthStr && profit > 0) {
-            const taxAmount = parseFloat((profit * 0.15).toFixed(2));
-            const taxDate = `${month}-28`; // Just a placeholder "end of month" or "start of next" logic
-            // Logic: We actually want 1st of NEXT month
-            // Let's calculate 1st of next month
-            const [y, m] = month.split('-');
-            const nextMonthDate = new Date(parseInt(y), parseInt(m), 1); // Month is 0-indexed in JS date ctor? No, wait.
-            // Actually: new Date(2023, 10, 1) creates Nov 1st (Month 10 is Nov).
-            // String splitting is safer.
-            let nextM = parseInt(m) + 1;
-            let nextY = parseInt(y);
-            if (nextM > 12) { nextM = 1; nextY++; }
-            const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`;
-            
-            // Check if tax transaction already exists for this month
-            // We look for a 'TAX' transaction with a note containing the month
-            const taxExists = transactions.some(t => 
-                t.type === 'TAX' && t.notes?.includes(`CGT for ${month}`)
-            );
+    // Iterate Brokers
+    Object.entries(ledger).forEach(([broker, monthsData]) => {
+        let runningCgtBalance = 0;
+        const sortedMonths = Object.keys(monthsData).sort();
 
-            if (!taxExists) {
-                // Create new transaction
-                const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString() + Math.random();
-                newTaxTransactions.push({
-                    id: newId,
+        sortedMonths.forEach(month => {
+            // Process closed months only (strictly less than current month)
+            // Or allow current month if you want real-time estimation
+            if (month >= todayStr) return;
+
+            const netPL = monthsData[month];
+            let taxAmount = 0;
+            let note = '';
+
+            if (netPL > 0) {
+                // Profit Case: Charge 15%
+                taxAmount = Number((netPL * 0.15).toFixed(2));
+                runningCgtBalance += taxAmount;
+                note = `Auto-CGT: Tax on ${month} Profit (${netPL.toFixed(0)}) - ${broker}`;
+            } else if (netPL < 0 && runningCgtBalance > 0) {
+                // Loss Case: Refund 15% of loss, CAPPED at running balance
+                const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2));
+                const actualRefund = Math.min(potentialRefund, runningCgtBalance);
+                
+                if (actualRefund > 0) {
+                    taxAmount = -actualRefund; // Negative means Credit/Refund
+                    runningCgtBalance -= actualRefund;
+                    note = `Auto-CGT: Credit on ${month} Loss (${netPL.toFixed(0)}) - ${broker}`;
+                }
+            }
+
+            if (taxAmount !== 0) {
+                // Calculate 1st of Next Month
+                const [y, m] = month.split('-');
+                let nextM = parseInt(m) + 1;
+                let nextY = parseInt(y);
+                if (nextM > 12) { nextM = 1; nextY++; }
+                const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`;
+
+                generatedTaxTx.push({
+                    id: `auto-cgt-${broker}-${month}`, // Deterministic ID to avoid dupes
                     portfolioId: currentPortfolioId,
                     ticker: 'CGT',
                     type: 'TAX',
@@ -464,17 +480,30 @@ const App: React.FC = () => {
                     price: taxAmount,
                     date: nextMonthStr,
                     commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
-                    notes: `CGT for ${month} (15% of ${profit.toFixed(0)})`
+                    notes: note,
+                    broker: broker // Tag tax to broker
                 });
             }
-        }
+        });
     });
 
-    if (newTaxTransactions.length > 0) {
-        setTransactions(prev => [...prev, ...newTaxTransactions]);
+    // Sync with State: Only update if changes detected
+    // 1. Remove old Auto-CGT tx
+    const cleanTransactions = transactions.filter(t => !t.id.startsWith('auto-cgt-'));
+    
+    // 2. Merge new ones
+    const mergedTransactions = [...cleanTransactions, ...generatedTaxTx];
+
+    // 3. Check if length changed or IDs changed to prevent loops
+    // Simple check: compare JSON strings of IDs or lengths
+    const oldIds = transactions.filter(t => t.id.startsWith('auto-cgt-')).map(t=>t.id).sort().join(',');
+    const newIds = generatedTaxTx.map(t=>t.id).sort().join(',');
+
+    if (oldIds !== newIds) {
+        setTransactions(mergedTransactions);
     }
 
-  }, [realizedTrades, transactions, currentPortfolioId]); // Careful with dependencies to avoid loop
+  }, [realizedTrades, transactions, currentPortfolioId]); 
 
   // 3. CALCULATE STATS (Including Tax Transactions)
   const stats: PortfolioStats = useMemo(() => {
