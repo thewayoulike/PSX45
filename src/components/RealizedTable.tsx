@@ -123,22 +123,22 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                     )}
                     <td className="px-4 py-4 text-right text-slate-700">{trade.quantity.toLocaleString()}</td>
                     <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">
-                        {trade.buyAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(trade.buyAvg || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
-                        {trade.sellPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(trade.sellPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {trade.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(trade.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {trade.tax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(trade.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {trade.cdcCharges.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(trade.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {trade.otherFees ? trade.otherFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                        {(trade.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-4 text-right">
                         <div className={`font-bold text-sm ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
