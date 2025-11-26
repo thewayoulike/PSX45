@@ -477,18 +477,15 @@ const App: React.FC = () => {
     const totalProfits = netRealizedPL + totalDividends;
     const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
     
-    // 1. Net Principal (Cash Investment)
+    // "Net Capital Invested" (Internal Logic for Reinvestment calculation)
     const cashInvestment = totalDeposits - withdrawalsFromPrincipal;
 
-    // 2. Reinvested Profits Calculation
-    // Logic: Surplus Invested (Cost > Principal) IS the reinvested profit.
-    // CAPPED by Total Net Profits available (you can't reinvest profit you don't have)
+    // Reinvested Profits Logic
     const netPrincipalAvailable = Math.max(0, cashInvestment);
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
-    // Use Math.max(0, ...) on totalProfits to handle overall loss scenarios
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
 
-    // 3. Free Cash
+    // Free Cash
     let cashIn = totalDeposits + totalDividends; 
     let cashOut = totalWithdrawals + totalCGT + totalDividendTax; 
 
@@ -502,6 +499,14 @@ const App: React.FC = () => {
 
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
 
+    // ROI Calculation
+    // Denominator: Total Deposits (Gross)
+    const roiDenominator = totalDeposits;
+    // Numerator: Net Return (Realized + Unrealized + Net Divs)
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
+    
+    const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
+
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
 
@@ -509,11 +514,12 @@ const App: React.FC = () => {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, 
         realizedPL, netRealizedPL, totalDividends, dailyPL: 0,
         totalCommission, totalSalesTax, totalDividendTax, totalCDC, totalOtherFees, totalCGT,
-        freeCash, cashInvestment, reinvestedProfits
+        freeCash, cashInvestment, totalDeposits, reinvestedProfits, roi
     };
   }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
   return (
+    // ... (JSX unchanged)
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
@@ -522,7 +528,6 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {/* HEADER */}
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
             <Logo />
@@ -567,45 +572,20 @@ const App: React.FC = () => {
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
             
-            {/* NAVIGATION TABS */}
             <div className="flex justify-center mb-8">
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
-                    <button 
-                        onClick={() => setCurrentView('DASHBOARD')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-                    >
-                        <LayoutDashboard size={18} /> Dashboard
-                    </button>
-                    <button 
-                        onClick={() => setCurrentView('REALIZED')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-                    >
-                        <CheckCircle2 size={18} /> Realized Gains
-                    </button>
-                    <button 
-                        onClick={() => setCurrentView('HISTORY')}
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
-                    >
-                        <History size={18} /> History
-                    </button>
+                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <LayoutDashboard size={18} /> Dashboard </button>
+                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <CheckCircle2 size={18} /> Realized Gains </button>
+                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <History size={18} /> History </button>
                 </div>
             </div>
 
-            {/* ACTION TOOLBAR */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
                 <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
-                        <Plus size={18} /> Add Transaction
-                    </button>
-                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
-                        <Briefcase size={18} /> Brokers
-                    </button>
-                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
-                        <Coins size={18} /> Scan Dividends
-                    </button>
-                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings">
-                        <Key size={18} className="text-emerald-500" /> <span>API Key</span>
-                    </button>
+                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"> <Plus size={18} /> Add Transaction </button>
+                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Briefcase size={18} /> Brokers </button>
+                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Coins size={18} /> Scan Dividends </button>
+                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
                 </div>
                 <div className="flex flex-wrap gap-3">
                     <div className="relative z-20">
@@ -615,24 +595,17 @@ const App: React.FC = () => {
                              {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
                          </select>
                     </div>
-                    
                     {currentView !== 'HISTORY' && (
                         <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                              <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
                              <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
                         </div>
                     )}
-                    
                     {currentView === 'DASHBOARD' && (
                         <>
-                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
-                                <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span>
-                            </button>
+                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
                              <div className="flex items-center gap-2">
-                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                                    {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-                                    <span className="hidden sm:inline">Sync PSX</span>
-                                </button>
+                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"> {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span className="hidden sm:inline">Sync PSX</span> </button>
                                 {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                             </div>
                         </>
@@ -640,7 +613,6 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* VIEW ROUTING */}
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
@@ -666,14 +638,6 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* Modals */}
-      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} />
-      <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
-      <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
-      <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
-      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
-      
-      {/* New Portfolio Modal */}
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -688,6 +652,12 @@ const App: React.FC = () => {
               </div>
           </div>
       )}
+      
+      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} />
+      <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
+      <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
+      <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
+      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
     </div>
   );
 };
