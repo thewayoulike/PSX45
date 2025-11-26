@@ -176,7 +176,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     </td>
                     <td className="px-4 py-4 text-center">
                         <div className="flex items-center justify-center gap-1">
-                            <button onClick={(e) => {e.stopPropagation(); onDelete(tx.id);}} className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-all">
+                            {/* EDIT BUTTON ADDED HERE */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); onEdit(tx); }} 
+                                className="text-slate-400 hover:text-blue-500 hover:bg-blue-50 p-2 rounded-lg transition-all"
+                                title="Edit"
+                            >
+                                <Pencil size={16} />
+                            </button>
+
+                            <button onClick={(e) => {e.stopPropagation(); onDelete(tx.id);}} className="text-slate-400 hover:text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-all" title="Delete">
                                 <Trash2 size={16} />
                             </button>
                         </div>
