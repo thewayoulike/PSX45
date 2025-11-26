@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3 } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -36,8 +36,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   
   // Capital Analysis
   const totalNetWorth = stats.totalValue + stats.freeCash;
-  // Compare Net Worth against NET PRINCIPAL (Deposits - Withdrawals) to see if we lost money.
-  // We cannot use Gross Deposits here because withdrawals aren't losses.
+  // Compare Net Worth against NET PRINCIPAL (Remaining Cash Invested)
   const isCapitalEroded = totalNetWorth < stats.netPrincipal;
   const erosionAmount = stats.netPrincipal - totalNetWorth;
   const erosionPercent = stats.netPrincipal > 0 ? (erosionAmount / stats.netPrincipal) * 100 : 0;
@@ -131,7 +130,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Total Capital Added</span>
+                        <span>Net Cash Flow</span>
                         {isCapitalEroded && (
                             <span className="text-rose-500 flex items-center gap-1">
                                 -{formatCurrency(erosionAmount)} Loss
@@ -161,8 +160,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         </div>
 
         {/* SECONDARY METRICS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
             
+             {/* NEW: CURRENT STOCK VALUE CARD */}
+             <Card title="Current Stock Value" icon={<BarChart3 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
+                Rs. {formatCurrency(stats.totalValue)}
+                </div>
+                <div className="mt-3 md:mt-4">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Market Value</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-teal-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
             {/* Stock Assets Card */}
             <Card title="Stock Assets (Cost)" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
