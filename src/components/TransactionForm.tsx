@@ -197,11 +197,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           }
 
           if (trades.length === 0) {
-              // Custom error message for empty results
               throw new Error("No trades found in this file.");
           }
           
-          // Pre-fill broker if selected globally
           const enrichedTrades: EditableTrade[] = trades.map(t => ({
               ...t,
               brokerId: selectedBrokerId || undefined,
@@ -248,7 +246,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
   const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
 
-  // Helper to determine file icon
   const getFileIcon = () => {
       if (selectedFile) {
           const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
@@ -261,7 +258,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-5xl' : 'max-w-md'}`}>
+      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-6xl' : 'max-w-md'}`}>
         
         {/* HEADER */}
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 bg-white rounded-t-2xl">
@@ -346,95 +343,58 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* 2. SCANNER INTERFACE */}
+            {/* 2. SCANNER INTERFACE - ONE LINE TABLE */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     
                     {!isScanning && scannedTrades.length === 0 && (
                         <>
-                            {/* BROKER SELECTION ROW */}
                             <div className="mb-6">
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Default Broker for Import</label>
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
-                                        <select 
-                                            value={selectedBrokerId} 
-                                            onChange={e => setSelectedBrokerId(e.target.value)} 
-                                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none"
-                                        >
+                                        <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none">
                                             {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                         </select>
                                         <ChevronDown className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" size={18} />
                                     </div>
-                                    <button onClick={onManageBrokers} className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-500 transition-colors" title="Manage Brokers">
-                                        <Briefcase size={20} />
-                                    </button>
+                                    <button onClick={onManageBrokers} className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-500 transition-colors" title="Manage Brokers"> <Briefcase size={20} /> </button>
                                 </div>
                             </div>
 
-                            {/* UPLOAD AREA (Hidden if Error Present) */}
                             {!scanError && (
-                                <div 
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className={`w-full flex-1 border-2 border-dashed ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : `${themeBorder} ${themeBg}`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}
-                                >
-                                    <input 
-                                        ref={fileInputRef} 
-                                        type="file" 
-                                        accept={mode === 'AI_SCAN' ? "image/*,.pdf,.csv,.xlsx,.xls" : "image/*,.pdf"}
-                                        onChange={handleFileSelect} 
-                                        className="hidden" 
-                                    />
+                                <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : `${themeBorder} ${themeBg}`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}>
+                                    <input ref={fileInputRef} type="file" accept={mode === 'AI_SCAN' ? "image/*,.pdf,.csv,.xlsx,.xls" : "image/*,.pdf"} onChange={handleFileSelect} className="hidden" />
                                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-slate-400'}`}>
                                         {getFileIcon()}
                                     </div>
                                     {selectedFile ? (
                                         <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </>
                                     ) : (
-                                        <> 
-                                            <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> 
-                                            <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">
-                                                {mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}
-                                            </p> 
-                                        </>
+                                        <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p> </>
                                     )}
                                 </div>
                             )}
 
-                            {/* ERROR / NO RESULTS STATE (Replaces Upload Area) */}
                             {scanError && (
                                 <div className={`w-full flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 ${scanError.includes("No trades found") ? "border-amber-200 bg-amber-50/50" : "border-rose-200 bg-rose-50/50"}`}>
                                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-sm ${scanError.includes("No trades found") ? "bg-amber-100 text-amber-600" : "bg-rose-100 text-rose-500"}`}>
                                         {scanError.includes("No trades found") ? <Search size={32} /> : <AlertTriangle size={32} />}
                                     </div>
-                                    <h3 className={`text-lg font-bold mb-1 ${scanError.includes("No trades found") ? "text-amber-800" : "text-rose-700"}`}>
-                                        {scanError.includes("No trades found") ? "No Results Found" : "Scan Failed"}
-                                    </h3>
-                                    <p className={`text-sm font-medium text-center max-w-[240px] mb-6 ${scanError.includes("No trades found") ? "text-amber-600" : "text-rose-500"}`}>
-                                        {scanError}
-                                    </p>
-                                    <button 
-                                        onClick={() => { setScanError(null); setSelectedFile(null); }} 
-                                        className={`px-6 py-2.5 bg-white border rounded-xl font-bold text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-2 ${scanError.includes("No trades found") ? "border-amber-200 text-amber-600" : "border-rose-200 text-rose-600"}`}
-                                    >
-                                        <RefreshCcw size={16} /> Try Different File
-                                    </button>
+                                    <h3 className={`text-lg font-bold mb-1 ${scanError.includes("No trades found") ? "text-amber-800" : "text-rose-700"}`}>{scanError.includes("No trades found") ? "No Results Found" : "Scan Failed"}</h3>
+                                    <p className={`text-sm font-medium text-center max-w-[240px] mb-6 ${scanError.includes("No trades found") ? "text-amber-600" : "text-rose-500"}`}>{scanError}</p>
+                                    <button onClick={() => { setScanError(null); setSelectedFile(null); }} className={`px-6 py-2.5 bg-white border rounded-xl font-bold text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-2 ${scanError.includes("No trades found") ? "border-amber-200 text-amber-600" : "border-rose-200 text-rose-600"}`}> <RefreshCcw size={16} /> Try Different File </button>
                                 </div>
                             )}
 
-                            {/* ACTION BUTTON (Only visible if no error) */}
                             {!scanError && (
-                                <button 
-                                    onClick={handleProcessScan} disabled={!selectedFile}
-                                    className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}
-                                >
+                                <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}>
                                     {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze with AI' : 'Extract Text'}
                                 </button>
                             )}
                         </>
                     )}
 
-                    {/* LOADING */}
                     {isScanning && (
                         <div className="flex flex-col items-center justify-center h-full py-20">
                             <Loader2 size={48} className={`animate-spin mb-6 ${themeText}`} />
@@ -443,78 +403,47 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                     )}
 
-                    {/* RESULTS LIST - EDITABLE GRID */}
+                    {/* ONE LINE EDITABLE TABLE */}
                     {scannedTrades.length > 0 && (
-                        <div className="w-full flex-1 flex flex-col">
-                            <div className="flex justify-between items-center mb-4">
+                        <div className="w-full flex-1 flex flex-col overflow-hidden">
+                            <div className="flex justify-between items-center mb-2 px-1">
                                 <h3 className="font-bold text-slate-800 text-lg">Found {scannedTrades.length} Trades</h3>
-                                <button onClick={() => { setScannedTrades([]); setSelectedFile(null); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1">
-                                    <RefreshCcw size={12} /> Clear All
-                                </button>
+                                <button onClick={() => { setScannedTrades([]); setSelectedFile(null); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1"> <RefreshCcw size={12} /> Clear All </button>
                             </div>
-                            
-                            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
-                                {scannedTrades.map((t, idx) => (
-                                    <div key={idx} className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm hover:border-indigo-300 transition-colors">
-                                        
-                                        {/* Row 1: Type, Ticker, Date, Broker */}
-                                        <div className="flex flex-wrap gap-2 mb-3">
-                                            <span className={`h-10 px-3 flex items-center justify-center rounded-lg text-xs font-bold uppercase tracking-wide min-w-[60px] ${t.type === 'BUY' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{t.type}</span>
-                                            
-                                            <div className="flex-1 min-w-[100px]">
-                                                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Ticker</label>
-                                                <input type="text" value={t.ticker} onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-sm font-bold text-slate-800 uppercase outline-none focus:ring-1 focus:ring-indigo-500" />
-                                            </div>
-                                            
-                                            <div className="flex-1 min-w-[120px]">
-                                                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Date</label>
-                                                <input type="date" value={t.date || ''} onChange={(e) => updateScannedTrade(idx, 'date', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-medium text-slate-600 outline-none focus:ring-1 focus:ring-indigo-500" />
-                                            </div>
-
-                                            <div className="flex-[1.5] min-w-[140px]">
-                                                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Broker</label>
-                                                <div className="relative">
-                                                    <select value={t.brokerId || ''} onChange={(e) => updateScannedTrade(idx, 'brokerId', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-2 pr-6 py-2 text-xs font-medium text-slate-700 outline-none appearance-none">
-                                                        <option value="">-- Scanned: {t.broker || '?'} --</option>
+                            <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
+                                <table className="w-full text-left border-collapse min-w-[1000px]">
+                                    <thead>
+                                        <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                                            <th className="px-3 py-3">Type</th> <th className="px-3 py-3">Date</th> <th className="px-3 py-3">Ticker</th> <th className="px-3 py-3">Broker</th> <th className="px-3 py-3 w-24">Qty</th> <th className="px-3 py-3 w-24">Price</th> <th className="px-2 py-3 w-20 text-slate-400">Comm</th> <th className="px-2 py-3 w-20 text-slate-400">Tax</th> <th className="px-2 py-3 w-20 text-slate-400">CDC</th> <th className="px-2 py-3 w-20 text-slate-400">Other</th> <th className="px-3 py-3 text-center">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-100">
+                                        {scannedTrades.map((t, idx) => (
+                                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                                <td className="px-3 py-2">
+                                                    <span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{t.type}</span>
+                                                </td>
+                                                <td className="px-3 py-2"><input type="date" value={t.date || ''} onChange={(e) => updateScannedTrade(idx, 'date', e.target.value)} className="w-24 bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" /></td>
+                                                <td className="px-3 py-2"><input type="text" value={t.ticker} onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-16 bg-transparent text-xs font-bold text-slate-800 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white uppercase transition-all" /></td>
+                                                <td className="px-3 py-2">
+                                                    <select value={t.brokerId || ''} onChange={(e) => updateScannedTrade(idx, 'brokerId', e.target.value)} className="w-24 bg-transparent text-xs text-slate-600 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white appearance-none truncate cursor-pointer hover:text-indigo-600">
+                                                        <option value="">{t.broker || 'Select'}</option>
                                                         {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                                     </select>
-                                                    <ChevronDown className="absolute right-2 top-2.5 text-slate-400 pointer-events-none" size={12} />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Row 2: Quantities & Prices */}
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                            <div>
-                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Quantity</label>
-                                                <input type="number" value={t.quantity} onChange={(e) => updateScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-sm font-bold text-slate-800 outline-none focus:border-indigo-400" />
-                                            </div>
-                                            <div>
-                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Price</label>
-                                                <input type="number" value={t.price} onChange={(e) => updateScannedTrade(idx, 'price', Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-sm font-bold text-slate-800 outline-none focus:border-indigo-400" />
-                                            </div>
-                                            <div className="col-span-2 flex items-center justify-end">
-                                                <div className="text-right">
-                                                    <div className="text-[9px] text-slate-400 uppercase">Gross Amount</div>
-                                                    <div className="text-sm font-mono font-bold text-slate-600">{(Number(t.quantity) * Number(t.price)).toLocaleString()}</div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Row 3: Fees */}
-                                        <div className="grid grid-cols-4 gap-2 mb-3">
-                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">Comm</label><input type="number" step="any" value={t.commission || ''} onChange={(e) => updateScannedTrade(idx, 'commission', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
-                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">Tax</label><input type="number" step="any" value={t.tax || ''} onChange={(e) => updateScannedTrade(idx, 'tax', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
-                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">CDC</label><input type="number" step="any" value={t.cdcCharges || ''} onChange={(e) => updateScannedTrade(idx, 'cdcCharges', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
-                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">Other</label><input type="number" step="any" value={t.otherFees || ''} onChange={(e) => updateScannedTrade(idx, 'otherFees', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
-                                        </div>
-
-                                        {/* Action */}
-                                        <button onClick={() => handleAcceptTrade(t)} className="w-full py-2 bg-slate-800 hover:bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2">
-                                            <Check size={16} /> Add Transaction
-                                        </button>
-                                    </div>
-                                ))}
+                                                </td>
+                                                <td className="px-3 py-2"><input type="number" value={t.quantity} onChange={(e) => updateScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0" /></td>
+                                                <td className="px-3 py-2"><input type="number" step="0.01" value={t.price} onChange={(e) => updateScannedTrade(idx, 'price', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0.00" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.commission || ''} onChange={(e) => updateScannedTrade(idx, 'commission', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.tax || ''} onChange={(e) => updateScannedTrade(idx, 'tax', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.cdcCharges || ''} onChange={(e) => updateScannedTrade(idx, 'cdcCharges', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.otherFees || ''} onChange={(e) => updateScannedTrade(idx, 'otherFees', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-3 py-2 text-center">
+                                                    <button onClick={() => handleAcceptTrade(t)} className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm" title="Add Transaction"> <Plus size={14} strokeWidth={3} /> </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     )}
