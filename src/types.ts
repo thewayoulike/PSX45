@@ -7,7 +7,7 @@ export interface Transaction {
   price: number;
   date: string;
   broker?: string;
-  brokerId?: string; // Links to specific broker config
+  brokerId?: string;
   commission: number;
   tax: number;
   cdcCharges: number;
@@ -35,7 +35,11 @@ export interface RealizedTrade {
   sellPrice: number;
   date: string;
   profit: number;
-  fees: number;
+  fees: number; // Total Fees
+  // --- NEW: Detailed Breakdown ---
+  commission: number;
+  tax: number;
+  cdcCharges: number;
 }
 
 export interface ParsedTrade {
@@ -74,16 +78,14 @@ export interface DividendAnnouncement {
     period?: string;
 }
 
-// --- BROKER TYPES ---
-
 export type CommissionType = 'PERCENTAGE' | 'PER_SHARE' | 'HIGHER_OF' | 'FIXED';
 
 export interface Broker {
   id: string;
   name: string;
   commissionType: CommissionType;
-  rate1: number; // Primary Rate (e.g., 0.15 for %, 0.05 for Per Share)
-  rate2?: number; // Secondary Rate (e.g., for "Higher Of" comparison)
-  sstRate: number; // Sales Tax Rate (default 15%)
+  rate1: number; 
+  rate2?: number; 
+  sstRate: number; 
   isDefault?: boolean;
 }
