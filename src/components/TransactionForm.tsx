@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText, UploadCloud, RefreshCcw } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText, UploadCloud, RefreshCcw, Pencil } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -13,6 +13,11 @@ interface TransactionFormProps {
   existingTransactions?: Transaction[];
   editingTransaction?: Transaction | null;
   brokers?: Broker[]; 
+}
+
+// Local interface to handle the editable state, including broker mapping
+interface EditableTrade extends ParsedTrade {
+    brokerId?: string;
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ 
@@ -43,7 +48,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [scannedTrades, setScannedTrades] = useState<ParsedTrade[]>([]);
+  const [scannedTrades, setScannedTrades] = useState<EditableTrade[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,13 +94,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     setScanError(null);
   }, [mode]);
 
-  // --- UPDATED AUTO-CALCULATION LOGIC ---
+  // Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL' && !editingTransaction) {
         if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
 
-             // 1. Calculate Commission based on Broker Settings
              let estComm = 0;
              const currentBroker = brokers.find(b => b.id === selectedBrokerId);
 
@@ -112,29 +116,30 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                      estComm = Math.max(pct, fixed);
                  }
              } else {
-                 // Fallback if no broker selected (approx 0.15%)
                  estComm = gross * 0.0015;
              }
 
-             // 2. Calculate Sales Tax (SST)
-             // Use broker's SST rate or default to 15%
              const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
              const estTax = estComm * taxRate;
-
-             // 3. CDC Charges (Fixed 0.005 per share)
              const estCdc = quantity * 0.005;
 
              setCommission(parseFloat(estComm.toFixed(2)));
              setTax(parseFloat(estTax.toFixed(2)));
              setCdcCharges(parseFloat(estCdc.toFixed(2)));
         } else {
-             // Clear if invalid inputs
              if (commission !== '') setCommission('');
              if (tax !== '') setTax('');
              if (cdcCharges !== '') setCdcCharges('');
         }
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers]);
+
+  // Update a specific field in a scanned trade row
+  const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => {
+      const updated = [...scannedTrades];
+      updated[index] = { ...updated[index], [field]: value };
+      setScannedTrades(updated);
+  };
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -193,7 +198,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           }
 
           if (trades.length === 0) throw new Error("No trades detected in image.");
-          setScannedTrades(trades);
+          
+          // Pre-fill broker if selected globally
+          const enrichedTrades: EditableTrade[] = trades.map(t => ({
+              ...t,
+              brokerId: selectedBrokerId || undefined,
+              broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker
+          }));
+
+          setScannedTrades(enrichedTrades);
       } catch (err: any) {
           setScanError(err.message || "Failed to scan document.");
       } finally {
@@ -201,42 +214,42 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       }
   };
 
-  const handleAcceptTrade = (trade: ParsedTrade) => {
-      let brokerName = trade.broker;
-      if (selectedBrokerId) {
-          const b = brokers.find(br => br.id === selectedBrokerId);
-          if (b) brokerName = b.name;
+  const handleAcceptTrade = (trade: EditableTrade) => {
+      // Logic to resolve Broker Name based on ID
+      let finalBrokerName = trade.broker;
+      if (trade.brokerId) {
+          const b = brokers.find(br => br.id === trade.brokerId);
+          if (b) finalBrokerName = b.name;
       }
 
       onAddTransaction({
           ticker: trade.ticker,
           type: trade.type as any,
-          quantity: trade.quantity,
-          price: trade.price,
+          quantity: Number(trade.quantity),
+          price: Number(trade.price),
           date: trade.date || new Date().toISOString().split('T')[0],
-          broker: brokerName,
-          brokerId: selectedBrokerId,
-          commission: trade.commission || 0,
-          tax: trade.tax || 0,
-          cdcCharges: trade.cdcCharges || 0,
-          otherFees: trade.otherFees || 0
+          broker: finalBrokerName,
+          brokerId: trade.brokerId,
+          commission: Number(trade.commission) || 0,
+          tax: Number(trade.tax) || 0,
+          cdcCharges: Number(trade.cdcCharges) || 0,
+          otherFees: Number(trade.otherFees) || 0
       });
       setScannedTrades(prev => prev.filter(t => t !== trade));
   };
 
   if (!isOpen) return null;
 
-  // Theme Colors based on mode
-  const themeColor = mode === 'AI_SCAN' ? 'indigo' : 'emerald';
-  const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
-  const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
+  // Theme Constants
   const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
+  const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
   const themeBorder = mode === 'AI_SCAN' ? 'border-indigo-200' : 'border-emerald-200';
+  const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
   const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-4xl' : 'max-w-md'}`}>
+      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-5xl' : 'max-w-md'}`}>
         
         {/* HEADER */}
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 bg-white rounded-t-2xl">
@@ -269,7 +282,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             {/* 1. MANUAL FORM */}
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
-                    {/* ... (Manual Form Fields kept same) ... */}
+                    {/* ... (Manual Form Fields) ... */}
                     <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         {(['BUY', 'SELL', 'DIVIDEND', 'TAX'] as const).map(t => (
                             <button key={t} type="button" onClick={() => setType(t)} className={`py-2 rounded-lg text-xs font-bold transition-all ${type === t ? 'bg-white shadow text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
@@ -322,7 +335,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* 2. SCANNER INTERFACE */}
+            {/* 2. SCANNER INTERFACE - EDITABLE TABLE */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     
@@ -330,7 +343,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <>
                             {/* BROKER SELECTION ROW */}
                             <div className="mb-6">
-                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Select Broker for Import</label>
+                                <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Default Broker for Import</label>
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
                                         <select 
@@ -353,69 +366,37 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 onClick={() => fileInputRef.current?.click()}
                                 className={`w-full flex-1 border-2 border-dashed ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : `${themeBorder} ${themeBg}`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}
                             >
-                                <input 
-                                    ref={fileInputRef}
-                                    type="file" 
-                                    accept="image/*,.pdf" 
-                                    onChange={handleFileSelect}
-                                    className="hidden"
-                                />
-                                
+                                <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileSelect} className="hidden" />
                                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-slate-400'}`}>
                                     {selectedFile ? <FileText size={32} /> : (mode === 'AI_SCAN' ? <Sparkles size={32} className="text-indigo-500" /> : <ScanText size={32} className="text-emerald-500" />)}
                                 </div>
-
                                 {selectedFile ? (
-                                    <>
-                                        <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3>
-                                        <p className="text-slate-500 text-sm">Click to change file</p>
-                                    </>
+                                    <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </>
                                 ) : (
-                                    <>
-                                        <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3>
-                                        <p className="text-slate-400 text-sm font-medium">
-                                            {mode === 'AI_SCAN' ? 'Smart AI Detection (Gemini)' : 'Standard Text Extraction'}
-                                        </p>
-                                    </>
+                                    <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium">{mode === 'AI_SCAN' ? 'Smart AI Detection (Gemini)' : 'Standard Text Extraction'}</p> </>
                                 )}
                             </div>
 
                             {/* ACTION BUTTON */}
                             <button 
-                                onClick={handleProcessScan}
-                                disabled={!selectedFile}
-                                className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2
-                                    ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}
-                                `}
+                                onClick={handleProcessScan} disabled={!selectedFile}
+                                className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}
                             >
-                                {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />}
-                                {mode === 'AI_SCAN' ? 'Analyze with AI' : 'Extract Text'}
+                                {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze with AI' : 'Extract Text'}
                             </button>
                         </>
                     )}
 
-                    {/* LOADING STATE */}
+                    {/* LOADING */}
                     {isScanning && (
                         <div className="flex flex-col items-center justify-center h-full py-20">
                             <Loader2 size={48} className={`animate-spin mb-6 ${themeText}`} />
                             <h3 className="text-lg font-bold text-slate-700 mb-2">Analyzing Document</h3>
-                            <p className="text-slate-400 text-sm text-center max-w-[200px]">Extracting trade details, please wait...</p>
+                            <p className="text-slate-400 text-sm text-center max-w-[200px]">Extracting trade details...</p>
                         </div>
                     )}
 
-                    {/* ERROR STATE */}
-                    {scanError && !isScanning && (
-                         <div className="w-full bg-rose-50 border border-rose-200 rounded-xl p-6 text-center my-auto">
-                            <div className="w-12 h-12 bg-rose-100 text-rose-500 rounded-full flex items-center justify-center mx-auto mb-3">
-                                <X size={24} />
-                            </div>
-                            <p className="text-rose-700 font-bold mb-1">Analysis Failed</p>
-                            <p className="text-rose-500 text-sm mb-4">{scanError}</p>
-                            <button onClick={() => setScanError(null)} className="px-4 py-2 bg-white border border-rose-200 rounded-lg text-rose-600 text-sm font-bold shadow-sm">Try Again</button>
-                        </div>
-                    )}
-
-                    {/* RESULTS LIST */}
+                    {/* RESULTS LIST - EDITABLE GRID */}
                     {scannedTrades.length > 0 && (
                         <div className="w-full flex-1 flex flex-col">
                             <div className="flex justify-between items-center mb-4">
@@ -425,20 +406,65 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </button>
                             </div>
                             
-                            <div className="space-y-3 flex-1 overflow-y-auto custom-scrollbar pr-1">
+                            <div className="space-y-4 flex-1 overflow-y-auto custom-scrollbar pr-1 pb-4">
                                 {scannedTrades.map((t, idx) => (
-                                    <div key={idx} className="bg-white border border-slate-200 p-4 rounded-xl flex justify-between items-center shadow-sm group hover:border-indigo-300 transition-colors">
-                                        <div className="flex items-center gap-4">
-                                            <span className={`text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider ${t.type === 'BUY' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{t.type}</span>
-                                            <div>
-                                                <div className="font-bold text-slate-800 text-base">{t.ticker}</div>
-                                                <div className="text-xs text-slate-500 mt-0.5 font-medium">
-                                                    {t.quantity.toLocaleString()} shares @ <span className="text-slate-800">{t.price}</span> • {t.date}
+                                    <div key={idx} className="bg-white border border-slate-200 p-4 rounded-xl shadow-sm hover:border-indigo-300 transition-colors">
+                                        
+                                        {/* Row 1: Type, Ticker, Date, Broker */}
+                                        <div className="flex flex-wrap gap-2 mb-3">
+                                            <span className={`h-10 px-3 flex items-center justify-center rounded-lg text-xs font-bold uppercase tracking-wide min-w-[60px] ${t.type === 'BUY' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{t.type}</span>
+                                            
+                                            <div className="flex-1 min-w-[100px]">
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Ticker</label>
+                                                <input type="text" value={t.ticker} onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-sm font-bold text-slate-800 uppercase outline-none focus:ring-1 focus:ring-indigo-500" />
+                                            </div>
+                                            
+                                            <div className="flex-1 min-w-[120px]">
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Date</label>
+                                                <input type="date" value={t.date || ''} onChange={(e) => updateScannedTrade(idx, 'date', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2 py-2 text-xs font-medium text-slate-600 outline-none focus:ring-1 focus:ring-indigo-500" />
+                                            </div>
+
+                                            <div className="flex-[1.5] min-w-[140px]">
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase ml-1">Broker</label>
+                                                <div className="relative">
+                                                    <select value={t.brokerId || ''} onChange={(e) => updateScannedTrade(idx, 'brokerId', e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-lg pl-2 pr-6 py-2 text-xs font-medium text-slate-700 outline-none appearance-none">
+                                                        <option value="">-- Scanned: {t.broker || '?'} --</option>
+                                                        {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-2 top-2.5 text-slate-400 pointer-events-none" size={12} />
                                                 </div>
                                             </div>
                                         </div>
-                                        <button onClick={() => handleAcceptTrade(t)} className="p-2.5 bg-slate-50 group-hover:bg-emerald-50 text-slate-400 group-hover:text-emerald-600 rounded-xl transition-all shadow-sm border border-slate-200 group-hover:border-emerald-200">
-                                            <Check size={20} />
+
+                                        {/* Row 2: Quantities & Prices */}
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3 p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                            <div>
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Quantity</label>
+                                                <input type="number" value={t.quantity} onChange={(e) => updateScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-sm font-bold text-slate-800 outline-none focus:border-indigo-400" />
+                                            </div>
+                                            <div>
+                                                <label className="text-[9px] font-bold text-slate-400 uppercase">Price</label>
+                                                <input type="number" value={t.price} onChange={(e) => updateScannedTrade(idx, 'price', Number(e.target.value))} className="w-full bg-white border border-slate-200 rounded-md px-2 py-1.5 text-sm font-bold text-slate-800 outline-none focus:border-indigo-400" />
+                                            </div>
+                                            <div className="col-span-2 flex items-center justify-end">
+                                                <div className="text-right">
+                                                    <div className="text-[9px] text-slate-400 uppercase">Gross Amount</div>
+                                                    <div className="text-sm font-mono font-bold text-slate-600">{(Number(t.quantity) * Number(t.price)).toLocaleString()}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Row 3: Fees */}
+                                        <div className="grid grid-cols-4 gap-2 mb-3">
+                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">Comm</label><input type="number" step="any" value={t.commission || ''} onChange={(e) => updateScannedTrade(idx, 'commission', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
+                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">Tax</label><input type="number" step="any" value={t.tax || ''} onChange={(e) => updateScannedTrade(idx, 'tax', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
+                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">CDC</label><input type="number" step="any" value={t.cdcCharges || ''} onChange={(e) => updateScannedTrade(idx, 'cdcCharges', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
+                                            <div><label className="text-[9px] font-bold text-slate-400 uppercase">Other</label><input type="number" step="any" value={t.otherFees || ''} onChange={(e) => updateScannedTrade(idx, 'otherFees', Number(e.target.value))} className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 outline-none focus:border-indigo-400" /></div>
+                                        </div>
+
+                                        {/* Action */}
+                                        <button onClick={() => handleAcceptTrade(t)} className="w-full py-2 bg-slate-800 hover:bg-emerald-600 text-white rounded-lg text-sm font-bold shadow-sm transition-colors flex items-center justify-center gap-2">
+                                            <Check size={16} /> Add Transaction
                                         </button>
                                     </div>
                                 ))}
