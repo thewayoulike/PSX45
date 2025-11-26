@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from '../types';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
@@ -15,6 +15,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2 } from 'lucide-react';
+import { useIdleTimer } from '../hooks/useIdleTimer'; // <--- IMPORT THE HOOK
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from '../services/driveStorage';
 
@@ -85,7 +86,6 @@ const App: React.FC = () => {
       return {};
   });
 
-  // STORE LEARNED SECTORS
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_sector_overrides');
@@ -117,6 +117,44 @@ const App: React.FC = () => {
 
   const hasMergedCloud = useRef(false);
 
+  // --- LOGOUT LOGIC ---
+  
+  // 1. The actual action of clearing data
+  const performLogout = useCallback(() => {
+      setTransactions([]); 
+      setPortfolios([DEFAULT_PORTFOLIO]); 
+      setHoldings([]); 
+      setRealizedTrades([]); 
+      setManualPrices({}); 
+      setSectorOverrides({}); 
+      setBrokers([DEFAULT_BROKER]); 
+      setUserApiKey(''); 
+      setGeminiApiKey(null);
+      setDriveUser(null);
+      
+      // CRITICAL: Clear LocalStorage so data doesn't come back on refresh
+      localStorage.clear();
+      
+      signOutDrive();
+  }, []);
+
+  // 2. The Auto-Logout Timer (30 Minutes = 1800000ms)
+  useIdleTimer(1800000, () => {
+      if (transactions.length > 0 || driveUser) {
+          performLogout();
+          alert("Session timed out due to inactivity. Data cleared for security.");
+      }
+  });
+
+  // 3. Manual Logout Button
+  const handleManualLogout = () => {
+      if (window.confirm("Logout and clear local data?")) {
+          performLogout();
+      }
+  };
+
+  const handleLogin = () => signInWithDrive();
+
   // --- AUTH & LOAD ---
   useEffect(() => {
       initDriveAuth(async (user) => {
@@ -131,11 +169,7 @@ const App: React.FC = () => {
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                      
-                      // Load Cloud Sector Overrides if available
-                      if (cloudData.sectorOverrides) {
-                         setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
-                      }
+                      if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
 
                       if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                           setBrokers(currentLocal => {
@@ -159,12 +193,15 @@ const App: React.FC = () => {
 
   // --- SAVE ---
   useEffect(() => {
-      localStorage.setItem('psx_transactions', JSON.stringify(transactions));
-      localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
-      localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
-      localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
-      localStorage.setItem('psx_brokers', JSON.stringify(brokers));
-      localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
+      // Only save if we have data (prevent saving empty state during logout)
+      if (driveUser || transactions.length > 0) {
+        localStorage.setItem('psx_transactions', JSON.stringify(transactions));
+        localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
+        localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
+        localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
+        localStorage.setItem('psx_brokers', JSON.stringify(brokers));
+        localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
+      }
       
       if (driveUser) {
           setIsCloudSyncing(true);
@@ -199,15 +236,7 @@ const App: React.FC = () => {
           setBrokers(updatedBrokers);
       }
   };
-  const handleLogin = () => signInWithDrive();
-  const handleLogout = () => {
-      if (window.confirm("Logout and clear local data?")) {
-          setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
-          setManualPrices({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setUserApiKey(''); setGeminiApiKey(null);
-          localStorage.clear();
-          signOutDrive();
-      }
-  };
+
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
     const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
     const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
@@ -250,7 +279,6 @@ const App: React.FC = () => {
       }
   };
 
-  // UPDATED: Sync Prices and Sectors
   const handleSyncPrices = async () => {
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
       if (uniqueTickers.length === 0) return;
@@ -271,8 +299,6 @@ const App: React.FC = () => {
               
               if (data && data.price > 0) {
                   validUpdates[ticker] = data.price;
-                  
-                  // If we found a valid sector, save it!
                   if (data.sector && data.sector !== 'Unknown Sector') {
                       newSectors[ticker] = data.sector;
                   }
@@ -284,11 +310,9 @@ const App: React.FC = () => {
           if (Object.keys(validUpdates).length > 0) {
               setManualPrices(prev => ({ ...prev, ...validUpdates }));
           }
-          
           if (Object.keys(newSectors).length > 0) {
               setSectorOverrides(prev => ({ ...prev, ...newSectors }));
           }
-          
           if (failed.size > 0) {
               setFailedTickers(failed);
               setPriceError(true);
@@ -353,7 +377,6 @@ const App: React.FC = () => {
       const holdingKey = `${tx.ticker}|${brokerKey}`;
 
       if (!tempHoldings[holdingKey]) {
-        // Priority: 1. Learned Sector, 2. Static Map
         const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker);
 
         tempHoldings[holdingKey] = {
@@ -460,7 +483,7 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, sectorOverrides]);
 
-  // 2. AUTO-GENERATE MONTHLY TAX (CGT) - (UNCHANGED)
+  // 2. AUTO-GENERATE MONTHLY TAX (CGT)
   useEffect(() => {
     if (realizedTrades.length === 0) return;
 
@@ -609,7 +632,7 @@ const App: React.FC = () => {
                             </div>
                             <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
                             {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500" /> )}
-                            <button onClick={handleLogout} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
+                            <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
                         </div>
                     ) : (
                         <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all">
