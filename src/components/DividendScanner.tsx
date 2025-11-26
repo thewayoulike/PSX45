@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { Transaction, DividendAnnouncement } from '../types';
 import { fetchDividends } from '../services/gemini';
-import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings } from 'lucide-react';
+import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles } from 'lucide-react';
 
 interface DividendScannerProps {
   transactions: Transaction[];
   onAddTransaction: (t: Omit<Transaction, 'id' | 'portfolioId'>) => void;
   isOpen: boolean;
   onClose: () => void;
-  onOpenSettings?: () => void; // NEW PROP
+  onOpenSettings?: () => void;
 }
 
 export const DividendScanner: React.FC<DividendScannerProps> = ({ 
@@ -37,8 +37,8 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   const handleScan = async () => {
       setLoading(true);
-      setFoundDividends([]);
       setErrorMsg(null);
+      // NOTE: We do NOT clear setFoundDividends([]) here to support "Scan More"
       
       const tickers = Array.from(new Set(transactions.map(t => t.ticker))) as string[];
       
@@ -51,21 +51,26 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       try {
           const announcements = await fetchDividends(tickers);
           
-          const eligible: Array<DividendAnnouncement & { eligibleQty: number }> = [];
+          const newEligible: Array<DividendAnnouncement & { eligibleQty: number }> = [];
 
           announcements.forEach(ann => {
               const qtyOnExDate = getHoldingsOnDate(ann.ticker, ann.exDate);
               if (qtyOnExDate > 0) {
-                  eligible.push({ ...ann, eligibleQty: qtyOnExDate });
+                  newEligible.push({ ...ann, eligibleQty: qtyOnExDate });
               }
           });
           
-          setFoundDividends(eligible);
+          // MERGE LOGIC: Add only if not already in list
+          setFoundDividends(prev => {
+              const existingIds = new Set(prev.map(d => `${d.ticker}-${d.exDate}`));
+              const uniqueNew = newEligible.filter(d => !existingIds.has(`${d.ticker}-${d.exDate}`));
+              return [...prev, ...uniqueNew];
+          });
+
           setScanned(true);
       } catch (e: any) {
           console.error(e);
           setErrorMsg(e.message || "Failed to scan. Check API Key.");
-          setScanned(false);
       } finally {
           setLoading(false);
       }
@@ -86,6 +91,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           cdcCharges: 0
       });
       
+      // Remove from list
       setFoundDividends(prev => prev.filter(d => d !== div));
   };
 
@@ -97,7 +103,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-        <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[80vh] flex flex-col">
+        <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col">
             <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50/50">
                 <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
                     <Coins className="text-indigo-600" size={24} />
@@ -108,12 +114,13 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                 </button>
             </div>
 
-            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
-                {/* INITIAL STATE */}
-                {!scanned && !loading && !errorMsg && (
+            <div className="p-6 flex-1 overflow-y-auto custom-scrollbar relative">
+                
+                {/* INITIAL STATE (Only show if empty and never scanned) */}
+                {!scanned && foundDividends.length === 0 && !loading && !errorMsg && (
                     <div className="text-center py-10">
                         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
-                            <Search size={40} />
+                            <Sparkles size={40} />
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">Find Unclaimed Income</h3>
                         <p className="text-slate-500 mb-8 max-w-md mx-auto">
@@ -121,116 +128,129 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                         </p>
                         <button 
                             onClick={handleScan}
-                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-indigo-600/20 transition-all"
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2 mx-auto"
                         >
-                            Scan Portfolio
+                           <Search size={18} /> Scan Portfolio
                         </button>
                     </div>
                 )}
 
                 {/* LOADING STATE */}
                 {loading && (
-                    <div className="text-center py-20">
-                        <Loader2 size={40} className="animate-spin text-indigo-600 mx-auto mb-4" />
-                        <p className="text-slate-500">Checking historical eligibility...</p>
+                    <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
+                        <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
+                        <h4 className="text-slate-700 font-bold mb-1">Scanning Market Data...</h4>
+                        <p className="text-slate-400 text-sm">Checking historical eligibility for {foundDividends.length} items...</p>
                     </div>
                 )}
 
-                {/* ERROR STATE (Missing Key) */}
-                {errorMsg && (
-                    <div className="text-center py-10">
-                        <div className="w-16 h-16 bg-rose-50 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
-                            <AlertTriangle size={32} />
+                {/* ERROR STATE */}
+                {errorMsg && !loading && (
+                    <div className="text-center py-10 bg-rose-50/50 rounded-xl border border-rose-100">
+                        <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3 text-rose-500">
+                            <AlertTriangle size={24} />
                         </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-2">Scanner Error</h3>
-                        <p className="text-slate-500 mb-6 max-w-[260px] mx-auto">{errorMsg}</p>
-                        
-                        <div className="flex flex-col items-center gap-3">
-                            {/* Action Button for Settings */}
+                        <h3 className="font-bold text-slate-800 mb-1">Scanner Error</h3>
+                        <p className="text-slate-500 mb-6 text-sm">{errorMsg}</p>
+                        <div className="flex justify-center gap-3">
                             {onOpenSettings && (
-                                <button 
-                                    onClick={() => { onClose(); onOpenSettings(); }} 
-                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
-                                >
-                                    <Settings size={18} />
-                                    Setup API Key
+                                <button onClick={() => { onClose(); onOpenSettings(); }} className="bg-white border border-rose-200 text-rose-600 font-bold py-2 px-4 rounded-lg text-sm shadow-sm hover:bg-rose-50">
+                                    Check Settings
                                 </button>
                             )}
-                            
-                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm font-medium py-2">
-                                Close
+                            <button onClick={handleScan} className="bg-rose-600 text-white font-bold py-2 px-4 rounded-lg text-sm shadow-sm hover:bg-rose-700">
+                                Try Again
                             </button>
                         </div>
                     </div>
                 )}
 
                 {/* SUCCESS STATE (Zero Found) */}
-                {scanned && !loading && foundDividends.length === 0 && (
-                     <div className="text-center py-10">
-                        <CheckCircle size={40} className="text-emerald-500 mx-auto mb-4" />
-                        <p className="text-slate-700 font-medium">No missing dividends found.</p>
-                        <p className="text-slate-400 text-sm mt-2">You seem to be up to date!</p>
-                        <button onClick={handleScan} className="text-indigo-600 text-sm mt-6 hover:underline">Scan Again</button>
+                {scanned && !loading && foundDividends.length === 0 && !errorMsg && (
+                     <div className="text-center py-16">
+                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
+                            <CheckCircle size={32} />
+                        </div>
+                        <h3 className="text-lg font-bold text-slate-800 mb-1">All Caught Up</h3>
+                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found for your portfolio.</p>
+                        <button onClick={handleScan} className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto">
+                            <RefreshCw size={14} /> Scan Again
+                        </button>
                      </div>
                 )}
 
                 {/* RESULTS LIST */}
-                {foundDividends.length > 0 && (
-                    <div className="space-y-4">
-                        <div className="flex items-center justify-between mb-2">
-                            <h3 className="text-slate-800 font-semibold">Found {foundDividends.length} Eligible Dividends</h3>
-                            <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded border border-slate-200">Estimated WHT: 15%</span>
+                {foundDividends.length > 0 && !loading && (
+                    <div className="space-y-6">
+                        {/* HEADER WITH SCAN BUTTON */}
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                            <div>
+                                <h3 className="text-slate-800 font-bold text-lg">Found {foundDividends.length} Eligible Dividends</h3>
+                                <p className="text-xs text-slate-400 mt-0.5">Estimated values based on historical holdings.</p>
+                            </div>
+                            <button 
+                                onClick={handleScan}
+                                className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                            >
+                                <RefreshCw size={14} /> Scan More
+                            </button>
                         </div>
                         
-                        {foundDividends.map((div, idx) => {
-                            const estTotal = div.eligibleQty * div.amount;
-                            const estNet = estTotal * 0.85; 
+                        <div className="space-y-4">
+                            {foundDividends.map((div, idx) => {
+                                const estTotal = div.eligibleQty * div.amount;
+                                const estNet = estTotal * 0.85; 
 
-                            return (
-                                <div key={idx} className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 hover:bg-slate-50 transition-colors shadow-sm">
-                                    <div className="flex items-start gap-4">
-                                        <div className="bg-indigo-50 p-3 rounded-lg text-indigo-600 font-bold text-sm min-w-[60px] text-center">
-                                            {div.ticker}
+                                return (
+                                    <div key={`${div.ticker}-${div.exDate}-${idx}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                                        
+                                        {/* Decorative Side Bar */}
+                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
+
+                                        <div className="flex items-start gap-4">
+                                            <div className="bg-indigo-50 h-12 w-16 rounded-lg flex items-center justify-center text-indigo-700 font-bold text-sm shadow-sm border border-indigo-100">
+                                                {div.ticker}
+                                            </div>
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-1">
+                                                    <span className="text-slate-800 font-bold text-base">{div.type} Dividend</span>
+                                                    {div.period && <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-medium uppercase">{div.period}</span>}
+                                                </div>
+                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                                    <span className="flex items-center gap-1.5"><Calendar size={12} className="text-slate-400" /> Ex-Date: <span className="font-medium text-slate-700">{div.exDate}</span></span>
+                                                    <span className="text-slate-300 hidden md:inline">|</span>
+                                                    <span>DPS: <span className="font-medium text-slate-700">Rs. {div.amount}</span></span>
+                                                    <span className="text-slate-300 hidden md:inline">|</span>
+                                                    <span className="text-indigo-600 font-medium bg-indigo-50/50 px-1.5 rounded">Qty: {div.eligibleQty}</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <div className="text-slate-800 font-medium text-sm flex items-center gap-2">
-                                                {div.type} Dividend
-                                                <span className="text-[10px] text-slate-400 border border-slate-200 px-1.5 rounded">{div.period}</span>
+
+                                        <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto pl-1 md:pl-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                                            <div className="text-right">
+                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Net Payout</div>
+                                                <div className="text-xl font-bold text-emerald-600 font-mono tracking-tight">Rs. {estNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                                             </div>
-                                            <div className="flex items-center gap-3 mt-1 text-xs text-slate-500">
-                                                <span className="flex items-center gap-1"><Calendar size={12} /> Ex-Date: {div.exDate}</span>
-                                                <span className="text-slate-300">|</span>
-                                                <span>DPS: Rs. {div.amount}</span>
-                                            </div>
-                                            <div className="mt-2 text-xs text-indigo-600">
-                                                Eligible Shares: <span className="font-bold text-slate-900">{div.eligibleQty.toLocaleString()}</span>
+                                            
+                                            <div className="flex flex-col gap-2 min-w-[100px]">
+                                                <button 
+                                                    onClick={() => handleAdd(div)}
+                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                                                >
+                                                    Add Income
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleIgnore(div)}
+                                                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors"
+                                                >
+                                                    Dismiss
+                                                </button>
                                             </div>
                                         </div>
                                     </div>
-
-                                    <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between gap-2 sm:gap-0 min-w-[120px]">
-                                        <div className="text-right">
-                                            <div className="text-xs text-slate-400 uppercase">Net Payout</div>
-                                            <div className="text-lg font-bold text-emerald-600 font-mono">Rs. {estNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                                        </div>
-                                        <div className="flex flex-row sm:flex-col gap-2 w-full sm:w-auto">
-                                            <button 
-                                                onClick={() => handleAdd(div)}
-                                                className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow transition-colors flex-1 sm:w-full"
-                                            >
-                                                Add Income
-                                            </button>
-                                            <button 
-                                                onClick={() => handleIgnore(div)}
-                                                className="bg-white border border-slate-200 hover:bg-slate-100 text-slate-400 hover:text-rose-500 text-xs font-bold px-4 py-2 rounded-lg transition-colors flex-1 sm:w-full"
-                                            >
-                                                Dismiss
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
             </div>
