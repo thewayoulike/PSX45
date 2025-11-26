@@ -89,21 +89,52 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     setScanError(null);
   }, [mode]);
 
-  // Auto-Calculate Fees
+  // --- UPDATED AUTO-CALCULATION LOGIC ---
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL' && !editingTransaction) {
-        if (typeof quantity === 'number' && typeof price === 'number') {
+        if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
-             const estComm = gross * 0.0015; // 0.15% approx
-             const estTax = estComm * 0.13; // 13% SST approx
-             const estCdc = quantity * 0.005; // Fixed 0.50 paisa
-             
+
+             // 1. Calculate Commission based on Broker Settings
+             let estComm = 0;
+             const currentBroker = brokers.find(b => b.id === selectedBrokerId);
+
+             if (currentBroker) {
+                 if (currentBroker.commissionType === 'PERCENTAGE') {
+                     estComm = gross * (currentBroker.rate1 / 100);
+                 } else if (currentBroker.commissionType === 'FIXED') {
+                     estComm = currentBroker.rate1;
+                 } else if (currentBroker.commissionType === 'PER_SHARE') {
+                     estComm = quantity * currentBroker.rate1;
+                 } else if (currentBroker.commissionType === 'HIGHER_OF') {
+                     const pct = gross * (currentBroker.rate1 / 100);
+                     const fixed = quantity * (currentBroker.rate2 || 0);
+                     estComm = Math.max(pct, fixed);
+                 }
+             } else {
+                 // Fallback if no broker selected (approx 0.15%)
+                 estComm = gross * 0.0015;
+             }
+
+             // 2. Calculate Sales Tax (SST)
+             // Use broker's SST rate or default to 15%
+             const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
+             const estTax = estComm * taxRate;
+
+             // 3. CDC Charges (Fixed 0.005 per share)
+             const estCdc = quantity * 0.005;
+
              setCommission(parseFloat(estComm.toFixed(2)));
              setTax(parseFloat(estTax.toFixed(2)));
              setCdcCharges(parseFloat(estCdc.toFixed(2)));
+        } else {
+             // Clear if invalid inputs
+             if (commission !== '') setCommission('');
+             if (tax !== '') setTax('');
+             if (cdcCharges !== '') setCdcCharges('');
         }
     }
-  }, [quantity, price, isAutoCalc, mode, editingTransaction]);
+  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers]);
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -291,7 +322,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* 2. SCANNER INTERFACE (UPDATED LOOK) */}
+            {/* 2. SCANNER INTERFACE */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     
