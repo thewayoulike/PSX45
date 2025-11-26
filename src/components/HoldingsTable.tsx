@@ -85,7 +85,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">Other</th>
-                {/* UPDATED COLUMNS */}
                 <th className="px-4 py-4 font-semibold text-right">Total Cost</th>
                 <th className="px-4 py-4 font-semibold text-right">Market Value</th>
                 <th className="px-4 py-4 font-semibold text-right">P&L</th>
@@ -143,17 +142,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
                         {(holding.totalOtherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </td>
-                      
-                      {/* NEW: Total Cost Column */}
                       <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs font-medium">
                         {costBasis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-
-                      {/* Market Value Column */}
                       <td className="px-4 py-4 text-right text-slate-900 font-bold font-mono tracking-tight text-xs">
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-
                       <td className="px-4 py-4 text-right">
                         <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                           <span className="font-bold text-sm">{pnl.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
@@ -169,7 +163,8 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
         </div>
       </div>
 
-      <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl p-6 shadow-xl shadow-slate-200/50 flex flex-col">
+      {/* ALLOCATION CARD - HORIZONTAL LAYOUT */}
+      <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl p-6 shadow-xl shadow-slate-200/50 flex flex-col h-fit">
         <div className="flex justify-between items-center mb-6">
             <h2 className="text-lg font-bold text-slate-800 tracking-tight">Allocation</h2>
             <div className="flex bg-slate-100 rounded-lg p-1 border border-slate-200">
@@ -182,50 +177,59 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             </div>
         </div>
 
-        <div className="flex-1 min-h-[300px] relative">
-          {currentChartData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={currentChartData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={70}
-                  outerRadius={90}
-                  paddingAngle={4}
-                  dataKey="value"
-                  stroke="none"
-                >
-                  {currentChartData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} itemStyle={{ color: '#64748b' }} formatter={(value: number) => `Rs. ${value.toLocaleString()}`} />
-              </PieChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-full m-10">
-              Empty Portfolio
-            </div>
-          )}
-          
-          {currentChartData.length > 0 && (
-             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                 <span className="text-slate-400 font-bold text-[10px] uppercase">{chartMode}</span>
-                 <span className="text-slate-800 font-bold text-xs tracking-widest">ALLOCATION</span>
-             </div>
-          )}
-        </div>
-        <div className="mt-6 space-y-3 overflow-y-auto max-h-[240px] pr-2 custom-scrollbar">
-            {currentChartData.map((item, idx) => (
-                <div key={item.name} className="flex items-center justify-between text-sm p-2 rounded-lg hover:bg-emerald-50/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
-                        <span className="text-slate-700 font-medium truncate max-w-[150px]">{item.name}</span>
-                    </div>
-                    <span className="text-slate-500 font-mono">{(item.value / currentChartData.reduce((a,b) => a + b.value, 0) * 100).toFixed(1)}%</span>
+        {/* Horizontal Content Container */}
+        <div className="flex flex-col sm:flex-row gap-4 items-start h-[240px]">
+            
+            {/* Chart Side (Left) - 40% Width */}
+            <div className="w-full sm:w-[40%] h-full relative min-h-[180px]">
+              {currentChartData.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={currentChartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={4}
+                      dataKey="value"
+                      stroke="none"
+                    >
+                      {currentChartData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip contentStyle={{ backgroundColor: '#ffffff', borderColor: '#e2e8f0', color: '#1e293b', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }} itemStyle={{ color: '#64748b' }} formatter={(value: number) => `Rs. ${value.toLocaleString()}`} />
+                  </PieChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="absolute inset-0 flex items-center justify-center text-slate-400 text-sm border-2 border-dashed border-slate-200 rounded-full m-4">
+                  Empty
                 </div>
-            ))}
+              )}
+              
+              {currentChartData.length > 0 && (
+                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                     <span className="text-slate-400 font-bold text-[9px] uppercase">{chartMode}</span>
+                 </div>
+              )}
+            </div>
+            
+            {/* List Side (Right) - 60% Width */}
+            <div className="w-full sm:w-[60%] h-full overflow-y-auto custom-scrollbar pr-1">
+                <div className="space-y-2">
+                    {currentChartData.map((item, idx) => (
+                        <div key={item.name} className="flex items-center justify-between text-xs p-2 rounded-lg hover:bg-emerald-50/50 transition-colors border border-transparent hover:border-emerald-100">
+                            <div className="flex items-center gap-2 overflow-hidden">
+                                <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
+                                <span className="text-slate-700 font-bold truncate" title={item.name}>{item.name}</span>
+                            </div>
+                            <span className="text-slate-500 font-mono whitespace-nowrap">{(item.value / currentChartData.reduce((a,b) => a + b.value, 0) * 100).toFixed(1)}%</span>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
         </div>
       </div>
     </div>
