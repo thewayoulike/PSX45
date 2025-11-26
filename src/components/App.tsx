@@ -41,7 +41,7 @@ interface Lot {
 type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
 
 const App: React.FC = () => {
-  // ... (State declarations and Auth logic remain exactly same) ...
+  // ... (State declarations remain same) ...
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
@@ -136,7 +136,7 @@ const App: React.FC = () => {
 
   const handleLogin = () => signInWithDrive();
 
-  // --- AUTH & SAVE EFFECTS (Same as previous) ---
+  // --- EFFECTS ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -193,7 +193,7 @@ const App: React.FC = () => {
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, driveUser, userApiKey]);
 
-  // --- HANDLERS (Standard Add/Edit/Delete logic) ---
+  // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
@@ -245,7 +245,7 @@ const App: React.FC = () => {
     });
 
     sortedTx.forEach(tx => {
-      if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL') return; // Processed in stats, not holdings
+      if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL') return;
 
       if (tx.type === 'DIVIDEND') {
           const grossDiv = tx.quantity * tx.price;
@@ -378,7 +378,7 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, sectorOverrides]);
 
-  // 2. AUTO-CGT (Same as before)
+  // 2. AUTO-CGT
   useEffect(() => {
     if (realizedTrades.length === 0) return;
     const ledger: Record<string, Record<string, number>> = {}; 
@@ -429,10 +429,10 @@ const App: React.FC = () => {
     if (oldIds !== newIds) { setTransactions(mergedTransactions); }
   }, [realizedTrades, transactions, currentPortfolioId]); 
 
-  // 3. CALCULATE STATS (UPDATED FOR CASH & PRINCIPAL)
+  // 3. CALCULATE STATS
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0;
-    let totalCost = 0; // Stock Cost
+    let totalCost = 0;
     let totalCommission = 0;
     let totalSalesTax = 0;
     let totalDividendTax = 0;
@@ -440,23 +440,18 @@ const App: React.FC = () => {
     let totalOtherFees = 0;
     let totalCGT = 0;
     
-    // Cash Tracking
     let totalDeposits = 0;
     let totalWithdrawals = 0;
     let historyPnL = 0;
 
-    // 1. Sum Current Holdings Cost & Value
     holdings.forEach(h => {
       totalValue += h.quantity * h.currentPrice;
       totalCost += h.quantity * h.avgPrice;
     });
 
-    // 2. Sum Realized Profits
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
 
-    // 3. Process All Transactions for Fees & Cash Flow
     displayedTransactions.forEach(t => {
-        // Fees Accumulation
         totalCommission += (t.commission || 0);
         totalCDC += (t.cdcCharges || 0);
         totalOtherFees += (t.otherFees || 0);
@@ -467,9 +462,9 @@ const App: React.FC = () => {
             totalCGT += (t.price * t.quantity);
         } else if (t.type === 'HISTORY') {
              totalCGT += (t.tax || 0); 
-             historyPnL += t.price; // Add History Profit/Loss to Cash Flow
+             historyPnL += t.price; 
         } else if (t.type === 'DEPOSIT') {
-             totalDeposits += t.price; // Price field holds amount
+             totalDeposits += t.price; 
         } else if (t.type === 'WITHDRAWAL') {
              totalWithdrawals += t.price;
         } else {
@@ -477,58 +472,33 @@ const App: React.FC = () => {
         }
     });
 
-    const netRealizedPL = realizedPL - totalCGT; // This includes History PnL because History is pushed to RealizedTrades
+    const netRealizedPL = realizedPL - totalCGT; 
     
-    // --- CASH CALCULATIONS ---
-    
-    // Total Net Profit (Realized + Dividends)
+    // CASH & REINVESTMENT LOGIC
     const totalProfits = netRealizedPL + totalDividends;
-
-    // Withdrawal Logic: Deduct from Profits first, then Principal
-    // If Withdrawals < Profits, then Principal is untouched.
-    // If Withdrawals > Profits, then (Withdrawals - Profits) comes out of Principal.
     const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
     
-    // Net Principal (Cash Investment)
+    // 1. Net Principal
     const cashInvestment = totalDeposits - withdrawalsFromPrincipal;
 
-    // Free Cash Calculation
-    // Strategy: Run a balance sheet
-    // Cash In = Deposits + Sell Revenue + Net Dividends + History PnL
-    // Cash Out = Withdrawals + Buy Cost + Taxes + Fees
-    
-    // However, simpler formula:
-    // Free Cash = (Net Principal) + (Net Realized Gains) + (Unrealized Cost Basis - which is tied up) ... wait no.
-    // Free Cash = Total Cash In - Total Cash Out
-    
-    let cashIn = totalDeposits + totalDividends; // + Sell Revenue handled below
-    let cashOut = totalWithdrawals + totalCGT + totalDividendTax; // + Buy Cost handled below
+    // 2. Reinvested (Retained) Profits
+    // Formula: Total Profits made - Profits Withdrawn
+    // Note: This assumes standard withdrawals take from profits first.
+    const withdrawalsFromProfits = Math.min(totalWithdrawals, totalProfits);
+    const reinvestedProfits = totalProfits - withdrawalsFromProfits;
 
-    // We need to iterate to get precise Buy/Sell cash flows including fees
-    let tradingCashFlow = 0; // Revenue - Cost - Fees
+    // 3. Free Cash
+    let cashIn = totalDeposits + totalDividends; 
+    let cashOut = totalWithdrawals + totalCGT + totalDividendTax; 
+
+    let tradingCashFlow = 0; 
     displayedTransactions.forEach(t => {
         const val = t.price * t.quantity;
         const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
-        
-        if (t.type === 'BUY') {
-            tradingCashFlow -= (val + fees);
-        } else if (t.type === 'SELL') {
-            tradingCashFlow += (val - fees);
-        }
+        if (t.type === 'BUY') tradingCashFlow -= (val + fees);
+        else if (t.type === 'SELL') tradingCashFlow += (val - fees);
     });
 
-    // Note: historyPnL is already a "Net" number we injected into realizedTrades, 
-    // but for Free Cash, if we added a "History Profit", we assume that cash is present.
-    // But wait, `tradingCashFlow` covers standard buys/sells. 
-    // `historyPnL` was added to `realizedTrades` artificially. 
-    // If I add `historyPnL` to Free Cash, it assumes I deposited that profit? 
-    // NO. History PnL usually means "I made this money before". 
-    // If I started with 100k, made 10k, now have 110k. 
-    // If I just record the 10k profit, my free cash calculation needs the base.
-    // Let's assume `DEPOSIT` covers the INITIAL cash. 
-    // So `historyPnL` should simply be added to the cash pile because it represents past closed trades.
-    
-    // Final Free Cash
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
 
     const unrealizedPL = totalValue - totalCost;
@@ -538,12 +508,11 @@ const App: React.FC = () => {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, 
         realizedPL, netRealizedPL, totalDividends, dailyPL: 0,
         totalCommission, totalSalesTax, totalDividendTax, totalCDC, totalOtherFees, totalCGT,
-        freeCash, cashInvestment
+        freeCash, cashInvestment, reinvestedProfits
     };
   }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
   return (
-    // ... (Render code remains exactly the same, just standard boilerplate) ...
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
@@ -552,6 +521,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {/* HEADER */}
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
             <Logo />
@@ -596,20 +566,45 @@ const App: React.FC = () => {
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
             
+            {/* NAVIGATION TABS */}
             <div className="flex justify-center mb-8">
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
-                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <LayoutDashboard size={18} /> Dashboard </button>
-                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <CheckCircle2 size={18} /> Realized Gains </button>
-                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <History size={18} /> History </button>
+                    <button 
+                        onClick={() => setCurrentView('DASHBOARD')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <LayoutDashboard size={18} /> Dashboard
+                    </button>
+                    <button 
+                        onClick={() => setCurrentView('REALIZED')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <CheckCircle2 size={18} /> Realized Gains
+                    </button>
+                    <button 
+                        onClick={() => setCurrentView('HISTORY')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <History size={18} /> History
+                    </button>
                 </div>
             </div>
 
+            {/* ACTION TOOLBAR */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
                 <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"> <Plus size={18} /> Add Transaction </button>
-                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Briefcase size={18} /> Brokers </button>
-                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Coins size={18} /> Scan Dividends </button>
-                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
+                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
+                        <Plus size={18} /> Add Transaction
+                    </button>
+                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
+                        <Briefcase size={18} /> Brokers
+                    </button>
+                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
+                        <Coins size={18} /> Scan Dividends
+                    </button>
+                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings">
+                        <Key size={18} className="text-emerald-500" /> <span>API Key</span>
+                    </button>
                 </div>
                 <div className="flex flex-wrap gap-3">
                     <div className="relative z-20">
@@ -619,17 +614,24 @@ const App: React.FC = () => {
                              {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
                          </select>
                     </div>
+                    
                     {currentView !== 'HISTORY' && (
                         <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                              <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
                              <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
                         </div>
                     )}
+                    
                     {currentView === 'DASHBOARD' && (
                         <>
-                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
+                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
+                                <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span>
+                            </button>
                              <div className="flex items-center gap-2">
-                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"> {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span className="hidden sm:inline">Sync PSX</span> </button>
+                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                                    <span className="hidden sm:inline">Sync PSX</span>
+                                </button>
                                 {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                             </div>
                         </>
@@ -637,6 +639,7 @@ const App: React.FC = () => {
                 </div>
             </div>
 
+            {/* VIEW ROUTING */}
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
@@ -669,6 +672,7 @@ const App: React.FC = () => {
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
       
+      {/* New Portfolio Modal */}
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
