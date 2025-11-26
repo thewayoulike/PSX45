@@ -42,7 +42,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         {/* PRIMARY METRICS */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
             
-            {/* Total Value Card - Full width on mobile, col-span-1 on desktop */}
+            {/* Total Value Card */}
             <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="flex justify-between items-start">
                     <div className="w-full">
@@ -98,7 +98,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Retained Earnings</span>
+                        <span>Profits in Stocks</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-purple-500 rounded-full" style={{ width: '100%' }}></div>
