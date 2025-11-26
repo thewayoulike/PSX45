@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -32,13 +32,20 @@ const Sparkline = ({ color, trend }: { color: string, trend: 'up' | 'down' | 'ne
 export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
   const isRealizedProfitable = stats.netRealizedPL >= 0; 
+  const isRoiPositive = stats.roi >= 0;
   
   // Capital Analysis
   const totalNetWorth = stats.totalValue + stats.freeCash;
+  // Note: "Cash Investment" Card now shows totalDeposits (Gross), but erosion logic usually compares to Net Principal.
+  // However, user defines "Cash Invested" as Gross.
+  // Let's use Gross Deposits for the "Below Principal" warning too? 
+  // If I deposited 100k, withdrew 90k, my Net Worth is 10k. 
+  // Comparing 10k Net Worth to 100k Gross Deposit would show -90% Loss. This is misleading if it was a withdrawal.
+  // So for Erosion Warning, we MUST use Net Principal (cashInvestment).
   const isCapitalEroded = totalNetWorth < stats.cashInvestment;
   const erosionAmount = stats.cashInvestment - totalNetWorth;
   const erosionPercent = stats.cashInvestment > 0 ? (erosionAmount / stats.cashInvestment) * 100 : 0;
-  const isSevereLoss = erosionPercent > 20; // 20% threshold for severe warning
+  const isSevereLoss = erosionPercent > 20; 
 
   const formatCurrency = (val: number) => 
     val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -47,8 +54,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
     <div className="flex flex-col gap-4 md:gap-6 mb-6 md:mb-10">
         
         {/* PRIMARY METRICS */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
             
+            {/* ROI CARD */}
+            <Card title="Portfolio ROI" icon={<Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
+                </div>
+                <div className="mt-3 md:mt-4">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Return on Total Capital</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${isRoiPositive ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
             {/* Total Assets Card */}
             <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="flex justify-between items-start">
@@ -56,8 +78,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
                             <span>Rs. {formatCurrency(totalNetWorth)}</span>
                         </div>
-                        
-                        {/* Dynamic Status Indicator */}
                         <div className="flex items-center gap-2 mt-2 md:mt-3">
                             {isSevereLoss ? (
                                 <div className="flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-600 rounded-md text-[10px] font-bold border border-rose-200 animate-pulse">
@@ -89,12 +109,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${stats.freeCash < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                     Rs. {formatCurrency(stats.freeCash)}
                 </div>
-                
                 <div className="mt-3 md:mt-4">
                     {stats.freeCash < 0 ? (
                         <div className="flex items-center gap-2 text-[10px] text-rose-600 bg-rose-50 px-2 py-1 rounded border border-rose-100 font-bold">
                             <AlertTriangle size={12} />
-                            <span>Negative Balance! Add Deposit.</span>
+                            <span>Negative Balance!</span>
                         </div>
                     ) : (
                         <>
@@ -109,22 +128,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* CASH INVESTMENT CARD */}
+            {/* CASH INVESTMENT CARD (UPDATED: Shows Total Deposits) */}
             <Card title="Cash Investment" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.cashInvestment)}
+                Rs. {formatCurrency(stats.totalDeposits)}
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Principal (Net)</span>
-                        {isCapitalEroded && (
-                            <span className="text-rose-500 flex items-center gap-1">
-                                -{formatCurrency(erosionAmount)} Loss
-                            </span>
-                        )}
+                        <span>Total Capital Added</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${isSevereLoss ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: '100%' }}></div>
+                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
                     </div>
                 </div>
             </Card>
