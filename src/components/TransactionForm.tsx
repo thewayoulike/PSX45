@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText, UploadCloud, RefreshCcw, Pencil, FileSpreadsheet, Search, AlertTriangle } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -29,7 +29,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   brokers = []
 }) => {
   const [mode, setMode] = useState<'MANUAL' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY'>('BUY');
   
   // Form State
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -45,7 +45,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   // CGT Specific State
   const [cgtProfit, setCgtProfit] = useState<number | ''>('');
-  const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
+  const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7));
+
+  // HISTORY (Prior P&L) Specific State
+  const [histAmount, setHistAmount] = useState<number | ''>('');
+  const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
 
   // Scanner State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -80,11 +84,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setIsAutoCalc(false);
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             
-            // Setup CGT specific fields if editing a tax tx
             if (editingTransaction.type === 'TAX') {
                 setCgtMonth(editingTransaction.date.substring(0, 7));
-                // Reverse calc profit from tax if needed, or just leave empty/custom
                 setCgtProfit(editingTransaction.price / 0.15); 
+            }
+            // Populate History fields if editing a history item
+            if (editingTransaction.type === 'HISTORY') {
+                 setHistAmount(editingTransaction.price);
+                 // If tax exists, it was likely BEFORE_TAX logic, else AFTER_TAX
+                 setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX');
             }
         } else {
             // Reset for new entry
@@ -94,34 +102,46 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setDate(new Date().toISOString().split('T')[0]);
             setCgtMonth(new Date().toISOString().substring(0, 7));
             setCgtProfit('');
+            setHistAmount(''); setHistTaxType('AFTER_TAX');
             setScannedTrades([]); setScanError(null); setSelectedFile(null);
         }
     }
   }, [isOpen, editingTransaction]);
-
-  // Mode change reset
-  useEffect(() => {
-    setSelectedFile(null);
-    setScannedTrades([]);
-    setScanError(null);
-  }, [mode]);
 
   // Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL' && !editingTransaction) {
         
         if (type === 'TAX') {
-            // --- CGT LOGIC ---
             if (typeof cgtProfit === 'number') {
                 const calculatedTax = cgtProfit * 0.15;
                 setPrice(parseFloat(calculatedTax.toFixed(2)));
                 setQuantity(1);
                 setTicker('CGT');
                 setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
-                // Set date to end of selected month roughly
                 setDate(`${cgtMonth}-28`); 
             }
         } 
+        else if (type === 'HISTORY') {
+            // Logic for History Auto-Calc
+            if (typeof histAmount === 'number') {
+                setQuantity(1);
+                setTicker('PREV-PNL');
+                if (histTaxType === 'BEFORE_TAX') {
+                    // Calculate 15% Tax if profit is positive
+                    if (histAmount > 0) {
+                         const t = histAmount * 0.15;
+                         setTax(parseFloat(t.toFixed(2)));
+                    } else {
+                        setTax(0); // No tax on loss
+                    }
+                } else {
+                    setTax(0); // After Tax means tax already deducted or N/A
+                }
+                setPrice(histAmount); // Price holds the amount
+                setCommission(0); setCdcCharges(0); setOtherFees(0);
+            }
+        }
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
 
@@ -131,7 +151,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                  setTax(parseFloat(wht.toFixed(2)));
              } 
              else {
-                 // BUY / SELL
                  let estComm = 0;
                  const currentBroker = brokers.find(b => b.id === selectedBrokerId);
 
@@ -165,9 +184,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
              if (cdcCharges !== '') setCdcCharges('');
         }
     }
-  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth]);
+  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
 
-  // Update a specific field in a scanned trade row
   const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => {
       const updated = [...scannedTrades];
       updated[index] = { ...updated[index], [field]: value };
@@ -318,10 +336,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 <form onSubmit={handleManualSubmit} className="space-y-5">
                     
                     {/* Type Tabs */}
-                    <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
-                        {(['BUY', 'SELL', 'DIVIDEND', 'TAX'] as const).map(t => (
-                            <button key={t} type="button" onClick={() => setType(t)} className={`py-2 rounded-lg text-xs font-bold transition-all ${type === t ? 'bg-white shadow text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
-                                {t === 'TAX' ? 'CGT' : t}
+                    <div className="grid grid-cols-5 gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                        {(['BUY', 'SELL', 'DIVIDEND', 'TAX', 'HISTORY'] as const).map(t => (
+                            <button key={t} type="button" onClick={() => setType(t)} className={`py-2 rounded-lg text-[10px] sm:text-xs font-bold transition-all whitespace-nowrap ${type === t ? 'bg-white shadow text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
+                                {t === 'TAX' ? 'CGT' : t === 'HISTORY' ? 'Prior P&L' : t}
                             </button>
                         ))}
                     </div>
@@ -354,6 +372,72 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Calculated CGT (15%)</label>
                                     <input type="number" value={price} readOnly className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none cursor-not-allowed"/>
                                 </div>
+                            </div>
+                        </>
+                    ) : type === 'HISTORY' ? (
+                        // --- HISTORY (PRIOR P&L) UI ---
+                        <>
+                            <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex gap-3 items-start">
+                                <History className="text-blue-500 shrink-0 mt-0.5" size={18} />
+                                <div className="text-xs text-blue-700">
+                                    <p className="font-bold mb-0.5">Record Past Performance</p>
+                                    <p className="opacity-80">Add realized profits/losses from before using this app. This will adjust your "Total Realized Gains".</p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
+                                    <div className="relative">
+                                        <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">
+                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Date Recorded</label>
+                                    <input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Realized Amount (Profit/Loss)</label>
+                                <div className="relative">
+                                    <input 
+                                        type="number" 
+                                        value={histAmount} 
+                                        onChange={e=>setHistAmount(Number(e.target.value))} 
+                                        className={`w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${Number(histAmount) < 0 ? 'text-rose-500' : 'text-emerald-600'}`} 
+                                        placeholder="-5000 or 10000"
+                                    />
+                                    <span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1">Use negative value (e.g. -500) for Loss.</p>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-2">Tax Calculation</label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    <label className={`flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${histTaxType === 'AFTER_TAX' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                        <input type="radio" name="taxType" checked={histTaxType === 'AFTER_TAX'} onChange={() => setHistTaxType('AFTER_TAX')} className="hidden" />
+                                        <span className="text-sm font-bold">After Tax (Net)</span>
+                                    </label>
+                                    <label className={`flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${histTaxType === 'BEFORE_TAX' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}>
+                                        <input type="radio" name="taxType" checked={histTaxType === 'BEFORE_TAX'} onChange={() => setHistTaxType('BEFORE_TAX')} className="hidden" />
+                                        <span className="text-sm font-bold">Before Tax (Gross)</span>
+                                    </label>
+                                </div>
+                                {histTaxType === 'BEFORE_TAX' && Number(histAmount) > 0 && (
+                                    <p className="text-[10px] text-indigo-600 mt-2 flex items-center gap-1">
+                                        <Sparkles size={10} /> Will auto-deduct 15% CGT (Rs. {(Number(histAmount) * 0.15).toFixed(0)})
+                                    </p>
+                                )}
+                                {histTaxType === 'AFTER_TAX' && (
+                                    <p className="text-[10px] text-slate-400 mt-2">
+                                        No tax will be calculated/recorded for this entry.
+                                    </p>
+                                )}
                             </div>
                         </>
                     ) : (
