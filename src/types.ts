@@ -75,8 +75,8 @@ export interface PortfolioStats {
   totalCGT: number;
   
   freeCash: number;       
-  cashInvestment: number; // Now represents Net Principal (for internal calcs)
-  totalDeposits: number;  // NEW: Gross Deposits (for ROI)
+  cashInvestment: number; // GROSS Deposits (Total Cash Added)
+  netPrincipal: number;   // NET Capital (Deposits - Withdrawals)
   reinvestedProfits: number;
   roi: number;
 }
