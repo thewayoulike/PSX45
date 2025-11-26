@@ -2,7 +2,6 @@ export interface Transaction {
   id: string;
   portfolioId: string;
   ticker: string;
-  // ADDED: DEPOSIT and WITHDRAWAL
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL'; 
   quantity: number;
   price: number;
@@ -61,7 +60,7 @@ export interface ParsedTrade {
 
 export interface PortfolioStats {
   totalValue: number;
-  totalCost: number; // Cost of Active Stocks
+  totalCost: number; 
   unrealizedPL: number;
   unrealizedPLPercent: number;
   realizedPL: number;
@@ -75,9 +74,9 @@ export interface PortfolioStats {
   totalOtherFees: number;
   totalCGT: number;
   
-  // NEW FIELDS
-  freeCash: number;       // Available Cash
-  cashInvestment: number; // Net Principal (Deposits - Withdrawals from Principal)
+  freeCash: number;       
+  cashInvestment: number; 
+  reinvestedProfits: number; // NEW FIELD
 }
 
 export interface Portfolio {
