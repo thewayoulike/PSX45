@@ -47,9 +47,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             </div>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
-             {/* Ticker Search */}
              <div className="relative flex-grow md:flex-grow-0 md:w-48">
                 <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
                 <input 
@@ -61,7 +59,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                 />
             </div>
 
-            {/* Date Range */}
             <div className="flex gap-1 items-center">
                  <input 
                     type="date" 
@@ -78,7 +75,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                  />
             </div>
 
-             {/* Clear Button */}
              {hasActiveFilters && (
                 <button 
                     onClick={clearFilters}
@@ -101,18 +97,17 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
               <th className="px-4 py-4 font-semibold text-right">Qty</th>
               <th className="px-4 py-4 font-semibold text-right">Buy Avg</th>
               <th className="px-4 py-4 font-semibold text-right">Sell Price</th>
-              {/* UPDATED COLUMNS */}
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Comm</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
+              <th className="px-2 py-4 font-semibold text-right text-slate-400">Other</th>
               <th className="px-4 py-4 font-semibold text-right">Net Profit</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
             {filteredAndSortedTrades.length === 0 ? (
               <tr>
-                {/* ADJUST COLSPAN: 10 if broker, 9 if not */}
-                <td colSpan={showBroker ? 10 : 9} className="px-6 py-10 text-center text-slate-400 italic">
+                <td colSpan={showBroker ? 11 : 10} className="px-6 py-10 text-center text-slate-400 italic">
                   {hasActiveFilters ? 'No trades match your filters.' : 'No realized trades yet.'}
                 </td>
               </tr>
@@ -133,7 +128,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                     <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
                         {trade.sellPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
-                    {/* NEW DETAILED COLUMNS */}
                     <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
                         {trade.commission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
@@ -142,6 +136,9 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                     </td>
                     <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
                         {trade.cdcCharges.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
+                        {trade.otherFees ? trade.otherFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
                     </td>
                     <td className="px-4 py-4 text-right">
                         <div className={`font-bold text-sm ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
