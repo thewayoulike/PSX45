@@ -573,7 +573,13 @@ const App: React.FC = () => {
       />
 
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
-      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} />
+      <DividendScanner 
+        isOpen={showDividendScanner} 
+        onClose={() => setShowDividendScanner(false)} 
+        transactions={transactions} 
+        onAddTransaction={handleAddTransaction} 
+        onOpenSettings={() => setShowApiKeyManager(true)} 
+      />
       
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -594,3 +600,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+}
