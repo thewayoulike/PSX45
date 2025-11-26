@@ -473,15 +473,18 @@ const App: React.FC = () => {
 
     const netRealizedPL = realizedPL - totalCGT; 
     
-    // CASH & REINVESTMENT LOGIC
+    // CASH LOGIC
     const totalProfits = netRealizedPL + totalDividends;
     const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
     
-    // "Net Capital Invested" (Internal Logic for Reinvestment calculation)
-    const cashInvestment = totalDeposits - withdrawalsFromPrincipal;
+    // NET PRINCIPAL (Remaining invested capital)
+    const netPrincipal = totalDeposits - withdrawalsFromPrincipal;
+    
+    // GROSS PRINCIPAL (Total Cash Added - for ROI Calc)
+    const cashInvestment = totalDeposits; 
 
-    // Reinvested Profits Logic
-    const netPrincipalAvailable = Math.max(0, cashInvestment);
+    // Reinvested Profits Logic (Capped by available profits)
+    const netPrincipalAvailable = Math.max(0, netPrincipal);
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
 
@@ -499,13 +502,8 @@ const App: React.FC = () => {
 
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
 
-    // ROI Calculation
-    // Denominator: Total Deposits (Gross)
-    const roiDenominator = totalDeposits;
-    // Numerator: Net Return (Realized + Unrealized + Net Divs)
-    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
-    
-    const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
+    // ROI Calculation (Based on GROSS Deposits)
+    const roi = cashInvestment > 0 ? ((netRealizedPL + (totalValue - totalCost) + totalDividends) / cashInvestment) * 100 : 0;
 
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
@@ -514,7 +512,7 @@ const App: React.FC = () => {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, 
         realizedPL, netRealizedPL, totalDividends, dailyPL: 0,
         totalCommission, totalSalesTax, totalDividendTax, totalCDC, totalOtherFees, totalCGT,
-        freeCash, cashInvestment, totalDeposits, reinvestedProfits, roi
+        freeCash, cashInvestment, netPrincipal, reinvestedProfits, roi
     };
   }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
