@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard } from 'lucide-react';
+import { X, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -447,18 +447,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                     </div>
 
-                    <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center w-full hover:bg-slate-50 transition-colors cursor-pointer relative group">
+                    <div className={`border-2 border-dashed rounded-2xl p-8 text-center w-full transition-colors cursor-pointer relative group ${scanFiles ? 'border-emerald-400 bg-emerald-50/30' : 'border-slate-300 hover:bg-slate-50'}`}>
                         <input type="file" accept="image/*,.pdf" onChange={(e) => setScanFiles(e.target.files)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                        <div className={`mb-2 w-12 h-12 rounded-full flex items-center justify-center mx-auto ${mode === 'AI_SCAN' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
-                            {mode === 'AI_SCAN' ? <Sparkles size={24} /> : <ScanText size={24} />}
+                        
+                        <div className={`mb-2 w-12 h-12 rounded-full flex items-center justify-center mx-auto transition-all ${mode === 'AI_SCAN' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'} ${scanFiles ? 'scale-110' : ''}`}>
+                            {scanFiles ? <FileText size={24} /> : (mode === 'AI_SCAN' ? <Sparkles size={24} /> : <ScanText size={24} />)}
                         </div>
-                        <span className="font-bold text-lg text-slate-600">Click to Upload</span>
-                        <div className="text-xs text-slate-400 mt-1">
-                            {mode === 'AI_SCAN' ? 'Smart AI Detection (Gemini)' : 'Standard OCR Detection'}
-                        </div>
+                        
+                        {scanFiles ? (
+                            <>
+                                <span className="font-bold text-lg text-emerald-600 truncate max-w-[200px] inline-block">{scanFiles[0].name}</span>
+                                <div className="text-xs text-slate-400 mt-1">Click to change file</div>
+                            </>
+                        ) : (
+                            <>
+                                <span className="font-bold text-lg text-slate-600">Click to Upload</span>
+                                <div className="text-xs text-slate-400 mt-1">
+                                    {mode === 'AI_SCAN' ? 'Smart AI Detection (Gemini)' : 'Standard OCR Detection'}
+                                </div>
+                            </>
+                        )}
                     </div>
+                    
                     {scanError && <p className="text-rose-500 text-sm">{scanError}</p>}
-                    <button onClick={handleScan} disabled={!scanFiles || isScanning} className={`w-full text-white font-bold py-3 rounded-xl flex items-center justify-center ${mode === 'AI_SCAN' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-800 hover:bg-slate-900'}`}>
+                    
+                    <button onClick={handleScan} disabled={!scanFiles || isScanning} className={`w-full text-white font-bold py-3 rounded-xl flex items-center justify-center transition-all ${!scanFiles ? 'opacity-50 cursor-not-allowed' : ''} ${mode === 'AI_SCAN' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-800 hover:bg-slate-900'}`}>
                          {isScanning && <Loader2 className="animate-spin mr-2" size={18}/>} 
                          {isScanning ? 'Scanning...' : (mode === 'AI_SCAN' ? 'Analyze with AI' : 'Scan Document')}
                     </button>
