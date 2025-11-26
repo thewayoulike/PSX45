@@ -1,13 +1,12 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
 }
 
-// SVG Sparkline Component for visual momentum
 const Sparkline = ({ color, trend }: { color: string, trend: 'up' | 'down' | 'neutral' }) => {
   const pathUp = "M0 25 Q 20 25, 40 15 T 80 10 T 120 2";
   const pathDown = "M0 5 Q 20 5, 40 15 T 80 20 T 120 28";
@@ -32,9 +31,8 @@ const Sparkline = ({ color, trend }: { color: string, trend: 'up' | 'down' | 'ne
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
-  const isRealizedProfitable = stats.netRealizedPL >= 0; // Use NET profit for color
+  const isRealizedProfitable = stats.netRealizedPL >= 0; 
 
-  // Helper for consistent formatting
   const formatCurrency = (val: number) => 
     val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
@@ -49,29 +47,60 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="flex justify-between items-start">
                     <div className="w-full">
                         <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
-                            <span>Rs. {formatCurrency(stats.totalValue)}</span>
+                            {/* Total Asset Value = Stock Value + Free Cash */}
+                            <span>Rs. {formatCurrency(stats.totalValue + stats.freeCash)}</span>
                         </div>
                         <div className="flex items-center gap-2 mt-2 md:mt-3">
                             <div className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                                 <span className="relative inline-flex rounded-full h-full w-full bg-emerald-500"></span>
                             </div>
-                            <span className="text-[10px] md:text-xs text-emerald-600 font-semibold tracking-wide uppercase">Live</span>
+                            <span className="text-[10px] md:text-xs text-emerald-600 font-semibold tracking-wide uppercase">Live Net Worth</span>
                         </div>
                     </div>
                 </div>
                 <Sparkline color="text-emerald-500" trend="neutral" />
             </Card>
 
-            {/* Total Invested Card */}
-            <Card title="Invested" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            {/* FREE CASH CARD (NEW) */}
+            <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
+                Rs. {formatCurrency(stats.freeCash)}
+                </div>
+                <div className="mt-3 md:mt-4">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Buying Power</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* NET CAPITAL (NEW) */}
+            <Card title="Net Capital Invested" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
+                Rs. {formatCurrency(stats.cashInvestment)}
+                </div>
+                <div className="mt-3 md:mt-4">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Principal (Net)</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* STOCK ASSETS CARD (Renamed from Invested) */}
+            <Card title="Stock Assets (Cost)" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.totalCost)}
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Utilization</span>
-                        <span>100%</span>
+                        <span>Active Holdings</span>
+                        <span>{(stats.totalValue > 0 ? (stats.totalCost / (stats.totalValue + stats.freeCash) * 100).toFixed(0) : 0)}% Allocation</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-emerald-500 rounded-full" style={{ width: '100%' }}></div>
