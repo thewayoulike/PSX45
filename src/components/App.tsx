@@ -549,6 +549,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {/* HEADER */}
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
             <Logo />
@@ -557,7 +558,6 @@ const App: React.FC = () => {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-            {/* Drive Auth & Sync UI */}
             <div className="flex flex-col items-end mr-4">
                 <div className="flex items-center gap-3">
                     {driveUser ? (
@@ -579,7 +579,6 @@ const App: React.FC = () => {
                     )}
                 </div>
             </div>
-            {/* Portfolio Selector */}
             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                 <div className="relative group">
                     <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
@@ -672,13 +671,12 @@ const App: React.FC = () => {
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
-                    <div className="grid lg:grid-cols-3 gap-6">
-                        <div className="lg:col-span-2">
-                            <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
-                        </div>
-                        <div className="h-fit">
-                            <AllocationChart holdings={holdings} />
-                        </div>
+                    <div className="flex flex-col gap-6">
+                        {/* ALLOCATION CHART - NOW ON TOP */}
+                        <AllocationChart holdings={holdings} />
+                        
+                        {/* HOLDINGS TABLE - NOW BELOW */}
+                        <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
                     </div>
                 </div>
             )}
