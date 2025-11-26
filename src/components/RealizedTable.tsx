@@ -97,6 +97,10 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
               <th className="px-4 py-4 font-semibold text-right">Qty</th>
               <th className="px-4 py-4 font-semibold text-right">Buy Avg</th>
               <th className="px-4 py-4 font-semibold text-right">Sell Price</th>
+              {/* NEW COLUMNS */}
+              <th className="px-4 py-4 font-semibold text-right text-slate-700">Total Cost</th>
+              <th className="px-4 py-4 font-semibold text-right text-slate-700">Total Sell</th>
+              {/* END NEW COLUMNS */}
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Comm</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
@@ -107,13 +111,17 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
           <tbody className="divide-y divide-slate-100 text-sm">
             {filteredAndSortedTrades.length === 0 ? (
               <tr>
-                <td colSpan={showBroker ? 11 : 10} className="px-6 py-10 text-center text-slate-400 italic">
+                <td colSpan={showBroker ? 13 : 12} className="px-6 py-10 text-center text-slate-400 italic">
                   {hasActiveFilters ? 'No trades match your filters.' : 'No realized trades yet.'}
                 </td>
               </tr>
             ) : (
               filteredAndSortedTrades.map((trade) => {
                 const isProfit = trade.profit >= 0;
+                // Calculate Totals
+                const totalCost = (trade.buyAvg || 0) * trade.quantity;
+                const totalSell = (trade.sellPrice || 0) * trade.quantity;
+
                 return (
                   <tr key={trade.id} className="hover:bg-emerald-50/30 transition-colors">
                     <td className="px-4 py-4 text-slate-500 text-xs font-mono whitespace-nowrap">{trade.date}</td>
@@ -128,6 +136,17 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                     <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
                         {(trade.sellPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
+                    
+                    {/* TOTAL COST CELL */}
+                    <td className="px-4 py-4 text-right text-slate-600 font-mono text-xs font-medium">
+                        {totalCost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+                    
+                    {/* TOTAL SELL CELL */}
+                    <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-bold">
+                        {totalSell.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    </td>
+
                     <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
                         {(trade.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
