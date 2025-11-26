@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker } from '../types';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
+import { AllocationChart } from './AllocationChart';
 import { RealizedTable } from './RealizedTable';
 import { TransactionList } from './TransactionList';
 import { TransactionForm } from './TransactionForm';
@@ -262,7 +263,7 @@ const App: React.FC = () => {
       } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); }
   };
 
-  // --- APP LOGIC ---
+  // --- APP LOGIC & FIFO ---
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
           setCurrentPortfolioId(portfolios[0].id);
@@ -306,7 +307,9 @@ const App: React.FC = () => {
           dividendSum += netDiv;
           return; 
       }
-      if (tx.type === 'TAX') return;
+      if (tx.type === 'TAX') {
+          return;
+      }
 
       const brokerKey = groupByBroker ? (tx.broker || 'Unknown') : 'ALL';
       const holdingKey = `${tx.ticker}|${brokerKey}`;
@@ -334,8 +337,13 @@ const App: React.FC = () => {
       if (tx.type === 'BUY') {
         const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
         const txTotalCost = (tx.quantity * tx.price) + txFees;
+        
         const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0;
-        lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date });
+        lots.push({
+            quantity: tx.quantity,
+            costPerShare: costPerShare,
+            date: tx.date
+        });
 
         const currentHoldingValue = h.quantity * h.avgPrice;
         h.quantity += tx.quantity;
@@ -412,13 +420,15 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices]);
 
-  // 2. AUTO-GENERATE MONTHLY TAX
+  // 2. AUTO-GENERATE MONTHLY TAX (CGT)
   useEffect(() => {
     if (realizedTrades.length === 0) return;
+
     const ledger: Record<string, Record<string, number>> = {}; 
+
     realizedTrades.forEach(t => {
         const broker = t.broker || 'Unknown Broker';
-        const month = t.date.substring(0, 7); 
+        const month = t.date.substring(0, 7);
         if (!ledger[broker]) ledger[broker] = {};
         ledger[broker][month] = (ledger[broker][month] || 0) + t.profit;
     });
@@ -429,8 +439,10 @@ const App: React.FC = () => {
     Object.entries(ledger).forEach(([broker, monthsData]) => {
         let runningCgtBalance = 0;
         const sortedMonths = Object.keys(monthsData).sort();
+
         sortedMonths.forEach(month => {
             if (month >= todayStr) return;
+
             const netPL = monthsData[month];
             let taxAmount = 0;
             let note = '';
@@ -442,6 +454,7 @@ const App: React.FC = () => {
             } else if (netPL < 0 && runningCgtBalance > 0) {
                 const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2));
                 const actualRefund = Math.min(potentialRefund, runningCgtBalance);
+                
                 if (actualRefund > 0) {
                     taxAmount = -actualRefund;
                     runningCgtBalance -= actualRefund;
@@ -480,6 +493,7 @@ const App: React.FC = () => {
     if (oldIds !== newIds) {
         setTransactions(mergedTransactions);
     }
+
   }, [realizedTrades, transactions, currentPortfolioId]); 
 
   // 3. CALCULATE STATS
@@ -508,7 +522,7 @@ const App: React.FC = () => {
         if (t.type === 'DIVIDEND') {
             totalDividendTax += (t.tax || 0);
         } else if (t.type === 'TAX') {
-            totalCGT += (t.price * t.quantity); 
+            totalCGT += (t.price * t.quantity);
         } else {
             totalSalesTax += (t.tax || 0);
         }
@@ -527,6 +541,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
+      {/* Background Elements */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div>
@@ -534,7 +549,6 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {/* HEADER */}
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
             <Logo />
@@ -543,6 +557,7 @@ const App: React.FC = () => {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
+            {/* Drive Auth & Sync UI */}
             <div className="flex flex-col items-end mr-4">
                 <div className="flex items-center gap-3">
                     {driveUser ? (
@@ -564,6 +579,7 @@ const App: React.FC = () => {
                     )}
                 </div>
             </div>
+            {/* Portfolio Selector */}
             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                 <div className="relative group">
                     <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
@@ -603,7 +619,7 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* ACTION TOOLBAR (Persistent) */}
+            {/* ACTION TOOLBAR */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
                 <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
@@ -627,13 +643,14 @@ const App: React.FC = () => {
                              {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
                          </select>
                     </div>
-                    {/* Only show Group By toggle on Dashboard/Realized */}
+                    
                     {currentView !== 'HISTORY' && (
                         <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                              <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
                              <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
                         </div>
                     )}
+                    
                     {currentView === 'DASHBOARD' && (
                         <>
                             <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
@@ -655,7 +672,14 @@ const App: React.FC = () => {
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
-                    <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
+                    <div className="grid lg:grid-cols-3 gap-6">
+                        <div className="lg:col-span-2">
+                            <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
+                        </div>
+                        <div className="h-fit">
+                            <AllocationChart holdings={holdings} />
+                        </div>
+                    </div>
                 </div>
             )}
 
