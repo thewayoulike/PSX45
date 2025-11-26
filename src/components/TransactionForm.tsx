@@ -86,7 +86,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
              const gross = quantity * price;
              const estComm = gross * 0.0015; // 0.15% approx
              const estTax = estComm * 0.13; // 13% SST approx
-             const estCdc = Math.max(5, quantity * 0.005); // CDC
+             const estCdc = quantity * 0.005; // CDC
              
              setCommission(parseFloat(estComm.toFixed(2)));
              setTax(parseFloat(estTax.toFixed(2)));
