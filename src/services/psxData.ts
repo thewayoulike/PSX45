@@ -1,7 +1,9 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Supports both Flat Table (Sector Codes) and Grouped Table views.
+ * UPDATED: 
+ * 1. Full Sector Code Map based on PSX documentation.
+ * 2. Multi-Proxy Rotation to handle CORS errors.
  */
 
 // Ignore these "Ticker" names because they are actually table headers or metadata
@@ -52,33 +54,43 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     const results: Record<string, { price: number, sector: string }> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
 
-    try {
-        // 1. Try Primary Proxy (AllOrigins)
-        const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`;
-        const response = await fetch(proxyUrl);
-        if (!response.ok) throw new Error("Proxy failed");
-        
-        const data = await response.json();
-        if (data.contents) {
-            parseMarketWatchTable(data.contents, results);
-        }
+    // Proxy List: Try these in order until one works
+    const proxies = [
+        `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+        `https://thingproxy.freeboard.io/fetch/${targetUrl}`
+    ];
 
-    } catch (e) {
-        console.warn("Primary proxy failed, trying backup...", e);
+    for (const proxyUrl of proxies) {
         try {
-            // 2. Backup Proxy (CorsProxy.io)
-            const backupUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
-            const response = await fetch(backupUrl);
-            if (response.ok) {
-                const html = await response.text();
+            console.log(`Attempting fetch via: ${proxyUrl}`);
+            const response = await fetch(proxyUrl);
+            
+            if (!response.ok) throw new Error(`Status ${response.status}`);
+            
+            let html = '';
+            
+            // AllOrigins returns JSON with 'contents', others return raw text
+            if (proxyUrl.includes('allorigins')) {
+                const data = await response.json();
+                html = data.contents;
+            } else {
+                html = await response.text();
+            }
+
+            if (html && html.length > 100) {
                 parseMarketWatchTable(html, results);
+                console.log("Fetch successful!");
+                return results; // Exit loop on success
             }
         } catch (err) {
-            console.error("All proxies failed", err);
+            console.warn(`Proxy failed: ${proxyUrl}`, err);
+            // Continue to next proxy
         }
     }
 
-    return results;
+    console.error("All proxies failed to fetch PSX data.");
+    return results; // Return what we have (likely empty if all failed)
 };
 
 const parseMarketWatchTable = (html: string, results: Record<string, { price: number, sector: string }>) => {
