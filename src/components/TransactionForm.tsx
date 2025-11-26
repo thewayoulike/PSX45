@@ -99,39 +99,55 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
 
-             let estComm = 0;
-             const currentBroker = brokers.find(b => b.id === selectedBrokerId);
-
-             if (currentBroker) {
-                 if (currentBroker.commissionType === 'PERCENTAGE') {
-                     estComm = gross * (currentBroker.rate1 / 100);
-                 } else if (currentBroker.commissionType === 'FIXED') {
-                     estComm = currentBroker.rate1;
-                 } else if (currentBroker.commissionType === 'PER_SHARE') {
-                     estComm = quantity * currentBroker.rate1;
-                 } else if (currentBroker.commissionType === 'HIGHER_OF') {
-                     const pct = gross * (currentBroker.rate1 / 100);
-                     const fixed = quantity * (currentBroker.rate2 || 0);
-                     estComm = Math.max(pct, fixed);
-                 }
-             } else {
-                 estComm = gross * 0.0015;
+             if (type === 'DIVIDEND') {
+                 // --- DIVIDEND LOGIC ---
+                 setCommission(0);
+                 setCdcCharges(0);
+                 setOtherFees(0);
+                 // 15% WHT on Gross Dividend
+                 const wht = gross * 0.15;
+                 setTax(parseFloat(wht.toFixed(2)));
+             } 
+             else if (type === 'TAX') {
+                 // Tax transaction usually doesn't auto-calc from qty/price in this context
+                 setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
              }
+             else {
+                 // --- BUY / SELL LOGIC ---
+                 let estComm = 0;
+                 const currentBroker = brokers.find(b => b.id === selectedBrokerId);
 
-             const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
-             const estTax = estComm * taxRate;
-             const estCdc = quantity * 0.005;
+                 if (currentBroker) {
+                     if (currentBroker.commissionType === 'PERCENTAGE') {
+                         estComm = gross * (currentBroker.rate1 / 100);
+                     } else if (currentBroker.commissionType === 'FIXED') {
+                         estComm = currentBroker.rate1;
+                     } else if (currentBroker.commissionType === 'PER_SHARE') {
+                         estComm = quantity * currentBroker.rate1;
+                     } else if (currentBroker.commissionType === 'HIGHER_OF') {
+                         const pct = gross * (currentBroker.rate1 / 100);
+                         const fixed = quantity * (currentBroker.rate2 || 0);
+                         estComm = Math.max(pct, fixed);
+                     }
+                 } else {
+                     estComm = gross * 0.0015;
+                 }
 
-             setCommission(parseFloat(estComm.toFixed(2)));
-             setTax(parseFloat(estTax.toFixed(2)));
-             setCdcCharges(parseFloat(estCdc.toFixed(2)));
+                 const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
+                 const estTax = estComm * taxRate;
+                 const estCdc = quantity * 0.005;
+
+                 setCommission(parseFloat(estComm.toFixed(2)));
+                 setTax(parseFloat(estTax.toFixed(2)));
+                 setCdcCharges(parseFloat(estCdc.toFixed(2)));
+             }
         } else {
              if (commission !== '') setCommission('');
              if (tax !== '') setTax('');
              if (cdcCharges !== '') setCdcCharges('');
         }
     }
-  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers]);
+  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type]);
 
   // Update a specific field in a scanned trade row
   const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => {
@@ -320,9 +336,27 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     )}
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Quantity</label><input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Price</label><input type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">
+                                {type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}
+                            </label>
+                            <input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/>
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 mb-1">
+                                {type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}
+                            </label>
+                            <input type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/>
+                        </div>
                     </div>
+
+                    {/* Net Dividend Summary */}
+                    {type === 'DIVIDEND' && typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0 && (
+                        <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center text-xs text-indigo-800 px-4">
+                            <span className="opacity-80">Gross: <strong>{(quantity * price).toLocaleString()}</strong></span>
+                            <span className="font-bold bg-white px-2 py-1 rounded border border-indigo-100">Net: Rs. {((quantity * price) - (Number(tax) || 0)).toLocaleString()}</span>
+                        </div>
+                    )}
 
                     <div className="pt-2">
                          <div className="flex items-center justify-between mb-2">
@@ -330,10 +364,22 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                              <button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2 py-0.5 rounded border ${isAutoCalc ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>{isAutoCalc ? 'Auto-Calc On' : 'Manual Entry'}</button>
                          </div>
                          <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                             <div><label className="text-[10px] text-slate-400 block mb-1">Commission</label><input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
-                             <div><label className="text-[10px] text-slate-400 block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
-                             <div><label className="text-[10px] text-slate-400 block mb-1">CDC Charges</label><input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
-                             <div><label className="text-[10px] text-slate-400 block mb-1">Other Fees</label><input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
+                             <div>
+                                 <label className="text-[10px] text-slate-400 block mb-1">Commission</label>
+                                 <input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"/>
+                             </div>
+                             <div>
+                                 <label className="text-[10px] text-slate-400 block mb-1">Tax / WHT (15%)</label>
+                                 <input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/>
+                             </div>
+                             <div>
+                                 <label className="text-[10px] text-slate-400 block mb-1">CDC Charges</label>
+                                 <input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"/>
+                             </div>
+                             <div>
+                                 <label className="text-[10px] text-slate-400 block mb-1">Other Fees</label>
+                                 <input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"/>
+                             </div>
                          </div>
                     </div>
 
@@ -343,10 +389,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* 2. SCANNER INTERFACE - ONE LINE TABLE */}
+            {/* 2. SCANNER INTERFACE (Unchanged) */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
-                    
+                    {/* ... (Scanner UI remains the same as previous step) ... */}
                     {!isScanning && scannedTrades.length === 0 && (
                         <>
                             <div className="mb-6">
@@ -403,7 +449,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                     )}
 
-                    {/* ONE LINE EDITABLE TABLE */}
+                    {/* RESULTS LIST - EDITABLE GRID */}
                     {scannedTrades.length > 0 && (
                         <div className="w-full flex-1 flex flex-col overflow-hidden">
                             <div className="flex justify-between items-center mb-2 px-1">
