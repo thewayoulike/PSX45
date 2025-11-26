@@ -130,16 +130,16 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         </span>
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {holding.totalCommission.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(holding.totalCommission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {holding.totalTax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(holding.totalTax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {holding.totalCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(holding.totalCDC || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {holding.totalOtherFees ? holding.totalOtherFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                        {(holding.totalOtherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       <td className="px-4 py-4 text-right text-slate-900 font-bold font-mono tracking-tight text-xs">
