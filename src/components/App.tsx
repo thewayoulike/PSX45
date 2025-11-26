@@ -8,12 +8,13 @@ import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
 import { DividendScanner } from './DividendScanner';
-import { ApiKeyManager } from './ApiKeyManager'; // FIXED IMPORT PATH
+import { ApiKeyManager } from './ApiKeyManager'; 
 import { Logo } from './ui/Logo';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Settings } from 'lucide-react';
+// UPDATED IMPORTS: Added 'Key', Removed 'Settings'
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key } from 'lucide-react';
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from '../services/driveStorage';
 
@@ -494,8 +495,9 @@ const App: React.FC = () => {
                     </button>
 
                     {/* --- NEW: API Key Button --- */}
-                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 px-3 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings">
-                        <Settings size={18} />
+                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings">
+                        <Key size={18} className="text-emerald-500" />
+                        <span>API Key</span>
                     </button>
                 </div>
                 
