@@ -79,12 +79,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [isOpen, editingTransaction]);
 
-  // Auto-Calculate Fees (Simple estimation if enabled)
+  // Auto-Calculate Fees
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL' && !editingTransaction) {
         if (typeof quantity === 'number' && typeof price === 'number') {
              const gross = quantity * price;
-             // Default rough estimates if no broker logic applied perfectly
              const estComm = gross * 0.0015; // 0.15% approx
              const estTax = estComm * 0.13; // 13% SST approx
              const estCdc = Math.max(5, quantity * 0.005); // CDC
@@ -139,9 +138,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       try {
           let trades: ParsedTrade[] = [];
           if (mode === 'AI_SCAN') {
-              trades = await parseTradeDocument(file); // Gemini
+              trades = await parseTradeDocument(file); 
           } else {
-              const res = await parseTradeDocumentOCRSpace(file); // OCR Space
+              const res = await parseTradeDocumentOCRSpace(file); 
               trades = res.trades;
           }
 
@@ -157,17 +156,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleAcceptTrade = (trade: ParsedTrade) => {
       onAddTransaction({
           ticker: trade.ticker,
-          type: trade.type as any, // SAFE CAST
+          type: trade.type as any,
           quantity: trade.quantity,
           price: trade.price,
           date: trade.date || new Date().toISOString().split('T')[0],
-          broker: trade.broker, // Use scanned broker name
+          broker: trade.broker,
           commission: trade.commission || 0,
           tax: trade.tax || 0,
           cdcCharges: trade.cdcCharges || 0,
           otherFees: trade.otherFees || 0
       });
-      // Remove from list
       setScannedTrades(prev => prev.filter(t => t !== trade));
   };
 
@@ -185,7 +183,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors"><X size={24} /></button>
         </div>
 
-        {/* MODE SWITCHER - THIS WAS MISSING */}
+        {/* MODE SWITCHER */}
         {!editingTransaction && (
             <div className="px-6 pt-6">
                 <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 mb-6">
@@ -227,6 +225,32 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <input type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/>
                         </div>
                     </div>
+
+                    {/* BROKER SELECT - ADDED BACK */}
+                    {(type === 'BUY' || type === 'SELL') && (
+                        <div>
+                            <div className="flex justify-between items-center mb-1">
+                                <label className="block text-xs font-bold text-slate-500">Broker</label>
+                                {onManageBrokers && (
+                                    <button type="button" onClick={onManageBrokers} className="text-[10px] text-emerald-600 hover:underline">
+                                        Manage
+                                    </button>
+                                )}
+                            </div>
+                            <div className="relative">
+                                <select 
+                                    value={selectedBrokerId} 
+                                    onChange={e => setSelectedBrokerId(e.target.value)} 
+                                    className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white"
+                                >
+                                    {brokers.map(b => (
+                                        <option key={b.id} value={b.id}>{b.name}</option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
+                            </div>
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
