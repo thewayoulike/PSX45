@@ -102,7 +102,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Gross: {stats.realizedPL.toLocaleString()}</span>
-                        <span className="text-rose-500">Tax: -{stats.estimatedCGT.toLocaleString()}</span>
+                        {/* FIX: Use totalCGT instead of estimatedCGT */}
+                        <span className="text-rose-500">Tax: -{stats.totalCGT.toLocaleString()}</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
                         <div className={`h-full ${isRealizedProfitable ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
@@ -157,7 +158,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><PiggyBank size={20} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Est. CGT (15%)</div>
-                    <div className="text-lg font-bold text-slate-700">{stats.estimatedCGT.toLocaleString()}</div>
+                    {/* FIX: Use totalCGT instead of estimatedCGT */}
+                    <div className="text-lg font-bold text-slate-700">{stats.totalCGT.toLocaleString()}</div>
                 </div>
             </div>
         </div>
