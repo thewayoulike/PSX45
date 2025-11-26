@@ -84,6 +84,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">Comm</th>
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
+                <th className="px-2 py-4 font-semibold text-right text-slate-400">Other</th>
                 <th className="px-4 py-4 font-semibold text-right">Value</th>
                 <th className="px-4 py-4 font-semibold text-right">P&L</th>
               </tr>
@@ -91,7 +92,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             <tbody className="divide-y divide-slate-100 text-sm">
               {sortedHoldings.length === 0 ? (
                 <tr>
-                  <td colSpan={showBroker ? 10 : 9} className="px-6 py-20 text-center text-slate-400 italic">
+                  <td colSpan={showBroker ? 11 : 10} className="px-6 py-20 text-center text-slate-400 italic">
                     {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'}
                   </td>
                 </tr>
@@ -136,6 +137,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
                         {holding.totalCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
+                        {holding.totalOtherFees ? holding.totalOtherFees.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
                       </td>
                       
                       <td className="px-4 py-4 text-right text-slate-900 font-bold font-mono tracking-tight text-xs">
