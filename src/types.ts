@@ -2,7 +2,7 @@ export interface Transaction {
   id: string;
   portfolioId: string;
   ticker: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND';
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX'; // ADDED 'TAX'
   quantity: number;
   price: number;
   date: string;
@@ -11,7 +11,8 @@ export interface Transaction {
   commission: number;
   tax: number;
   cdcCharges: number;
-  otherFees: number; // NEW
+  otherFees: number;
+  notes?: string; // Added for "CGT Oct 2025" labels
 }
 
 export interface Holding {
@@ -25,7 +26,7 @@ export interface Holding {
   totalCommission: number;
   totalTax: number;
   totalCDC: number;
-  totalOtherFees: number; // NEW
+  totalOtherFees: number;
 }
 
 export interface RealizedTrade {
@@ -41,7 +42,7 @@ export interface RealizedTrade {
   commission: number;
   tax: number;
   cdcCharges: number;
-  otherFees: number; // NEW
+  otherFees: number;
 }
 
 export interface ParsedTrade {
@@ -54,7 +55,7 @@ export interface ParsedTrade {
   commission?: number;
   tax?: number;
   cdcCharges?: number;
-  otherFees?: number; // NEW
+  otherFees?: number;
 }
 
 export interface PortfolioStats {
@@ -63,8 +64,15 @@ export interface PortfolioStats {
   unrealizedPL: number;
   unrealizedPLPercent: number;
   realizedPL: number;
+  netRealizedPL: number;
   totalDividends: number;
-  dailyPL: number; 
+  dailyPL: number;
+  totalCommission: number;
+  totalSalesTax: number; 
+  totalDividendTax: number; 
+  totalCDC: number;
+  totalOtherFees: number;
+  totalCGT: number; // Renamed for clarity
 }
 
 export interface Portfolio {
