@@ -13,7 +13,7 @@ import { Logo } from './ui/Logo';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2 } from 'lucide-react';
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from '../services/driveStorage';
 
@@ -36,11 +36,15 @@ interface Lot {
     date: string;
 }
 
+type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
+
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
 
-  // --- 1. ROBUST INITIALIZATION ---
+  // --- STATE ---
+  const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
           const saved = localStorage.getItem('psx_brokers');
@@ -258,7 +262,7 @@ const App: React.FC = () => {
       } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); }
   };
 
-  // --- APP LOGIC & FIFO ---
+  // --- APP LOGIC ---
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
           setCurrentPortfolioId(portfolios[0].id);
@@ -302,9 +306,7 @@ const App: React.FC = () => {
           dividendSum += netDiv;
           return; 
       }
-      if (tx.type === 'TAX') {
-          return; // Handle TAX later in stats, don't affect holdings
-      }
+      if (tx.type === 'TAX') return;
 
       const brokerKey = groupByBroker ? (tx.broker || 'Unknown') : 'ALL';
       const holdingKey = `${tx.ticker}|${brokerKey}`;
@@ -332,13 +334,8 @@ const App: React.FC = () => {
       if (tx.type === 'BUY') {
         const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
         const txTotalCost = (tx.quantity * tx.price) + txFees;
-        
         const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0;
-        lots.push({
-            quantity: tx.quantity,
-            costPerShare: costPerShare,
-            date: tx.date
-        });
+        lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date });
 
         const currentHoldingValue = h.quantity * h.avgPrice;
         h.quantity += tx.quantity;
@@ -415,16 +412,13 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices]);
 
-  // 2. AUTO-GENERATE MONTHLY TAX (CGT) - UPDATED LOGIC
+  // 2. AUTO-GENERATE MONTHLY TAX
   useEffect(() => {
     if (realizedTrades.length === 0) return;
-
-    // Group by Broker -> Month -> Profit/Loss
     const ledger: Record<string, Record<string, number>> = {}; 
-
     realizedTrades.forEach(t => {
         const broker = t.broker || 'Unknown Broker';
-        const month = t.date.substring(0, 7); // "YYYY-MM"
+        const month = t.date.substring(0, 7); 
         if (!ledger[broker]) ledger[broker] = {};
         ledger[broker][month] = (ledger[broker][month] || 0) + t.profit;
     });
@@ -432,39 +426,30 @@ const App: React.FC = () => {
     const todayStr = new Date().toISOString().substring(0, 7);
     const generatedTaxTx: Transaction[] = [];
 
-    // Iterate Brokers
     Object.entries(ledger).forEach(([broker, monthsData]) => {
         let runningCgtBalance = 0;
         const sortedMonths = Object.keys(monthsData).sort();
-
         sortedMonths.forEach(month => {
-            // Process closed months only (strictly less than current month)
-            // Or allow current month if you want real-time estimation
             if (month >= todayStr) return;
-
             const netPL = monthsData[month];
             let taxAmount = 0;
             let note = '';
 
             if (netPL > 0) {
-                // Profit Case: Charge 15%
                 taxAmount = Number((netPL * 0.15).toFixed(2));
                 runningCgtBalance += taxAmount;
                 note = `Auto-CGT: Tax on ${month} Profit (${netPL.toFixed(0)}) - ${broker}`;
             } else if (netPL < 0 && runningCgtBalance > 0) {
-                // Loss Case: Refund 15% of loss, CAPPED at running balance
                 const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2));
                 const actualRefund = Math.min(potentialRefund, runningCgtBalance);
-                
                 if (actualRefund > 0) {
-                    taxAmount = -actualRefund; // Negative means Credit/Refund
+                    taxAmount = -actualRefund;
                     runningCgtBalance -= actualRefund;
                     note = `Auto-CGT: Credit on ${month} Loss (${netPL.toFixed(0)}) - ${broker}`;
                 }
             }
 
             if (taxAmount !== 0) {
-                // Calculate 1st of Next Month
                 const [y, m] = month.split('-');
                 let nextM = parseInt(m) + 1;
                 let nextY = parseInt(y);
@@ -472,7 +457,7 @@ const App: React.FC = () => {
                 const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`;
 
                 generatedTaxTx.push({
-                    id: `auto-cgt-${broker}-${month}`, // Deterministic ID to avoid dupes
+                    id: `auto-cgt-${broker}-${month}`,
                     portfolioId: currentPortfolioId,
                     ticker: 'CGT',
                     type: 'TAX',
@@ -481,35 +466,26 @@ const App: React.FC = () => {
                     date: nextMonthStr,
                     commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
                     notes: note,
-                    broker: broker // Tag tax to broker
+                    broker: broker
                 });
             }
         });
     });
 
-    // Sync with State: Only update if changes detected
-    // 1. Remove old Auto-CGT tx
     const cleanTransactions = transactions.filter(t => !t.id.startsWith('auto-cgt-'));
-    
-    // 2. Merge new ones
     const mergedTransactions = [...cleanTransactions, ...generatedTaxTx];
-
-    // 3. Check if length changed or IDs changed to prevent loops
-    // Simple check: compare JSON strings of IDs or lengths
     const oldIds = transactions.filter(t => t.id.startsWith('auto-cgt-')).map(t=>t.id).sort().join(',');
     const newIds = generatedTaxTx.map(t=>t.id).sort().join(',');
 
     if (oldIds !== newIds) {
         setTransactions(mergedTransactions);
     }
-
   }, [realizedTrades, transactions, currentPortfolioId]); 
 
-  // 3. CALCULATE STATS (Including Tax Transactions)
+  // 3. CALCULATE STATS
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0;
     let totalCost = 0;
-    
     let totalCommission = 0;
     let totalSalesTax = 0;
     let totalDividendTax = 0;
@@ -532,7 +508,7 @@ const App: React.FC = () => {
         if (t.type === 'DIVIDEND') {
             totalDividendTax += (t.tax || 0);
         } else if (t.type === 'TAX') {
-            totalCGT += (t.price * t.quantity); // Tax is stored as price*qty
+            totalCGT += (t.price * t.quantity); 
         } else {
             totalSalesTax += (t.tax || 0);
         }
@@ -551,7 +527,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* Background Elements */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div>
@@ -559,7 +534,8 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-10 animate-in fade-in slide-in-from-top-5 duration-500">
+        {/* HEADER */}
+        <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
             <Logo />
             <p className="text-sm ml-1 font-bold tracking-wide mt-1">
@@ -567,7 +543,6 @@ const App: React.FC = () => {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-            {/* Drive Auth & Sync UI */}
             <div className="flex flex-col items-end mr-4">
                 <div className="flex items-center gap-3">
                     {driveUser ? (
@@ -589,7 +564,6 @@ const App: React.FC = () => {
                     )}
                 </div>
             </div>
-            {/* Portfolio Selector */}
             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                 <div className="relative group">
                     <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
@@ -604,9 +578,34 @@ const App: React.FC = () => {
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* Actions Toolbar */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                <div className="flex items-center gap-2">
+            
+            {/* NAVIGATION TABS */}
+            <div className="flex justify-center mb-8">
+                <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
+                    <button 
+                        onClick={() => setCurrentView('DASHBOARD')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <LayoutDashboard size={18} /> Dashboard
+                    </button>
+                    <button 
+                        onClick={() => setCurrentView('REALIZED')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <CheckCircle2 size={18} /> Realized Gains
+                    </button>
+                    <button 
+                        onClick={() => setCurrentView('HISTORY')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <History size={18} /> History
+                    </button>
+                </div>
+            </div>
+
+            {/* ACTION TOOLBAR (Persistent) */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
+                <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
                         <Plus size={18} /> Add Transaction
                     </button>
@@ -628,28 +627,50 @@ const App: React.FC = () => {
                              {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
                          </select>
                     </div>
-                    <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                         <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
-                         <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
-                    </div>
-                    <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
-                        <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span>
-                    </button>
-                     <div className="flex items-center gap-2">
-                        <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                            {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
-                            <span className="hidden sm:inline">Sync PSX</span>
-                        </button>
-                        {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
-                    </div>
+                    {/* Only show Group By toggle on Dashboard/Realized */}
+                    {currentView !== 'HISTORY' && (
+                        <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
+                             <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
+                             <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
+                        </div>
+                    )}
+                    {currentView === 'DASHBOARD' && (
+                        <>
+                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
+                                <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span>
+                            </button>
+                             <div className="flex items-center gap-2">
+                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                                    <span className="hidden sm:inline">Sync PSX</span>
+                                </button>
+                                {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 
-            <Dashboard stats={stats} />
+            {/* VIEW ROUTING */}
+            {currentView === 'DASHBOARD' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <Dashboard stats={stats} />
+                    <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
+                </div>
+            )}
 
-            <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
-            <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
-            <TransactionList transactions={portfolioTransactions} onDelete={handleDeleteTransaction} onEdit={handleEditClick} />
+            {currentView === 'REALIZED' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
+                </div>
+            )}
+
+            {currentView === 'HISTORY' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <TransactionList transactions={portfolioTransactions} onDelete={handleDeleteTransaction} onEdit={handleEditClick} />
+                </div>
+            )}
+
         </main>
       </div>
 
