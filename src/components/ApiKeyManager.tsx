@@ -88,7 +88,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                     </ol>
                     <p className="italic opacity-70 mt-2">
                         Free tier is sufficient for personal use. <br/>
-                        <span className="font-bold text-rose-500 not-italic">Please refresh the page after saving.</span>
+                        <span className="font-bold text-rose-500 not-italic">Please refresh the page after saving KEY.</span>
                     </p>
                 </div>
 
