@@ -42,7 +42,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 mb-20">
       
-      {/* Header & Filters */}
       <div className="p-6 border-b border-slate-200/60 bg-white/40 space-y-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -54,9 +53,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           </div>
         </div>
 
-        {/* Filter Controls */}
         <div className="flex flex-col md:flex-row gap-3">
-            {/* Ticker Search */}
             <div className="relative flex-1">
                 <Search size={16} className="absolute left-3 top-3 text-slate-400" />
                 <input 
@@ -68,7 +65,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                 />
             </div>
 
-            {/* Date Range */}
             <div className="flex gap-2">
                 <div className="relative">
                     <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none">
@@ -95,7 +91,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                 </div>
             </div>
 
-            {/* Clear Button */}
             {hasActiveFilters && (
                 <button 
                     onClick={clearFilters}
@@ -121,6 +116,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Comm</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
+              <th className="px-2 py-4 font-semibold text-right text-slate-400">Other</th>
               <th className="px-4 py-4 font-semibold text-right">Net Amount</th>
               <th className="px-4 py-4 font-semibold text-center">Action</th>
             </tr>
@@ -128,7 +124,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           <tbody className="divide-y divide-slate-100 text-sm">
             {filteredAndSortedTransactions.length === 0 ? (
                 <tr>
-                    <td colSpan={11} className="px-6 py-10 text-center text-slate-400 italic">
+                    <td colSpan={12} className="px-6 py-10 text-center text-slate-400 italic">
                         {hasActiveFilters ? 'No transactions match your filters.' : 'No transactions found.'}
                     </td>
                 </tr>
@@ -137,7 +133,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                 const isBuy = tx.type === 'BUY';
                 const isDiv = tx.type === 'DIVIDEND';
                 
-                const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0);
+                const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
                 const totalAmount = (tx.price * tx.quantity);
                 let netAmount = 0;
                 
@@ -174,6 +170,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     </td>
                     <td className="px-2 py-4 text-right text-slate-400 font-mono text-xs">
                         {(tx.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-2 py-4 text-right text-slate-400 font-mono text-xs">
+                        {(tx.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-4 py-4 text-right text-slate-900 font-bold font-mono text-xs">
                         {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
