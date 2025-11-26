@@ -14,7 +14,8 @@ import { Logo } from './ui/Logo';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2 } from 'lucide-react';
+// Added Pencil and Check to imports
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from '../services/driveStorage';
@@ -44,6 +45,7 @@ const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+  
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
           const saved = localStorage.getItem('psx_brokers');
@@ -54,6 +56,7 @@ const App: React.FC = () => {
       } catch (e) { console.error(e); }
       return [DEFAULT_BROKER];
   });
+
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
       try {
           const saved = localStorage.getItem('psx_transactions');
@@ -61,6 +64,7 @@ const App: React.FC = () => {
       } catch (e) {}
       return INITIAL_TRANSACTIONS as Transaction[];
   });
+
   const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
       try {
           const saved = localStorage.getItem('psx_portfolios');
@@ -68,9 +72,15 @@ const App: React.FC = () => {
       } catch (e) {}
       return [DEFAULT_PORTFOLIO];
   });
+
   const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(() => {
       return localStorage.getItem('psx_current_portfolio_id') || DEFAULT_PORTFOLIO.id;
   });
+
+  // --- PORTFOLIO EDIT STATE ---
+  const [isEditingPortfolio, setIsEditingPortfolio] = useState(false);
+  const [editPortfolioName, setEditPortfolioName] = useState('');
+
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
           const saved = localStorage.getItem('psx_manual_prices');
@@ -78,6 +88,7 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
+
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_sector_overrides');
@@ -85,9 +96,11 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
+
   const [userApiKey, setUserApiKey] = useState<string>('');
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
+  
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -95,15 +108,19 @@ const App: React.FC = () => {
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
+  
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
   const [showBrokerManager, setShowBrokerManager] = useState(false);
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
+
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
+
   const hasMergedCloud = useRef(false);
 
+  // --- LOGOUT LOGIC ---
   const performLogout = useCallback(() => {
       setTransactions([]); 
       setPortfolios([DEFAULT_PORTFOLIO]); 
@@ -115,6 +132,7 @@ const App: React.FC = () => {
       setUserApiKey(''); 
       setGeminiApiKey(null);
       setDriveUser(null);
+      
       localStorage.clear();
       signOutDrive();
   }, []);
@@ -134,6 +152,7 @@ const App: React.FC = () => {
 
   const handleLogin = () => signInWithDrive();
 
+  // --- EFFECTS ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -190,6 +209,7 @@ const App: React.FC = () => {
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, driveUser, userApiKey]);
 
+  // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
@@ -199,8 +219,37 @@ const App: React.FC = () => {
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); };
+  
+  // --- PORTFOLIO MANAGMENT HANDLERS ---
   const handleCreatePortfolio = (e: React.FormEvent) => { e.preventDefault(); if (newPortfolioName.trim()) { const newId = Date.now().toString(); setPortfolios(prev => [...prev, { id: newId, name: newPortfolioName.trim() }]); setCurrentPortfolioId(newId); setNewPortfolioName(''); setIsPortfolioModalOpen(false); } };
-  const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0]; setCurrentPortfolioId(nextPort.id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); } };
+  
+  const handleDeletePortfolio = () => { 
+      if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); 
+      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { 
+          const idToDelete = currentPortfolioId; 
+          const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0]; 
+          setCurrentPortfolioId(nextPort.id); 
+          setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); 
+          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); 
+      } 
+  };
+
+  const startEditingPortfolio = () => {
+      const current = portfolios.find(p => p.id === currentPortfolioId);
+      if (current) {
+          setEditPortfolioName(current.name);
+          setIsEditingPortfolio(true);
+      }
+  };
+
+  const savePortfolioName = () => {
+      if (!editPortfolioName.trim()) return;
+      setPortfolios(prev => prev.map(p => 
+          p.id === currentPortfolioId ? { ...p, name: editPortfolioName.trim() } : p
+      ));
+      setIsEditingPortfolio(false);
+  };
+
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
 
   useEffect(() => {
@@ -226,6 +275,7 @@ const App: React.FC = () => {
     return Array.from(brokers).sort();
   }, [portfolioTransactions]);
 
+  // 1. CALCULATE HOLDINGS & REALIZED (FIFO)
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
@@ -372,6 +422,7 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, sectorOverrides]);
 
+  // 2. AUTO-CGT
   useEffect(() => {
     if (realizedTrades.length === 0) return;
     const ledger: Record<string, Record<string, number>> = {}; 
@@ -422,6 +473,7 @@ const App: React.FC = () => {
     if (oldIds !== newIds) { setTransactions(mergedTransactions); }
   }, [realizedTrades, transactions, currentPortfolioId]); 
 
+  // 3. CALCULATE STATS
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0;
     let totalCost = 0;
@@ -466,22 +518,16 @@ const App: React.FC = () => {
 
     const netRealizedPL = realizedPL - totalCGT; 
     
-    // CASH LOGIC
     const totalProfits = netRealizedPL + totalDividends;
     const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
     
-    // NET PRINCIPAL
     const netPrincipal = totalDeposits - withdrawalsFromPrincipal;
-    
-    // Cash Investment = Net Principal (This is what user requested for the dashboard card)
     const cashInvestment = totalDeposits - totalWithdrawals; 
 
-    // Reinvested Profits
     const netPrincipalAvailable = Math.max(0, netPrincipal);
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
 
-    // Free Cash: Exclude Dividends from Cash In
     let cashIn = totalDeposits; 
     let cashOut = totalWithdrawals + totalCGT; 
 
@@ -495,7 +541,6 @@ const App: React.FC = () => {
 
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
 
-    // ROI: Gross Deposits as Denominator
     const roiDenominator = totalDeposits;
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
     
@@ -551,14 +596,35 @@ const App: React.FC = () => {
                 </div>
             </div>
             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                <div className="relative group">
-                    <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
-                    <select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48">
-                        {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}
-                    </select>
-                </div>
-                <button onClick={() => setIsPortfolioModalOpen(true)} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
-                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
+                {isEditingPortfolio ? (
+                    <>
+                        <div className="relative flex-1">
+                            <FolderOpen size={18} className="absolute left-3 top-3 text-emerald-600" />
+                            <input 
+                                type="text" 
+                                value={editPortfolioName}
+                                onChange={(e) => setEditPortfolioName(e.target.value)}
+                                className="w-48 bg-slate-50 border border-emerald-200 rounded-lg py-2 pl-10 pr-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                autoFocus
+                                onKeyDown={(e) => e.key === 'Enter' && savePortfolioName()}
+                            />
+                        </div>
+                        <button onClick={savePortfolioName} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"> <Check size={18} /> </button>
+                        <button onClick={() => setIsEditingPortfolio(false)} className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-100"> <X size={18} /> </button>
+                    </>
+                ) : (
+                    <>
+                        <div className="relative group">
+                            <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
+                            <select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48">
+                                {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}
+                            </select>
+                        </div>
+                        <button onClick={startEditingPortfolio} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Rename Portfolio"> <Pencil size={16} /> </button>
+                        <button onClick={() => setIsPortfolioModalOpen(true)} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
+                        <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
+                    </>
+                )}
             </div>
           </div>
         </header>
