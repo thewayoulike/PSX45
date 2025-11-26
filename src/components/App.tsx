@@ -15,7 +15,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2 } from 'lucide-react';
-import { useIdleTimer } from '../hooks/useIdleTimer'; // <--- IMPORT THE HOOK
+import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from '../services/driveStorage';
 
@@ -119,7 +119,6 @@ const App: React.FC = () => {
 
   // --- LOGOUT LOGIC ---
   
-  // 1. The actual action of clearing data
   const performLogout = useCallback(() => {
       setTransactions([]); 
       setPortfolios([DEFAULT_PORTFOLIO]); 
@@ -131,14 +130,10 @@ const App: React.FC = () => {
       setUserApiKey(''); 
       setGeminiApiKey(null);
       setDriveUser(null);
-      
-      // CRITICAL: Clear LocalStorage so data doesn't come back on refresh
       localStorage.clear();
-      
       signOutDrive();
   }, []);
 
-  // 2. The Auto-Logout Timer (30 Minutes = 1800000ms)
   useIdleTimer(1800000, () => {
       if (transactions.length > 0 || driveUser) {
           performLogout();
@@ -146,7 +141,6 @@ const App: React.FC = () => {
       }
   });
 
-  // 3. Manual Logout Button
   const handleManualLogout = () => {
       if (window.confirm("Logout and clear local data?")) {
           performLogout();
@@ -193,7 +187,6 @@ const App: React.FC = () => {
 
   // --- SAVE ---
   useEffect(() => {
-      // Only save if we have data (prevent saving empty state during logout)
       if (driveUser || transactions.length > 0) {
         localStorage.setItem('psx_transactions', JSON.stringify(transactions));
         localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
@@ -373,6 +366,25 @@ const App: React.FC = () => {
           return;
       }
 
+      if (tx.type === 'HISTORY') {
+          tempRealized.push({
+            id: tx.id,
+            ticker: 'PREV-PNL', 
+            broker: tx.broker || 'Unknown',
+            quantity: 1,
+            buyAvg: 0,
+            sellPrice: 0,
+            date: tx.date,
+            profit: tx.price, // Price holds the net/gross amount
+            fees: 0,
+            commission: 0,
+            tax: tx.tax || 0, // If 'Before Tax', this has the calculated tax
+            cdcCharges: 0,
+            otherFees: 0
+          });
+          return;
+      }
+
       const brokerKey = groupByBroker ? (tx.broker || 'Unknown') : 'ALL';
       const holdingKey = `${tx.ticker}|${brokerKey}`;
 
@@ -490,6 +502,9 @@ const App: React.FC = () => {
     const ledger: Record<string, Record<string, number>> = {}; 
 
     realizedTrades.forEach(t => {
+        // Skip HISTORY items for auto-CGT calculation if they are 'PREV-PNL'
+        if (t.ticker === 'PREV-PNL') return;
+
         const broker = t.broker || 'Unknown Broker';
         const month = t.date.substring(0, 7);
         if (!ledger[broker]) ledger[broker] = {};
@@ -586,6 +601,8 @@ const App: React.FC = () => {
             totalDividendTax += (t.tax || 0);
         } else if (t.type === 'TAX') {
             totalCGT += (t.price * t.quantity);
+        } else if (t.type === 'HISTORY') {
+             totalCGT += (t.tax || 0); 
         } else {
             totalSalesTax += (t.tax || 0);
         }
