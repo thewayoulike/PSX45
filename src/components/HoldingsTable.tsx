@@ -85,14 +85,16 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
                 <th className="px-2 py-4 font-semibold text-right text-slate-400">Other</th>
-                <th className="px-4 py-4 font-semibold text-right">Value</th>
+                {/* UPDATED COLUMNS */}
+                <th className="px-4 py-4 font-semibold text-right">Total Cost</th>
+                <th className="px-4 py-4 font-semibold text-right">Market Value</th>
                 <th className="px-4 py-4 font-semibold text-right">P&L</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
               {sortedHoldings.length === 0 ? (
                 <tr>
-                  <td colSpan={showBroker ? 11 : 10} className="px-6 py-20 text-center text-slate-400 italic">
+                  <td colSpan={showBroker ? 12 : 11} className="px-6 py-20 text-center text-slate-400 italic">
                     {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'}
                   </td>
                 </tr>
@@ -129,23 +131,29 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
                         </span>
                       </td>
-                      {/* UPDATED: Added ( || 0 ) to safeguard against undefined values */}
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {(holding.totalCommission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(holding.totalCommission || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {(holding.totalTax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(holding.totalTax || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {(holding.totalCDC || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(holding.totalCDC || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </td>
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
-                        {(holding.totalOtherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {(holding.totalOtherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </td>
                       
+                      {/* NEW: Total Cost Column */}
+                      <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs font-medium">
+                        {costBasis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+
+                      {/* Market Value Column */}
                       <td className="px-4 py-4 text-right text-slate-900 font-bold font-mono tracking-tight text-xs">
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
+
                       <td className="px-4 py-4 text-right">
                         <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                           <span className="font-bold text-sm">{pnl.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
