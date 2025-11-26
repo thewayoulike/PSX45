@@ -52,7 +52,55 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             {filteredAndSortedTransactions.length} / {transactions.length} Entries
           </div>
         </div>
-        {/* Filter Controls (Same as before) */}
+
+        <div className="flex flex-col md:flex-row gap-3">
+            <div className="relative flex-1">
+                <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+                <input 
+                    type="text" 
+                    placeholder="Search Ticker or Broker..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-white border border-slate-200 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/20 outline-none placeholder-slate-400"
+                />
+            </div>
+
+            <div className="flex gap-2">
+                <div className="relative">
+                    <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none">
+                        <Calendar size={16} />
+                    </div>
+                    <input 
+                        type="date" 
+                        value={dateFrom}
+                        onChange={(e) => setDateFrom(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-[140px]"
+                    />
+                </div>
+                <div className="flex items-center text-slate-400">-</div>
+                <div className="relative">
+                    <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none">
+                        <Calendar size={16} />
+                    </div>
+                    <input 
+                        type="date" 
+                        value={dateTo}
+                        onChange={(e) => setDateTo(e.target.value)}
+                        className="bg-white border border-slate-200 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-[140px]"
+                    />
+                </div>
+            </div>
+
+            {hasActiveFilters && (
+                <button 
+                    onClick={clearFilters}
+                    className="px-3 py-2 rounded-xl bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center gap-2 text-sm font-medium"
+                >
+                    <X size={16} />
+                    Clear
+                </button>
+            )}
+        </div>
       </div>
 
       <div className="overflow-x-auto flex-1">
@@ -112,16 +160,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         {tx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-slate-400 font-mono text-xs">
-                        {tx.commission ? tx.commission.toLocaleString() : '-'}
+                        {(tx.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-slate-400 font-mono text-xs">
-                        {tx.tax ? tx.tax.toLocaleString() : '-'}
+                        {(tx.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-slate-400 font-mono text-xs">
-                        {tx.cdcCharges ? tx.cdcCharges.toLocaleString() : '-'}
+                        {(tx.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className="px-2 py-4 text-right text-slate-400 font-mono text-xs">
-                        {tx.otherFees ? tx.otherFees.toLocaleString() : '-'}
+                        {(tx.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </td>
                     <td className={`px-4 py-4 text-right font-bold font-mono text-xs ${isTax ? 'text-rose-500' : 'text-slate-900'}`}>
                         {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
