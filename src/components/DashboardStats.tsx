@@ -36,15 +36,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   
   // Capital Analysis
   const totalNetWorth = stats.totalValue + stats.freeCash;
-  // Note: "Cash Investment" Card now shows totalDeposits (Gross), but erosion logic usually compares to Net Principal.
-  // However, user defines "Cash Invested" as Gross.
-  // Let's use Gross Deposits for the "Below Principal" warning too? 
-  // If I deposited 100k, withdrew 90k, my Net Worth is 10k. 
-  // Comparing 10k Net Worth to 100k Gross Deposit would show -90% Loss. This is misleading if it was a withdrawal.
-  // So for Erosion Warning, we MUST use Net Principal (cashInvestment).
-  const isCapitalEroded = totalNetWorth < stats.cashInvestment;
-  const erosionAmount = stats.cashInvestment - totalNetWorth;
-  const erosionPercent = stats.cashInvestment > 0 ? (erosionAmount / stats.cashInvestment) * 100 : 0;
+  // Compare Net Worth against NET PRINCIPAL (Deposits - Withdrawals) to see if we lost money.
+  // We cannot use Gross Deposits here because withdrawals aren't losses.
+  const isCapitalEroded = totalNetWorth < stats.netPrincipal;
+  const erosionAmount = stats.netPrincipal - totalNetWorth;
+  const erosionPercent = stats.netPrincipal > 0 ? (erosionAmount / stats.netPrincipal) * 100 : 0;
   const isSevereLoss = erosionPercent > 20; 
 
   const formatCurrency = (val: number) => 
@@ -128,14 +124,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* CASH INVESTMENT CARD (UPDATED: Shows Total Deposits) */}
+            {/* CASH INVESTMENT CARD */}
             <Card title="Cash Investment" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.totalDeposits)}
+                Rs. {formatCurrency(stats.cashInvestment)}
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Total Capital Added</span>
+                        {isCapitalEroded && (
+                            <span className="text-rose-500 flex items-center gap-1">
+                                -{formatCurrency(erosionAmount)} Loss
+                            </span>
+                        )}
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
