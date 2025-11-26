@@ -7,14 +7,12 @@ let aiClient: GoogleGenAI | null = null;
 
 export const setGeminiApiKey = (key: string | null) => {
     userProvidedKey = key;
-    // Reset client so it recreates with the new key next time getAi() is called
     aiClient = null;
 };
 
-// 2. Safe access for Vite environment
+// 2. STRICT USER-ONLY KEY ACCESS
 const getApiKey = () => {
-  if (userProvidedKey) return userProvidedKey;
-  return undefined;
+  return userProvidedKey;
 };
 
 // 3. LAZY INITIALIZATION
@@ -63,7 +61,21 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
             }
           },
           {
-            text: "Extract the trade details from this document. Return a JSON array of trades. For each trade, include ticker, type (BUY/SELL), quantity, price, date (YYYY-MM-DD), broker (if visible), commission, tax, cdcCharges, and otherFees (any extra charges like CVT, FED etc). If specific fees aren't visible, omit them."
+            text: `Analyze this trade confirmation document/image. Extract all trade executions.
+            
+            For each trade found:
+            1. Identify the Ticker/Symbol (e.g., OGDC, PPL, TRG).
+            2. Identify the Type (BUY or SELL). Look for "B", "S", "Buy", "Sell", "Debit" (Buy), "Credit" (Sell).
+            3. Extract Quantity and Price.
+            4. Extract the Date (YYYY-MM-DD).
+            5. Look for the Broker Name (e.g., KASB, AKD, Arif Habib).
+            6. Extract specific charges if visible: 
+               - Commission
+               - Tax (SST, WHT, CVT)
+               - CDC Charges
+               - Other Fees (Regulatory fees, FED, etc).
+            
+            Return a JSON array of objects.`
           }
         ]
       },
@@ -83,7 +95,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
               commission: { type: Type.NUMBER, nullable: true },
               tax: { type: Type.NUMBER, nullable: true },
               cdcCharges: { type: Type.NUMBER, nullable: true },
-              otherFees: { type: Type.NUMBER, nullable: true } // NEW FIELD
+              otherFees: { type: Type.NUMBER, nullable: true }
             },
             required: ["ticker", "type", "quantity", "price"]
           }
@@ -95,9 +107,9 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
       return JSON.parse(response.text);
     }
     return [];
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error parsing trade document with Gemini:", error);
-    throw error; 
+    throw new Error(error.message || "Failed to scan document. Please check your API Key.");
   }
 };
 
