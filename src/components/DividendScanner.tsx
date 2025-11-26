@@ -1,20 +1,23 @@
 import React, { useState } from 'react';
 import { Transaction, DividendAnnouncement } from '../types';
 import { fetchDividends } from '../services/gemini';
-import { Coins, Loader2, CheckCircle, Calendar, Search, X, AlertTriangle } from 'lucide-react';
+import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings } from 'lucide-react';
 
 interface DividendScannerProps {
   transactions: Transaction[];
   onAddTransaction: (t: Omit<Transaction, 'id' | 'portfolioId'>) => void;
   isOpen: boolean;
   onClose: () => void;
+  onOpenSettings?: () => void; // NEW PROP
 }
 
-export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, onAddTransaction, isOpen, onClose }) => {
+export const DividendScanner: React.FC<DividendScannerProps> = ({ 
+  transactions, onAddTransaction, isOpen, onClose, onOpenSettings 
+}) => {
   const [loading, setLoading] = useState(false);
   const [foundDividends, setFoundDividends] = useState<Array<DividendAnnouncement & { eligibleQty: number }>>([]);
   const [scanned, setScanned] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null); // NEW STATE
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const getHoldingsOnDate = (ticker: string, targetDate: string) => {
       const relevantTx = transactions.filter(t => 
@@ -140,10 +143,24 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({ transactions, 
                             <AlertTriangle size={32} />
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">Scanner Error</h3>
-                        <p className="text-slate-500 mb-6">{errorMsg}</p>
-                        <button onClick={onClose} className="bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-2 px-6 rounded-lg transition-all">
-                            Close
-                        </button>
+                        <p className="text-slate-500 mb-6 max-w-[260px] mx-auto">{errorMsg}</p>
+                        
+                        <div className="flex flex-col items-center gap-3">
+                            {/* Action Button for Settings */}
+                            {onOpenSettings && (
+                                <button 
+                                    onClick={() => { onClose(); onOpenSettings(); }} 
+                                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2"
+                                >
+                                    <Settings size={18} />
+                                    Setup API Key
+                                </button>
+                            )}
+                            
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-sm font-medium py-2">
+                                Close
+                            </button>
+                        </div>
                     </div>
                 )}
 
