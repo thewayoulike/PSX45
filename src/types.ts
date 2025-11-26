@@ -11,6 +11,7 @@ export interface Transaction {
   commission: number;
   tax: number;
   cdcCharges: number;
+  otherFees: number; // NEW
 }
 
 export interface Holding {
@@ -24,6 +25,7 @@ export interface Holding {
   totalCommission: number;
   totalTax: number;
   totalCDC: number;
+  totalOtherFees: number; // NEW
 }
 
 export interface RealizedTrade {
@@ -35,11 +37,11 @@ export interface RealizedTrade {
   sellPrice: number;
   date: string;
   profit: number;
-  fees: number; // Total Fees
-  // --- NEW: Detailed Breakdown ---
+  fees: number; 
   commission: number;
   tax: number;
   cdcCharges: number;
+  otherFees: number; // NEW
 }
 
 export interface ParsedTrade {
@@ -52,6 +54,7 @@ export interface ParsedTrade {
   commission?: number;
   tax?: number;
   cdcCharges?: number;
+  otherFees?: number; // NEW
 }
 
 export interface PortfolioStats {
