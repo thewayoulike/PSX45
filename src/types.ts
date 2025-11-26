@@ -37,7 +37,7 @@ export interface RealizedTrade {
   sellPrice: number;
   date: string;
   profit: number;
-  fees: number; 
+  fees: number;
   commission: number;
   tax: number;
   cdcCharges: number;
