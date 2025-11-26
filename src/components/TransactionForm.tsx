@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText, UploadCloud, RefreshCcw, Pencil } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText, UploadCloud, RefreshCcw, Pencil, FileSpreadsheet } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -197,7 +197,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               trades = res.trades;
           }
 
-          if (trades.length === 0) throw new Error("No trades detected in image.");
+          if (trades.length === 0) throw new Error("No trades detected in file.");
           
           // Pre-fill broker if selected globally
           const enrichedTrades: EditableTrade[] = trades.map(t => ({
@@ -215,7 +215,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleAcceptTrade = (trade: EditableTrade) => {
-      // Logic to resolve Broker Name based on ID
       let finalBrokerName = trade.broker;
       if (trade.brokerId) {
           const b = brokers.find(br => br.id === trade.brokerId);
@@ -246,6 +245,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const themeBorder = mode === 'AI_SCAN' ? 'border-indigo-200' : 'border-emerald-200';
   const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
   const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
+
+  // Helper to determine file icon
+  const getFileIcon = () => {
+      if (selectedFile) {
+          const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
+          if (isSheet) return <FileSpreadsheet size={32} />;
+          return <FileText size={32} />;
+      }
+      if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />;
+      return <ScanText size={32} className="text-emerald-500" />;
+  };
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -282,7 +292,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             {/* 1. MANUAL FORM */}
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
-                    {/* ... (Manual Form Fields) ... */}
                     <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         {(['BUY', 'SELL', 'DIVIDEND', 'TAX'] as const).map(t => (
                             <button key={t} type="button" onClick={() => setType(t)} className={`py-2 rounded-lg text-xs font-bold transition-all ${type === t ? 'bg-white shadow text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
@@ -335,7 +344,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* 2. SCANNER INTERFACE - EDITABLE TABLE */}
+            {/* 2. SCANNER INTERFACE */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     
@@ -366,14 +375,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 onClick={() => fileInputRef.current?.click()}
                                 className={`w-full flex-1 border-2 border-dashed ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : `${themeBorder} ${themeBg}`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}
                             >
-                                <input ref={fileInputRef} type="file" accept="image/*,.pdf" onChange={handleFileSelect} className="hidden" />
+                                <input 
+                                    ref={fileInputRef} 
+                                    type="file" 
+                                    accept={mode === 'AI_SCAN' ? "image/*,.pdf,.csv,.xlsx,.xls" : "image/*,.pdf"}
+                                    onChange={handleFileSelect} 
+                                    className="hidden" 
+                                />
                                 <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-slate-400'}`}>
-                                    {selectedFile ? <FileText size={32} /> : (mode === 'AI_SCAN' ? <Sparkles size={32} className="text-indigo-500" /> : <ScanText size={32} className="text-emerald-500" />)}
+                                    {getFileIcon()}
                                 </div>
                                 {selectedFile ? (
                                     <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </>
                                 ) : (
-                                    <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium">{mode === 'AI_SCAN' ? 'Smart AI Detection (Gemini)' : 'Standard Text Extraction'}</p> </>
+                                    <> 
+                                        <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> 
+                                        <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">
+                                            {mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}
+                                        </p> 
+                                    </>
                                 )}
                             </div>
 
@@ -392,7 +412,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <div className="flex flex-col items-center justify-center h-full py-20">
                             <Loader2 size={48} className={`animate-spin mb-6 ${themeText}`} />
                             <h3 className="text-lg font-bold text-slate-700 mb-2">Analyzing Document</h3>
-                            <p className="text-slate-400 text-sm text-center max-w-[200px]">Extracting trade details...</p>
+                            <p className="text-slate-400 text-sm text-center max-w-[200px]">Extracting trade details, please wait...</p>
                         </div>
                     )}
 
