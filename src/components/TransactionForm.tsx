@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText, UploadCloud, RefreshCcw, Pencil, FileSpreadsheet } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard, FileText, UploadCloud, RefreshCcw, Pencil, FileSpreadsheet, Search, AlertTriangle } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -15,7 +15,6 @@ interface TransactionFormProps {
   brokers?: Broker[]; 
 }
 
-// Local interface to handle the editable state, including broker mapping
 interface EditableTrade extends ParsedTrade {
     brokerId?: string;
 }
@@ -197,7 +196,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               trades = res.trades;
           }
 
-          if (trades.length === 0) throw new Error("No trades detected in file.");
+          if (trades.length === 0) {
+              // Custom error message for empty results
+              throw new Error("No trades found in this file.");
+          }
           
           // Pre-fill broker if selected globally
           const enrichedTrades: EditableTrade[] = trades.map(t => ({
@@ -370,40 +372,65 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
 
-                            {/* UPLOAD AREA */}
-                            <div 
-                                onClick={() => fileInputRef.current?.click()}
-                                className={`w-full flex-1 border-2 border-dashed ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : `${themeBorder} ${themeBg}`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}
-                            >
-                                <input 
-                                    ref={fileInputRef} 
-                                    type="file" 
-                                    accept={mode === 'AI_SCAN' ? "image/*,.pdf,.csv,.xlsx,.xls" : "image/*,.pdf"}
-                                    onChange={handleFileSelect} 
-                                    className="hidden" 
-                                />
-                                <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-slate-400'}`}>
-                                    {getFileIcon()}
+                            {/* UPLOAD AREA (Hidden if Error Present) */}
+                            {!scanError && (
+                                <div 
+                                    onClick={() => fileInputRef.current?.click()}
+                                    className={`w-full flex-1 border-2 border-dashed ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : `${themeBorder} ${themeBg}`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}
+                                >
+                                    <input 
+                                        ref={fileInputRef} 
+                                        type="file" 
+                                        accept={mode === 'AI_SCAN' ? "image/*,.pdf,.csv,.xlsx,.xls" : "image/*,.pdf"}
+                                        onChange={handleFileSelect} 
+                                        className="hidden" 
+                                    />
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-slate-400'}`}>
+                                        {getFileIcon()}
+                                    </div>
+                                    {selectedFile ? (
+                                        <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </>
+                                    ) : (
+                                        <> 
+                                            <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> 
+                                            <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">
+                                                {mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}
+                                            </p> 
+                                        </>
+                                    )}
                                 </div>
-                                {selectedFile ? (
-                                    <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </>
-                                ) : (
-                                    <> 
-                                        <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> 
-                                        <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">
-                                            {mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}
-                                        </p> 
-                                    </>
-                                )}
-                            </div>
+                            )}
 
-                            {/* ACTION BUTTON */}
-                            <button 
-                                onClick={handleProcessScan} disabled={!selectedFile}
-                                className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}
-                            >
-                                {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze with AI' : 'Extract Text'}
-                            </button>
+                            {/* ERROR / NO RESULTS STATE (Replaces Upload Area) */}
+                            {scanError && (
+                                <div className={`w-full flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 ${scanError.includes("No trades found") ? "border-amber-200 bg-amber-50/50" : "border-rose-200 bg-rose-50/50"}`}>
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-sm ${scanError.includes("No trades found") ? "bg-amber-100 text-amber-600" : "bg-rose-100 text-rose-500"}`}>
+                                        {scanError.includes("No trades found") ? <Search size={32} /> : <AlertTriangle size={32} />}
+                                    </div>
+                                    <h3 className={`text-lg font-bold mb-1 ${scanError.includes("No trades found") ? "text-amber-800" : "text-rose-700"}`}>
+                                        {scanError.includes("No trades found") ? "No Results Found" : "Scan Failed"}
+                                    </h3>
+                                    <p className={`text-sm font-medium text-center max-w-[240px] mb-6 ${scanError.includes("No trades found") ? "text-amber-600" : "text-rose-500"}`}>
+                                        {scanError}
+                                    </p>
+                                    <button 
+                                        onClick={() => { setScanError(null); setSelectedFile(null); }} 
+                                        className={`px-6 py-2.5 bg-white border rounded-xl font-bold text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center gap-2 ${scanError.includes("No trades found") ? "border-amber-200 text-amber-600" : "border-rose-200 text-rose-600"}`}
+                                    >
+                                        <RefreshCcw size={16} /> Try Different File
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* ACTION BUTTON (Only visible if no error) */}
+                            {!scanError && (
+                                <button 
+                                    onClick={handleProcessScan} disabled={!selectedFile}
+                                    className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}
+                                >
+                                    {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze with AI' : 'Extract Text'}
+                                </button>
+                            )}
                         </>
                     )}
 
