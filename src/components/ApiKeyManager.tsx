@@ -22,6 +22,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
     e.preventDefault();
     onSave(inputKey.trim());
     onClose();
+    // Optional: We can force a reload here if you prefer, 
+    // but adding the instruction as requested is safer.
+    // window.location.reload(); 
   };
 
   if (!isOpen) return null;
@@ -83,7 +86,10 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                         <li>Click "Create API Key"</li>
                         <li>Copy the key and paste it above</li>
                     </ol>
-                    <p className="italic opacity-70 mt-2">Free tier is sufficient for personal use.</p>
+                    <p className="italic opacity-70 mt-2">
+                        Free tier is sufficient for personal use. <br/>
+                        <span className="font-bold text-rose-500 not-italic">Please refresh the page after saving.</span>
+                    </p>
                 </div>
 
                 <button 
