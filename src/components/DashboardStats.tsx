@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -40,14 +40,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
     <div className="flex flex-col gap-4 md:gap-6 mb-6 md:mb-10">
         
         {/* PRIMARY METRICS */}
-        <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 md:gap-6">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
             
-            {/* Total Value Card */}
+            {/* Total Value Card - Full width on mobile, col-span-1 on desktop */}
             <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="flex justify-between items-start">
                     <div className="w-full">
                         <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
-                            {/* Total Asset Value = Stock Value + Free Cash */}
                             <span>Rs. {formatCurrency(stats.totalValue + stats.freeCash)}</span>
                         </div>
                         <div className="flex items-center gap-2 mt-2 md:mt-3">
@@ -62,7 +61,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <Sparkline color="text-emerald-500" trend="neutral" />
             </Card>
 
-            {/* FREE CASH CARD (NEW) */}
+            {/* FREE CASH CARD */}
             <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.freeCash)}
@@ -77,8 +76,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* NET CAPITAL (NEW) */}
-            <Card title="Net Capital Invested" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            {/* CASH INVESTMENT CARD (Renamed) */}
+            <Card title="Cash Investment" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.cashInvestment)}
                 </div>
@@ -92,7 +91,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* STOCK ASSETS CARD (Renamed from Invested) */}
+            {/* REINVESTED PROFITS CARD (NEW) */}
+            <Card title="Reinvested Profits" icon={<RefreshCcw className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
+                Rs. {formatCurrency(stats.reinvestedProfits)}
+                </div>
+                <div className="mt-3 md:mt-4">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Retained Earnings</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-purple-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+        </div>
+
+        {/* SECONDARY METRICS */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+            
+            {/* Stock Assets Card */}
             <Card title="Stock Assets (Cost)" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.totalCost)}
