@@ -43,7 +43,10 @@ type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  
+  // --- STATE ---
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
           const saved = localStorage.getItem('psx_brokers');
@@ -54,6 +57,7 @@ const App: React.FC = () => {
       } catch (e) { console.error(e); }
       return [DEFAULT_BROKER];
   });
+
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
       try {
           const saved = localStorage.getItem('psx_transactions');
@@ -61,6 +65,7 @@ const App: React.FC = () => {
       } catch (e) {}
       return INITIAL_TRANSACTIONS as Transaction[];
   });
+
   const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
       try {
           const saved = localStorage.getItem('psx_portfolios');
@@ -68,9 +73,11 @@ const App: React.FC = () => {
       } catch (e) {}
       return [DEFAULT_PORTFOLIO];
   });
+
   const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(() => {
       return localStorage.getItem('psx_current_portfolio_id') || DEFAULT_PORTFOLIO.id;
   });
+
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
           const saved = localStorage.getItem('psx_manual_prices');
@@ -78,6 +85,8 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
+
+  // STORE LEARNED SECTORS
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_sector_overrides');
@@ -85,9 +94,11 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
+
   const [userApiKey, setUserApiKey] = useState<string>('');
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
+  
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
   const [holdings, setHoldings] = useState<Holding[]>([]);
@@ -95,16 +106,21 @@ const App: React.FC = () => {
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
+  
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
   const [showBrokerManager, setShowBrokerManager] = useState(false);
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
+
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
+
   const hasMergedCloud = useRef(false);
 
   // --- LOGOUT LOGIC ---
+  
+  // 1. The actual action of clearing data
   const performLogout = useCallback(() => {
       setTransactions([]); 
       setPortfolios([DEFAULT_PORTFOLIO]); 
@@ -116,10 +132,14 @@ const App: React.FC = () => {
       setUserApiKey(''); 
       setGeminiApiKey(null);
       setDriveUser(null);
+      
+      // CRITICAL: Clear LocalStorage so data doesn't come back on refresh
       localStorage.clear();
+      
       signOutDrive();
   }, []);
 
+  // 2. The Auto-Logout Timer (30 Minutes = 1800000ms)
   useIdleTimer(1800000, () => {
       if (transactions.length > 0 || driveUser) {
           performLogout();
@@ -127,6 +147,7 @@ const App: React.FC = () => {
       }
   });
 
+  // 3. Manual Logout Button
   const handleManualLogout = () => {
       if (window.confirm("Logout and clear local data?")) {
           performLogout();
@@ -135,7 +156,7 @@ const App: React.FC = () => {
 
   const handleLogin = () => signInWithDrive();
 
-  // --- EFFECTS ---
+  // --- AUTH & LOAD ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -149,8 +170,13 @@ const App: React.FC = () => {
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                      if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
-                      if (cloudData.brokers) {
+                      
+                      // Load Cloud Sector Overrides if available
+                      if (cloudData.sectorOverrides) {
+                         setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
+                      }
+
+                      if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                           setBrokers(currentLocal => {
                               const localIds = new Set(currentLocal.map(b => b.id));
                               const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
@@ -170,7 +196,9 @@ const App: React.FC = () => {
       });
   }, []);
 
+  // --- SAVE ---
   useEffect(() => {
+      // Only save if we have data (prevent saving empty state during logout)
       if (driveUser || transactions.length > 0) {
         localStorage.setItem('psx_transactions', JSON.stringify(transactions));
         localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
@@ -193,18 +221,119 @@ const App: React.FC = () => {
   }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, driveUser, userApiKey]);
 
   // --- HANDLERS ---
-  const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, geminiApiKey: key }); };
-  const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
-  const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
-  const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
-  const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(); const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId }; setTransactions(prev => [...prev, newTx]); };
-  const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
-  const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
-  const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
-  const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); };
-  const handleCreatePortfolio = (e: React.FormEvent) => { e.preventDefault(); if (newPortfolioName.trim()) { const newId = Date.now().toString(); setPortfolios(prev => [...prev, { id: newId, name: newPortfolioName.trim() }]); setCurrentPortfolioId(newId); setNewPortfolioName(''); setIsPortfolioModalOpen(false); } };
-  const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0]; setCurrentPortfolioId(nextPort.id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); } };
-  const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
+  const handleSaveApiKey = (key: string) => {
+      setUserApiKey(key);
+      setGeminiApiKey(key);
+      if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, geminiApiKey: key });
+  };
+  const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
+      const id = Date.now().toString();
+      const updatedBrokers = [...brokers, { ...newBroker, id }];
+      setBrokers(updatedBrokers);
+  };
+  const handleUpdateBroker = (updated: Broker) => {
+      const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b);
+      setBrokers(updatedBrokers);
+  };
+  const handleDeleteBroker = (id: string) => {
+      if (window.confirm("Delete this broker?")) {
+          const updatedBrokers = brokers.filter(b => b.id !== id);
+          setBrokers(updatedBrokers);
+      }
+  };
+
+  const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
+    const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
+    const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId };
+    setTransactions(prev => [...prev, newTx]);
+  };
+  const handleUpdateTransaction = (updatedTx: Transaction) => {
+    setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t));
+    setEditingTransaction(null);
+  };
+  const handleDeleteTransaction = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this transaction?")) {
+        setTransactions(prev => prev.filter(t => t.id !== id));
+    }
+  };
+  const handleEditClick = (tx: Transaction) => {
+      setEditingTransaction(tx);
+      setShowAddModal(true);
+  };
+  const handleUpdatePrices = (newPrices: Record<string, number>) => {
+      setManualPrices(prev => ({ ...prev, ...newPrices }));
+  };
+  const handleCreatePortfolio = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (newPortfolioName.trim()) {
+          const newId = Date.now().toString();
+          setPortfolios(prev => [...prev, { id: newId, name: newPortfolioName.trim() }]);
+          setCurrentPortfolioId(newId);
+          setNewPortfolioName('');
+          setIsPortfolioModalOpen(false);
+      }
+  };
+  const handleDeletePortfolio = () => {
+      if (portfolios.length === 1) return alert("You cannot delete the last portfolio.");
+      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
+          const idToDelete = currentPortfolioId;
+          const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
+          setCurrentPortfolioId(nextPort.id);
+          setPortfolios(prev => prev.filter(p => p.id !== idToDelete));
+          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
+      }
+  };
+
+  // UPDATED: Sync Prices and Sectors
+  const handleSyncPrices = async () => {
+      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
+      if (uniqueTickers.length === 0) return;
+      
+      setIsSyncing(true);
+      setPriceError(false);
+      setFailedTickers(new Set()); 
+      
+      try {
+          const newResults = await fetchBatchPSXPrices(uniqueTickers);
+          
+          const failed = new Set<string>();
+          const validUpdates: Record<string, number> = {};
+          const newSectors: Record<string, string> = {}; 
+          
+          uniqueTickers.forEach(ticker => {
+              const data = newResults[ticker];
+              
+              if (data && data.price > 0) {
+                  validUpdates[ticker] = data.price;
+                  
+                  // If we found a valid sector, save it!
+                  if (data.sector && data.sector !== 'Unknown Sector') {
+                      newSectors[ticker] = data.sector;
+                  }
+              } else {
+                  failed.add(ticker); 
+              }
+          });
+          
+          if (Object.keys(validUpdates).length > 0) {
+              setManualPrices(prev => ({ ...prev, ...validUpdates }));
+          }
+          
+          if (Object.keys(newSectors).length > 0) {
+              setSectorOverrides(prev => ({ ...prev, ...newSectors }));
+          }
+          
+          if (failed.size > 0) {
+              setFailedTickers(failed);
+              setPriceError(true);
+          }
+      } catch (e) { 
+          console.error(e); 
+          setPriceError(true); 
+      } finally { 
+          setIsSyncing(false); 
+      }
+  };
 
   // --- APP LOGIC & FIFO ---
   useEffect(() => {
@@ -244,6 +373,7 @@ const App: React.FC = () => {
     });
 
     sortedTx.forEach(tx => {
+      // Skip Cash Transactions in holdings calculation
       if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL') return;
 
       if (tx.type === 'DIVIDEND') {
@@ -277,7 +407,9 @@ const App: React.FC = () => {
       const holdingKey = `${tx.ticker}|${brokerKey}`;
 
       if (!tempHoldings[holdingKey]) {
+        // Priority: 1. Learned Sector, 2. Static Map
         const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker);
+
         tempHoldings[holdingKey] = {
           ticker: tx.ticker,
           sector: sector,
@@ -299,8 +431,13 @@ const App: React.FC = () => {
       if (tx.type === 'BUY') {
         const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
         const txTotalCost = (tx.quantity * tx.price) + txFees;
+        
         const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0;
-        lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date });
+        lots.push({
+            quantity: tx.quantity,
+            costPerShare: costPerShare,
+            date: tx.date
+        });
 
         const currentHoldingValue = h.quantity * h.avgPrice;
         h.quantity += tx.quantity;
@@ -377,10 +514,12 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, sectorOverrides]);
 
-  // 2. AUTO-CGT
+  // 2. AUTO-GENERATE MONTHLY TAX (CGT) - (UNCHANGED)
   useEffect(() => {
     if (realizedTrades.length === 0) return;
+
     const ledger: Record<string, Record<string, number>> = {}; 
+
     realizedTrades.forEach(t => {
         if (t.ticker === 'PREV-PNL') return;
         const broker = t.broker || 'Unknown Broker';
@@ -388,16 +527,21 @@ const App: React.FC = () => {
         if (!ledger[broker]) ledger[broker] = {};
         ledger[broker][month] = (ledger[broker][month] || 0) + t.profit;
     });
+
     const todayStr = new Date().toISOString().substring(0, 7);
     const generatedTaxTx: Transaction[] = [];
+
     Object.entries(ledger).forEach(([broker, monthsData]) => {
         let runningCgtBalance = 0;
         const sortedMonths = Object.keys(monthsData).sort();
+
         sortedMonths.forEach(month => {
             if (month >= todayStr) return;
+
             const netPL = monthsData[month];
             let taxAmount = 0;
             let note = '';
+
             if (netPL > 0) {
                 taxAmount = Number((netPL * 0.15).toFixed(2));
                 runningCgtBalance += taxAmount;
@@ -405,27 +549,46 @@ const App: React.FC = () => {
             } else if (netPL < 0 && runningCgtBalance > 0) {
                 const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2));
                 const actualRefund = Math.min(potentialRefund, runningCgtBalance);
+                
                 if (actualRefund > 0) {
                     taxAmount = -actualRefund;
                     runningCgtBalance -= actualRefund;
                     note = `Auto-CGT: Credit on ${month} Loss (${netPL.toFixed(0)}) - ${broker}`;
                 }
             }
+
             if (taxAmount !== 0) {
                 const [y, m] = month.split('-');
                 let nextM = parseInt(m) + 1;
                 let nextY = parseInt(y);
                 if (nextM > 12) { nextM = 1; nextY++; }
                 const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`;
-                generatedTaxTx.push({ id: `auto-cgt-${broker}-${month}`, portfolioId: currentPortfolioId, ticker: 'CGT', type: 'TAX', quantity: 1, price: taxAmount, date: nextMonthStr, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: note, broker: broker });
+
+                generatedTaxTx.push({
+                    id: `auto-cgt-${broker}-${month}`,
+                    portfolioId: currentPortfolioId,
+                    ticker: 'CGT',
+                    type: 'TAX',
+                    quantity: 1,
+                    price: taxAmount,
+                    date: nextMonthStr,
+                    commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+                    notes: note,
+                    broker: broker
+                });
             }
         });
     });
+
     const cleanTransactions = transactions.filter(t => !t.id.startsWith('auto-cgt-'));
     const mergedTransactions = [...cleanTransactions, ...generatedTaxTx];
     const oldIds = transactions.filter(t => t.id.startsWith('auto-cgt-')).map(t=>t.id).sort().join(',');
     const newIds = generatedTaxTx.map(t=>t.id).sort().join(',');
-    if (oldIds !== newIds) { setTransactions(mergedTransactions); }
+
+    if (oldIds !== newIds) {
+        setTransactions(mergedTransactions);
+    }
+
   }, [realizedTrades, transactions, currentPortfolioId]); 
 
   // 3. CALCULATE STATS
@@ -488,9 +651,11 @@ const App: React.FC = () => {
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
 
-    // Free Cash
-    let cashIn = totalDeposits + totalDividends; 
-    let cashOut = totalWithdrawals + totalCGT + totalDividendTax; 
+    // Free Cash Logic: Exclude Dividends from Cash In
+    // We assume dividends are auto-credited to bank account or cash, but user asked to exclude.
+    // So Cash In = Deposits only (+ History PnL if treated as deposit adjustment)
+    let cashIn = totalDeposits; 
+    let cashOut = totalWithdrawals + totalCGT; // Dividend Tax excluded if Dividends are excluded
 
     let tradingCashFlow = 0; 
     displayedTransactions.forEach(t => {
@@ -502,8 +667,11 @@ const App: React.FC = () => {
 
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
 
-    // ROI Calculation (Based on GROSS Deposits)
-    const roi = cashInvestment > 0 ? ((netRealizedPL + (totalValue - totalCost) + totalDividends) / cashInvestment) * 100 : 0;
+    // ROI Calculation
+    const roiDenominator = totalDeposits;
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
+    
+    const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
 
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
@@ -517,8 +685,8 @@ const App: React.FC = () => {
   }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
   return (
-    // ... (JSX unchanged)
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
+      {/* Background Elements */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div>
@@ -526,6 +694,7 @@ const App: React.FC = () => {
       </div>
 
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+        {/* HEADER */}
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
             <Logo />
@@ -570,20 +739,44 @@ const App: React.FC = () => {
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
             
+            {/* NAVIGATION TABS */}
             <div className="flex justify-center mb-8">
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
-                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <LayoutDashboard size={18} /> Dashboard </button>
-                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <CheckCircle2 size={18} /> Realized Gains </button>
-                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <History size={18} /> History </button>
+                    <button 
+                        onClick={() => setCurrentView('DASHBOARD')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <LayoutDashboard size={18} /> Dashboard
+                    </button>
+                    <button 
+                        onClick={() => setCurrentView('REALIZED')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                    >
+                        <CheckCircle2 size={18} /> Realized Gains
+                    </button>
+                    <button 
+                        onClick={() => setCurrentView('HISTORY')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}>
+                        <History size={18} /> History
+                    </button>
                 </div>
             </div>
 
+            {/* ACTION TOOLBAR */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
                 <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"> <Plus size={18} /> Add Transaction </button>
-                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Briefcase size={18} /> Brokers </button>
-                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Coins size={18} /> Scan Dividends </button>
-                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
+                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2">
+                        <Plus size={18} /> Add Transaction
+                    </button>
+                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
+                        <Briefcase size={18} /> Brokers
+                    </button>
+                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2">
+                        <Coins size={18} /> Scan Dividends
+                    </button>
+                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings">
+                        <Key size={18} className="text-emerald-500" /> <span>API Key</span>
+                    </button>
                 </div>
                 <div className="flex flex-wrap gap-3">
                     <div className="relative z-20">
@@ -593,17 +786,24 @@ const App: React.FC = () => {
                              {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
                          </select>
                     </div>
+                    
                     {currentView !== 'HISTORY' && (
                         <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                              <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
                              <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
                         </div>
                     )}
+                    
                     {currentView === 'DASHBOARD' && (
                         <>
-                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
+                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2">
+                                <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span>
+                            </button>
                              <div className="flex items-center gap-2">
-                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"> {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span className="hidden sm:inline">Sync PSX</span> </button>
+                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
+                                    {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />}
+                                    <span className="hidden sm:inline">Sync PSX</span>
+                                </button>
                                 {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                             </div>
                         </>
@@ -611,11 +811,15 @@ const App: React.FC = () => {
                 </div>
             </div>
 
+            {/* VIEW ROUTING */}
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
                     <div className="flex flex-col gap-6">
+                        {/* ALLOCATION CHART - NOW ON TOP */}
                         <AllocationChart holdings={holdings} />
+                        
+                        {/* HOLDINGS TABLE - NOW BELOW */}
                         <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
                     </div>
                 </div>
@@ -636,6 +840,14 @@ const App: React.FC = () => {
         </main>
       </div>
 
+      {/* Modals */}
+      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} />
+      <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
+      <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
+      <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
+      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
+      
+      {/* New Portfolio Modal */}
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -650,12 +862,6 @@ const App: React.FC = () => {
               </div>
           </div>
       )}
-      
-      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} />
-      <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
-      <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
-      <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
-      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
     </div>
   );
 };
