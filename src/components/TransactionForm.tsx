@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, RefreshCw, Loader2, Save, Trash2, Check, Briefcase, AlertCircle } from 'lucide-react';
+import { X, ChevronDown, Loader2, Save, Trash2, Check, Briefcase, Sparkles, ScanText, Keyboard } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
+import { parseTradeDocument } from '../services/gemini';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
@@ -26,7 +27,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   editingTransaction,
   brokers = []
 }) => {
-  const [mode, setMode] = useState<'MANUAL' | 'SCAN'>('MANUAL');
+  const [mode, setMode] = useState<'MANUAL' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
   
   // --- MANUAL FORM STATE ---
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND'>('BUY');
@@ -38,7 +39,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [commission, setCommission] = useState<number | ''>('');
   const [tax, setTax] = useState<number | ''>('');
   const [cdcCharges, setCdcCharges] = useState<number | ''>('');
-  const [otherFees, setOtherFees] = useState<number | ''>(''); // NEW STATE
+  const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
 
   // --- SCANNER STATE ---
@@ -48,6 +49,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [scannedTrades, setScannedTrades] = useState<ParsedTrade[]>([]);
   const [scanDefaultBrokerId, setScanDefaultBrokerId] = useState<string>(''); 
 
+  // --- HELPER: Fee Calculation Logic ---
   const calculateFees = (broker: Broker | undefined, qty: number, prc: number, txType: string) => {
       if (txType === 'DIVIDEND') {
           const totalDiv = qty * prc;
@@ -84,6 +86,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       };
   };
 
+  // Auto-Select Default Broker
   useEffect(() => {
     if (brokers.length > 0) {
         const def = brokers.find(b => b.isDefault) || brokers[0];
@@ -92,6 +95,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [brokers, selectedBrokerId, scanDefaultBrokerId]);
 
+  // Reset/Load on Open
   useEffect(() => {
     if (isOpen) {
         if (editingTransaction) {
@@ -104,7 +108,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCommission(editingTransaction.commission);
             setTax(editingTransaction.tax || 0);
             setCdcCharges(editingTransaction.cdcCharges || 0);
-            setOtherFees(editingTransaction.otherFees || 0); // LOAD
+            setOtherFees(editingTransaction.otherFees || 0);
             setIsAutoCalc(false);
 
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
@@ -124,6 +128,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setDate(new Date().toISOString().split('T')[0]);
   };
 
+  // --- MANUAL CALCULATION ---
   useEffect(() => {
     if (!isAutoCalc) return;
     const qty = Number(quantity);
@@ -159,7 +164,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       commission: Number(commission) || 0,
       tax: Number(tax) || 0,
       cdcCharges: Number(cdcCharges) || 0,
-      otherFees: Number(otherFees) || 0 // SAVE
+      otherFees: Number(otherFees) || 0
     };
 
     if (editingTransaction && onUpdateTransaction) {
@@ -170,6 +175,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     onClose();
   };
 
+  // --- SCANNER LOGIC ---
   const handleScan = async () => {
     if (!scanFiles || scanFiles.length === 0) return;
     setIsScanning(true);
@@ -177,10 +183,23 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     setScannedTrades([]);
     
     try {
-        const result = await parseTradeDocumentOCRSpace(scanFiles[0]);
-        if (result.trades.length > 0) {
+        let trades: ParsedTrade[] = [];
+
+        if (mode === 'AI_SCAN') {
+            // Use Gemini AI
+            trades = await parseTradeDocument(scanFiles[0]);
+        } else {
+            // Use OCR Space
+            const result = await parseTradeDocumentOCRSpace(scanFiles[0]);
+            trades = result.trades;
+        }
+
+        if (trades.length > 0) {
+            // Pre-process with the selected default broker
             const broker = brokers.find(b => b.id === scanDefaultBrokerId);
-            const processed = result.trades.map(t => {
+            
+            const processed = trades.map(t => {
+                // Calculate fees immediately based on the selected broker
                 let fees = { comm: 0, tax: 0, cdc: 0 };
                 if (broker && t.quantity && t.price) {
                     fees = calculateFees(broker, t.quantity, t.price, t.type);
@@ -189,10 +208,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 return { 
                     ...t, 
                     brokerId: broker ? broker.id : undefined,
-                    commission: broker ? fees.comm : (t.commission || 0),
-                    tax: broker ? fees.tax : (t.tax || 0),
-                    cdcCharges: broker ? fees.cdc : (t.cdcCharges || 0),
-                    otherFees: t.otherFees || 0 // IMPORT FROM SCAN
+                    // Prioritize OCR/AI found fees, fallback to calculator
+                    commission: t.commission !== undefined ? t.commission : (broker ? fees.comm : 0),
+                    tax: t.tax !== undefined ? t.tax : (broker ? fees.tax : 0),
+                    cdcCharges: t.cdcCharges !== undefined ? t.cdcCharges : (broker ? fees.cdc : 0),
+                    otherFees: t.otherFees || 0
                 };
             });
             setScannedTrades(processed);
@@ -206,13 +226,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   };
 
-  // ... (Scanning update/save logic remains mostly same, just adding otherFees support)
-
+  // --- REVIEW ACTIONS ---
   const updateScannedTrade = (index: number, field: string, value: any) => {
       const updatedTrades = [...scannedTrades];
       // @ts-ignore
       updatedTrades[index] = { ...updatedTrades[index], [field]: value };
       
+      // Auto-Calc if Qty/Price changes
       const trade = updatedTrades[index];
       // @ts-ignore
       const brokerId = trade.brokerId;
@@ -302,9 +322,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <div className="p-6 flex-1 overflow-y-auto custom-scrollbar">
             {!editingTransaction && scannedTrades.length === 0 && (
-                <div className="flex border-b border-slate-200 mb-6">
-                    <button onClick={() => setMode('MANUAL')} className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'MANUAL' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}>Manual Entry</button>
-                    <button onClick={() => setMode('SCAN')} className={`flex-1 py-3 text-sm font-medium transition-colors ${mode === 'SCAN' ? 'text-emerald-600 border-b-2 border-emerald-500 bg-emerald-50/30' : 'text-slate-500 hover:text-slate-800'}`}>Scan Document</button>
+                <div className="flex border-b border-slate-200 mb-6 bg-slate-50 p-1 rounded-xl gap-1">
+                    <button 
+                        onClick={() => setMode('MANUAL')} 
+                        className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${mode === 'MANUAL' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Keyboard size={16} /> Manual
+                    </button>
+                    <button 
+                        onClick={() => setMode('AI_SCAN')} 
+                        className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${mode === 'AI_SCAN' ? 'bg-indigo-50 text-indigo-600 border border-indigo-100 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Sparkles size={16} /> AI Scan
+                    </button>
+                    <button 
+                        onClick={() => setMode('OCR_SCAN')} 
+                        className={`flex-1 py-2.5 text-xs font-bold rounded-lg flex items-center justify-center gap-2 transition-all ${mode === 'OCR_SCAN' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <ScanText size={16} /> OCR
+                    </button>
                 </div>
             )}
             
@@ -378,9 +414,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <label className="block text-[10px] text-slate-500 mb-1">{type === 'DIVIDEND' ? 'W.H. Tax (15%)' : 'Tax (SST/FED)'}</label>
                                 <input type="number" step="0.01" value={tax} readOnly={isAutoCalc} onChange={e => setTax(e.target.value ? Number(e.target.value) : '')} className={`w-full bg-transparent border-b ${isAutoCalc ? 'border-slate-200 text-slate-400' : 'border-emerald-300 text-slate-800'} py-1 text-xs font-mono outline-none`} />
                             </div>
-                            {/* NEW OTHER FEES FIELD */}
                             <div className={type === 'DIVIDEND' ? 'col-span-2' : ''}>
-                                <label className="block text-[10px] text-slate-500 mb-1">Other (CVT, etc)</label>
+                                <label className="block text-[10px] text-slate-500 mb-1">Other</label>
                                 <input type="number" step="0.01" value={otherFees} onChange={e => setOtherFees(e.target.value ? Number(e.target.value) : '')} className="w-full bg-transparent border-b border-slate-200 text-slate-800 py-1 text-xs font-mono outline-none focus:border-emerald-500" placeholder="0.00" />
                             </div>
                         </div>
@@ -391,11 +426,48 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* SCANNER UPLOAD & TABLE */}
-            {/* ... (Scanning UI remains largely same, but table needs column for Other Fees) ... */}
-            {mode === 'SCAN' && scannedTrades.length > 0 && (
+            {/* SCANNER UPLOAD */}
+            {mode !== 'MANUAL' && scannedTrades.length === 0 && (
+                <div className="flex flex-col items-center justify-center h-full space-y-4">
+                    <div className="w-full max-w-sm mb-4">
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 text-center">Select Broker for Import</label>
+                        <div className="flex gap-2">
+                            <select 
+                                value={scanDefaultBrokerId} 
+                                onChange={e => setScanDefaultBrokerId(e.target.value)} 
+                                className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/20 outline-none"
+                            >
+                                {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                            </select>
+                            {onManageBrokers && (
+                                <button onClick={onManageBrokers} className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-xl transition-colors" title="Add Broker">
+                                    <Briefcase size={18} />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center w-full hover:bg-slate-50 transition-colors cursor-pointer relative group">
+                        <input type="file" accept="image/*,.pdf" onChange={(e) => setScanFiles(e.target.files)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                        <div className={`mb-2 w-12 h-12 rounded-full flex items-center justify-center mx-auto ${mode === 'AI_SCAN' ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500'}`}>
+                            {mode === 'AI_SCAN' ? <Sparkles size={24} /> : <ScanText size={24} />}
+                        </div>
+                        <span className="font-bold text-lg text-slate-600">Click to Upload</span>
+                        <div className="text-xs text-slate-400 mt-1">
+                            {mode === 'AI_SCAN' ? 'Smart AI Detection (Gemini)' : 'Standard OCR Detection'}
+                        </div>
+                    </div>
+                    {scanError && <p className="text-rose-500 text-sm">{scanError}</p>}
+                    <button onClick={handleScan} disabled={!scanFiles || isScanning} className={`w-full text-white font-bold py-3 rounded-xl flex items-center justify-center ${mode === 'AI_SCAN' ? 'bg-indigo-600 hover:bg-indigo-700' : 'bg-slate-800 hover:bg-slate-900'}`}>
+                         {isScanning && <Loader2 className="animate-spin mr-2" size={18}/>} 
+                         {isScanning ? 'Scanning...' : (mode === 'AI_SCAN' ? 'Analyze with AI' : 'Scan Document')}
+                    </button>
+                </div>
+            )}
+
+            {/* BULK REVIEW TABLE */}
+            {scannedTrades.length > 0 && (
                 <div className="flex flex-col h-full">
-                    {/* ... Header ... */}
                     <div className="flex items-center justify-between mb-4">
                         <div className="text-sm text-slate-500">Found <b>{scannedTrades.length}</b> trades.</div>
                         <div className="flex gap-2">
@@ -450,31 +522,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </table>
                     </div>
                 </div>
-            )}
-            
-            {mode === 'SCAN' && scannedTrades.length === 0 && !scanFiles && (
-                 <div className="flex flex-col items-center justify-center h-full space-y-4">
-                    {/* ... Upload UI ... */}
-                    <div className="w-full max-w-sm mb-4">
-                        <label className="block text-xs font-bold text-slate-500 uppercase mb-2 text-center">Select Broker for Import</label>
-                        <div className="flex gap-2">
-                            <select value={scanDefaultBrokerId} onChange={e => setScanDefaultBrokerId(e.target.value)} className="flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none">
-                                {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                            </select>
-                        </div>
-                    </div>
-                    <div className="border-2 border-dashed border-slate-300 rounded-2xl p-8 text-center w-full hover:bg-slate-50 transition-colors cursor-pointer relative">
-                        <input type="file" accept="image/*,.pdf" onChange={(e) => setScanFiles(e.target.files)} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                        <span className="font-bold text-lg text-slate-500">Click to Upload</span>
-                    </div>
-                    {scanError && <p className="text-rose-500 text-sm">{scanError}</p>}
-                </div>
-            )}
-            
-            {mode === 'SCAN' && scanFiles && !isScanning && scannedTrades.length === 0 && (
-                 <div className="flex flex-col items-center justify-center h-full">
-                    <button onClick={handleScan} className="bg-indigo-600 text-white font-bold py-3 px-8 rounded-xl">Process Document</button>
-                 </div>
             )}
         </div>
       </div>
