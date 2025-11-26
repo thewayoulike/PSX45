@@ -85,6 +85,15 @@ const App: React.FC = () => {
       return {};
   });
 
+  // STORE LEARNED SECTORS
+  const [sectorOverrides, setSectorOverrides] = useState<Record<string, string>>(() => {
+      try {
+          const saved = localStorage.getItem('psx_sector_overrides');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return {};
+  });
+
   const [userApiKey, setUserApiKey] = useState<string>('');
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
@@ -123,6 +132,11 @@ const App: React.FC = () => {
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                       
+                      // Load Cloud Sector Overrides if available
+                      if (cloudData.sectorOverrides) {
+                         setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
+                      }
+
                       if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                           setBrokers(currentLocal => {
                               const localIds = new Set(currentLocal.map(b => b.id));
@@ -150,51 +164,46 @@ const App: React.FC = () => {
       localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
       localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
       localStorage.setItem('psx_brokers', JSON.stringify(brokers));
+      localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
       
       if (driveUser) {
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
               await saveToDrive({
-                  transactions, portfolios, currentPortfolioId, manualPrices, brokers, geminiApiKey: userApiKey 
+                  transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, geminiApiKey: userApiKey 
               });
               setIsCloudSyncing(false);
           }, 3000); 
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, driveUser, userApiKey]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, driveUser, userApiKey]);
 
   // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => {
       setUserApiKey(key);
       setGeminiApiKey(key);
-      if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, geminiApiKey: key });
+      if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, geminiApiKey: key });
   };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
       const id = Date.now().toString();
       const updatedBrokers = [...brokers, { ...newBroker, id }];
       setBrokers(updatedBrokers);
-      localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
-      if (!driveUser && window.confirm("Broker saved locally. Sign in to Drive to backup?")) signInWithDrive();
   };
   const handleUpdateBroker = (updated: Broker) => {
       const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b);
       setBrokers(updatedBrokers);
-      localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
-      if (!driveUser && window.confirm("Broker updated locally. Sign in to Drive to backup?")) signInWithDrive();
   };
   const handleDeleteBroker = (id: string) => {
       if (window.confirm("Delete this broker?")) {
           const updatedBrokers = brokers.filter(b => b.id !== id);
           setBrokers(updatedBrokers);
-          localStorage.setItem('psx_brokers', JSON.stringify(updatedBrokers));
-          if (!driveUser && window.confirm("Broker deleted. Sign in to Drive to sync?")) signInWithDrive();
       }
   };
   const handleLogin = () => signInWithDrive();
   const handleLogout = () => {
       if (window.confirm("Logout and clear local data?")) {
           setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
-          setManualPrices({}); setBrokers([DEFAULT_BROKER]); setUserApiKey(''); setGeminiApiKey(null);
+          setManualPrices({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setUserApiKey(''); setGeminiApiKey(null);
           localStorage.clear();
           signOutDrive();
       }
@@ -240,27 +249,56 @@ const App: React.FC = () => {
           setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
       }
   };
+
+  // UPDATED: Sync Prices and Sectors
   const handleSyncPrices = async () => {
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
       if (uniqueTickers.length === 0) return;
+      
       setIsSyncing(true);
       setPriceError(false);
       setFailedTickers(new Set()); 
+      
       try {
-          const newPrices = await fetchBatchPSXPrices(uniqueTickers);
+          const newResults = await fetchBatchPSXPrices(uniqueTickers);
+          
           const failed = new Set<string>();
           const validUpdates: Record<string, number> = {};
+          const newSectors: Record<string, string> = {}; 
+          
           uniqueTickers.forEach(ticker => {
-              const price = newPrices[ticker];
-              if (price !== undefined && price > 0) validUpdates[ticker] = price;
-              else failed.add(ticker); 
+              const data = newResults[ticker];
+              
+              if (data && data.price > 0) {
+                  validUpdates[ticker] = data.price;
+                  
+                  // If we found a valid sector, save it!
+                  if (data.sector && data.sector !== 'Unknown Sector') {
+                      newSectors[ticker] = data.sector;
+                  }
+              } else {
+                  failed.add(ticker); 
+              }
           });
-          if (Object.keys(validUpdates).length > 0) setManualPrices(prev => ({ ...prev, ...validUpdates }));
+          
+          if (Object.keys(validUpdates).length > 0) {
+              setManualPrices(prev => ({ ...prev, ...validUpdates }));
+          }
+          
+          if (Object.keys(newSectors).length > 0) {
+              setSectorOverrides(prev => ({ ...prev, ...newSectors }));
+          }
+          
           if (failed.size > 0) {
               setFailedTickers(failed);
               setPriceError(true);
           }
-      } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); }
+      } catch (e) { 
+          console.error(e); 
+          setPriceError(true); 
+      } finally { 
+          setIsSyncing(false); 
+      }
   };
 
   // --- APP LOGIC & FIFO ---
@@ -315,7 +353,9 @@ const App: React.FC = () => {
       const holdingKey = `${tx.ticker}|${brokerKey}`;
 
       if (!tempHoldings[holdingKey]) {
-        const sector = getSector(tx.ticker);
+        // Priority: 1. Learned Sector, 2. Static Map
+        const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker);
+
         tempHoldings[holdingKey] = {
           ticker: tx.ticker,
           sector: sector,
@@ -418,9 +458,9 @@ const App: React.FC = () => {
     setHoldings(finalHoldings);
     setRealizedTrades(tempRealized);
     setTotalDividends(dividendSum);
-  }, [displayedTransactions, groupByBroker, filterBroker, manualPrices]);
+  }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, sectorOverrides]);
 
-  // 2. AUTO-GENERATE MONTHLY TAX (CGT)
+  // 2. AUTO-GENERATE MONTHLY TAX (CGT) - (UNCHANGED)
   useEffect(() => {
     if (realizedTrades.length === 0) return;
 
