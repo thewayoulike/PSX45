@@ -1,9 +1,7 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: 
- * 1. Full Sector Code Map based on PSX documentation.
- * 2. Multi-Proxy Rotation to handle CORS errors.
+ * UPDATED: Added Validation to ensure we don't return empty "success" on block pages.
  */
 
 // Ignore these "Ticker" names because they are actually table headers or metadata
@@ -54,11 +52,12 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     const results: Record<string, { price: number, sector: string }> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
 
-    // Proxy List: Try these in order until one works
+    // UPDATED PROXY LIST (Prioritizing CodeTabs which is often more permissive)
     const proxies = [
+        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
         `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
-        `https://thingproxy.freeboard.io/fetch/${targetUrl}`
+        `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
+        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
     ];
 
     for (const proxyUrl of proxies) {
@@ -78,10 +77,17 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
                 html = await response.text();
             }
 
-            if (html && html.length > 100) {
+            if (html && html.length > 500) { // Increased length check
                 parseMarketWatchTable(html, results);
-                console.log("Fetch successful!");
-                return results; // Exit loop on success
+                
+                // CRITICAL FIX: Only return if we actually found data
+                if (Object.keys(results).length > 0) {
+                    console.log(`Fetch successful! Found ${Object.keys(results).length} prices.`);
+                    return results; // Exit loop on REAL success
+                } else {
+                    console.warn(`Proxy ${proxyUrl} returned HTML but no prices found (likely blocked).`);
+                    // Loop continues to next proxy...
+                }
             }
         } catch (err) {
             console.warn(`Proxy failed: ${proxyUrl}`, err);
@@ -100,7 +106,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
         
         // 1. Determine Column Indices Dynamically
         let currentIdx = -1;
-        let sectorIdx = -1; // To find '0828' style codes
+        let sectorIdx = -1; 
         
         const headers = doc.querySelectorAll("th");
         headers.forEach((th, i) => {
