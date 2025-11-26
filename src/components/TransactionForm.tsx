@@ -43,6 +43,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
 
+  // CGT Specific State
+  const [cgtProfit, setCgtProfit] = useState<number | ''>('');
+  const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7)); // YYYY-MM
+
   // Scanner State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -75,12 +79,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setOtherFees(editingTransaction.otherFees || 0);
             setIsAutoCalc(false);
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
+            
+            // Setup CGT specific fields if editing a tax tx
+            if (editingTransaction.type === 'TAX') {
+                setCgtMonth(editingTransaction.date.substring(0, 7));
+                // Reverse calc profit from tax if needed, or just leave empty/custom
+                setCgtProfit(editingTransaction.price / 0.15); 
+            }
         } else {
             // Reset for new entry
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
             setMode('MANUAL'); setIsAutoCalc(true); 
             setDate(new Date().toISOString().split('T')[0]);
+            setCgtMonth(new Date().toISOString().substring(0, 7));
+            setCgtProfit('');
             setScannedTrades([]); setScanError(null); setSelectedFile(null);
         }
     }
@@ -96,24 +109,29 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   // Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL' && !editingTransaction) {
-        if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
+        
+        if (type === 'TAX') {
+            // --- CGT LOGIC ---
+            if (typeof cgtProfit === 'number') {
+                const calculatedTax = cgtProfit * 0.15;
+                setPrice(parseFloat(calculatedTax.toFixed(2)));
+                setQuantity(1);
+                setTicker('CGT');
+                setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
+                // Set date to end of selected month roughly
+                setDate(`${cgtMonth}-28`); 
+            }
+        } 
+        else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
 
              if (type === 'DIVIDEND') {
-                 // --- DIVIDEND LOGIC ---
-                 setCommission(0);
-                 setCdcCharges(0);
-                 setOtherFees(0);
-                 // 15% WHT on Gross Dividend
+                 setCommission(0); setCdcCharges(0); setOtherFees(0);
                  const wht = gross * 0.15;
                  setTax(parseFloat(wht.toFixed(2)));
              } 
-             else if (type === 'TAX') {
-                 // Tax transaction usually doesn't auto-calc from qty/price in this context
-                 setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
-             }
              else {
-                 // --- BUY / SELL LOGIC ---
+                 // BUY / SELL
                  let estComm = 0;
                  const currentBroker = brokers.find(b => b.id === selectedBrokerId);
 
@@ -147,7 +165,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
              if (cdcCharges !== '') setCdcCharges('');
         }
     }
-  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type]);
+  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth]);
 
   // Update a specific field in a scanned trade row
   const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => {
@@ -161,10 +179,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (!ticker || !quantity || !price) return;
     
     let brokerName = undefined;
-    if (type !== 'DIVIDEND' && type !== 'TAX') {
-        const b = brokers.find(b => b.id === selectedBrokerId);
-        if (b) brokerName = b.name;
-    }
+    const b = brokers.find(b => b.id === selectedBrokerId);
+    if (b) brokerName = b.name;
 
     const txData = {
       ticker: ticker.toUpperCase(),
@@ -188,6 +204,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     onClose();
   };
 
+  // ... (File Handlers unchanged)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.files && e.target.files[0]) {
           setSelectedFile(e.target.files[0]);
@@ -198,11 +215,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleProcessScan = async () => {
       if (!selectedFile) return;
-
       setIsScanning(true);
       setScanError(null);
       setScannedTrades([]);
-
       try {
           let trades: ParsedTrade[] = [];
           if (mode === 'AI_SCAN') {
@@ -211,17 +226,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               const res = await parseTradeDocumentOCRSpace(selectedFile); 
               trades = res.trades;
           }
-
-          if (trades.length === 0) {
-              throw new Error("No trades found in this file.");
-          }
-          
+          if (trades.length === 0) throw new Error("No trades found in this file.");
           const enrichedTrades: EditableTrade[] = trades.map(t => ({
               ...t,
               brokerId: selectedBrokerId || undefined,
               broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker
           }));
-
           setScannedTrades(enrichedTrades);
       } catch (err: any) {
           setScanError(err.message || "Failed to scan document.");
@@ -236,7 +246,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           const b = brokers.find(br => br.id === trade.brokerId);
           if (b) finalBrokerName = b.name;
       }
-
       onAddTransaction({
           ticker: trade.ticker,
           type: trade.type as any,
@@ -255,13 +264,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   if (!isOpen) return null;
 
-  // Theme Constants
-  const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
-  const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
-  const themeBorder = mode === 'AI_SCAN' ? 'border-indigo-200' : 'border-emerald-200';
-  const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
-  const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
-
   const getFileIcon = () => {
       if (selectedFile) {
           const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls');
@@ -271,6 +273,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />;
       return <ScanText size={32} className="text-emerald-500" />;
   };
+
+  // Theme
+  const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
+  const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
+  const themeBorder = mode === 'AI_SCAN' ? 'border-indigo-200' : 'border-emerald-200';
+  const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
+  const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
@@ -307,81 +316,105 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             {/* 1. MANUAL FORM */}
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
+                    
+                    {/* Type Tabs */}
                     <div className="grid grid-cols-4 gap-2 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         {(['BUY', 'SELL', 'DIVIDEND', 'TAX'] as const).map(t => (
                             <button key={t} type="button" onClick={() => setType(t)} className={`py-2 rounded-lg text-xs font-bold transition-all ${type === t ? 'bg-white shadow text-slate-900 ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-800'}`}>
-                                {t}
+                                {t === 'TAX' ? 'CGT' : t}
                             </button>
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
-                        <div><label className="block text-xs font-bold text-slate-500 mb-1">Ticker</label><input type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/></div>
-                    </div>
-
-                    {(type === 'BUY' || type === 'SELL') && (
-                        <div>
-                            <div className="flex justify-between items-center mb-1">
-                                <label className="block text-xs font-bold text-slate-500">Broker</label>
-                                {onManageBrokers && <button type="button" onClick={onManageBrokers} className="text-[10px] text-emerald-600 hover:underline">Manage</button>}
+                    {/* --- CGT UI --- */}
+                    {type === 'TAX' ? (
+                        <>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
+                                    <div className="relative">
+                                        <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">
+                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                        <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">For Month</label>
+                                    <input type="month" value={cgtMonth} onChange={e=>setCgtMonth(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/>
+                                </div>
                             </div>
-                            <div className="relative">
-                                <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">
-                                    {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                </select>
-                                <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Net Profit / Loss</label>
+                                    <input type="number" value={cgtProfit} onChange={e=>setCgtProfit(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Calculated CGT (15%)</label>
+                                    <input type="number" value={price} readOnly className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none cursor-not-allowed"/>
+                                </div>
                             </div>
-                        </div>
+                        </>
+                    ) : (
+                        // --- BUY / SELL / DIVIDEND UI ---
+                        <>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Ticker</label><input type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/></div>
+                            </div>
+
+                            <div className="mb-1">
+                                <div className="flex justify-between items-center mb-1">
+                                    <label className="block text-xs font-bold text-slate-500">Broker</label>
+                                    {onManageBrokers && <button type="button" onClick={onManageBrokers} className="text-[10px] text-emerald-600 hover:underline">Manage</button>}
+                                </div>
+                                <div className="relative">
+                                    <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">
+                                        {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                                        {type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}
+                                    </label>
+                                    <input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">
+                                        {type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}
+                                    </label>
+                                    <input type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/>
+                                </div>
+                            </div>
+
+                            {/* Net Dividend Summary */}
+                            {type === 'DIVIDEND' && typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0 && (
+                                <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center text-xs text-indigo-800 px-4">
+                                    <span className="opacity-80">Gross: <strong>{(quantity * price).toLocaleString()}</strong></span>
+                                    <span className="font-bold bg-white px-2 py-1 rounded border border-indigo-100">Net: Rs. {((quantity * price) - (Number(tax) || 0)).toLocaleString()}</span>
+                                </div>
+                            )}
+
+                            {/* Fees Section */}
+                            <div className="pt-2">
+                                <div className="flex items-center justify-between mb-2">
+                                    <label className="text-xs font-bold text-slate-400 uppercase">Fees & Taxes</label>
+                                    <button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2 py-0.5 rounded border ${isAutoCalc ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>{isAutoCalc ? 'Auto-Calc On' : 'Manual Entry'}</button>
+                                </div>
+                                <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                    <div><label className="text-[10px] text-slate-400 block mb-1">Commission</label><input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
+                                    <div><label className="text-[10px] text-slate-400 block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
+                                    <div><label className="text-[10px] text-slate-400 block mb-1">CDC Charges</label><input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
+                                    <div><label className="text-[10px] text-slate-400 block mb-1">Other Fees</label><input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
+                                </div>
+                            </div>
+                        </>
                     )}
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">
-                                {type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}
-                            </label>
-                            <input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/>
-                        </div>
-                        <div>
-                            <label className="block text-xs font-bold text-slate-500 mb-1">
-                                {type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}
-                            </label>
-                            <input type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/>
-                        </div>
-                    </div>
-
-                    {/* Net Dividend Summary */}
-                    {type === 'DIVIDEND' && typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0 && (
-                        <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center text-xs text-indigo-800 px-4">
-                            <span className="opacity-80">Gross: <strong>{(quantity * price).toLocaleString()}</strong></span>
-                            <span className="font-bold bg-white px-2 py-1 rounded border border-indigo-100">Net: Rs. {((quantity * price) - (Number(tax) || 0)).toLocaleString()}</span>
-                        </div>
-                    )}
-
-                    <div className="pt-2">
-                         <div className="flex items-center justify-between mb-2">
-                             <label className="text-xs font-bold text-slate-400 uppercase">Fees & Taxes</label>
-                             <button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2 py-0.5 rounded border ${isAutoCalc ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>{isAutoCalc ? 'Auto-Calc On' : 'Manual Entry'}</button>
-                         </div>
-                         <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                             <div>
-                                 <label className="text-[10px] text-slate-400 block mb-1">Commission</label>
-                                 <input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"/>
-                             </div>
-                             <div>
-                                 <label className="text-[10px] text-slate-400 block mb-1">Tax / WHT (15%)</label>
-                                 <input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/>
-                             </div>
-                             <div>
-                                 <label className="text-[10px] text-slate-400 block mb-1">CDC Charges</label>
-                                 <input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"/>
-                             </div>
-                             <div>
-                                 <label className="text-[10px] text-slate-400 block mb-1">Other Fees</label>
-                                 <input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"/>
-                             </div>
-                         </div>
-                    </div>
 
                     <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-lg shadow-emerald-600/20 transition-all flex items-center justify-center gap-2 mt-4">
                         <Save size={18} /> Save Transaction
@@ -389,10 +422,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* 2. SCANNER INTERFACE (Unchanged) */}
+            {/* 2. SCANNER INTERFACE (Unchanged from previous steps) */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
-                    {/* ... (Scanner UI remains the same as previous step) ... */}
+                    {/* ... Same Scanner UI Code ... */}
                     {!isScanning && scannedTrades.length === 0 && (
                         <>
                             <div className="mb-6">
