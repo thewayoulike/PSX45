@@ -478,14 +478,14 @@ const App: React.FC = () => {
     const totalProfits = netRealizedPL + totalDividends;
     const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
     
-    // 1. Net Principal
+    // 1. Net Principal (Cash Investment)
     const cashInvestment = totalDeposits - withdrawalsFromPrincipal;
 
-    // 2. Reinvested (Retained) Profits
-    // Formula: Total Profits made - Profits Withdrawn
-    // Note: This assumes standard withdrawals take from profits first.
-    const withdrawalsFromProfits = Math.min(totalWithdrawals, totalProfits);
-    const reinvestedProfits = totalProfits - withdrawalsFromProfits;
+    // 2. Reinvested Profits Calculation
+    // Logic: Any stock cost that exceeds available principal is funded by profit
+    // Note: totalCost is cost of *Active* Stocks
+    const netPrincipalAvailable = Math.max(0, cashInvestment);
+    const reinvestedProfits = Math.max(0, totalCost - netPrincipalAvailable);
 
     // 3. Free Cash
     let cashIn = totalDeposits + totalDividends; 
