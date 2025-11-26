@@ -25,6 +25,25 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const sortedHoldings = [...filteredHoldings].sort((a, b) => (b.currentPrice * b.quantity) - (a.currentPrice * a.quantity));
 
+  // --- CALCULATE GRAND TOTALS ---
+  const totals = useMemo(() => {
+      return sortedHoldings.reduce((acc, h) => {
+          const marketVal = h.quantity * h.currentPrice;
+          const cost = h.quantity * h.avgPrice;
+          return {
+              comm: acc.comm + (h.totalCommission || 0),
+              tax: acc.tax + (h.totalTax || 0),
+              cdc: acc.cdc + (h.totalCDC || 0),
+              other: acc.other + (h.totalOtherFees || 0),
+              totalCost: acc.totalCost + cost,
+              totalMarket: acc.totalMarket + marketVal,
+              pnl: acc.pnl + (marketVal - cost)
+          };
+      }, { comm: 0, tax: 0, cdc: 0, other: 0, totalCost: 0, totalMarket: 0, pnl: 0 });
+  }, [sortedHoldings]);
+
+  const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
+
   return (
     <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 h-full">
         <div className="p-6 border-b border-slate-200/60 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/40">
@@ -123,9 +142,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-4 text-right">
+                        {/* UPDATED: P&L to 2 Decimal Places */}
                         <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
-                          <span className="font-bold text-sm">{pnl.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
-                          <span className="text-[10px] opacity-80 font-mono">({pnlPercent.toFixed(1)}%)</span>
+                          <span className="font-bold text-sm">{pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          <span className="text-[10px] opacity-80 font-mono">({pnlPercent.toFixed(2)}%)</span>
                         </div>
                       </td>
                     </tr>
@@ -133,6 +153,39 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 })
               )}
             </tbody>
+            
+            {/* NEW: GRAND TOTAL FOOTER */}
+            {sortedHoldings.length > 0 && (
+                <tfoot className="bg-slate-50 border-t-2 border-slate-200 text-slate-800 font-bold shadow-inner">
+                    <tr>
+                        <td colSpan={showBroker ? 5 : 4} className="px-4 py-4 text-right text-xs uppercase tracking-wider text-slate-500">
+                            Grand Total
+                        </td>
+                        <td className="px-2 py-4 text-right text-[10px] font-mono text-slate-500">{totals.comm.toLocaleString()}</td>
+                        <td className="px-2 py-4 text-right text-[10px] font-mono text-slate-500">{totals.tax.toLocaleString()}</td>
+                        <td className="px-2 py-4 text-right text-[10px] font-mono text-slate-500">{totals.cdc.toLocaleString()}</td>
+                        <td className="px-2 py-4 text-right text-[10px] font-mono text-slate-500">{totals.other.toLocaleString()}</td>
+                        
+                        <td className="px-4 py-4 text-right text-xs font-mono text-slate-700">
+                            {totals.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-4 text-right text-xs font-mono text-slate-900">
+                            {totals.totalMarket.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                            <div className={`flex flex-col items-end ${totals.pnl >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                <span className="font-bold text-sm">
+                                    {totals.pnl >= 0 ? '+' : ''}
+                                    {totals.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                                <span className="text-[10px] opacity-80 font-mono">
+                                    ({totalPnlPercent.toFixed(2)}%)
+                                </span>
+                            </div>
+                        </td>
+                    </tr>
+                </tfoot>
+            )}
           </table>
         </div>
     </div>
