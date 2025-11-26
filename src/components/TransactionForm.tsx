@@ -154,13 +154,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleAcceptTrade = (trade: ParsedTrade) => {
+      // Resolve Broker Name (Prefer selected, fallback to scanned)
+      let brokerName = trade.broker;
+      if (selectedBrokerId) {
+          const b = brokers.find(br => br.id === selectedBrokerId);
+          if (b) brokerName = b.name;
+      }
+
       onAddTransaction({
           ticker: trade.ticker,
           type: trade.type as any,
           quantity: trade.quantity,
           price: trade.price,
           date: trade.date || new Date().toISOString().split('T')[0],
-          broker: trade.broker,
+          broker: brokerName, // Use resolved broker
+          brokerId: selectedBrokerId, // Save ID too
           commission: trade.commission || 0,
           tax: trade.tax || 0,
           cdcCharges: trade.cdcCharges || 0,
@@ -226,7 +234,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                     </div>
 
-                    {/* BROKER SELECT - ADDED BACK */}
+                    {/* BROKER SELECT - MANUAL */}
                     {(type === 'BUY' || type === 'SELL') && (
                         <div>
                             <div className="flex justify-between items-center mb-1">
@@ -288,6 +296,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             {/* 2. SCANNER INTERFACE */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col items-center justify-center min-h-[300px]">
+                    
+                    {/* BROKER SELECT - SCANNER (Added) */}
+                    <div className="w-full mb-4">
+                        <div className="flex justify-between items-center mb-1">
+                            <label className="block text-xs font-bold text-slate-500">Scan for Broker</label>
+                             {onManageBrokers && (
+                                <button type="button" onClick={onManageBrokers} className="text-[10px] text-emerald-600 hover:underline">
+                                    Manage
+                                </button>
+                            )}
+                        </div>
+                        <div className="relative">
+                            <select 
+                                value={selectedBrokerId} 
+                                onChange={e => setSelectedBrokerId(e.target.value)} 
+                                className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white"
+                            >
+                                {brokers.map(b => (
+                                    <option key={b.id} value={b.id}>{b.name}</option>
+                                ))}
+                            </select>
+                            <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
+                        </div>
+                    </div>
+
                     {!isScanning && scannedTrades.length === 0 && (
                         <div className="w-full border-2 border-dashed border-slate-300 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-colors cursor-pointer relative group p-10 flex flex-col items-center text-center">
                             <input 
