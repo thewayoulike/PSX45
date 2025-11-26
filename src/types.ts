@@ -2,7 +2,7 @@ export interface Transaction {
   id: string;
   portfolioId: string;
   ticker: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX'; // ADDED 'TAX'
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY'; // <--- Added HISTORY
   quantity: number;
   price: number;
   date: string;
@@ -12,7 +12,7 @@ export interface Transaction {
   tax: number;
   cdcCharges: number;
   otherFees: number;
-  notes?: string; // Added for "CGT Oct 2025" labels
+  notes?: string; 
 }
 
 export interface Holding {
@@ -72,7 +72,7 @@ export interface PortfolioStats {
   totalDividendTax: number; 
   totalCDC: number;
   totalOtherFees: number;
-  totalCGT: number; // Renamed for clarity
+  totalCGT: number; 
 }
 
 export interface Portfolio {
