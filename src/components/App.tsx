@@ -30,9 +30,10 @@ const DEFAULT_BROKER: Broker = {
     isDefault: true
 };
 
+// Helper interface for FIFO Lots
 interface Lot {
     quantity: number;
-    costPerShare: number; 
+    costPerShare: number; // Includes fees
     date: string;
 }
 
@@ -130,9 +131,10 @@ const App: React.FC = () => {
                           });
                       }
 
+                      // --- LOAD API KEY ---
                       if (cloudData.geminiApiKey) {
                           setUserApiKey(cloudData.geminiApiKey);
-                          setGeminiApiKey(cloudData.geminiApiKey); 
+                          setGeminiApiKey(cloudData.geminiApiKey); // Initialize Service
                       }
                   }
               } catch (e) { console.error("Drive Load Error", e); } 
@@ -240,6 +242,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
+    // Map to track FIFO Lots: Key = HoldingKey, Value = Array of Lots
     const lotMap: Record<string, Lot[]> = {}; 
     let dividendSum = 0;
 
@@ -272,6 +275,7 @@ const App: React.FC = () => {
           totalCommission: 0,
           totalTax: 0,
           totalCDC: 0,
+          totalOtherFees: 0, // Initialize
         };
         lotMap[holdingKey] = [];
       }
@@ -280,9 +284,11 @@ const App: React.FC = () => {
       const lots = lotMap[holdingKey];
 
       if (tx.type === 'BUY') {
-        const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0);
+        // UPDATED: Include otherFees in cost basis
+        const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
         const txTotalCost = (tx.quantity * tx.price) + txFees;
         
+        // FIFO: Add new lot
         const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0;
         lots.push({
             quantity: tx.quantity,
@@ -290,6 +296,7 @@ const App: React.FC = () => {
             date: tx.date
         });
 
+        // Update Holding Aggregate
         const currentHoldingValue = h.quantity * h.avgPrice;
         h.quantity += tx.quantity;
         h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0;
@@ -297,6 +304,7 @@ const App: React.FC = () => {
         h.totalCommission += (tx.commission || 0);
         h.totalTax += (tx.tax || 0);
         h.totalCDC += (tx.cdcCharges || 0);
+        h.totalOtherFees += (tx.otherFees || 0); // UPDATED
 
       } else if (tx.type === 'SELL') {
         if (h.quantity > 0) {
@@ -304,22 +312,26 @@ const App: React.FC = () => {
           let costBasis = 0;
           let remainingToSell = qtyToSell;
 
+          // --- FIFO CONSUMPTION LOGIC ---
           while (remainingToSell > 0 && lots.length > 0) {
-              const currentLot = lots[0]; 
+              const currentLot = lots[0]; // Oldest lot (First In)
 
               if (currentLot.quantity > remainingToSell) {
+                  // Lot has more than we need
                   costBasis += remainingToSell * currentLot.costPerShare;
                   currentLot.quantity -= remainingToSell;
                   remainingToSell = 0;
               } else {
+                  // We need the whole lot
                   costBasis += currentLot.quantity * currentLot.costPerShare;
                   remainingToSell -= currentLot.quantity;
-                  lots.shift();
+                  lots.shift(); // Remove empty lot
               }
           }
           
           const saleRevenue = qtyToSell * tx.price;
-          const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0);
+          // UPDATED: Include otherFees in sale fees
+          const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
           const realizedProfit = saleRevenue - saleFees - costBasis;
 
           tempRealized.push({
@@ -332,12 +344,13 @@ const App: React.FC = () => {
             date: tx.date,
             profit: realizedProfit,
             fees: saleFees,
-            // --- NEW: Populate Breakdown ---
             commission: tx.commission || 0,
             tax: tx.tax || 0,
-            cdcCharges: tx.cdcCharges || 0
+            cdcCharges: tx.cdcCharges || 0,
+            otherFees: tx.otherFees || 0 // UPDATED
           });
 
+          // Update Holding Aggregate
           const prevTotalValue = h.quantity * h.avgPrice;
           h.quantity -= qtyToSell;
           
@@ -351,6 +364,7 @@ const App: React.FC = () => {
           h.totalCommission = h.totalCommission * ratio;
           h.totalTax = h.totalTax * ratio;
           h.totalCDC = h.totalCDC * ratio;
+          h.totalOtherFees = h.totalOtherFees * ratio; // UPDATED
         }
       }
     });
@@ -411,24 +425,38 @@ const App: React.FC = () => {
   const handleSyncPrices = async () => {
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
       if (uniqueTickers.length === 0) return;
+
       setIsSyncing(true);
       setPriceError(false);
       setFailedTickers(new Set()); 
+
       try {
           const newPrices = await fetchBatchPSXPrices(uniqueTickers);
           const failed = new Set<string>();
           const validUpdates: Record<string, number> = {};
+
           uniqueTickers.forEach(ticker => {
               const price = newPrices[ticker];
-              if (price !== undefined && price > 0) validUpdates[ticker] = price;
-              else failed.add(ticker); 
+              if (price !== undefined && price > 0) {
+                  validUpdates[ticker] = price;
+              } else {
+                  failed.add(ticker); 
+              }
           });
-          if (Object.keys(validUpdates).length > 0) setManualPrices(prev => ({ ...prev, ...validUpdates }));
+
+          if (Object.keys(validUpdates).length > 0) {
+              setManualPrices(prev => ({ ...prev, ...validUpdates }));
+          }
           if (failed.size > 0) {
               setFailedTickers(failed);
               setPriceError(true);
           }
-      } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); }
+      } catch (e) {
+          console.error(e);
+          setPriceError(true);
+      } finally {
+          setIsSyncing(false);
+      }
   };
 
   const handleCreatePortfolio = (e: React.FormEvent) => {
@@ -443,7 +471,10 @@ const App: React.FC = () => {
   };
 
   const handleDeletePortfolio = () => {
-      if (portfolios.length === 1) return alert("You cannot delete the last portfolio.");
+      if (portfolios.length === 1) {
+          alert("You cannot delete the last portfolio.");
+          return;
+      }
       if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
           const idToDelete = currentPortfolioId;
           const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0];
