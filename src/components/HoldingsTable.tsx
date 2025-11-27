@@ -44,7 +44,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
 
-  // Helper for date formatting
+  // Helper for date formatting - Added YEAR
   const formatUpdateDate = (isoString?: string) => {
     if (!isoString) return null;
     const date = new Date(isoString);
@@ -52,6 +52,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
     return date.toLocaleString('en-US', { 
       month: 'short', 
       day: 'numeric', 
+      year: 'numeric', // Added Year here
       hour: 'numeric', 
       minute: '2-digit' 
     });
@@ -80,7 +81,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 {filteredHoldings.length} Assets
              </div>
              
-             {/* UPDATED: Bold Blue Style with Clock Icon */}
+             {/* Last Price Update Indicator (Blue) */}
              {globalLastUpdate && (
                  <div className="flex items-center gap-1.5 text-[10px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 ml-1 shadow-sm">
                      <Clock size={12} className="text-blue-600" />
@@ -161,6 +162,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             <span className={isFailed ? "text-amber-600 font-bold" : ""}>
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
                             </span>
+                            {/* Individual row time still shown for clarity */}
                             {updateTime && (
                                 <span className="text-[9px] text-slate-300 font-sans mt-0.5 group-hover:text-slate-400 transition-colors">
                                     {updateTime}
