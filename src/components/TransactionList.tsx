@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
 import { Trash2, ArrowUpRight, ArrowDownLeft, History, Search, Calendar, X, Filter, Coins, Pencil, Receipt, Wallet } from 'lucide-react';
+import { TaxIcon } from './ui/TaxIcon'; // Import the new component
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -66,8 +67,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'TAX':
               return { 
                   style: 'bg-rose-50 text-rose-600 border-rose-100', 
-                  icon: <Receipt size={10} />,
-                  label: 'TAX' // or CGT
+                  // Use the SVG Component here
+                  icon: <TaxIcon className="w-3 h-3" />,
+                  label: 'TAX' 
               };
           case 'HISTORY':
               const isPositive = tx.price >= 0;
@@ -226,7 +228,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         // Withdrawals are usually displayed as negative in Net Amount.
                         netAmount = isWithdrawal ? -Math.abs(totalAmount) : totalAmount;
                     } else {
-                        // Buy/Sell
                         const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
                         netAmount = isBuy ? totalAmount + totalFees : totalAmount - totalFees;
                     }
