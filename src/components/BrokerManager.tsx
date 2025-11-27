@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Broker, CommissionType, CDCType } from '../types';
-import { X, Plus, Pencil, Trash2, Save, AlertCircle, Settings2 } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Save, AlertCircle, Settings2, CalendarClock } from 'lucide-react';
 
 interface BrokerManagerProps {
   isOpen: boolean;
@@ -23,10 +23,14 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   const [rate2, setRate2] = useState<number | ''>(0.05);
   const [sstRate, setSstRate] = useState<number | ''>(15);
 
-  // NEW: CDC State
+  // CDC State
   const [cdcType, setCdcType] = useState<CDCType>('PER_SHARE');
   const [cdcRate, setCdcRate] = useState<number | ''>(0.005);
   const [cdcMin, setCdcMin] = useState<number | ''>('');
+
+  // NEW: Annual Fee State
+  const [annualFee, setAnnualFee] = useState<number | ''>('');
+  const [feeStartDate, setFeeStartDate] = useState<string>('');
 
   const handleEdit = (b: Broker) => {
     setEditingId(b.id);
@@ -36,10 +40,13 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
     setRate2(b.rate2 || '');
     setSstRate(b.sstRate);
     
-    // Load CDC settings or defaults
     setCdcType(b.cdcType || 'PER_SHARE');
     setCdcRate(b.cdcRate !== undefined ? b.cdcRate : 0.005);
     setCdcMin(b.cdcMin || '');
+
+    // Load Annual Fee
+    setAnnualFee(b.annualFee || '');
+    setFeeStartDate(b.feeStartDate || '');
   };
 
   const handleCancelEdit = () => {
@@ -52,6 +59,8 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
     setCdcType('PER_SHARE');
     setCdcRate(0.005);
     setCdcMin('');
+    setAnnualFee('');
+    setFeeStartDate('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -64,10 +73,12 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
       rate1: Number(rate1),
       rate2: Number(rate2),
       sstRate: Number(sstRate),
-      // Save CDC Data
       cdcType,
       cdcRate: Number(cdcRate),
-      cdcMin: Number(cdcMin)
+      cdcMin: Number(cdcMin),
+      // Save Annual Fee Data
+      annualFee: Number(annualFee) || 0,
+      feeStartDate: feeStartDate || undefined
     };
 
     if (editingId) {
@@ -174,6 +185,25 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                       </div>
                   </div>
 
+                  <hr className="border-slate-200" />
+
+                  {/* NEW: Annual Fee Section */}
+                  <div className="space-y-3">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
+                          <CalendarClock size={12} className="text-purple-500" /> Annual Maintenance
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                         <div>
+                             <label className="text-[9px] text-slate-400 block mb-1">Start Date</label>
+                             <input type="date" value={feeStartDate} onChange={e => setFeeStartDate(e.target.value)} className="w-full p-2 rounded-lg border border-slate-300 text-xs outline-none" />
+                         </div>
+                         <div>
+                             <label className="text-[9px] text-slate-400 block mb-1">Amount (Rs)</label>
+                             <input type="number" placeholder="e.g. 5000" value={annualFee} onChange={e => setAnnualFee(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 text-xs outline-none" />
+                         </div>
+                      </div>
+                  </div>
+
                   <div className="flex gap-2 pt-4">
                     {editingId && (
                       <button type="button" onClick={handleCancelEdit} className="flex-1 py-2.5 rounded-lg border border-slate-300 text-slate-600 text-sm font-bold hover:bg-slate-100 transition-colors">
@@ -195,6 +225,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                     <th className="px-4 py-3 font-semibold">Broker Name</th>
                     <th className="px-4 py-3 font-semibold">Commission</th>
                     <th className="px-4 py-3 font-semibold">CDC Structure</th>
+                    <th className="px-4 py-3 font-semibold">Annual Fee</th>
                     <th className="px-4 py-3 font-semibold text-right">Actions</th>
                   </tr>
                 </thead>
@@ -222,6 +253,17 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                              {b.cdcType === 'HIGHER_OF' && `Max(Rs.${b.cdcRate}/sh, ${b.cdcMin})`}
                          </div>
                       </td>
+                      {/* NEW: Display Annual Fee */}
+                      <td className="px-4 py-3">
+                         {b.annualFee && b.annualFee > 0 ? (
+                             <>
+                                <div className="text-xs text-slate-700 font-bold">Rs. {b.annualFee}</div>
+                                <div className="text-[10px] text-slate-400">Start: {b.feeStartDate}</div>
+                             </>
+                         ) : (
+                             <span className="text-slate-300 text-xs">-</span>
+                         )}
+                      </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
                            <button onClick={() => handleEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 rounded-lg"><Pencil size={14} /></button>
@@ -232,7 +274,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                   ))}
                   {brokers.length === 0 && (
                     <tr>
-                      <td colSpan={4} className="px-4 py-10 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
+                      <td colSpan={5} className="px-4 py-10 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
                         <AlertCircle size={24} />
                         <span>No brokers added yet. Add one to start.</span>
                       </td>
