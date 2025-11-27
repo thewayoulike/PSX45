@@ -10,15 +10,15 @@ import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
 import { DividendScanner } from './DividendScanner';
 import { ApiKeyManager } from './ApiKeyManager'; 
+import { LoginPage } from './LoginPage';
 import { Logo } from './ui/Logo';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-// Added Pencil and Check to imports
 import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser, hasValidSession } from '../services/driveStorage';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
@@ -43,6 +43,12 @@ type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
+  
+  // LOGIN STATE MANAGEMENT
+  // We start by assuming we might need to login, unless we find a valid session immediately
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
+
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
   
@@ -152,10 +158,14 @@ const App: React.FC = () => {
 
   const handleLogin = () => signInWithDrive();
 
-  // --- EFFECTS ---
+  // --- INITIALIZATION & AUTH ---
   useEffect(() => {
+      // 1. Initialize Drive Auth (Loads script, tries to restore session)
       initDriveAuth(async (user) => {
           setDriveUser(user);
+          setIsAuthChecking(false);
+          setShowLogin(false); // User found, hide login
+          
           if (!hasMergedCloud.current) {
               setIsCloudSyncing(true);
               try {
@@ -185,8 +195,16 @@ const App: React.FC = () => {
               finally { setIsCloudSyncing(false); }
           }
       });
+
+      // 2. Check if we *expect* a session to be restored
+      // If we don't have a valid session token locally, stop waiting and show login.
+      if (!hasValidSession()) {
+          setIsAuthChecking(false);
+          setShowLogin(true);
+      }
   }, []);
 
+  // --- PERSISTENCE EFFECT ---
   useEffect(() => {
       if (driveUser || transactions.length > 0) {
         localStorage.setItem('psx_transactions', JSON.stringify(transactions));
@@ -557,6 +575,24 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
+  // --- RENDER GATES ---
+  if (isAuthChecking) {
+      return (
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+            <Loader2 className="animate-spin text-emerald-500" size={32} />
+        </div>
+      );
+  }
+
+  if (showLogin) {
+      return (
+        <LoginPage 
+            onGuestLogin={() => setShowLogin(false)}
+            onGoogleLogin={handleLogin}
+        />
+      );
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
@@ -590,7 +626,7 @@ const App: React.FC = () => {
                     ) : (
                         <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all">
                             <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" />
-                            Sync with Drive
+                            Sign in with Google
                         </button>
                     )}
                 </div>
