@@ -54,6 +54,10 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   };
 
   const handleScan = async () => {
+      // FIX: Clear previous state immediately so UI is clean
+      setFoundDividends([]); 
+      setScanned(false);
+      
       setLoading(true);
       setErrorMsg(null);
       
@@ -110,7 +114,12 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           setScanned(true);
       } catch (e: any) {
           console.error(e);
-          setErrorMsg(e.message || "Failed to scan. Check API Key.");
+          // FIX: Better Error Message Parsing
+          let msg = e.message || "Failed to scan.";
+          if (msg.includes("503") || msg.includes("overloaded")) {
+              msg = "AI Service is currently busy (503). Please wait 30 seconds and try again.";
+          }
+          setErrorMsg(msg);
       } finally {
           setLoading(false);
       }
