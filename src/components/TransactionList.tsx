@@ -1,13 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, ArrowDownLeft, History, Search, Calendar, X, Filter, Coins, Pencil, Receipt, Wallet } from 'lucide-react';
+import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle } from 'lucide-react'; // Added AlertCircle
 import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
 import { BuyIcon } from './ui/BuyIcon';
 import { SellIcon } from './ui/SellIcon';
 import { DividendIcon } from './ui/DividendIcon';
-import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon'; // Import the new icon
+import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -40,6 +40,27 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, searchTerm, dateFrom, dateTo, filterType]);
 
+  // NEW: Validation Function for Dividends
+  // Calculates eligible shares based on history up to that specific date
+  const getExpectedDividendQty = (divTx: Transaction): number => {
+      // Filter trades for this ticker + broker UP TO the dividend date
+      const relevantTx = transactions.filter(t => 
+          t.ticker === divTx.ticker && 
+          t.date <= divTx.date && 
+          t.id !== divTx.id && // Exclude the dividend tx itself
+          (t.type === 'BUY' || t.type === 'SELL') &&
+          (t.broker === divTx.broker) // Match broker strictly
+      );
+      
+      let qty = 0;
+      relevantTx.forEach(t => {
+          if (t.type === 'BUY') qty += t.quantity;
+          if (t.type === 'SELL') qty -= t.quantity;
+      });
+      
+      return Math.max(0, qty);
+  };
+
   const clearFilters = () => {
     setSearchTerm('');
     setFilterType('ALL');
@@ -49,61 +70,25 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const hasActiveFilters = searchTerm || dateFrom || dateTo || filterType !== 'ALL';
 
-  // Helper to get style and icon based on type
   const getTypeConfig = (tx: Transaction) => {
       switch (tx.type) {
           case 'BUY':
-              return { 
-                  style: 'bg-emerald-50 text-emerald-600 border-emerald-100', 
-                  icon: <BuyIcon className="w-4 h-4" />,
-                  label: 'BUY'
-              };
+              return { style: 'bg-emerald-50 text-emerald-600 border-emerald-100', icon: <BuyIcon className="w-4 h-4" />, label: 'BUY' };
           case 'SELL':
-              return { 
-                  style: 'bg-rose-50 text-rose-600 border-rose-100', 
-                  icon: <SellIcon className="w-4 h-4" />,
-                  label: 'SELL'
-              };
+              return { style: 'bg-rose-50 text-rose-600 border-rose-100', icon: <SellIcon className="w-4 h-4" />, label: 'SELL' };
           case 'DIVIDEND':
-              return { 
-                  style: 'bg-emerald-100 text-emerald-800 border-emerald-200 font-extrabold', 
-                  icon: <DividendIcon className="w-4 h-4" />,
-                  label: 'DIVIDEND'
-              };
+              return { style: 'bg-emerald-100 text-emerald-800 border-emerald-200 font-extrabold', icon: <DividendIcon className="w-4 h-4" />, label: 'DIVIDEND' };
           case 'TAX':
-              return { 
-                  style: 'bg-rose-50 text-rose-600 border-rose-100', 
-                  icon: <TaxIcon className="w-3 h-3" />,
-                  label: 'TAX' 
-              };
+              return { style: 'bg-rose-50 text-rose-600 border-rose-100', icon: <TaxIcon className="w-3 h-3" />, label: 'TAX' };
           case 'HISTORY':
               const isPositive = tx.price >= 0;
-              return { 
-                  style: isPositive 
-                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                      : 'bg-rose-50 text-rose-600 border-rose-100',
-                  // Use the new Historical P&L Icon
-                  icon: <HistoricalPnLIcon className="w-4 h-4" />,
-                  label: 'Historical P&L'
-              };
+              return { style: isPositive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100', icon: <HistoricalPnLIcon className="w-4 h-4" />, label: 'Historical P&L' };
           case 'DEPOSIT':
-              return { 
-                  style: 'bg-blue-50 text-blue-600 border-blue-100', 
-                  icon: <DepositIcon className="w-4 h-4" />,
-                  label: 'DEPOSIT'
-              };
+              return { style: 'bg-blue-50 text-blue-600 border-blue-100', icon: <DepositIcon className="w-4 h-4" />, label: 'DEPOSIT' };
           case 'WITHDRAWAL':
-              return { 
-                  style: 'bg-rose-50 text-rose-600 border-rose-100', 
-                  icon: <WithdrawIcon className="w-4 h-4" />,
-                  label: 'WITHDRAWAL'
-              };
+              return { style: 'bg-rose-50 text-rose-600 border-rose-100', icon: <WithdrawIcon className="w-4 h-4" />, label: 'WITHDRAWAL' };
           default:
-              return { 
-                  style: 'bg-slate-50 text-slate-600 border-slate-200', 
-                  icon: <ArrowUpRight size={10} />,
-                  label: tx.type
-              };
+              return { style: 'bg-slate-50 text-slate-600 border-slate-200', icon: <ArrowUpRight size={10} />, label: tx.type };
       }
   };
 
@@ -113,6 +98,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 mb-20">
       
       <div className="p-6 border-b border-slate-200/60 bg-white/40 space-y-4">
+        {/* ... Header and Search Bars (No Changes) ... */}
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
               <History size={20} className="text-emerald-600" />
@@ -157,31 +143,15 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                 </div>
 
                 <div className="flex gap-2 items-center bg-white border border-slate-200 rounded-xl px-2 py-0.5">
-                    <input 
-                        type="date" 
-                        value={dateFrom}
-                        onChange={(e) => setDateFrom(e.target.value)}
-                        className="bg-transparent border-none text-sm text-slate-600 focus:ring-0 outline-none w-[110px] py-2"
-                        title="From Date"
-                    />
+                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent border-none text-sm text-slate-600 focus:ring-0 outline-none w-[110px] py-2" />
                     <span className="text-slate-300 text-xs">to</span>
-                    <input 
-                        type="date" 
-                        value={dateTo}
-                        onChange={(e) => setDateTo(e.target.value)}
-                        className="bg-transparent border-none text-sm text-slate-600 focus:ring-0 outline-none w-[110px] py-2"
-                         title="To Date"
-                    />
+                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent border-none text-sm text-slate-600 focus:ring-0 outline-none w-[110px] py-2" />
                 </div>
             </div>
 
             {hasActiveFilters && (
-                <button 
-                    onClick={clearFilters}
-                    className="px-3 py-2 rounded-xl bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap"
-                >
-                    <X size={16} />
-                    Clear
+                <button onClick={clearFilters} className="px-3 py-2 rounded-xl bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap">
+                    <X size={16} /> Clear
                 </button>
             )}
         </div>
@@ -224,7 +194,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     let netAmount = 0;
                     const totalAmount = tx.price * tx.quantity;
 
-                    // Net Amount Logic
+                    // Calculate Net Amount
                     if (isDiv) {
                         netAmount = totalAmount - (tx.tax || 0);
                     } else if (isTax) {
@@ -238,6 +208,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
                     const typeConfig = getTypeConfig(tx);
                     const isNegativeFlow = isTax || isWithdrawal || (isHistory && netAmount < 0);
+
+                    // --- NEW: Validation Check for Dividend ---
+                    let qtyMismatch = false;
+                    let expectedQty = 0;
+                    if (isDiv) {
+                        expectedQty = getExpectedDividendQty(tx);
+                        qtyMismatch = expectedQty !== tx.quantity;
+                    }
 
                     return (
                         <tr key={tx.id} className={`hover:bg-emerald-50/30 transition-colors ${isNegativeFlow ? 'bg-rose-50/30' : ''}`}>
@@ -253,7 +231,22 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                             {tx.notes && <div className="text-[9px] text-slate-400 font-normal mt-0.5 truncate max-w-[100px]" title={tx.notes}>{tx.notes}</div>}
                         </td>
                         <td className="px-4 py-4 text-xs text-slate-500">{tx.broker || (isTax ? 'System' : '-')}</td>
-                        <td className="px-4 py-4 text-right text-slate-700">{tx.quantity.toLocaleString()}</td>
+                        <td className="px-4 py-4 text-right text-slate-700 relative">
+                            {/* Qty Display */}
+                            <div className="flex items-center justify-end gap-2">
+                                <span>{tx.quantity.toLocaleString()}</span>
+                                {isDiv && qtyMismatch && (
+                                    <div className="group relative">
+                                        <AlertCircle size={14} className="text-amber-500 cursor-help" />
+                                        {/* Tooltip */}
+                                        <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block w-48 bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg z-50">
+                                            Warning: Historical holdings on this date were {expectedQty}, but you recorded dividend for {tx.quantity}.
+                                            <div className="absolute right-1 bottom-[-4px] w-2 h-2 bg-slate-800 rotate-45"></div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </td>
                         <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
                             {tx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
