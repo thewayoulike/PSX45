@@ -96,7 +96,6 @@ const App: React.FC = () => {
 
   // --- COMBINE PORTFOLIOS STATE ---
   const [isCombinedView, setIsCombinedView] = useState(false);
-  // Track which IDs are selected for combination. Default empty (implies ALL when combined is ON, or handled by effect)
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
   const filterDropdownRef = useRef<HTMLDivElement>(null);
@@ -170,7 +169,6 @@ const App: React.FC = () => {
   // Initialize combined IDs when portfolios load or combined view is toggled
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
-          // Default to ALL portfolios when first toggled on
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
@@ -221,7 +219,7 @@ const App: React.FC = () => {
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
   
-  // UPDATED: ADD TRANSACTION - Enforces Strict Broker Rule
+  // ADD TRANSACTION - Enforces Strict Broker Rule
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { 
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
@@ -234,7 +232,6 @@ const App: React.FC = () => {
           ...txData, 
           id: newId, 
           portfolioId: currentPortfolioId,
-          // OVERRIDE: Strict Portfolio Broker
           brokerId: currentPortfolio.defaultBrokerId,
           broker: brokerToUse?.name || 'Unknown'
       }; 
@@ -316,7 +313,6 @@ const App: React.FC = () => {
   const handleTogglePortfolioSelection = (id: string) => {
       const newSet = new Set(combinedPortfolioIds);
       if (newSet.has(id)) {
-          // Don't allow deselecting the last one, ensuring at least one is shown
           if (newSet.size > 1) newSet.delete(id);
       } else {
           newSet.add(id);
@@ -439,7 +435,7 @@ const App: React.FC = () => {
             </div>
 
             {/* Action Bar */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
+            <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
                 <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"> <Plus size={18} /> Add Transaction </button>
                     <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Briefcase size={18} /> Brokers </button>
@@ -464,7 +460,7 @@ const App: React.FC = () => {
                                 </button>
 
                                 {showFilterDropdown && (
-                                    <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
+                                    <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
                                         <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 mb-1">
                                             <span className="text-[10px] uppercase font-bold text-slate-400">Included Portfolios</span>
                                             <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 font-bold hover:underline">Select All</button>
