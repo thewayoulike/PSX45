@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Holding } from '../types';
-import { Search, AlertTriangle } from 'lucide-react';
+import { Search, AlertTriangle, Clock } from 'lucide-react'; // Added Clock icon
 
 interface HoldingsTableProps {
   holdings: Holding[];
@@ -43,6 +43,22 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   }, [sortedHoldings]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
+
+  // New Helper for date formatting
+  const formatUpdateDate = (isoString?: string) => {
+    if (!isoString) return null;
+    const date = new Date(isoString);
+    const now = new Date();
+    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+    
+    // Format: "10:30 AM" if today, else "Oct 25, 10:30 AM"
+    return date.toLocaleString('en-US', { 
+      month: isToday ? undefined : 'short', 
+      day: isToday ? undefined : 'numeric', 
+      hour: 'numeric', 
+      minute: '2-digit' 
+    });
+  };
 
   return (
     <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 h-full">
@@ -98,6 +114,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
                   const isProfit = pnl >= 0;
                   const isFailed = failedTickers.has(holding.ticker);
+                  const updateTime = formatUpdateDate(holding.lastUpdated);
 
                   return (
                     <tr key={`${holding.ticker}-${holding.broker || idx}`} className="hover:bg-emerald-50/30 transition-colors group">
@@ -118,11 +135,21 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       )}
                       <td className="px-4 py-4 text-right text-slate-700 font-medium">{holding.quantity.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">{holding.avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      
+                      {/* UPDATED CURRENT PRICE CELL */}
                       <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
-                        <span className={isFailed ? "text-amber-600 font-bold" : ""}>
-                            {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
-                        </span>
+                        <div className="flex flex-col items-end">
+                            <span className={isFailed ? "text-amber-600 font-bold" : ""}>
+                                {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
+                            </span>
+                            {updateTime && (
+                                <span className="text-[9px] text-slate-400 font-sans flex items-center gap-1 mt-0.5">
+                                    {updateTime}
+                                </span>
+                            )}
+                        </div>
                       </td>
+
                       <td className="px-2 py-4 text-right text-slate-400 font-mono text-[10px]">
                         {(holding.totalCommission || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                       </td>
@@ -142,7 +169,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-4 text-right">
-                        {/* UPDATED: P&L to 2 Decimal Places */}
                         <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                           <span className="font-bold text-sm">{pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           <span className="text-[10px] opacity-80 font-mono">({pnlPercent.toFixed(2)}%)</span>
@@ -154,7 +180,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               )}
             </tbody>
             
-            {/* NEW: GRAND TOTAL FOOTER */}
             {sortedHoldings.length > 0 && (
                 <tfoot className="bg-slate-50 border-t-2 border-slate-200 text-slate-800 font-bold shadow-inner">
                     <tr>
