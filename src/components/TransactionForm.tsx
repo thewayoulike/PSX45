@@ -82,8 +82,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
             
-            // IMPORTANT: We start with AutoCalc OFF to preserve exact historical values.
-            // User must toggle it ON if they want to recalculate based on new inputs.
+            // FIX: Explicitly disable Auto-Calc when editing to preserve original values
             setIsAutoCalc(false);
             
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
@@ -103,9 +102,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             }
 
         } else {
+            // Default State for NEW transactions
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
-            setMode('MANUAL'); setIsAutoCalc(true); 
+            setMode('MANUAL'); 
+            setIsAutoCalc(true); // Default ON for new
             setDate(new Date().toISOString().split('T')[0]);
             setCgtMonth(new Date().toISOString().substring(0, 7));
             setCgtProfit('');
@@ -117,8 +118,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   // Auto-Calculation Logic
   useEffect(() => {
-    // FIX: Removed `&& !editingTransaction` check. 
-    // Now runs if manual mode AND isAutoCalc is TRUE (regardless of editing status)
     if (isAutoCalc && mode === 'MANUAL') {
         
         if (type === 'TAX') {
@@ -194,7 +193,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                  setCdcCharges(parseFloat(estCdc.toFixed(2)));
              }
         } else {
-             // Clear fields if inputs are invalid, but ONLY if we are actively auto-calculating
              if (commission !== '') setCommission('');
              if (tax !== '') setTax('');
              if (cdcCharges !== '') setCdcCharges('');
@@ -357,7 +355,19 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <div className="pt-2">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-bold text-slate-400 uppercase">Fees & Taxes</label>
-                                    <button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2 py-0.5 rounded border ${isAutoCalc ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-200'}`}>{isAutoCalc ? 'Auto-Calc On' : 'Manual Entry'}</button>
+                                    {/* UPDATED: Red Warning Button logic */}
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setIsAutoCalc(!isAutoCalc)} 
+                                        className={`text-[10px] px-2 py-1 rounded border flex items-center gap-1 transition-colors ${
+                                            isAutoCalc 
+                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                                                : 'bg-rose-50 text-rose-600 border-rose-200 font-bold shadow-sm'
+                                        }`}
+                                    >
+                                        {!isAutoCalc && <AlertTriangle size={10} />}
+                                        {isAutoCalc ? 'Auto-Calc On' : 'Manual Mode'}
+                                    </button>
                                 </div>
                                 <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div><label className="text-[10px] text-slate-400 block mb-1">Commission</label><input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
