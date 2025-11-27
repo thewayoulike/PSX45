@@ -87,8 +87,11 @@ const App: React.FC = () => {
       return {};
   });
 
-  const [isEditingPortfolio, setIsEditingPortfolio] = useState(false);
-  const [editPortfolioName, setEditPortfolioName] = useState('');
+  // --- REFACTORED PORTFOLIO EDITING STATE ---
+  const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
+  const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); // If null, we are creating
+  const [portfolioNameInput, setPortfolioNameInput] = useState('');
+  const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
 
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
@@ -118,11 +121,6 @@ const App: React.FC = () => {
   const [groupByBroker, setGroupByBroker] = useState(true);
   const [filterBroker, setFilterBroker] = useState<string>('All');
   
-  const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
-  const [newPortfolioName, setNewPortfolioName] = useState('');
-  // NEW: State for new portfolio broker
-  const [newPortfolioBrokerId, setNewPortfolioBrokerId] = useState('');
-
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
   const [totalDividends, setTotalDividends] = useState<number>(0);
@@ -214,26 +212,55 @@ const App: React.FC = () => {
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
   
-  // UPDATED: Create Portfolio with Default Broker
-  const handleCreatePortfolio = (e: React.FormEvent) => { 
+  // --- PORTFOLIO MANAGEMENT ---
+  
+  const openCreatePortfolioModal = () => {
+      setEditingPortfolioId(null);
+      setPortfolioNameInput('');
+      setPortfolioBrokerIdInput('');
+      setIsPortfolioModalOpen(true);
+  };
+
+  const openEditPortfolioModal = () => {
+      const current = portfolios.find(p => p.id === currentPortfolioId);
+      if (current) {
+          setEditingPortfolioId(current.id);
+          setPortfolioNameInput(current.name);
+          setPortfolioBrokerIdInput(current.defaultBrokerId || '');
+          setIsPortfolioModalOpen(true);
+      }
+  };
+
+  const handleSavePortfolio = (e: React.FormEvent) => { 
       e.preventDefault(); 
-      if (newPortfolioName.trim()) { 
+      if (!portfolioNameInput.trim()) return;
+
+      if (editingPortfolioId) {
+          // Update Existing
+          setPortfolios(prev => prev.map(p => 
+              p.id === editingPortfolioId 
+                  ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput || undefined } 
+                  : p
+          ));
+      } else {
+          // Create New
           const newId = Date.now().toString(); 
           setPortfolios(prev => [...prev, { 
               id: newId, 
-              name: newPortfolioName.trim(),
-              defaultBrokerId: newPortfolioBrokerId || undefined 
+              name: portfolioNameInput.trim(),
+              defaultBrokerId: portfolioBrokerIdInput || undefined 
           }]); 
-          setCurrentPortfolioId(newId); 
-          setNewPortfolioName(''); 
-          setNewPortfolioBrokerId('');
-          setIsPortfolioModalOpen(false); 
-      } 
+          setCurrentPortfolioId(newId);
+      }
+      
+      // Cleanup
+      setPortfolioNameInput(''); 
+      setPortfolioBrokerIdInput('');
+      setEditingPortfolioId(null);
+      setIsPortfolioModalOpen(false); 
   };
 
   const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
-  const startEditingPortfolio = () => { const current = portfolios.find(p => p.id === currentPortfolioId); if (current) { setEditPortfolioName(current.name); setIsEditingPortfolio(true); } };
-  const savePortfolioName = () => { if (!editPortfolioName.trim()) return; setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: editPortfolioName.trim() } : p)); setIsEditingPortfolio(false); };
   
   // Sync
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
@@ -323,20 +350,16 @@ const App: React.FC = () => {
             
             {/* Portfolio Selector */}
             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                {isEditingPortfolio ? (
-                    <>
-                        <div className="relative flex-1"><FolderOpen size={18} className="absolute left-3 top-3 text-emerald-600" /><input type="text" value={editPortfolioName} onChange={(e) => setEditPortfolioName(e.target.value)} className="w-48 bg-slate-50 border border-emerald-200 rounded-lg py-2 pl-10 pr-2 text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500/20" autoFocus onKeyDown={(e) => e.key === 'Enter' && savePortfolioName()} /></div>
-                        <button onClick={savePortfolioName} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-100"> <Check size={18} /> </button>
-                        <button onClick={() => setIsEditingPortfolio(false)} className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:bg-slate-100"> <X size={18} /> </button>
-                    </>
-                ) : (
-                    <>
-                        <div className="relative group"><FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" /><select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48">{portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}</select></div>
-                        <button onClick={startEditingPortfolio} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Rename Portfolio"> <Pencil size={16} /> </button>
-                        <button onClick={() => setIsPortfolioModalOpen(true)} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
-                        <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
-                    </>
-                )}
+                <div className="relative group"><FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" /><select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48">{portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}</select></div>
+                
+                {/* Edit Portfolio Button */}
+                <button onClick={openEditPortfolioModal} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Portfolio Settings"> <Pencil size={16} /> </button>
+                
+                {/* Create New Button */}
+                <button onClick={openCreatePortfolioModal} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
+                
+                {/* Delete Button */}
+                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
             </div>
           </div>
         </header>
@@ -420,18 +443,20 @@ const App: React.FC = () => {
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
                   <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-bold text-slate-800">Create Portfolio</h3>
+                      <h3 className="text-lg font-bold text-slate-800">
+                          {editingPortfolioId ? 'Edit Portfolio' : 'Create Portfolio'}
+                      </h3>
                       <button onClick={() => setIsPortfolioModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
                   </div>
-                  <form onSubmit={handleCreatePortfolio}>
-                      <input type="text" autoFocus placeholder="Portfolio Name" value={newPortfolioName} onChange={(e) => setNewPortfolioName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
+                  <form onSubmit={handleSavePortfolio}>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Portfolio Name</label>
+                      <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
                       
-                      {/* NEW: Broker Select for Portfolio Default */}
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Default Broker</label>
                       <div className="relative mb-6">
                           <select 
-                              value={newPortfolioBrokerId} 
-                              onChange={(e) => setNewPortfolioBrokerId(e.target.value)} 
+                              value={portfolioBrokerIdInput} 
+                              onChange={(e) => setPortfolioBrokerIdInput(e.target.value)} 
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-emerald-500"
                           >
                               <option value="">None / Select Manually</option>
@@ -442,13 +467,14 @@ const App: React.FC = () => {
                           <Briefcase size={16} className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" />
                       </div>
 
-                      <button type="submit" disabled={!newPortfolioName.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all">Create</button>
+                      <button type="submit" disabled={!portfolioNameInput.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all">
+                          {editingPortfolioId ? 'Save Changes' : 'Create Portfolio'}
+                      </button>
                   </form>
               </div>
           </div>
       )}
       
-      {/* UPDATED: Passing portfolioDefaultBrokerId prop */}
       <TransactionForm 
           isOpen={showAddModal} 
           onClose={() => setShowAddModal(false)} 
