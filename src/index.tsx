@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import App from './components/App'; // UPDATED PATH: Points to components folder
+import { BrowserRouter } from 'react-router-dom'; // Import this
+import App from './components/App';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -10,6 +11,8 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <BrowserRouter> {/* Wrap App with this */}
+      <App />
+    </BrowserRouter>
   </React.StrictMode>
 );
