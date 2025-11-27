@@ -224,7 +224,21 @@ const App: React.FC = () => {
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
   const portfolioTransactions = useMemo(() => { return transactions.filter(t => t.portfolioId === currentPortfolioId); }, [transactions, currentPortfolioId]);
   const displayedTransactions = useMemo(() => { if (filterBroker === 'All') return portfolioTransactions; return portfolioTransactions.filter(t => t.broker === filterBroker); }, [portfolioTransactions, filterBroker]);
-  const uniqueBrokers = useMemo(() => { const brokers = new Set<string>(); portfolioTransactions.forEach(t => { if (t.broker) brokers.add(t.broker); }); return Array.from(brokers).sort(); }, [portfolioTransactions]);
+  
+  // UPDATED: Now combines active Brokers list AND history to ensure all brokers appear in filter
+  const uniqueBrokers = useMemo(() => { 
+      const brokerNames = new Set<string>();
+      
+      // 1. Add all configured brokers (even empty ones)
+      brokers.forEach(b => brokerNames.add(b.name));
+
+      // 2. Add brokers from transactions (handles deleted brokers or imported data)
+      portfolioTransactions.forEach(t => { 
+          if (t.broker) brokerNames.add(t.broker); 
+      }); 
+      
+      return Array.from(brokerNames).sort(); 
+  }, [portfolioTransactions, brokers]);
 
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let totalDividendTax = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
