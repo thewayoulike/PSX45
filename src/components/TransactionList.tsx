@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
 import { Trash2, ArrowUpRight, ArrowDownLeft, History, Search, Calendar, X, Filter, Coins, Pencil, Receipt, Wallet } from 'lucide-react';
-import { TaxIcon } from './ui/TaxIcon'; // Import the new component
+import { TaxIcon } from './ui/TaxIcon'; 
+import { DepositIcon } from './ui/DepositIcon'; // Import the new Deposit component
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -67,7 +68,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'TAX':
               return { 
                   style: 'bg-rose-50 text-rose-600 border-rose-100', 
-                  // Use the SVG Component here
                   icon: <TaxIcon className="w-3 h-3" />,
                   label: 'TAX' 
               };
@@ -83,7 +83,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'DEPOSIT':
               return { 
                   style: 'bg-blue-50 text-blue-600 border-blue-100', 
-                  icon: <Wallet size={10} />,
+                  // Use the new DepositIcon here
+                  icon: <DepositIcon className="w-4 h-4" />,
                   label: 'DEPOSIT'
               };
           case 'WITHDRAWAL':
@@ -224,8 +225,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     } else if (isTax) {
                         netAmount = -totalAmount;
                     } else if (isHistory || isDeposit || isWithdrawal) {
-                        // For History/Cash, price holds the value. 
-                        // Withdrawals are usually displayed as negative in Net Amount.
                         netAmount = isWithdrawal ? -Math.abs(totalAmount) : totalAmount;
                     } else {
                         const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
