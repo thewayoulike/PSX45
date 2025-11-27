@@ -143,7 +143,7 @@ const App: React.FC = () => {
       setManualPrices({}); 
       setSectorOverrides({}); 
       setBrokers([DEFAULT_BROKER]); 
-      setScannerState({}); // Clear scanner state
+      setScannerState({}); 
       setUserApiKey(''); 
       setGeminiApiKey(null);
       setDriveUser(null);
@@ -185,7 +185,7 @@ const App: React.FC = () => {
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                       if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
-                      if (cloudData.scannerState) setScannerState(cloudData.scannerState); // Load scanner state
+                      if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
                       if (cloudData.brokers) {
                           setBrokers(currentLocal => {
                               const localIds = new Set(currentLocal.map(b => b.id));
@@ -211,37 +211,6 @@ const App: React.FC = () => {
       }
   }, []);
 
-  // --- PERSISTENCE EFFECT ---
-  useEffect(() => {
-      if (driveUser || transactions.length > 0) {
-        localStorage.setItem('psx_transactions', JSON.stringify(transactions));
-        localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
-        localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
-        localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
-        localStorage.setItem('psx_brokers', JSON.stringify(brokers));
-        localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
-        localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); // Persist scanner results
-      }
-      
-      if (driveUser) {
-          setIsCloudSyncing(true);
-          const timer = setTimeout(async () => {
-              await saveToDrive({
-                  transactions, 
-                  portfolios, 
-                  currentPortfolioId, 
-                  manualPrices, 
-                  brokers, 
-                  sectorOverrides, 
-                  scannerState, // Save to Cloud
-                  geminiApiKey: userApiKey 
-              });
-              setIsCloudSyncing(false);
-          }, 3000); 
-          return () => clearTimeout(timer);
-      }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
-
   // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
@@ -253,7 +222,6 @@ const App: React.FC = () => {
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); };
   
-  // NEW: Handler for Scanner Updates
   const handleScannerUpdate = (results: FoundDividend[]) => {
       setScannerState(prev => ({
           ...prev,
@@ -261,24 +229,16 @@ const App: React.FC = () => {
       }));
   };
 
-  // --- PORTFOLIO MANAGMENT HANDLERS ---
   const handleCreatePortfolio = (e: React.FormEvent) => { e.preventDefault(); if (newPortfolioName.trim()) { const newId = Date.now().toString(); setPortfolios(prev => [...prev, { id: newId, name: newPortfolioName.trim() }]); setCurrentPortfolioId(newId); setNewPortfolioName(''); setIsPortfolioModalOpen(false); } };
   
   const handleDeletePortfolio = () => { 
       if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); 
       if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { 
           const idToDelete = currentPortfolioId; 
-          const nextPort = portfolios.find(p => p.id !== idToDelete) || portfolios[0]; 
-          setCurrentPortfolioId(nextPort.id); 
+          setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); 
           setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); 
           setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
-          
-          // Also cleanup scanner state
-          setScannerState(prev => {
-              const newState = { ...prev };
-              delete newState[idToDelete];
-              return newState;
-          });
+          setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; });
       } 
   };
 
@@ -292,9 +252,7 @@ const App: React.FC = () => {
 
   const savePortfolioName = () => {
       if (!editPortfolioName.trim()) return;
-      setPortfolios(prev => prev.map(p => 
-          p.id === currentPortfolioId ? { ...p, name: editPortfolioName.trim() } : p
-      ));
+      setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: editPortfolioName.trim() } : p));
       setIsEditingPortfolio(false);
   };
 
@@ -323,7 +281,124 @@ const App: React.FC = () => {
     return Array.from(brokers).sort();
   }, [portfolioTransactions]);
 
-  // 1. CALCULATE HOLDINGS & REALIZED (FIFO)
+  // MOVED UP: CALCULATE STATS HERE (Safe zone)
+  const stats: PortfolioStats = useMemo(() => {
+    let totalValue = 0;
+    let totalCost = 0;
+    let totalCommission = 0;
+    let totalSalesTax = 0;
+    let totalDividendTax = 0;
+    let totalCDC = 0;
+    let totalOtherFees = 0;
+    let totalCGT = 0;
+    
+    let totalDeposits = 0;
+    let totalWithdrawals = 0;
+    let historyPnL = 0;
+
+    holdings.forEach(h => {
+      totalValue += h.quantity * h.currentPrice;
+      totalCost += h.quantity * h.avgPrice;
+    });
+
+    const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
+
+    displayedTransactions.forEach(t => {
+        totalCommission += (t.commission || 0);
+        totalCDC += (t.cdcCharges || 0);
+        totalOtherFees += (t.otherFees || 0);
+        
+        if (t.type === 'DIVIDEND') {
+            totalDividendTax += (t.tax || 0);
+        } else if (t.type === 'TAX') {
+            totalCGT += (t.price * t.quantity);
+        } else if (t.type === 'HISTORY') {
+             totalCGT += (t.tax || 0); 
+             historyPnL += t.price; 
+        } else if (t.type === 'DEPOSIT') {
+             totalDeposits += t.price; 
+        } else if (t.type === 'WITHDRAWAL') {
+             totalWithdrawals += t.price;
+        } else {
+            totalSalesTax += (t.tax || 0);
+        }
+    });
+
+    const netRealizedPL = realizedPL - totalCGT; 
+    
+    const totalProfits = netRealizedPL + totalDividends;
+    const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
+    
+    const netPrincipal = totalDeposits - withdrawalsFromPrincipal;
+    const cashInvestment = totalDeposits - totalWithdrawals; 
+
+    const netPrincipalAvailable = Math.max(0, netPrincipal);
+    const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
+    const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
+
+    let cashIn = totalDeposits; 
+    let cashOut = totalWithdrawals + totalCGT; 
+
+    let tradingCashFlow = 0; 
+    displayedTransactions.forEach(t => {
+        const val = t.price * t.quantity;
+        const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
+        if (t.type === 'BUY') tradingCashFlow -= (val + fees);
+        else if (t.type === 'SELL') tradingCashFlow += (val - fees);
+    });
+
+    const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
+
+    const roiDenominator = totalDeposits;
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
+    
+    const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
+
+    const unrealizedPL = totalValue - totalCost;
+    const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
+
+    return { 
+        totalValue, totalCost, unrealizedPL, unrealizedPLPercent, 
+        realizedPL, netRealizedPL, totalDividends, dailyPL: 0,
+        totalCommission, totalSalesTax, totalDividendTax, totalCDC, totalOtherFees, totalCGT,
+        freeCash, cashInvestment, netPrincipal, totalDeposits, reinvestedProfits, roi
+    };
+  }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
+
+  // EFFECTS (Now safe to use 'stats' if needed, though mostly independent)
+
+  // 1. PERSISTENCE EFFECT
+  useEffect(() => {
+      if (driveUser || transactions.length > 0) {
+        localStorage.setItem('psx_transactions', JSON.stringify(transactions));
+        localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
+        localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
+        localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
+        localStorage.setItem('psx_brokers', JSON.stringify(brokers));
+        localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
+        localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); 
+      }
+      
+      if (driveUser) {
+          setIsCloudSyncing(true);
+          const timer = setTimeout(async () => {
+              await saveToDrive({
+                  transactions, 
+                  portfolios, 
+                  currentPortfolioId, 
+                  manualPrices, 
+                  brokers, 
+                  sectorOverrides, 
+                  scannerState, 
+                  geminiApiKey: userApiKey 
+              });
+              setIsCloudSyncing(false);
+          }, 3000); 
+          return () => clearTimeout(timer);
+      }
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
+
+  // 2. CALCULATE HOLDINGS & REALIZED (FIFO)
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
@@ -349,19 +424,7 @@ const App: React.FC = () => {
 
       if (tx.type === 'HISTORY') {
           tempRealized.push({
-            id: tx.id,
-            ticker: 'PREV-PNL', 
-            broker: tx.broker || 'Unknown',
-            quantity: 1,
-            buyAvg: 0,
-            sellPrice: 0,
-            date: tx.date,
-            profit: tx.price, 
-            fees: 0,
-            commission: 0,
-            tax: tx.tax || 0,
-            cdcCharges: 0,
-            otherFees: 0
+            id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0
           });
           return;
       }
@@ -372,16 +435,7 @@ const App: React.FC = () => {
       if (!tempHoldings[holdingKey]) {
         const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker);
         tempHoldings[holdingKey] = {
-          ticker: tx.ticker,
-          sector: sector,
-          broker: groupByBroker ? (tx.broker || 'Unknown') : (filterBroker !== 'All' ? filterBroker : 'Multiple Brokers'),
-          quantity: 0,
-          avgPrice: 0,
-          currentPrice: 0, 
-          totalCommission: 0,
-          totalTax: 0,
-          totalCDC: 0,
-          totalOtherFees: 0,
+          ticker: tx.ticker, sector: sector, broker: groupByBroker ? (tx.broker || 'Unknown') : (filterBroker !== 'All' ? filterBroker : 'Multiple Brokers'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0,
         };
         lotMap[holdingKey] = [];
       }
@@ -427,28 +481,14 @@ const App: React.FC = () => {
           const realizedProfit = saleRevenue - saleFees - costBasis;
 
           tempRealized.push({
-            id: tx.id,
-            ticker: tx.ticker,
-            broker: tx.broker,
-            quantity: qtyToSell,
-            buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, 
-            sellPrice: tx.price,
-            date: tx.date,
-            profit: realizedProfit,
-            fees: saleFees,
-            commission: tx.commission || 0,
-            tax: tx.tax || 0,
-            cdcCharges: tx.cdcCharges || 0,
-            otherFees: tx.otherFees || 0
+            id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0
           });
 
           const prevTotalValue = h.quantity * h.avgPrice;
           h.quantity -= qtyToSell;
-          if (h.quantity > 0) {
-              h.avgPrice = (prevTotalValue - costBasis) / h.quantity;
-          } else {
-              h.avgPrice = 0;
-          }
+          if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity;
+          else h.avgPrice = 0;
+          
           const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0;
           h.totalCommission = h.totalCommission * ratio;
           h.totalTax = h.totalTax * ratio;
@@ -470,7 +510,56 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, sectorOverrides]);
 
-  // ... (AUTO-CGT and STATS logic remain the same) ...
+  // 3. AUTO-CGT
+  useEffect(() => {
+    if (realizedTrades.length === 0) return;
+    const ledger: Record<string, Record<string, number>> = {}; 
+    realizedTrades.forEach(t => {
+        if (t.ticker === 'PREV-PNL') return;
+        const broker = t.broker || 'Unknown Broker';
+        const month = t.date.substring(0, 7);
+        if (!ledger[broker]) ledger[broker] = {};
+        ledger[broker][month] = (ledger[broker][month] || 0) + t.profit;
+    });
+    const todayStr = new Date().toISOString().substring(0, 7);
+    const generatedTaxTx: Transaction[] = [];
+    Object.entries(ledger).forEach(([broker, monthsData]) => {
+        let runningCgtBalance = 0;
+        const sortedMonths = Object.keys(monthsData).sort();
+        sortedMonths.forEach(month => {
+            if (month >= todayStr) return;
+            const netPL = monthsData[month];
+            let taxAmount = 0;
+            let note = '';
+            if (netPL > 0) {
+                taxAmount = Number((netPL * 0.15).toFixed(2));
+                runningCgtBalance += taxAmount;
+                note = `Auto-CGT: Tax on ${month} Profit (${netPL.toFixed(0)}) - ${broker}`;
+            } else if (netPL < 0 && runningCgtBalance > 0) {
+                const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2));
+                const actualRefund = Math.min(potentialRefund, runningCgtBalance);
+                if (actualRefund > 0) {
+                    taxAmount = -actualRefund;
+                    runningCgtBalance -= actualRefund;
+                    note = `Auto-CGT: Credit on ${month} Loss (${netPL.toFixed(0)}) - ${broker}`;
+                }
+            }
+            if (taxAmount !== 0) {
+                const [y, m] = month.split('-');
+                let nextM = parseInt(m) + 1;
+                let nextY = parseInt(y);
+                if (nextM > 12) { nextM = 1; nextY++; }
+                const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`;
+                generatedTaxTx.push({ id: `auto-cgt-${broker}-${month}`, portfolioId: currentPortfolioId, ticker: 'CGT', type: 'TAX', quantity: 1, price: taxAmount, date: nextMonthStr, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: note, broker: broker });
+            }
+        });
+    });
+    const cleanTransactions = transactions.filter(t => !t.id.startsWith('auto-cgt-'));
+    const mergedTransactions = [...cleanTransactions, ...generatedTaxTx];
+    const oldIds = transactions.filter(t => t.id.startsWith('auto-cgt-')).map(t=>t.id).sort().join(',');
+    const newIds = generatedTaxTx.map(t=>t.id).sort().join(',');
+    if (oldIds !== newIds) { setTransactions(mergedTransactions); }
+  }, [realizedTrades, transactions, currentPortfolioId]); 
 
   // --- RENDER GATES ---
   if (isAuthChecking) {
@@ -492,7 +581,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* ... (Header and Background Code remains same) ... */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div>
@@ -564,7 +652,6 @@ const App: React.FC = () => {
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* ... (View Switcher and Action Buttons code remains same) ... */}
             <div className="flex justify-center mb-8">
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
                     <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <LayoutDashboard size={18} /> Dashboard </button>
@@ -631,7 +718,6 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* ... (Modals) ... */}
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -652,7 +738,6 @@ const App: React.FC = () => {
       <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
       
-      {/* UPDATED: Pass saved state and update handler */}
       <DividendScanner 
           key={currentPortfolioId}
           isOpen={showDividendScanner} 
