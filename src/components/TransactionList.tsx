@@ -8,7 +8,8 @@ import { BuyIcon } from './ui/BuyIcon';
 import { SellIcon } from './ui/SellIcon';
 import { DividendIcon } from './ui/DividendIcon';
 import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon';
-import { exportToExcel, exportToCSV } from '../utils/export'; // Import Utility
+import { FeeIcon } from './ui/FeeIcon'; // Added FeeIcon import
+import { exportToExcel, exportToCSV } from '../utils/export';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -65,14 +66,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const hasActiveFilters = searchTerm || dateFrom || dateTo || filterType !== 'ALL';
 
-  // NEW: Export Handler
   const handleExport = (type: 'excel' | 'csv') => {
       const data = filteredAndSortedTransactions.map(tx => {
           let netAmount = 0;
           const totalAmount = tx.price * tx.quantity;
           if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
           else if (tx.type === 'TAX') netAmount = -totalAmount;
-          else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL') netAmount = tx.type === 'WITHDRAWAL' ? -Math.abs(totalAmount) : totalAmount;
+          // UPDATED: Handle Annual Fee in export
+          else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') netAmount = (tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') ? -Math.abs(totalAmount) : totalAmount;
           else {
               const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
               netAmount = tx.type === 'BUY' ? totalAmount + totalFees : totalAmount - totalFees;
@@ -108,6 +109,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'HISTORY': const isPositive = tx.price >= 0; return { style: isPositive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100', icon: <HistoricalPnLIcon className="w-4 h-4" />, label: 'Historical P&L' };
           case 'DEPOSIT': return { style: 'bg-blue-50 text-blue-600 border-blue-100', icon: <DepositIcon className="w-4 h-4" />, label: 'DEPOSIT' };
           case 'WITHDRAWAL': return { style: 'bg-rose-50 text-rose-600 border-rose-100', icon: <WithdrawIcon className="w-4 h-4" />, label: 'WITHDRAWAL' };
+          // UPDATED: Added config for ANNUAL_FEE
+          case 'ANNUAL_FEE': return { style: 'bg-amber-50 text-amber-600 border-amber-100', icon: <FeeIcon className="w-4 h-4" />, label: 'ANNUAL FEE' };
           default: return { style: 'bg-slate-50 text-slate-600 border-slate-200', icon: <ArrowUpRight size={10} />, label: tx.type };
       }
   };
@@ -124,7 +127,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               <h2 className="text-lg font-bold text-slate-800 tracking-tight">Transaction History</h2>
           </div>
           <div className="flex items-center gap-3">
-              {/* EXPORT BUTTONS */}
               <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
                   <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel">
                       <FileSpreadsheet size={16} />
@@ -158,6 +160,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <option value="HISTORY">History</option>
                         <option value="DEPOSIT">Deposit</option>
                         <option value="WITHDRAWAL">Withdrawal</option>
+                        {/* UPDATED: Added Annual Fee option */}
+                        <option value="ANNUAL_FEE">Annual Fee</option>
                     </select>
                 </div>
 
@@ -178,7 +182,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
       <div className="overflow-x-auto flex-1">
         <table className="w-full text-left border-collapse">
-          {/* Table contents remain exactly same, just added export buttons above */}
           <thead>
             <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
               <th className="px-4 py-4 font-semibold">Date</th>
@@ -210,20 +213,23 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     const isHistory = tx.type === 'HISTORY';
                     const isDeposit = tx.type === 'DEPOSIT';
                     const isWithdrawal = tx.type === 'WITHDRAWAL';
+                    const isFee = tx.type === 'ANNUAL_FEE';
 
                     let netAmount = 0;
                     const totalAmount = tx.price * tx.quantity;
 
                     if (isDiv) netAmount = totalAmount - (tx.tax || 0);
                     else if (isTax) netAmount = -totalAmount;
-                    else if (isHistory || isDeposit || isWithdrawal) netAmount = isWithdrawal ? -Math.abs(totalAmount) : totalAmount;
+                    // UPDATED: Handle ANNUAL_FEE net amount
+                    else if (isHistory || isDeposit || isWithdrawal || isFee) netAmount = (isWithdrawal || isFee) ? -Math.abs(totalAmount) : totalAmount;
                     else {
                         const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
                         netAmount = isBuy ? totalAmount + totalFees : totalAmount - totalFees;
                     }
 
                     const typeConfig = getTypeConfig(tx);
-                    const isNegativeFlow = isTax || isWithdrawal || (isHistory && netAmount < 0);
+                    // UPDATED: isFee added to negative flow
+                    const isNegativeFlow = isTax || isWithdrawal || isFee || (isHistory && netAmount < 0);
 
                     let qtyMismatch = false;
                     let expectedQty = 0;
