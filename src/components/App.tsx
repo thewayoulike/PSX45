@@ -45,7 +45,6 @@ const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   
   // LOGIN STATE MANAGEMENT
-  // We start by assuming we might need to login, unless we find a valid session immediately
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
 
@@ -160,11 +159,10 @@ const App: React.FC = () => {
 
   // --- INITIALIZATION & AUTH ---
   useEffect(() => {
-      // 1. Initialize Drive Auth (Loads script, tries to restore session)
       initDriveAuth(async (user) => {
           setDriveUser(user);
           setIsAuthChecking(false);
-          setShowLogin(false); // User found, hide login
+          setShowLogin(false);
           
           if (!hasMergedCloud.current) {
               setIsCloudSyncing(true);
@@ -196,8 +194,6 @@ const App: React.FC = () => {
           }
       });
 
-      // 2. Check if we *expect* a session to be restored
-      // If we don't have a valid session token locally, stop waiting and show login.
       if (!hasValidSession()) {
           setIsAuthChecking(false);
           setShowLogin(true);
@@ -752,7 +748,8 @@ const App: React.FC = () => {
       <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
       <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
-      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={transactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
+      {/* UPDATED: PASS portfolioTransactions instead of all transactions */}
+      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={portfolioTransactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
     </div>
   );
 };
