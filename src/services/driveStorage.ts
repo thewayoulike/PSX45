@@ -230,3 +230,25 @@ export const loadFromDrive = async () => {
     }
     return null;
 };
+
+/**
+ * Check if there is a valid session token in local storage
+ * Used to skip login screen
+ */
+export const hasValidSession = (): boolean => {
+    try {
+        const storedToken = localStorage.getItem(STORAGE_TOKEN_KEY);
+        const storedExpiry = localStorage.getItem(STORAGE_EXPIRY_KEY);
+        
+        if (storedToken && storedExpiry) {
+            const now = Date.now();
+            // Buffer of 5 mins same as initDriveAuth
+            if (now < parseInt(storedExpiry) - 300000) {
+                return true;
+            }
+        }
+    } catch (e) {
+        return false;
+    }
+    return false;
+};
