@@ -454,7 +454,7 @@ const App: React.FC = () => {
             {currentView === 'HISTORY' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <TransactionList 
-                        transactions={portfolioTransactions} 
+                        transactions={displayedTransactions} 
                         onDelete={handleDeleteTransaction} 
                         onDeleteMultiple={handleDeleteTransactions}
                         onEdit={handleEditClick} 
