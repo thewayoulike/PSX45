@@ -82,7 +82,6 @@ const App: React.FC = () => {
       return localStorage.getItem('psx_current_portfolio_id') || DEFAULT_PORTFOLIO.id;
   });
 
-  // NEW: State to persist scanner results PER PORTFOLIO
   const [scannerState, setScannerState] = useState<Record<string, FoundDividend[]>>(() => {
       try {
           const saved = localStorage.getItem('psx_scanner_state');
@@ -98,6 +97,15 @@ const App: React.FC = () => {
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
           const saved = localStorage.getItem('psx_manual_prices');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return {};
+  });
+
+  // NEW: Store timestamps for prices
+  const [priceTimestamps, setPriceTimestamps] = useState<Record<string, string>>(() => {
+      try {
+          const saved = localStorage.getItem('psx_price_timestamps');
           if (saved) return JSON.parse(saved);
       } catch (e) {}
       return {};
@@ -141,6 +149,7 @@ const App: React.FC = () => {
       setHoldings([]); 
       setRealizedTrades([]); 
       setManualPrices({}); 
+      setPriceTimestamps({}); // Clear timestamps
       setSectorOverrides({}); 
       setBrokers([DEFAULT_BROKER]); 
       setScannerState({}); 
@@ -183,6 +192,7 @@ const App: React.FC = () => {
                       if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
+                      if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps); // Load Timestamps
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                       if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                       if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
@@ -212,7 +222,7 @@ const App: React.FC = () => {
   }, []);
 
   // --- HANDLERS ---
-  const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
+  const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
@@ -220,7 +230,15 @@ const App: React.FC = () => {
   const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
-  const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); };
+  
+  // Updated Price Handler to save timestamp
+  const handleUpdatePrices = (newPrices: Record<string, number>) => { 
+      setManualPrices(prev => ({ ...prev, ...newPrices })); 
+      const now = new Date().toISOString();
+      const newTimestamps: Record<string, string> = {};
+      Object.keys(newPrices).forEach(k => newTimestamps[k] = now);
+      setPriceTimestamps(prev => ({ ...prev, ...newTimestamps }));
+  };
   
   const handleScannerUpdate = (results: FoundDividend[]) => {
       setScannerState(prev => ({
@@ -256,7 +274,51 @@ const App: React.FC = () => {
       setIsEditingPortfolio(false);
   };
 
-  const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
+  // Updated Sync to save timestamps
+  const handleSyncPrices = async () => { 
+      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); 
+      if (uniqueTickers.length === 0) return; 
+      setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); 
+      
+      try { 
+          const newResults = await fetchBatchPSXPrices(uniqueTickers); 
+          const failed = new Set<string>(); 
+          const validUpdates: Record<string, number> = {}; 
+          const newSectors: Record<string, string> = {}; 
+          const now = new Date().toISOString();
+          const timestampUpdates: Record<string, string> = {};
+
+          uniqueTickers.forEach(ticker => { 
+              const data = newResults[ticker]; 
+              if (data && data.price > 0) { 
+                  validUpdates[ticker] = data.price; 
+                  timestampUpdates[ticker] = now;
+                  if (data.sector && data.sector !== 'Unknown Sector') { 
+                      newSectors[ticker] = data.sector; 
+                  } 
+              } else { 
+                  failed.add(ticker); 
+              } 
+          }); 
+          
+          if (Object.keys(validUpdates).length > 0) { 
+              setManualPrices(prev => ({ ...prev, ...validUpdates })); 
+              setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates }));
+          } 
+          if (Object.keys(newSectors).length > 0) { 
+              setSectorOverrides(prev => ({ ...prev, ...newSectors })); 
+          } 
+          if (failed.size > 0) { 
+              setFailedTickers(failed); 
+              setPriceError(true); 
+          } 
+      } catch (e) { 
+          console.error(e); 
+          setPriceError(true); 
+      } finally { 
+          setIsSyncing(false); 
+      } 
+  };
 
   useEffect(() => {
       if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
@@ -365,7 +427,7 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
-  // EFFECTS (Now safe to use 'stats' if needed, though mostly independent)
+  // EFFECTS
 
   // 1. PERSISTENCE EFFECT
   useEffect(() => {
@@ -374,6 +436,7 @@ const App: React.FC = () => {
         localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
         localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
         localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
+        localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); // Save Timestamps
         localStorage.setItem('psx_brokers', JSON.stringify(brokers));
         localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
         localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); 
@@ -387,6 +450,7 @@ const App: React.FC = () => {
                   portfolios, 
                   currentPortfolioId, 
                   manualPrices, 
+                  priceTimestamps, // Save to Drive
                   brokers, 
                   sectorOverrides, 
                   scannerState, 
@@ -396,7 +460,7 @@ const App: React.FC = () => {
           }, 3000); 
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
 
   // 2. CALCULATE HOLDINGS & REALIZED (FIFO)
   useEffect(() => {
@@ -502,13 +566,15 @@ const App: React.FC = () => {
       .filter(h => h.quantity > 0.0001)
       .map(h => {
         const current = manualPrices[h.ticker] || h.avgPrice;
-        return { ...h, currentPrice: current };
+        // Pass the timestamp to the holding
+        const lastUpdated = priceTimestamps[h.ticker];
+        return { ...h, currentPrice: current, lastUpdated };
       });
 
     setHoldings(finalHoldings);
     setRealizedTrades(tempRealized);
     setTotalDividends(dividendSum);
-  }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, sectorOverrides]);
+  }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, priceTimestamps, sectorOverrides]);
 
   // 3. AUTO-CGT
   useEffect(() => {
@@ -561,7 +627,6 @@ const App: React.FC = () => {
     if (oldIds !== newIds) { setTransactions(mergedTransactions); }
   }, [realizedTrades, transactions, currentPortfolioId]); 
 
-  // --- RENDER GATES ---
   if (isAuthChecking) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
