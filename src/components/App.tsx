@@ -120,6 +120,9 @@ const App: React.FC = () => {
   
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [newPortfolioName, setNewPortfolioName] = useState('');
+  // NEW: State for new portfolio broker
+  const [newPortfolioBrokerId, setNewPortfolioBrokerId] = useState('');
+
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
   const [totalDividends, setTotalDividends] = useState<number>(0);
@@ -200,7 +203,7 @@ const App: React.FC = () => {
   // Single Delete
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   
-  // NEW: Bulk Delete
+  // Bulk Delete
   const handleDeleteTransactions = (ids: string[]) => {
       if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) {
           setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
@@ -210,7 +213,24 @@ const App: React.FC = () => {
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
-  const handleCreatePortfolio = (e: React.FormEvent) => { e.preventDefault(); if (newPortfolioName.trim()) { const newId = Date.now().toString(); setPortfolios(prev => [...prev, { id: newId, name: newPortfolioName.trim() }]); setCurrentPortfolioId(newId); setNewPortfolioName(''); setIsPortfolioModalOpen(false); } };
+  
+  // UPDATED: Create Portfolio with Default Broker
+  const handleCreatePortfolio = (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      if (newPortfolioName.trim()) { 
+          const newId = Date.now().toString(); 
+          setPortfolios(prev => [...prev, { 
+              id: newId, 
+              name: newPortfolioName.trim(),
+              defaultBrokerId: newPortfolioBrokerId || undefined 
+          }]); 
+          setCurrentPortfolioId(newId); 
+          setNewPortfolioName(''); 
+          setNewPortfolioBrokerId('');
+          setIsPortfolioModalOpen(false); 
+      } 
+  };
+
   const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
   const startEditingPortfolio = () => { const current = portfolios.find(p => p.id === currentPortfolioId); if (current) { setEditPortfolioName(current.name); setIsEditingPortfolio(true); } };
   const savePortfolioName = () => { if (!editPortfolioName.trim()) return; setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, name: editPortfolioName.trim() } : p)); setIsEditingPortfolio(false); };
@@ -225,18 +245,12 @@ const App: React.FC = () => {
   const portfolioTransactions = useMemo(() => { return transactions.filter(t => t.portfolioId === currentPortfolioId); }, [transactions, currentPortfolioId]);
   const displayedTransactions = useMemo(() => { if (filterBroker === 'All') return portfolioTransactions; return portfolioTransactions.filter(t => t.broker === filterBroker); }, [portfolioTransactions, filterBroker]);
   
-  // UPDATED: Now combines active Brokers list AND history to ensure all brokers appear in filter
   const uniqueBrokers = useMemo(() => { 
       const brokerNames = new Set<string>();
-      
-      // 1. Add all configured brokers (even empty ones)
       brokers.forEach(b => brokerNames.add(b.name));
-
-      // 2. Add brokers from transactions (handles deleted brokers or imported data)
       portfolioTransactions.forEach(t => { 
           if (t.broker) brokerNames.add(t.broker); 
       }); 
-      
       return Array.from(brokerNames).sort(); 
   }, [portfolioTransactions, brokers]);
 
@@ -274,10 +288,13 @@ const App: React.FC = () => {
 
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
   if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
+  
+  // FIND THE CURRENT PORTFOLIO OBJECT TO PASS TO TRANS FORM
+  const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* HEADER SECTION - SAME AS BEFORE */}
+      {/* HEADER SECTION */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0"><div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div><div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[100px]"></div></div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
@@ -387,11 +404,10 @@ const App: React.FC = () => {
 
             {currentView === 'HISTORY' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    {/* UPDATED: Added onDeleteMultiple prop for bulk deletion */}
                     <TransactionList 
                         transactions={portfolioTransactions} 
                         onDelete={handleDeleteTransaction} 
-                        onDeleteMultiple={handleDeleteTransactions} // Added this
+                        onDeleteMultiple={handleDeleteTransactions}
                         onEdit={handleEditClick} 
                     />
                 </div>
@@ -409,13 +425,41 @@ const App: React.FC = () => {
                   </div>
                   <form onSubmit={handleCreatePortfolio}>
                       <input type="text" autoFocus placeholder="Portfolio Name" value={newPortfolioName} onChange={(e) => setNewPortfolioName(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
+                      
+                      {/* NEW: Broker Select for Portfolio Default */}
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Default Broker</label>
+                      <div className="relative mb-6">
+                          <select 
+                              value={newPortfolioBrokerId} 
+                              onChange={(e) => setNewPortfolioBrokerId(e.target.value)} 
+                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                              <option value="">None / Select Manually</option>
+                              {brokers.map(b => (
+                                  <option key={b.id} value={b.id}>{b.name}</option>
+                              ))}
+                          </select>
+                          <Briefcase size={16} className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" />
+                      </div>
+
                       <button type="submit" disabled={!newPortfolioName.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all">Create</button>
                   </form>
               </div>
           </div>
       )}
       
-      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} />
+      {/* UPDATED: Passing portfolioDefaultBrokerId prop */}
+      <TransactionForm 
+          isOpen={showAddModal} 
+          onClose={() => setShowAddModal(false)} 
+          onAddTransaction={handleAddTransaction} 
+          onUpdateTransaction={handleUpdateTransaction} 
+          existingTransactions={transactions} 
+          editingTransaction={editingTransaction} 
+          brokers={brokers} 
+          onManageBrokers={() => setShowBrokerManager(true)}
+          portfolioDefaultBrokerId={currentPortfolio?.defaultBrokerId} 
+      />
       <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
       <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
