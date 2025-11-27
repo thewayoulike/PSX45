@@ -15,7 +15,7 @@ import { Logo } from './ui/Logo';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check } from 'lucide-react';
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check, Layers, PieChart } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -94,6 +94,9 @@ const App: React.FC = () => {
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
 
+  // NEW: Combine Portfolios State
+  const [isCombinedView, setIsCombinedView] = useState(false);
+
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
           const saved = localStorage.getItem('psx_manual_prices');
@@ -119,8 +122,6 @@ const App: React.FC = () => {
   });
 
   const [userApiKey, setUserApiKey] = useState<string>('');
-  const [groupByBroker, setGroupByBroker] = useState(true);
-  const [filterBroker, setFilterBroker] = useState<string>('All');
   
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
@@ -295,23 +296,22 @@ const App: React.FC = () => {
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
-  const portfolioTransactions = useMemo(() => { return transactions.filter(t => t.portfolioId === currentPortfolioId); }, [transactions, currentPortfolioId]);
-  const displayedTransactions = useMemo(() => { if (filterBroker === 'All') return portfolioTransactions; return portfolioTransactions.filter(t => t.broker === filterBroker); }, [portfolioTransactions, filterBroker]);
   
-  const uniqueBrokers = useMemo(() => { 
-      const brokerNames = new Set<string>();
-      brokers.forEach(b => brokerNames.add(b.name));
-      portfolioTransactions.forEach(t => { 
-          if (t.broker) brokerNames.add(t.broker); 
-      }); 
-      return Array.from(brokerNames).sort(); 
-  }, [portfolioTransactions, brokers]);
+  // UPDATED: Portfolio Transactions Logic (Combined vs Single)
+  const portfolioTransactions = useMemo(() => { 
+      if (isCombinedView) {
+          return transactions; // Return ALL transactions
+      }
+      return transactions.filter(t => t.portfolioId === currentPortfolioId); 
+  }, [transactions, currentPortfolioId, isCombinedView]);
 
+  // Removed displayedTransactions logic as it's just the same as portfolioTransactions now
+  
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let totalDividendTax = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     holdings.forEach(h => { totalValue += h.quantity * h.currentPrice; totalCost += h.quantity * h.avgPrice; });
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
-    displayedTransactions.forEach(t => {
+    portfolioTransactions.forEach(t => {
         totalCommission += (t.commission || 0); totalCDC += (t.cdcCharges || 0); totalOtherFees += (t.otherFees || 0);
         if (t.type === 'DIVIDEND') { totalDividendTax += (t.tax || 0); } else if (t.type === 'TAX') { totalCGT += (t.price * t.quantity); } else if (t.type === 'HISTORY') { totalCGT += (t.tax || 0); historyPnL += t.price; } else if (t.type === 'DEPOSIT') { totalDeposits += t.price; } else if (t.type === 'WITHDRAWAL') { totalWithdrawals += t.price; } else if (t.type === 'ANNUAL_FEE') { totalWithdrawals += t.price; } else { totalSalesTax += (t.tax || 0); }
     });
@@ -325,7 +325,7 @@ const App: React.FC = () => {
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
     let cashIn = totalDeposits; let cashOut = totalWithdrawals + totalCGT; 
     let tradingCashFlow = 0; 
-    displayedTransactions.forEach(t => { const val = t.price * t.quantity; const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); if (t.type === 'BUY') tradingCashFlow -= (val + fees); else if (t.type === 'SELL') tradingCashFlow += (val - fees); });
+    portfolioTransactions.forEach(t => { const val = t.price * t.quantity; const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); if (t.type === 'BUY') tradingCashFlow -= (val + fees); else if (t.type === 'SELL') tradingCashFlow += (val - fees); });
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     const roiDenominator = totalDeposits;
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
@@ -333,10 +333,10 @@ const App: React.FC = () => {
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
     return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, totalDividends, dailyPL: 0, totalCommission, totalSalesTax, totalDividendTax, totalCDC, totalOtherFees, totalCGT, freeCash, cashInvestment, netPrincipal, totalDeposits, reinvestedProfits, roi };
-  }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
+  }, [holdings, realizedTrades, totalDividends, portfolioTransactions]);
 
   useEffect(() => { if (driveUser || transactions.length > 0) { localStorage.setItem('psx_transactions', JSON.stringify(transactions)); localStorage.setItem('psx_portfolios', JSON.stringify(portfolios)); localStorage.setItem('psx_current_portfolio_id', currentPortfolioId); localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices)); localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); localStorage.setItem('psx_brokers', JSON.stringify(brokers)); localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides)); localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); } if (driveUser) { setIsCloudSyncing(true); const timer = setTimeout(async () => { await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey }); setIsCloudSyncing(false); }, 3000); return () => clearTimeout(timer); } }, [transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
-  useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; let dividendSum = 0; const sortedTx = [...displayedTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') return; if (tx.type === 'DIVIDEND') { const grossDiv = tx.quantity * tx.price; const netDiv = grossDiv - (tx.tax || 0); dividendSum += netDiv; return; } if (tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = groupByBroker ? (tx.broker || 'Unknown') : 'ALL'; const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: groupByBroker ? (tx.broker || 'Unknown') : (filterBroker !== 'All' ? filterBroker : 'Multiple Brokers'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); setTotalDividends(dividendSum); }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, priceTimestamps, sectorOverrides]);
+  useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; let dividendSum = 0; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') return; if (tx.type === 'DIVIDEND') { const grossDiv = tx.quantity * tx.price; const netDiv = grossDiv - (tx.tax || 0); dividendSum += netDiv; return; } if (tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); setTotalDividends(dividendSum); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   useEffect(() => { if (realizedTrades.length === 0) return; const ledger: Record<string, Record<string, number>> = {}; realizedTrades.forEach(t => { if (t.ticker === 'PREV-PNL') return; const broker = t.broker || 'Unknown Broker'; const month = t.date.substring(0, 7); if (!ledger[broker]) ledger[broker] = {}; ledger[broker][month] = (ledger[broker][month] || 0) + t.profit; }); const todayStr = new Date().toISOString().substring(0, 7); const generatedTaxTx: Transaction[] = []; Object.entries(ledger).forEach(([broker, monthsData]) => { let runningCgtBalance = 0; const sortedMonths = Object.keys(monthsData).sort(); sortedMonths.forEach(month => { if (month >= todayStr) return; const netPL = monthsData[month]; let taxAmount = 0; let note = ''; if (netPL > 0) { taxAmount = Number((netPL * 0.15).toFixed(2)); runningCgtBalance += taxAmount; note = `Auto-CGT: Tax on ${month} Profit (${netPL.toFixed(0)}) - ${broker}`; } else if (netPL < 0 && runningCgtBalance > 0) { const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2)); const actualRefund = Math.min(potentialRefund, runningCgtBalance); if (actualRefund > 0) { taxAmount = -actualRefund; runningCgtBalance -= actualRefund; note = `Auto-CGT: Credit on ${month} Loss (${netPL.toFixed(0)}) - ${broker}`; } } if (taxAmount !== 0) { const [y, m] = month.split('-'); let nextM = parseInt(m) + 1; let nextY = parseInt(y); if (nextM > 12) { nextM = 1; nextY++; } const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`; generatedTaxTx.push({ id: `auto-cgt-${broker}-${month}`, portfolioId: currentPortfolioId, ticker: 'CGT', type: 'TAX', quantity: 1, price: taxAmount, date: nextMonthStr, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: note, broker: broker }); } }); }); const cleanTransactions = transactions.filter(t => !t.id.startsWith('auto-cgt-')); const mergedTransactions = [...cleanTransactions, ...generatedTaxTx]; const oldIds = transactions.filter(t => t.id.startsWith('auto-cgt-')).map(t=>t.id).sort().join(','); const newIds = generatedTaxTx.map(t=>t.id).sort().join(','); if (oldIds !== newIds) { setTransactions(mergedTransactions); } }, [realizedTrades, transactions, currentPortfolioId]);
 
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
@@ -408,20 +408,19 @@ const App: React.FC = () => {
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Coins size={18} /> Scan Dividends </button>
                     <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
                 </div>
+                
+                {/* REPLACED FILTERS WITH COMBINE TOGGLE */}
                 <div className="flex flex-wrap gap-3">
-                    <div className="relative z-20">
-                         <div className="absolute left-3 top-3 text-slate-400 pointer-events-none"><Filter size={16} /></div>
-                         <select value={filterBroker} onChange={(e) => setFilterBroker(e.target.value)} className="appearance-none bg-white border border-slate-200 hover:border-emerald-400 text-slate-700 pl-10 pr-10 py-3 rounded-xl text-sm font-medium outline-none cursor-pointer min-w-[160px] shadow-sm transition-colors focus:ring-2 focus:ring-emerald-500/20">
-                             <option value="All">All Brokers</option>
-                             {uniqueBrokers.map(b => <option key={b} value={b}>{b}</option>)}
-                         </select>
+                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Combined View</span>
+                        <button 
+                            onClick={() => setIsCombinedView(!isCombinedView)} 
+                            className={`w-10 h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                        >
+                            <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
+                        </button>
                     </div>
-                    {currentView !== 'HISTORY' && (
-                        <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                             <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
-                             <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
-                        </div>
-                    )}
+
                     {currentView === 'DASHBOARD' && (
                         <>
                             <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
@@ -440,21 +439,21 @@ const App: React.FC = () => {
                     <Dashboard stats={stats} />
                     <div className="flex flex-col gap-6">
                         <AllocationChart holdings={holdings} />
-                        <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
+                        <HoldingsTable holdings={holdings} showBroker={true} failedTickers={failedTickers} />
                     </div>
                 </div>
             )}
 
             {currentView === 'REALIZED' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
+                    <RealizedTable trades={realizedTrades} showBroker={true} />
                 </div>
             )}
 
             {currentView === 'HISTORY' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <TransactionList 
-                        transactions={displayedTransactions} 
+                        transactions={portfolioTransactions} 
                         onDelete={handleDeleteTransaction} 
                         onDeleteMultiple={handleDeleteTransactions}
                         onEdit={handleEditClick} 
