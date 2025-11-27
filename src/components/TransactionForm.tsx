@@ -82,8 +82,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
             
-            // FIX: Explicitly disable Auto-Calc when editing to preserve original values
-            setIsAutoCalc(false);
+            // FIX: Set Auto-Calc to TRUE by default when editing
+            // This ensures fees are recalculated immediately based on the current broker rules.
+            setIsAutoCalc(true);
             
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             
@@ -102,11 +103,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             }
 
         } else {
-            // Default State for NEW transactions
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
-            setMode('MANUAL'); 
-            setIsAutoCalc(true); // Default ON for new
+            setMode('MANUAL'); setIsAutoCalc(true); 
             setDate(new Date().toISOString().split('T')[0]);
             setCgtMonth(new Date().toISOString().substring(0, 7));
             setCgtProfit('');
@@ -355,7 +354,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <div className="pt-2">
                                 <div className="flex items-center justify-between mb-2">
                                     <label className="text-xs font-bold text-slate-400 uppercase">Fees & Taxes</label>
-                                    {/* UPDATED: Red Warning Button logic */}
                                     <button 
                                         type="button" 
                                         onClick={() => setIsAutoCalc(!isAutoCalc)} 
