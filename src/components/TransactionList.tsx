@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, ArrowDownLeft, History, Search, Calendar, X, Filter, Coins, Pencil, Receipt } from 'lucide-react';
+import { Trash2, ArrowUpRight, ArrowDownLeft, History, Search, Calendar, X, Filter, Coins, Pencil, Receipt, Wallet } from 'lucide-react';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -10,25 +10,22 @@ interface TransactionListProps {
 
 export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onDelete, onEdit }) => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('ALL'); // NEW: Type State
+  const [filterType, setFilterType] = useState<string>('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
   const filteredAndSortedTransactions = useMemo(() => {
     return transactions
       .filter(tx => {
-        // 1. Search Filter
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = 
           tx.ticker.toLowerCase().includes(searchLower) || 
           (tx.broker && tx.broker.toLowerCase().includes(searchLower)) ||
           (tx.notes && tx.notes.toLowerCase().includes(searchLower));
 
-        // 2. Date Filter
         const matchesFrom = dateFrom ? tx.date >= dateFrom : true;
         const matchesTo = dateTo ? tx.date <= dateTo : true;
 
-        // 3. Type Filter
         const matchesType = filterType === 'ALL' || tx.type === filterType;
 
         return matchesSearch && matchesFrom && matchesTo && matchesType;
@@ -45,12 +42,68 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const hasActiveFilters = searchTerm || dateFrom || dateTo || filterType !== 'ALL';
 
+  // Helper to get style and icon based on type
+  const getTypeConfig = (tx: Transaction) => {
+      switch (tx.type) {
+          case 'BUY':
+              return { 
+                  style: 'bg-emerald-50 text-emerald-600 border-emerald-100', 
+                  icon: <ArrowDownLeft size={10} />,
+                  label: 'BUY'
+              };
+          case 'SELL':
+              return { 
+                  style: 'bg-rose-50 text-rose-600 border-rose-100', 
+                  icon: <ArrowUpRight size={10} />,
+                  label: 'SELL'
+              };
+          case 'DIVIDEND':
+              return { 
+                  style: 'bg-emerald-100 text-emerald-800 border-emerald-200 font-extrabold', 
+                  icon: <Coins size={10} />,
+                  label: 'DIVIDEND'
+              };
+          case 'TAX':
+              return { 
+                  style: 'bg-rose-50 text-rose-600 border-rose-100', 
+                  icon: <Receipt size={10} />,
+                  label: 'TAX' // or CGT
+              };
+          case 'HISTORY':
+              const isPositive = tx.price >= 0;
+              return { 
+                  style: isPositive 
+                      ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                      : 'bg-rose-50 text-rose-600 border-rose-100',
+                  icon: <History size={10} />,
+                  label: 'Historical P&L'
+              };
+          case 'DEPOSIT':
+              return { 
+                  style: 'bg-blue-50 text-blue-600 border-blue-100', 
+                  icon: <Wallet size={10} />,
+                  label: 'DEPOSIT'
+              };
+          case 'WITHDRAWAL':
+              return { 
+                  style: 'bg-rose-50 text-rose-600 border-rose-100', 
+                  icon: <Wallet size={10} />,
+                  label: 'WITHDRAWAL'
+              };
+          default:
+              return { 
+                  style: 'bg-slate-50 text-slate-600 border-slate-200', 
+                  icon: <ArrowUpRight size={10} />,
+                  label: tx.type
+              };
+      }
+  };
+
   if (transactions.length === 0) return null;
 
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 mb-20">
       
-      {/* HEADER & FILTERS */}
       <div className="p-6 border-b border-slate-200/60 bg-white/40 space-y-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -63,7 +116,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         </div>
 
         <div className="flex flex-col md:flex-row gap-3">
-            {/* Search Input */}
             <div className="relative flex-1">
                 <Search size={16} className="absolute left-3 top-3 text-slate-400" />
                 <input 
@@ -76,7 +128,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             </div>
 
             <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                {/* NEW: Type Filter Dropdown */}
                 <div className="relative w-full sm:w-auto">
                     <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none">
                         <Filter size={16} />
@@ -91,10 +142,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <option value="SELL">Sell</option>
                         <option value="DIVIDEND">Dividend</option>
                         <option value="TAX">Tax / CGT</option>
+                        <option value="HISTORY">History</option>
+                        <option value="DEPOSIT">Deposit</option>
+                        <option value="WITHDRAWAL">Withdrawal</option>
                     </select>
                 </div>
 
-                {/* Date Inputs */}
                 <div className="flex gap-2 items-center bg-white border border-slate-200 rounded-xl px-2 py-0.5">
                     <input 
                         type="date" 
@@ -156,31 +209,38 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     const isBuy = tx.type === 'BUY';
                     const isDiv = tx.type === 'DIVIDEND';
                     const isTax = tx.type === 'TAX';
-                    
-                    let totalAmount = tx.price * tx.quantity;
+                    const isHistory = tx.type === 'HISTORY';
+                    const isDeposit = tx.type === 'DEPOSIT';
+                    const isWithdrawal = tx.type === 'WITHDRAWAL';
+
                     let netAmount = 0;
-                    
+                    const totalAmount = tx.price * tx.quantity;
+
+                    // Net Amount Logic
                     if (isDiv) {
                         netAmount = totalAmount - (tx.tax || 0);
                     } else if (isTax) {
-                        netAmount = -totalAmount; // Tax is an expense
+                        netAmount = -totalAmount;
+                    } else if (isHistory || isDeposit || isWithdrawal) {
+                        // For History/Cash, price holds the value. 
+                        // Withdrawals are usually displayed as negative in Net Amount.
+                        netAmount = isWithdrawal ? -Math.abs(totalAmount) : totalAmount;
                     } else {
+                        // Buy/Sell
                         const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
                         netAmount = isBuy ? totalAmount + totalFees : totalAmount - totalFees;
                     }
 
+                    const typeConfig = getTypeConfig(tx);
+                    const isNegativeFlow = isTax || isWithdrawal || (isHistory && netAmount < 0);
+
                     return (
-                        <tr key={tx.id} className={`hover:bg-emerald-50/30 transition-colors ${isTax ? 'bg-rose-50/30' : ''}`}>
+                        <tr key={tx.id} className={`hover:bg-emerald-50/30 transition-colors ${isNegativeFlow ? 'bg-rose-50/30' : ''}`}>
                         <td className="px-4 py-4 text-slate-500 text-xs font-mono whitespace-nowrap">{tx.date}</td>
                         <td className="px-4 py-4">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold ${
-                                isDiv ? 'bg-indigo-50 text-indigo-600 border border-indigo-100' :
-                                isBuy ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 
-                                isTax ? 'bg-rose-50 text-rose-600 border border-rose-100' :
-                                'bg-blue-50 text-blue-600 border border-blue-100' // Sell
-                            }`}>
-                                {isDiv ? <Coins size={10} /> : isTax ? <Receipt size={10} /> : (isBuy ? <ArrowDownLeft size={10} /> : <ArrowUpRight size={10} />)}
-                                {tx.type}
+                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border ${typeConfig.style}`}>
+                                {typeConfig.icon}
+                                {typeConfig.label}
                             </span>
                         </td>
                         <td className="px-4 py-4 font-bold text-slate-800">
@@ -204,7 +264,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <td className="px-2 py-4 text-right text-slate-400 font-mono text-xs">
                             {(tx.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td className={`px-4 py-4 text-right font-bold font-mono text-xs ${isTax ? 'text-rose-500' : 'text-slate-900'}`}>
+                        <td className={`px-4 py-4 text-right font-bold font-mono text-xs ${netAmount < 0 ? 'text-rose-500' : 'text-slate-900'}`}>
                             {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-4 text-center">
