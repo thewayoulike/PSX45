@@ -748,8 +748,16 @@ const App: React.FC = () => {
       <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
       <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
-      {/* UPDATED: PASS portfolioTransactions instead of all transactions */}
-      <DividendScanner isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={portfolioTransactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} />
+      
+      {/* UPDATED: Pass key to force re-render on portfolio switch, and pass portfolioTransactions */}
+      <DividendScanner 
+          key={currentPortfolioId}
+          isOpen={showDividendScanner} 
+          onClose={() => setShowDividendScanner(false)} 
+          transactions={portfolioTransactions} 
+          onAddTransaction={handleAddTransaction} 
+          onOpenSettings={() => setShowApiKeyManager(true)} 
+      />
     </div>
   );
 };
