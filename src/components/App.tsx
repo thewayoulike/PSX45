@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 
+// 1. Removed react-router-dom imports
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Broker, DriveUser } from '../types';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
@@ -13,12 +13,10 @@ import { PriceEditor } from './PriceEditor';
 import { DividendScanner } from './DividendScanner';
 import { ApiKeyManager } from './ApiKeyManager'; 
 import { LoginPage } from './LoginPage';
-// ✅ ADDED MISSING IMPORT HERE
 import { Logo } from './ui/Logo'; 
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-// ✅ ADDED MISSING LogOut IMPORT HERE
 import { Edit3, Plus, Filter, RefreshCw, Loader2, Coins, Briefcase, Key, LayoutDashboard, History, CheckCircle2, LogOut } from 'lucide-react';
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive } from '../services/driveStorage';
@@ -29,9 +27,11 @@ const INITIAL_BROKERS: Broker[] = [
   { id: 'akd', name: 'AKD Securities', commissionType: 'HIGHER_OF', rate1: 0.15, rate2: 0.05, sstRate: 13 }
 ];
 
+// 2. Define View Type
+type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
+
 const App: React.FC = () => {
-  const navigate = useNavigate();
-  const location = useLocation();
+  // 3. Removed navigate/location hooks
 
   // --- AUTH STATE ---
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -45,6 +45,9 @@ const App: React.FC = () => {
   const [userApiKey, setUserApiKey] = useState<string>('');
   
   // --- UI STATE ---
+  // 4. Restore currentView state
+  const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [showBrokerManager, setShowBrokerManager] = useState(false);
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
@@ -59,7 +62,6 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
-  // Store manual prices or synced prices: { "OGDC": 120.5 }
   const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
 
   // --- AUTH & LOAD EFFECT ---
@@ -105,37 +107,31 @@ const App: React.FC = () => {
   }, [transactions, brokers, userApiKey, driveUser, isCloudSyncing]);
 
   // --- CALCULATIONS (MEMOIZED) ---
-  
-  // 1. Unique Brokers for Filter
   const uniqueBrokers = useMemo(() => {
       const bNames = new Set(transactions.map(t => t.broker).filter(Boolean) as string[]);
       return Array.from(bNames);
   }, [transactions]);
 
-  // 2. Filtered Transactions
   const portfolioTransactions = useMemo(() => {
       if (filterBroker === 'All') return transactions;
       return transactions.filter(t => t.broker === filterBroker);
   }, [transactions, filterBroker]);
 
-  // 3. Process Holdings & Realized Gains
   const { holdings, realizedTrades, stats } = useMemo(() => {
       const map = new Map<string, Holding>();
       const realized: RealizedTrade[] = [];
       let totalDeposits = 0;
       let totalWithdrawals = 0;
       let totalDividends = 0;
-      let totalTax = 0; // Sales Tax + Div Tax
+      let totalTax = 0; 
       let totalCommission = 0;
       let totalCDC = 0;
       let totalOther = 0;
-      let totalCGT = 0; // Explicit Capital Gains Tax transactions
+      let totalCGT = 0; 
 
-      // Sort chronological
       const sorted = [...portfolioTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       sorted.forEach(tx => {
-          // Accumulate Fees
           if (tx.type !== 'TAX') {
             totalCommission += (tx.commission || 0);
             totalTax += (tx.tax || 0);
@@ -143,28 +139,27 @@ const App: React.FC = () => {
             totalOther += (tx.otherFees || 0);
           }
 
-          if (tx.type === 'DEPOSIT') totalDeposits += (tx.price); // Price field used for amount
+          if (tx.type === 'DEPOSIT') totalDeposits += (tx.price);
           if (tx.type === 'WITHDRAWAL') totalWithdrawals += (tx.price);
           
           if (tx.type === 'DIVIDEND') {
-             totalDividends += ((tx.quantity * tx.price) - (tx.tax || 0)); // Net Dividend
+             totalDividends += ((tx.quantity * tx.price) - (tx.tax || 0));
              return;
           }
 
           if (tx.type === 'TAX') {
-              totalCGT += tx.price; // Price field used for Tax Amount
+              totalCGT += tx.price;
               return;
           }
 
           if (tx.type === 'HISTORY') {
-              // Handle legacy P&L if needed, for now ignore or add to realized
               realized.push({
                   id: tx.id,
                   ticker: 'HISTORY',
                   date: tx.date,
                   quantity: 0,
                   buyAvg: 0,
-                  sellPrice: tx.price, // Profit amount
+                  sellPrice: tx.price,
                   profit: tx.price,
                   commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, fees: 0
               });
@@ -192,21 +187,15 @@ const App: React.FC = () => {
               const newQty = h.quantity + tx.quantity;
               h.avgPrice = newQty > 0 ? totalCost / newQty : 0;
               h.quantity = newQty;
-              
-              // Add fees to holding specifically
               h.totalCommission += tx.commission || 0;
               h.totalTax += tx.tax || 0;
               h.totalCDC += tx.cdcCharges || 0;
               h.totalOtherFees += tx.otherFees || 0;
 
           } else if (tx.type === 'SELL') {
-              // Realized Gain logic (Average Cost)
               const costBasis = tx.quantity * h.avgPrice;
               const sellValue = tx.quantity * tx.price;
-              
-              // Pro-rate fees for realized trade
               const tradeFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
-              
               const netProfit = sellValue - costBasis - tradeFees;
 
               realized.push({
@@ -226,19 +215,16 @@ const App: React.FC = () => {
               });
 
               h.quantity -= tx.quantity;
-              if (h.quantity <= 0.001) h.quantity = 0; // Floating point fix
+              if (h.quantity <= 0.001) h.quantity = 0; 
           }
       });
 
-      // Stats Aggregation
       const activeHoldings = Array.from(map.values()).filter(h => h.quantity > 0);
       let totalValue = 0;
       let totalCost = 0;
       
       activeHoldings.forEach(h => {
-          // Update current price if available
           if (marketPrices[h.ticker]) h.currentPrice = marketPrices[h.ticker];
-          
           totalValue += h.quantity * h.currentPrice;
           totalCost += h.quantity * h.avgPrice;
       });
@@ -246,14 +232,11 @@ const App: React.FC = () => {
       const unrealizedPL = totalValue - totalCost;
       const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
       const realizedPL = realized.reduce((sum, r) => sum + r.profit, 0);
-      const netRealizedPL = realizedPL; // Already net of trade fees
+      const netRealizedPL = realizedPL;
 
       const netPrincipal = totalDeposits - totalWithdrawals;
-      // Free Cash = Net Principal + Realized P&L + Dividends - Cost of Active Holdings - Tax Paid(CGT)
       const freeCash = netPrincipal + realizedPL + totalDividends - totalCost - totalCGT;
       const reinvestedProfits = Math.max(0, (totalValue + freeCash) - netPrincipal);
-      
-      // ROI = ((Net Worth - Principal) / Principal) * 100
       const totalNetWorth = totalValue + freeCash;
       const roi = netPrincipal > 0 ? ((totalNetWorth - netPrincipal) / netPrincipal) * 100 : 0;
 
@@ -265,13 +248,13 @@ const App: React.FC = () => {
               totalCost,
               unrealizedPL,
               unrealizedPLPercent,
-              realizedPL, // This is technically Net Realized P&L in this logic
+              realizedPL,
               netRealizedPL,
               totalDividends,
-              dailyPL: 0, // Not implemented
+              dailyPL: 0,
               totalCommission,
               totalSalesTax: totalTax,
-              totalDividendTax: 0, // Included in totalTax for simplicity or separate if needed
+              totalDividendTax: 0,
               totalCDC,
               totalOtherFees: totalOther,
               totalCGT,
@@ -285,7 +268,6 @@ const App: React.FC = () => {
       };
 
   }, [portfolioTransactions, groupByBroker, marketPrices]);
-
 
   // --- HANDLERS ---
   const handleAddTransaction = (newTx: Omit<Transaction, 'id' | 'portfolioId'>) => {
@@ -371,7 +353,6 @@ const App: React.FC = () => {
       }
   };
 
-  // --- RENDER GATES ---
   if (isAuthChecking) {
       return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
@@ -419,26 +400,26 @@ const App: React.FC = () => {
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700 px-4 max-w-7xl mx-auto">
             
-            {/* NAVIGATION BAR */}
+            {/* 5. NAVIGATION BAR - RESTORED VIEW SWITCHING */}
             <div className="flex justify-center mb-8">
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
                     <button 
-                        onClick={() => navigate('/dashboard')} 
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${location.pathname === '/dashboard' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                        onClick={() => setCurrentView('DASHBOARD')} 
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
                     > 
                         <LayoutDashboard size={18} /> Dashboard 
                     </button>
                     
                     <button 
-                        onClick={() => navigate('/realized')} 
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${location.pathname === '/realized' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                        onClick={() => setCurrentView('REALIZED')} 
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
                     > 
                         <CheckCircle2 size={18} /> Realized Gains 
                     </button>
                     
                     <button 
-                        onClick={() => navigate('/history')} 
-                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${location.pathname === '/history' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
+                        onClick={() => setCurrentView('HISTORY')} 
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}
                     > 
                         <History size={18} /> History 
                     </button>
@@ -463,14 +444,15 @@ const App: React.FC = () => {
                          </select>
                     </div>
                     
-                    {location.pathname !== '/history' && (
+                    {/* 6. Updated Condition: currentView instead of location.pathname */}
+                    {currentView !== 'HISTORY' && (
                         <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                              <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
                              <button onClick={() => setGroupByBroker(false)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${!groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Combine</button>
                         </div>
                     )}
 
-                    {location.pathname === '/dashboard' && (
+                    {currentView === 'DASHBOARD' && (
                         <>
                             <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
                              <div className="flex items-center gap-2">
@@ -482,10 +464,8 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              
-              <Route path="/dashboard" element={
+            {/* 7. CONDITIONAL RENDERING (REPLACED ROUTES) */}
+            {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
                     <div className="flex flex-col gap-6">
@@ -493,22 +473,19 @@ const App: React.FC = () => {
                         <HoldingsTable holdings={holdings} showBroker={groupByBroker} failedTickers={failedTickers} />
                     </div>
                 </div>
-              } />
-              
-              <Route path="/realized" element={
+            )}
+            
+            {currentView === 'REALIZED' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <RealizedTable trades={realizedTrades} showBroker={groupByBroker} />
                 </div>
-              } />
-              
-              <Route path="/history" element={
+            )}
+            
+            {currentView === 'HISTORY' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <TransactionList transactions={portfolioTransactions} onDelete={handleDeleteTransaction} onEdit={handleEditClick} />
                 </div>
-              } />
-
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            )}
 
         </main>
 
