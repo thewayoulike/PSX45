@@ -20,11 +20,13 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(inputKey.trim());
+    
+    // FIX: Aggressively remove any non-ASCII characters before saving
+    // This removes hidden spaces, newlines, or formatting artifacts
+    const sanitizedKey = inputKey.replace(/[^\x00-\x7F]/g, "").trim();
+    
+    onSave(sanitizedKey);
     onClose();
-    // Optional: We can force a reload here if you prefer, 
-    // but adding the instruction as requested is safer.
-    // window.location.reload(); 
   };
 
   if (!isOpen) return null;
