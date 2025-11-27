@@ -15,7 +15,7 @@ import { Logo } from './ui/Logo';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check, Layers, PieChart } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check, Layers, ChevronDown, CheckSquare, Square } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -94,8 +94,12 @@ const App: React.FC = () => {
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
 
-  // NEW: Combine Portfolios State
+  // --- COMBINE PORTFOLIOS STATE ---
   const [isCombinedView, setIsCombinedView] = useState(false);
+  // Track which IDs are selected for combination. Default empty (implies ALL when combined is ON, or handled by effect)
+  const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
+  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
+  const filterDropdownRef = useRef<HTMLDivElement>(null);
 
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
@@ -151,6 +155,25 @@ const App: React.FC = () => {
 
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
+
+  // Close filter dropdown when clicking outside
+  useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+              setShowFilterDropdown(false);
+          }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Initialize combined IDs when portfolios load or combined view is toggled
+  useEffect(() => {
+      if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
+          // Default to ALL portfolios when first toggled on
+          setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
+      }
+  }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
   // --- INITIALIZATION ---
   useEffect(() => {
@@ -289,6 +312,22 @@ const App: React.FC = () => {
 
   const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
   
+  // Combine View Logic Handlers
+  const handleTogglePortfolioSelection = (id: string) => {
+      const newSet = new Set(combinedPortfolioIds);
+      if (newSet.has(id)) {
+          // Don't allow deselecting the last one, ensuring at least one is shown
+          if (newSet.size > 1) newSet.delete(id);
+      } else {
+          newSet.add(id);
+      }
+      setCombinedPortfolioIds(newSet);
+  };
+
+  const handleSelectAllPortfolios = () => {
+      setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
+  };
+
   // Sync
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
 
@@ -300,13 +339,12 @@ const App: React.FC = () => {
   // UPDATED: Portfolio Transactions Logic (Combined vs Single)
   const portfolioTransactions = useMemo(() => { 
       if (isCombinedView) {
-          return transactions; // Return ALL transactions
+          // Filter by the specific set of IDs selected
+          return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       }
       return transactions.filter(t => t.portfolioId === currentPortfolioId); 
-  }, [transactions, currentPortfolioId, isCombinedView]);
+  }, [transactions, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
-  // Removed displayedTransactions logic as it's just the same as portfolioTransactions now
-  
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let totalDividendTax = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     holdings.forEach(h => { totalValue += h.quantity * h.currentPrice; totalCost += h.quantity * h.avgPrice; });
@@ -409,16 +447,67 @@ const App: React.FC = () => {
                     <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
                 </div>
                 
-                {/* REPLACED FILTERS WITH COMBINE TOGGLE */}
+                {/* COMBINED VIEW + PORTFOLIO FILTER */}
                 <div className="flex flex-wrap gap-3">
-                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Combined Portfolios</span>
-                        <button 
-                            onClick={() => setIsCombinedView(!isCombinedView)} 
-                            className={`w-10 h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                        >
-                            <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
-                        </button>
+                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm" ref={filterDropdownRef}>
+                        
+                        {/* 1. Filter Dropdown (Visible only if Combined View is ON) */}
+                        {isCombinedView && (
+                            <div className="relative">
+                                <button 
+                                    onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors"
+                                >
+                                    <Layers size={14} />
+                                    <span>Select Portfolios ({combinedPortfolioIds.size})</span>
+                                    <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
+                                </button>
+
+                                {showFilterDropdown && (
+                                    <div className="absolute top-full left-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
+                                        <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 mb-1">
+                                            <span className="text-[10px] uppercase font-bold text-slate-400">Included Portfolios</span>
+                                            <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 font-bold hover:underline">Select All</button>
+                                        </div>
+                                        <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                                            {portfolios.map(p => {
+                                                const isSelected = combinedPortfolioIds.has(p.id);
+                                                return (
+                                                    <div 
+                                                        key={p.id} 
+                                                        onClick={() => handleTogglePortfolioSelection(p.id)}
+                                                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
+                                                    >
+                                                        {isSelected ? 
+                                                            <CheckSquare size={16} className="text-emerald-600" /> : 
+                                                            <Square size={16} className="text-slate-300" />
+                                                        }
+                                                        <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}>{p.name}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        <div className="h-5 w-[1px] bg-slate-200 mx-1"></div>
+
+                        {/* 2. Toggle Switch */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Combined</span>
+                            <button 
+                                onClick={() => {
+                                    const newState = !isCombinedView;
+                                    setIsCombinedView(newState);
+                                    if (newState) setShowFilterDropdown(true); // Auto-open filter when enabling
+                                }} 
+                                className={`w-10 h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                            >
+                                <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
+                            </button>
+                        </div>
                     </div>
 
                     {currentView === 'DASHBOARD' && (
