@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
 import { Trash2, ArrowUpRight, ArrowDownLeft, History, Search, Calendar, X, Filter, Coins, Pencil, Receipt, Wallet } from 'lucide-react';
-// import { TaxIcon } from './ui/TaxIcon'; // Removed old icon
-import { CapitalGainTaxIcon } from './ui/CapitalGainTaxIcon'; // Import new icon
+import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
 import { BuyIcon } from './ui/BuyIcon';
 import { SellIcon } from './ui/SellIcon';
+import { DividendIcon } from './ui/DividendIcon';
+import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon'; // Import the new icon
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -66,14 +67,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'DIVIDEND':
               return { 
                   style: 'bg-emerald-100 text-emerald-800 border-emerald-200 font-extrabold', 
-                  icon: <Coins size={10} />,
+                  icon: <DividendIcon className="w-4 h-4" />,
                   label: 'DIVIDEND'
               };
           case 'TAX':
               return { 
                   style: 'bg-rose-50 text-rose-600 border-rose-100', 
-                  // Use the new CapitalGainTaxIcon here
-                  icon: <CapitalGainTaxIcon className="w-5 h-5" />, // Slightly larger for readability
+                  icon: <TaxIcon className="w-3 h-3" />,
                   label: 'TAX' 
               };
           case 'HISTORY':
@@ -82,7 +82,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                   style: isPositive 
                       ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
                       : 'bg-rose-50 text-rose-600 border-rose-100',
-                  icon: <History size={10} />,
+                  // Use the new Historical P&L Icon
+                  icon: <HistoricalPnLIcon className="w-4 h-4" />,
                   label: 'Historical P&L'
               };
           case 'DEPOSIT':
@@ -229,11 +230,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     } else if (isTax) {
                         netAmount = -totalAmount;
                     } else if (isHistory || isDeposit || isWithdrawal) {
-                        // For History/Cash, price holds the value. 
-                        // Withdrawals are usually displayed as negative in Net Amount.
                         netAmount = isWithdrawal ? -Math.abs(totalAmount) : totalAmount;
                     } else {
-                        // Buy/Sell
                         const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
                         netAmount = isBuy ? totalAmount + totalFees : totalAmount - totalFees;
                     }
