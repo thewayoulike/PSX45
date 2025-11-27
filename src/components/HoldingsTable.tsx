@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Holding } from '../types';
-import { Search, AlertTriangle, Clock } from 'lucide-react'; // Added Clock icon
+import { Search, AlertTriangle, Clock } from 'lucide-react';
 
 interface HoldingsTableProps {
   holdings: Holding[];
@@ -44,14 +44,13 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
 
-  // New Helper for date formatting
+  // Helper for date formatting
   const formatUpdateDate = (isoString?: string) => {
     if (!isoString) return null;
     const date = new Date(isoString);
     const now = new Date();
     const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     
-    // Format: "10:30 AM" if today, else "Oct 25, 10:30 AM"
     return date.toLocaleString('en-US', { 
       month: isToday ? undefined : 'short', 
       day: isToday ? undefined : 'numeric', 
@@ -60,14 +59,36 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
     });
   };
 
+  // Find the very latest update time across all holdings
+  const globalLastUpdate = useMemo(() => {
+      if (holdings.length === 0) return null;
+      const times = holdings
+          .map(h => h.lastUpdated)
+          .filter((t): t is string => !!t)
+          .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+      
+      if (times.length > 0) return formatUpdateDate(times[0]);
+      return null;
+  }, [holdings]);
+
   return (
     <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 h-full">
         <div className="p-6 border-b border-slate-200/60 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/40">
-          <div className="flex items-center gap-3">
+          
+          {/* Header Section */}
+          <div className="flex flex-wrap items-center gap-3">
              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Current Holdings</h2>
              <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
                 {filteredHoldings.length} Assets
              </div>
+             
+             {/* UPDATED: Bold Green Style with Clock Icon */}
+             {globalLastUpdate && (
+                 <div className="flex items-center gap-1.5 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 ml-1 shadow-sm">
+                     <Clock size={12} className="text-emerald-600" />
+                     <span>Last Price Update: {globalLastUpdate}</span>
+                 </div>
+             )}
           </div>
           
           <div className="relative w-full sm:w-64">
@@ -81,6 +102,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               />
           </div>
         </div>
+        
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -136,14 +158,13 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <td className="px-4 py-4 text-right text-slate-700 font-medium">{holding.quantity.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">{holding.avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       
-                      {/* UPDATED CURRENT PRICE CELL */}
                       <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
                         <div className="flex flex-col items-end">
                             <span className={isFailed ? "text-amber-600 font-bold" : ""}>
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
                             </span>
                             {updateTime && (
-                                <span className="text-[9px] text-slate-400 font-sans flex items-center gap-1 mt-0.5">
+                                <span className="text-[9px] text-slate-300 font-sans mt-0.5 group-hover:text-slate-400 transition-colors">
                                     {updateTime}
                                 </span>
                             )}
