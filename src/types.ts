@@ -1,8 +1,9 @@
 export interface Transaction {
   id: string;
   portfolioId: string;
+  // UPDATED: Added 'ANNUAL_FEE'
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'; 
   ticker: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL'; 
   quantity: number;
   price: number;
   date: string;
@@ -75,9 +76,9 @@ export interface PortfolioStats {
   totalCGT: number;
   
   freeCash: number;       
-  cashInvestment: number; // Net Principal (Deposits - Withdrawals)
-  totalDeposits: number;  // Gross Deposits (for ROI calc)
-  netPrincipal: number;   // Same as cashInvestment, kept for clarity in logic
+  cashInvestment: number; 
+  totalDeposits: number;  
+  netPrincipal: number;   
   reinvestedProfits: number;
   roi: number;
 }
@@ -111,15 +112,10 @@ export interface Broker {
   rate1: number; 
   rate2?: number; 
   sstRate: number;
-  
-  // CDC Configuration
   cdcType?: CDCType;
   cdcRate?: number; 
   cdcMin?: number;
-  
-  // NEW: Annual Fee Configuration
   annualFee?: number;
-  feeStartDate?: string; // YYYY-MM-DD
-  
+  feeStartDate?: string; 
   isDefault?: boolean;
 }
