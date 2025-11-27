@@ -48,12 +48,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   const formatUpdateDate = (isoString?: string) => {
     if (!isoString) return null;
     const date = new Date(isoString);
-    const now = new Date();
-    const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
     
     return date.toLocaleString('en-US', { 
-      month: isToday ? undefined : 'short', 
-      day: isToday ? undefined : 'numeric', 
+      month: 'short', 
+      day: 'numeric', 
       hour: 'numeric', 
       minute: '2-digit' 
     });
@@ -82,10 +80,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 {filteredHoldings.length} Assets
              </div>
              
-             {/* UPDATED: Bold Green Style with Clock Icon */}
+             {/* UPDATED: Bold Blue Style with Clock Icon */}
              {globalLastUpdate && (
-                 <div className="flex items-center gap-1.5 text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200 ml-1 shadow-sm">
-                     <Clock size={12} className="text-emerald-600" />
+                 <div className="flex items-center gap-1.5 text-[10px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 ml-1 shadow-sm">
+                     <Clock size={12} className="text-blue-600" />
                      <span>Last Price Update: {globalLastUpdate}</span>
                  </div>
              )}
