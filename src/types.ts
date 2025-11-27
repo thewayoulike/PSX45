@@ -86,6 +86,7 @@ export interface PortfolioStats {
 export interface Portfolio {
   id: string;
   name: string;
+  defaultBrokerId?: string; // NEW: Added this field
 }
 
 export interface DividendAnnouncement {
