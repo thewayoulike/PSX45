@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Holding } from '../types';
-import { Search, AlertTriangle, Clock } from 'lucide-react';
+import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText } from 'lucide-react'; // Added Icons
+import { exportToExcel, exportToCSV } from '../utils/export'; // Import Utility
 
 interface HoldingsTableProps {
   holdings: Holding[];
@@ -44,44 +45,56 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
 
-  // Helper for date formatting - Added YEAR
   const formatUpdateDate = (isoString?: string) => {
     if (!isoString) return null;
     const date = new Date(isoString);
-    
     return date.toLocaleString('en-US', { 
-      month: 'short', 
-      day: 'numeric', 
-      year: 'numeric', // Added Year here
-      hour: 'numeric', 
-      minute: '2-digit' 
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' 
     });
   };
 
-  // Find the very latest update time across all holdings
   const globalLastUpdate = useMemo(() => {
       if (holdings.length === 0) return null;
-      const times = holdings
-          .map(h => h.lastUpdated)
-          .filter((t): t is string => !!t)
+      const times = holdings.map(h => h.lastUpdated).filter((t): t is string => !!t)
           .sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
-      
       if (times.length > 0) return formatUpdateDate(times[0]);
       return null;
   }, [holdings]);
+
+  // NEW: Export Handler
+  const handleExport = (type: 'excel' | 'csv') => {
+      const data = sortedHoldings.map(h => {
+          const marketVal = h.quantity * h.currentPrice;
+          const cost = h.quantity * h.avgPrice;
+          return {
+              Ticker: h.ticker,
+              Sector: h.sector,
+              Broker: h.broker || 'N/A',
+              Quantity: h.quantity,
+              'Avg Price': h.avgPrice,
+              'Current Price': h.currentPrice,
+              'Total Cost': cost,
+              'Market Value': marketVal,
+              'P&L': marketVal - cost,
+              'P&L %': cost > 0 ? ((marketVal - cost) / cost) * 100 : 0,
+              'Last Update': h.lastUpdated ? formatUpdateDate(h.lastUpdated) : '-'
+          };
+      });
+
+      const filename = `Holdings_Export_${new Date().toISOString().split('T')[0]}`;
+      if (type === 'excel') exportToExcel(data, filename);
+      else exportToCSV(data, filename);
+  };
 
   return (
     <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 h-full">
         <div className="p-6 border-b border-slate-200/60 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/40">
           
-          {/* Header Section */}
           <div className="flex flex-wrap items-center gap-3">
              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Current Holdings</h2>
              <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
                 {filteredHoldings.length} Assets
              </div>
-             
-             {/* Last Price Update Indicator (Blue) */}
              {globalLastUpdate && (
                  <div className="flex items-center gap-1.5 text-[10px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 ml-1 shadow-sm">
                      <Clock size={12} className="text-blue-600" />
@@ -90,15 +103,27 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
              )}
           </div>
           
-          <div className="relative w-full sm:w-64">
-              <Search size={14} className="absolute left-3 top-3 text-slate-400" />
-              <input 
-                  type="text" 
-                  placeholder="Filter Ticker or Sector..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 transition-all"
-              />
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-48">
+                  <Search size={14} className="absolute left-3 top-3 text-slate-400" />
+                  <input 
+                      type="text" 
+                      placeholder="Filter..." 
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
+                  />
+              </div>
+              {/* EXPORT BUTTONS */}
+              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Download Excel">
+                      <FileSpreadsheet size={18} />
+                  </button>
+                  <div className="w-[1px] bg-slate-100 my-1 mx-0.5"></div>
+                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors" title="Download CSV">
+                      <FileText size={18} />
+                  </button>
+              </div>
           </div>
         </div>
         
@@ -162,7 +187,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             <span className={isFailed ? "text-amber-600 font-bold" : ""}>
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 }) : '-'}
                             </span>
-                            {/* Individual row time still shown for clarity */}
                             {updateTime && (
                                 <span className="text-[9px] text-slate-300 font-sans mt-0.5 group-hover:text-slate-400 transition-colors">
                                     {updateTime}
