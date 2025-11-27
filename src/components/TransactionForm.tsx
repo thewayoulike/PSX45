@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-// FIX: Added 'Briefcase' to imports
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, RefreshCcw, Briefcase } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -83,7 +82,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
             
-            // Start with AutoCalc OFF to preserve historical data
+            // IMPORTANT: We start with AutoCalc OFF to preserve exact historical values.
+            // User must toggle it ON if they want to recalculate based on new inputs.
             setIsAutoCalc(false);
             
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
@@ -117,6 +117,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   // Auto-Calculation Logic
   useEffect(() => {
+    // FIX: Removed `&& !editingTransaction` check. 
+    // Now runs if manual mode AND isAutoCalc is TRUE (regardless of editing status)
     if (isAutoCalc && mode === 'MANUAL') {
         
         if (type === 'TAX') {
@@ -192,6 +194,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                  setCdcCharges(parseFloat(estCdc.toFixed(2)));
              }
         } else {
+             // Clear fields if inputs are invalid, but ONLY if we are actively auto-calculating
              if (commission !== '') setCommission('');
              if (tax !== '') setTax('');
              if (cdcCharges !== '') setCdcCharges('');
