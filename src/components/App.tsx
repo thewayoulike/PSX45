@@ -13,10 +13,13 @@ import { PriceEditor } from './PriceEditor';
 import { DividendScanner } from './DividendScanner';
 import { ApiKeyManager } from './ApiKeyManager'; 
 import { LoginPage } from './LoginPage';
+// ✅ ADDED MISSING IMPORT HERE
+import { Logo } from './ui/Logo'; 
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, Filter, RefreshCw, Loader2, Coins, Briefcase, Key, LayoutDashboard, History, CheckCircle2 } from 'lucide-react';
+// ✅ ADDED MISSING LogOut IMPORT HERE
+import { Edit3, Plus, Filter, RefreshCw, Loader2, Coins, Briefcase, Key, LayoutDashboard, History, CheckCircle2, LogOut } from 'lucide-react';
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive } from '../services/driveStorage';
 
@@ -508,7 +511,6 @@ const App: React.FC = () => {
             </Routes>
 
         </main>
-        {/* FIX: The extra </div> that was causing the error was removed here */}
 
       {/* MODALS */}
       <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} />
