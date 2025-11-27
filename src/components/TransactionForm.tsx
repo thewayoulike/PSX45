@@ -4,6 +4,7 @@ import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, File
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
+// ... (Interface definitions remain same) ...
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
   onUpdateTransaction?: (transaction: Transaction) => void;
@@ -43,15 +44,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
 
-  // CGT Specific State
+  // ... (Other state variables remain same) ...
   const [cgtProfit, setCgtProfit] = useState<number | ''>('');
   const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7));
-
-  // HISTORY & CASH State
   const [histAmount, setHistAmount] = useState<number | ''>('');
   const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
-
-  // Scanner State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
@@ -59,7 +56,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-Select Default Broker
+  // ... (Auto-select broker and Reset effects remain same) ...
   useEffect(() => {
     if (brokers.length > 0 && !selectedBrokerId) {
         const def = brokers.find(b => b.isDefault) || brokers[0];
@@ -67,7 +64,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [brokers, selectedBrokerId]);
 
-  // Reset/Init on Open
   useEffect(() => {
     if (isOpen) {
         if (editingTransaction) {
@@ -82,7 +78,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
             
-            // Set Auto-Calc to TRUE by default when editing to recalculate immediately based on current rates
             setIsAutoCalc(true);
             
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
@@ -91,22 +86,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 setCgtMonth(editingTransaction.date.substring(0, 7));
                 setCgtProfit(editingTransaction.price / 0.15); 
             }
-            
             if (editingTransaction.type === 'HISTORY') {
                  setHistAmount(editingTransaction.price);
                  setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX');
             }
-
             if (editingTransaction.type === 'DEPOSIT' || editingTransaction.type === 'WITHDRAWAL') {
                 setHistAmount(editingTransaction.price); 
             }
-
         } else {
-            // Default State for NEW transactions
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
-            setMode('MANUAL'); 
-            setIsAutoCalc(true); 
+            setMode('MANUAL'); setIsAutoCalc(true); 
             setDate(new Date().toISOString().split('T')[0]);
             setCgtMonth(new Date().toISOString().substring(0, 7));
             setCgtProfit('');
@@ -116,7 +106,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [isOpen, editingTransaction]);
 
-  // Auto-Calculation Logic
+  // UPDATED Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
         
@@ -138,21 +128,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     if (histAmount > 0) {
                          const t = histAmount * 0.15;
                          setTax(parseFloat(t.toFixed(2)));
-                    } else {
-                        setTax(0);
-                    }
-                } else {
-                    setTax(0);
-                }
+                    } else { setTax(0); }
+                } else { setTax(0); }
                 setPrice(histAmount); 
                 setCommission(0); setCdcCharges(0); setOtherFees(0);
             }
         }
         else if (type === 'DEPOSIT' || type === 'WITHDRAWAL') {
             if (typeof histAmount === 'number') {
-                setQuantity(1);
-                setTicker('CASH'); 
-                setPrice(histAmount);
+                setQuantity(1); setTicker('CASH'); setPrice(histAmount);
                 setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
             }
         }
@@ -169,6 +153,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                  const currentBroker = brokers.find(b => b.id === selectedBrokerId);
 
                  if (currentBroker) {
+                     // Commission Calculation
                      if (currentBroker.commissionType === 'PERCENTAGE') {
                          estComm = gross * (currentBroker.rate1 / 100);
                      } else if (currentBroker.commissionType === 'FIXED') {
@@ -186,7 +171,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
                  const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
                  const estTax = estComm * taxRate;
-                 const estCdc = quantity * 0.005;
+                 
+                 // NEW: CDC Charges Calculation
+                 let estCdc = 0;
+                 if (currentBroker) {
+                     const cdcType = currentBroker.cdcType || 'PER_SHARE';
+                     const cdcRate = currentBroker.cdcRate !== undefined ? currentBroker.cdcRate : 0.005;
+                     
+                     if (cdcType === 'PER_SHARE') {
+                         estCdc = quantity * cdcRate;
+                     } else if (cdcType === 'FIXED') {
+                         estCdc = cdcRate;
+                     } else if (cdcType === 'HIGHER_OF') {
+                         const shareVal = quantity * cdcRate;
+                         const fixedVal = currentBroker.cdcMin || 0;
+                         estCdc = Math.max(shareVal, fixedVal);
+                     }
+                 } else {
+                     estCdc = quantity * 0.005; // Fallback
+                 }
 
                  setCommission(parseFloat(estComm.toFixed(2)));
                  setTax(parseFloat(estTax.toFixed(2)));
@@ -200,40 +203,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
 
-  const handleManualSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    let brokerName = undefined;
-    const b = brokers.find(b => b.id === selectedBrokerId);
-    if (b) brokerName = b.name;
-
-    const txData = {
-      ticker: ticker.toUpperCase(),
-      type,
-      quantity: Number(quantity),
-      price: Number(price),
-      date,
-      broker: brokerName,
-      brokerId: selectedBrokerId,
-      commission: Number(commission) || 0,
-      tax: Number(tax) || 0,
-      cdcCharges: Number(cdcCharges) || 0,
-      otherFees: Number(otherFees) || 0
-    };
-
-    if (editingTransaction && onUpdateTransaction) {
-      onUpdateTransaction({ ...editingTransaction, ...txData });
-    } else {
-      onAddTransaction(txData);
-    }
-    onClose();
-  };
-
+  // ... (Manual Submit, File Handling, and Render Return code remain largely the same, just keeping them for completeness) ...
+  const handleManualSubmit = (e: React.FormEvent) => { e.preventDefault(); let brokerName = undefined; const b = brokers.find(b => b.id === selectedBrokerId); if (b) brokerName = b.name; const txData = { ticker: ticker.toUpperCase(), type, quantity: Number(quantity), price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId, commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0 }; if (editingTransaction && onUpdateTransaction) { onUpdateTransaction({ ...editingTransaction, ...txData }); } else { onAddTransaction(txData); } onClose(); };
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); setScannedTrades([]); } };
   const handleProcessScan = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); setScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); setScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
   const handleAcceptTrade = (trade: EditableTrade) => { let finalBrokerName = trade.broker; if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; } onAddTransaction({ ticker: trade.ticker, type: trade.type as any, quantity: Number(trade.quantity), price: Number(trade.price), date: trade.date || new Date().toISOString().split('T')[0], broker: finalBrokerName, brokerId: trade.brokerId, commission: Number(trade.commission) || 0, tax: Number(trade.tax) || 0, cdcCharges: Number(trade.cdcCharges) || 0, otherFees: Number(trade.otherFees) || 0 }); setScannedTrades(prev => prev.filter(t => t !== trade)); };
   const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...scannedTrades]; updated[index] = { ...updated[index], [field]: value }; setScannedTrades(updated); };
-  
   const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
   const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
@@ -384,6 +359,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
+            {/* ... (Scanner UI code remains unchanged) ... */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     {!isScanning && scannedTrades.length === 0 && (
