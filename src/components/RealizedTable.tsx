@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { RealizedTrade } from '../types';
-import { Search, Calendar, X } from 'lucide-react';
+import { Search, X, FileSpreadsheet, FileText } from 'lucide-react'; // Added Icons
+import { exportToExcel, exportToCSV } from '../utils/export'; // Import Utility
 
 interface RealizedTableProps {
   trades: RealizedTrade[];
@@ -29,12 +30,37 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   }, [trades, searchTerm, dateFrom, dateTo]);
 
   const clearFilters = () => {
-      setSearchTerm('');
-      setDateFrom('');
-      setDateTo('');
+      setSearchTerm(''); setDateFrom(''); setDateTo('');
   };
   
   const hasActiveFilters = searchTerm || dateFrom || dateTo;
+
+  // NEW: Export Handler
+  const handleExport = (type: 'excel' | 'csv') => {
+      const data = filteredAndSortedTrades.map(trade => {
+          const totalCost = (trade.buyAvg || 0) * trade.quantity;
+          const totalSell = (trade.sellPrice || 0) * trade.quantity;
+          return {
+              Date: trade.date,
+              Ticker: trade.ticker,
+              Broker: trade.broker || 'N/A',
+              Quantity: trade.quantity,
+              'Buy Avg': trade.buyAvg,
+              'Sell Price': trade.sellPrice,
+              'Total Cost': totalCost,
+              'Total Sell': totalSell,
+              'Net Profit': trade.profit,
+              Commission: trade.commission,
+              Tax: trade.tax,
+              CDC: trade.cdcCharges,
+              Other: trade.otherFees
+          };
+      });
+
+      const filename = `Realized_Gains_Export_${new Date().toISOString().split('T')[0]}`;
+      if (type === 'excel') exportToExcel(data, filename);
+      else exportToCSV(data, filename);
+  };
 
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50">
@@ -48,6 +74,17 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
+             {/* EXPORT BUTTONS */}
+             <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm mr-2">
+                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel">
+                      <FileSpreadsheet size={16} />
+                  </button>
+                  <div className="w-[1px] bg-slate-100 my-1 mx-0.5"></div>
+                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export CSV">
+                      <FileText size={16} />
+                  </button>
+             </div>
+
              <div className="relative flex-grow md:flex-grow-0 md:w-48">
                 <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
                 <input 
@@ -60,27 +97,13 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             </div>
 
             <div className="flex gap-1 items-center">
-                 <input 
-                    type="date" 
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-28"
-                 />
+                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-28" />
                  <span className="text-slate-400">-</span>
-                 <input 
-                    type="date" 
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-28"
-                 />
+                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-28" />
             </div>
 
              {hasActiveFilters && (
-                <button 
-                    onClick={clearFilters}
-                    className="p-2 rounded-lg bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-colors"
-                    title="Clear Filters"
-                >
+                <button onClick={clearFilters} className="p-2 rounded-lg bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-colors" title="Clear Filters">
                     <X size={14} />
                 </button>
             )}
@@ -97,11 +120,8 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
               <th className="px-4 py-4 font-semibold text-right">Qty</th>
               <th className="px-4 py-4 font-semibold text-right">Buy Avg</th>
               <th className="px-4 py-4 font-semibold text-right">Sell Price</th>
-              
-              {/* NEW COLUMNS */}
               <th className="px-4 py-4 font-semibold text-right text-slate-700">Total Cost</th>
               <th className="px-4 py-4 font-semibold text-right text-slate-700">Total Sell</th>
-              
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Comm</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
               <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
@@ -119,7 +139,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             ) : (
               filteredAndSortedTrades.map((trade) => {
                 const isProfit = trade.profit >= 0;
-                // Calculate Totals
                 const totalCost = (trade.buyAvg || 0) * trade.quantity;
                 const totalSell = (trade.sellPrice || 0) * trade.quantity;
 
@@ -127,41 +146,17 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                   <tr key={trade.id} className="hover:bg-emerald-50/30 transition-colors">
                     <td className="px-4 py-4 text-slate-500 text-xs font-mono whitespace-nowrap">{trade.date}</td>
                     <td className="px-4 py-4 font-bold text-slate-800">{trade.ticker}</td>
-                    {showBroker && (
-                        <td className="px-4 py-4 text-xs text-slate-500">{trade.broker || '-'}</td>
-                    )}
+                    {showBroker && <td className="px-4 py-4 text-xs text-slate-500">{trade.broker || '-'}</td>}
                     <td className="px-4 py-4 text-right text-slate-700">{trade.quantity.toLocaleString()}</td>
-                    <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">
-                        {(trade.buyAvg || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
-                        {(trade.sellPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    
-                    {/* TOTAL COST CELL */}
-                    <td className="px-4 py-4 text-right text-slate-600 font-mono text-xs font-medium">
-                        {totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    
-                    {/* TOTAL SELL CELL */}
-                    <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-bold">
-                        {totalSell.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-
-                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {(trade.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {(trade.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {(trade.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
-                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">
-                        {(trade.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </td>
+                    <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">{(trade.buyAvg || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">{(trade.sellPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-4 text-right text-slate-600 font-mono text-xs font-medium">{totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-bold">{totalSell.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">{(trade.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">{(trade.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">{(trade.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-4 text-right text-rose-400 font-mono text-[10px]">{(trade.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-4 py-4 text-right">
-                        {/* UPDATED: Net Profit to 2 Decimal Points */}
                         <div className={`font-bold text-sm ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                             {isProfit ? '+' : ''}{trade.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </div>
