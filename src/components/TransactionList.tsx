@@ -8,20 +8,25 @@ import { BuyIcon } from './ui/BuyIcon';
 import { SellIcon } from './ui/SellIcon';
 import { DividendIcon } from './ui/DividendIcon';
 import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon';
-import { FeeIcon } from './ui/FeeIcon'; // Added FeeIcon import
+import { FeeIcon } from './ui/FeeIcon'; 
 import { exportToExcel, exportToCSV } from '../utils/export';
 
 interface TransactionListProps {
   transactions: Transaction[];
   onDelete: (id: string) => void;
+  // NEW: Bulk Delete Handler
+  onDeleteMultiple?: (ids: string[]) => void;
   onEdit: (tx: Transaction) => void;
 }
 
-export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onDelete, onEdit }) => {
+export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onDelete, onDeleteMultiple, onEdit }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  
+  // NEW: Selection State
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredAndSortedTransactions = useMemo(() => {
     return transactions
@@ -41,6 +46,30 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       })
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, searchTerm, dateFrom, dateTo, filterType]);
+
+  // Bulk Selection Logic
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+      if (e.target.checked) {
+          const allIds = new Set(filteredAndSortedTransactions.map(t => t.id));
+          setSelectedIds(allIds);
+      } else {
+          setSelectedIds(new Set());
+      }
+  };
+
+  const handleSelectOne = (id: string) => {
+      const newSelected = new Set(selectedIds);
+      if (newSelected.has(id)) newSelected.delete(id);
+      else newSelected.add(id);
+      setSelectedIds(newSelected);
+  };
+
+  const executeBulkDelete = () => {
+      if (onDeleteMultiple && selectedIds.size > 0) {
+          onDeleteMultiple(Array.from(selectedIds));
+          setSelectedIds(new Set()); // Clear selection after delete
+      }
+  };
 
   const getExpectedDividendQty = (divTx: Transaction): number => {
       const relevantTx = transactions.filter(t => 
@@ -72,7 +101,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           const totalAmount = tx.price * tx.quantity;
           if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
           else if (tx.type === 'TAX') netAmount = -totalAmount;
-          // UPDATED: Handle Annual Fee in export
           else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') netAmount = (tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') ? -Math.abs(totalAmount) : totalAmount;
           else {
               const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
@@ -109,7 +137,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'HISTORY': const isPositive = tx.price >= 0; return { style: isPositive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100', icon: <HistoricalPnLIcon className="w-4 h-4" />, label: 'Historical P&L' };
           case 'DEPOSIT': return { style: 'bg-blue-50 text-blue-600 border-blue-100', icon: <DepositIcon className="w-4 h-4" />, label: 'DEPOSIT' };
           case 'WITHDRAWAL': return { style: 'bg-rose-50 text-rose-600 border-rose-100', icon: <WithdrawIcon className="w-4 h-4" />, label: 'WITHDRAWAL' };
-          // UPDATED: Added config for ANNUAL_FEE
           case 'ANNUAL_FEE': return { style: 'bg-amber-50 text-amber-600 border-amber-100', icon: <FeeIcon className="w-4 h-4" />, label: 'ANNUAL FEE' };
           default: return { style: 'bg-slate-50 text-slate-600 border-slate-200', icon: <ArrowUpRight size={10} />, label: tx.type };
       }
@@ -127,6 +154,17 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               <h2 className="text-lg font-bold text-slate-800 tracking-tight">Transaction History</h2>
           </div>
           <div className="flex items-center gap-3">
+              {/* NEW: Bulk Delete Button */}
+              {selectedIds.size > 0 && onDeleteMultiple && (
+                  <button 
+                      onClick={executeBulkDelete}
+                      className="flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors text-xs font-bold animate-in fade-in"
+                  >
+                      <Trash2 size={14} />
+                      Delete ({selectedIds.size})
+                  </button>
+              )}
+
               <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
                   <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel">
                       <FileSpreadsheet size={16} />
@@ -160,7 +198,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <option value="HISTORY">History</option>
                         <option value="DEPOSIT">Deposit</option>
                         <option value="WITHDRAWAL">Withdrawal</option>
-                        {/* UPDATED: Added Annual Fee option */}
                         <option value="ANNUAL_FEE">Annual Fee</option>
                     </select>
                 </div>
@@ -184,6 +221,15 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
+              {/* CHECKBOX HEADER */}
+              <th className="px-4 py-4 w-10 text-center">
+                  <input 
+                      type="checkbox" 
+                      onChange={handleSelectAll}
+                      checked={filteredAndSortedTransactions.length > 0 && selectedIds.size === filteredAndSortedTransactions.length}
+                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
+              </th>
               <th className="px-4 py-4 font-semibold">Date</th>
               <th className="px-4 py-4 font-semibold">Type</th>
               <th className="px-4 py-4 font-semibold">Ticker</th>
@@ -201,7 +247,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           <tbody className="divide-y divide-slate-100 text-sm">
             {filteredAndSortedTransactions.length === 0 ? (
                 <tr>
-                    <td colSpan={12} className="px-6 py-10 text-center text-slate-400 italic">
+                    <td colSpan={13} className="px-6 py-10 text-center text-slate-400 italic">
                         {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'}
                     </td>
                 </tr>
@@ -220,7 +266,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
                     if (isDiv) netAmount = totalAmount - (tx.tax || 0);
                     else if (isTax) netAmount = -totalAmount;
-                    // UPDATED: Handle ANNUAL_FEE net amount
                     else if (isHistory || isDeposit || isWithdrawal || isFee) netAmount = (isWithdrawal || isFee) ? -Math.abs(totalAmount) : totalAmount;
                     else {
                         const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
@@ -228,7 +273,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     }
 
                     const typeConfig = getTypeConfig(tx);
-                    // UPDATED: isFee added to negative flow
                     const isNegativeFlow = isTax || isWithdrawal || isFee || (isHistory && netAmount < 0);
 
                     let qtyMismatch = false;
@@ -238,8 +282,19 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         qtyMismatch = expectedQty !== tx.quantity;
                     }
 
+                    const isSelected = selectedIds.has(tx.id);
+
                     return (
-                        <tr key={tx.id} className={`hover:bg-emerald-50/30 transition-colors ${isNegativeFlow ? 'bg-rose-50/30' : ''}`}>
+                        <tr key={tx.id} className={`hover:bg-emerald-50/30 transition-colors ${isNegativeFlow ? 'bg-rose-50/30' : ''} ${isSelected ? 'bg-indigo-50/60' : ''}`}>
+                        {/* CHECKBOX ROW */}
+                        <td className="px-4 py-4 text-center">
+                            <input 
+                                type="checkbox" 
+                                checked={isSelected}
+                                onChange={() => handleSelectOne(tx.id)}
+                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                        </td>
                         <td className="px-4 py-4 text-slate-500 text-xs font-mono whitespace-nowrap">{tx.date}</td>
                         <td className="px-4 py-4">
                             <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border ${typeConfig.style}`}>
