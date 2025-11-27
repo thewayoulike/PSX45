@@ -412,7 +412,7 @@ const App: React.FC = () => {
                 {/* REPLACED FILTERS WITH COMBINE TOGGLE */}
                 <div className="flex flex-wrap gap-3">
                     <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm">
-                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Combined View</span>
+                        <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Combined Portfolios</span>
                         <button 
                             onClick={() => setIsCombinedView(!isCombinedView)} 
                             className={`w-10 h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
