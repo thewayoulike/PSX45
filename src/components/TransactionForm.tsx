@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft } from 'lucide-react';
+// FIX: Added 'Briefcase' to imports
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, RefreshCcw, Briefcase } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -81,7 +82,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setTax(editingTransaction.tax || 0);
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
+            
+            // Start with AutoCalc OFF to preserve historical data
             setIsAutoCalc(false);
+            
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             
             if (editingTransaction.type === 'TAX') {
@@ -113,7 +117,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   // Auto-Calculation Logic
   useEffect(() => {
-    if (isAutoCalc && mode === 'MANUAL' && !editingTransaction) {
+    if (isAutoCalc && mode === 'MANUAL') {
         
         if (type === 'TAX') {
             if (typeof cgtProfit === 'number') {
@@ -224,11 +228,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     onClose();
   };
 
-  // ... (File Handlers same as before) ...
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); setScannedTrades([]); } };
   const handleProcessScan = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); setScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); setScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
   const handleAcceptTrade = (trade: EditableTrade) => { let finalBrokerName = trade.broker; if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; } onAddTransaction({ ticker: trade.ticker, type: trade.type as any, quantity: Number(trade.quantity), price: Number(trade.price), date: trade.date || new Date().toISOString().split('T')[0], broker: finalBrokerName, brokerId: trade.brokerId, commission: Number(trade.commission) || 0, tax: Number(trade.tax) || 0, cdcCharges: Number(trade.cdcCharges) || 0, otherFees: Number(trade.otherFees) || 0 }); setScannedTrades(prev => prev.filter(t => t !== trade)); };
   const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...scannedTrades]; updated[index] = { ...updated[index], [field]: value }; setScannedTrades(updated); };
+  
   const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
   const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
