@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, DividendAnnouncement } from '../types';
 import { fetchDividends } from '../services/gemini';
-import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles } from 'lucide-react';
+import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles, Building2 } from 'lucide-react';
 
 interface DividendScannerProps {
   transactions: Transaction[];
@@ -11,34 +11,51 @@ interface DividendScannerProps {
   onOpenSettings?: () => void;
 }
 
+// Internal type for the scanner list
+interface FoundDividend extends DividendAnnouncement {
+    eligibleQty: number;
+    broker: string;
+}
+
 export const DividendScanner: React.FC<DividendScannerProps> = ({ 
   transactions, onAddTransaction, isOpen, onClose, onOpenSettings 
 }) => {
   const [loading, setLoading] = useState(false);
-  const [foundDividends, setFoundDividends] = useState<Array<DividendAnnouncement & { eligibleQty: number }>>([]);
+  const [foundDividends, setFoundDividends] = useState<FoundDividend[]>([]);
   const [scanned, setScanned] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const getHoldingsOnDate = (ticker: string, targetDate: string) => {
+  // Helper: Get breakdown of holdings by BROKER on a specific date
+  const getHoldingsBreakdownOnDate = (ticker: string, targetDate: string) => {
+      const breakdown: Record<string, number> = {};
+
+      // 1. Filter relevant transactions (Buy/Sell only, up to Ex-Date)
       const relevantTx = transactions.filter(t => 
           t.ticker === ticker && 
           t.date <= targetDate && 
-          t.type !== 'DIVIDEND'
+          (t.type === 'BUY' || t.type === 'SELL')
       );
       
-      let qty = 0;
+      // 2. Aggregate per broker
       relevantTx.forEach(t => {
-          if (t.type === 'BUY') qty += t.quantity;
-          if (t.type === 'SELL') qty -= t.quantity;
+          const brokerName = t.broker || 'Unknown Broker';
+          if (!breakdown[brokerName]) breakdown[brokerName] = 0;
+
+          if (t.type === 'BUY') breakdown[brokerName] += t.quantity;
+          if (t.type === 'SELL') breakdown[brokerName] -= t.quantity;
       });
       
-      return Math.max(0, qty);
+      // 3. Filter out zero/negative holdings
+      Object.keys(breakdown).forEach(key => {
+          if (breakdown[key] <= 0) delete breakdown[key];
+      });
+      
+      return breakdown;
   };
 
   const handleScan = async () => {
       setLoading(true);
       setErrorMsg(null);
-      // NOTE: We do NOT clear setFoundDividends([]) here to support "Scan More"
       
       const tickers = Array.from(new Set(transactions.map(t => t.ticker))) as string[];
       
@@ -50,20 +67,43 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
       try {
           const announcements = await fetchDividends(tickers);
-          
-          const newEligible: Array<DividendAnnouncement & { eligibleQty: number }> = [];
+          const newEligible: FoundDividend[] = [];
 
           announcements.forEach(ann => {
-              const qtyOnExDate = getHoldingsOnDate(ann.ticker, ann.exDate);
-              if (qtyOnExDate > 0) {
-                  newEligible.push({ ...ann, eligibleQty: qtyOnExDate });
-              }
+              // Get quantity split by broker (e.g. { 'KASB': 500, 'AKD': 200 })
+              const brokerMap = getHoldingsBreakdownOnDate(ann.ticker, ann.exDate);
+
+              Object.entries(brokerMap).forEach(([brokerName, qty]) => {
+                  
+                  // CHECK: Has this specific dividend (Ticker + Date + Broker) already been added to history?
+                  const alreadyRecorded = transactions.some(t => 
+                      t.type === 'DIVIDEND' &&
+                      t.ticker === ann.ticker &&
+                      t.date === ann.exDate && // Usually recorded on ex-date or payout date
+                      (t.broker || 'Unknown Broker') === brokerName
+                  );
+
+                  if (!alreadyRecorded) {
+                      newEligible.push({ 
+                          ...ann, 
+                          eligibleQty: qty,
+                          broker: brokerName
+                      });
+                  }
+              });
           });
           
-          // MERGE LOGIC: Add only if not already in list
+          // MERGE: Add to list if not currently visible in the scanner
+          // This allows "Dismissed" items to reappear if scanned again (because they aren't in history yet)
           setFoundDividends(prev => {
-              const existingIds = new Set(prev.map(d => `${d.ticker}-${d.exDate}`));
-              const uniqueNew = newEligible.filter(d => !existingIds.has(`${d.ticker}-${d.exDate}`));
+              // Create a set of currently visible IDs
+              const currentIds = new Set(prev.map(d => `${d.ticker}-${d.exDate}-${d.broker}`));
+              
+              // Only add if not currently visible
+              const uniqueNew = newEligible.filter(d => 
+                  !currentIds.has(`${d.ticker}-${d.exDate}-${d.broker}`)
+              );
+              
               return [...prev, ...uniqueNew];
           });
 
@@ -76,7 +116,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       }
   };
 
-  const handleAdd = (div: DividendAnnouncement & { eligibleQty: number }) => {
+  const handleAdd = (div: FoundDividend) => {
       const totalAmount = div.eligibleQty * div.amount;
       const wht = totalAmount * 0.15;
       
@@ -88,14 +128,17 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           date: div.exDate,
           tax: wht,
           commission: 0,
-          cdcCharges: 0
+          cdcCharges: 0,
+          broker: div.broker, // Save with specific broker
+          notes: `${div.type} Dividend (${div.period || 'N/A'})`
       });
       
-      // Remove from list
+      // Remove from list immediately
       setFoundDividends(prev => prev.filter(d => d !== div));
   };
 
-  const handleIgnore = (div: DividendAnnouncement & { eligibleQty: number }) => {
+  const handleIgnore = (div: FoundDividend) => {
+      // Just remove from view. A new scan will bring it back if not added to history.
       setFoundDividends(prev => prev.filter(d => d !== div));
   };
 
@@ -116,7 +159,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
             <div className="p-6 flex-1 overflow-y-auto custom-scrollbar relative">
                 
-                {/* INITIAL STATE (Only show if empty and never scanned) */}
+                {/* INITIAL STATE */}
                 {!scanned && foundDividends.length === 0 && !loading && !errorMsg && (
                     <div className="text-center py-10">
                         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
@@ -124,7 +167,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">Find Unclaimed Income</h3>
                         <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                            We will check market data for recent dividends and compare them against your historical holdings on the ex-dates.
+                            We will check market data for recent dividends and compare them against your specific broker holdings.
                         </p>
                         <button 
                             onClick={handleScan}
@@ -140,7 +183,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
                         <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
                         <h4 className="text-slate-700 font-bold mb-1">Scanning Market Data...</h4>
-                        <p className="text-slate-400 text-sm">Checking historical eligibility for {foundDividends.length} items...</p>
+                        <p className="text-slate-400 text-sm">Checking historical eligibility by broker...</p>
                     </div>
                 )}
 
@@ -172,9 +215,9 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             <CheckCircle size={32} />
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-1">All Caught Up</h3>
-                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found for your portfolio.</p>
+                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found in your history.</p>
                         <button onClick={handleScan} className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto">
-                            <RefreshCw size={14} /> Scan Again
+                            <RefreshCw size={14} /> Force Re-Scan
                         </button>
                      </div>
                 )}
@@ -186,7 +229,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                             <div>
                                 <h3 className="text-slate-800 font-bold text-lg">Found {foundDividends.length} Eligible Dividends</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Estimated values based on historical holdings.</p>
+                                <p className="text-xs text-slate-400 mt-0.5">Estimated based on broker-wise holdings.</p>
                             </div>
                             <button 
                                 onClick={handleScan}
@@ -202,7 +245,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                 const estNet = estTotal * 0.85; 
 
                                 return (
-                                    <div key={`${div.ticker}-${div.exDate}-${idx}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
+                                    <div key={`${div.ticker}-${div.exDate}-${div.broker}-${idx}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
                                         
                                         {/* Decorative Side Bar */}
                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
@@ -214,14 +257,16 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                             <div>
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <span className="text-slate-800 font-bold text-base">{div.type} Dividend</span>
-                                                    {div.period && <span className="text-[10px] text-slate-500 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded font-medium uppercase">{div.period}</span>}
+                                                    <span className="text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1">
+                                                        <Building2 size={10} /> {div.broker}
+                                                    </span>
                                                 </div>
                                                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                                                    <span className="flex items-center gap-1.5"><Calendar size={12} className="text-slate-400" /> Ex-Date: <span className="font-medium text-slate-700">{div.exDate}</span></span>
+                                                    <span className="flex items-center gap-1.5"><Calendar size={12} className="text-slate-400" /> Ex: <span className="font-medium text-slate-700">{div.exDate}</span></span>
                                                     <span className="text-slate-300 hidden md:inline">|</span>
                                                     <span>DPS: <span className="font-medium text-slate-700">Rs. {div.amount}</span></span>
                                                     <span className="text-slate-300 hidden md:inline">|</span>
-                                                    <span className="text-indigo-600 font-medium bg-indigo-50/50 px-1.5 rounded">Qty: {div.eligibleQty}</span>
+                                                    <span className="text-slate-600 font-medium">Qty: {div.eligibleQty}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -242,6 +287,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                                 <button 
                                                     onClick={() => handleIgnore(div)}
                                                     className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors"
+                                                    title="Dismiss from this view (will reappear on next scan if not added)"
                                                 >
                                                     Dismiss
                                                 </button>
