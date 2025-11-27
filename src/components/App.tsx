@@ -102,7 +102,6 @@ const App: React.FC = () => {
       return {};
   });
 
-  // NEW: Store timestamps for prices
   const [priceTimestamps, setPriceTimestamps] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_price_timestamps');
@@ -149,7 +148,7 @@ const App: React.FC = () => {
       setHoldings([]); 
       setRealizedTrades([]); 
       setManualPrices({}); 
-      setPriceTimestamps({}); // Clear timestamps
+      setPriceTimestamps({}); 
       setSectorOverrides({}); 
       setBrokers([DEFAULT_BROKER]); 
       setScannerState({}); 
@@ -192,7 +191,7 @@ const App: React.FC = () => {
                       if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
-                      if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps); // Load Timestamps
+                      if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                       if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                       if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
@@ -231,7 +230,6 @@ const App: React.FC = () => {
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   
-  // Updated Price Handler to save timestamp
   const handleUpdatePrices = (newPrices: Record<string, number>) => { 
       setManualPrices(prev => ({ ...prev, ...newPrices })); 
       const now = new Date().toISOString();
@@ -274,7 +272,6 @@ const App: React.FC = () => {
       setIsEditingPortfolio(false);
   };
 
-  // Updated Sync to save timestamps
   const handleSyncPrices = async () => { 
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); 
       if (uniqueTickers.length === 0) return; 
@@ -343,7 +340,6 @@ const App: React.FC = () => {
     return Array.from(brokers).sort();
   }, [portfolioTransactions]);
 
-  // MOVED UP: CALCULATE STATS HERE (Safe zone)
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0;
     let totalCost = 0;
@@ -427,16 +423,13 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, totalDividends, displayedTransactions]);
 
-  // EFFECTS
-
-  // 1. PERSISTENCE EFFECT
   useEffect(() => {
       if (driveUser || transactions.length > 0) {
         localStorage.setItem('psx_transactions', JSON.stringify(transactions));
         localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
         localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
         localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
-        localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); // Save Timestamps
+        localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); 
         localStorage.setItem('psx_brokers', JSON.stringify(brokers));
         localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
         localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); 
@@ -450,7 +443,7 @@ const App: React.FC = () => {
                   portfolios, 
                   currentPortfolioId, 
                   manualPrices, 
-                  priceTimestamps, // Save to Drive
+                  priceTimestamps, 
                   brokers, 
                   sectorOverrides, 
                   scannerState, 
@@ -462,7 +455,6 @@ const App: React.FC = () => {
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
 
-  // 2. CALCULATE HOLDINGS & REALIZED (FIFO)
   useEffect(() => {
     const tempHoldings: Record<string, Holding> = {};
     const tempRealized: RealizedTrade[] = [];
@@ -566,7 +558,6 @@ const App: React.FC = () => {
       .filter(h => h.quantity > 0.0001)
       .map(h => {
         const current = manualPrices[h.ticker] || h.avgPrice;
-        // Pass the timestamp to the holding
         const lastUpdated = priceTimestamps[h.ticker];
         return { ...h, currentPrice: current, lastUpdated };
       });
@@ -576,7 +567,6 @@ const App: React.FC = () => {
     setTotalDividends(dividendSum);
   }, [displayedTransactions, groupByBroker, filterBroker, manualPrices, priceTimestamps, sectorOverrides]);
 
-  // 3. AUTO-CGT
   useEffect(() => {
     if (realizedTrades.length === 0) return;
     const ledger: Record<string, Record<string, number>> = {}; 
@@ -721,7 +711,8 @@ const App: React.FC = () => {
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
                     <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <LayoutDashboard size={18} /> Dashboard </button>
                     <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <CheckCircle2 size={18} /> Realized Gains </button>
-                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <History size={18} /> History </button>
+                    {/* UPDATED: Changed label from History to Transaction History */}
+                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <History size={18} /> Transaction History </button>
                 </div>
             </div>
 
