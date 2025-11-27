@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -61,21 +61,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // UPDATED: Logic to select initial broker
+  // UPDATED: Logic to select initial broker and lock it
   useEffect(() => {
-    if (isOpen && brokers.length > 0 && !selectedBrokerId) {
-        // 1. Prioritize Portfolio Default
+    if (isOpen) {
         if (portfolioDefaultBrokerId) {
-            const exists = brokers.find(b => b.id === portfolioDefaultBrokerId);
-            if (exists) {
-                setSelectedBrokerId(portfolioDefaultBrokerId);
-                return;
-            }
+            setSelectedBrokerId(portfolioDefaultBrokerId);
+        } else if (brokers.length > 0 && !selectedBrokerId) {
+            const def = brokers.find(b => b.isDefault) || brokers[0];
+            if (def) setSelectedBrokerId(def.id);
         }
-        
-        // 2. Fallback to Global Default or First Broker
-        const def = brokers.find(b => b.isDefault) || brokers[0];
-        if (def) setSelectedBrokerId(def.id);
     }
   }, [isOpen, brokers, selectedBrokerId, portfolioDefaultBrokerId]);
 
@@ -117,11 +111,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setHistAmount(''); setHistTaxType('AFTER_TAX');
             setScannedTrades([]); setScanError(null); setSelectedFile(null);
             
-            // Explicitly clear selectedBrokerId so the effect above can re-run for new logic
-            setSelectedBrokerId('');
+            // Re-run broker selection logic
+            if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
-  }, [isOpen, editingTransaction]);
+  }, [isOpen, editingTransaction, portfolioDefaultBrokerId]);
 
   // Auto-Calculation Logic
   useEffect(() => {
@@ -305,11 +299,19 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                     )}
 
-                    
                     {type === 'TAX' ? (
                         <>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                {/* BROKER FIELD (LOCKED) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
+                                    <div className="relative">
+                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
+                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
+                                    </div>
+                                </div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">For Month</label><input required type="month" value={cgtMonth} onChange={e=>setCgtMonth(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
@@ -327,7 +329,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                {/* BROKER FIELD (LOCKED) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
+                                    <div className="relative">
+                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
+                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
+                                    </div>
+                                </div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date Recorded</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Realized Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${Number(histAmount) < 0 ? 'text-rose-500' : 'text-emerald-600'}`} placeholder="-5000 or 10000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
@@ -347,7 +358,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'WITHDRAWAL' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw Cash </button>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                {/* BROKER FIELD (LOCKED) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
+                                    <div className="relative">
+                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
+                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
+                                    </div>
+                                </div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="50000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
@@ -362,7 +382,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                {/* BROKER FIELD (LOCKED) */}
+                                <div>
+                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
+                                    <div className="relative">
+                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
+                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                                        </select>
+                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
+                                    </div>
+                                </div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Fee Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="e.g. 500"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
@@ -374,18 +403,23 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Ticker</label><input required type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/></div>
                             </div>
+                            
+                            {/* UPDATED BROKER DISPLAY */}
                             <div className="mb-1">
                                 <div className="flex justify-between items-center mb-1">
                                     <label className="block text-xs font-bold text-slate-500">Broker</label>
-                                    {onManageBrokers && <button type="button" onClick={onManageBrokers} className="text-[10px] text-emerald-600 hover:underline">Manage</button>}
                                 </div>
                                 <div className="relative">
-                                    <select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">
+                                    <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
                                         {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                     </select>
-                                    <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
+                                    <Lock className="absolute right-3 top-3.5 text-slate-400" size={16} />
                                 </div>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    This portfolio is linked strictly to <strong>{brokers.find(b=>b.id === selectedBrokerId)?.name}</strong>.
+                                </p>
                             </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}</label><input required type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}</label><input required type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
@@ -437,12 +471,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Default Broker for Import</label>
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
-                                        <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-indigo-500/20 outline-none appearance-none">
+                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
                                             {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                         </select>
-                                        <ChevronDown className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" size={18} />
+                                        <Lock className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" size={18} />
                                     </div>
-                                    <button onClick={onManageBrokers} className="p-3 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-500 transition-colors" title="Manage Brokers"> <Briefcase size={20} /> </button>
+                                    <button onClick={onManageBrokers} disabled className="p-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-300 cursor-not-allowed" title="Manage Brokers"> <Briefcase size={20} /> </button>
                                 </div>
                             </div>
                             {!scanError && (
@@ -501,7 +535,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                                 <td className="px-3 py-2"><span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{t.type}</span></td>
                                                 <td className="px-3 py-2"><input type="date" value={t.date || ''} onChange={(e) => updateScannedTrade(idx, 'date', e.target.value)} className="w-24 bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" /></td>
                                                 <td className="px-3 py-2"><input type="text" value={t.ticker} onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-16 bg-transparent text-xs font-bold text-slate-800 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white uppercase transition-all" /></td>
-                                                <td className="px-3 py-2"><select value={t.brokerId || ''} onChange={(e) => updateScannedTrade(idx, 'brokerId', e.target.value)} className="w-24 bg-transparent text-xs text-slate-600 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white appearance-none truncate cursor-pointer hover:text-indigo-600"><option value="">{t.broker || 'Select'}</option>{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></td>
+                                                <td className="px-3 py-2"><select disabled value={t.brokerId || ''} onChange={(e) => updateScannedTrade(idx, 'brokerId', e.target.value)} className="w-24 bg-transparent text-xs text-slate-500 outline-none border-b border-transparent appearance-none truncate cursor-not-allowed bg-slate-100"><option value="">{t.broker || 'Select'}</option>{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></td>
                                                 <td className="px-3 py-2"><input type="number" value={t.quantity} onChange={(e) => updateScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0" /></td>
                                                 <td className="px-3 py-2"><input type="number" step="0.01" value={t.price} onChange={(e) => updateScannedTrade(idx, 'price', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0.00" /></td>
                                                 <td className="px-2 py-2"><input type="number" step="any" value={t.commission || ''} onChange={(e) => updateScannedTrade(idx, 'commission', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
