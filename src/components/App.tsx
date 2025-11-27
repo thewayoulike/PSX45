@@ -21,7 +21,6 @@ import { useIdleTimer } from '../hooks/useIdleTimer';
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser, hasValidSession } from '../services/driveStorage';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
-const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio' };
 
 const DEFAULT_BROKER: Broker = {
     id: 'default_01',
@@ -32,6 +31,8 @@ const DEFAULT_BROKER: Broker = {
     sstRate: 15,
     isDefault: true
 };
+
+const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
 interface Lot {
     quantity: number;
@@ -87,9 +88,9 @@ const App: React.FC = () => {
       return {};
   });
 
-  // --- REFACTORED PORTFOLIO EDITING STATE ---
+  // --- PORTFOLIO EDITING STATE ---
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
-  const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); // If null, we are creating
+  const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
 
@@ -195,13 +196,31 @@ const App: React.FC = () => {
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
-  const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(); const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId }; setTransactions(prev => [...prev, newTx]); };
+  
+  // UPDATED: ADD TRANSACTION - Enforces Strict Broker Rule
+  const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { 
+      const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
+      if (!currentPortfolio) return;
+
+      const brokerToUse = brokers.find(b => b.id === currentPortfolio.defaultBrokerId);
+      
+      const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(); 
+      
+      const newTx: Transaction = { 
+          ...txData, 
+          id: newId, 
+          portfolioId: currentPortfolioId,
+          // OVERRIDE: Strict Portfolio Broker
+          brokerId: currentPortfolio.defaultBrokerId,
+          broker: brokerToUse?.name || 'Unknown'
+      }; 
+      setTransactions(prev => [...prev, newTx]); 
+  };
+
   const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
   
-  // Single Delete
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   
-  // Bulk Delete
   const handleDeleteTransactions = (ids: string[]) => {
       if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) {
           setTransactions(prev => prev.filter(t => !ids.includes(t.id)));
@@ -226,20 +245,27 @@ const App: React.FC = () => {
       if (current) {
           setEditingPortfolioId(current.id);
           setPortfolioNameInput(current.name);
-          setPortfolioBrokerIdInput(current.defaultBrokerId || '');
+          setPortfolioBrokerIdInput(current.defaultBrokerId);
           setIsPortfolioModalOpen(true);
       }
   };
 
   const handleSavePortfolio = (e: React.FormEvent) => { 
       e.preventDefault(); 
-      if (!portfolioNameInput.trim()) return;
+      if (!portfolioNameInput.trim()) {
+          alert("Portfolio Name is required");
+          return;
+      }
+      if (!portfolioBrokerIdInput) {
+          alert("A Default Broker is required for every portfolio.");
+          return;
+      }
 
       if (editingPortfolioId) {
           // Update Existing
           setPortfolios(prev => prev.map(p => 
               p.id === editingPortfolioId 
-                  ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput || undefined } 
+                  ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } 
                   : p
           ));
       } else {
@@ -248,7 +274,7 @@ const App: React.FC = () => {
           setPortfolios(prev => [...prev, { 
               id: newId, 
               name: portfolioNameInput.trim(),
-              defaultBrokerId: portfolioBrokerIdInput || undefined 
+              defaultBrokerId: portfolioBrokerIdInput 
           }]); 
           setCurrentPortfolioId(newId);
       }
@@ -449,17 +475,18 @@ const App: React.FC = () => {
                       <button onClick={() => setIsPortfolioModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
                   </div>
                   <form onSubmit={handleSavePortfolio}>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Portfolio Name</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Portfolio Name <span className="text-rose-500">*</span></label>
                       <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
                       
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Default Broker</label>
+                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Default Broker <span className="text-rose-500">*</span></label>
                       <div className="relative mb-6">
                           <select 
+                              required
                               value={portfolioBrokerIdInput} 
                               onChange={(e) => setPortfolioBrokerIdInput(e.target.value)} 
                               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-emerald-500"
                           >
-                              <option value="">None / Select Manually</option>
+                              <option value="">Select a Broker</option>
                               {brokers.map(b => (
                                   <option key={b.id} value={b.id}>{b.name}</option>
                               ))}
