@@ -112,10 +112,14 @@ export interface Broker {
   rate2?: number; 
   sstRate: number;
   
-  // NEW: CDC Configuration
+  // CDC Configuration
   cdcType?: CDCType;
-  cdcRate?: number; // Per share rate (e.g. 0.005) or Fixed amount
-  cdcMin?: number;  // Fixed amount for 'HIGHER_OF'
+  cdcRate?: number; 
+  cdcMin?: number;
+  
+  // NEW: Annual Fee Configuration
+  annualFee?: number;
+  feeStartDate?: string; // YYYY-MM-DD
   
   isDefault?: boolean;
 }
