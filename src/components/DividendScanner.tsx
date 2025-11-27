@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Transaction, DividendAnnouncement } from '../types';
+import { Transaction, FoundDividend } from '../types'; // Use shared type
 import { fetchDividends } from '../services/gemini';
 import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles, Building2 } from 'lucide-react';
 
@@ -9,43 +9,41 @@ interface DividendScannerProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenSettings?: () => void;
-}
-
-// Internal type for the scanner list
-interface FoundDividend extends DividendAnnouncement {
-    eligibleQty: number;
-    broker: string;
+  // NEW PROPS for Persistence
+  savedResults: FoundDividend[];
+  onSaveResults: (results: FoundDividend[]) => void;
 }
 
 export const DividendScanner: React.FC<DividendScannerProps> = ({ 
-  transactions, onAddTransaction, isOpen, onClose, onOpenSettings 
+  transactions, onAddTransaction, isOpen, onClose, onOpenSettings, savedResults, onSaveResults
 }) => {
   const [loading, setLoading] = useState(false);
-  const [foundDividends, setFoundDividends] = useState<FoundDividend[]>([]);
-  const [scanned, setScanned] = useState(false);
+  // Initialize with saved results from App
+  const [foundDividends, setFoundDividends] = useState<FoundDividend[]>(savedResults);
+  const [scanned, setScanned] = useState(savedResults.length > 0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Helper: Get breakdown of holdings by BROKER on a specific date
+  // Helper: Wrapper to update local state AND parent state
+  const updateDividends = (newDividends: FoundDividend[]) => {
+      setFoundDividends(newDividends);
+      onSaveResults(newDividends);
+  };
+
   const getHoldingsBreakdownOnDate = (ticker: string, targetDate: string) => {
       const breakdown: Record<string, number> = {};
-
-      // 1. Filter relevant transactions (Buy/Sell only, up to Ex-Date)
       const relevantTx = transactions.filter(t => 
           t.ticker === ticker && 
           t.date <= targetDate && 
           (t.type === 'BUY' || t.type === 'SELL')
       );
       
-      // 2. Aggregate per broker
       relevantTx.forEach(t => {
           const brokerName = t.broker || 'Unknown Broker';
           if (!breakdown[brokerName]) breakdown[brokerName] = 0;
-
           if (t.type === 'BUY') breakdown[brokerName] += t.quantity;
           if (t.type === 'SELL') breakdown[brokerName] -= t.quantity;
       });
       
-      // 3. Filter out zero/negative holdings
       Object.keys(breakdown).forEach(key => {
           if (breakdown[key] <= 0) delete breakdown[key];
       });
@@ -54,10 +52,8 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   };
 
   const handleScan = async () => {
-      // FIX: Clear previous state immediately so UI is clean
-      setFoundDividends([]); 
+      updateDividends([]); // Clear previous results
       setScanned(false);
-      
       setLoading(true);
       setErrorMsg(null);
       
@@ -74,16 +70,13 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           const newEligible: FoundDividend[] = [];
 
           announcements.forEach(ann => {
-              // Get quantity split by broker (e.g. { 'KASB': 500, 'AKD': 200 })
               const brokerMap = getHoldingsBreakdownOnDate(ann.ticker, ann.exDate);
 
               Object.entries(brokerMap).forEach(([brokerName, qty]) => {
-                  
-                  // CHECK: Has this specific dividend (Ticker + Date + Broker) already been added to history?
                   const alreadyRecorded = transactions.some(t => 
                       t.type === 'DIVIDEND' &&
                       t.ticker === ann.ticker &&
-                      t.date === ann.exDate && // Usually recorded on ex-date or payout date
+                      t.date === ann.exDate && 
                       (t.broker || 'Unknown Broker') === brokerName
                   );
 
@@ -97,24 +90,11 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
               });
           });
           
-          // MERGE: Add to list if not currently visible in the scanner
-          // This allows "Dismissed" items to reappear if scanned again (because they aren't in history yet)
-          setFoundDividends(prev => {
-              // Create a set of currently visible IDs
-              const currentIds = new Set(prev.map(d => `${d.ticker}-${d.exDate}-${d.broker}`));
-              
-              // Only add if not currently visible
-              const uniqueNew = newEligible.filter(d => 
-                  !currentIds.has(`${d.ticker}-${d.exDate}-${d.broker}`)
-              );
-              
-              return [...prev, ...uniqueNew];
-          });
-
+          // Use wrapper to save
+          updateDividends(newEligible); 
           setScanned(true);
       } catch (e: any) {
           console.error(e);
-          // FIX: Better Error Message Parsing
           let msg = e.message || "Failed to scan.";
           if (msg.includes("503") || msg.includes("overloaded")) {
               msg = "AI Service is currently busy (503). Please wait 30 seconds and try again.";
@@ -138,17 +118,19 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           tax: wht,
           commission: 0,
           cdcCharges: 0,
-          broker: div.broker, // Save with specific broker
+          broker: div.broker,
           notes: `${div.type} Dividend (${div.period || 'N/A'})`
       });
       
-      // Remove from list immediately
-      setFoundDividends(prev => prev.filter(d => d !== div));
+      // Remove from list and save
+      const remaining = foundDividends.filter(d => d !== div);
+      updateDividends(remaining);
   };
 
   const handleIgnore = (div: FoundDividend) => {
-      // Just remove from view. A new scan will bring it back if not added to history.
-      setFoundDividends(prev => prev.filter(d => d !== div));
+      // Remove from view and save
+      const remaining = foundDividends.filter(d => d !== div);
+      updateDividends(remaining);
   };
 
   if (!isOpen) return null;
@@ -234,7 +216,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                 {/* RESULTS LIST */}
                 {foundDividends.length > 0 && !loading && (
                     <div className="space-y-6">
-                        {/* HEADER WITH SCAN BUTTON */}
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                             <div>
                                 <h3 className="text-slate-800 font-bold text-lg">Found {foundDividends.length} Eligible Dividends</h3>
@@ -256,7 +237,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                 return (
                                     <div key={`${div.ticker}-${div.exDate}-${div.broker}-${idx}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
                                         
-                                        {/* Decorative Side Bar */}
                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
 
                                         <div className="flex items-start gap-4">
@@ -296,7 +276,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                                 <button 
                                                     onClick={() => handleIgnore(div)}
                                                     className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors"
-                                                    title="Dismiss from this view (will reappear on next scan if not added)"
+                                                    title="Dismiss"
                                                 >
                                                     Dismiss
                                                 </button>
