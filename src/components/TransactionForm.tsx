@@ -82,8 +82,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
             
-            // FIX: Set Auto-Calc to TRUE by default when editing
-            // This ensures fees are recalculated immediately based on the current broker rules.
+            // Set Auto-Calc to TRUE by default when editing to recalculate immediately based on current rates
             setIsAutoCalc(true);
             
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
@@ -103,9 +102,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             }
 
         } else {
+            // Default State for NEW transactions
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
-            setMode('MANUAL'); setIsAutoCalc(true); 
+            setMode('MANUAL'); 
+            setIsAutoCalc(true); 
             setDate(new Date().toISOString().split('T')[0]);
             setCgtMonth(new Date().toISOString().substring(0, 7));
             setCgtProfit('');
@@ -280,11 +281,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     {type === 'TAX' ? (
                         <>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">For Month</label><input type="month" value={cgtMonth} onChange={e=>setCgtMonth(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">For Month</label><input required type="month" value={cgtMonth} onChange={e=>setCgtMonth(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Net Profit / Loss</label><input type="number" value={cgtProfit} onChange={e=>setCgtProfit(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Net Profit / Loss</label><input required type="number" value={cgtProfit} onChange={e=>setCgtProfit(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Calculated CGT (15%)</label><input type="number" value={price} readOnly className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none cursor-not-allowed"/></div>
                             </div>
                         </>
@@ -298,10 +299,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date Recorded</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date Recorded</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
-                            <div><label className="block text-xs font-bold text-slate-500 mb-1">Realized Amount</label><div className="relative"><input type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${Number(histAmount) < 0 ? 'text-rose-500' : 'text-emerald-600'}`} placeholder="-5000 or 10000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
+                            <div><label className="block text-xs font-bold text-slate-500 mb-1">Realized Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${Number(histAmount) < 0 ? 'text-rose-500' : 'text-emerald-600'}`} placeholder="-5000 or 10000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-2">Tax Calculation</label><div className="grid grid-cols-2 gap-3"><label className={`flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${histTaxType === 'AFTER_TAX' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-500'}`}><input type="radio" name="taxType" checked={histTaxType === 'AFTER_TAX'} onChange={() => setHistTaxType('AFTER_TAX')} className="hidden" /><span className="text-sm font-bold">After Tax (Net)</span></label><label className={`flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${histTaxType === 'BEFORE_TAX' ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-500'}`}><input type="radio" name="taxType" checked={histTaxType === 'BEFORE_TAX'} onChange={() => setHistTaxType('BEFORE_TAX')} className="hidden" /><span className="text-sm font-bold">Before Tax (Gross)</span></label></div></div>
                         </>
                     ) : type === 'DEPOSIT' || type === 'WITHDRAWAL' ? (
@@ -318,16 +319,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'WITHDRAWAL' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw Cash </button>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
-                            <div><label className="block text-xs font-bold text-slate-500 mb-1">Amount</label><div className="relative"><input type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="50000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
+                            <div><label className="block text-xs font-bold text-slate-500 mb-1">Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="50000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
                         </>
                     ) : (
                         <>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Ticker</label><input type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Ticker</label><input required type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/></div>
                             </div>
                             <div className="mb-1">
                                 <div className="flex justify-between items-center mb-1">
@@ -335,15 +336,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     {onManageBrokers && <button type="button" onClick={onManageBrokers} className="text-[10px] text-emerald-600 hover:underline">Manage</button>}
                                 </div>
                                 <div className="relative">
-                                    <select value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">
+                                    <select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">
                                         {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                                     </select>
                                     <ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} />
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}</label><input type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/></div>
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}</label><input type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}</label><input required type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}</label><input required type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
                             </div>
                             {type === 'DIVIDEND' && typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0 && (
                                 <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center text-xs text-indigo-800 px-4">
