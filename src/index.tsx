@@ -1,6 +1,6 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter } from 'react-router-dom'; // Import this
+// Removed: import { BrowserRouter } from 'react-router-dom';
 import App from './components/App';
 
 const rootElement = document.getElementById('root');
@@ -11,8 +11,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <BrowserRouter> {/* Wrap App with this */}
-      <App />
-    </BrowserRouter>
+    {/* Removed <BrowserRouter> wrapper */}
+    <App />
   </React.StrictMode>
 );
