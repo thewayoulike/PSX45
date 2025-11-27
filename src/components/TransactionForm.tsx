@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
-// ... (Interface definitions remain same) ...
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
   onUpdateTransaction?: (transaction: Transaction) => void;
@@ -30,9 +29,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   brokers = []
 }) => {
   const [mode, setMode] = useState<'MANUAL' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL'>('BUY');
+  // UPDATED: Added ANNUAL_FEE to type state
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'>('BUY');
   
-  // Form State
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [ticker, setTicker] = useState('');
   const [quantity, setQuantity] = useState<number | ''>('');
@@ -44,7 +43,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
 
-  // ... (Other state variables remain same) ...
   const [cgtProfit, setCgtProfit] = useState<number | ''>('');
   const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7));
   const [histAmount, setHistAmount] = useState<number | ''>('');
@@ -56,7 +54,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ... (Auto-select broker and Reset effects remain same) ...
   useEffect(() => {
     if (brokers.length > 0 && !selectedBrokerId) {
         const def = brokers.find(b => b.isDefault) || brokers[0];
@@ -77,9 +74,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setTax(editingTransaction.tax || 0);
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
-            
             setIsAutoCalc(true);
-            
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             
             if (editingTransaction.type === 'TAX') {
@@ -90,7 +85,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                  setHistAmount(editingTransaction.price);
                  setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX');
             }
-            if (editingTransaction.type === 'DEPOSIT' || editingTransaction.type === 'WITHDRAWAL') {
+            // Populate histAmount for special types to show value in edit field
+            if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(editingTransaction.type)) {
                 setHistAmount(editingTransaction.price); 
             }
         } else {
@@ -106,7 +102,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [isOpen, editingTransaction]);
 
-  // UPDATED Auto-Calculation Logic
+  // Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
         
@@ -114,24 +110,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             if (typeof cgtProfit === 'number') {
                 const calculatedTax = cgtProfit * 0.15;
                 setPrice(parseFloat(calculatedTax.toFixed(2)));
-                setQuantity(1);
-                setTicker('CGT');
+                setQuantity(1); setTicker('CGT');
                 setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
                 setDate(`${cgtMonth}-28`); 
             }
         } 
         else if (type === 'HISTORY') {
             if (typeof histAmount === 'number') {
-                setQuantity(1);
-                setTicker('PREV-PNL');
+                setQuantity(1); setTicker('PREV-PNL');
                 if (histTaxType === 'BEFORE_TAX') {
-                    if (histAmount > 0) {
-                         const t = histAmount * 0.15;
-                         setTax(parseFloat(t.toFixed(2)));
-                    } else { setTax(0); }
+                    if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else { setTax(0); }
                 } else { setTax(0); }
-                setPrice(histAmount); 
-                setCommission(0); setCdcCharges(0); setOtherFees(0);
+                setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0);
             }
         }
         else if (type === 'DEPOSIT' || type === 'WITHDRAWAL') {
@@ -140,71 +130,75 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
             }
         }
+        // NEW: Logic for ANNUAL_FEE
+        else if (type === 'ANNUAL_FEE') {
+            if (typeof histAmount === 'number') {
+                setQuantity(1); 
+                setTicker('ANNUAL FEE'); // Force ticker name
+                setPrice(histAmount);
+                setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
+            }
+        }
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
-
              if (type === 'DIVIDEND') {
                  setCommission(0); setCdcCharges(0); setOtherFees(0);
-                 const wht = gross * 0.15;
-                 setTax(parseFloat(wht.toFixed(2)));
-             } 
-             else {
+                 const wht = gross * 0.15; setTax(parseFloat(wht.toFixed(2)));
+             } else {
                  let estComm = 0;
                  const currentBroker = brokers.find(b => b.id === selectedBrokerId);
-
                  if (currentBroker) {
-                     // Commission Calculation
-                     if (currentBroker.commissionType === 'PERCENTAGE') {
-                         estComm = gross * (currentBroker.rate1 / 100);
-                     } else if (currentBroker.commissionType === 'FIXED') {
-                         estComm = currentBroker.rate1;
-                     } else if (currentBroker.commissionType === 'PER_SHARE') {
-                         estComm = quantity * currentBroker.rate1;
-                     } else if (currentBroker.commissionType === 'HIGHER_OF') {
-                         const pct = gross * (currentBroker.rate1 / 100);
-                         const fixed = quantity * (currentBroker.rate2 || 0);
-                         estComm = Math.max(pct, fixed);
-                     }
-                 } else {
-                     estComm = gross * 0.0015;
-                 }
-
+                     if (currentBroker.commissionType === 'PERCENTAGE') estComm = gross * (currentBroker.rate1 / 100);
+                     else if (currentBroker.commissionType === 'FIXED') estComm = currentBroker.rate1;
+                     else if (currentBroker.commissionType === 'PER_SHARE') estComm = quantity * currentBroker.rate1;
+                     else if (currentBroker.commissionType === 'HIGHER_OF') { const pct = gross * (currentBroker.rate1 / 100); const fixed = quantity * (currentBroker.rate2 || 0); estComm = Math.max(pct, fixed); }
+                 } else { estComm = gross * 0.0015; }
                  const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
                  const estTax = estComm * taxRate;
-                 
-                 // NEW: CDC Charges Calculation
                  let estCdc = 0;
                  if (currentBroker) {
                      const cdcType = currentBroker.cdcType || 'PER_SHARE';
                      const cdcRate = currentBroker.cdcRate !== undefined ? currentBroker.cdcRate : 0.005;
-                     
-                     if (cdcType === 'PER_SHARE') {
-                         estCdc = quantity * cdcRate;
-                     } else if (cdcType === 'FIXED') {
-                         estCdc = cdcRate;
-                     } else if (cdcType === 'HIGHER_OF') {
-                         const shareVal = quantity * cdcRate;
-                         const fixedVal = currentBroker.cdcMin || 0;
-                         estCdc = Math.max(shareVal, fixedVal);
-                     }
-                 } else {
-                     estCdc = quantity * 0.005; // Fallback
-                 }
-
-                 setCommission(parseFloat(estComm.toFixed(2)));
-                 setTax(parseFloat(estTax.toFixed(2)));
-                 setCdcCharges(parseFloat(estCdc.toFixed(2)));
+                     if (cdcType === 'PER_SHARE') estCdc = quantity * cdcRate;
+                     else if (cdcType === 'FIXED') estCdc = cdcRate;
+                     else if (cdcType === 'HIGHER_OF') { const shareVal = quantity * cdcRate; const fixedVal = currentBroker.cdcMin || 0; estCdc = Math.max(shareVal, fixedVal); }
+                 } else { estCdc = quantity * 0.005; }
+                 setCommission(parseFloat(estComm.toFixed(2))); setTax(parseFloat(estTax.toFixed(2))); setCdcCharges(parseFloat(estCdc.toFixed(2)));
              }
         } else {
-             if (commission !== '') setCommission('');
-             if (tax !== '') setTax('');
-             if (cdcCharges !== '') setCdcCharges('');
+             if (commission !== '') setCommission(''); if (tax !== '') setTax(''); if (cdcCharges !== '') setCdcCharges('');
         }
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
 
-  // ... (Manual Submit, File Handling, and Render Return code remain largely the same, just keeping them for completeness) ...
-  const handleManualSubmit = (e: React.FormEvent) => { e.preventDefault(); let brokerName = undefined; const b = brokers.find(b => b.id === selectedBrokerId); if (b) brokerName = b.name; const txData = { ticker: ticker.toUpperCase(), type, quantity: Number(quantity), price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId, commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0 }; if (editingTransaction && onUpdateTransaction) { onUpdateTransaction({ ...editingTransaction, ...txData }); } else { onAddTransaction(txData); } onClose(); };
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    let brokerName = undefined;
+    const b = brokers.find(b => b.id === selectedBrokerId);
+    if (b) brokerName = b.name;
+
+    const txData = {
+      ticker: ticker.toUpperCase(),
+      type,
+      quantity: Number(quantity),
+      price: Number(price),
+      date,
+      broker: brokerName,
+      brokerId: selectedBrokerId,
+      commission: Number(commission) || 0,
+      tax: Number(tax) || 0,
+      cdcCharges: Number(cdcCharges) || 0,
+      otherFees: Number(otherFees) || 0
+    };
+
+    if (editingTransaction && onUpdateTransaction) {
+      onUpdateTransaction({ ...editingTransaction, ...txData });
+    } else {
+      onAddTransaction(txData);
+    }
+    onClose();
+  };
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); setScannedTrades([]); } };
   const handleProcessScan = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); setScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); setScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
   const handleAcceptTrade = (trade: EditableTrade) => { let finalBrokerName = trade.broker; if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; } onAddTransaction({ ticker: trade.ticker, type: trade.type as any, quantity: Number(trade.quantity), price: Number(trade.price), date: trade.date || new Date().toISOString().split('T')[0], broker: finalBrokerName, brokerId: trade.brokerId, commission: Number(trade.commission) || 0, tax: Number(trade.tax) || 0, cdcCharges: Number(trade.cdcCharges) || 0, otherFees: Number(trade.otherFees) || 0 }); setScannedTrades(prev => prev.filter(t => t !== trade)); };
@@ -244,13 +238,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
                     
-                    <div className="grid grid-cols-6 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-7 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         <button type="button" onClick={() => setType('BUY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'BUY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>BUY</button>
                         <button type="button" onClick={() => setType('SELL')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'SELL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>SELL</button>
                         <button type="button" onClick={() => setType('DIVIDEND')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'DIVIDEND' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>DIV</button>
                         <button type="button" onClick={() => setType('TAX')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'TAX' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>CGT</button>
                         <button type="button" onClick={() => setType('HISTORY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'HISTORY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>HIST</button>
                         <button type="button" onClick={() => setType('DEPOSIT')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'DEPOSIT' || type === 'WITHDRAWAL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>CASH</button>
+                        <button type="button" onClick={() => setType('ANNUAL_FEE')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'ANNUAL_FEE' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>FEE</button>
                     </div>
 
                     {type === 'TAX' ? (
@@ -273,6 +268,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     <p className="opacity-80">Add realized profits/losses from before using this app. This will adjust your "Total Realized Gains".</p>
                                 </div>
                             </div>
+                            {/* ... (Existing HISTORY form fields) ... */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date Recorded</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
@@ -293,13 +289,30 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <button type="button" onClick={() => setType('DEPOSIT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'DEPOSIT' ? 'bg-white shadow text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <Plus size={14} strokeWidth={3} /> Add Funds (Deposit) </button>
                                 <button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'WITHDRAWAL' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw Cash </button>
                             </div>
+                            {/* ... (Existing DEPOSIT/WITHDRAWAL fields) ... */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="50000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
                         </>
+                    ) : type === 'ANNUAL_FEE' ? (
+                        <>
+                            <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 flex gap-3 items-start">
+                                <CalendarClock className="text-amber-500 shrink-0 mt-0.5" size={18} />
+                                <div className="text-xs text-amber-700">
+                                    <p className="font-bold mb-0.5">Annual Fee</p>
+                                    <p className="opacity-80">Record a recurring broker maintenance fee. This is treated as a withdrawal.</p>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select required value={selectedBrokerId} onChange={e => setSelectedBrokerId(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none bg-white">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><ChevronDown className="absolute right-3 top-3.5 text-slate-400 pointer-events-none" size={16} /></div></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                            </div>
+                            <div><label className="block text-xs font-bold text-slate-500 mb-1">Fee Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="e.g. 500"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
+                        </>
                     ) : (
+                        // DEFAULT FORM FOR BUY/SELL/DIVIDEND
                         <>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
