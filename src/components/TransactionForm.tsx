@@ -13,6 +13,8 @@ interface TransactionFormProps {
   existingTransactions?: Transaction[];
   editingTransaction?: Transaction | null;
   brokers?: Broker[]; 
+  // NEW PROP
+  portfolioDefaultBrokerId?: string;
 }
 
 interface EditableTrade extends ParsedTrade {
@@ -27,7 +29,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   onClose, 
   existingTransactions = [], // Default to empty array
   editingTransaction,
-  brokers = []
+  brokers = [],
+  portfolioDefaultBrokerId
 }) => {
   const [mode, setMode] = useState<'MANUAL' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'>('BUY');
@@ -58,12 +61,23 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // UPDATED: Logic to select initial broker
   useEffect(() => {
-    if (brokers.length > 0 && !selectedBrokerId) {
+    if (isOpen && brokers.length > 0 && !selectedBrokerId) {
+        // 1. Prioritize Portfolio Default
+        if (portfolioDefaultBrokerId) {
+            const exists = brokers.find(b => b.id === portfolioDefaultBrokerId);
+            if (exists) {
+                setSelectedBrokerId(portfolioDefaultBrokerId);
+                return;
+            }
+        }
+        
+        // 2. Fallback to Global Default or First Broker
         const def = brokers.find(b => b.isDefault) || brokers[0];
         if (def) setSelectedBrokerId(def.id);
     }
-  }, [brokers, selectedBrokerId]);
+  }, [isOpen, brokers, selectedBrokerId, portfolioDefaultBrokerId]);
 
   useEffect(() => {
     if (isOpen) {
@@ -102,6 +116,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCgtProfit('');
             setHistAmount(''); setHistTaxType('AFTER_TAX');
             setScannedTrades([]); setScanError(null); setSelectedFile(null);
+            
+            // Explicitly clear selectedBrokerId so the effect above can re-run for new logic
+            setSelectedBrokerId('');
         }
     }
   }, [isOpen, editingTransaction]);
@@ -288,9 +305,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                     )}
 
-                    {/* ... (Rest of the form fields - Same as previous version) ... */}
-                    {/* ... (Copy remaining JSX from the previous step here to keep file complete) ... */}
-                    {/* For brevity, assume standard Buy/Sell/Div form fields follow here */}
                     
                     {type === 'TAX' ? (
                         <>
