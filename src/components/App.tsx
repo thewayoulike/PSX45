@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 
-// 1. Removed react-router-dom imports
+// 1. Removed react-router-dom imports (Routes, Route, useNavigate, etc.)
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Broker, DriveUser } from '../types';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
@@ -31,8 +31,6 @@ const INITIAL_BROKERS: Broker[] = [
 type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
 
 const App: React.FC = () => {
-  // 3. Removed navigate/location hooks
-
   // --- AUTH STATE ---
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
@@ -45,7 +43,7 @@ const App: React.FC = () => {
   const [userApiKey, setUserApiKey] = useState<string>('');
   
   // --- UI STATE ---
-  // 4. Restore currentView state
+  // 3. Restored currentView state
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -400,7 +398,7 @@ const App: React.FC = () => {
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700 px-4 max-w-7xl mx-auto">
             
-            {/* 5. NAVIGATION BAR - RESTORED VIEW SWITCHING */}
+            {/* 4. NAVIGATION BAR - UPDATED TO SET STATE */}
             <div className="flex justify-center mb-8">
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
                     <button 
@@ -444,7 +442,7 @@ const App: React.FC = () => {
                          </select>
                     </div>
                     
-                    {/* 6. Updated Condition: currentView instead of location.pathname */}
+                    {/* 5. Updated Conditions for Toolbar buttons based on currentView */}
                     {currentView !== 'HISTORY' && (
                         <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                              <button onClick={() => setGroupByBroker(true)} className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${groupByBroker ? 'bg-slate-100 text-slate-800 shadow-sm border border-slate-200' : 'text-slate-400 hover:text-slate-600'}`}>Separate</button>
@@ -464,7 +462,7 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* 7. CONDITIONAL RENDERING (REPLACED ROUTES) */}
+            {/* 6. CONDITIONAL RENDERING (NO ROUTES) */}
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
