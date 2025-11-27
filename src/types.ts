@@ -96,6 +96,12 @@ export interface DividendAnnouncement {
     period?: string;
 }
 
+// NEW: Exported so App can manage this state
+export interface FoundDividend extends DividendAnnouncement {
+    eligibleQty: number;
+    broker: string;
+}
+
 export type CommissionType = 'PERCENTAGE' | 'PER_SHARE' | 'HIGHER_OF' | 'FIXED';
 
 export interface Broker {
