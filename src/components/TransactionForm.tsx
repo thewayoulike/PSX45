@@ -91,8 +91,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             
             if (editingTransaction.type === 'TAX') {
-                setCgtMonth(editingTransaction.date.substring(0, 7));
-                setCgtProfit(editingTransaction.price / 0.15); 
+                // For manual TAX, we treat 'price' as the TAX AMOUNT directly
+                setPrice(editingTransaction.price);
+                // We reuse 'histAmount' as a temp holder if needed, but 'price' is the source of truth
+                setHistAmount(editingTransaction.price); 
             }
             if (editingTransaction.type === 'HISTORY') {
                  setHistAmount(editingTransaction.price);
@@ -122,12 +124,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (isAutoCalc && mode === 'MANUAL') {
         
         if (type === 'TAX') {
-            if (typeof cgtProfit === 'number') {
-                const calculatedTax = cgtProfit * 0.15;
-                setPrice(parseFloat(calculatedTax.toFixed(2)));
-                setQuantity(1); setTicker('CGT');
+            // UPDATED: Simple Manual Entry logic for TAX
+            // Just copy the manual amount to price
+            if (typeof histAmount === 'number') {
+                setPrice(histAmount);
+                setQuantity(1); 
+                setTicker('CGT');
                 setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
-                setDate(`${cgtMonth}-28`); 
             }
         } 
         else if (type === 'HISTORY') {
@@ -301,6 +304,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
                     {type === 'TAX' ? (
                         <>
+                            <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
+                                <p className="text-xs text-slate-600 leading-relaxed">
+                                    <strong>Manual CGT Entry:</strong> <br/>
+                                    • Enter a <strong>positive amount</strong> for tax paid (deducted from cash). <br/>
+                                    • Enter a <strong>negative amount</strong> for tax refund/credit (added to cash).
+                                </p>
+                            </div>
                             <div className="grid grid-cols-2 gap-4">
                                 {/* BROKER FIELD (LOCKED) */}
                                 <div>
@@ -312,11 +322,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                         <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
                                     </div>
                                 </div>
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">For Month</label><input required type="month" value={cgtMonth} onChange={e=>setCgtMonth(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Net Profit / Loss</label><input required type="number" value={cgtProfit} onChange={e=>setCgtProfit(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
-                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Calculated CGT (15%)</label><input type="number" value={price} readOnly className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20 outline-none cursor-not-allowed"/></div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Tax Amount (PKR)</label>
+                                <input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. 1500 or -500"/>
                             </div>
                         </>
                     ) : type === 'HISTORY' ? (
