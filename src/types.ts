@@ -96,13 +96,13 @@ export interface DividendAnnouncement {
     period?: string;
 }
 
-// NEW: Exported so App can manage this state
 export interface FoundDividend extends DividendAnnouncement {
     eligibleQty: number;
     broker: string;
 }
 
 export type CommissionType = 'PERCENTAGE' | 'PER_SHARE' | 'HIGHER_OF' | 'FIXED';
+export type CDCType = 'PER_SHARE' | 'FIXED' | 'HIGHER_OF';
 
 export interface Broker {
   id: string;
@@ -110,6 +110,12 @@ export interface Broker {
   commissionType: CommissionType;
   rate1: number; 
   rate2?: number; 
-  sstRate: number; 
+  sstRate: number;
+  
+  // NEW: CDC Configuration
+  cdcType?: CDCType;
+  cdcRate?: number; // Per share rate (e.g. 0.005) or Fixed amount
+  cdcMin?: number;  // Fixed amount for 'HIGHER_OF'
+  
   isDefault?: boolean;
 }
