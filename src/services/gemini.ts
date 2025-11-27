@@ -6,8 +6,14 @@ import * as XLSX from 'xlsx';
 let userProvidedKey: string | null = null;
 let aiClient: GoogleGenAI | null = null;
 
+// HELPER: Strip out any non-ASCII characters (like invisible spaces/formatting)
+const sanitizeKey = (key: string): string => {
+    return key.replace(/[^\x00-\x7F]/g, "").trim();
+};
+
 export const setGeminiApiKey = (key: string | null) => {
-    userProvidedKey = key;
+    // FIX: Sanitize immediately upon setting
+    userProvidedKey = key ? sanitizeKey(key) : null;
     aiClient = null;
 };
 
@@ -32,6 +38,9 @@ const getAi = (): GoogleGenAI | null => {
     }
 }
 
+// ... (Rest of the file remains exactly the same: readSpreadsheetAsText, parseTradeDocument, fetchDividends)
+// Just copy the remaining functions from your previous version or keep them as is.
+
 // --- HELPER: Read Spreadsheet to Text ---
 const readSpreadsheetAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -43,14 +52,11 @@ const readSpreadsheetAsText = (file: File): Promise<string> => {
                 if (!data) return reject("Empty file");
 
                 if (file.name.toLowerCase().endsWith('.csv')) {
-                    // CSV is already text
                     resolve(data as string);
                 } else {
-                    // Parse Excel (XLSX/XLS)
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    // Convert to CSV text for the AI to read easily
                     const csvText = XLSX.utils.sheet_to_csv(worksheet);
                     resolve(csvText);
                 }
@@ -77,10 +83,6 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
     let parts: any[] = [];
 
-    // STRATEGY: 
-    // 1. If Excel/CSV -> Convert to text string -> Send as text prompt
-    // 2. If Image/PDF -> Convert to Base64 -> Send as inlineData
-
     if (isSpreadsheet) {
         const sheetData = await readSpreadsheetAsText(file);
         parts = [
@@ -99,7 +101,6 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
             Return a JSON array of objects.` }
         ];
     } else {
-        // Handle Image/PDF
         const base64Data = await new Promise<string>((resolve, reject) => {
             const reader = new FileReader();
             reader.onload = () => resolve((reader.result as string).split(',')[1]);
@@ -124,7 +125,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash", // Flash is faster/cheaper for high volume text
+      model: "gemini-2.5-flash",
       contents: { parts: parts },
       config: {
         responseMimeType: "application/json",
