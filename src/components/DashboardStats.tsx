@@ -206,7 +206,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         {/* ROW 2: Holdings, Profits & Breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
             
-             <Card title="Current Stock Value" icon={<BarChart3 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+             {/* FIXED: Manually rendering header to allow text wrapping for long titles */}
+             <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <BarChart3 className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight">
+                        Current Stock Value
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.totalValue)}
@@ -239,9 +249,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* NEW: Daily Profit Card (Replacing Unrealized P&L position if needed, or added) */}
-            {/* Let's put Unrealized P&L first, then Daily */}
-            
             <Card title="Unrealized P&L" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
