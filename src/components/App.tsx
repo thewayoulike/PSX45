@@ -575,9 +575,15 @@ const App: React.FC = () => {
     }
     const mwrr = calculateXIRR(cashFlows);
     
+    // --- Daily % Change Calculation ---
+    // Yesterday Value = Current Value - Daily P&L
+    const yesterdayValue = totalValue - dailyPL;
+    // Handle division by zero or negative basis logic if needed, but standard % is P&L / Start
+    const dailyPLPercent = yesterdayValue > 0 ? (dailyPL / yesterdayValue) * 100 : 0;
+
     return { 
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
-        totalDividends, dailyPL, totalCommission, totalSalesTax, totalDividendTax, totalCDC, 
+        totalDividends, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalDividendTax, totalCDC, 
         totalOtherFees, totalCGT, freeCash, cashInvestment, 
         netPrincipal, 
         peakNetPrincipal: lifetimeCash, 
