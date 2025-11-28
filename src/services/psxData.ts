@@ -1,8 +1,9 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Target-Aware Parsing + Header Fallbacks + Robust HTML Parsing.
- * Handles "Symbol<br>Status" layout by parsing innerHTML.
+ * UPDATED: Anchor-First Extraction + First-Match-Wins Priority.
+ * - Extracts symbol from <a> tag to avoid "XD/XM" status noise.
+ * - Keeps the first price found for a ticker (Main Board) to avoid Odd-Lot overwrites.
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
@@ -122,41 +123,40 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 // B. Extract Data
                 if (!cols[colMap.SYMBOL] || !cols[colMap.PRICE]) return;
 
-                // FIX: Use innerHTML to handle <br> tags properly (e.g. "PPP<br>XD" -> "PPP XD")
-                // Standard textContent might squash them into "PPPXD" which breaks tokenization
-                let rawHtml = cols[colMap.SYMBOL].innerHTML;
-                rawHtml = rawHtml.replace(/<br\s*\/?>/gi, ' ').replace(/<\/div>/gi, ' ').replace(/<\/p>/gi, ' ');
-                
-                const tempDiv = document.createElement('div');
-                tempDiv.innerHTML = rawHtml;
-                const rawSymText = tempDiv.textContent?.trim().toUpperCase() || "";
-                
-                // --- FIX: Intelligent Symbol Matching ---
-                // We split the cell text by any non-alphanumeric character.
-                // This handles "XD SNGP", "SNGP(XM)", "SNGP\nCompany Name"
-                const tokens = rawSymText.split(/[^A-Z0-9]+/);
-                
-                let symbolText: string | undefined;
+                const symCell = cols[colMap.SYMBOL];
+                let symbolText = "";
 
-                // Priority 1: Check if any token matches a ticker in our Portfolio
-                for (const token of tokens) {
-                    if (targetTickers.has(token)) {
-                        symbolText = token;
-                        break;
+                // STRATEGY: Prefer text inside <a> tag. 
+                // This isolates the ticker "PPP" from the sibling text "XD" which is usually outside the link.
+                const anchor = symCell.querySelector('a');
+                if (anchor) {
+                    symbolText = anchor.textContent?.trim().toUpperCase() || "";
+                } else {
+                    // Fallback: Clean the text manually if no link
+                    let rawHtml = symCell.innerHTML;
+                    // Replace <br>, </div> etc with space to avoid "PPPXD"
+                    rawHtml = rawHtml.replace(/<br\s*\/?>/gi, ' ').replace(/<\/div>/gi, ' ').replace(/<\/p>/gi, ' ');
+                    
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = rawHtml;
+                    const rawText = tempDiv.textContent?.trim().toUpperCase() || "";
+                    
+                    // Tokenize and find match
+                    const tokens = rawText.split(/[^A-Z0-9]+/);
+                    for (const token of tokens) {
+                        if (targetTickers.has(token)) {
+                            symbolText = token;
+                            break;
+                        }
+                    }
+                    // Final fallback
+                    if (!symbolText && tokens.length > 0) {
+                         const validTokens = tokens.filter(t => t.length >= 2 && !TICKER_BLACKLIST.includes(t));
+                         if (validTokens.length > 0) symbolText = validTokens[0];
                     }
                 }
 
-                // Priority 2: Fallback to the first valid-looking token if no specific target found
-                if (!symbolText) {
-                    const validTokens = tokens.filter(t => 
-                        t.length >= 2 && 
-                        !TICKER_BLACKLIST.includes(t) && 
-                        !['XD','XM','XR','XB','SPOT','DEFAULT','NC'].includes(t)
-                    );
-                    if (validTokens.length > 0) symbolText = validTokens[0];
-                }
-
-                if (!symbolText) return;
+                if (!symbolText || TICKER_BLACKLIST.includes(symbolText)) return;
 
                 const priceText = cols[colMap.PRICE].textContent?.trim().replace(/,/g, '');
                 const price = parseFloat(priceText || '');
@@ -171,11 +171,16 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 }
 
                 if (symbolText.length >= 2 && !isNaN(price)) {
-                    // FIX: Zero-Price Protection
-                    if (results[symbolText] && results[symbolText].price > 0 && price === 0) {
+                    // FIX: FIRST MATCH WINS
+                    // If we already have a price for this ticker (from Main Board), 
+                    // ignore subsequent finds (which are likely Odd Lots or Futures).
+                    if (results[symbolText]) {
                         return;
                     }
-                    results[symbolText] = { price, sector };
+                    
+                    if (price > 0) {
+                        results[symbolText] = { price, sector };
+                    }
                 }
             });
         });
