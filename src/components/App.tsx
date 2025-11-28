@@ -326,6 +326,7 @@ const App: React.FC = () => {
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let totalDividendTax = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     
+    // --- 1. Basic Summation ---
     holdings.forEach(h => { totalValue += h.quantity * h.currentPrice; totalCost += h.quantity * h.avgPrice; });
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
@@ -340,10 +341,11 @@ const App: React.FC = () => {
         else { totalSalesTax += (t.tax || 0); }
     });
 
+    // --- 2. Advanced Metrics ---
     const netRealizedPL = realizedPL - totalCGT; 
     const totalProfits = netRealizedPL + totalDividends;
     
-    // --- TIMELINE REPLAY FOR PEAK PRINCIPAL & NET PRINCIPAL ---
+    // --- 3. Peak Net Principal Calculation (Timeline Replay) ---
     const dailyMap = new Map<string, { in: number, out: number, profit: number }>();
 
     const addToDay = (date: string, field: 'in' | 'out' | 'profit', amount: number) => {
@@ -369,10 +371,11 @@ const App: React.FC = () => {
 
     const sortedDates = Array.from(dailyMap.keys()).sort();
 
-    let lifetimeCash = 0; // Peak Net Principal
-    let refillableGap = 0;
-    let availableProfits = 0;
-    let netPrincipal = 0; // Current Cash Inv
+    // Replay State
+    let lifetimeCash = 0; // The Peak "Invested" Capital
+    let refillableGap = 0; // Gap created specifically by withdrawals
+    let availableProfits = 0; // Running profit balance
+    let netPrincipal = 0; // Current Principal
 
     sortedDates.forEach(date => {
         const day = dailyMap.get(date)!;
@@ -382,15 +385,16 @@ const App: React.FC = () => {
         if (dayProfit >= 0) {
             availableProfits += dayProfit;
         } else {
-            // Loss: First eat profits
+            // Loss: First eat available profits
             const loss = Math.abs(dayProfit);
             const profitsEaten = Math.min(loss, availableProfits);
             availableProfits -= profitsEaten;
             const principalEaten = loss - profitsEaten;
+            
             if (principalEaten > 0) {
-                netPrincipal -= principalEaten; // Principal eroded by loss
-                // NOTE: refillableGap does NOT increase here. 
-                // Loss creates a permanent hole in principal that requires NEW Lifetime Investment to fill.
+                netPrincipal -= principalEaten; // Loss reduces current principal
+                // NOTE: We do NOT increase refillableGap here. 
+                // A trading loss creates a permanent dent that requires "fresh" lifetime investment to recover.
             }
         }
 
@@ -400,21 +404,26 @@ const App: React.FC = () => {
             const profitsWithdrawn = Math.min(dayWithdrawal, availableProfits);
             availableProfits -= profitsWithdrawn;
             const principalWithdrawn = dayWithdrawal - profitsWithdrawn;
+            
             if (principalWithdrawn > 0) {
                 netPrincipal -= principalWithdrawn;
-                refillableGap += principalWithdrawn; // This gap CAN be refilled without raising Lifetime
+                refillableGap += principalWithdrawn; // Withdrawals create a gap we can refill later
             }
         }
 
         // 3. Process Deposits
         const dayDeposit = day.in;
         if (dayDeposit > 0) {
+            // Fill withdrawal gaps first
             const fillAmount = Math.min(dayDeposit, refillableGap);
-            const newCapital = dayDeposit - fillAmount;
-            
             refillableGap -= fillAmount;
-            lifetimeCash += newCapital; // Only "new" money raises lifetime
-            netPrincipal += dayDeposit; // All deposits raise current principal
+            
+            // Remaining deposit is "New Capital"
+            const newCapital = dayDeposit - fillAmount;
+            lifetimeCash += newCapital; 
+            
+            // All deposits increase current principal
+            netPrincipal += dayDeposit; 
         }
     });
 
@@ -422,14 +431,16 @@ const App: React.FC = () => {
     const netPrincipalAvailable = Math.max(0, netPrincipal);
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
+    
     let cashIn = totalDeposits; 
+    // Tax affects free cash but not the investment metrics above
     let cashOut = totalWithdrawals + totalCGT; 
     
     let tradingCashFlow = 0; 
     portfolioTransactions.forEach(t => { const val = t.price * t.quantity; const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); if (t.type === 'BUY') tradingCashFlow -= (val + fees); else if (t.type === 'SELL') tradingCashFlow += (val - fees); });
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    const roiDenominator = lifetimeCash; // Peak Net Principal
+    const roiDenominator = lifetimeCash; // Use corrected Lifetime Peak
     
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
     const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
