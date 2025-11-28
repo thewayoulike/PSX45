@@ -58,7 +58,6 @@ export interface ParsedTrade {
   otherFees?: number;
 }
 
-// NEW: Shared Type for Editable Scanned Trades
 export interface EditableTrade extends ParsedTrade {
     brokerId?: string;
 }
@@ -111,8 +110,17 @@ export interface FoundDividend extends DividendAnnouncement {
     broker: string;
 }
 
-export type CommissionType = 'PERCENTAGE' | 'PER_SHARE' | 'HIGHER_OF' | 'FIXED';
+// UPDATE: Added 'SLAB' type
+export type CommissionType = 'PERCENTAGE' | 'PER_SHARE' | 'HIGHER_OF' | 'FIXED' | 'SLAB';
 export type CDCType = 'PER_SHARE' | 'FIXED' | 'HIGHER_OF';
+
+// NEW: Slab Interface
+export interface CommissionSlab {
+    min: number;
+    max: number;
+    rate: number;
+    type: 'FIXED' | 'PERCENTAGE'; // Fixed Rs or % of value
+}
 
 export interface Broker {
   id: string;
@@ -127,4 +135,6 @@ export interface Broker {
   annualFee?: number;
   feeStartDate?: string; 
   isDefault?: boolean;
+  // NEW: Slabs Array
+  slabs?: CommissionSlab[];
 }
