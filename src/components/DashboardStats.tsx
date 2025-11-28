@@ -233,7 +233,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         <History className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                     </div>
                     <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
-                        Lifetime Cash Investment
+                        Lifetime Cash Inv
                     </h3>
                 </div>
 
@@ -368,6 +368,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isDailyProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {isDailyProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.dailyPL))}
+                    </div>
+                    
+                    {/* Add Percentage Badge */}
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isDailyProfitable ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-rose-100 border-rose-200 text-rose-700'}`}>
+                            {isDailyProfitable ? '+' : ''}{stats.dailyPLPercent?.toFixed(2)}%
+                        </div>
                     </div>
                 </div>
                 
