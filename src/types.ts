@@ -58,6 +58,11 @@ export interface ParsedTrade {
   otherFees?: number;
 }
 
+// NEW: Shared Type for Editable Scanned Trades
+export interface EditableTrade extends ParsedTrade {
+    brokerId?: string;
+}
+
 export interface PortfolioStats {
   totalValue: number;
   totalCost: number; 
@@ -67,7 +72,7 @@ export interface PortfolioStats {
   netRealizedPL: number;
   totalDividends: number;
   dailyPL: number;
-  dailyPLPercent: number; // Added Field
+  dailyPLPercent: number;
   totalCommission: number;
   totalSalesTax: number; 
   totalDividendTax: number; 
