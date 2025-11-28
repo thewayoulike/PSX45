@@ -19,6 +19,7 @@ import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Load
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser, hasValidSession } from '../services/driveStorage';
+import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 
@@ -344,14 +345,29 @@ const App: React.FC = () => {
     holdings.forEach(h => { totalValue += h.quantity * h.currentPrice; totalCost += h.quantity * h.avgPrice; });
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
+    // For MWRR Calculation
+    const cashFlows: { amount: number, date: Date }[] = [];
+
     portfolioTransactions.forEach(t => {
         totalCommission += (t.commission || 0); totalCDC += (t.cdcCharges || 0); totalOtherFees += (t.otherFees || 0);
+        
+        // Handle MWRR Cash Flows (External Movements Only)
+        if (t.type === 'DEPOSIT') {
+            totalDeposits += t.price;
+            cashFlows.push({ amount: -t.price, date: new Date(t.date) }); // Deposit is negative flow (Investment)
+        } 
+        else if (t.type === 'WITHDRAWAL') {
+            totalWithdrawals += t.price;
+            cashFlows.push({ amount: t.price, date: new Date(t.date) }); // Withdrawal is positive flow (Return)
+        }
+        else if (t.type === 'ANNUAL_FEE') {
+            totalWithdrawals += t.price;
+            cashFlows.push({ amount: t.price, date: new Date(t.date) }); // Fee is essentially a withdrawal
+        }
+        
         if (t.type === 'DIVIDEND') { totalDividendTax += (t.tax || 0); } 
         else if (t.type === 'TAX') { totalCGT += t.price; } 
         else if (t.type === 'HISTORY') { totalCGT += (t.tax || 0); historyPnL += t.price; } 
-        else if (t.type === 'DEPOSIT') { totalDeposits += t.price; } 
-        else if (t.type === 'WITHDRAWAL') { totalWithdrawals += t.price; } 
-        else if (t.type === 'ANNUAL_FEE') { totalWithdrawals += t.price; } 
         else { totalSalesTax += (t.tax || 0); }
     });
 
@@ -382,20 +398,13 @@ const App: React.FC = () => {
     });
     
     // B. Map Realized Trades to their original transaction index
-    // We assume realizedTrades are derived from 'SELL' transactions in the main list.
-    // We need to find the index of the transaction that corresponds to the realized trade.
     realizedTrades.forEach((t) => {
-        // Find the index of the transaction with this ID
-        // Note: realizedTrade.id is same as transaction.id from the loop in useEffect below
         const originalIdx = txIndexMap.get(t.id) ?? 999999; 
-        
         if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
         else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit), originalIndex: originalIdx });
     });
 
     // C. Sort Events
-    // Primary: Date
-    // Secondary: Original Insertion Order (Strict strict adherence to user list)
     events.sort((a, b) => {
         const dateDiff = a.date.localeCompare(b.date);
         if (dateDiff !== 0) return dateDiff;
@@ -486,6 +495,14 @@ const App: React.FC = () => {
     const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
+
+    // --- MWRR Calculation ---
+    // Add current terminal value as a positive cash flow "today"
+    const currentTotalNetWorth = totalValue + freeCash;
+    if (currentTotalNetWorth > 0) {
+        cashFlows.push({ amount: currentTotalNetWorth, date: new Date() });
+    }
+    const mwrr = calculateXIRR(cashFlows);
     
     return { 
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
@@ -493,7 +510,8 @@ const App: React.FC = () => {
         totalOtherFees, totalCGT, freeCash, cashInvestment, 
         netPrincipal, 
         peakNetPrincipal: lifetimeCash, 
-        totalDeposits, reinvestedProfits, roi 
+        totalDeposits, reinvestedProfits, roi,
+        mwrr // Add to stats
     };
   }, [holdings, realizedTrades, totalDividends, portfolioTransactions]);
 
