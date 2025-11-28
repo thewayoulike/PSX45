@@ -1,7 +1,8 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Target-Aware Parsing + Header Fallbacks. Handles missing headers by assuming standard layout.
+ * UPDATED: Target-Aware Parsing + Header Fallbacks + Robust HTML Parsing.
+ * Handles "Symbol<br>Status" layout by parsing innerHTML.
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
@@ -150,7 +151,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                     const validTokens = tokens.filter(t => 
                         t.length >= 2 && 
                         !TICKER_BLACKLIST.includes(t) && 
-                        !['XD','XM','XR','XB','SPOT','DEFAULT'].includes(t)
+                        !['XD','XM','XR','XB','SPOT','DEFAULT','NC'].includes(t)
                     );
                     if (validTokens.length > 0) symbolText = validTokens[0];
                 }
