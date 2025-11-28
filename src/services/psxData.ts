@@ -14,7 +14,8 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     
     // Create a Lookup Set for the tickers we want (for robust matching)
-    const targetTickers = new Set(tickers.map(t => t.toUpperCase()));
+    // FIX: Trim whitespace from input tickers just in case
+    const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
 
     // UPDATED PROXY LIST (Prioritizing CodeTabs which is often more permissive)
     const proxies = [
@@ -120,7 +121,14 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 // B. Extract Data
                 if (!cols[colMap.SYMBOL] || !cols[colMap.PRICE]) return;
 
-                const rawSymText = cols[colMap.SYMBOL].textContent?.trim().toUpperCase() || "";
+                // FIX: Use innerHTML to handle <br> tags properly (e.g. "PPP<br>XD" -> "PPP XD")
+                // Standard textContent might squash them into "PPPXD" which breaks tokenization
+                let rawHtml = cols[colMap.SYMBOL].innerHTML;
+                rawHtml = rawHtml.replace(/<br\s*\/?>/gi, ' ').replace(/<\/div>/gi, ' ').replace(/<\/p>/gi, ' ');
+                
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = rawHtml;
+                const rawSymText = tempDiv.textContent?.trim().toUpperCase() || "";
                 
                 // --- FIX: Intelligent Symbol Matching ---
                 // We split the cell text by any non-alphanumeric character.
