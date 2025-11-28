@@ -121,7 +121,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 // --- FIX: Remove Status Prefixes (XD, XM, XR, XB, SPOT) ---
                 // These prefixes appear before the symbol during corporate actions (e.g. "XD SNGP")
                 if (symbolText) {
-                    symbolText = symbolText.replace(/^(XD|XM|XR|XB|SPOT)\s+/g, '').trim();
+                    symbolText = symbolText.replace(/^(XD|XM|XR|XB|SPOT)(\s+)?/g, '').trim();
                 }
 
                 if (!symbolText || TICKER_BLACKLIST.includes(symbolText)) return;
