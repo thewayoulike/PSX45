@@ -88,11 +88,13 @@ const App: React.FC = () => {
       return {};
   });
 
+  // --- PORTFOLIO EDITING STATE ---
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
 
+  // --- COMBINE PORTFOLIOS STATE ---
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -141,6 +143,7 @@ const App: React.FC = () => {
 
   const hasMergedCloud = useRef(false);
 
+  // --- LOGOUT LOGIC ---
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); setManualPrices({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setUserApiKey(''); setGeminiApiKey(null); setDriveUser(null); localStorage.clear(); signOutDrive();
   }, []);
@@ -152,6 +155,7 @@ const App: React.FC = () => {
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
 
+  // Close filter dropdown when clicking outside
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
           if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
@@ -162,12 +166,14 @@ const App: React.FC = () => {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Initialize combined IDs when portfolios load or combined view is toggled
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
+  // --- INITIALIZATION ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -207,11 +213,13 @@ const App: React.FC = () => {
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
 
+  // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
   
+  // ADD TRANSACTION - Enforces Strict Broker Rule
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { 
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
@@ -244,6 +252,8 @@ const App: React.FC = () => {
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
   
+  // --- PORTFOLIO MANAGEMENT ---
+  
   const openCreatePortfolioModal = () => {
       setEditingPortfolioId(null);
       setPortfolioNameInput('');
@@ -273,12 +283,14 @@ const App: React.FC = () => {
       }
 
       if (editingPortfolioId) {
+          // Update Existing
           setPortfolios(prev => prev.map(p => 
               p.id === editingPortfolioId 
                   ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } 
                   : p
           ));
       } else {
+          // Create New
           const newId = Date.now().toString(); 
           setPortfolios(prev => [...prev, { 
               id: newId, 
@@ -288,6 +300,7 @@ const App: React.FC = () => {
           setCurrentPortfolioId(newId);
       }
       
+      // Cleanup
       setPortfolioNameInput(''); 
       setPortfolioBrokerIdInput('');
       setEditingPortfolioId(null);
@@ -296,6 +309,7 @@ const App: React.FC = () => {
 
   const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
   
+  // Combine View Logic Handlers
   const handleTogglePortfolioSelection = (id: string) => {
       const newSet = new Set(combinedPortfolioIds);
       if (newSet.has(id)) {
@@ -310,14 +324,18 @@ const App: React.FC = () => {
       setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
   };
 
+  // Sync
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
 
+  // Annual Fee Check
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
   
+  // UPDATED: Portfolio Transactions Logic (Combined vs Single)
   const portfolioTransactions = useMemo(() => { 
       if (isCombinedView) {
+          // Filter by the specific set of IDs selected
           return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       }
       return transactions.filter(t => t.portfolioId === currentPortfolioId); 
@@ -345,85 +363,99 @@ const App: React.FC = () => {
     const netRealizedPL = realizedPL - totalCGT; 
     const totalProfits = netRealizedPL + totalDividends;
     
-    // --- 3. Peak Net Principal Calculation (Timeline Replay) ---
-    const dailyMap = new Map<string, { in: number, out: number, profit: number }>();
-
-    const addToDay = (date: string, field: 'in' | 'out' | 'profit', amount: number) => {
-        const d = date ? date.split('T')[0] : 'unknown';
-        const curr = dailyMap.get(d) || { in: 0, out: 0, profit: 0 };
-        curr[field] += amount;
-        dailyMap.set(d, curr);
-    };
+    // --- 3. PEAK NET PRINCIPAL & CURRENT PRINCIPAL CALCULATION ---
+    // Strict Chronological Event Replay (No Daily Aggregation)
+    const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number }[] = [];
 
     portfolioTransactions.forEach(t => {
-        if (t.type === 'DEPOSIT') addToDay(t.date, 'in', t.price);
-        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') addToDay(t.date, 'out', t.price);
-        // Note: TAX is ignored for Principal logic, it only reduces Free Cash
+        if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price });
+        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price });
+        // TAX is purposefully ignored here (treated as expense from cash, not withdrawal of capital)
         else if (t.type === 'DIVIDEND') {
             const netDiv = (t.quantity * t.price) - (t.tax || 0);
-            addToDay(t.date, 'profit', netDiv);
+            if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv });
         }
     });
     
     realizedTrades.forEach(t => {
-        addToDay(t.date, 'profit', t.profit);
+        if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit });
+        else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit) });
     });
 
-    const sortedDates = Array.from(dailyMap.keys()).sort();
+    // Sort by Date + Priority
+    // Priority: DEPOSIT (0) -> PROFIT (1) -> WITHDRAWAL (2) -> LOSS (3)
+    const typePriority = { 'IN': 0, 'PROFIT': 1, 'OUT': 2, 'LOSS': 3 };
+    
+    events.sort((a, b) => {
+        const dateDiff = a.date.localeCompare(b.date);
+        if (dateDiff !== 0) return dateDiff;
+        return typePriority[a.type] - typePriority[b.type];
+    });
 
-    // Replay State
-    let lifetimeCash = 0; // The Peak "Invested" Capital
-    let refillableGap = 0; // Gap created specifically by withdrawals
-    let availableProfits = 0; // Running profit balance
-    let netPrincipal = 0; // Current Principal
+    // State Variables
+    let lifetimeCash = 0; // The Peak "Lifetime" Investment
+    let refillableWithdrawalGap = 0; // Capital removed by user (can be refilled)
+    let lossGap = 0; // Capital destroyed by loss (can be refilled by PROFIT only)
+    let availableProfits = 0; // Buffer of gains
+    let netPrincipal = 0; // The Current Cash Invested
 
-    sortedDates.forEach(date => {
-        const day = dailyMap.get(date)!;
-        
-        // 1. Process Profits/Losses
-        const dayProfit = day.profit;
-        if (dayProfit >= 0) {
-            availableProfits += dayProfit;
-        } else {
-            // Loss: First eat available profits
-            const loss = Math.abs(dayProfit);
+    events.forEach(e => {
+        if (e.type === 'IN') { // Deposit
+            const deposit = e.amount;
+            
+            // 1. Fill Withdrawal Gaps first (User putting money back)
+            let remaining = deposit;
+            const fillWithdrawal = Math.min(remaining, refillableWithdrawalGap);
+            refillableWithdrawalGap -= fillWithdrawal;
+            remaining -= fillWithdrawal;
+            
+            // 2. Any remaining is NEW Capital
+            if (remaining > 0) {
+                lifetimeCash += remaining;
+            }
+            
+            // 3. All deposits increase current principal
+            netPrincipal += deposit;
+        } 
+        else if (e.type === 'PROFIT') {
+            const profit = e.amount;
+            
+            // 1. Profits fill Loss Gaps first (Capital Recovery)
+            const fillLoss = Math.min(profit, lossGap);
+            lossGap -= fillLoss;
+            netPrincipal += fillLoss; // Restores Current Principal
+            
+            // 2. Remaining is Profit Buffer
+            const remainingProfit = profit - fillLoss;
+            availableProfits += remainingProfit;
+        } 
+        else if (e.type === 'LOSS') {
+            const loss = e.amount;
+            
+            // 1. Loss eats Available Profits first
             const profitsEaten = Math.min(loss, availableProfits);
             availableProfits -= profitsEaten;
+            
+            // 2. Remaining Loss eats Principal
             const principalEaten = loss - profitsEaten;
-            
             if (principalEaten > 0) {
-                netPrincipal -= principalEaten; // Loss reduces current principal
-                // NOTE: We do NOT increase refillableGap here. 
-                // A trading loss creates a permanent dent that requires "fresh" lifetime investment to recover.
+                netPrincipal -= principalEaten;
+                lossGap += principalEaten; // Create gap refillable by FUTURE PROFITS
             }
-        }
-
-        // 2. Process Withdrawals
-        const dayWithdrawal = day.out;
-        if (dayWithdrawal > 0) {
-            const profitsWithdrawn = Math.min(dayWithdrawal, availableProfits);
-            availableProfits -= profitsWithdrawn;
-            const principalWithdrawn = dayWithdrawal - profitsWithdrawn;
+        } 
+        else if (e.type === 'OUT') { // Withdrawal
+            const withdrawal = e.amount;
             
+            // 1. Withdrawal eats Available Profits first
+            const profitsWithdrawn = Math.min(withdrawal, availableProfits);
+            availableProfits -= profitsWithdrawn;
+            
+            // 2. Remaining Withdrawal eats Principal
+            const principalWithdrawn = withdrawal - profitsWithdrawn;
             if (principalWithdrawn > 0) {
                 netPrincipal -= principalWithdrawn;
-                refillableGap += principalWithdrawn; // Withdrawals create a gap we can refill later
+                refillableWithdrawalGap += principalWithdrawn; // Create gap refillable by DEPOSITS
             }
-        }
-
-        // 3. Process Deposits
-        const dayDeposit = day.in;
-        if (dayDeposit > 0) {
-            // Fill withdrawal gaps first
-            const fillAmount = Math.min(dayDeposit, refillableGap);
-            refillableGap -= fillAmount;
-            
-            // Remaining deposit is "New Capital"
-            const newCapital = dayDeposit - fillAmount;
-            lifetimeCash += newCapital; 
-            
-            // All deposits increase current principal
-            netPrincipal += dayDeposit; 
         }
     });
 
@@ -431,16 +463,14 @@ const App: React.FC = () => {
     const netPrincipalAvailable = Math.max(0, netPrincipal);
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
-    
     let cashIn = totalDeposits; 
-    // Tax affects free cash but not the investment metrics above
     let cashOut = totalWithdrawals + totalCGT; 
     
     let tradingCashFlow = 0; 
     portfolioTransactions.forEach(t => { const val = t.price * t.quantity; const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); if (t.type === 'BUY') tradingCashFlow -= (val + fees); else if (t.type === 'SELL') tradingCashFlow += (val - fees); });
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    const roiDenominator = lifetimeCash; // Use corrected Lifetime Peak
+    const roiDenominator = lifetimeCash; 
     
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
     const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
@@ -459,7 +489,8 @@ const App: React.FC = () => {
 
   useEffect(() => { if (driveUser || transactions.length > 0) { localStorage.setItem('psx_transactions', JSON.stringify(transactions)); localStorage.setItem('psx_portfolios', JSON.stringify(portfolios)); localStorage.setItem('psx_current_portfolio_id', currentPortfolioId); localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices)); localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); localStorage.setItem('psx_brokers', JSON.stringify(brokers)); localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides)); localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); } if (driveUser) { setIsCloudSyncing(true); const timer = setTimeout(async () => { await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey }); setIsCloudSyncing(false); }, 3000); return () => clearTimeout(timer); } }, [transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; let dividendSum = 0; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') return; if (tx.type === 'DIVIDEND') { const grossDiv = tx.quantity * tx.price; const netDiv = grossDiv - (tx.tax || 0); dividendSum += netDiv; return; } if (tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); setTotalDividends(dividendSum); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
-  
+  useEffect(() => { if (realizedTrades.length === 0) return; const ledger: Record<string, Record<string, number>> = {}; realizedTrades.forEach(t => { if (t.ticker === 'PREV-PNL') return; const broker = t.broker || 'Unknown Broker'; const month = t.date.substring(0, 7); if (!ledger[broker]) ledger[broker] = {}; ledger[broker][month] = (ledger[broker][month] || 0) + t.profit; }); const todayStr = new Date().toISOString().substring(0, 7); const generatedTaxTx: Transaction[] = []; Object.entries(ledger).forEach(([broker, monthsData]) => { let runningCgtBalance = 0; const sortedMonths = Object.keys(monthsData).sort(); sortedMonths.forEach(month => { if (month >= todayStr) return; const netPL = monthsData[month]; let taxAmount = 0; let note = ''; if (netPL > 0) { taxAmount = Number((netPL * 0.15).toFixed(2)); runningCgtBalance += taxAmount; note = `Auto-CGT: Tax on ${month} Profit (${netPL.toFixed(0)}) - ${broker}`; } else if (netPL < 0 && runningCgtBalance > 0) { const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2)); const actualRefund = Math.min(potentialRefund, runningCgtBalance); if (actualRefund > 0) { taxAmount = -actualRefund; runningCgtBalance -= actualRefund; note = `Auto-CGT: Credit on ${month} Loss (${netPL.toFixed(0)}) - ${broker}`; } } if (taxAmount !== 0) { const [y, m] = month.split('-'); let nextM = parseInt(m) + 1; let nextY = parseInt(y); if (nextM > 12) { nextM = 1; nextY++; } const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`; generatedTaxTx.push({ id: `auto-cgt-${broker}-${month}`, portfolioId: currentPortfolioId, ticker: 'CGT', type: 'TAX', quantity: 1, price: taxAmount, date: nextMonthStr, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: note, broker: broker }); } }); }); const cleanTransactions = transactions.filter(t => !t.id.startsWith('auto-cgt-')); const mergedTransactions = [...cleanTransactions, ...generatedTaxTx]; const oldIds = transactions.filter(t => t.id.startsWith('auto-cgt-')).map(t=>t.id).sort().join(','); const newIds = generatedTaxTx.map(t=>t.id).sort().join(','); if (oldIds !== newIds) { setTransactions(mergedTransactions); } }, [realizedTrades, transactions, currentPortfolioId]);
+
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
   if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
   
