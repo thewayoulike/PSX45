@@ -283,14 +283,12 @@ const App: React.FC = () => {
       }
 
       if (editingPortfolioId) {
-          // Update Existing
           setPortfolios(prev => prev.map(p => 
               p.id === editingPortfolioId 
                   ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } 
                   : p
           ));
       } else {
-          // Create New
           const newId = Date.now().toString(); 
           setPortfolios(prev => [...prev, { 
               id: newId, 
@@ -300,7 +298,6 @@ const App: React.FC = () => {
           setCurrentPortfolioId(newId);
       }
       
-      // Cleanup
       setPortfolioNameInput(''); 
       setPortfolioBrokerIdInput('');
       setEditingPortfolioId(null);
@@ -327,7 +324,6 @@ const App: React.FC = () => {
   // Sync
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
 
-  // Annual Fee Check
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
@@ -364,53 +360,67 @@ const App: React.FC = () => {
     const totalProfits = netRealizedPL + totalDividends;
     
     // --- 3. PEAK NET PRINCIPAL & CURRENT PRINCIPAL CALCULATION ---
-    // Strict Chronological Event Replay
-    const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number }[] = [];
+    
+    // A. Define Events with Index to capture correct order
+    const events: { 
+        date: string, 
+        type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', 
+        amount: number,
+        originalIndex: number // NEW: Track insertion order
+    }[] = [];
 
-    portfolioTransactions.forEach(t => {
-        if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price });
-        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price });
-        // TAX ignored here
+    // Populate events (using current index as proxy for insertion order)
+    portfolioTransactions.forEach((t, idx) => {
+        if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
+        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx });
+        // TAX is ignored for principal logic
         else if (t.type === 'DIVIDEND') {
             const netDiv = (t.quantity * t.price) - (t.tax || 0);
-            if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv });
+            if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv, originalIndex: idx });
         }
     });
     
-    realizedTrades.forEach(t => {
-        if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit });
-        else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit) });
+    // Note: Realized Trades are separate from 'portfolioTransactions' array in this implementation,
+    // but they usually happen within the same flow. We give them a high index relative to their date 
+    // or we need to merge them better. For now, let's append them.
+    realizedTrades.forEach((t, idx) => {
+        // We assume realized trades happened "during" the day. 
+        // Ideally, we'd have a real timestamp. 
+        // For now, we will treat them as happening BEFORE withdrawals if on same day? 
+        // No, user said: "Withdrawal only after realized profit is used". 
+        // So Profit -> Withdrawal is the correct flow for calculation IF they exist on same day.
+        // We'll give them a fake index for sorting.
+        if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: 999999 });
+        else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit), originalIndex: 999999 });
     });
 
-    // Sort Priority: DEPOSIT (0) -> PROFIT (1) -> WITHDRAWAL (2) -> LOSS (3)
-    const typePriority = { 'IN': 0, 'PROFIT': 1, 'OUT': 2, 'LOSS': 3 };
-    
+    // B. Sort Events
+    // Primary: Date
+    // Secondary: Original Insertion Order (to respect user's entry sequence)
     events.sort((a, b) => {
         const dateDiff = a.date.localeCompare(b.date);
         if (dateDiff !== 0) return dateDiff;
-        return typePriority[a.type] - typePriority[b.type];
+        
+        // If on same day, use original insertion order
+        return a.originalIndex - b.originalIndex;
     });
 
-    // State Variables
-    let lifetimeCash = 0; // The Peak "Lifetime" Investment
-    let withdrawalGap = 0; // Gap created specifically by withdrawals (Refillable by DEPOSITS)
-    let lossGap = 0; // Gap created by losses (Refillable by PROFITS only)
-    
-    // IMPORTANT: profitBuffer must be tracked to know if we are eating principal
+    // C. Replay Logic
+    let lifetimeCash = 0; 
+    let withdrawalGap = 0;
+    let lossGap = 0;
     let profitBuffer = 0; 
-    
-    // Current Principal Tracker
-    let netPrincipal = 0;
+    let netPrincipal = 0; 
 
     events.forEach(e => {
         if (e.type === 'IN') { // Deposit
             const deposit = e.amount;
             
-            // 1. Fill Withdrawal Gaps first (Capital Recovery)
+            // 1. Fill Withdrawal Gaps first
             const fillWithdrawal = Math.min(deposit, withdrawalGap);
             withdrawalGap -= fillWithdrawal;
             
-            // 2. Remaining deposit is "New Capital" (Raises Lifetime)
+            // 2. Remaining deposit is "New Capital"
             const remaining = deposit - fillWithdrawal;
             if (remaining > 0) {
                 lifetimeCash += remaining;
@@ -422,14 +432,12 @@ const App: React.FC = () => {
         else if (e.type === 'PROFIT') {
             const profit = e.amount;
             
-            // 1. Profits fill Loss Gaps first (Capital Recovery)
-            // "realized gain up to the extent by which it reduce the current inv vlaue"
+            // 1. Profits fill Loss Gaps first
             const fillLoss = Math.min(profit, lossGap);
             lossGap -= fillLoss;
-            netPrincipal += fillLoss; // Restores Current Principal from Loss
+            netPrincipal += fillLoss;
             
             // 2. Remaining is Profit Buffer
-            // "relainzed gain balacne will be ... that can be used to withdraw"
             const remainingProfit = profit - fillLoss;
             profitBuffer += remainingProfit;
         } 
@@ -437,7 +445,6 @@ const App: React.FC = () => {
             const loss = e.amount;
             
             // 1. Loss eats Profit Buffer first
-            // "realzed loss only if overall relaized gain is -ive or the relaized gain balance is -ive"
             const profitsEaten = Math.min(loss, profitBuffer);
             profitBuffer -= profitsEaten;
             
@@ -445,14 +452,13 @@ const App: React.FC = () => {
             const principalEaten = loss - profitsEaten;
             if (principalEaten > 0) {
                 netPrincipal -= principalEaten;
-                lossGap += principalEaten; // Create gap refillable ONLY by future profits
+                lossGap += principalEaten; 
             }
         } 
         else if (e.type === 'OUT') { // Withdrawal
             const withdrawal = e.amount;
             
             // 1. Withdrawal eats Profit Buffer first
-            // "cash withdraw (only after realzied profit is used before reducing current cash value)"
             const profitsWithdrawn = Math.min(withdrawal, profitBuffer);
             profitBuffer -= profitsWithdrawn;
             
@@ -460,7 +466,7 @@ const App: React.FC = () => {
             const principalWithdrawn = withdrawal - profitsWithdrawn;
             if (principalWithdrawn > 0) {
                 netPrincipal -= principalWithdrawn;
-                withdrawalGap += principalWithdrawn; // Create gap refillable by DEPOSITS
+                withdrawalGap += principalWithdrawn; 
             }
         }
     });
