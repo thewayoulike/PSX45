@@ -13,8 +13,8 @@ interface TransactionFormProps {
   existingTransactions?: Transaction[];
   editingTransaction?: Transaction | null;
   brokers?: Broker[]; 
-  // NEW PROP
   portfolioDefaultBrokerId?: string;
+  freeCash?: number; // ADDED PROP
 }
 
 interface EditableTrade extends ParsedTrade {
@@ -27,10 +27,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   onManageBrokers,
   isOpen, 
   onClose, 
-  existingTransactions = [], // Default to empty array
+  existingTransactions = [], 
   editingTransaction,
   brokers = [],
-  portfolioDefaultBrokerId
+  portfolioDefaultBrokerId,
+  freeCash
 }) => {
   const [mode, setMode] = useState<'MANUAL' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'>('BUY');
@@ -61,7 +62,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // UPDATED: Logic to select initial broker and lock it
   useEffect(() => {
     if (isOpen) {
         if (portfolioDefaultBrokerId) {
@@ -75,7 +75,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-        setFormError(null); // Clear errors on open
+        setFormError(null); 
         if (editingTransaction) {
             setMode('MANUAL');
             setType(editingTransaction.type);
@@ -91,9 +91,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             
             if (editingTransaction.type === 'TAX') {
-                // For manual TAX, we treat 'price' as the TAX AMOUNT directly
                 setPrice(editingTransaction.price);
-                // We reuse 'histAmount' as a temp holder if needed, but 'price' is the source of truth
                 setHistAmount(editingTransaction.price); 
             }
             if (editingTransaction.type === 'HISTORY') {
@@ -113,7 +111,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setHistAmount(''); setHistTaxType('AFTER_TAX');
             setScannedTrades([]); setScanError(null); setSelectedFile(null);
             
-            // Re-run broker selection logic
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
@@ -124,8 +121,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (isAutoCalc && mode === 'MANUAL') {
         
         if (type === 'TAX') {
-            // UPDATED: Simple Manual Entry logic for TAX
-            // Just copy the manual amount to price
             if (typeof histAmount === 'number') {
                 setPrice(histAmount);
                 setQuantity(1); 
@@ -188,7 +183,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setFormError(null); // Reset error state
+    setFormError(null); 
 
     const cleanTicker = ticker.toUpperCase();
     let brokerName = undefined;
@@ -197,17 +192,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
     const qtyNum = Number(quantity);
 
-    // --- NEW: INSUFFICIENT HOLDINGS CHECK ---
+    // INSUFFICIENT HOLDINGS CHECK
     if (type === 'SELL') {
         let heldQty = 0;
-        // Calculate holdings for this specific Ticker AND Broker
         existingTransactions.forEach(t => {
-            // Ignore the transaction being edited (so we don't double count)
             if (editingTransaction && t.id === editingTransaction.id) return;
-
-            // Must match Ticker and Broker (safely handle missing broker names/ids)
             const isSameBroker = t.brokerId === selectedBrokerId || (t.broker && b && t.broker === b.name);
-            
             if (t.ticker === cleanTicker && isSameBroker) {
                 if (t.type === 'BUY') heldQty += t.quantity;
                 if (t.type === 'SELL') heldQty -= t.quantity;
@@ -216,7 +206,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
         if (qtyNum > heldQty) {
             setFormError(`Insufficient holdings! You only have ${heldQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}.`);
-            return; // STOP SUBMISSION
+            return; 
+        }
+    }
+
+    // NEW: BUYING POWER CHECK
+    if (type === 'BUY' && !editingTransaction && freeCash !== undefined) {
+        const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
+        if (totalCost > freeCash) {
+             setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`);
+             return;
         }
     }
 
@@ -291,7 +290,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <button type="button" onClick={() => setType('ANNUAL_FEE')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'ANNUAL_FEE' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>FEE</button>
                     </div>
 
-                    {/* NEW: Error Message Display */}
                     {formError && (
                         <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3 animate-in slide-in-from-top-2">
                             <AlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
@@ -312,7 +310,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                {/* BROKER FIELD (LOCKED) */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
                                     <div className="relative">
@@ -339,7 +336,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                {/* BROKER FIELD (LOCKED) */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
                                     <div className="relative">
@@ -368,7 +364,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'WITHDRAWAL' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw Cash </button>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                {/* BROKER FIELD (LOCKED) */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
                                     <div className="relative">
@@ -392,7 +387,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                {/* BROKER FIELD (LOCKED) */}
                                 <div>
                                     <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
                                     <div className="relative">
@@ -414,10 +408,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Ticker</label><input required type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/></div>
                             </div>
                             
-                            {/* UPDATED BROKER DISPLAY */}
                             <div className="mb-1">
                                 <div className="flex justify-between items-center mb-1">
                                     <label className="block text-xs font-bold text-slate-500">Broker</label>
+                                    {/* NEW: DISPLAY BUYING POWER */}
+                                    {type === 'BUY' && !editingTransaction && freeCash !== undefined && (
+                                        <span className={`text-[10px] font-bold ${freeCash >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                            Buying Power: Rs. {freeCash.toLocaleString()}
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="relative">
                                     <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
@@ -472,7 +471,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* Scanner Mode View - No changes needed here */}
+            {/* Scanner Mode View */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     {!isScanning && scannedTrades.length === 0 && (
