@@ -78,9 +78,12 @@ export interface PortfolioStats {
   cashInvestment: number; 
   totalDeposits: number;  
   netPrincipal: number;
-  peakNetPrincipal: number; // NEW FIELD
+  peakNetPrincipal: number;
   reinvestedProfits: number;
   roi: number;
+  
+  // NEW: Money Weighted Rate of Return
+  mwrr: number;
 }
 
 export interface Portfolio {
