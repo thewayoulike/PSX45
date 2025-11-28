@@ -1,19 +1,19 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Combined Target-Aware Parsing + LDCP Extraction for Daily P&L.
+ * UPDATED: Adjusted Fallback Column Indices based on PSX "All Scrips" layout.
+ * Layout: Symbol(0), Sector(1), ListedIn(2), LDCP(3), Open(4), High(5), Low(6), Current(7)
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
 
 // Ignore these "Ticker" names because they are actually table headers or metadata
-const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT'];
+const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number }>> => {
     const results: Record<string, { price: number, sector: string, ldcp: number }> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     
-    // Create a Lookup Set for the tickers we want (for robust matching)
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
 
     // UPDATED PROXY LIST (Prioritizing CodeTabs which is often more permissive)
@@ -33,7 +33,6 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
             
             let html = '';
             
-            // AllOrigins returns JSON with 'contents', others return raw text
             if (proxyUrl.includes('allorigins')) {
                 const data = await response.json();
                 html = data.contents;
@@ -44,10 +43,9 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
             if (html && html.length > 500) { 
                 parseMarketWatchTable(html, results, targetTickers);
                 
-                // Only return if we actually found data
                 if (Object.keys(results).length > 0) {
                     console.log(`Fetch successful! Found ${Object.keys(results).length} prices.`);
-                    return results; // Exit loop on REAL success
+                    return results; 
                 } else {
                     console.warn(`Proxy ${proxyUrl} returned HTML but no prices found (likely blocked).`);
                 }
@@ -66,11 +64,9 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // Find ALL tables in the document
         const tables = doc.querySelectorAll("table");
         if (tables.length === 0) return;
 
-        // Iterate through every table found
         tables.forEach(table => {
             const rows = table.querySelectorAll("tr");
             if (rows.length < 2) return;
@@ -79,7 +75,6 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
             const colMap = { SYMBOL: -1, PRICE: -1, SECTOR: -1, LDCP: -1 };
             let headerFound = false;
 
-            // Scan first 5 rows of this table
             for (let i = 0; i < Math.min(rows.length, 5); i++) {
                 const cells = rows[i].querySelectorAll("th, td");
                 cells.forEach((cell, idx) => {
@@ -87,7 +82,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                     if (txt === 'SYMBOL' || txt === 'SCRIP') colMap.SYMBOL = idx;
                     if (txt.includes('CURRENT') || txt === 'PRICE' || txt === 'RATE' || txt === 'LAST') colMap.PRICE = idx;
                     if (txt === 'SECTOR') colMap.SECTOR = idx;
-                    if (txt === 'LDCP' || txt === 'PREVIOUS') colMap.LDCP = idx; // Capture LDCP Index
+                    if (txt === 'LDCP' || txt === 'PREVIOUS') colMap.LDCP = idx;
                 });
                 
                 if (colMap.SYMBOL !== -1 && colMap.PRICE !== -1) {
@@ -96,11 +91,15 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 }
             }
 
-            // If headers not found, try standard fallback indices
+            // --- FALLBACK INDICES ---
+            // If header detection failed (common with scraped partial HTML), use the layout from user screenshots.
+            // Layout: Symbol(0), Sector(1), ListedIn(2), LDCP(3), Open(4), High(5), Low(6), Current(7)
             if (!headerFound) {
                 colMap.SYMBOL = 0;
-                colMap.LDCP = 1; // Standard PSX: LDCP is usually col 1
-                colMap.PRICE = 5; 
+                colMap.LDCP = 3; 
+                colMap.PRICE = 7; 
+                // We can also try to grab sector from col 1 if available
+                if (colMap.SECTOR === -1) colMap.SECTOR = 1;
             }
 
             // --- 2. Data Extraction ---
@@ -137,7 +136,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                     if (!symbolText && targetTickers.has(anchorText)) symbolText = anchorText;
                 } 
                 
-                // Fallback: Parse full cell text
+                // Fallback: Parse full cell text (cleaning <br> etc)
                 if (!symbolText) {
                     let rawHtml = symCell.innerHTML;
                     rawHtml = rawHtml.replace(/<br\s*\/?>/gi, ' ').replace(/<\/div>/gi, ' ').replace(/<\/p>/gi, ' ');
@@ -146,8 +145,8 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                     tempDiv.innerHTML = rawHtml;
                     const rawText = (tempDiv.textContent || "").toUpperCase().replace(/\s+/g, ' ').trim();
                     
-                    // Match against target tickers
                     for (const ticker of targetTickers) {
+                        // Check for Exact Match or "TICKER " start
                         if (rawText === ticker || rawText.startsWith(ticker + ' ') || rawText.startsWith(ticker + '\xa0')) {
                             symbolText = ticker;
                             break;
@@ -161,24 +160,25 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 const priceText = cols[colMap.PRICE].textContent?.trim().replace(/,/g, '');
                 const price = parseFloat(priceText || '');
 
-                // Extract LDCP (New)
+                // Extract LDCP
                 let ldcp = 0;
                 if (colMap.LDCP !== -1 && cols[colMap.LDCP]) {
                     const ldcpText = cols[colMap.LDCP].textContent?.trim().replace(/,/g, '');
                     ldcp = parseFloat(ldcpText || '');
                 }
 
-                // Sector logic
+                // Extract Sector
                 let sector = currentGroupHeader;
                 if (colMap.SECTOR !== -1 && cols[colMap.SECTOR]) {
                     const secText = cols[colMap.SECTOR].textContent?.trim();
+                    // If it's a code (e.g. 0821), map it. If text, use it.
                     if (secText) {
                         sector = SECTOR_CODE_MAP[secText] || secText;
                     }
                 }
 
                 if (symbolText.length >= 2 && !isNaN(price)) {
-                    // First Match Wins (Prioritize Main Board over Odd Lots)
+                    // First Match Wins
                     if (results[symbolText]) return;
                     
                     if (price > 0) {
