@@ -48,11 +48,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         {/* ROW 1: Key Performance & Capital */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
             
-            <Card title="Portfolio MWRR" icon={<TrendingUp className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                {/* Info Tooltip Icon */}
-                <div className="absolute top-0 right-0 -mt-1 -mr-1">
-                    <div className="text-slate-300 hover:text-indigo-500 cursor-help transition-colors p-1" title={getMwrrTooltip()}>
-                        <Info size={14} />
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5 relative">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <TrendingUp className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Portfolio MWRR
+                    </h3>
+                    {/* Info Tooltip Icon */}
+                    <div className="absolute top-0 right-0 -mt-2 -mr-2">
+                        <div className="text-slate-300 hover:text-indigo-500 cursor-help transition-colors p-1" title={getMwrrTooltip()}>
+                            <Info size={14} />
+                        </div>
                     </div>
                 </div>
 
@@ -71,7 +79,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Simple ROI" icon={<Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Simple ROI
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
@@ -87,13 +104,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-             <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+             <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Total Assets
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className="w-full">
                         <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
                             <span>Rs. {formatCurrency(totalNetWorth)}</span>
                         </div>
-                        {/* Only show badge if relevant to maintain height consistency logic, or allow it to expand */}
                         {(isSevereLoss || isCapitalEroded) && (
                             <div className="flex items-center gap-2 mt-1">
                                 {isSevereLoss ? (
@@ -110,7 +135,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                             </div>
                         )}
                         {!isSevereLoss && !isCapitalEroded && (
-                             <div className="h-[18px]"></div> // Spacer to match badge height
+                             <div className="h-[18px]"></div> 
                         )}
                     </div>
                 </div>
@@ -122,10 +147,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
                         {!isCapitalEroded ? (
-                            // All Green if Healthy
                             <div className="h-full bg-emerald-500 w-full rounded-full"></div>
                         ) : (
-                            // Stacked Bar: Green (Remaining) | Red (Lost)
                             <>
                                 <div 
                                     className="h-full bg-emerald-500 transition-all duration-500" 
@@ -141,7 +164,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-             <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+             <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Free Cash
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${stats.freeCash < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                         Rs. {formatCurrency(stats.freeCash)}
@@ -165,7 +197,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Current Cash Invested" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Current Cash Invested
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.netPrincipal)}
@@ -186,7 +227,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Lifetime Cash Inv" icon={<History className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <History className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Lifetime Cash Inv
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.peakNetPrincipal)}
@@ -206,13 +256,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         {/* ROW 2: Holdings, Profits & Breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
             
-             {/* FIXED: Manually rendering header to allow text wrapping for long titles */}
              <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
                         <BarChart3 className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                     </div>
-                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight">
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
                         Current Stock Value
                     </h3>
                 </div>
@@ -232,7 +281,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Stock Assets (Cost)" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Stock Assets (Cost)
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.totalCost)}
@@ -249,7 +307,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Unrealized P&L" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Unrealized P&L
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
@@ -288,7 +355,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             {/* NEW: Today's Change Card */}
-            <Card title="Today's Change" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Today's Change
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isDailyProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {isDailyProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.dailyPL))}
@@ -305,7 +381,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Realized Gains (Net)" icon={<CheckCircle2 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <CheckCircle2 className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Realized Gains (Net)
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
@@ -323,7 +408,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Dividends" icon={<Coins className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card>
+                <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
+                    <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
+                        <Coins className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                    </div>
+                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                        Dividends
+                    </h3>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                         Rs. {formatCurrency(stats.totalDividends)}
