@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
-// ... (props interface remains same) ...
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
   onUpdateTransaction?: (transaction: Transaction) => void;
@@ -58,6 +57,23 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const updateScannedTrades = (trades: EditableTrade[]) => {
       if (onSaveScannedTrades) onSaveScannedTrades(trades);
   };
+
+  // --- NEW: Calculate Totals for Scanned Trades ---
+  const scanTotals = useMemo(() => {
+      let totalBuy = 0;
+      let totalSell = 0;
+      savedScannedTrades.forEach(t => {
+          const val = Number(t.quantity) * Number(t.price);
+          const fees = (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0);
+          
+          if (t.type === 'BUY') {
+              totalBuy += (val + fees);
+          } else if (t.type === 'SELL') {
+              totalSell += (val - fees);
+          }
+      });
+      return { totalBuy, totalSell, net: totalSell - totalBuy };
+  }, [savedScannedTrades]);
 
   const [formError, setFormError] = useState<string | null>(null);
   const [cgtProfit, setCgtProfit] = useState<number | ''>('');
@@ -132,7 +148,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setSelectedScanIndices(new Set());
   }, [savedScannedTrades, mode]);
 
-  // --- AUTO CALCULATION LOGIC UPDATED FOR SLABS ---
+  // Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
@@ -148,22 +164,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                      else if (currentBroker.commissionType === 'FIXED') estComm = currentBroker.rate1;
                      else if (currentBroker.commissionType === 'PER_SHARE') estComm = quantity * currentBroker.rate1;
                      else if (currentBroker.commissionType === 'HIGHER_OF') { const pct = gross * (currentBroker.rate1 / 100); const fixed = quantity * (currentBroker.rate2 || 0); estComm = Math.max(pct, fixed); }
-                     // NEW: SLAB LOGIC
                      else if (currentBroker.commissionType === 'SLAB' && currentBroker.slabs) {
                          const slab = currentBroker.slabs.find(s => price >= s.min && price <= s.max);
                          if (slab) {
                              if (slab.type === 'FIXED') estComm = quantity * slab.rate;
                              else if (slab.type === 'PERCENTAGE') estComm = gross * (slab.rate / 100);
-                         } else {
-                             // Fallback to highest slab if out of range, or 0
-                             estComm = 0; 
-                         }
+                         } else estComm = 0;
                      }
                  } else { estComm = gross * 0.0015; }
                  
-                 const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
-                 const estTax = estComm * taxRate;
-                 
+                 const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15; const estTax = estComm * taxRate;
                  let estCdc = 0;
                  if (currentBroker) {
                      const cdcType = currentBroker.cdcType || 'PER_SHARE';
@@ -173,15 +183,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                      else if (cdcType === 'HIGHER_OF') { const shareVal = quantity * cdcRate; const fixedVal = currentBroker.cdcMin || 0; estCdc = Math.max(shareVal, fixedVal); }
                  } else { estCdc = quantity * 0.005; }
                  
-                 setCommission(parseFloat(estComm.toFixed(2))); 
-                 setTax(parseFloat(estTax.toFixed(2))); 
-                 setCdcCharges(parseFloat(estCdc.toFixed(2)));
+                 setCommission(parseFloat(estComm.toFixed(2))); setTax(parseFloat(estTax.toFixed(2))); setCdcCharges(parseFloat(estCdc.toFixed(2)));
              }
         } else { if (commission !== '') setCommission(''); if (tax !== '') setTax(''); if (cdcCharges !== '') setCdcCharges(''); }
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
 
-  // ... (rest of the file remains exactly the same as previous step) ...
   const getHoldingQty = (ticker: string, brokerId: string) => {
       let qty = 0;
       const cleanTicker = ticker.toUpperCase();
@@ -341,7 +348,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
   const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
-  const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
   const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
 
   if (!isOpen) return null;
@@ -381,7 +387,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
-                    
+                    {/* ... (Manual Form Fields Omitted for Brevity - Same as before) ... */}
                     <div className="grid grid-cols-7 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         <button type="button" onClick={() => setType('BUY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'BUY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>BUY</button>
                         <button type="button" onClick={() => setType('SELL')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'SELL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>SELL</button>
@@ -536,6 +542,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     <button onClick={() => { updateScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-all"> <RefreshCcw size={12} /> Clear All </button>
                                 </div>
                             </div>
+
+                            {/* --- NEW SUMMARY BAR --- */}
+                            <div className="grid grid-cols-3 gap-3 mb-3">
+                                <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex flex-col justify-center items-center shadow-sm">
+                                    <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Total Buy Cost</span>
+                                    <div className="text-sm font-bold text-emerald-800">Rs. {scanTotals.totalBuy.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                </div>
+                                <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex flex-col justify-center items-center shadow-sm">
+                                    <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Total Sell Proceeds</span>
+                                    <div className="text-sm font-bold text-blue-800">Rs. {scanTotals.totalSell.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                </div>
+                                <div className={`border rounded-xl p-3 flex flex-col justify-center items-center shadow-sm ${scanTotals.net >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
+                                    <span className={`text-[10px] uppercase font-bold tracking-wider ${scanTotals.net >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Net Flow (In/Out)</span>
+                                    <div className={`text-sm font-bold ${scanTotals.net >= 0 ? 'text-indigo-800' : 'text-rose-800'}`}>
+                                        {scanTotals.net >= 0 ? '+' : ''}Rs. {scanTotals.net.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                    </div>
+                                </div>
+                            </div>
+
                             <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
                                 <table className="w-full text-left border-collapse min-w-[1000px]">
                                     <thead>
