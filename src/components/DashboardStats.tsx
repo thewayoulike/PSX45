@@ -34,9 +34,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const isRealizedProfitable = stats.netRealizedPL >= 0; 
   const isRoiPositive = stats.roi >= 0;
   
-  // Capital Analysis
   const totalNetWorth = stats.totalValue + stats.freeCash;
-  // Compare Net Worth against NET PRINCIPAL (Remaining Cash Invested)
   const isCapitalEroded = totalNetWorth < stats.netPrincipal;
   const erosionAmount = stats.netPrincipal - totalNetWorth;
   const erosionPercent = stats.netPrincipal > 0 ? (erosionAmount / stats.netPrincipal) * 100 : 0;
@@ -48,10 +46,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   return (
     <div className="flex flex-col gap-4 md:gap-6 mb-6 md:mb-10">
         
-        {/* PRIMARY METRICS - Updated Grid to 6 columns for large screens */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-6">
             
-            {/* ROI CARD */}
             <Card title="Portfolio ROI" icon={<Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
@@ -66,7 +62,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* Total Assets Card */}
             <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="flex justify-between items-start">
                     <div className="w-full">
@@ -99,7 +94,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <Sparkline color={isCapitalEroded ? "text-amber-500" : "text-emerald-500"} trend="neutral" />
             </Card>
 
-            {/* FREE CASH CARD */}
             <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${stats.freeCash < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                     Rs. {formatCurrency(stats.freeCash)}
@@ -123,7 +117,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* SPLIT: CARD 1 - CURRENT CASH INVESTED */}
             <Card title="Current Cash Invested" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.netPrincipal)}
@@ -143,14 +136,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* SPLIT: CARD 2 - LIFETIME CASH INVESTMENT */}
+            {/* UPDATED: Uses peakNetPrincipal */}
             <Card title="Lifetime Cash Inv" icon={<History className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.totalDeposits)}
+                Rs. {formatCurrency(stats.peakNetPrincipal)}
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Total Deposits</span>
+                        <span>Peak Capital</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-slate-400 rounded-full" style={{ width: '100%' }}></div>
@@ -158,7 +151,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* REINVESTED PROFITS CARD */}
             <Card title="Reinvested Profits" icon={<RefreshCcw className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.reinvestedProfits)}
@@ -174,10 +166,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
         </div>
 
-        {/* SECONDARY METRICS */}
+        {/* ... (Secondary Metrics remain same) ... */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
             
-             {/* NEW: CURRENT STOCK VALUE CARD */}
              <Card title="Current Stock Value" icon={<BarChart3 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.totalValue)}
@@ -192,7 +183,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* Stock Assets Card */}
             <Card title="Stock Assets (Cost)" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.totalCost)}
@@ -208,7 +198,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* Unrealized P&L Card */}
             <Card title="Unrealized P&L" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                 {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
@@ -226,7 +215,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 />
             </Card>
 
-            {/* Realized P&L Card (NET) */}
             <Card title="Realized Gains (Net)" icon={<CheckCircle2 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                 {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
@@ -243,7 +231,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* Dividend Income Card */}
             <Card title="Dividends" icon={<Coins className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.totalDividends)}
@@ -260,7 +247,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
         </div>
 
-        {/* FEES BREAKDOWN */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6">
             <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Receipt size={20} /></div>
