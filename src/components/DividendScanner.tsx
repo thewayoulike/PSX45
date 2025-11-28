@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Transaction, FoundDividend } from '../types'; // Use shared type
+import { Transaction, FoundDividend } from '../types'; 
 import { fetchDividends } from '../services/gemini';
 import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles, Building2 } from 'lucide-react';
 
@@ -9,7 +9,6 @@ interface DividendScannerProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenSettings?: () => void;
-  // NEW PROPS for Persistence
   savedResults: FoundDividend[];
   onSaveResults: (results: FoundDividend[]) => void;
 }
@@ -18,12 +17,10 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   transactions, onAddTransaction, isOpen, onClose, onOpenSettings, savedResults, onSaveResults
 }) => {
   const [loading, setLoading] = useState(false);
-  // Initialize with saved results from App
   const [foundDividends, setFoundDividends] = useState<FoundDividend[]>(savedResults);
   const [scanned, setScanned] = useState(savedResults.length > 0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Helper: Wrapper to update local state AND parent state
   const updateDividends = (newDividends: FoundDividend[]) => {
       setFoundDividends(newDividends);
       onSaveResults(newDividends);
@@ -31,9 +28,13 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   const getHoldingsBreakdownOnDate = (ticker: string, targetDate: string) => {
       const breakdown: Record<string, number> = {};
+      
+      // LOGIC FIX: Use strictly less than (<) Ex-Date.
+      // Rule: You must hold the stock at the close of the day BEFORE Ex-Date.
+      // If you Sell ON Ex-Date, you ARE eligible. (Current logic was excluding these).
       const relevantTx = transactions.filter(t => 
           t.ticker === ticker && 
-          t.date <= targetDate && 
+          t.date < targetDate && // Changed from <= to <
           (t.type === 'BUY' || t.type === 'SELL')
       );
       
@@ -52,11 +53,12 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   };
 
   const handleScan = async () => {
-      updateDividends([]); // Clear previous results
+      updateDividends([]); 
       setScanned(false);
       setLoading(true);
       setErrorMsg(null);
       
+      // Get ALL tickers from history (Active AND Sold)
       const tickers = Array.from(new Set(transactions.map(t => t.ticker))) as string[];
       
       if (tickers.length === 0) {
@@ -66,10 +68,12 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       }
 
       try {
+          // Fetch dividends for ALL tickers
           const announcements = await fetchDividends(tickers);
           const newEligible: FoundDividend[] = [];
 
           announcements.forEach(ann => {
+              // Check if we held stock BEFORE the ex-date
               const brokerMap = getHoldingsBreakdownOnDate(ann.ticker, ann.exDate);
 
               Object.entries(brokerMap).forEach(([brokerName, qty]) => {
@@ -90,7 +94,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
               });
           });
           
-          // Use wrapper to save
           updateDividends(newEligible); 
           setScanned(true);
       } catch (e: any) {
@@ -122,13 +125,11 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           notes: `${div.type} Dividend (${div.period || 'N/A'})`
       });
       
-      // Remove from list and save
       const remaining = foundDividends.filter(d => d !== div);
       updateDividends(remaining);
   };
 
   const handleIgnore = (div: FoundDividend) => {
-      // Remove from view and save
       const remaining = foundDividends.filter(d => d !== div);
       updateDividends(remaining);
   };
@@ -150,7 +151,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
             <div className="p-6 flex-1 overflow-y-auto custom-scrollbar relative">
                 
-                {/* INITIAL STATE */}
                 {!scanned && foundDividends.length === 0 && !loading && !errorMsg && (
                     <div className="text-center py-10">
                         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
@@ -158,7 +158,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">Find Unclaimed Income</h3>
                         <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                            We will check market data for recent dividends and compare them against your specific broker holdings.
+                            We will check market data for dividend announcements in the last year and compare them against your holding history (including sold stocks).
                         </p>
                         <button 
                             onClick={handleScan}
@@ -169,7 +169,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     </div>
                 )}
 
-                {/* LOADING STATE */}
                 {loading && (
                     <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
                         <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
@@ -178,7 +177,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     </div>
                 )}
 
-                {/* ERROR STATE */}
                 {errorMsg && !loading && (
                     <div className="text-center py-10 bg-rose-50/50 rounded-xl border border-rose-100">
                         <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3 text-rose-500">
@@ -199,7 +197,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     </div>
                 )}
 
-                {/* SUCCESS STATE (Zero Found) */}
                 {scanned && !loading && foundDividends.length === 0 && !errorMsg && (
                      <div className="text-center py-16">
                         <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
@@ -213,7 +210,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                      </div>
                 )}
 
-                {/* RESULTS LIST */}
                 {foundDividends.length > 0 && !loading && (
                     <div className="space-y-6">
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
@@ -255,7 +251,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                                     <span className="text-slate-300 hidden md:inline">|</span>
                                                     <span>DPS: <span className="font-medium text-slate-700">Rs. {div.amount}</span></span>
                                                     <span className="text-slate-300 hidden md:inline">|</span>
-                                                    <span className="text-slate-600 font-medium">Qty: {div.eligibleQty}</span>
+                                                    <span className="text-slate-600 font-medium">Eligible Qty: {div.eligibleQty}</span>
                                                 </div>
                                             </div>
                                         </div>
