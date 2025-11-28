@@ -38,7 +38,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const totalNetWorth = stats.totalValue + stats.freeCash;
   const isCapitalEroded = totalNetWorth < stats.netPrincipal;
   const erosionAmount = stats.netPrincipal - totalNetWorth;
-  const erosionPercent = stats.netPrincipal > 0 ? (erosionAmount / stats.netPrincipal) * 100 : 0;
+  
+  // Calculate percentage of principal lost, capped at 100% for visual sanity
+  const erosionPercent = stats.netPrincipal > 0 ? Math.min((erosionAmount / stats.netPrincipal) * 100, 100) : 0;
   const isSevereLoss = erosionPercent > 20; 
 
   const formatCurrency = (val: number) => 
@@ -91,7 +93,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                                     <span>Risk: -{erosionPercent.toFixed(1)}%</span>
                                 </div>
                             ) : isCapitalEroded ? (
-                                <div className="flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-600 rounded-md text-[10px] font-bold border border-amber-200">
+                                <div className="flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[10px] font-bold border border-rose-200">
                                     <TrendingDown size={12} />
                                     <span>Below Principal</span>
                                 </div>
@@ -107,7 +109,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         </div>
                     </div>
                 </div>
-                <Sparkline color={isCapitalEroded ? "text-amber-500" : "text-emerald-500"} trend="neutral" />
+                
+                {/* Capital Preservation Bar */}
+                <div className="mt-2 md:mt-3">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Capital Status</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                        {!isCapitalEroded ? (
+                            // All Green if Healthy
+                            <div className="h-full bg-emerald-500 w-full rounded-full"></div>
+                        ) : (
+                            // Stacked Bar: Green (Remaining) | Red (Lost)
+                            <>
+                                <div 
+                                    className="h-full bg-emerald-500 transition-all duration-500" 
+                                    style={{ width: `${100 - erosionPercent}%` }} 
+                                />
+                                <div 
+                                    className="h-full bg-rose-500 transition-all duration-500" 
+                                    style={{ width: `${erosionPercent}%` }} 
+                                />
+                            </>
+                        )}
+                    </div>
+                </div>
             </Card>
 
              <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
