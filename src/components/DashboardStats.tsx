@@ -13,6 +13,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const isRoiPositive = stats.roi >= 0;
   const isMwrrPositive = stats.mwrr >= 0;
   
+  // New metric for Daily PL
+  const isDailyProfitable = stats.dailyPL >= 0;
+
   const totalNetWorth = stats.totalValue + stats.freeCash;
   const isCapitalEroded = totalNetWorth < stats.netPrincipal;
   const erosionAmount = stats.netPrincipal - totalNetWorth;
@@ -236,6 +239,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
+            {/* NEW: Daily Profit Card (Replacing Unrealized P&L position if needed, or added) */}
+            {/* Let's put Unrealized P&L first, then Daily */}
+            
             <Card title="Unrealized P&L" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
@@ -257,13 +263,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
                          {stats.totalCost > 0 || stats.totalValue > 0 ? (
                              isUnrealizedProfitable ? (
-                                 // Profit: Cost (Gray) + Profit (Green) = Total Value
                                  <>
                                     <div className="h-full bg-slate-400/50" style={{ width: `${Math.min((stats.totalCost / (stats.totalValue || 1)) * 100, 100)}%` }} title="Cost Basis"></div>
                                     <div className="h-full bg-emerald-500" style={{ width: `${Math.min((stats.unrealizedPL / (stats.totalValue || 1)) * 100, 100)}%` }} title="Profit"></div>
                                  </>
                              ) : (
-                                 // Loss: Value (Gray) + Loss (Red) = Total Cost
                                  <>
                                     <div className="h-full bg-slate-400/50" style={{ width: `${Math.min((stats.totalValue / (stats.totalCost || 1)) * 100, 100)}%` }} title="Current Value"></div>
                                     <div className="h-full bg-rose-500" style={{ width: `${Math.min((Math.abs(stats.unrealizedPL) / (stats.totalCost || 1)) * 100, 100)}%` }} title="Loss"></div>
@@ -272,6 +276,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                          ) : (
                              <div className="h-full bg-slate-200 w-full"></div>
                          )}
+                    </div>
+                </div>
+            </Card>
+
+            {/* NEW: Today's Change Card */}
+            <Card title="Today's Change" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isDailyProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    {isDailyProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.dailyPL))}
+                    </div>
+                </div>
+                
+                <div className="mt-2 md:mt-3">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Daily Variation</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                        <div className={`h-full w-full ${isDailyProfitable ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                     </div>
                 </div>
             </Card>
@@ -307,22 +329,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-emerald-500" style={{ width: '100%' }}></div>
-                    </div>
-                </div>
-            </Card>
-
-            <Card title="Reinvested Profits" icon={<RefreshCcw className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className={TOP_SECTION_CLASS}>
-                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                    Rs. {formatCurrency(stats.reinvestedProfits)}
-                    </div>
-                </div>
-                <div className="mt-2 md:mt-3">
-                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Retained Earnings</span>
-                    </div>
-                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                        <div className="h-full bg-purple-500 rounded-full" style={{ width: '100%' }}></div>
                     </div>
                 </div>
             </Card>
