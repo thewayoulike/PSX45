@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Transaction, Broker, ParsedTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 
@@ -14,7 +14,7 @@ interface TransactionFormProps {
   editingTransaction?: Transaction | null;
   brokers?: Broker[]; 
   portfolioDefaultBrokerId?: string;
-  freeCash?: number; // ADDED PROP
+  freeCash?: number;
 }
 
 interface EditableTrade extends ParsedTrade {
@@ -48,6 +48,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
 
+  // Scanner State
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [scannedTrades, setScannedTrades] = useState<EditableTrade[]>([]);
+  // NEW: Selection State for Scanner
+  const [selectedScanIndices, setSelectedScanIndices] = useState<Set<number>>(new Set());
+
   // Validation State
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -55,10 +63,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7));
   const [histAmount, setHistAmount] = useState<number | ''>('');
   const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isScanning, setIsScanning] = useState(false);
-  const [scanError, setScanError] = useState<string | null>(null);
-  const [scannedTrades, setScannedTrades] = useState<EditableTrade[]>([]);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -116,68 +120,26 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [isOpen, editingTransaction, portfolioDefaultBrokerId]);
 
+  // Clear selections when list changes
+  useEffect(() => {
+      setSelectedScanIndices(new Set());
+  }, [scannedTrades, mode]);
+
   // Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
-        
-        if (type === 'TAX') {
-            if (typeof histAmount === 'number') {
-                setPrice(histAmount);
-                setQuantity(1); 
-                setTicker('CGT');
-                setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
-            }
-        } 
-        else if (type === 'HISTORY') {
-            if (typeof histAmount === 'number') {
-                setQuantity(1); setTicker('PREV-PNL');
-                if (histTaxType === 'BEFORE_TAX') {
-                    if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else { setTax(0); }
-                } else { setTax(0); }
-                setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0);
-            }
-        }
-        else if (type === 'DEPOSIT' || type === 'WITHDRAWAL') {
-            if (typeof histAmount === 'number') {
-                setQuantity(1); setTicker('CASH'); setPrice(histAmount);
-                setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
-            }
-        }
-        else if (type === 'ANNUAL_FEE') {
-            if (typeof histAmount === 'number') {
-                setQuantity(1); setTicker('ANNUAL FEE'); setPrice(histAmount);
-                setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
-            }
-        }
+        // ... (Existing Auto Calc Logic - Abbreviated for clarity, logic unchanged)
+        if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
+        else if (type === 'HISTORY' && typeof histAmount === 'number') { setQuantity(1); setTicker('PREV-PNL'); if (histTaxType === 'BEFORE_TAX') { if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0); } else setTax(0); setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0); }
+        else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
-             if (type === 'DIVIDEND') {
-                 setCommission(0); setCdcCharges(0); setOtherFees(0);
-                 const wht = gross * 0.15; setTax(parseFloat(wht.toFixed(2)));
-             } else {
-                 let estComm = 0;
-                 const currentBroker = brokers.find(b => b.id === selectedBrokerId);
-                 if (currentBroker) {
-                     if (currentBroker.commissionType === 'PERCENTAGE') estComm = gross * (currentBroker.rate1 / 100);
-                     else if (currentBroker.commissionType === 'FIXED') estComm = currentBroker.rate1;
-                     else if (currentBroker.commissionType === 'PER_SHARE') estComm = quantity * currentBroker.rate1;
-                     else if (currentBroker.commissionType === 'HIGHER_OF') { const pct = gross * (currentBroker.rate1 / 100); const fixed = quantity * (currentBroker.rate2 || 0); estComm = Math.max(pct, fixed); }
-                 } else { estComm = gross * 0.0015; }
-                 const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15;
-                 const estTax = estComm * taxRate;
-                 let estCdc = 0;
-                 if (currentBroker) {
-                     const cdcType = currentBroker.cdcType || 'PER_SHARE';
-                     const cdcRate = currentBroker.cdcRate !== undefined ? currentBroker.cdcRate : 0.005;
-                     if (cdcType === 'PER_SHARE') estCdc = quantity * cdcRate;
-                     else if (cdcType === 'FIXED') estCdc = cdcRate;
-                     else if (cdcType === 'HIGHER_OF') { const shareVal = quantity * cdcRate; const fixedVal = currentBroker.cdcMin || 0; estCdc = Math.max(shareVal, fixedVal); }
-                 } else { estCdc = quantity * 0.005; }
+             if (type === 'DIVIDEND') { setCommission(0); setCdcCharges(0); setOtherFees(0); const wht = gross * 0.15; setTax(parseFloat(wht.toFixed(2))); } else {
+                 let estComm = 0; const currentBroker = brokers.find(b => b.id === selectedBrokerId); if (currentBroker) { if (currentBroker.commissionType === 'PERCENTAGE') estComm = gross * (currentBroker.rate1 / 100); else if (currentBroker.commissionType === 'FIXED') estComm = currentBroker.rate1; else if (currentBroker.commissionType === 'PER_SHARE') estComm = quantity * currentBroker.rate1; else if (currentBroker.commissionType === 'HIGHER_OF') { const pct = gross * (currentBroker.rate1 / 100); const fixed = quantity * (currentBroker.rate2 || 0); estComm = Math.max(pct, fixed); } } else estComm = gross * 0.0015;
+                 const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15; const estTax = estComm * taxRate; let estCdc = 0; if (currentBroker) { const cdcType = currentBroker.cdcType || 'PER_SHARE'; const cdcRate = currentBroker.cdcRate !== undefined ? currentBroker.cdcRate : 0.005; if (cdcType === 'PER_SHARE') estCdc = quantity * cdcRate; else if (cdcType === 'FIXED') estCdc = cdcRate; else if (cdcType === 'HIGHER_OF') { const shareVal = quantity * cdcRate; const fixedVal = currentBroker.cdcMin || 0; estCdc = Math.max(shareVal, fixedVal); } } else estCdc = quantity * 0.005;
                  setCommission(parseFloat(estComm.toFixed(2))); setTax(parseFloat(estTax.toFixed(2))); setCdcCharges(parseFloat(estCdc.toFixed(2)));
              }
-        } else {
-             if (commission !== '') setCommission(''); if (tax !== '') setTax(''); if (cdcCharges !== '') setCdcCharges('');
-        }
+        } else { if (commission !== '') setCommission(''); if (tax !== '') setTax(''); if (cdcCharges !== '') setCdcCharges(''); }
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
 
@@ -210,7 +172,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         }
     }
 
-    // NEW: BUYING POWER CHECK
+    // BUYING POWER CHECK
     if (type === 'BUY' && !editingTransaction && freeCash !== undefined) {
         const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
         if (totalCost > freeCash) {
@@ -220,30 +182,93 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
 
     const txData = {
-      ticker: cleanTicker,
-      type,
-      quantity: qtyNum,
-      price: Number(price),
-      date,
-      broker: brokerName,
-      brokerId: selectedBrokerId,
-      commission: Number(commission) || 0,
-      tax: Number(tax) || 0,
-      cdcCharges: Number(cdcCharges) || 0,
-      otherFees: Number(otherFees) || 0
+      ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId,
+      commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0
     };
 
-    if (editingTransaction && onUpdateTransaction) {
-      onUpdateTransaction({ ...editingTransaction, ...txData });
-    } else {
-      onAddTransaction(txData);
-    }
+    if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData });
+    else onAddTransaction(txData);
     onClose();
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); setScannedTrades([]); } };
   const handleProcessScan = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); setScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); setScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
-  const handleAcceptTrade = (trade: EditableTrade) => { let finalBrokerName = trade.broker; if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; } onAddTransaction({ ticker: trade.ticker, type: trade.type as any, quantity: Number(trade.quantity), price: Number(trade.price), date: trade.date || new Date().toISOString().split('T')[0], broker: finalBrokerName, brokerId: trade.brokerId, commission: Number(trade.commission) || 0, tax: Number(trade.tax) || 0, cdcCharges: Number(trade.cdcCharges) || 0, otherFees: Number(trade.otherFees) || 0 }); setScannedTrades(prev => prev.filter(t => t !== trade)); };
+  
+  // SCANNER SELECTION HANDLERS
+  const toggleScanSelection = (index: number) => {
+      const next = new Set(selectedScanIndices);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      setSelectedScanIndices(next);
+  };
+
+  const toggleSelectAll = () => {
+      if (selectedScanIndices.size === scannedTrades.length) setSelectedScanIndices(new Set());
+      else setSelectedScanIndices(new Set(scannedTrades.map((_, i) => i)));
+  };
+
+  // Helper
+  const getTradeCost = (t: EditableTrade) => {
+      return (Number(t.quantity) * Number(t.price)) + (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0);
+  };
+
+  const addSingleTrade = (trade: EditableTrade) => {
+      let finalBrokerName = trade.broker;
+      if (trade.brokerId) {
+          const b = brokers.find(br => br.id === trade.brokerId);
+          if (b) finalBrokerName = b.name;
+      }
+      onAddTransaction({
+          ticker: trade.ticker,
+          type: trade.type as any,
+          quantity: Number(trade.quantity),
+          price: Number(trade.price),
+          date: trade.date || new Date().toISOString().split('T')[0],
+          broker: finalBrokerName,
+          brokerId: trade.brokerId,
+          commission: Number(trade.commission) || 0,
+          tax: Number(trade.tax) || 0,
+          cdcCharges: Number(trade.cdcCharges) || 0,
+          otherFees: Number(trade.otherFees) || 0
+      });
+  };
+
+  // --- NEW: Handle Accepting a Single Trade from Scan (With Validation) ---
+  const handleAcceptTrade = (trade: EditableTrade) => {
+      setFormError(null);
+      // Cash Check
+      if (trade.type === 'BUY' && freeCash !== undefined) {
+          const cost = getTradeCost(trade);
+          if (cost > freeCash) {
+              setFormError(`Insufficient Buying Power! This trade costs Rs. ${cost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`);
+              return;
+          }
+      }
+      addSingleTrade(trade);
+      setScannedTrades(prev => prev.filter(t => t !== trade));
+  };
+
+  // --- NEW: Handle Accepting Bulk Selection (With Aggregate Validation) ---
+  const handleAcceptSelected = () => {
+      setFormError(null);
+      const selectedTrades = scannedTrades.filter((_, i) => selectedScanIndices.has(i));
+      
+      const totalBuyCost = selectedTrades.reduce((acc, t) => {
+          return t.type === 'BUY' ? acc + getTradeCost(t) : acc;
+      }, 0);
+
+      if (freeCash !== undefined && totalBuyCost > freeCash) {
+           setFormError(`Insufficient Buying Power! Selected trades cost Rs. ${totalBuyCost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`);
+           return;
+      }
+
+      selectedTrades.forEach(addSingleTrade);
+
+      // Remove selected from list
+      setScannedTrades(prev => prev.filter((_, i) => !selectedScanIndices.has(i)));
+      setSelectedScanIndices(new Set());
+  };
+
   const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...scannedTrades]; updated[index] = { ...updated[index], [field]: value }; setScannedTrades(updated); };
   const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
@@ -277,6 +302,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <div className="p-6 pt-0 flex-1 overflow-y-auto custom-scrollbar">
             
+            {/* ERROR DISPLAY (MOVED TO TOP LEVEL) */}
+            {formError && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3 animate-in slide-in-from-top-2 mb-4">
+                    <AlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
+                    <div>
+                        <h4 className="font-bold text-rose-800 text-sm">Action Blocked</h4>
+                        <p className="text-xs text-rose-600 mt-1">{formError}</p>
+                    </div>
+                </div>
+            )}
+
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
                     
@@ -290,61 +326,26 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <button type="button" onClick={() => setType('ANNUAL_FEE')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'ANNUAL_FEE' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>FEE</button>
                     </div>
 
-                    {formError && (
-                        <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3 animate-in slide-in-from-top-2">
-                            <AlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
-                            <div>
-                                <h4 className="font-bold text-rose-800 text-sm">Action Blocked</h4>
-                                <p className="text-xs text-rose-600 mt-1">{formError}</p>
-                            </div>
-                        </div>
-                    )}
-
                     {type === 'TAX' ? (
                         <>
                             <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 mb-4">
                                 <p className="text-xs text-slate-600 leading-relaxed">
                                     <strong>Manual CGT Entry:</strong> <br/>
-                                    • Enter a <strong>positive amount</strong> for tax paid (deducted from cash). <br/>
-                                    • Enter a <strong>negative amount</strong> for tax refund/credit (added to cash).
+                                    • Enter a <strong>positive amount</strong> for tax paid. <br/>
+                                    • Enter a <strong>negative amount</strong> for tax refund/credit.
                                 </p>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
-                                    <div className="relative">
-                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
-                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                        </select>
-                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-3 top-3.5 text-slate-400" size={14} /></div></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
-                            <div>
-                                <label className="block text-xs font-bold text-slate-500 mb-1">Tax Amount (PKR)</label>
-                                <input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. 1500 or -500"/>
-                            </div>
+                            <div><label className="block text-xs font-bold text-slate-500 mb-1">Tax Amount (PKR)</label><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. 1500 or -500"/></div>
                         </>
                     ) : type === 'HISTORY' ? (
                         <>
-                            <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex gap-3 items-start">
-                                <History className="text-blue-500 shrink-0 mt-0.5" size={18} />
-                                <div className="text-xs text-blue-700">
-                                    <p className="font-bold mb-0.5">Record Past Performance</p>
-                                    <p className="opacity-80">Add realized profits/losses from before using this app. This will adjust your "Total Realized Gains".</p>
-                                </div>
-                            </div>
+                            <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 flex gap-3 items-start"><History className="text-blue-500 shrink-0 mt-0.5" size={18} /><div className="text-xs text-blue-700"><p className="font-bold mb-0.5">Record Past Performance</p><p className="opacity-80">Add realized profits/losses from before using this app.</p></div></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
-                                    <div className="relative">
-                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
-                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                        </select>
-                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-3 top-3.5 text-slate-400" size={14} /></div></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date Recorded</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Realized Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${Number(histAmount) < 0 ? 'text-rose-500' : 'text-emerald-600'}`} placeholder="-5000 or 10000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
@@ -352,109 +353,44 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </>
                     ) : type === 'DEPOSIT' || type === 'WITHDRAWAL' ? (
                         <>
-                            <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 flex gap-3 items-start">
-                                <Wallet className="text-emerald-500 shrink-0 mt-0.5" size={18} />
-                                <div className="text-xs text-emerald-700">
-                                    <p className="font-bold mb-0.5">Cash Management</p>
-                                    <p className="opacity-80">Track incoming deposits and outgoing withdrawals to calculate your accurate portfolio principal.</p>
-                                </div>
-                            </div>
-                            <div className="flex bg-slate-100 p-1 rounded-xl mb-2">
-                                <button type="button" onClick={() => setType('DEPOSIT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'DEPOSIT' ? 'bg-white shadow text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <Plus size={14} strokeWidth={3} /> Add Funds (Deposit) </button>
-                                <button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'WITHDRAWAL' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw Cash </button>
-                            </div>
+                            <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 flex gap-3 items-start"><Wallet className="text-emerald-500 shrink-0 mt-0.5" size={18} /><div className="text-xs text-emerald-700"><p className="font-bold mb-0.5">Cash Management</p><p className="opacity-80">Track deposits and withdrawals for accurate principal calculation.</p></div></div>
+                            <div className="flex bg-slate-100 p-1 rounded-xl mb-2"><button type="button" onClick={() => setType('DEPOSIT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'DEPOSIT' ? 'bg-white shadow text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <Plus size={14} strokeWidth={3} /> Add Funds (Deposit) </button><button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'WITHDRAWAL' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw Cash </button></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
-                                    <div className="relative">
-                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
-                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                        </select>
-                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-3 top-3.5 text-slate-400" size={14} /></div></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="50000"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
                         </>
                     ) : type === 'ANNUAL_FEE' ? (
                         <>
-                            <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 flex gap-3 items-start">
-                                <CalendarClock className="text-amber-500 shrink-0 mt-0.5" size={18} />
-                                <div className="text-xs text-amber-700">
-                                    <p className="font-bold mb-0.5">Annual Fee</p>
-                                    <p className="opacity-80">Record a recurring broker maintenance fee. This is treated as a withdrawal.</p>
-                                </div>
-                            </div>
+                            <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 flex gap-3 items-start"><CalendarClock className="text-amber-500 shrink-0 mt-0.5" size={18} /><div className="text-xs text-amber-700"><p className="font-bold mb-0.5">Annual Fee</p><p className="opacity-80">Recurring maintenance fee.</p></div></div>
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-slate-500 mb-1">Broker</label>
-                                    <div className="relative">
-                                        <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
-                                            {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                        </select>
-                                        <Lock className="absolute right-3 top-3.5 text-slate-400" size={14} />
-                                    </div>
-                                </div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-3 top-3.5 text-slate-400" size={14} /></div></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Fee Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="e.g. 500"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
                         </>
                     ) : (
-                        // DEFAULT FORM FOR BUY/SELL/DIVIDEND
                         <>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">Ticker</label><input required type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold uppercase focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="e.g. OGDC"/></div>
                             </div>
-                            
                             <div className="mb-1">
                                 <div className="flex justify-between items-center mb-1">
                                     <label className="block text-xs font-bold text-slate-500">Broker</label>
-                                    {/* NEW: DISPLAY BUYING POWER */}
-                                    {type === 'BUY' && !editingTransaction && freeCash !== undefined && (
-                                        <span className={`text-[10px] font-bold ${freeCash >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                            Buying Power: Rs. {freeCash.toLocaleString()}
-                                        </span>
-                                    )}
+                                    {type === 'BUY' && !editingTransaction && freeCash !== undefined && ( <span className={`text-[10px] font-bold ${freeCash >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}> Buying Power: Rs. {freeCash.toLocaleString()} </span> )}
                                 </div>
-                                <div className="relative">
-                                    <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">
-                                        {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
-                                    </select>
-                                    <Lock className="absolute right-3 top-3.5 text-slate-400" size={16} />
-                                </div>
-                                <p className="text-[10px] text-slate-400 mt-1">
-                                    This portfolio is linked strictly to <strong>{brokers.find(b=>b.id === selectedBrokerId)?.name}</strong>.
-                                </p>
+                                <div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-3 top-3.5 text-slate-400" size={16} /></div>
+                                <p className="text-[10px] text-slate-400 mt-1">This portfolio is linked strictly to <strong>{brokers.find(b=>b.id === selectedBrokerId)?.name}</strong>.</p>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}</label><input required type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0"/></div>
                                 <div><label className="block text-xs font-bold text-slate-500 mb-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}</label><input required type="number" step="0.01" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none" placeholder="0.00"/></div>
                             </div>
-                            {type === 'DIVIDEND' && typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0 && (
-                                <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center text-xs text-indigo-800 px-4">
-                                    <span className="opacity-80">Gross: <strong>{(quantity * price).toLocaleString()}</strong></span>
-                                    <span className="font-bold bg-white px-2 py-1 rounded border border-indigo-100">Net: Rs. {((quantity * price) - (Number(tax) || 0)).toLocaleString()}</span>
-                                </div>
-                            )}
+                            {type === 'DIVIDEND' && typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0 && ( <div className="bg-indigo-50 p-3 rounded-xl border border-indigo-100 flex justify-between items-center text-xs text-indigo-800 px-4"><span className="opacity-80">Gross: <strong>{(quantity * price).toLocaleString()}</strong></span><span className="font-bold bg-white px-2 py-1 rounded border border-indigo-100">Net: Rs. {((quantity * price) - (Number(tax) || 0)).toLocaleString()}</span></div> )}
                             <div className="pt-2">
-                                <div className="flex items-center justify-between mb-2">
-                                    <label className="text-xs font-bold text-slate-400 uppercase">Fees & Taxes</label>
-                                    <button 
-                                        type="button" 
-                                        onClick={() => setIsAutoCalc(!isAutoCalc)} 
-                                        className={`text-[10px] px-2 py-1 rounded border flex items-center gap-1 transition-colors ${
-                                            isAutoCalc 
-                                                ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
-                                                : 'bg-rose-50 text-rose-600 border-rose-200 font-bold shadow-sm'
-                                        }`}
-                                    >
-                                        {!isAutoCalc && <AlertTriangle size={10} />}
-                                        {isAutoCalc ? 'Auto-Calc On' : 'Manual Mode'}
-                                    </button>
-                                </div>
+                                <div className="flex items-center justify-between mb-2"><label className="text-xs font-bold text-slate-400 uppercase">Fees & Taxes</label><button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2 py-1 rounded border flex items-center gap-1 transition-colors ${isAutoCalc ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-200 font-bold shadow-sm'}`}> {!isAutoCalc && <AlertTriangle size={10} />} {isAutoCalc ? 'Auto-Calc On' : 'Manual Mode'} </button></div>
                                 <div className="grid grid-cols-2 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                     <div><label className="text-[10px] text-slate-400 block mb-1">Commission</label><input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
                                     <div><label className="text-[10px] text-slate-400 block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
@@ -494,11 +430,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-slate-400'}`}>
                                         {getFileIcon()}
                                     </div>
-                                    {selectedFile ? (
-                                        <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </>
-                                    ) : (
-                                        <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p> </>
-                                    )}
+                                    {selectedFile ? ( <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </> ) : ( <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p> </> )}
                                 </div>
                             )}
                             {scanError && (
@@ -529,18 +461,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <div className="w-full flex-1 flex flex-col overflow-hidden">
                             <div className="flex justify-between items-center mb-2 px-1">
                                 <h3 className="font-bold text-slate-800 text-lg">Found {scannedTrades.length} Trades</h3>
-                                <button onClick={() => { setScannedTrades([]); setSelectedFile(null); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1"> <RefreshCcw size={12} /> Clear All </button>
+                                <div className="flex items-center gap-2">
+                                    {selectedScanIndices.size > 0 && (
+                                        <button onClick={handleAcceptSelected} className="text-xs bg-emerald-600 text-white hover:bg-emerald-700 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all shadow-sm">
+                                            <Plus size={14} /> Add Selected ({selectedScanIndices.size})
+                                        </button>
+                                    )}
+                                    <button onClick={() => { setScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-all"> <RefreshCcw size={12} /> Clear All </button>
+                                </div>
                             </div>
                             <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
                                 <table className="w-full text-left border-collapse min-w-[1000px]">
                                     <thead>
                                         <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
+                                            <th className="px-3 py-3 text-center w-10">
+                                                <input type="checkbox" onChange={toggleSelectAll} checked={selectedScanIndices.size === scannedTrades.length && scannedTrades.length > 0} className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/>
+                                            </th>
                                             <th className="px-3 py-3">Type</th> <th className="px-3 py-3">Date</th> <th className="px-3 py-3">Ticker</th> <th className="px-3 py-3">Broker</th> <th className="px-3 py-3 w-24">Qty</th> <th className="px-3 py-3 w-24">Price</th> <th className="px-2 py-3 w-20 text-slate-400">Comm</th> <th className="px-2 py-3 w-20 text-slate-400">Tax</th> <th className="px-2 py-3 w-20 text-slate-400">CDC</th> <th className="px-2 py-3 w-20 text-slate-400">Other</th> <th className="px-3 py-3 text-center">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
                                         {scannedTrades.map((t, idx) => (
-                                            <tr key={idx} className="hover:bg-slate-50/50 transition-colors group">
+                                            <tr key={idx} className={`hover:bg-slate-50/50 transition-colors group ${selectedScanIndices.has(idx) ? 'bg-indigo-50/40' : ''}`}>
+                                                <td className="px-3 py-2 text-center">
+                                                    <input type="checkbox" checked={selectedScanIndices.has(idx)} onChange={() => toggleScanSelection(idx)} className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/>
+                                                </td>
                                                 <td className="px-3 py-2"><span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{t.type}</span></td>
                                                 <td className="px-3 py-2"><input type="date" value={t.date || ''} onChange={(e) => updateScannedTrade(idx, 'date', e.target.value)} className="w-24 bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" /></td>
                                                 <td className="px-3 py-2"><input type="text" value={t.ticker} onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-16 bg-transparent text-xs font-bold text-slate-800 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white uppercase transition-all" /></td>
