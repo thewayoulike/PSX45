@@ -7,28 +7,6 @@ interface DashboardProps {
   stats: PortfolioStats;
 }
 
-const Sparkline = ({ color, trend }: { color: string, trend: 'up' | 'down' | 'neutral' }) => {
-  const pathUp = "M0 25 Q 20 25, 40 15 T 80 10 T 120 2";
-  const pathDown = "M0 5 Q 20 5, 40 15 T 80 20 T 120 28";
-  const pathNeutral = "M0 15 Q 20 10, 40 15 T 80 15 T 120 15";
-  
-  const d = trend === 'up' ? pathUp : trend === 'down' ? pathDown : pathNeutral;
-
-  return (
-    <div className="h-6 md:h-8 w-full overflow-hidden opacity-80 mt-2">
-      <svg viewBox="0 0 120 30" className="w-full h-full" preserveAspectRatio="none">
-        <defs>
-          <linearGradient id={`grad-${color}`} x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
-            <stop offset="100%" stopColor="currentColor" stopOpacity="1" />
-          </linearGradient>
-        </defs>
-        <path d={d} fill="none" stroke={`url(#grad-${color})`} strokeWidth="2" vectorEffect="non-scaling-stroke" className={color} strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-};
-
 export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
   const isRealizedProfitable = stats.netRealizedPL >= 0; 
@@ -236,10 +214,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                     </div>
                 </div>
                 
-                <Sparkline 
-                    color={isUnrealizedProfitable ? 'text-emerald-500' : 'text-rose-500'} 
-                    trend={isUnrealizedProfitable ? 'up' : 'down'} 
-                />
+                {/* P&L Visualizer Bar */}
+                <div className="mt-2 md:mt-3">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>{isUnrealizedProfitable ? 'Profit Ratio' : 'Loss Ratio'}</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                         {stats.totalCost > 0 || stats.totalValue > 0 ? (
+                             isUnrealizedProfitable ? (
+                                 // Profit: Cost (Gray) + Profit (Green) = Total Value
+                                 <>
+                                    <div className="h-full bg-slate-400/50" style={{ width: `${Math.min((stats.totalCost / (stats.totalValue || 1)) * 100, 100)}%` }} title="Cost Basis"></div>
+                                    <div className="h-full bg-emerald-500" style={{ width: `${Math.min((stats.unrealizedPL / (stats.totalValue || 1)) * 100, 100)}%` }} title="Profit"></div>
+                                 </>
+                             ) : (
+                                 // Loss: Value (Gray) + Loss (Red) = Total Cost
+                                 <>
+                                    <div className="h-full bg-slate-400/50" style={{ width: `${Math.min((stats.totalValue / (stats.totalCost || 1)) * 100, 100)}%` }} title="Current Value"></div>
+                                    <div className="h-full bg-rose-500" style={{ width: `${Math.min((Math.abs(stats.unrealizedPL) / (stats.totalCost || 1)) * 100, 100)}%` }} title="Loss"></div>
+                                 </>
+                             )
+                         ) : (
+                             <div className="h-full bg-slate-200 w-full"></div>
+                         )}
+                    </div>
+                </div>
             </Card>
 
             <Card title="Realized Gains (Net)" icon={<CheckCircle2 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
