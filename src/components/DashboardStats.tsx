@@ -22,8 +22,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   const erosionPercent = stats.netPrincipal > 0 ? Math.min((erosionAmount / stats.netPrincipal) * 100, 100) : 0;
   const isSevereLoss = erosionPercent > 20; 
 
-  // --- NEW: Calculate Total Net Return % based on User Formula ---
-  // Formula: (Total Assets - Current Cash Invested) / Current Cash Invested
   const totalReturnPercent = stats.netPrincipal > 0 
       ? ((totalNetWorth - stats.netPrincipal) / stats.netPrincipal) * 100 
       : 0;
@@ -314,13 +312,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
                     </div>
                     
-                    <div className="flex items-center gap-2 mt-1">
+                    <div className="flex items-center gap-2 mt-1 w-full">
                         <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isUnrealizedProfitable ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-rose-100 border-rose-200 text-rose-700'}`}>
                             {isUnrealizedProfitable ? '+' : ''}{stats.unrealizedPLPercent.toFixed(2)}%
                         </div>
                         
-                        {/* NEW: Total Net Return % (Assets vs Principal) */}
-                        <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isTotalReturnPositive ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`} title="Net Portfolio Return (Total Assets vs Invested)">
+                        {/* UPDATE: Moved to far right */}
+                        <div className={`ml-auto text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isTotalReturnPositive ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`} title="Net Portfolio Return (Total Assets vs Invested)">
                             Net: {isTotalReturnPositive ? '+' : ''}{totalReturnPercent.toFixed(2)}%
                         </div>
                     </div>
