@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3, Landmark, History } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3, Landmark, History, TrendingUp } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -33,6 +33,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
   const isRealizedProfitable = stats.netRealizedPL >= 0; 
   const isRoiPositive = stats.roi >= 0;
+  const isMwrrPositive = stats.mwrr >= 0;
   
   const totalNetWorth = stats.totalValue + stats.freeCash;
   const isCapitalEroded = totalNetWorth < stats.netPrincipal;
@@ -46,9 +47,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   return (
     <div className="flex flex-col gap-4 md:gap-6 mb-6 md:mb-10">
         
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-6">
+        {/* TOP ROW METRICS */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
             
-            <Card title="Portfolio ROI" icon={<Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            <Card title="Portfolio MWRR" icon={<TrendingUp className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isMwrrPositive ? 'text-indigo-600' : 'text-rose-600'}`}>
+                    {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
+                </div>
+                <div className="mt-3 md:mt-4">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Money-Weighted Return</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${isMwrrPositive ? 'bg-indigo-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+            <Card title="Simple ROI" icon={<Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
                 </div>
@@ -62,7 +78,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+             <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="flex justify-between items-start">
                     <div className="w-full">
                         <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
@@ -94,7 +110,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 <Sparkline color={isCapitalEroded ? "text-amber-500" : "text-emerald-500"} trend="neutral" />
             </Card>
 
-            <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+             <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className={`text-lg sm:text-2xl md:text-3xl font-bold tracking-tight ${stats.freeCash < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                     Rs. {formatCurrency(stats.freeCash)}
                 </div>
@@ -116,7 +132,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                     )}
                 </div>
             </Card>
+        </div>
 
+        {/* MIDDLE ROW */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-3 gap-3 md:gap-6">
             <Card title="Current Cash Invested" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.netPrincipal)}
@@ -136,7 +155,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* UPDATED: Uses peakNetPrincipal */}
             <Card title="Lifetime Cash Inv" icon={<History className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
                 Rs. {formatCurrency(stats.peakNetPrincipal)}
@@ -166,7 +184,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
         </div>
 
-        {/* ... (Secondary Metrics remain same) ... */}
+        {/* BOTTOM ROW (Detailed Metrics) */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
             
              <Card title="Current Stock Value" icon={<BarChart3 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
