@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Broker, CommissionType, CDCType } from '../types';
-import { X, Plus, Pencil, Trash2, Save, AlertCircle, Settings2, CalendarClock } from 'lucide-react';
+import { Broker, CommissionType, CDCType, CommissionSlab } from '../types';
+import { X, Plus, Pencil, Trash2, Save, AlertCircle, Settings2, CalendarClock, ListPlus } from 'lucide-react';
 
 interface BrokerManagerProps {
   isOpen: boolean;
@@ -23,12 +23,17 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   const [rate2, setRate2] = useState<number | ''>(0.05);
   const [sstRate, setSstRate] = useState<number | ''>(15);
 
+  // NEW: Slab State
+  const [slabs, setSlabs] = useState<CommissionSlab[]>([
+      { min: 0, max: 10, rate: 0.03, type: 'FIXED' },
+      { min: 10.01, max: 999999, rate: 0.15, type: 'PERCENTAGE' }
+  ]);
+
   // CDC State
   const [cdcType, setCdcType] = useState<CDCType>('PER_SHARE');
   const [cdcRate, setCdcRate] = useState<number | ''>(0.005);
   const [cdcMin, setCdcMin] = useState<number | ''>('');
 
-  // NEW: Annual Fee State
   const [annualFee, setAnnualFee] = useState<number | ''>('');
   const [feeStartDate, setFeeStartDate] = useState<string>('');
 
@@ -40,11 +45,17 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
     setRate2(b.rate2 || '');
     setSstRate(b.sstRate);
     
+    // Load Slabs
+    if (b.slabs && b.slabs.length > 0) {
+        setSlabs(b.slabs);
+    } else {
+        setSlabs([{ min: 0, max: 999999, rate: 0.15, type: 'PERCENTAGE' }]);
+    }
+    
     setCdcType(b.cdcType || 'PER_SHARE');
     setCdcRate(b.cdcRate !== undefined ? b.cdcRate : 0.005);
     setCdcMin(b.cdcMin || '');
 
-    // Load Annual Fee
     setAnnualFee(b.annualFee || '');
     setFeeStartDate(b.feeStartDate || '');
   };
@@ -56,11 +67,30 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
     setRate2(0.05);
     setCommType('HIGHER_OF');
     setSstRate(15);
+    setSlabs([{ min: 0, max: 10, rate: 0.03, type: 'FIXED' }, { min: 10.01, max: 999999, rate: 0.15, type: 'PERCENTAGE' }]);
     setCdcType('PER_SHARE');
     setCdcRate(0.005);
     setCdcMin('');
     setAnnualFee('');
     setFeeStartDate('');
+  };
+
+  // Slab Handlers
+  const updateSlab = (index: number, field: keyof CommissionSlab, value: any) => {
+      const newSlabs = [...slabs];
+      newSlabs[index] = { ...newSlabs[index], [field]: value };
+      setSlabs(newSlabs);
+  };
+
+  const addSlab = () => {
+      const lastMax = slabs.length > 0 ? slabs[slabs.length - 1].max : 0;
+      setSlabs([...slabs, { min: lastMax + 0.01, max: 999999, rate: 0, type: 'FIXED' }]);
+  };
+
+  const removeSlab = (index: number) => {
+      if (slabs.length > 1) {
+          setSlabs(slabs.filter((_, i) => i !== index));
+      }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -76,9 +106,9 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
       cdcType,
       cdcRate: Number(cdcRate),
       cdcMin: Number(cdcMin),
-      // Save Annual Fee Data
       annualFee: Number(annualFee) || 0,
-      feeStartDate: feeStartDate || undefined
+      feeStartDate: feeStartDate || undefined,
+      slabs: commType === 'SLAB' ? slabs : undefined
     };
 
     if (editingId) {
@@ -103,7 +133,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={24} /></button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6">
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           <div className="grid lg:grid-cols-3 gap-8">
             
             {/* FORM SECTION */}
@@ -114,7 +144,6 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                </h3>
                
                <form onSubmit={handleSubmit} className="space-y-5">
-                  {/* Name */}
                   <div>
                     <label className="text-[10px] uppercase font-bold text-slate-500 block mb-1">Broker Name</label>
                     <input type="text" required placeholder="e.g., KASB, AKD" value={name} onChange={e => setName(e.target.value)} className="w-full p-2.5 rounded-lg border border-slate-300 text-sm focus:border-emerald-500 outline-none shadow-sm" />
@@ -130,25 +159,59 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                       <div>
                         <select value={commType} onChange={e => setCommType(e.target.value as CommissionType)} className="w-full p-2 rounded-lg border border-slate-300 text-xs focus:border-emerald-500 outline-none bg-white">
                             <option value="HIGHER_OF">Max ( % or Rate )</option>
+                            <option value="SLAB">Share Price Slabs (Variable)</option>
                             <option value="PERCENTAGE">Flat Percentage</option>
                             <option value="PER_SHARE">Per Share Only</option>
                             <option value="FIXED">Fixed per Trade</option>
                         </select>
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                         <div>
-                             <input type="number" step="0.01" placeholder="Rate 1" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 text-xs outline-none" />
-                             <span className="text-[9px] text-slate-400">
-                                {commType === 'HIGHER_OF' ? '%' : commType === 'FIXED' ? 'Rs' : commType === 'PER_SHARE' ? 'Rs' : '%'}
-                             </span>
-                         </div>
-                         {commType === 'HIGHER_OF' && (
+
+                      {/* DYNAMIC SLAB UI */}
+                      {commType === 'SLAB' ? (
+                          <div className="space-y-2">
+                              <label className="text-[9px] font-bold text-slate-400 uppercase">Price Ranges</label>
+                              {slabs.map((slab, idx) => (
+                                  <div key={idx} className="flex gap-1 items-center">
+                                      <div className="flex flex-col flex-1">
+                                          <input type="number" step="0.01" value={slab.min} onChange={e => updateSlab(idx, 'min', Number(e.target.value))} className="w-full p-1.5 rounded border text-[10px] text-center" placeholder="Min" />
+                                      </div>
+                                      <span className="text-slate-300 text-[10px]">-</span>
+                                      <div className="flex flex-col flex-1">
+                                          <input type="number" step="0.01" value={slab.max} onChange={e => updateSlab(idx, 'max', Number(e.target.value))} className="w-full p-1.5 rounded border text-[10px] text-center" placeholder="Max" />
+                                      </div>
+                                      <div className="flex flex-col w-16">
+                                          <input type="number" step="0.01" value={slab.rate} onChange={e => updateSlab(idx, 'rate', Number(e.target.value))} className="w-full p-1.5 rounded border text-[10px] text-center font-bold text-slate-700" placeholder="Rate" />
+                                      </div>
+                                      <select value={slab.type} onChange={e => updateSlab(idx, 'type', e.target.value)} className="w-14 p-1.5 rounded border text-[10px] bg-white">
+                                          <option value="FIXED">Rs</option>
+                                          <option value="PERCENTAGE">%</option>
+                                      </select>
+                                      {slabs.length > 1 && (
+                                          <button type="button" onClick={() => removeSlab(idx)} className="text-rose-400 hover:text-rose-600"><X size={14} /></button>
+                                      )}
+                                  </div>
+                              ))}
+                              <button type="button" onClick={addSlab} className="w-full py-1.5 mt-1 border border-dashed border-slate-300 rounded text-[10px] text-slate-500 hover:bg-slate-100 flex items-center justify-center gap-1">
+                                  <Plus size={12} /> Add Range
+                              </button>
+                          </div>
+                      ) : (
+                          <div className="grid grid-cols-2 gap-3">
                              <div>
-                                <input type="number" step="0.01" placeholder="Rate 2" value={rate2} onChange={e => setRate2(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 text-xs outline-none" />
-                                <span className="text-[9px] text-slate-400">Rs/share</span>
+                                 <input type="number" step="0.01" placeholder="Rate 1" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 text-xs outline-none" />
+                                 <span className="text-[9px] text-slate-400">
+                                    {commType === 'HIGHER_OF' ? '%' : commType === 'FIXED' ? 'Rs' : commType === 'PER_SHARE' ? 'Rs' : '%'}
+                                 </span>
                              </div>
-                         )}
-                      </div>
+                             {commType === 'HIGHER_OF' && (
+                                 <div>
+                                    <input type="number" step="0.01" placeholder="Rate 2" value={rate2} onChange={e => setRate2(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 text-xs outline-none" />
+                                    <span className="text-[9px] text-slate-400">Rs/share</span>
+                                 </div>
+                             )}
+                          </div>
+                      )}
+
                       <div>
                          <label className="text-[9px] text-slate-400 block mb-1">Sales Tax (SST) %</label>
                          <input type="number" value={sstRate} onChange={e => setSstRate(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 text-xs outline-none" />
@@ -187,7 +250,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
 
                   <hr className="border-slate-200" />
 
-                  {/* NEW: Annual Fee Section */}
+                  {/* Annual Fee Section */}
                   <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-slate-700">
                           <CalendarClock size={12} className="text-purple-500" /> Annual Maintenance
@@ -238,12 +301,24 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                       </td>
                       <td className="px-4 py-3">
                          <div className="text-xs text-slate-700 font-medium">{b.commissionType.replace('_', ' ')}</div>
-                         <div className="text-[10px] text-slate-500 font-mono">
-                             {b.commissionType === 'HIGHER_OF' && `${b.rate1}% or Rs.${b.rate2}`}
-                             {b.commissionType === 'PERCENTAGE' && `${b.rate1}%`}
-                             {b.commissionType === 'PER_SHARE' && `Rs.${b.rate1}`}
-                             {b.commissionType === 'FIXED' && `Rs.${b.rate1}`}
-                         </div>
+                         {/* Display Slabs in Table if active */}
+                         {b.commissionType === 'SLAB' && b.slabs ? (
+                             <div className="flex flex-col gap-0.5 mt-1">
+                                 {b.slabs.slice(0, 2).map((s, i) => (
+                                     <div key={i} className="text-[9px] text-slate-500 font-mono bg-slate-100/50 px-1 rounded w-fit">
+                                         {s.min}-{s.max}: {s.rate}{s.type === 'PERCENTAGE' ? '%' : ' Rs'}
+                                     </div>
+                                 ))}
+                                 {b.slabs.length > 2 && <span className="text-[9px] text-slate-400">+{b.slabs.length - 2} more...</span>}
+                             </div>
+                         ) : (
+                             <div className="text-[10px] text-slate-500 font-mono">
+                                 {b.commissionType === 'HIGHER_OF' && `${b.rate1}% or Rs.${b.rate2}`}
+                                 {b.commissionType === 'PERCENTAGE' && `${b.rate1}%`}
+                                 {b.commissionType === 'PER_SHARE' && `Rs.${b.rate1}`}
+                                 {b.commissionType === 'FIXED' && `Rs.${b.rate1}`}
+                             </div>
+                         )}
                       </td>
                       <td className="px-4 py-3">
                          <div className="text-xs text-slate-700 font-medium">{b.cdcType ? b.cdcType.replace('_', ' ') : 'PER SHARE'}</div>
@@ -253,7 +328,6 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                              {b.cdcType === 'HIGHER_OF' && `Max(Rs.${b.cdcRate}/sh, ${b.cdcMin})`}
                          </div>
                       </td>
-                      {/* NEW: Display Annual Fee */}
                       <td className="px-4 py-3">
                          {b.annualFee && b.annualFee > 0 ? (
                              <>
