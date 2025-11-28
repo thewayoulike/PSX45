@@ -67,6 +67,7 @@ export interface PortfolioStats {
   netRealizedPL: number;
   totalDividends: number;
   dailyPL: number;
+  dailyPLPercent: number; // Added Field
   totalCommission: number;
   totalSalesTax: number; 
   totalDividendTax: number; 
@@ -82,7 +83,6 @@ export interface PortfolioStats {
   reinvestedProfits: number;
   roi: number;
   
-  // NEW: Money Weighted Rate of Return
   mwrr: number;
 }
 
