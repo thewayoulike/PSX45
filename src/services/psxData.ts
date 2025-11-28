@@ -1,7 +1,7 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Multi-Table-Isolation + Prefix Cleaning (XD/XM/XR).
+ * UPDATED: Target-Aware Parsing. Uses the user's specific ticker list to 'fish' the correct symbol out of noisy text.
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
@@ -12,6 +12,9 @@ const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VO
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string }>> => {
     const results: Record<string, { price: number, sector: string }> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
+    
+    // Create a Lookup Set for the tickers we want (for robust matching)
+    const targetTickers = new Set(tickers.map(t => t.toUpperCase()));
 
     // UPDATED PROXY LIST (Prioritizing CodeTabs which is often more permissive)
     const proxies = [
@@ -39,7 +42,7 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
             }
 
             if (html && html.length > 500) { 
-                parseMarketWatchTable(html, results);
+                parseMarketWatchTable(html, results, targetTickers);
                 
                 // Only return if we actually found data
                 if (Object.keys(results).length > 0) {
@@ -58,7 +61,7 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     return results; 
 };
 
-const parseMarketWatchTable = (html: string, results: Record<string, { price: number, sector: string }>) => {
+const parseMarketWatchTable = (html: string, results: Record<string, { price: number, sector: string }>, targetTickers: Set<string>) => {
     try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
@@ -116,15 +119,34 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 // B. Extract Data
                 if (!cols[colMap.SYMBOL] || !cols[colMap.PRICE]) return;
 
-                let symbolText = cols[colMap.SYMBOL].textContent?.trim().toUpperCase();
+                const rawSymText = cols[colMap.SYMBOL].textContent?.trim().toUpperCase() || "";
                 
-                // --- FIX: Remove Status Prefixes (XD, XM, XR, XB, SPOT) ---
-                // These prefixes appear before the symbol during corporate actions (e.g. "XD SNGP")
-                if (symbolText) {
-                    symbolText = symbolText.replace(/^(XD|XM|XR|XB|SPOT)(\s+)?/g, '').trim();
+                // --- FIX: Intelligent Symbol Matching ---
+                // We split the cell text by any non-alphanumeric character.
+                // This handles "XD SNGP", "SNGP(XM)", "SNGP\nCompany Name"
+                const tokens = rawSymText.split(/[^A-Z0-9]+/);
+                
+                let symbolText: string | undefined;
+
+                // Priority 1: Check if any token matches a ticker in our Portfolio
+                for (const token of tokens) {
+                    if (targetTickers.has(token)) {
+                        symbolText = token;
+                        break;
+                    }
                 }
 
-                if (!symbolText || TICKER_BLACKLIST.includes(symbolText)) return;
+                // Priority 2: Fallback to the first valid-looking token if no specific target found
+                if (!symbolText) {
+                    const validTokens = tokens.filter(t => 
+                        t.length >= 2 && 
+                        !TICKER_BLACKLIST.includes(t) && 
+                        !['XD','XM','XR','XB','SPOT','DEFAULT'].includes(t)
+                    );
+                    if (validTokens.length > 0) symbolText = validTokens[0];
+                }
+
+                if (!symbolText) return;
 
                 const priceText = cols[colMap.PRICE].textContent?.trim().replace(/,/g, '');
                 const price = parseFloat(priceText || '');
