@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -271,7 +271,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Stock Assets (Cost) */}
+            {/* Stock Assets (Cost) - UPDATED WITH REINVESTED GAINS */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -283,8 +283,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                    Rs. {formatCurrency(stats.totalCost)}
+                        Rs. {formatCurrency(stats.totalCost)}
                     </div>
+                    {/* NEW: Reinvested Gains Badge */}
+                    {stats.reinvestedProfits > 0 && (
+                        <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 w-fit">
+                             <RefreshCcw size={10} />
+                             <span>Reinvested Gains: {formatCurrency(stats.reinvestedProfits)}</span>
+                        </div>
+                    )}
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -317,7 +324,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                             {isUnrealizedProfitable ? '+' : ''}{stats.unrealizedPLPercent.toFixed(2)}%
                         </div>
                         
-                        {/* UPDATE: Moved to far right */}
+                        {/* Moved to far right */}
                         <div className={`ml-auto text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isTotalReturnPositive ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`} title="Net Portfolio Return (Total Assets vs Invested)">
                             Net: {isTotalReturnPositive ? '+' : ''}{totalReturnPercent.toFixed(2)}%
                         </div>
