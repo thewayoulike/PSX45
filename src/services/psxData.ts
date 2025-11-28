@@ -7,7 +7,7 @@
 import { SECTOR_CODE_MAP } from './sectors';
 
 // Ignore these "Ticker" names because they are actually table headers or metadata
-const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP'];
+const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY'];
 
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string }>> => {
     const results: Record<string, { price: number, sector: string }> = {};
@@ -70,8 +70,9 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
         const headers = doc.querySelectorAll("th");
         headers.forEach((th, i) => {
             const headerText = th.textContent?.trim().toUpperCase();
-            if (headerText === 'CURRENT' || headerText === 'PRICE') currentIdx = i;
-            if (headerText === 'SECTOR') sectorIdx = i;
+            // IMPROVED MATCHING: Use includes to handle "CURRENT\nPRICE" or "CURRENT PRICE"
+            if (headerText.includes('CURRENT') || headerText.includes('PRICE')) currentIdx = i;
+            if (headerText.includes('SECTOR')) sectorIdx = i;
         });
 
         // Fallback Sector Tracker (for grouped view)
@@ -100,14 +101,17 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 if (currentIdx !== -1 && cols[currentIdx]) {
                     priceCol = cols[currentIdx];
                 } else {
-                    // Fallback: 4th column from the end
-                    priceCol = cols[cols.length - 4];
+                    // Fallback: PSX Market Watch standard is usually 6th col (index 5) or similar
+                    // Headers: Symbol, LDCP, Open, High, Low, CURRENT, Change, Volume
+                    // If we failed to find header, assume standard index 5 (6th column)
+                    priceCol = cols[5] || cols[cols.length - 3]; 
                 }
 
                 if (symbol && priceCol) {
                     if (TICKER_BLACKLIST.includes(symbol)) return;
 
                     // Parse Price
+                    // Remove commas and any non-numeric chars except dot
                     const priceText = priceCol.textContent?.trim().replace(/,/g, '');
                     const price = parseFloat(priceText || '');
                     
@@ -123,6 +127,12 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                     }
 
                     if (symbol.length >= 2 && !isNaN(price)) {
+                        // FIX: Don't overwrite a valid non-zero price with a zero price
+                        // This handles cases where a ticker appears twice (e.g. Futures vs Spot) and one is empty
+                        if (results[symbol] && results[symbol].price > 0 && price === 0) {
+                            return;
+                        }
+                        
                         results[symbol] = { price, sector };
                     }
                 }
