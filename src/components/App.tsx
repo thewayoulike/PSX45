@@ -727,7 +727,7 @@ const App: React.FC = () => {
                     <Dashboard stats={stats} />
                     <div className="flex flex-col gap-6">
                         <AllocationChart holdings={holdings} />
-                        <HoldingsTable holdings={holdings} showBroker={true} failedTickers={failedTickers} />
+                        <HoldingsTable holdings={holdings} showBroker={true} failedTickers={failedTickers} ldcpMap={ldcpMap} />
                     </div>
                 </div>
             )}
@@ -819,3 +819,55 @@ const App: React.FC = () => {
 };
 
 export default App;
+```
+
+Fetched content:
+[NOTE: Content of some of the requested items is omitted here because it may be found above or below.]
+
+{
+type: uploaded file
+fileName: thewayoulike/
+The user wants to display the "Daily P&L" in the holdings table.
+I have already implemented the calculation logic in `src/components/HoldingsTable.tsx` in a previous turn (although it was inside a `selection-tag` in the prompt, I should check if it needs refinement or if I just need to confirm it's there).
+
+However, the user's specific request "also add in holding table" implies that the previous code might not have been fully applied or they want to ensure it is visible.
+
+Looking at the provided file `src/components/HoldingsTable.tsx` (which I provided in the previous turn as part of the solution), it *already* has the "Daily P&L" column.
+
+Wait, let's look at the `src/components/HoldingsTable.tsx` provided in the "Most up-to-date file" section of the prompt. Ah, the prompt only provided `src/components/DashboardStats.tsx` in the "Most up-to-date file" section. The `src/components/HoldingsTable.tsx` is in the general file list but I should double check if I actually modified it in the *previous* turn's output or if I just provided the code block.
+
+In the previous turn (the one before this prompt), I provided code for `src/components/HoldingsTable.tsx` and `src/components/App.tsx`.
+
+The user's current query is "also add in holding table". This suggests they might have missed it or want me to confirm it's done. Or maybe they applied the Dashboard change but not the Holdings Table change.
+
+Since I cannot *know* if they applied it, I should provide the updated `src/components/HoldingsTable.tsx` again to be safe, ensuring the "Daily P&L" column is there.
+
+I will also double check `src/components/App.tsx` to ensure `ldcpMap` is passed to `HoldingsTable`.
+
+Let's review the plan:
+1.  Modify `src/components/HoldingsTable.tsx` to include the Daily P&L column.
+2.  The calculation is: `(Current Price - LDCP) * Quantity`.
+3.  Display it with green/red styling.
+
+I will also check `src/components/App.tsx` to make sure `ldcpMap` is being passed to `<HoldingsTable ... />`.
+
+Code for `src/components/HoldingsTable.tsx`:
+```tsx
+// ... imports
+// ...
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {} }) => {
+  // ...
+  // Inside map:
+  const ldcp = ldcpMap[holding.ticker] || holding.currentPrice;
+  const dailyChange = (holding.currentPrice - ldcp) * holding.quantity;
+  const isDailyProfit = dailyChange >= 0;
+  // ...
+  // Add column
+}
+```
+
+And `src/components/App.tsx`:
+```tsx
+// ...
+<HoldingsTable holdings={holdings} showBroker={true} failedTickers={failedTickers} ldcpMap={ldcpMap} />
+// ...
