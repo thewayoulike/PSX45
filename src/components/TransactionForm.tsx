@@ -58,7 +58,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (onSaveScannedTrades) onSaveScannedTrades(trades);
   };
 
-  // --- NEW: Calculate Totals for Scanned Trades ---
   const scanTotals = useMemo(() => {
       let totalBuy = 0;
       let totalSell = 0;
@@ -310,6 +309,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       updateScannedTrades(savedScannedTrades.filter(t => t !== trade));
   };
 
+  // --- UPDATED: Handle Accepting Bulk Selection with Smart Netting ---
   const handleAcceptSelected = () => {
       setFormError(null);
       const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i));
@@ -323,12 +323,27 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
            return;
       }
 
-      for (const trade of selectedTrades) {
-          if (trade.type === 'SELL') {
-              const targetBrokerId = trade.brokerId || selectedBrokerId;
-              const currentQty = getHoldingQty(trade.ticker, targetBrokerId);
-              if (Number(trade.quantity) > currentQty) {
-                   setFormError(`Insufficient Holdings for ${trade.ticker}! You own ${currentQty}, trying to sell ${trade.quantity}. Bulk action cancelled.`);
+      // Calculate Net Batch Impact per Ticker+Broker
+      const batchImpact: Record<string, { buy: number, sell: number }> = {};
+
+      for (const t of selectedTrades) {
+          const key = `${t.ticker.toUpperCase()}|${t.brokerId || selectedBrokerId}`;
+          if (!batchImpact[key]) batchImpact[key] = { buy: 0, sell: 0 };
+          
+          if (t.type === 'BUY') batchImpact[key].buy += Number(t.quantity);
+          if (t.type === 'SELL') batchImpact[key].sell += Number(t.quantity);
+      }
+
+      // Check "Same-Day" Availability
+      for (const [key, impact] of Object.entries(batchImpact)) {
+          const [ticker, brokerId] = key.split('|');
+          
+          if (impact.sell > 0) {
+              const currentQty = getHoldingQty(ticker, brokerId);
+              const totalAvailable = currentQty + impact.buy; // Existing + New Buys in this batch
+
+              if (impact.sell > totalAvailable) {
+                   setFormError(`Insufficient Holdings for ${ticker}! Own: ${currentQty}, Buying Now: ${impact.buy}, Selling Now: ${impact.sell}. Net Shortfall: ${impact.sell - totalAvailable}.`);
                    return; 
               }
           }
@@ -543,20 +558,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
 
-                            {/* --- NEW SUMMARY BAR --- */}
+                            {/* --- UPDATED SUMMARY BAR: 2 Decimals --- */}
                             <div className="grid grid-cols-3 gap-3 mb-3">
                                 <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex flex-col justify-center items-center shadow-sm">
                                     <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Total Buy Cost</span>
-                                    <div className="text-sm font-bold text-emerald-800">Rs. {scanTotals.totalBuy.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                    <div className="text-sm font-bold text-emerald-800">Rs. {scanTotals.totalBuy.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 </div>
                                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex flex-col justify-center items-center shadow-sm">
                                     <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Total Sell Proceeds</span>
-                                    <div className="text-sm font-bold text-blue-800">Rs. {scanTotals.totalSell.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                    <div className="text-sm font-bold text-blue-800">Rs. {scanTotals.totalSell.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                                 </div>
                                 <div className={`border rounded-xl p-3 flex flex-col justify-center items-center shadow-sm ${scanTotals.net >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
                                     <span className={`text-[10px] uppercase font-bold tracking-wider ${scanTotals.net >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Net Flow (In/Out)</span>
                                     <div className={`text-sm font-bold ${scanTotals.net >= 0 ? 'text-indigo-800' : 'text-rose-800'}`}>
-                                        {scanTotals.net >= 0 ? '+' : ''}Rs. {scanTotals.net.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        {scanTotals.net >= 0 ? '+' : ''}Rs. {scanTotals.net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                     </div>
                                 </div>
                             </div>
