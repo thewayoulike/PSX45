@@ -141,7 +141,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <th className="px-4 py-4 font-semibold text-right">Current</th>
                 <th className="px-4 py-4 font-semibold text-right">Total Cost</th>
                 <th className="px-4 py-4 font-semibold text-right">Market Value</th>
-                <th className="px-4 py-4 font-semibold text-right">Daily P&L</th> 
+                <th className="px-4 py-4 font-semibold text-right">Daily Change</th> 
                 <th className="px-4 py-4 font-semibold text-right">Total P&L</th>
               </tr>
             </thead>
@@ -162,7 +162,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const isFailed = failedTickers.has(holding.ticker);
                   const updateTime = formatUpdateDate(holding.lastUpdated);
 
-                  // Daily P&L Calculation
+                  // Daily Change Calculation
                   const ldcp = ldcpMap[holding.ticker] || holding.currentPrice;
                   const dailyChange = (holding.currentPrice - ldcp) * holding.quantity;
                   const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0;
@@ -216,7 +216,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
-                      {/* DAILY P&L: 2 Decimals - FIX APPLIED HERE */}
+                      {/* Daily Change: 2 Decimals - FIX APPLIED HERE */}
                       <td className="px-4 py-4 text-right">
                         <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                             <span className="font-bold text-xs">
