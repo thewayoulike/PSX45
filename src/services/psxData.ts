@@ -1,9 +1,9 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Anchor-First Extraction + First-Match-Wins Priority.
- * - Extracts symbol from <a> tag to avoid "XD/XM" status noise.
- * - Keeps the first price found for a ticker (Main Board) to avoid Odd-Lot overwrites.
+ * UPDATED: Anchor-First Extraction + StartsWith Matching.
+ * - Extracts symbol from <a> tag if possible.
+ * - Matches cell text if it STARTS with a known ticker (handling "PPP XD" -> matches "PPP").
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
@@ -16,7 +16,6 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     
     // Create a Lookup Set for the tickers we want (for robust matching)
-    // FIX: Trim whitespace from input tickers just in case
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
 
     // UPDATED PROXY LIST (Prioritizing CodeTabs which is often more permissive)
@@ -99,7 +98,6 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
             }
 
             // If headers not found, try standard fallback indices (Symbol=0, Price=5)
-            // This happens if the proxy returns a table fragment without <thead>
             if (!headerFound) {
                 colMap.SYMBOL = 0;
                 colMap.PRICE = 5; 
@@ -126,33 +124,44 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 const symCell = cols[colMap.SYMBOL];
                 let symbolText = "";
 
-                // STRATEGY: Prefer text inside <a> tag. 
-                // This isolates the ticker "PPP" from the sibling text "XD" which is usually outside the link.
+                // STRATEGY 1: Prefer text inside <a> tag if available
                 const anchor = symCell.querySelector('a');
                 if (anchor) {
-                    symbolText = anchor.textContent?.trim().toUpperCase() || "";
-                } else {
-                    // Fallback: Clean the text manually if no link
+                    const anchorText = anchor.textContent?.trim().toUpperCase() || "";
+                    // Check if anchor text starts with any of our target tickers
+                    // e.g. "PPP XD" starts with "PPP"
+                    for (const ticker of targetTickers) {
+                        if (anchorText.startsWith(ticker)) {
+                            symbolText = ticker;
+                            break;
+                        }
+                    }
+                    // Fallback: if anchor text is exactly a target ticker
+                    if (!symbolText && targetTickers.has(anchorText)) {
+                        symbolText = anchorText;
+                    }
+                } 
+                
+                // STRATEGY 2: Fallback to full cell text matching
+                if (!symbolText) {
                     let rawHtml = symCell.innerHTML;
-                    // Replace <br>, </div> etc with space to avoid "PPPXD"
+                    // Replace <br> with space
                     rawHtml = rawHtml.replace(/<br\s*\/?>/gi, ' ').replace(/<\/div>/gi, ' ').replace(/<\/p>/gi, ' ');
                     
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = rawHtml;
-                    const rawText = tempDiv.textContent?.trim().toUpperCase() || "";
+                    // Remove duplicate spaces and trim
+                    const rawText = (tempDiv.textContent || "").toUpperCase().replace(/\s+/g, ' ').trim();
                     
-                    // Tokenize and find match
-                    const tokens = rawText.split(/[^A-Z0-9]+/);
-                    for (const token of tokens) {
-                        if (targetTickers.has(token)) {
-                            symbolText = token;
+                    // CHECK: Does the cell text START with one of our target tickers?
+                    // e.g. rawText = "PPP XD" -> startsWith("PPP") -> YES
+                    for (const ticker of targetTickers) {
+                        // We check for "TICKER " (with space) or exact match "TICKER"
+                        // to avoid partial matches like finding "PPL" inside "PPLX" (if that existed)
+                        if (rawText === ticker || rawText.startsWith(ticker + ' ') || rawText.startsWith(ticker + '\xa0')) {
+                            symbolText = ticker;
                             break;
                         }
-                    }
-                    // Final fallback
-                    if (!symbolText && tokens.length > 0) {
-                         const validTokens = tokens.filter(t => t.length >= 2 && !TICKER_BLACKLIST.includes(t));
-                         if (validTokens.length > 0) symbolText = validTokens[0];
                     }
                 }
 
@@ -172,8 +181,6 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
 
                 if (symbolText.length >= 2 && !isNaN(price)) {
                     // FIX: FIRST MATCH WINS
-                    // If we already have a price for this ticker (from Main Board), 
-                    // ignore subsequent finds (which are likely Odd Lots or Futures).
                     if (results[symbolText]) {
                         return;
                     }
