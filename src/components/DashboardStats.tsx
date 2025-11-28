@@ -1,44 +1,42 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3, Landmark, History, TrendingUp, Info } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
+  lastUpdated?: string | null; // NEW: Added optional prop
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
   const isRealizedProfitable = stats.netRealizedPL >= 0; 
   const isRoiPositive = stats.roi >= 0;
   const isMwrrPositive = stats.mwrr >= 0;
   
-  // New metric for Daily PL
   const isDailyProfitable = stats.dailyPL >= 0;
 
   const totalNetWorth = stats.totalValue + stats.freeCash;
   const isCapitalEroded = totalNetWorth < stats.netPrincipal;
   const erosionAmount = stats.netPrincipal - totalNetWorth;
-  
-  // Calculate percentage of principal lost, capped at 100% for visual sanity
   const erosionPercent = stats.netPrincipal > 0 ? Math.min((erosionAmount / stats.netPrincipal) * 100, 100) : 0;
   const isSevereLoss = erosionPercent > 20; 
 
   const formatCurrency = (val: number) => 
     val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  
+  // Format Date Helper
+  const formatTime = (isoString: string) => {
+      return new Date(isoString).toLocaleString('en-US', { 
+          month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' 
+      });
+  };
 
-  // CONSTANT FOR ALIGNMENT
-  // Enforces a minimum height for the value/badge section so all bars align
   const TOP_SECTION_CLASS = "min-h-[3.5rem] flex flex-col justify-center"; 
 
-  // Helper to generate MWRR explanation tooltip
   const getMwrrTooltip = () => {
-      if (stats.mwrr <= -99) {
-          return "Why -100%? You suffered a loss almost immediately after depositing. Since MWRR is an annualized metric (XIRR), it projects this rate of loss over a full year, resulting in a total write-off projection.";
-      }
-      if (stats.mwrr >= 500) {
-          return "Why so high? You made a profit very quickly after depositing. MWRR annualizes this short-term gain, projecting it as if it continued for a full year.";
-      }
+      if (stats.mwrr <= -99) return "Why -100%? You suffered a loss almost immediately after depositing. Since MWRR is an annualized metric (XIRR), it projects this rate of loss over a full year, resulting in a total write-off projection.";
+      if (stats.mwrr >= 500) return "Why so high? You made a profit very quickly after depositing. MWRR annualizes this short-term gain, projecting it as if it continued for a full year.";
       return "Money-Weighted Rate of Return (XIRR): Calculates your personal performance by weighing your returns against the timing and size of your deposits and withdrawals.";
   };
 
@@ -47,8 +45,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         
         {/* ROW 1: Key Performance & Capital */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
-            
-            <Card>
+           {/* ... (Previous Cards remain unchanged: Portfolio MWRR, Simple ROI, Total Assets, Free Cash, Current Cash Invested, Lifetime Cash Inv) ... */}
+           <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5 relative">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
                         <TrendingUp className="w-4 h-4 md:w-[18px] md:h-[18px]" />
@@ -56,14 +54,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                     <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
                         Portfolio MWRR
                     </h3>
-                    {/* Info Tooltip Icon */}
                     <div className="absolute top-0 right-0 -mt-2 -mr-2">
                         <div className="text-slate-300 hover:text-indigo-500 cursor-help transition-colors p-1" title={getMwrrTooltip()}>
                             <Info size={14} />
                         </div>
                     </div>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isMwrrPositive ? 'text-indigo-600' : 'text-rose-600'}`}>
                         {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
@@ -88,7 +84,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Simple ROI
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                         {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
@@ -104,7 +99,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-             <Card>
+            <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
                         <Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />
@@ -113,7 +108,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Total Assets
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className="w-full">
                         <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
@@ -134,13 +128,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                                 )}
                             </div>
                         )}
-                        {!isSevereLoss && !isCapitalEroded && (
-                             <div className="h-[18px]"></div> 
-                        )}
+                        {!isSevereLoss && !isCapitalEroded && ( <div className="h-[18px]"></div> )}
                     </div>
                 </div>
-                
-                {/* Capital Preservation Bar */}
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Capital Status</span>
@@ -150,21 +140,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                             <div className="h-full bg-emerald-500 w-full rounded-full"></div>
                         ) : (
                             <>
-                                <div 
-                                    className="h-full bg-emerald-500 transition-all duration-500" 
-                                    style={{ width: `${100 - erosionPercent}%` }} 
-                                />
-                                <div 
-                                    className="h-full bg-rose-500 transition-all duration-500" 
-                                    style={{ width: `${erosionPercent}%` }} 
-                                />
+                                <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${100 - erosionPercent}%` }} />
+                                <div className="h-full bg-rose-500 transition-all duration-500" style={{ width: `${erosionPercent}%` }} />
                             </>
                         )}
                     </div>
                 </div>
             </Card>
 
-             <Card>
+            <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
                         <Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />
@@ -173,7 +157,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Free Cash
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${stats.freeCash < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                         Rs. {formatCurrency(stats.freeCash)}
@@ -206,7 +189,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Current Cash Invested
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.netPrincipal)}
@@ -236,7 +218,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Lifetime Cash Inv
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.peakNetPrincipal)}
@@ -265,7 +246,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Current Stock Value
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.totalValue)}
@@ -290,7 +270,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Stock Assets (Cost)
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                     Rs. {formatCurrency(stats.totalCost)}
@@ -316,7 +295,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Unrealized P&L
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
@@ -328,8 +306,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         </div>
                     </div>
                 </div>
-                
-                {/* P&L Visualizer Bar */}
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>{isUnrealizedProfitable ? 'Profit Ratio' : 'Loss Ratio'}</span>
@@ -354,15 +330,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* NEW: Today's P&L Card */}
+            {/* UPDATED: Today's P&L Card with Date */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
                         <Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                     </div>
-                    <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
-                        Today's P&L
-                    </h3>
+                    <div>
+                        <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
+                            Today's P&L
+                        </h3>
+                        {/* Display the Last Updated Date if available */}
+                        {lastUpdated && (
+                            <p className="text-[10px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
+                                {formatTime(lastUpdated)}
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 <div className={TOP_SECTION_CLASS}>
@@ -370,7 +354,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                     {isDailyProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.dailyPL))}
                     </div>
                     
-                    {/* Add Percentage Badge */}
                     <div className="flex items-center gap-2 mt-1">
                         <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isDailyProfitable ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-rose-100 border-rose-200 text-rose-700'}`}>
                             {isDailyProfitable ? '+' : ''}{stats.dailyPLPercent?.toFixed(2)}%
@@ -397,13 +380,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Realized Gains (Net)
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                     {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
                     </div>
                 </div>
-                
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Gross: {formatCurrency(stats.realizedPL)}</span>
@@ -424,7 +405,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         Dividends
                     </h3>
                 </div>
-
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                         Rs. {formatCurrency(stats.totalDividends)}
@@ -442,6 +422,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
         </div>
 
+        {/* ROW 3: Fees Breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-2">
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Receipt size={18} /></div>
