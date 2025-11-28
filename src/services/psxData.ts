@@ -1,7 +1,7 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Multi-Table-Isolation. Treats every table as an independent dataset with its own headers.
+ * UPDATED: Multi-Table-Isolation + Prefix Cleaning (XD/XM/XR).
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
@@ -93,7 +93,6 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
             }
 
             // If headers not found, try standard fallback indices (Symbol=0, Price=5)
-            // This covers tables that might lack <thead> but follow standard structure
             if (!headerFound) {
                 colMap.SYMBOL = 0;
                 colMap.PRICE = 5; 
@@ -115,10 +114,16 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 }
 
                 // B. Extract Data
-                // Ensure row has cells at the expected indices
                 if (!cols[colMap.SYMBOL] || !cols[colMap.PRICE]) return;
 
-                const symbolText = cols[colMap.SYMBOL].textContent?.trim().toUpperCase();
+                let symbolText = cols[colMap.SYMBOL].textContent?.trim().toUpperCase();
+                
+                // --- FIX: Remove Status Prefixes (XD, XM, XR, XB, SPOT) ---
+                // These prefixes appear before the symbol during corporate actions (e.g. "XD SNGP")
+                if (symbolText) {
+                    symbolText = symbolText.replace(/^(XD|XM|XR|XB|SPOT)\s+/g, '').trim();
+                }
+
                 if (!symbolText || TICKER_BLACKLIST.includes(symbolText)) return;
 
                 const priceText = cols[colMap.PRICE].textContent?.trim().replace(/,/g, '');
@@ -135,7 +140,6 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
 
                 if (symbolText.length >= 2 && !isNaN(price)) {
                     // FIX: Zero-Price Protection
-                    // If we already have a valid price, don't overwrite it with 0.00
                     if (results[symbolText] && results[symbolText].price > 0 && price === 0) {
                         return;
                     }
