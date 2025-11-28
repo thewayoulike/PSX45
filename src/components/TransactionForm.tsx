@@ -128,7 +128,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   // Auto-Calculation Logic
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
-        // ... (Existing Auto Calc Logic - Abbreviated for clarity, logic unchanged)
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
         else if (type === 'HISTORY' && typeof histAmount === 'number') { setQuantity(1); setTicker('PREV-PNL'); if (histTaxType === 'BEFORE_TAX') { if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0); } else setTax(0); setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0); }
         else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
@@ -143,6 +142,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
 
+  // --- NEW HELPER: Get Holding Quantity ---
+  const getHoldingQty = (ticker: string, brokerId: string) => {
+      let qty = 0;
+      const cleanTicker = ticker.toUpperCase();
+      const brokerObj = brokers.find(b => b.id === brokerId);
+      const brokerName = brokerObj?.name;
+
+      existingTransactions.forEach(t => {
+          // Strict Broker Match
+          const isSameBroker = t.brokerId === brokerId || (t.broker && brokerName && t.broker === brokerName);
+          
+          if (t.ticker === cleanTicker && isSameBroker) {
+              if (t.type === 'BUY') qty += t.quantity;
+              if (t.type === 'SELL') qty -= t.quantity;
+          }
+      });
+      return Math.max(0, qty);
+  };
+
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null); 
@@ -156,18 +174,22 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
     // INSUFFICIENT HOLDINGS CHECK
     if (type === 'SELL') {
-        let heldQty = 0;
-        existingTransactions.forEach(t => {
-            if (editingTransaction && t.id === editingTransaction.id) return;
-            const isSameBroker = t.brokerId === selectedBrokerId || (t.broker && b && t.broker === b.name);
-            if (t.ticker === cleanTicker && isSameBroker) {
-                if (t.type === 'BUY') heldQty += t.quantity;
-                if (t.type === 'SELL') heldQty -= t.quantity;
-            }
-        });
+        const heldQty = getHoldingQty(cleanTicker, selectedBrokerId);
+        // Special case for editing: Add back the quantity of the transaction being edited
+        // (Not strictly necessary for getHoldingQty as it sums existing, but good for robustness if needed)
+        // For simplicity, using getHoldingQty on existingTransactions is correct as long as we don't double subtract.
+        // Actually, if we are EDITING, the transaction is IN existingTransactions. 
+        // We should temporarily exclude it to get the "base" state.
+        
+        let adjustedQty = heldQty;
+        if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) {
+             adjustedQty += editingTransaction.quantity; // Add back previous sell to see total available
+        } else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) {
+             adjustedQty -= editingTransaction.quantity; // Remove buy to see base available (edge case)
+        }
 
-        if (qtyNum > heldQty) {
-            setFormError(`Insufficient holdings! You only have ${heldQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}.`);
+        if (qtyNum > adjustedQty) {
+            setFormError(`Insufficient holdings! You only have ${adjustedQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}.`);
             return; 
         }
     }
@@ -207,7 +229,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       else setSelectedScanIndices(new Set(scannedTrades.map((_, i) => i)));
   };
 
-  // Helper
   const getTradeCost = (t: EditableTrade) => {
       return (Number(t.quantity) * Number(t.price)) + (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0);
   };
@@ -233,10 +254,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       });
   };
 
-  // --- NEW: Handle Accepting a Single Trade from Scan (With Validation) ---
+  // --- Handle Accepting a Single Trade from Scan (With Full Validation) ---
   const handleAcceptTrade = (trade: EditableTrade) => {
       setFormError(null);
-      // Cash Check
+      
+      // 1. Cash Check (BUY)
       if (trade.type === 'BUY' && freeCash !== undefined) {
           const cost = getTradeCost(trade);
           if (cost > freeCash) {
@@ -244,15 +266,27 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               return;
           }
       }
+
+      // 2. Holdings Check (SELL)
+      if (trade.type === 'SELL') {
+          const targetBrokerId = trade.brokerId || selectedBrokerId;
+          const currentQty = getHoldingQty(trade.ticker, targetBrokerId);
+          if (Number(trade.quantity) > currentQty) {
+               setFormError(`Insufficient Holdings! You are trying to sell ${trade.quantity} ${trade.ticker}, but you only own ${currentQty}.`);
+               return;
+          }
+      }
+
       addSingleTrade(trade);
       setScannedTrades(prev => prev.filter(t => t !== trade));
   };
 
-  // --- NEW: Handle Accepting Bulk Selection (With Aggregate Validation) ---
+  // --- Handle Accepting Bulk Selection (With Full Validation) ---
   const handleAcceptSelected = () => {
       setFormError(null);
       const selectedTrades = scannedTrades.filter((_, i) => selectedScanIndices.has(i));
       
+      // 1. Bulk Cash Check
       const totalBuyCost = selectedTrades.reduce((acc, t) => {
           return t.type === 'BUY' ? acc + getTradeCost(t) : acc;
       }, 0);
@@ -262,9 +296,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
            return;
       }
 
+      // 2. Bulk Holdings Check
+      for (const trade of selectedTrades) {
+          if (trade.type === 'SELL') {
+              const targetBrokerId = trade.brokerId || selectedBrokerId;
+              const currentQty = getHoldingQty(trade.ticker, targetBrokerId);
+              
+              if (Number(trade.quantity) > currentQty) {
+                   setFormError(`Insufficient Holdings for ${trade.ticker}! You own ${currentQty}, trying to sell ${trade.quantity}. Bulk action cancelled.`);
+                   return; // Stop the whole batch
+              }
+          }
+      }
+
       selectedTrades.forEach(addSingleTrade);
 
-      // Remove selected from list
       setScannedTrades(prev => prev.filter((_, i) => !selectedScanIndices.has(i)));
       setSelectedScanIndices(new Set());
   };
@@ -273,7 +319,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
   const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
-  const themeBorder = mode === 'AI_SCAN' ? 'border-indigo-200' : 'border-emerald-200';
   const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
   const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
 
