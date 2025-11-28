@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3, Landmark, History, TrendingUp } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3, Landmark, History, TrendingUp, Info } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -28,6 +28,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   // Enforces a minimum height for the value/badge section so all bars align
   const TOP_SECTION_CLASS = "min-h-[3.5rem] flex flex-col justify-center"; 
 
+  // Helper to generate MWRR explanation tooltip
+  const getMwrrTooltip = () => {
+      if (stats.mwrr <= -99) {
+          return "Why -100%? You suffered a loss almost immediately after depositing. Since MWRR is an annualized metric (XIRR), it projects this rate of loss over a full year, resulting in a total write-off projection.";
+      }
+      if (stats.mwrr >= 500) {
+          return "Why so high? You made a profit very quickly after depositing. MWRR annualizes this short-term gain, projecting it as if it continued for a full year.";
+      }
+      return "Money-Weighted Rate of Return (XIRR): Calculates your personal performance by weighing your returns against the timing and size of your deposits and withdrawals.";
+  };
+
   return (
     <div className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-10">
         
@@ -35,6 +46,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
             
             <Card title="Portfolio MWRR" icon={<TrendingUp className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                {/* Info Tooltip Icon */}
+                <div className="absolute top-0 right-0 -mt-1 -mr-1">
+                    <div className="text-slate-300 hover:text-indigo-500 cursor-help transition-colors p-1" title={getMwrrTooltip()}>
+                        <Info size={14} />
+                    </div>
+                </div>
+
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isMwrrPositive ? 'text-indigo-600' : 'text-rose-600'}`}>
                         {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
