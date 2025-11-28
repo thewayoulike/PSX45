@@ -283,14 +283,12 @@ const App: React.FC = () => {
       }
 
       if (editingPortfolioId) {
-          // Update Existing
           setPortfolios(prev => prev.map(p => 
               p.id === editingPortfolioId 
                   ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } 
                   : p
           ));
       } else {
-          // Create New
           const newId = Date.now().toString(); 
           setPortfolios(prev => [...prev, { 
               id: newId, 
@@ -300,7 +298,6 @@ const App: React.FC = () => {
           setCurrentPortfolioId(newId);
       }
       
-      // Cleanup
       setPortfolioNameInput(''); 
       setPortfolioBrokerIdInput('');
       setEditingPortfolioId(null);
@@ -327,7 +324,6 @@ const App: React.FC = () => {
   // Sync
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
 
-  // Annual Fee Check
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
@@ -364,13 +360,13 @@ const App: React.FC = () => {
     const totalProfits = netRealizedPL + totalDividends;
     
     // --- 3. PEAK NET PRINCIPAL & CURRENT PRINCIPAL CALCULATION ---
-    // Strict Chronological Event Replay (No Daily Aggregation)
+    // Strict Chronological Event Replay (Individual Events)
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number }[] = [];
 
     portfolioTransactions.forEach(t => {
         if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price });
         else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price });
-        // TAX is purposefully ignored here (treated as expense from cash, not withdrawal of capital)
+        // TAX is ignored for Principal logic
         else if (t.type === 'DIVIDEND') {
             const netDiv = (t.quantity * t.price) - (t.tax || 0);
             if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv });
@@ -382,7 +378,6 @@ const App: React.FC = () => {
         else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit) });
     });
 
-    // Sort by Date + Priority
     // Priority: DEPOSIT (0) -> PROFIT (1) -> WITHDRAWAL (2) -> LOSS (3)
     const typePriority = { 'IN': 0, 'PROFIT': 1, 'OUT': 2, 'LOSS': 3 };
     
@@ -394,22 +389,21 @@ const App: React.FC = () => {
 
     // State Variables
     let lifetimeCash = 0; // The Peak "Lifetime" Investment
-    let refillableWithdrawalGap = 0; // Capital removed by user (can be refilled)
-    let lossGap = 0; // Capital destroyed by loss (can be refilled by PROFIT only)
-    let availableProfits = 0; // Buffer of gains
+    let withdrawalGap = 0; // Gap created specifically by withdrawals (Refillable by DEPOSITS)
+    let lossGap = 0; // Gap created by losses (Refillable by PROFITS only)
+    let profitBuffer = 0; // Buffer of gains available to absorb losses/withdrawals
     let netPrincipal = 0; // The Current Cash Invested
 
     events.forEach(e => {
         if (e.type === 'IN') { // Deposit
             const deposit = e.amount;
             
-            // 1. Fill Withdrawal Gaps first (User putting money back)
-            let remaining = deposit;
-            const fillWithdrawal = Math.min(remaining, refillableWithdrawalGap);
-            refillableWithdrawalGap -= fillWithdrawal;
-            remaining -= fillWithdrawal;
+            // 1. Fill Withdrawal Gaps first (Capital Recovery)
+            const fillWithdrawal = Math.min(deposit, withdrawalGap);
+            withdrawalGap -= fillWithdrawal;
             
-            // 2. Any remaining is NEW Capital
+            // 2. Remaining deposit is "New Capital" (Raises Lifetime)
+            const remaining = deposit - fillWithdrawal;
             if (remaining > 0) {
                 lifetimeCash += remaining;
             }
@@ -423,38 +417,38 @@ const App: React.FC = () => {
             // 1. Profits fill Loss Gaps first (Capital Recovery)
             const fillLoss = Math.min(profit, lossGap);
             lossGap -= fillLoss;
-            netPrincipal += fillLoss; // Restores Current Principal
+            netPrincipal += fillLoss; // Restores Current Principal from Loss
             
             // 2. Remaining is Profit Buffer
             const remainingProfit = profit - fillLoss;
-            availableProfits += remainingProfit;
+            profitBuffer += remainingProfit;
         } 
         else if (e.type === 'LOSS') {
             const loss = e.amount;
             
-            // 1. Loss eats Available Profits first
-            const profitsEaten = Math.min(loss, availableProfits);
-            availableProfits -= profitsEaten;
+            // 1. Loss eats Profit Buffer first
+            const profitsEaten = Math.min(loss, profitBuffer);
+            profitBuffer -= profitsEaten;
             
             // 2. Remaining Loss eats Principal
             const principalEaten = loss - profitsEaten;
             if (principalEaten > 0) {
                 netPrincipal -= principalEaten;
-                lossGap += principalEaten; // Create gap refillable by FUTURE PROFITS
+                lossGap += principalEaten; // Create gap refillable ONLY by future profits
             }
         } 
         else if (e.type === 'OUT') { // Withdrawal
             const withdrawal = e.amount;
             
-            // 1. Withdrawal eats Available Profits first
-            const profitsWithdrawn = Math.min(withdrawal, availableProfits);
-            availableProfits -= profitsWithdrawn;
+            // 1. Withdrawal eats Profit Buffer first
+            const profitsWithdrawn = Math.min(withdrawal, profitBuffer);
+            profitBuffer -= profitsWithdrawn;
             
             // 2. Remaining Withdrawal eats Principal
             const principalWithdrawn = withdrawal - profitsWithdrawn;
             if (principalWithdrawn > 0) {
                 netPrincipal -= principalWithdrawn;
-                refillableWithdrawalGap += principalWithdrawn; // Create gap refillable by DEPOSITS
+                withdrawalGap += principalWithdrawn; // Create gap refillable by DEPOSITS
             }
         }
     });
@@ -463,6 +457,7 @@ const App: React.FC = () => {
     const netPrincipalAvailable = Math.max(0, netPrincipal);
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
+    
     let cashIn = totalDeposits; 
     let cashOut = totalWithdrawals + totalCGT; 
     
