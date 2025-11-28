@@ -5,7 +5,7 @@ import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building
 
 interface DashboardProps {
   stats: PortfolioStats;
-  lastUpdated?: string | null; // NEW: Added optional prop
+  lastUpdated?: string | null; 
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
@@ -22,10 +22,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   const erosionPercent = stats.netPrincipal > 0 ? Math.min((erosionAmount / stats.netPrincipal) * 100, 100) : 0;
   const isSevereLoss = erosionPercent > 20; 
 
+  // --- NEW: Calculate Total Net Return % based on User Formula ---
+  // Formula: (Total Assets - Current Cash Invested) / Current Cash Invested
+  const totalReturnPercent = stats.netPrincipal > 0 
+      ? ((totalNetWorth - stats.netPrincipal) / stats.netPrincipal) * 100 
+      : 0;
+  const isTotalReturnPositive = totalReturnPercent >= 0;
+
   const formatCurrency = (val: number) => 
     val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
-  // Format Date Helper
   const formatTime = (isoString: string) => {
       return new Date(isoString).toLocaleString('en-US', { 
           month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' 
@@ -45,7 +51,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
         
         {/* ROW 1: Key Performance & Capital */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
-           {/* ... (Previous Cards remain unchanged: Portfolio MWRR, Simple ROI, Total Assets, Free Cash, Current Cash Invested, Lifetime Cash Inv) ... */}
+           {/* Portfolio MWRR */}
            <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5 relative">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -75,6 +81,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Simple ROI */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -99,6 +106,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Total Assets */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -148,6 +156,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Free Cash */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -180,6 +189,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Current Cash Invested */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -209,6 +219,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Lifetime Cash Inv */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -237,6 +248,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
         {/* ROW 2: Holdings, Profits & Breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
             
+             {/* Current Stock Value */}
              <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -261,6 +273,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Stock Assets (Cost) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -286,6 +299,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Unrealized P&L */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -303,6 +317,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     <div className="flex items-center gap-2 mt-1">
                         <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isUnrealizedProfitable ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-rose-100 border-rose-200 text-rose-700'}`}>
                             {isUnrealizedProfitable ? '+' : ''}{stats.unrealizedPLPercent.toFixed(2)}%
+                        </div>
+                        
+                        {/* NEW: Total Net Return % (Assets vs Principal) */}
+                        <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isTotalReturnPositive ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`} title="Net Portfolio Return (Total Assets vs Invested)">
+                            Net: {isTotalReturnPositive ? '+' : ''}{totalReturnPercent.toFixed(2)}%
                         </div>
                     </div>
                 </div>
@@ -330,7 +349,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* UPDATED: Today's P&L Card with Date */}
+            {/* Today's P&L */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -371,6 +390,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Realized Gains */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -396,6 +416,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
+            {/* Dividends */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
