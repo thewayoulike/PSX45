@@ -49,6 +49,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   }, [sortedHoldings, ldcpMap]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
+  
+  // Calculate Total Daily % Change
+  const yesterdayTotalMarket = totals.totalMarket - totals.dailyPL;
+  const totalDailyPercent = yesterdayTotalMarket > 0 ? (totals.dailyPL / yesterdayTotalMarket) * 100 : 0;
 
   const formatUpdateDate = (isoString?: string) => {
     if (!isoString) return null;
@@ -141,7 +145,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <th className="px-4 py-4 font-semibold text-right">Current</th>
                 <th className="px-4 py-4 font-semibold text-right">Total Cost</th>
                 <th className="px-4 py-4 font-semibold text-right">Market Value</th>
-                <th className="px-4 py-4 font-semibold text-right">Daily Change</th> 
+                <th className="px-4 py-4 font-semibold text-right">Daily P&L</th> 
                 <th className="px-4 py-4 font-semibold text-right">Total P&L</th>
               </tr>
             </thead>
@@ -162,7 +166,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const isFailed = failedTickers.has(holding.ticker);
                   const updateTime = formatUpdateDate(holding.lastUpdated);
 
-                  // Daily Change Calculation
+                  // Daily P&L Calculation
                   const ldcp = ldcpMap[holding.ticker] || holding.currentPrice;
                   const dailyChange = (holding.currentPrice - ldcp) * holding.quantity;
                   const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0;
@@ -216,7 +220,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
-                      {/* Daily Change: 2 Decimals - FIX APPLIED HERE */}
+                      {/* DAILY P&L: 2 Decimals */}
                       <td className="px-4 py-4 text-right">
                         <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                             <span className="font-bold text-xs">
@@ -260,6 +264,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                                 <span className="font-bold text-xs">
                                     {totals.dailyPL >= 0 ? '+' : ''}
                                     {totals.dailyPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                                <span className="text-[10px] opacity-80 font-mono">
+                                    ({totalDailyPercent.toFixed(2)}%)
                                 </span>
                             </div>
                         </td>
