@@ -1,13 +1,13 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Uses shared SECTOR_CODE_MAP from sectors.ts
+ * UPDATED: Uses dynamic header detection ("XLOOKUP" style) as requested.
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
 
 // Ignore these "Ticker" names because they are actually table headers or metadata
-const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY'];
+const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT'];
 
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string }>> => {
     const results: Record<string, { price: number, sector: string }> = {};
@@ -63,27 +63,52 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // 1. Determine Column Indices Dynamically
-        let currentIdx = -1;
-        let sectorIdx = -1; 
-        
-        const headers = doc.querySelectorAll("th");
-        headers.forEach((th, i) => {
-            const headerText = th.textContent?.trim().toUpperCase();
-            // IMPROVED MATCHING: Use includes to handle "CURRENT\nPRICE" or "CURRENT PRICE"
-            if (headerText.includes('CURRENT') || headerText.includes('PRICE')) currentIdx = i;
-            if (headerText.includes('SECTOR')) sectorIdx = i;
-        });
+        const rows = doc.querySelectorAll("tr");
+        if (rows.length === 0) return;
 
-        // Fallback Sector Tracker (for grouped view)
+        // --- 1. Dynamic Header Mapping (The "XLOOKUP" Approach) ---
+        // We look for specific keywords in the first few rows to identify columns
+        const colMap: Record<string, number> = {
+            SYMBOL: 0, // Default: Column 0
+            PRICE: 5,  // Default: Column 5 (often 6th column in PSX)
+            SECTOR: -1 // Default: Not present (Sector usually comes from Group Headers)
+        };
+
+        // Scan first 5 rows to find the header row
+        for (let i = 0; i < Math.min(rows.length, 5); i++) {
+            const cells = rows[i].querySelectorAll("th, td");
+            let headerFound = false;
+            
+            cells.forEach((cell, idx) => {
+                const text = cell.textContent?.trim().toUpperCase() || "";
+                
+                if (text === 'SYMBOL' || text === 'SCRIP') {
+                    colMap.SYMBOL = idx;
+                    headerFound = true;
+                }
+                // Match "CURRENT" or "CURRENT PRICE" or "PRICE"
+                if (text.includes('CURRENT') || text === 'PRICE' || text === 'RATE') {
+                    colMap.PRICE = idx;
+                    headerFound = true;
+                }
+                if (text === 'SECTOR') {
+                    colMap.SECTOR = idx;
+                    headerFound = true;
+                }
+            });
+
+            if (headerFound) break; // Stop once we find the likely header row
+        }
+
+        // --- 2. Data Extraction ---
         let currentGroupHeader = "Unknown Sector";
 
-        const rows = doc.querySelectorAll("tr");
         rows.forEach(row => {
             const cols = row.querySelectorAll("td");
             
-            // A. Handle Group Header Rows (if table is grouped)
-            if (cols.length === 1 || (cols.length > 0 && cols.length < 5)) {
+            // A. Handle Sector Group Headers (Rows that span across or have few cells)
+            // Example: <tr class="sector-row"><td>Automobile Assembler</td></tr>
+            if (cols.length === 1 || (cols.length > 0 && cols.length < 4)) {
                 const text = cols[0]?.textContent?.trim();
                 if (text && text.length > 3 && !TICKER_BLACKLIST.includes(text.toUpperCase())) {
                     currentGroupHeader = text;
@@ -92,52 +117,46 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
             }
 
             // B. Handle Data Rows
-            if (cols.length > 5) {
-                // Symbol is almost always the first column
-                const symbol = cols[0]?.textContent?.trim().toUpperCase();
-                
-                // Determine Price Column
-                let priceCol;
-                if (currentIdx !== -1 && cols[currentIdx]) {
-                    priceCol = cols[currentIdx];
-                } else {
-                    // Fallback: PSX Market Watch standard is usually 6th col (index 5) or similar
-                    // Headers: Symbol, LDCP, Open, High, Low, CURRENT, Change, Volume
-                    // If we failed to find header, assume standard index 5 (6th column)
-                    priceCol = cols[5] || cols[cols.length - 3]; 
-                }
+            // Ensure we have enough columns to access the mapped indices
+            const maxNeeded = Math.max(colMap.SYMBOL, colMap.PRICE);
+            if (cols.length <= maxNeeded) return;
 
-                if (symbol && priceCol) {
-                    if (TICKER_BLACKLIST.includes(symbol)) return;
+            // 1. Extract Symbol
+            const symbolText = cols[colMap.SYMBOL]?.textContent?.trim().toUpperCase();
+            
+            // Skip invalid rows (headers repeated in body, empty rows)
+            if (!symbolText || TICKER_BLACKLIST.includes(symbolText)) return;
 
-                    // Parse Price
-                    // Remove commas and any non-numeric chars except dot
-                    const priceText = priceCol.textContent?.trim().replace(/,/g, '');
-                    const price = parseFloat(priceText || '');
-                    
-                    // Determine Sector
-                    let sector = currentGroupHeader;
-                    
-                    // If we found a SECTOR column (e.g. "0823"), use it
-                    if (sectorIdx !== -1 && cols[sectorIdx]) {
-                        const code = cols[sectorIdx].textContent?.trim();
-                        if (code && SECTOR_CODE_MAP[code]) {
-                            sector = SECTOR_CODE_MAP[code];
-                        }
-                    }
+            // 2. Extract Price
+            // Remove commas (e.g., "1,200.50" -> "1200.50")
+            const rawPrice = cols[colMap.PRICE]?.textContent?.trim();
+            const priceText = rawPrice?.replace(/,/g, '');
+            const price = parseFloat(priceText || '');
 
-                    if (symbol.length >= 2 && !isNaN(price)) {
-                        // FIX: Don't overwrite a valid non-zero price with a zero price
-                        // This handles cases where a ticker appears twice (e.g. Futures vs Spot) and one is empty
-                        if (results[symbol] && results[symbol].price > 0 && price === 0) {
-                            return;
-                        }
-                        
-                        results[symbol] = { price, sector };
-                    }
+            // 3. Extract Sector
+            // Priority: Explicit Sector Column > Current Group Header
+            let sector = currentGroupHeader;
+            if (colMap.SECTOR !== -1 && cols[colMap.SECTOR]) {
+                const secText = cols[colMap.SECTOR].textContent?.trim();
+                if (secText) {
+                    // Check if it's a code (e.g. "0801") and map it, otherwise use text
+                    sector = SECTOR_CODE_MAP[secText] || secText;
                 }
             }
+
+            // 4. Store Result
+            if (symbolText.length >= 2 && !isNaN(price)) {
+                // FIX: Zero-Price Protection
+                // If a ticker appears multiple times (e.g. Regular vs Odd Lot), prefer the non-zero price.
+                // Do not overwrite a valid price with 0.00.
+                if (results[symbolText] && results[symbolText].price > 0 && price === 0) {
+                    return;
+                }
+                
+                results[symbolText] = { price, sector };
+            }
         });
+
     } catch (e) {
         console.error("Error parsing HTML", e);
     }
