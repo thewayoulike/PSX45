@@ -29,12 +29,12 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   const getHoldingsBreakdownOnDate = (ticker: string, targetDate: string) => {
       const breakdown: Record<string, number> = {};
       
-      // LOGIC FIX: Use strictly less than (<) Ex-Date.
-      // Rule: You must hold the stock at the close of the day BEFORE Ex-Date.
-      // If you Sell ON Ex-Date, you ARE eligible. (Current logic was excluding these).
+      // LOGIC: To receive a dividend, you must hold the stock BEFORE the Ex-Date.
+      // If you sell ON the Ex-Date, you are still eligible (as you held it at market open).
+      // Therefore, we calculate net quantity for all transactions STRICTLY BEFORE (<) the Ex-Date.
       const relevantTx = transactions.filter(t => 
           t.ticker === ticker && 
-          t.date < targetDate && // Changed from <= to <
+          t.date < targetDate && 
           (t.type === 'BUY' || t.type === 'SELL')
       );
       
@@ -45,6 +45,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           if (t.type === 'SELL') breakdown[brokerName] -= t.quantity;
       });
       
+      // Filter out zero or negative holdings
       Object.keys(breakdown).forEach(key => {
           if (breakdown[key] <= 0) delete breakdown[key];
       });
@@ -68,15 +69,14 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       }
 
       try {
-          // Fetch dividends for ALL tickers
           const announcements = await fetchDividends(tickers);
           const newEligible: FoundDividend[] = [];
 
           announcements.forEach(ann => {
-              // Check if we held stock BEFORE the ex-date
               const brokerMap = getHoldingsBreakdownOnDate(ann.ticker, ann.exDate);
 
               Object.entries(brokerMap).forEach(([brokerName, qty]) => {
+                  // Check if already recorded
                   const alreadyRecorded = transactions.some(t => 
                       t.type === 'DIVIDEND' &&
                       t.ticker === ann.ticker &&
@@ -136,6 +136,8 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   if (!isOpen) return null;
 
+  const uniqueTickersCount = new Set(transactions.map(t => t.ticker)).size;
+
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
         <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden max-h-[85vh] flex flex-col">
@@ -158,7 +160,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">Find Unclaimed Income</h3>
                         <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                            We will check market data for dividend announcements in the last year and compare them against your holding history (including sold stocks).
+                            Scanning {uniqueTickersCount} unique stock(s) in your history for dividends declared in the last year.
                         </p>
                         <button 
                             onClick={handleScan}
@@ -173,7 +175,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
                         <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
                         <h4 className="text-slate-700 font-bold mb-1">Scanning Market Data...</h4>
-                        <p className="text-slate-400 text-sm">Checking historical eligibility by broker...</p>
+                        <p className="text-slate-400 text-sm">Checking ex-dates against your buy/sell history...</p>
                     </div>
                 )}
 
@@ -203,7 +205,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             <CheckCircle size={32} />
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-1">All Caught Up</h3>
-                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found in your history.</p>
+                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found in your history (Last 12 Months).</p>
                         <button onClick={handleScan} className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto">
                             <RefreshCw size={14} /> Force Re-Scan
                         </button>
@@ -215,7 +217,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                             <div>
                                 <h3 className="text-slate-800 font-bold text-lg">Found {foundDividends.length} Eligible Dividends</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Estimated based on broker-wise holdings.</p>
+                                <p className="text-xs text-slate-400 mt-0.5">Matched against {uniqueTickersCount} stocks in your history.</p>
                             </div>
                             <button 
                                 onClick={handleScan}
@@ -232,9 +234,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
                                 return (
                                     <div key={`${div.ticker}-${div.exDate}-${div.broker}-${idx}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                                        
                                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-
                                         <div className="flex items-start gap-4">
                                             <div className="bg-indigo-50 h-12 w-16 rounded-lg flex items-center justify-center text-indigo-700 font-bold text-sm shadow-sm border border-indigo-100">
                                                 {div.ticker}
