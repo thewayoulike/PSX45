@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, FoundDividend } from '../types'; 
 import { fetchDividends } from '../services/gemini';
-import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles, Building2 } from 'lucide-react';
+import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles, Building2, Clock } from 'lucide-react';
 
 interface DividendScannerProps {
   transactions: Transaction[];
@@ -20,6 +20,9 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   const [foundDividends, setFoundDividends] = useState<FoundDividend[]>(savedResults);
   const [scanned, setScanned] = useState(savedResults.length > 0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // NEW: Deep Scan State (Default: False = 6 Months)
+  const [useDeepScan, setUseDeepScan] = useState(false);
 
   const updateDividends = (newDividends: FoundDividend[]) => {
       setFoundDividends(newDividends);
@@ -29,6 +32,9 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   const getHoldingsBreakdownOnDate = (ticker: string, targetDate: string) => {
       const breakdown: Record<string, number> = {};
       
+      // LOGIC FIX: You are eligible if you own the stock BEFORE market open on Ex-Date.
+      // So we count all buys/sells strictly BEFORE (<) the Ex-Date.
+      // If you sold ON the Ex-Date, you still held it overnight, so you ARE eligible.
       const relevantTx = transactions.filter(t => 
           t.ticker === ticker && 
           t.date < targetDate && 
@@ -55,6 +61,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       setLoading(true);
       setErrorMsg(null);
       
+      // Get ALL tickers (Active AND Sold)
       const tickers = Array.from(new Set(transactions.map(t => t.ticker))) as string[];
       
       if (tickers.length === 0) {
@@ -64,7 +71,9 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       }
 
       try {
-          const announcements = await fetchDividends(tickers);
+          // Dynamic Months: 6 (Default) or 12 (Deep Scan)
+          const months = useDeepScan ? 12 : 6;
+          const announcements = await fetchDividends(tickers, months);
           const newEligible: FoundDividend[] = [];
 
           announcements.forEach(ann => {
@@ -153,9 +162,26 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             <Sparkles size={40} />
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-2">Find Unclaimed Income</h3>
-                        <p className="text-slate-500 mb-8 max-w-md mx-auto">
-                            Scanning {uniqueTickersCount} unique stock(s) in your history for dividends declared in the last 6 months.
+                        <p className="text-slate-500 mb-6 max-w-md mx-auto">
+                            Scanning {uniqueTickersCount} unique stock(s) in your history.
                         </p>
+                        
+                        {/* DEEP SCAN TOGGLE */}
+                        <div className="flex justify-center mb-8">
+                            <label className="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border border-slate-200 transition-colors select-none">
+                                <input 
+                                    type="checkbox" 
+                                    checked={useDeepScan} 
+                                    onChange={(e) => setUseDeepScan(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                />
+                                <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                                    <Clock size={16} className={useDeepScan ? "text-indigo-500" : "text-slate-400"} />
+                                    Deep Scan (1 Year)
+                                </span>
+                            </label>
+                        </div>
+
                         <button 
                             onClick={handleScan}
                             className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-indigo-600/20 transition-all flex items-center gap-2 mx-auto"
@@ -169,7 +195,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     <div className="flex flex-col items-center justify-center py-20 animate-in fade-in">
                         <Loader2 size={40} className="animate-spin text-indigo-600 mb-4" />
                         <h4 className="text-slate-700 font-bold mb-1">Scanning Market Data...</h4>
-                        <p className="text-slate-400 text-sm">Checking ex-dates against your buy/sell history...</p>
+                        <p className="text-slate-400 text-sm">Searching {useDeepScan ? "last 12 months" : "last 6 months"} of history...</p>
                     </div>
                 )}
 
@@ -199,10 +225,18 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             <CheckCircle size={32} />
                         </div>
                         <h3 className="text-lg font-bold text-slate-800 mb-1">All Caught Up</h3>
-                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found in your history (Last 6 Months).</p>
-                        <button onClick={handleScan} className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors flex items-center gap-2 mx-auto">
-                            <RefreshCw size={14} /> Force Re-Scan
-                        </button>
+                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found ({useDeepScan ? "12" : "6"} Months).</p>
+                        
+                        <div className="flex flex-col items-center gap-3">
+                            <button onClick={handleScan} className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                                <RefreshCw size={14} /> Force Re-Scan
+                            </button>
+                            {!useDeepScan && (
+                                <button onClick={() => { setUseDeepScan(true); setTimeout(handleScan, 100); }} className="text-slate-500 text-xs hover:text-indigo-600 hover:underline transition-colors">
+                                    Try Deep Scan (1 Year)?
+                                </button>
+                            )}
+                        </div>
                      </div>
                 )}
 
@@ -211,7 +245,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                         <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                             <div>
                                 <h3 className="text-slate-800 font-bold text-lg">Found {foundDividends.length} Eligible Dividends</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Estimated based on broker-wise holdings.</p>
+                                <p className="text-xs text-slate-400 mt-0.5">Matched against {uniqueTickersCount} stocks.</p>
                             </div>
                             <button 
                                 onClick={handleScan}
