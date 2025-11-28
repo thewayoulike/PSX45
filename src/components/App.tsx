@@ -361,51 +361,48 @@ const App: React.FC = () => {
     
     // --- 3. PEAK NET PRINCIPAL & CURRENT PRINCIPAL CALCULATION ---
     
-    // A. Define Events with Index to capture correct order
+    // A. Create a Map of Transaction Index to ensure strict ordering
+    const txIndexMap = new Map<string, number>();
+    portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
+
     const events: { 
         date: string, 
         type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', 
         amount: number,
-        originalIndex: number // NEW: Track insertion order
+        originalIndex: number 
     }[] = [];
 
-    // Populate events (using current index as proxy for insertion order)
     portfolioTransactions.forEach((t, idx) => {
         if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
         else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx });
-        // TAX is ignored for principal logic
         else if (t.type === 'DIVIDEND') {
             const netDiv = (t.quantity * t.price) - (t.tax || 0);
             if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv, originalIndex: idx });
         }
     });
     
-    // Note: Realized Trades are separate from 'portfolioTransactions' array in this implementation,
-    // but they usually happen within the same flow. We give them a high index relative to their date 
-    // or we need to merge them better. For now, let's append them.
-    realizedTrades.forEach((t, idx) => {
-        // We assume realized trades happened "during" the day. 
-        // Ideally, we'd have a real timestamp. 
-        // For now, we will treat them as happening BEFORE withdrawals if on same day? 
-        // No, user said: "Withdrawal only after realized profit is used". 
-        // So Profit -> Withdrawal is the correct flow for calculation IF they exist on same day.
-        // We'll give them a fake index for sorting.
-        if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: 999999 });
-        else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit), originalIndex: 999999 });
+    // B. Map Realized Trades to their original transaction index
+    // We assume realizedTrades are derived from 'SELL' transactions in the main list.
+    // We need to find the index of the transaction that corresponds to the realized trade.
+    realizedTrades.forEach((t) => {
+        // Find the index of the transaction with this ID
+        // Note: realizedTrade.id is same as transaction.id from the loop in useEffect below
+        const originalIdx = txIndexMap.get(t.id) ?? 999999; 
+        
+        if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
+        else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit), originalIndex: originalIdx });
     });
 
-    // B. Sort Events
+    // C. Sort Events
     // Primary: Date
-    // Secondary: Original Insertion Order (to respect user's entry sequence)
+    // Secondary: Original Insertion Order (Strict strict adherence to user list)
     events.sort((a, b) => {
         const dateDiff = a.date.localeCompare(b.date);
         if (dateDiff !== 0) return dateDiff;
-        
-        // If on same day, use original insertion order
         return a.originalIndex - b.originalIndex;
     });
 
-    // C. Replay Logic
+    // D. Replay Logic
     let lifetimeCash = 0; 
     let withdrawalGap = 0;
     let lossGap = 0;
