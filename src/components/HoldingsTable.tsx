@@ -1,13 +1,12 @@
 import React, { useState, useMemo } from 'react';
 import { Holding } from '../types';
-import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown } from 'lucide-react'; // Added Icons
-import { exportToExcel, exportToCSV } from '../utils/export'; // Import Utility
+import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown } from 'lucide-react';
+import { exportToExcel, exportToCSV } from '../utils/export';
 
 interface HoldingsTableProps {
   holdings: Holding[];
   showBroker?: boolean;
   failedTickers?: Set<string>;
-  // NEW: Pass the LDCP map to calculate daily change
   ldcpMap?: Record<string, number>;
 }
 
@@ -28,14 +27,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const sortedHoldings = [...filteredHoldings].sort((a, b) => (b.currentPrice * b.quantity) - (a.currentPrice * a.quantity));
 
-  // --- CALCULATE GRAND TOTALS ---
   const totals = useMemo(() => {
       return sortedHoldings.reduce((acc, h) => {
           const marketVal = h.quantity * h.currentPrice;
           const cost = h.quantity * h.avgPrice;
           
-          // Daily Change Calculation
-          const ldcp = ldcpMap[h.ticker] || h.currentPrice; // If no LDCP, assume no change
+          const ldcp = ldcpMap[h.ticker] || h.currentPrice;
           const dailyChange = (h.currentPrice - ldcp) * h.quantity;
 
           return {
@@ -46,7 +43,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               totalCost: acc.totalCost + cost,
               totalMarket: acc.totalMarket + marketVal,
               pnl: acc.pnl + (marketVal - cost),
-              dailyPL: acc.dailyPL + dailyChange // Accumulate Daily P&L
+              dailyPL: acc.dailyPL + dailyChange
           };
       }, { comm: 0, tax: 0, cdc: 0, other: 0, totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0 });
   }, [sortedHoldings, ldcpMap]);
@@ -69,7 +66,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
       return null;
   }, [holdings]);
 
-  // NEW: Export Handler
   const handleExport = (type: 'excel' | 'csv') => {
       const data = sortedHoldings.map(h => {
           const marketVal = h.quantity * h.currentPrice;
@@ -122,7 +118,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
                   />
               </div>
-              {/* EXPORT BUTTONS */}
               <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
                   <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Download Excel">
                       <FileSpreadsheet size={18} />
@@ -221,7 +216,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
-                      {/* DAILY P&L: 2 Decimals */}
+                      {/* DAILY P&L: 2 Decimals - FIX APPLIED HERE */}
                       <td className="px-4 py-4 text-right">
                         <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                             <span className="font-bold text-xs">
