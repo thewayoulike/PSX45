@@ -2,11 +2,9 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 import * as XLSX from 'xlsx';
 
-// 1. Store the user's key in memory
 let userProvidedKey: string | null = null;
 let aiClient: GoogleGenAI | null = null;
 
-// HELPER: Strip out any non-ASCII characters (like invisible spaces/formatting)
 const sanitizeKey = (key: string): string => {
     return key.replace(/[^\x00-\x7F]/g, "").trim();
 };
@@ -16,18 +14,12 @@ export const setGeminiApiKey = (key: string | null) => {
     aiClient = null;
 };
 
-// 2. STRICT USER-ONLY KEY ACCESS
-const getApiKey = () => {
-  return userProvidedKey;
-};
+const getApiKey = () => userProvidedKey;
 
-// 3. LAZY INITIALIZATION
 const getAi = (): GoogleGenAI | null => {
     if (aiClient) return aiClient;
-    
     const key = getApiKey();
     if (!key) return null;
-
     try {
         aiClient = new GoogleGenAI({ apiKey: key });
         return aiClient;
@@ -37,16 +29,13 @@ const getAi = (): GoogleGenAI | null => {
     }
 }
 
-// --- HELPER: Read Spreadsheet to Text ---
 const readSpreadsheetAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        
         reader.onload = (e) => {
             try {
                 const data = e.target?.result;
                 if (!data) return reject("Empty file");
-
                 if (file.name.toLowerCase().endsWith('.csv')) {
                     resolve(data as string);
                 } else {
@@ -60,9 +49,7 @@ const readSpreadsheetAsText = (file: File): Promise<string> => {
                 reject("Failed to parse spreadsheet: " + err);
             }
         };
-
         reader.onerror = (err) => reject(err);
-
         if (file.name.toLowerCase().endsWith('.csv')) {
             reader.readAsText(file);
         } else {
@@ -71,47 +58,27 @@ const readSpreadsheetAsText = (file: File): Promise<string> => {
     });
 };
 
-// --- NEW HELPER: Robust JSON Extraction ---
-// Counts brackets to find the exact end of the JSON array, ignoring trailing text/markdown.
+// Robust JSON Extraction
 const extractJsonArray = (text: string): string | null => {
     const startIndex = text.indexOf('[');
     if (startIndex === -1) return null;
-
     let bracketCount = 0;
     let inString = false;
     let escape = false;
-
     for (let i = startIndex; i < text.length; i++) {
         const char = text[i];
-
-        if (escape) {
-            escape = false;
-            continue;
-        }
-
-        if (char === '\\') {
-            escape = true;
-            continue;
-        }
-
-        if (char === '"') {
-            inString = !inString;
-            continue;
-        }
-
+        if (escape) { escape = false; continue; }
+        if (char === '\\') { escape = true; continue; }
+        if (char === '"') { inString = !inString; continue; }
         if (!inString) {
-            if (char === '[') {
-                bracketCount++;
-            } else if (char === ']') {
+            if (char === '[') bracketCount++;
+            else if (char === ']') {
                 bracketCount--;
-                if (bracketCount === 0) {
-                    // Found the matching closing bracket
-                    return text.substring(startIndex, i + 1);
-                }
+                if (bracketCount === 0) return text.substring(startIndex, i + 1);
             }
         }
     }
-    return null; // Unbalanced brackets
+    return null;
 };
 
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
@@ -127,17 +94,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
         parts = [
             { text: "Here is the raw data from a trade history spreadsheet:" },
             { text: sheetData },
-            { text: `Analyze this data. Extract all trade executions.
-            
-            For each trade found:
-            1. Identify the Ticker/Symbol (e.g., OGDC, PPL).
-            2. Identify the Type (BUY or SELL).
-            3. Extract Quantity and Price.
-            4. Extract the Date (YYYY-MM-DD).
-            5. Extract Broker Name if present.
-            6. Extract specific charges if columns exist: Commission, Tax, CDC, Other Fees.
-            
-            Return a JSON array of objects.` }
+            { text: `Analyze this data. Extract all trade executions. Return JSON array.` }
         ];
     } else {
         const base64Data = await new Promise<string>((resolve, reject) => {
@@ -146,20 +103,9 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
             reader.onerror = reject;
             reader.readAsDataURL(file);
         });
-
         parts = [
             { inlineData: { mimeType: file.type, data: base64Data } },
-            { text: `Analyze this trade confirmation document/image. Extract all trade executions.
-            
-            For each trade found:
-            1. Identify the Ticker/Symbol (e.g., OGDC, PPL, TRG).
-            2. Identify the Type (BUY or SELL). Look for "B", "S", "Buy", "Sell", "Debit" (Buy), "Credit" (Sell).
-            3. Extract Quantity and Price.
-            4. Extract the Date (YYYY-MM-DD).
-            5. Look for the Broker Name (e.g., KASB, AKD, Arif Habib).
-            6. Extract specific charges if visible: Commission, Tax, CDC, Other.
-            
-            Return a JSON array of objects.` }
+            { text: `Analyze this trade confirmation document. Extract all trade executions. Return JSON array.` }
         ];
     }
 
@@ -190,17 +136,16 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
       }
     });
 
-    if (response.text) {
-      return JSON.parse(response.text);
-    }
+    if (response.text) return JSON.parse(response.text);
     return [];
   } catch (error: any) {
-    console.error("Error parsing document with Gemini:", error);
-    throw new Error(error.message || "Failed to scan document. Please check your API Key.");
+    console.error("Error parsing document:", error);
+    throw new Error(error.message || "Failed to scan document.");
   }
 };
 
-export const fetchDividends = async (tickers: string[]): Promise<DividendAnnouncement[]> => {
+// UPDATED: Added 'months' param and improved prompt for PSX
+export const fetchDividends = async (tickers: string[], months: number = 6): Promise<DividendAnnouncement[]> => {
     try {
         const ai = getAi(); 
         if (!ai) throw new Error("API Key missing. Please go to Settings to add one.");
@@ -209,17 +154,21 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: `Find all dividend announcements declared in the LAST 6 MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
+            contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             
-            For each company:
+            Sources to check: dps.psx.com.pk, sarmaaya.pk, investing.com.
+            
+            Instructions:
             1. Search for "Financial Results", "Board Meetings", and "Book Closure" notices.
-            2. Identify the EXACT Ex-Date (The date shares trade without dividend).
-            3. Identify the Cash Dividend amount (Rs per share).
+            2. Identify the Cash Dividend amount (Rs per share). 
+               - NOTE: If dividend is stated as a percentage (e.g., "360%"), calculate the Rs amount based on Face Value (usually Rs 10 or Rs 5). 
+               - Example: 360% of Rs 5 = Rs 18.00.
+            3. Identify the Ex-Dividend Date (Ex-Date).
             
-            Return ONLY a raw JSON array (no markdown code blocks) with objects:
+            Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
             
-            Ignore any dividends older than 6 months.`,
+            Ignore any dividends older than ${months} months.`,
             config: {
                 tools: [{ googleSearch: {} }]
             }
@@ -228,9 +177,7 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         const text = response.text;
         if (!text) return [];
 
-        // UPDATED: Use the robust extractor
         const jsonString = extractJsonArray(text);
-        
         if (jsonString) {
             try {
                 return JSON.parse(jsonString);
