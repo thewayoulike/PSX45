@@ -24,6 +24,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   const formatCurrency = (val: number) => 
     val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // CONSTANT FOR ALIGNMENT
+  // Enforces a minimum height for the value/badge section so all bars align
+  const TOP_SECTION_CLASS = "min-h-[3.5rem] flex flex-col justify-center"; 
+
   return (
     <div className="flex flex-col gap-3 md:gap-4 mb-6 md:mb-10">
         
@@ -31,8 +35,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
             
             <Card title="Portfolio MWRR" icon={<TrendingUp className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isMwrrPositive ? 'text-indigo-600' : 'text-rose-600'}`}>
-                    {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isMwrrPositive ? 'text-indigo-600' : 'text-rose-600'}`}>
+                        {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -45,8 +51,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             <Card title="Simple ROI" icon={<Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -59,32 +67,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
              <Card title="Total Assets" icon={<Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className="flex justify-between items-start">
+                <div className={TOP_SECTION_CLASS}>
                     <div className="w-full">
                         <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight flex items-baseline gap-0.5 flex-wrap">
                             <span>Rs. {formatCurrency(totalNetWorth)}</span>
                         </div>
-                        <div className="flex items-center gap-2 mt-1.5 md:mt-2">
-                            {isSevereLoss ? (
-                                <div className="flex items-center gap-1 px-2 py-0.5 bg-rose-100 text-rose-600 rounded-md text-[10px] font-bold border border-rose-200 animate-pulse">
-                                    <AlertTriangle size={12} />
-                                    <span>Risk: -{erosionPercent.toFixed(1)}%</span>
-                                </div>
-                            ) : isCapitalEroded ? (
-                                <div className="flex items-center gap-1 px-2 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[10px] font-bold border border-rose-200">
-                                    <TrendingDown size={12} />
-                                    <span>Below Principal</span>
-                                </div>
-                            ) : (
-                                <div className="flex items-center gap-2">
-                                    <div className="relative flex h-1.5 w-1.5 md:h-2 md:w-2">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-full w-full bg-emerald-500"></span>
+                        {/* Only show badge if relevant to maintain height consistency logic, or allow it to expand */}
+                        {(isSevereLoss || isCapitalEroded) && (
+                            <div className="flex items-center gap-2 mt-1">
+                                {isSevereLoss ? (
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded-md text-[9px] font-bold border border-rose-200 animate-pulse">
+                                        <AlertTriangle size={10} />
+                                        <span>Risk: -{erosionPercent.toFixed(1)}%</span>
                                     </div>
-                                    <span className="text-[10px] md:text-xs text-emerald-600 font-semibold tracking-wide uppercase">Healthy</span>
-                                </div>
-                            )}
-                        </div>
+                                ) : (
+                                    <div className="flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[9px] font-bold border border-rose-200">
+                                        <TrendingDown size={10} />
+                                        <span>Below Principal</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        {!isSevereLoss && !isCapitalEroded && (
+                             <div className="h-[18px]"></div> // Spacer to match badge height
+                        )}
                     </div>
                 </div>
                 
@@ -115,31 +121,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
              <Card title="Free Cash" icon={<Wallet className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${stats.freeCash < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                    Rs. {formatCurrency(stats.freeCash)}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${stats.freeCash < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                        Rs. {formatCurrency(stats.freeCash)}
+                    </div>
+                    {stats.freeCash < 0 && (
+                        <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-1 px-1.5 py-0.5 bg-rose-100 text-rose-600 rounded-md text-[9px] font-bold border border-rose-200">
+                                <AlertTriangle size={10} />
+                                <span>Negative</span>
+                            </div>
+                        </div>
+                    )}
                 </div>
                 <div className="mt-2 md:mt-3">
-                    {stats.freeCash < 0 ? (
-                        <div className="flex items-center gap-2 text-[10px] text-rose-600 bg-rose-50 px-2 py-1 rounded border border-rose-100 font-bold">
-                            <AlertTriangle size={12} />
-                            <span>Negative Balance!</span>
-                        </div>
-                    ) : (
-                        <>
-                            <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                                <span>Buying Power</span>
-                            </div>
-                            <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-blue-500 rounded-full" style={{ width: '100%' }}></div>
-                            </div>
-                        </>
-                    )}
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Buying Power</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
                 </div>
             </Card>
 
             <Card title="Current Cash Invested" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.netPrincipal)}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+                    Rs. {formatCurrency(stats.netPrincipal)}
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -157,8 +166,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             <Card title="Lifetime Cash Inv" icon={<History className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.peakNetPrincipal)}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+                    Rs. {formatCurrency(stats.peakNetPrincipal)}
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -175,8 +186,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-4">
             
              <Card title="Current Stock Value" icon={<BarChart3 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.totalValue)}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+                    Rs. {formatCurrency(stats.totalValue)}
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -189,8 +202,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             <Card title="Stock Assets (Cost)" icon={<DollarSign className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.totalCost)}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+                    Rs. {formatCurrency(stats.totalCost)}
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -204,13 +219,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             <Card title="Unrealized P&L" icon={<Activity className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
-                </div>
-                
-                <div className="flex items-center justify-between mt-1.5">
-                    <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isUnrealizedProfitable ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-rose-100 border-rose-200 text-rose-700'}`}>
-                        {isUnrealizedProfitable ? '+' : ''}{stats.unrealizedPLPercent.toFixed(2)}%
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className={`text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isUnrealizedProfitable ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-rose-100 border-rose-200 text-rose-700'}`}>
+                            {isUnrealizedProfitable ? '+' : ''}{stats.unrealizedPLPercent.toFixed(2)}%
+                        </div>
                     </div>
                 </div>
                 
@@ -242,8 +259,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             <Card title="Realized Gains (Net)" icon={<CheckCircle2 className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
+                    {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
+                    </div>
                 </div>
                 
                 <div className="mt-2 md:mt-3">
@@ -258,8 +277,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             <Card title="Dividends" icon={<Coins className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                    Rs. {formatCurrency(stats.totalDividends)}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+                        Rs. {formatCurrency(stats.totalDividends)}
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
@@ -273,8 +294,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             </Card>
 
             <Card title="Reinvested Profits" icon={<RefreshCcw className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
-                <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.reinvestedProfits)}
+                <div className={TOP_SECTION_CLASS}>
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
+                    Rs. {formatCurrency(stats.reinvestedProfits)}
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
