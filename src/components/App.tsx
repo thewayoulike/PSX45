@@ -601,6 +601,9 @@ const App: React.FC = () => {
   
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
 
+  // NEW: Calculate the most recent price update timestamp
+  const lastPriceUpdate = Object.values(priceTimestamps).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
       {/* ... (UI code remains exactly same as before) ... */}
@@ -730,7 +733,7 @@ const App: React.FC = () => {
 
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <Dashboard stats={stats} />
+                    <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
                     <div className="flex flex-col gap-6">
                         <AllocationChart holdings={holdings} />
                         <HoldingsTable holdings={holdings} showBroker={true} failedTickers={failedTickers} ldcpMap={ldcpMap} />
