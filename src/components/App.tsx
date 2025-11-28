@@ -15,7 +15,7 @@ import { Logo } from './ui/Logo';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check, Layers, ChevronDown, CheckSquare, Square } from 'lucide-react';
+import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check, Layers, ChevronDown, CheckSquare, Square } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -88,13 +88,11 @@ const App: React.FC = () => {
       return {};
   });
 
-  // --- PORTFOLIO EDITING STATE ---
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
 
-  // --- COMBINE PORTFOLIOS STATE ---
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -143,7 +141,6 @@ const App: React.FC = () => {
 
   const hasMergedCloud = useRef(false);
 
-  // --- LOGOUT LOGIC ---
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); setManualPrices({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setUserApiKey(''); setGeminiApiKey(null); setDriveUser(null); localStorage.clear(); signOutDrive();
   }, []);
@@ -155,7 +152,6 @@ const App: React.FC = () => {
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
 
-  // Close filter dropdown when clicking outside
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
           if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
@@ -166,14 +162,12 @@ const App: React.FC = () => {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Initialize combined IDs when portfolios load or combined view is toggled
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
-  // --- INITIALIZATION ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -213,13 +207,11 @@ const App: React.FC = () => {
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
 
-  // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
   
-  // ADD TRANSACTION - Enforces Strict Broker Rule
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { 
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
@@ -252,8 +244,6 @@ const App: React.FC = () => {
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
   
-  // --- PORTFOLIO MANAGEMENT ---
-  
   const openCreatePortfolioModal = () => {
       setEditingPortfolioId(null);
       setPortfolioNameInput('');
@@ -283,14 +273,12 @@ const App: React.FC = () => {
       }
 
       if (editingPortfolioId) {
-          // Update Existing
           setPortfolios(prev => prev.map(p => 
               p.id === editingPortfolioId 
                   ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } 
                   : p
           ));
       } else {
-          // Create New
           const newId = Date.now().toString(); 
           setPortfolios(prev => [...prev, { 
               id: newId, 
@@ -300,7 +288,6 @@ const App: React.FC = () => {
           setCurrentPortfolioId(newId);
       }
       
-      // Cleanup
       setPortfolioNameInput(''); 
       setPortfolioBrokerIdInput('');
       setEditingPortfolioId(null);
@@ -309,7 +296,6 @@ const App: React.FC = () => {
 
   const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
   
-  // Combine View Logic Handlers
   const handleTogglePortfolioSelection = (id: string) => {
       const newSet = new Set(combinedPortfolioIds);
       if (newSet.has(id)) {
@@ -324,18 +310,14 @@ const App: React.FC = () => {
       setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
   };
 
-  // Sync
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
 
-  // Annual Fee Check
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
   
-  // UPDATED: Portfolio Transactions Logic (Combined vs Single)
   const portfolioTransactions = useMemo(() => { 
       if (isCombinedView) {
-          // Filter by the specific set of IDs selected
           return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       }
       return transactions.filter(t => t.portfolioId === currentPortfolioId); 
@@ -343,41 +325,78 @@ const App: React.FC = () => {
 
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let totalDividendTax = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
+    
+    // --- 1. Basic Summation ---
     holdings.forEach(h => { totalValue += h.quantity * h.currentPrice; totalCost += h.quantity * h.avgPrice; });
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
+    
     portfolioTransactions.forEach(t => {
         totalCommission += (t.commission || 0); totalCDC += (t.cdcCharges || 0); totalOtherFees += (t.otherFees || 0);
         if (t.type === 'DIVIDEND') { totalDividendTax += (t.tax || 0); } 
-        // UPDATED: Standard Manual CGT handling
-        else if (t.type === 'TAX') { 
-            // Manual Tax Entry: Price is the amount.
-            // If Price is Positive: Tax Paid (Reduces Free Cash)
-            // If Price is Negative: Tax Refund (Increases Free Cash)
-            totalCGT += t.price; 
-        } 
-        else if (t.type === 'HISTORY') { 
-            // Legacy/History tax field support if needed, though mostly deprecated
-            totalCGT += (t.tax || 0); 
-            historyPnL += t.price; 
-        } 
+        else if (t.type === 'TAX') { totalCGT += t.price; } 
+        else if (t.type === 'HISTORY') { totalCGT += (t.tax || 0); historyPnL += t.price; } 
         else if (t.type === 'DEPOSIT') { totalDeposits += t.price; } 
         else if (t.type === 'WITHDRAWAL') { totalWithdrawals += t.price; } 
         else if (t.type === 'ANNUAL_FEE') { totalWithdrawals += t.price; } 
         else { totalSalesTax += (t.tax || 0); }
     });
+
+    // --- 2. Advanced Metrics ---
     const netRealizedPL = realizedPL - totalCGT; 
     const totalProfits = netRealizedPL + totalDividends;
     const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
     const netPrincipal = totalDeposits - withdrawalsFromPrincipal;
+    
+    // --- 3. Peak Net Principal Calculation ---
+    // Create chronological event list
+    const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'TAX', amount: number }[] = [];
+    
+    portfolioTransactions.forEach(t => {
+        if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price });
+        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price });
+        else if (t.type === 'TAX') events.push({ date: t.date, type: 'TAX', amount: t.price }); // Tax paid is outflow from profits (or cash)
+        else if (t.type === 'DIVIDEND') {
+            const netDiv = (t.quantity * t.price) - (t.tax || 0);
+            events.push({ date: t.date, type: 'PROFIT', amount: netDiv });
+        }
+    });
+    
+    realizedTrades.forEach(t => {
+        events.push({ date: t.date, type: 'PROFIT', amount: t.profit });
+    });
+
+    events.sort((a, b) => a.date.localeCompare(b.date));
+
+    let runDeposits = 0;
+    let runWithdrawals = 0;
+    let runProfits = 0;
+    let runTaxes = 0;
+    let peakNetPrincipal = 0;
+
+    events.forEach(e => {
+        if (e.type === 'IN') runDeposits += e.amount;
+        if (e.type === 'OUT') runWithdrawals += e.amount;
+        if (e.type === 'PROFIT') runProfits += e.amount;
+        if (e.type === 'TAX') runTaxes += e.amount; // Taxes reduce effective profit for principal calc
+
+        // Effective Profits for Principal Protection = Profits - Taxes
+        const effectiveProfits = runProfits - runTaxes;
+        
+        // Withdrawal from Principal = Total Withdrawals - Effective Profits (if Withdrawals > Profits)
+        const principalLoss = Math.max(0, runWithdrawals - effectiveProfits);
+        
+        const currentNetPrincipal = runDeposits - principalLoss;
+        
+        if (currentNetPrincipal > peakNetPrincipal) {
+            peakNetPrincipal = currentNetPrincipal;
+        }
+    });
+
     const cashInvestment = totalDeposits - totalWithdrawals; 
     const netPrincipalAvailable = Math.max(0, netPrincipal);
     const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
     const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
     let cashIn = totalDeposits; 
-    
-    // UPDATED FREE CASH LOGIC:
-    // Cash Out = Withdrawals + Tax Paid
-    // If totalCGT is negative (refund), it reduces cashOut (increases free cash)
     let cashOut = totalWithdrawals + totalCGT; 
     
     let tradingCashFlow = 0; 
@@ -388,23 +407,26 @@ const App: React.FC = () => {
     const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
-    return { totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, totalDividends, dailyPL: 0, totalCommission, totalSalesTax, totalDividendTax, totalCDC, totalOtherFees, totalCGT, freeCash, cashInvestment, netPrincipal, totalDeposits, reinvestedProfits, roi };
+    
+    return { 
+        totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
+        totalDividends, dailyPL: 0, totalCommission, totalSalesTax, totalDividendTax, totalCDC, 
+        totalOtherFees, totalCGT, freeCash, cashInvestment, netPrincipal, peakNetPrincipal, // Added here
+        totalDeposits, reinvestedProfits, roi 
+    };
   }, [holdings, realizedTrades, totalDividends, portfolioTransactions]);
 
   useEffect(() => { if (driveUser || transactions.length > 0) { localStorage.setItem('psx_transactions', JSON.stringify(transactions)); localStorage.setItem('psx_portfolios', JSON.stringify(portfolios)); localStorage.setItem('psx_current_portfolio_id', currentPortfolioId); localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices)); localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); localStorage.setItem('psx_brokers', JSON.stringify(brokers)); localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides)); localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); } if (driveUser) { setIsCloudSyncing(true); const timer = setTimeout(async () => { await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey }); setIsCloudSyncing(false); }, 3000); return () => clearTimeout(timer); } }, [transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; let dividendSum = 0; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') return; if (tx.type === 'DIVIDEND') { const grossDiv = tx.quantity * tx.price; const netDiv = grossDiv - (tx.tax || 0); dividendSum += netDiv; return; } if (tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); setTotalDividends(dividendSum); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
-  // REMOVED: Auto-CGT Generation useEffect
-
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
   if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
   
-  // FIND THE CURRENT PORTFOLIO OBJECT TO PASS TO TRANS FORM
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* HEADER SECTION */}
+      {/* ... (Header code remains the same) ... */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0"><div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div><div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[100px]"></div></div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
@@ -414,7 +436,6 @@ const App: React.FC = () => {
             <p className="text-sm ml-1 font-bold tracking-wide mt-1"><span className="text-slate-700">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
           </div>
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-            {/* Drive Sync Indicator */}
             <div className="flex flex-col items-end mr-4">
                 <div className="flex items-center gap-3">
                     {driveUser ? (
@@ -431,24 +452,17 @@ const App: React.FC = () => {
                 </div>
             </div>
             
-            {/* Portfolio Selector */}
             <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
                 <div className="relative group"><FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" /><select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48">{portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}</select></div>
                 
-                {/* Edit Portfolio Button */}
                 <button onClick={openEditPortfolioModal} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Portfolio Settings"> <Pencil size={16} /> </button>
-                
-                {/* Create New Button */}
                 <button onClick={openCreatePortfolioModal} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
-                
-                {/* Delete Button */}
                 <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
             </div>
           </div>
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* View Switcher */}
             <div className="flex justify-center mb-8">
                 <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
                     <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <LayoutDashboard size={18} /> Dashboard </button>
@@ -457,7 +471,6 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* Action Bar */}
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
                 <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"> <Plus size={18} /> Add Transaction </button>
@@ -466,11 +479,9 @@ const App: React.FC = () => {
                     <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
                 </div>
                 
-                {/* COMBINED VIEW + PORTFOLIO FILTER */}
                 <div className="flex flex-wrap gap-3">
                     <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm" ref={filterDropdownRef}>
                         
-                        {/* 1. Filter Dropdown (Visible only if Combined View is ON) */}
                         {isCombinedView && (
                             <div className="relative">
                                 <button 
@@ -513,14 +524,13 @@ const App: React.FC = () => {
 
                         <div className="h-5 w-[1px] bg-slate-200 mx-1"></div>
 
-                        {/* 2. Toggle Switch */}
                         <div className="flex items-center gap-2">
                             <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Combined</span>
                             <button 
                                 onClick={() => {
                                     const newState = !isCombinedView;
                                     setIsCombinedView(newState);
-                                    if (newState) setShowFilterDropdown(true); // Auto-open filter when enabling
+                                    if (newState) setShowFilterDropdown(true);
                                 }} 
                                 className={`w-10 h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
                             >
@@ -541,7 +551,6 @@ const App: React.FC = () => {
                 </div>
             </div>
 
-            {/* VIEWS */}
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} />
