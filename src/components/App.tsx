@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker, FoundDividend } from '../types';
+import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker, FoundDividend, EditableTrade } from '../types';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
 import { AllocationChart } from './AllocationChart';
@@ -89,6 +89,15 @@ const App: React.FC = () => {
       return {};
   });
 
+  // NEW: State for Trade Scanner Results (Persisted)
+  const [tradeScanResults, setTradeScanResults] = useState<EditableTrade[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_trade_scan_results');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return [];
+  });
+
   // --- PORTFOLIO EDITING STATE ---
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
@@ -109,7 +118,6 @@ const App: React.FC = () => {
       return {};
   });
 
-  // NEW: State for Last Day Closing Prices
   const [ldcpMap, setLdcpMap] = useState<Record<string, number>>(() => {
       try {
           const saved = localStorage.getItem('psx_ldcp_map');
@@ -156,7 +164,7 @@ const App: React.FC = () => {
   // --- LOGOUT LOGIC ---
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
-      setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); 
+      setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]);
       setUserApiKey(''); setGeminiApiKey(null); setDriveUser(null); localStorage.clear(); signOutDrive();
   }, []);
 
@@ -178,14 +186,12 @@ const App: React.FC = () => {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Initialize combined IDs when portfolios load or combined view is toggled
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
-  // --- INITIALIZATION ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -200,11 +206,12 @@ const App: React.FC = () => {
                       if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
                       if (cloudData.transactions) setTransactions(cloudData.transactions);
                       if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
-                      if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap); // Load LDCP
+                      if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap); 
                       if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
                       if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                       if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                       if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
+                      // NEW: Load Trade Scanner State from cloud if needed (optional, keeping local for now)
                       if (cloudData.brokers) {
                           setBrokers(currentLocal => {
                               const localIds = new Set(currentLocal.map(b => b.id));
@@ -226,13 +233,11 @@ const App: React.FC = () => {
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
 
-  // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
   
-  // ADD TRANSACTION - Enforces Strict Broker Rule
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { 
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
@@ -264,9 +269,8 @@ const App: React.FC = () => {
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
-  
-  // --- PORTFOLIO MANAGEMENT ---
-  
+  const handleUpdateTradeScanResults = (results: EditableTrade[]) => { setTradeScanResults(results); };
+
   const openCreatePortfolioModal = () => {
       setEditingPortfolioId(null);
       setPortfolioNameInput('');
@@ -319,7 +323,6 @@ const App: React.FC = () => {
 
   const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
   
-  // Combine View Logic Handlers
   const handleTogglePortfolioSelection = (id: string) => {
       const newSet = new Set(combinedPortfolioIds);
       if (newSet.has(id)) {
@@ -334,7 +337,6 @@ const App: React.FC = () => {
       setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
   };
 
-  // Sync
   const handleSyncPrices = async () => { 
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); 
       if (uniqueTickers.length === 0) return; 
@@ -347,7 +349,7 @@ const App: React.FC = () => {
           const newResults = await fetchBatchPSXPrices(uniqueTickers); 
           const failed = new Set<string>(); 
           const validUpdates: Record<string, number> = {}; 
-          const ldcpUpdates: Record<string, number> = {}; // NEW
+          const ldcpUpdates: Record<string, number> = {}; 
           const newSectors: Record<string, string> = {}; 
           const now = new Date().toISOString(); 
           const timestampUpdates: Record<string, string> = {}; 
@@ -357,7 +359,7 @@ const App: React.FC = () => {
               if (data && data.price > 0) { 
                   validUpdates[ticker] = data.price; 
                   timestampUpdates[ticker] = now; 
-                  if (data.ldcp > 0) ldcpUpdates[ticker] = data.ldcp; // Store LDCP
+                  if (data.ldcp > 0) ldcpUpdates[ticker] = data.ldcp; 
                   if (data.sector && data.sector !== 'Unknown Sector') { 
                       newSectors[ticker] = data.sector; 
                   } 
@@ -368,7 +370,7 @@ const App: React.FC = () => {
           
           if (Object.keys(validUpdates).length > 0) { 
               setManualPrices(prev => ({ ...prev, ...validUpdates })); 
-              setLdcpMap(prev => ({ ...prev, ...ldcpUpdates })); // Update State
+              setLdcpMap(prev => ({ ...prev, ...ldcpUpdates })); 
               setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); 
           } 
           if (Object.keys(newSectors).length > 0) { 
@@ -390,10 +392,8 @@ const App: React.FC = () => {
 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
   
-  // UPDATED: Portfolio Transactions Logic (Combined vs Single)
   const portfolioTransactions = useMemo(() => { 
       if (isCombinedView) {
-          // Filter by the specific set of IDs selected
           return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       }
       return transactions.filter(t => t.portfolioId === currentPortfolioId); 
@@ -402,38 +402,33 @@ const App: React.FC = () => {
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let totalDividendTax = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     
-    // --- 1. Basic Summation ---
-    // Update: Calculate Daily PL here
     let dailyPL = 0;
     holdings.forEach(h => { 
         totalValue += h.quantity * h.currentPrice; 
         totalCost += h.quantity * h.avgPrice;
         
-        // Calculate Today's P&L: (Current - LDCP) * Quantity
-        const ldcp = ldcpMap[h.ticker] || h.currentPrice; // If no LDCP, assume 0 change
+        const ldcp = ldcpMap[h.ticker] || h.currentPrice;
         dailyPL += (h.currentPrice - ldcp) * h.quantity;
     });
     
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
-    // For MWRR Calculation
     const cashFlows: { amount: number, date: Date }[] = [];
 
     portfolioTransactions.forEach(t => {
         totalCommission += (t.commission || 0); totalCDC += (t.cdcCharges || 0); totalOtherFees += (t.otherFees || 0);
         
-        // Handle MWRR Cash Flows (External Movements Only)
         if (t.type === 'DEPOSIT') {
             totalDeposits += t.price;
-            cashFlows.push({ amount: -t.price, date: new Date(t.date) }); // Deposit is negative flow (Investment)
+            cashFlows.push({ amount: -t.price, date: new Date(t.date) });
         } 
         else if (t.type === 'WITHDRAWAL') {
             totalWithdrawals += t.price;
-            cashFlows.push({ amount: t.price, date: new Date(t.date) }); // Withdrawal is positive flow (Return)
+            cashFlows.push({ amount: t.price, date: new Date(t.date) }); 
         }
         else if (t.type === 'ANNUAL_FEE') {
             totalWithdrawals += t.price;
-            cashFlows.push({ amount: t.price, date: new Date(t.date) }); // Fee is essentially a withdrawal
+            cashFlows.push({ amount: t.price, date: new Date(t.date) });
         }
         
         if (t.type === 'DIVIDEND') { totalDividendTax += (t.tax || 0); } 
@@ -442,13 +437,9 @@ const App: React.FC = () => {
         else { totalSalesTax += (t.tax || 0); }
     });
 
-    // --- 2. Advanced Metrics ---
     const netRealizedPL = realizedPL - totalCGT; 
     const totalProfits = netRealizedPL + totalDividends;
     
-    // --- 3. PEAK NET PRINCIPAL & CURRENT PRINCIPAL CALCULATION ---
-    
-    // A. Create a Map of Transaction Index to ensure strict ordering
     const txIndexMap = new Map<string, number>();
     portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
 
@@ -468,21 +459,18 @@ const App: React.FC = () => {
         }
     });
     
-    // B. Map Realized Trades to their original transaction index
     realizedTrades.forEach((t) => {
         const originalIdx = txIndexMap.get(t.id) ?? 999999; 
         if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
         else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit), originalIndex: originalIdx });
     });
 
-    // C. Sort Events
     events.sort((a, b) => {
         const dateDiff = a.date.localeCompare(b.date);
         if (dateDiff !== 0) return dateDiff;
         return a.originalIndex - b.originalIndex;
     });
 
-    // D. Replay Logic
     let lifetimeCash = 0; 
     let withdrawalGap = 0;
     let lossGap = 0;
@@ -490,56 +478,38 @@ const App: React.FC = () => {
     let netPrincipal = 0; 
 
     events.forEach(e => {
-        if (e.type === 'IN') { // Deposit
+        if (e.type === 'IN') { 
             const deposit = e.amount;
-            
-            // 1. Fill Withdrawal Gaps first
             const fillWithdrawal = Math.min(deposit, withdrawalGap);
             withdrawalGap -= fillWithdrawal;
-            
-            // 2. Remaining deposit is "New Capital"
             const remaining = deposit - fillWithdrawal;
             if (remaining > 0) {
                 lifetimeCash += remaining;
             }
-            
-            // 3. All deposits increase current principal
             netPrincipal += deposit;
         } 
         else if (e.type === 'PROFIT') {
             const profit = e.amount;
-            
-            // 1. Profits fill Loss Gaps first
             const fillLoss = Math.min(profit, lossGap);
             lossGap -= fillLoss;
             netPrincipal += fillLoss;
-            
-            // 2. Remaining is Profit Buffer
             const remainingProfit = profit - fillLoss;
             profitBuffer += remainingProfit;
         } 
         else if (e.type === 'LOSS') {
             const loss = e.amount;
-            
-            // 1. Loss eats Profit Buffer first
             const profitsEaten = Math.min(loss, profitBuffer);
             profitBuffer -= profitsEaten;
-            
-            // 2. Remaining Loss eats Principal
             const principalEaten = loss - profitsEaten;
             if (principalEaten > 0) {
                 netPrincipal -= principalEaten;
                 lossGap += principalEaten; 
             }
         } 
-        else if (e.type === 'OUT') { // Withdrawal
+        else if (e.type === 'OUT') { 
             const withdrawal = e.amount;
-            
-            // 1. Withdrawal eats Profit Buffer first
             const profitsWithdrawn = Math.min(withdrawal, profitBuffer);
             profitBuffer -= profitsWithdrawn;
-            
-            // 2. Remaining Withdrawal eats Principal
             const principalWithdrawn = withdrawal - profitsWithdrawn;
             if (principalWithdrawn > 0) {
                 netPrincipal -= principalWithdrawn;
@@ -567,18 +537,13 @@ const App: React.FC = () => {
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
 
-    // --- MWRR Calculation ---
-    // Add current terminal value as a positive cash flow "today"
     const currentTotalNetWorth = totalValue + freeCash;
     if (currentTotalNetWorth > 0) {
         cashFlows.push({ amount: currentTotalNetWorth, date: new Date() });
     }
     const mwrr = calculateXIRR(cashFlows);
     
-    // --- Daily % Change Calculation ---
-    // Yesterday Value = Current Value - Daily P&L
     const yesterdayValue = totalValue - dailyPL;
-    // Handle division by zero or negative basis logic if needed, but standard % is P&L / Start
     const dailyPLPercent = yesterdayValue > 0 ? (dailyPL / yesterdayValue) * 100 : 0;
 
     return { 
@@ -590,9 +555,33 @@ const App: React.FC = () => {
         totalDeposits, reinvestedProfits, roi,
         mwrr
     };
-  }, [holdings, realizedTrades, totalDividends, portfolioTransactions, ldcpMap]); // ADD ldcpMap to dependencies
+  }, [holdings, realizedTrades, totalDividends, portfolioTransactions, ldcpMap]); 
 
-  useEffect(() => { if (driveUser || transactions.length > 0) { localStorage.setItem('psx_transactions', JSON.stringify(transactions)); localStorage.setItem('psx_portfolios', JSON.stringify(portfolios)); localStorage.setItem('psx_current_portfolio_id', currentPortfolioId); localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices)); localStorage.setItem('psx_ldcp_map', JSON.stringify(ldcpMap)); localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); localStorage.setItem('psx_brokers', JSON.stringify(brokers)); localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides)); localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); } if (driveUser) { setIsCloudSyncing(true); const timer = setTimeout(async () => { await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey }); setIsCloudSyncing(false); }, 3000); return () => clearTimeout(timer); } }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, driveUser, userApiKey]);
+  // Persistence for all state
+  useEffect(() => { 
+      if (driveUser || transactions.length > 0) { 
+          localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
+          localStorage.setItem('psx_portfolios', JSON.stringify(portfolios)); 
+          localStorage.setItem('psx_current_portfolio_id', currentPortfolioId); 
+          localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices)); 
+          localStorage.setItem('psx_ldcp_map', JSON.stringify(ldcpMap)); 
+          localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps)); 
+          localStorage.setItem('psx_brokers', JSON.stringify(brokers)); 
+          localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides)); 
+          localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); 
+          // NEW: Save trade scan results
+          localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
+      } 
+      if (driveUser) { 
+          setIsCloudSyncing(true); 
+          const timer = setTimeout(async () => { 
+              await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey }); 
+              setIsCloudSyncing(false); 
+          }, 3000); 
+          return () => clearTimeout(timer); 
+      } 
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, driveUser, userApiKey]);
+
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; let dividendSum = 0; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') return; if (tx.type === 'DIVIDEND') { const grossDiv = tx.quantity * tx.price; const netDiv = grossDiv - (tx.tax || 0); dividendSum += netDiv; return; } if (tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); setTotalDividends(dividendSum); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   useEffect(() => { if (realizedTrades.length === 0) return; const ledger: Record<string, Record<string, number>> = {}; realizedTrades.forEach(t => { if (t.ticker === 'PREV-PNL') return; const broker = t.broker || 'Unknown Broker'; const month = t.date.substring(0, 7); if (!ledger[broker]) ledger[broker] = {}; ledger[broker][month] = (ledger[broker][month] || 0) + t.profit; }); const todayStr = new Date().toISOString().substring(0, 7); const generatedTaxTx: Transaction[] = []; Object.entries(ledger).forEach(([broker, monthsData]) => { let runningCgtBalance = 0; const sortedMonths = Object.keys(monthsData).sort(); sortedMonths.forEach(month => { if (month >= todayStr) return; const netPL = monthsData[month]; let taxAmount = 0; let note = ''; if (netPL > 0) { taxAmount = Number((netPL * 0.15).toFixed(2)); runningCgtBalance += taxAmount; note = `Auto-CGT: Tax on ${month} Profit (${netPL.toFixed(0)}) - ${broker}`; } else if (netPL < 0 && runningCgtBalance > 0) { const potentialRefund = Number((Math.abs(netPL) * 0.15).toFixed(2)); const actualRefund = Math.min(potentialRefund, runningCgtBalance); if (actualRefund > 0) { taxAmount = -actualRefund; runningCgtBalance -= actualRefund; note = `Auto-CGT: Credit on ${month} Loss (${netPL.toFixed(0)}) - ${broker}`; } } if (taxAmount !== 0) { const [y, m] = month.split('-'); let nextM = parseInt(m) + 1; let nextY = parseInt(y); if (nextM > 12) { nextM = 1; nextY++; } const nextMonthStr = `${nextY}-${nextM.toString().padStart(2, '0')}-01`; generatedTaxTx.push({ id: `auto-cgt-${broker}-${month}`, portfolioId: currentPortfolioId, ticker: 'CGT', type: 'TAX', quantity: 1, price: taxAmount, date: nextMonthStr, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: note, broker: broker }); } }); }); const cleanTransactions = transactions.filter(t => !t.id.startsWith('auto-cgt-')); const mergedTransactions = [...cleanTransactions, ...generatedTaxTx]; const oldIds = transactions.filter(t => t.id.startsWith('auto-cgt-')).map(t=>t.id).sort().join(','); const newIds = generatedTaxTx.map(t=>t.id).sort().join(','); if (oldIds !== newIds) { setTransactions(mergedTransactions); } }, [realizedTrades, transactions, currentPortfolioId]);
 
@@ -601,14 +590,13 @@ const App: React.FC = () => {
   
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
 
-  // NEW: Calculate the most recent price update timestamp
   const lastPriceUpdate = Object.values(priceTimestamps).sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* ... (UI code remains exactly same as before) ... */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0"><div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div><div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[100px]"></div></div>
       
+      {/* ... Header and View Toggle Code ... */}
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
@@ -808,7 +796,10 @@ const App: React.FC = () => {
           brokers={brokers} 
           onManageBrokers={() => setShowBrokerManager(true)}
           portfolioDefaultBrokerId={currentPortfolio?.defaultBrokerId}
-          freeCash={stats.freeCash} // PASSED NEW PROP
+          freeCash={stats.freeCash}
+          // NEW: Passing Scan State Props
+          savedScannedTrades={tradeScanResults}
+          onSaveScannedTrades={handleUpdateTradeScanResults}
       />
       <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
       <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
