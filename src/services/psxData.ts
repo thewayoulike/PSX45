@@ -1,7 +1,7 @@
 /**
  * Service to fetch live stock prices AND SECTORS from PSX.
  * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Target-Aware Parsing. Uses the user's specific ticker list to 'fish' the correct symbol out of noisy text.
+ * UPDATED: Target-Aware Parsing + Header Fallbacks. Handles missing headers by assuming standard layout.
  */
 
 import { SECTOR_CODE_MAP } from './sectors';
@@ -85,7 +85,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
                 cells.forEach((cell, idx) => {
                     const txt = cell.textContent?.trim().toUpperCase() || "";
                     if (txt === 'SYMBOL' || txt === 'SCRIP') colMap.SYMBOL = idx;
-                    if (txt.includes('CURRENT') || txt === 'PRICE' || txt === 'RATE') colMap.PRICE = idx;
+                    if (txt.includes('CURRENT') || txt === 'PRICE' || txt === 'RATE' || txt === 'LAST') colMap.PRICE = idx;
                     if (txt === 'SECTOR') colMap.SECTOR = idx;
                 });
                 
@@ -96,6 +96,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
             }
 
             // If headers not found, try standard fallback indices (Symbol=0, Price=5)
+            // This happens if the proxy returns a table fragment without <thead>
             if (!headerFound) {
                 colMap.SYMBOL = 0;
                 colMap.PRICE = 5; 
