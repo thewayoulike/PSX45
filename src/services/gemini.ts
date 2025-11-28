@@ -71,6 +71,49 @@ const readSpreadsheetAsText = (file: File): Promise<string> => {
     });
 };
 
+// --- NEW HELPER: Robust JSON Extraction ---
+// Counts brackets to find the exact end of the JSON array, ignoring trailing text/markdown.
+const extractJsonArray = (text: string): string | null => {
+    const startIndex = text.indexOf('[');
+    if (startIndex === -1) return null;
+
+    let bracketCount = 0;
+    let inString = false;
+    let escape = false;
+
+    for (let i = startIndex; i < text.length; i++) {
+        const char = text[i];
+
+        if (escape) {
+            escape = false;
+            continue;
+        }
+
+        if (char === '\\') {
+            escape = true;
+            continue;
+        }
+
+        if (char === '"') {
+            inString = !inString;
+            continue;
+        }
+
+        if (!inString) {
+            if (char === '[') {
+                bracketCount++;
+            } else if (char === ']') {
+                bracketCount--;
+                if (bracketCount === 0) {
+                    // Found the matching closing bracket
+                    return text.substring(startIndex, i + 1);
+                }
+            }
+        }
+    }
+    return null; // Unbalanced brackets
+};
+
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
   try {
     const ai = getAi(); 
@@ -166,7 +209,7 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: `Find all dividend announcements declared in the LAST 12 MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
+            contents: `Find all dividend announcements declared in the LAST 6 MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             
             For each company:
             1. Search for "Financial Results", "Board Meetings", and "Book Closure" notices.
@@ -176,7 +219,7 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
             Return ONLY a raw JSON array (no markdown code blocks) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
             
-            Ignore any dividends older than 12 months.`,
+            Ignore any dividends older than 6 months.`,
             config: {
                 tools: [{ googleSearch: {} }]
             }
@@ -185,10 +228,16 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         const text = response.text;
         if (!text) return [];
 
-        // Clean markdown if present
-        const jsonMatch = text.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-            return JSON.parse(jsonMatch[0]);
+        // UPDATED: Use the robust extractor
+        const jsonString = extractJsonArray(text);
+        
+        if (jsonString) {
+            try {
+                return JSON.parse(jsonString);
+            } catch (e) {
+                console.error("JSON Parse Error:", e, "Raw Text:", text);
+                return [];
+            }
         }
         return [];
     } catch (error) {
