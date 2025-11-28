@@ -1,7 +1,6 @@
 export interface Transaction {
   id: string;
   portfolioId: string;
-  // UPDATED: Added 'ANNUAL_FEE'
   type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'; 
   ticker: string;
   quantity: number;
@@ -78,7 +77,8 @@ export interface PortfolioStats {
   freeCash: number;       
   cashInvestment: number; 
   totalDeposits: number;  
-  netPrincipal: number;   
+  netPrincipal: number;
+  peakNetPrincipal: number; // NEW FIELD
   reinvestedProfits: number;
   roi: number;
 }
@@ -86,7 +86,7 @@ export interface PortfolioStats {
 export interface Portfolio {
   id: string;
   name: string;
-  defaultBrokerId: string; // CHANGED: Now Required (removed ?)
+  defaultBrokerId: string;
 }
 
 export interface DividendAnnouncement {
