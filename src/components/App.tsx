@@ -88,11 +88,13 @@ const App: React.FC = () => {
       return {};
   });
 
+  // --- PORTFOLIO EDITING STATE ---
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
 
+  // --- COMBINE PORTFOLIOS STATE ---
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
   const [showFilterDropdown, setShowFilterDropdown] = useState(false);
@@ -141,6 +143,7 @@ const App: React.FC = () => {
 
   const hasMergedCloud = useRef(false);
 
+  // --- LOGOUT LOGIC ---
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); setManualPrices({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setUserApiKey(''); setGeminiApiKey(null); setDriveUser(null); localStorage.clear(); signOutDrive();
   }, []);
@@ -152,6 +155,7 @@ const App: React.FC = () => {
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
 
+  // Close filter dropdown when clicking outside
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
           if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
@@ -162,12 +166,14 @@ const App: React.FC = () => {
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Initialize combined IDs when portfolios load or combined view is toggled
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
+  // --- INITIALIZATION ---
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -207,11 +213,13 @@ const App: React.FC = () => {
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
 
+  // --- HANDLERS ---
   const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
   
+  // ADD TRANSACTION - Enforces Strict Broker Rule
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { 
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
@@ -244,6 +252,8 @@ const App: React.FC = () => {
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
   
+  // --- PORTFOLIO MANAGEMENT ---
+  
   const openCreatePortfolioModal = () => {
       setEditingPortfolioId(null);
       setPortfolioNameInput('');
@@ -273,12 +283,14 @@ const App: React.FC = () => {
       }
 
       if (editingPortfolioId) {
+          // Update Existing
           setPortfolios(prev => prev.map(p => 
               p.id === editingPortfolioId 
                   ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } 
                   : p
           ));
       } else {
+          // Create New
           const newId = Date.now().toString(); 
           setPortfolios(prev => [...prev, { 
               id: newId, 
@@ -288,6 +300,7 @@ const App: React.FC = () => {
           setCurrentPortfolioId(newId);
       }
       
+      // Cleanup
       setPortfolioNameInput(''); 
       setPortfolioBrokerIdInput('');
       setEditingPortfolioId(null);
@@ -296,6 +309,7 @@ const App: React.FC = () => {
 
   const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
   
+  // Combine View Logic Handlers
   const handleTogglePortfolioSelection = (id: string) => {
       const newSet = new Set(combinedPortfolioIds);
       if (newSet.has(id)) {
@@ -310,14 +324,18 @@ const App: React.FC = () => {
       setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
   };
 
+  // Sync
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
 
+  // Annual Fee Check
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
   
+  // UPDATED: Portfolio Transactions Logic (Combined vs Single)
   const portfolioTransactions = useMemo(() => { 
       if (isCombinedView) {
+          // Filter by the specific set of IDs selected
           return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       }
       return transactions.filter(t => t.portfolioId === currentPortfolioId); 
@@ -347,25 +365,34 @@ const App: React.FC = () => {
     const withdrawalsFromPrincipal = Math.max(0, totalWithdrawals - totalProfits);
     const netPrincipal = totalDeposits - withdrawalsFromPrincipal;
     
-    // --- 3. Peak Net Principal Calculation ---
-    // Create chronological event list
-    const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'TAX', amount: number }[] = [];
-    
+    // --- 3. Peak Net Principal Calculation (Daily Resolution) ---
+    // UPDATED: Use a Map to aggregate daily net flows first
+    const dailyMap = new Map<string, { in: number, out: number, profit: number, tax: number }>();
+
+    const addToDay = (date: string, field: 'in' | 'out' | 'profit' | 'tax', amount: number) => {
+        // Ensure standard date format key
+        const d = date ? date.split('T')[0] : 'unknown';
+        const curr = dailyMap.get(d) || { in: 0, out: 0, profit: 0, tax: 0 };
+        curr[field] += amount;
+        dailyMap.set(d, curr);
+    };
+
     portfolioTransactions.forEach(t => {
-        if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price });
-        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price });
-        else if (t.type === 'TAX') events.push({ date: t.date, type: 'TAX', amount: t.price }); // Tax paid is outflow from profits (or cash)
+        if (t.type === 'DEPOSIT') addToDay(t.date, 'in', t.price);
+        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') addToDay(t.date, 'out', t.price);
+        else if (t.type === 'TAX') addToDay(t.date, 'tax', t.price); 
         else if (t.type === 'DIVIDEND') {
             const netDiv = (t.quantity * t.price) - (t.tax || 0);
-            events.push({ date: t.date, type: 'PROFIT', amount: netDiv });
+            addToDay(t.date, 'profit', netDiv);
         }
     });
     
     realizedTrades.forEach(t => {
-        events.push({ date: t.date, type: 'PROFIT', amount: t.profit });
+        addToDay(t.date, 'profit', t.profit);
     });
 
-    events.sort((a, b) => a.date.localeCompare(b.date));
+    // Sort dates chronologically
+    const sortedDates = Array.from(dailyMap.keys()).sort();
 
     let runDeposits = 0;
     let runWithdrawals = 0;
@@ -373,11 +400,13 @@ const App: React.FC = () => {
     let runTaxes = 0;
     let peakNetPrincipal = 0;
 
-    events.forEach(e => {
-        if (e.type === 'IN') runDeposits += e.amount;
-        if (e.type === 'OUT') runWithdrawals += e.amount;
-        if (e.type === 'PROFIT') runProfits += e.amount;
-        if (e.type === 'TAX') runTaxes += e.amount; // Taxes reduce effective profit for principal calc
+    sortedDates.forEach(date => {
+        const day = dailyMap.get(date)!;
+        
+        runDeposits += day.in;
+        runWithdrawals += day.out;
+        runProfits += day.profit;
+        runTaxes += day.tax;
 
         // Effective Profits for Principal Protection = Profits - Taxes
         const effectiveProfits = runProfits - runTaxes;
@@ -387,6 +416,7 @@ const App: React.FC = () => {
         
         const currentNetPrincipal = runDeposits - principalLoss;
         
+        // Update Peak if current day's end-result is higher
         if (currentNetPrincipal > peakNetPrincipal) {
             peakNetPrincipal = currentNetPrincipal;
         }
@@ -411,7 +441,7 @@ const App: React.FC = () => {
     return { 
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
         totalDividends, dailyPL: 0, totalCommission, totalSalesTax, totalDividendTax, totalCDC, 
-        totalOtherFees, totalCGT, freeCash, cashInvestment, netPrincipal, peakNetPrincipal, // Added here
+        totalOtherFees, totalCGT, freeCash, cashInvestment, netPrincipal, peakNetPrincipal, 
         totalDeposits, reinvestedProfits, roi 
     };
   }, [holdings, realizedTrades, totalDividends, portfolioTransactions]);
@@ -426,7 +456,7 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* ... (Header code remains the same) ... */}
+      {/* ... (UI code remains exactly same as before) ... */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0"><div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div><div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[100px]"></div></div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
