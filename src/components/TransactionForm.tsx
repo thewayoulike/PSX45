@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Transaction, Broker, ParsedTrade } from '../types';
+import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
 import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
@@ -15,10 +15,9 @@ interface TransactionFormProps {
   brokers?: Broker[]; 
   portfolioDefaultBrokerId?: string;
   freeCash?: number;
-}
-
-interface EditableTrade extends ParsedTrade {
-    brokerId?: string;
+  // NEW: Props for persistence
+  savedScannedTrades?: EditableTrade[];
+  onSaveScannedTrades?: (trades: EditableTrade[]) => void;
 }
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ 
@@ -31,7 +30,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   editingTransaction,
   brokers = [],
   portfolioDefaultBrokerId,
-  freeCash
+  freeCash,
+  savedScannedTrades = [],
+  onSaveScannedTrades
 }) => {
   const [mode, setMode] = useState<'MANUAL' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'>('BUY');
@@ -48,13 +49,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
 
-  // Scanner State
+  // Scanner State (Now derived from props for persistence)
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
-  const [scannedTrades, setScannedTrades] = useState<EditableTrade[]>([]);
-  // NEW: Selection State for Scanner
   const [selectedScanIndices, setSelectedScanIndices] = useState<Set<number>>(new Set());
+
+  // Helper to update parent
+  const updateScannedTrades = (trades: EditableTrade[]) => {
+      if (onSaveScannedTrades) onSaveScannedTrades(trades);
+  };
 
   // Validation State
   const [formError, setFormError] = useState<string | null>(null);
@@ -108,22 +112,30 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         } else {
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
-            setMode('MANUAL'); setIsAutoCalc(true); 
+            
+            // NOTE: We do NOT reset savedScannedTrades here to keep them persistent
+            if (savedScannedTrades.length > 0) {
+                setMode('AI_SCAN'); // Re-open scan tab if items exist
+            } else {
+                setMode('MANUAL'); 
+            }
+
+            setIsAutoCalc(true); 
             setDate(new Date().toISOString().split('T')[0]);
             setCgtMonth(new Date().toISOString().substring(0, 7));
             setCgtProfit('');
             setHistAmount(''); setHistTaxType('AFTER_TAX');
-            setScannedTrades([]); setScanError(null); setSelectedFile(null);
+            setScanError(null); setSelectedFile(null);
             
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
-  }, [isOpen, editingTransaction, portfolioDefaultBrokerId]);
+  }, [isOpen, editingTransaction, portfolioDefaultBrokerId]); // Removed savedScannedTrades from dep array to avoid loops
 
   // Clear selections when list changes
   useEffect(() => {
       setSelectedScanIndices(new Set());
-  }, [scannedTrades, mode]);
+  }, [savedScannedTrades, mode]);
 
   // Auto-Calculation Logic
   useEffect(() => {
@@ -142,7 +154,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
 
-  // --- NEW HELPER: Get Holding Quantity ---
   const getHoldingQty = (ticker: string, brokerId: string) => {
       let qty = 0;
       const cleanTicker = ticker.toUpperCase();
@@ -150,9 +161,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       const brokerName = brokerObj?.name;
 
       existingTransactions.forEach(t => {
-          // Strict Broker Match
           const isSameBroker = t.brokerId === brokerId || (t.broker && brokerName && t.broker === brokerName);
-          
           if (t.ticker === cleanTicker && isSameBroker) {
               if (t.type === 'BUY') qty += t.quantity;
               if (t.type === 'SELL') qty -= t.quantity;
@@ -172,20 +181,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
     const qtyNum = Number(quantity);
 
-    // INSUFFICIENT HOLDINGS CHECK
     if (type === 'SELL') {
         const heldQty = getHoldingQty(cleanTicker, selectedBrokerId);
-        // Special case for editing: Add back the quantity of the transaction being edited
-        // (Not strictly necessary for getHoldingQty as it sums existing, but good for robustness if needed)
-        // For simplicity, using getHoldingQty on existingTransactions is correct as long as we don't double subtract.
-        // Actually, if we are EDITING, the transaction is IN existingTransactions. 
-        // We should temporarily exclude it to get the "base" state.
-        
         let adjustedQty = heldQty;
         if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) {
-             adjustedQty += editingTransaction.quantity; // Add back previous sell to see total available
+             adjustedQty += editingTransaction.quantity; 
         } else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) {
-             adjustedQty -= editingTransaction.quantity; // Remove buy to see base available (edge case)
+             adjustedQty -= editingTransaction.quantity; 
         }
 
         if (qtyNum > adjustedQty) {
@@ -194,7 +196,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         }
     }
 
-    // BUYING POWER CHECK
     if (type === 'BUY' && !editingTransaction && freeCash !== undefined) {
         const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
         if (totalCost > freeCash) {
@@ -213,10 +214,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     onClose();
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); setScannedTrades([]); } };
-  const handleProcessScan = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); setScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); setScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); updateScannedTrades([]); } };
+  const handleProcessScan = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); updateScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
   
-  // SCANNER SELECTION HANDLERS
   const toggleScanSelection = (index: number) => {
       const next = new Set(selectedScanIndices);
       if (next.has(index)) next.delete(index);
@@ -225,8 +225,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const toggleSelectAll = () => {
-      if (selectedScanIndices.size === scannedTrades.length) setSelectedScanIndices(new Set());
-      else setSelectedScanIndices(new Set(scannedTrades.map((_, i) => i)));
+      if (selectedScanIndices.size === savedScannedTrades.length) setSelectedScanIndices(new Set());
+      else setSelectedScanIndices(new Set(savedScannedTrades.map((_, i) => i)));
   };
 
   const getTradeCost = (t: EditableTrade) => {
@@ -254,11 +254,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       });
   };
 
-  // --- Handle Accepting a Single Trade from Scan (With Full Validation) ---
   const handleAcceptTrade = (trade: EditableTrade) => {
       setFormError(null);
-      
-      // 1. Cash Check (BUY)
       if (trade.type === 'BUY' && freeCash !== undefined) {
           const cost = getTradeCost(trade);
           if (cost > freeCash) {
@@ -266,8 +263,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               return;
           }
       }
-
-      // 2. Holdings Check (SELL)
       if (trade.type === 'SELL') {
           const targetBrokerId = trade.brokerId || selectedBrokerId;
           const currentQty = getHoldingQty(trade.ticker, targetBrokerId);
@@ -276,17 +271,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                return;
           }
       }
-
       addSingleTrade(trade);
-      setScannedTrades(prev => prev.filter(t => t !== trade));
+      updateScannedTrades(savedScannedTrades.filter(t => t !== trade));
   };
 
-  // --- Handle Accepting Bulk Selection (With Full Validation) ---
   const handleAcceptSelected = () => {
       setFormError(null);
-      const selectedTrades = scannedTrades.filter((_, i) => selectedScanIndices.has(i));
+      const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i));
       
-      // 1. Bulk Cash Check
       const totalBuyCost = selectedTrades.reduce((acc, t) => {
           return t.type === 'BUY' ? acc + getTradeCost(t) : acc;
       }, 0);
@@ -296,37 +288,38 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
            return;
       }
 
-      // 2. Bulk Holdings Check
       for (const trade of selectedTrades) {
           if (trade.type === 'SELL') {
               const targetBrokerId = trade.brokerId || selectedBrokerId;
               const currentQty = getHoldingQty(trade.ticker, targetBrokerId);
-              
               if (Number(trade.quantity) > currentQty) {
                    setFormError(`Insufficient Holdings for ${trade.ticker}! You own ${currentQty}, trying to sell ${trade.quantity}. Bulk action cancelled.`);
-                   return; // Stop the whole batch
+                   return; 
               }
           }
       }
 
       selectedTrades.forEach(addSingleTrade);
-
-      setScannedTrades(prev => prev.filter((_, i) => !selectedScanIndices.has(i)));
+      updateScannedTrades(savedScannedTrades.filter((_, i) => !selectedScanIndices.has(i)));
       setSelectedScanIndices(new Set());
   };
 
-  const updateScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...scannedTrades]; updated[index] = { ...updated[index], [field]: value }; setScannedTrades(updated); };
+  const updateSingleScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { 
+      const updated = [...savedScannedTrades]; 
+      updated[index] = { ...updated[index], [field]: value }; 
+      updateScannedTrades(updated); 
+  };
+  
   const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
   const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
-  const themeBg = mode === 'AI_SCAN' ? 'bg-indigo-50' : 'bg-emerald-50';
   const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${scannedTrades.length > 0 ? 'max-w-6xl' : 'max-w-md'}`}>
+      <div className={`bg-white border border-slate-200 rounded-2xl shadow-2xl w-full flex flex-col max-h-[90vh] transition-all duration-300 ${savedScannedTrades.length > 0 ? 'max-w-6xl' : 'max-w-md'}`}>
         
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 bg-white rounded-t-2xl">
           <h2 className="text-xl font-bold text-slate-800">
@@ -347,7 +340,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
         <div className="p-6 pt-0 flex-1 overflow-y-auto custom-scrollbar">
             
-            {/* ERROR DISPLAY (MOVED TO TOP LEVEL) */}
             {formError && (
                 <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 flex items-start gap-3 animate-in slide-in-from-top-2 mb-4">
                     <AlertCircle className="text-rose-500 shrink-0 mt-0.5" size={18} />
@@ -455,7 +447,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             {/* Scanner Mode View */}
             {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
                 <div className="flex flex-col min-h-[360px] relative">
-                    {!isScanning && scannedTrades.length === 0 && (
+                    {!isScanning && savedScannedTrades.length === 0 && (
                         <>
                             <div className="mb-6">
                                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Default Broker for Import</label>
@@ -502,17 +494,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <p className="text-slate-400 text-sm text-center max-w-[200px]">Extracting trade details, please wait...</p>
                         </div>
                     )}
-                    {scannedTrades.length > 0 && (
+                    {savedScannedTrades.length > 0 && (
                         <div className="w-full flex-1 flex flex-col overflow-hidden">
                             <div className="flex justify-between items-center mb-2 px-1">
-                                <h3 className="font-bold text-slate-800 text-lg">Found {scannedTrades.length} Trades</h3>
+                                <h3 className="font-bold text-slate-800 text-lg">Found {savedScannedTrades.length} Trades</h3>
                                 <div className="flex items-center gap-2">
                                     {selectedScanIndices.size > 0 && (
                                         <button onClick={handleAcceptSelected} className="text-xs bg-emerald-600 text-white hover:bg-emerald-700 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all shadow-sm">
                                             <Plus size={14} /> Add Selected ({selectedScanIndices.size})
                                         </button>
                                     )}
-                                    <button onClick={() => { setScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-all"> <RefreshCcw size={12} /> Clear All </button>
+                                    <button onClick={() => { updateScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-all"> <RefreshCcw size={12} /> Clear All </button>
                                 </div>
                             </div>
                             <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
@@ -520,27 +512,27 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     <thead>
                                         <tr className="bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-200">
                                             <th className="px-3 py-3 text-center w-10">
-                                                <input type="checkbox" onChange={toggleSelectAll} checked={selectedScanIndices.size === scannedTrades.length && scannedTrades.length > 0} className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/>
+                                                <input type="checkbox" onChange={toggleSelectAll} checked={selectedScanIndices.size === savedScannedTrades.length && savedScannedTrades.length > 0} className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/>
                                             </th>
                                             <th className="px-3 py-3">Type</th> <th className="px-3 py-3">Date</th> <th className="px-3 py-3">Ticker</th> <th className="px-3 py-3">Broker</th> <th className="px-3 py-3 w-24">Qty</th> <th className="px-3 py-3 w-24">Price</th> <th className="px-2 py-3 w-20 text-slate-400">Comm</th> <th className="px-2 py-3 w-20 text-slate-400">Tax</th> <th className="px-2 py-3 w-20 text-slate-400">CDC</th> <th className="px-2 py-3 w-20 text-slate-400">Other</th> <th className="px-3 py-3 text-center">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {scannedTrades.map((t, idx) => (
+                                        {savedScannedTrades.map((t, idx) => (
                                             <tr key={idx} className={`hover:bg-slate-50/50 transition-colors group ${selectedScanIndices.has(idx) ? 'bg-indigo-50/40' : ''}`}>
                                                 <td className="px-3 py-2 text-center">
                                                     <input type="checkbox" checked={selectedScanIndices.has(idx)} onChange={() => toggleScanSelection(idx)} className="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/>
                                                 </td>
                                                 <td className="px-3 py-2"><span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-blue-50 text-blue-600 border-blue-100'}`}>{t.type}</span></td>
-                                                <td className="px-3 py-2"><input type="date" value={t.date || ''} onChange={(e) => updateScannedTrade(idx, 'date', e.target.value)} className="w-24 bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" /></td>
-                                                <td className="px-3 py-2"><input type="text" value={t.ticker} onChange={(e) => updateScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-16 bg-transparent text-xs font-bold text-slate-800 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white uppercase transition-all" /></td>
-                                                <td className="px-3 py-2"><select disabled value={t.brokerId || ''} onChange={(e) => updateScannedTrade(idx, 'brokerId', e.target.value)} className="w-24 bg-transparent text-xs text-slate-500 outline-none border-b border-transparent appearance-none truncate cursor-not-allowed bg-slate-100"><option value="">{t.broker || 'Select'}</option>{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></td>
-                                                <td className="px-3 py-2"><input type="number" value={t.quantity} onChange={(e) => updateScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0" /></td>
-                                                <td className="px-3 py-2"><input type="number" step="0.01" value={t.price} onChange={(e) => updateScannedTrade(idx, 'price', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0.00" /></td>
-                                                <td className="px-2 py-2"><input type="number" step="any" value={t.commission || ''} onChange={(e) => updateScannedTrade(idx, 'commission', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
-                                                <td className="px-2 py-2"><input type="number" step="any" value={t.tax || ''} onChange={(e) => updateScannedTrade(idx, 'tax', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
-                                                <td className="px-2 py-2"><input type="number" step="any" value={t.cdcCharges || ''} onChange={(e) => updateScannedTrade(idx, 'cdcCharges', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
-                                                <td className="px-2 py-2"><input type="number" step="any" value={t.otherFees || ''} onChange={(e) => updateScannedTrade(idx, 'otherFees', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-3 py-2"><input type="date" value={t.date || ''} onChange={(e) => updateSingleScannedTrade(idx, 'date', e.target.value)} className="w-24 bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" /></td>
+                                                <td className="px-3 py-2"><input type="text" value={t.ticker} onChange={(e) => updateSingleScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-16 bg-transparent text-xs font-bold text-slate-800 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white uppercase transition-all" /></td>
+                                                <td className="px-3 py-2"><select disabled value={t.brokerId || ''} onChange={(e) => updateSingleScannedTrade(idx, 'brokerId', e.target.value)} className="w-24 bg-transparent text-xs text-slate-500 outline-none border-b border-transparent appearance-none truncate cursor-not-allowed bg-slate-100"><option value="">{t.broker || 'Select'}</option>{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></td>
+                                                <td className="px-3 py-2"><input type="number" value={t.quantity} onChange={(e) => updateSingleScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0" /></td>
+                                                <td className="px-3 py-2"><input type="number" step="0.01" value={t.price} onChange={(e) => updateSingleScannedTrade(idx, 'price', Number(e.target.value))} className="w-full bg-transparent text-xs font-medium text-slate-700 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white transition-all" placeholder="0.00" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.commission || ''} onChange={(e) => updateSingleScannedTrade(idx, 'commission', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.tax || ''} onChange={(e) => updateSingleScannedTrade(idx, 'tax', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.cdcCharges || ''} onChange={(e) => updateSingleScannedTrade(idx, 'cdcCharges', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
+                                                <td className="px-2 py-2"><input type="number" step="any" value={t.otherFees || ''} onChange={(e) => updateSingleScannedTrade(idx, 'otherFees', Number(e.target.value))} className="w-full bg-transparent text-[10px] text-slate-500 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white placeholder-slate-300" placeholder="0" /></td>
                                                 <td className="px-3 py-2 text-center"><button onClick={() => handleAcceptTrade(t)} className="p-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white rounded-lg transition-all shadow-sm" title="Add Transaction"> <Plus size={14} strokeWidth={3} /> </button></td>
                                             </tr>
                                         ))}
