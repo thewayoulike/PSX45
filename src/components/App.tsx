@@ -807,7 +807,8 @@ const App: React.FC = () => {
           editingTransaction={editingTransaction} 
           brokers={brokers} 
           onManageBrokers={() => setShowBrokerManager(true)}
-          portfolioDefaultBrokerId={currentPortfolio?.defaultBrokerId} 
+          portfolioDefaultBrokerId={currentPortfolio?.defaultBrokerId}
+          freeCash={stats.freeCash} // PASSED NEW PROP
       />
       <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
       <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
