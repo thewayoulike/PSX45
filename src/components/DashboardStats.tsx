@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3 } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, RefreshCcw, AlertTriangle, TrendingDown, Percent, BarChart3, Landmark, History } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -48,8 +48,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
   return (
     <div className="flex flex-col gap-4 md:gap-6 mb-6 md:mb-10">
         
-        {/* PRIMARY METRICS */}
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-6">
+        {/* PRIMARY METRICS - Updated Grid to 6 columns for large screens */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 md:gap-6">
             
             {/* ROI CARD */}
             <Card title="Portfolio ROI" icon={<Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
@@ -58,7 +58,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Return on Total Capital</span>
+                        <span>Return on Capital</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${isRoiPositive ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
@@ -123,22 +123,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                 </div>
             </Card>
 
-            {/* CASH INVESTMENT CARD */}
-            <Card title="Cash Investment" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+            {/* SPLIT: CARD 1 - CURRENT CASH INVESTED */}
+            <Card title="Current Cash Invested" icon={<Scale className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
                 <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
-                Rs. {formatCurrency(stats.cashInvestment)}
+                Rs. {formatCurrency(stats.netPrincipal)}
                 </div>
                 <div className="mt-3 md:mt-4">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Net Cash Flow</span>
+                        <span>Net Principal</span>
                         {isCapitalEroded && (
-                            <span className="text-rose-500 flex items-center gap-1">
-                                -{formatCurrency(erosionAmount)} Loss
+                            <span className="text-rose-500 flex items-center gap-1" title="Principal Eroded">
+                                -{formatCurrency(erosionAmount)}
                             </span>
                         )}
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* SPLIT: CARD 2 - LIFETIME CASH INVESTMENT */}
+            <Card title="Lifetime Cash Inv" icon={<History className="w-4 h-4 md:w-[18px] md:h-[18px]" />}>
+                <div className="text-lg sm:text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">
+                Rs. {formatCurrency(stats.totalDeposits)}
+                </div>
+                <div className="mt-3 md:mt-4">
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Total Deposits</span>
+                    </div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
+                        <div className="h-full bg-slate-400 rounded-full" style={{ width: '100%' }}></div>
                     </div>
                 </div>
             </Card>
@@ -274,7 +289,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
             <div className="bg-white border border-slate-200 rounded-xl p-4 flex items-center gap-3 shadow-sm">
                 <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><PiggyBank size={20} /></div>
                 <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Est. CGT (15%)</div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total CGT</div>
                     <div className="text-lg font-bold text-slate-700">{formatCurrency(stats.totalCGT)}</div>
                 </div>
             </div>
