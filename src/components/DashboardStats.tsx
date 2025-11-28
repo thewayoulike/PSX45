@@ -233,7 +233,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats }) => {
                         <History className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                     </div>
                     <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
-                        Lifetime Cash Inv
+                        Lifetime Cash Investment
                     </h3>
                 </div>
 
