@@ -12,7 +12,6 @@ const sanitizeKey = (key: string): string => {
 };
 
 export const setGeminiApiKey = (key: string | null) => {
-    // FIX: Sanitize immediately upon setting
     userProvidedKey = key ? sanitizeKey(key) : null;
     aiClient = null;
 };
@@ -37,9 +36,6 @@ const getAi = (): GoogleGenAI | null => {
         return null;
     }
 }
-
-// ... (Rest of the file remains exactly the same: readSpreadsheetAsText, parseTradeDocument, fetchDividends)
-// Just copy the remaining functions from your previous version or keep them as is.
 
 // --- HELPER: Read Spreadsheet to Text ---
 const readSpreadsheetAsText = (file: File): Promise<string> => {
@@ -170,8 +166,17 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
-            contents: `Find recent dividend announcements (last 6 months) for these PSX tickers: ${tickerList}.
-            Return ONLY a raw JSON array (no markdown) with objects having these keys: ticker, amount (number), exDate (YYYY-MM-DD), payoutDate, type (Interim/Final), period.`,
+            contents: `Find all dividend announcements declared in the LAST 12 MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
+            
+            For each company:
+            1. Search for "Financial Results", "Board Meetings", and "Book Closure" notices.
+            2. Identify the EXACT Ex-Date (The date shares trade without dividend).
+            3. Identify the Cash Dividend amount (Rs per share).
+            
+            Return ONLY a raw JSON array (no markdown code blocks) with objects:
+            [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
+            
+            Ignore any dividends older than 12 months.`,
             config: {
                 tools: [{ googleSearch: {} }]
             }
@@ -180,6 +185,7 @@ export const fetchDividends = async (tickers: string[]): Promise<DividendAnnounc
         const text = response.text;
         if (!text) return [];
 
+        // Clean markdown if present
         const jsonMatch = text.match(/\[[\s\S]*\]/);
         if (jsonMatch) {
             return JSON.parse(jsonMatch[0]);
