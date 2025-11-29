@@ -10,14 +10,15 @@ const STORAGE_TOKEN_KEY = 'psx_drive_access_token';
 const STORAGE_USER_KEY = 'psx_drive_user_profile';
 const STORAGE_EXPIRY_KEY = 'psx_drive_token_expiry';
 
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid';
+// ADDED: spreadsheets scope
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets openid';
 const DB_FILE_NAME = 'psx_tracker_data.json';
+const SHEET_FILE_NAME = 'PSX_Portfolio_Transactions'; // Name of the Google Sheet
 
 let tokenClient: any = null;
 let accessToken: string | null = null;
 let tokenExpiryTime: number = 0;
 
-// Promise wrapper to handle async token refresh
 let refreshTokenResolver: ((token: string) => void) | null = null;
 
 export interface DriveUser {
@@ -63,13 +64,9 @@ const loadGoogleScript = () => {
     document.body.appendChild(script);
 };
 
-/**
- * Initialize Auth & Attempt to Restore Session
- */
 export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
     loadGoogleScript();
 
-    // 1. TRY RESTORE SESSION IMMEDIATELY
     try {
         const storedToken = localStorage.getItem(STORAGE_TOKEN_KEY);
         const storedUserStr = localStorage.getItem(STORAGE_USER_KEY);
@@ -79,8 +76,6 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
             const expiry = parseInt(storedExpiry);
             const now = Date.now();
             
-            // Check if token is valid (or recently expired, we can try to refresh if user profile exists)
-            // Buffer of 1 minute
             if (!isNaN(expiry) && now < expiry - 60000) {
                 console.log("Restoring valid session...");
                 accessToken = storedToken;
@@ -98,7 +93,6 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
         console.error("Error restoring session", e);
     }
 
-    // 2. SETUP GOOGLE CLIENT
     const checkInterval = setInterval(() => {
         if (window.google && window.google.accounts && window.google.accounts.oauth2) {
             clearInterval(checkInterval);
@@ -111,22 +105,17 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
                     callback: async (tokenResponse: any) => {
                         if (tokenResponse && tokenResponse.access_token) {
                             accessToken = tokenResponse.access_token;
-                            
-                            // Calculate absolute expiry time
                             const expiresIn = (tokenResponse.expires_in || 3599) * 1000;
                             tokenExpiryTime = Date.now() + expiresIn;
 
-                            // Save to Storage
                             localStorage.setItem(STORAGE_TOKEN_KEY, accessToken!);
                             localStorage.setItem(STORAGE_EXPIRY_KEY, tokenExpiryTime.toString());
 
-                            // If we were waiting for a refresh, resolve it
                             if (refreshTokenResolver) {
                                 refreshTokenResolver(accessToken!);
                                 refreshTokenResolver = null;
                             }
 
-                            // Fetch User Profile if not already present or if this is a fresh login
                             const storedUser = localStorage.getItem(STORAGE_USER_KEY);
                             if (!storedUser || !refreshTokenResolver) {
                                 try {
@@ -162,7 +151,6 @@ export const signInWithDrive = () => {
         alert("Google Service initializing... please wait 2 seconds and try again.");
         return;
     }
-    // Force consent for fresh login
     tokenClient.requestAccessToken({ prompt: 'consent' });
 };
 
@@ -181,25 +169,17 @@ export const signOutDrive = () => {
     }
 };
 
-/**
- * Ensures we have a valid token before making requests.
- * Refreshes if expired.
- */
 const getValidToken = async (): Promise<string | null> => {
     const now = Date.now();
-    // If token exists and has > 1 minute left, use it
     if (accessToken && tokenExpiryTime > now + 60000) {
         return accessToken;
     }
 
-    // Token expired or missing. Try to refresh.
     if (!tokenClient) return null;
-
     console.log("Token expired or missing. refreshing...");
     
     return new Promise((resolve) => {
         refreshTokenResolver = resolve;
-        // Skip prompt to try silent refresh
         tokenClient.requestAccessToken({ prompt: '' });
     });
 };
@@ -215,8 +195,7 @@ const findDbFile = async () => {
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     
     if (response.status === 401) {
-        // Retry once with forced refresh if 401
-        localStorage.removeItem(STORAGE_TOKEN_KEY); // Force clear
+        localStorage.removeItem(STORAGE_TOKEN_KEY); 
         const newToken = await getValidToken();
         if (!newToken) return null;
         const retryResp = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
@@ -277,6 +256,121 @@ export const loadFromDrive = async () => {
         console.error("Load from Drive failed", e);
     }
     return null;
+};
+
+// --- Google Sheets Sync ---
+
+const findSheetFile = async () => {
+    const token = await getValidToken();
+    if (!token) return null;
+
+    // Look for Google Sheet specifically
+    const query = `name = '${SHEET_FILE_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
+    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`;
+    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    const data = await response.json();
+    if (data.files && data.files.length > 0) return data.files[0].id;
+    return null;
+};
+
+const createSheetFile = async () => {
+    const token = await getValidToken();
+    if (!token) return null;
+
+    const metadata = { name: SHEET_FILE_NAME, mimeType: 'application/vnd.google-apps.spreadsheet' };
+    const response = await fetch('https://www.googleapis.com/drive/v3/files', {
+        method: 'POST',
+        headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(metadata)
+    });
+    const data = await response.json();
+    return data.id;
+};
+
+export const syncTransactionsToSheet = async (transactions: any[]) => {
+    const token = await getValidToken();
+    if (!token) return;
+
+    try {
+        let sheetId = await findSheetFile();
+        if (!sheetId) {
+            console.log("Creating new Google Sheet...");
+            sheetId = await createSheetFile();
+        }
+        if (!sheetId) return;
+
+        // 1. Prepare Data Headers and Rows
+        const headers = [
+            'Date', 'Type', 'Category', 'Ticker', 'Broker', 
+            'Quantity', 'Price', 'Commission', 'Tax', 'CDC Charges', 'Other Fees', 
+            'Total Amount', 'Notes', 'ID (Do Not Edit)'
+        ];
+
+        // Sort by date descending
+        const sortedTx = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        const rows = sortedTx.map(t => {
+            // Calculate Total/Net Amount logic for the sheet
+            let total = 0;
+            const gross = t.quantity * t.price;
+            const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
+
+            if (t.type === 'BUY') total = gross + fees;
+            else if (t.type === 'SELL') total = gross - fees;
+            else if (t.type === 'DIVIDEND') total = gross - (t.tax || 0); // Net Dividend
+            else if (t.type === 'TAX') total = -Math.abs(t.price);
+            else if (t.type === 'DEPOSIT') total = t.price;
+            else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') total = -Math.abs(t.price);
+            else if (t.type === 'OTHER') {
+                 if (t.category === 'OTHER_TAX') total = -Math.abs(t.price);
+                 else total = t.price; // Adjustment
+            }
+            else if (t.type === 'HISTORY') total = t.price;
+
+            return [
+                t.date, 
+                t.type, 
+                t.category || '', 
+                t.ticker, 
+                t.broker || '', 
+                t.quantity, 
+                t.price, 
+                t.commission || 0, 
+                t.tax || 0, 
+                t.cdcCharges || 0, 
+                t.otherFees || 0, 
+                total, 
+                t.notes || '',
+                t.id
+            ];
+        });
+
+        const values = [headers, ...rows];
+
+        // 2. Clear Sheet First (to ensure deletions are reflected)
+        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A:Z:clear`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token}` }
+        });
+
+        // 3. Write New Data
+        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1?valueInputOption=USER_ENTERED`, {
+            method: 'PUT',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ values })
+        });
+        
+        console.log("Google Sheet synced successfully.");
+
+    } catch (e) {
+        console.error("Sheet Sync Failed", e);
+    }
 };
 
 export const hasValidSession = (): boolean => {
