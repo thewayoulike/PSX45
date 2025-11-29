@@ -170,7 +170,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         }
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
-             if (type === 'DIVIDEND') { setCommission(0); setCdcCharges(0); setOtherFees(0); const wht = gross * 0.15; setTax(parseFloat(wht.toFixed(2))); } else {
+             if (type === 'DIVIDEND') { 
+                 setCommission(0); 
+                 setCdcCharges(0); 
+                 // NOTE: setOtherFees(0) removed to allow manual input persistence during auto-calc if needed, 
+                 // but typically auto-calc resets. For now, we keep it resetting to clean up, 
+                 // but user can edit after calculation since field is unlocked.
+                 setOtherFees(0); 
+                 const wht = gross * 0.15; 
+                 setTax(parseFloat(wht.toFixed(2))); 
+             } else {
                  let estComm = 0;
                  const currentBroker = brokers.find(b => b.id === selectedBrokerId);
                  if (currentBroker) {
@@ -637,7 +646,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     <div><label className="text-[10px] text-slate-400 block mb-1">Commission</label><input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
                                     <div><label className="text-[10px] text-slate-400 block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
                                     <div><label className="text-[10px] text-slate-400 block mb-1">CDC Charges</label><input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
-                                    <div><label className="text-[10px] text-slate-400 block mb-1">Other Fees</label><input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
+                                    
+                                    {/* MODIFIED: Renamed label and removed disabled attribute */}
+                                    <div>
+                                        <label className="text-[10px] text-slate-400 block mb-1">
+                                            {type === 'DIVIDEND' ? 'Other Charges' : 'Other Fees'}
+                                        </label>
+                                        <input 
+                                            type="number" 
+                                            step="any" 
+                                            value={otherFees} 
+                                            onChange={e=>setOtherFees(Number(e.target.value))} 
+                                            className="w-full text-xs p-2 rounded border border-slate-200"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </>
