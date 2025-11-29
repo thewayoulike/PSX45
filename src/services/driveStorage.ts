@@ -10,7 +10,7 @@ const STORAGE_TOKEN_KEY = 'psx_drive_access_token';
 const STORAGE_USER_KEY = 'psx_drive_user_profile';
 const STORAGE_EXPIRY_KEY = 'psx_drive_token_expiry';
 
-// ADDED: spreadsheets scope
+// SCOPES: Critical that 'spreadsheets' is included here
 const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets openid';
 const DB_FILE_NAME = 'psx_tracker_data.json';
 const SHEET_FILE_NAME = 'PSX_Portfolio_Transactions'; // Name of the Google Sheet
@@ -36,12 +36,6 @@ declare global {
 
 const getEnv = (key: string) => {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-        const stored = window.localStorage.getItem(key);
-        if (stored && stored.length > 10) return stored;
-    }
-  } catch (e) { /* ignore */ }
-  try {
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[key]) {
       // @ts-ignore
@@ -51,7 +45,8 @@ const getEnv = (key: string) => {
   return undefined;
 };
 
-const RAW_ID = getEnv(CLIENT_ID_KEY) || getEnv('REACT_APP_GOOGLE_CLIENT_ID') || HARDCODED_CLIENT_ID;
+// Prioritize the User's Env Variable over the Hardcoded one
+const RAW_ID = getEnv(CLIENT_ID_KEY) || HARDCODED_CLIENT_ID;
 const CLIENT_ID = (RAW_ID && RAW_ID.includes('.apps.googleusercontent.com')) ? RAW_ID : undefined;
 
 const loadGoogleScript = () => {
@@ -151,6 +146,7 @@ export const signInWithDrive = () => {
         alert("Google Service initializing... please wait 2 seconds and try again.");
         return;
     }
+    // Force prompt to ensure user sees the consent screen for new scopes
     tokenClient.requestAccessToken({ prompt: 'consent' });
 };
 
@@ -285,6 +281,13 @@ const createSheetFile = async () => {
         },
         body: JSON.stringify(metadata)
     });
+    
+    if (response.status === 403) {
+        console.error("403 Forbidden creating Sheet. Likely scope issue.");
+        alert("Action Forbidden: Please Sign Out and Sign In again to grant 'Create Spreadsheets' permission.");
+        return null;
+    }
+    
     const data = await response.json();
     return data.id;
 };
@@ -309,6 +312,15 @@ export const syncTransactionsToSheet = async (transactions: any[], portfolios: a
         const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`, {
             headers: { Authorization: `Bearer ${token}` }
         });
+        
+        // --- IMPROVED 403 HANDLING ---
+        if (metaResp.status === 403) {
+             console.error("403 Forbidden: App cannot access Google Sheets.");
+             alert("Sync Failed: The app does not have permission to access Google Sheets. Please Sign Out and Sign In again, ensuring all permissions are checked.");
+             return;
+        }
+        // -----------------------------
+
         const meta = await metaResp.json();
         const existingTitles = new Set(meta.sheets?.map((s: any) => s.properties.title) || []);
 
@@ -332,7 +344,7 @@ export const syncTransactionsToSheet = async (transactions: any[], portfolios: a
                         requests: [{ addSheet: { properties: { title: sheetTitle } } }]
                     })
                 });
-                existingTitles.add(sheetTitle); // Avoid trying to create again in same loop
+                existingTitles.add(sheetTitle); 
             }
 
             // Prepare Data for this Portfolio
@@ -366,7 +378,7 @@ export const syncTransactionsToSheet = async (transactions: any[], portfolios: a
 
             const values = [headers, ...rows];
 
-            // 3. Clear Sheet & Write (Quoted title handles spaces)
+            // 3. Clear Sheet & Write
             const range = `'${sheetTitle}'!A:Z`;
             
             await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:clear`, {
