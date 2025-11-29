@@ -18,7 +18,7 @@ import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check, Layers, ChevronDown, CheckSquare, Square } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, DriveUser, hasValidSession } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, DriveUser, hasValidSession } from '../services/driveStorage';
 import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
@@ -595,6 +595,11 @@ const App: React.FC = () => {
           setIsCloudSyncing(true); 
           const timer = setTimeout(async () => { 
               await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey }); 
+              
+              if (transactions.length > 0) {
+                  await syncTransactionsToSheet(transactions);
+              }
+
               setIsCloudSyncing(false); 
           }, 3000); 
           return () => clearTimeout(timer); 
