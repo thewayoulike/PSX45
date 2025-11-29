@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
+import { exportToCSV } from '../utils/export';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
@@ -204,6 +205,25 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       return Math.max(0, qty);
   };
 
+  const handleDownloadTemplate = () => {
+      const templateData = [
+          {
+              Date: new Date().toISOString().split('T')[0],
+              Type: 'BUY',
+              Ticker: 'OGDC',
+              Broker: brokers.length > 0 ? brokers[0].name : 'My Broker',
+              Quantity: 500,
+              Price: 120.50,
+              Commission: 150,
+              Tax: 20,
+              'CDC Charges': 5,
+              'Other Fees': 0,
+              Notes: 'Sample Entry (Delete this row)'
+          }
+      ];
+      exportToCSV(templateData, 'PSX_Tracker_Import_Template');
+  };
+
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null); 
@@ -382,7 +402,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             <div className="px-6 pt-6">
                 <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200 mb-6">
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'MANUAL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}> <Keyboard size={16} /> Manual </button>
-                    <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'AI_SCAN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}> <Sparkles size={16} /> AI Scan </button>
+                    <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'AI_SCAN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}> <FileSpreadsheet size={16} /> Import / AI </button>
                     <button onClick={() => setMode('OCR_SCAN')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'OCR_SCAN' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <ScanText size={16} /> OCR </button>
                 </div>
             </div>
@@ -520,6 +540,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     {selectedFile ? ( <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </> ) : ( <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p> </> )}
                                 </div>
                             )}
+                            
+                            {/* --- NEW: Download Template Button --- */}
+                            {mode === 'AI_SCAN' && !selectedFile && !scanError && (
+                                <button 
+                                    onClick={handleDownloadTemplate}
+                                    className="mt-4 flex items-center gap-1.5 text-xs text-indigo-600 font-bold hover:underline mx-auto opacity-80 hover:opacity-100 transition-opacity"
+                                >
+                                    <Download size={14} />
+                                    Download Import Template (CSV)
+                                </button>
+                            )}
+
                             {scanError && (
                                 <div className={`w-full flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 ${scanError.includes("No trades found") ? "border-amber-200 bg-amber-50/50" : "border-rose-200 bg-rose-50/50"}`}>
                                     <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 shadow-sm ${scanError.includes("No trades found") ? "bg-amber-100 text-amber-600" : "bg-rose-100 text-rose-500"}`}>
@@ -532,7 +564,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             )}
                             {!scanError && (
                                 <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}>
-                                    {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze with AI' : 'Extract Text'}
+                                    {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze / Import' : 'Extract Text'}
                                 </button>
                             )}
                         </>
