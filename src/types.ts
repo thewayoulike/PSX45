@@ -1,7 +1,7 @@
 export interface Transaction {
   id: string;
   portfolioId: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'; 
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'; 
   ticker: string;
   quantity: number;
   price: number;
@@ -13,6 +13,7 @@ export interface Transaction {
   cdcCharges: number;
   otherFees: number;
   notes?: string; 
+  category?: 'ADJUSTMENT' | 'OTHER_TAX'; 
 }
 
 export interface Holding {
@@ -70,11 +71,11 @@ export interface PortfolioStats {
   realizedPL: number;
   netRealizedPL: number;
   totalDividends: number;
+  totalDividendTax: number;
   dailyPL: number;
   dailyPLPercent: number;
   totalCommission: number;
   totalSalesTax: number; 
-  totalDividendTax: number; 
   totalCDC: number;
   totalOtherFees: number;
   totalCGT: number;
@@ -110,16 +111,14 @@ export interface FoundDividend extends DividendAnnouncement {
     broker: string;
 }
 
-// UPDATE: Added 'SLAB' type
 export type CommissionType = 'PERCENTAGE' | 'PER_SHARE' | 'HIGHER_OF' | 'FIXED' | 'SLAB';
 export type CDCType = 'PER_SHARE' | 'FIXED' | 'HIGHER_OF';
 
-// NEW: Slab Interface
 export interface CommissionSlab {
     min: number;
     max: number;
     rate: number;
-    type: 'FIXED' | 'PERCENTAGE'; // Fixed Rs or % of value
+    type: 'FIXED' | 'PERCENTAGE'; 
 }
 
 export interface Broker {
@@ -135,6 +134,5 @@ export interface Broker {
   annualFee?: number;
   feeStartDate?: string; 
   isDefault?: boolean;
-  // NEW: Slabs Array
   slabs?: CommissionSlab[];
 }
