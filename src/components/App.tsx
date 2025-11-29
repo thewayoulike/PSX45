@@ -148,6 +148,7 @@ const App: React.FC = () => {
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
   const [totalDividends, setTotalDividends] = useState<number>(0);
+  const [totalDividendTax, setTotalDividendTax] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
   
@@ -161,6 +162,13 @@ const App: React.FC = () => {
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
   const hasMergedCloud = useRef(false);
+
+  // --- CALCULATION: Last Price Update Time ---
+  const lastPriceUpdate = useMemo(() => {
+      const times = Object.values(priceTimestamps);
+      if (times.length === 0) return null;
+      return times.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+  }, [priceTimestamps]);
 
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
@@ -197,7 +205,6 @@ const App: React.FC = () => {
           setIsAuthChecking(false);
           setShowLogin(false);
           
-          // Fetch Sheet ID once logged in
           getGoogleSheetId().then(id => setGoogleSheetId(id));
 
           if (!hasMergedCloud.current) {
@@ -405,7 +412,7 @@ const App: React.FC = () => {
   }, [transactions, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
   const stats: PortfolioStats = useMemo(() => {
-    let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let totalDividendTax = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
+    let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     
     let dailyPL = 0;
     holdings.forEach(h => { 
@@ -452,14 +459,18 @@ const App: React.FC = () => {
             }
         }
         
-        if (t.type === 'DIVIDEND') { totalDividendTax += (t.tax || 0); } 
+        if (t.type === 'DIVIDEND') { 
+            const grossDiv = t.quantity * t.price;
+            dividendSum += grossDiv - (t.tax || 0);
+            divTaxSum += (t.tax || 0);
+        } 
         else if (t.type === 'TAX') { totalCGT += t.price; } 
         else if (t.type === 'HISTORY') { totalCGT += (t.tax || 0); historyPnL += t.price; } 
         else { totalSalesTax += (t.tax || 0); }
     });
 
     const netRealizedPL = realizedPL - totalCGT; 
-    const totalProfits = netRealizedPL + totalDividends;
+    const totalProfits = netRealizedPL + dividendSum;
     
     const txIndexMap = new Map<string, number>();
     portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
@@ -558,7 +569,7 @@ const App: React.FC = () => {
     
     const roiDenominator = lifetimeCash; 
     
-    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + totalDividends;
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum;
     const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
@@ -572,17 +583,22 @@ const App: React.FC = () => {
     const yesterdayValue = totalValue - dailyPL;
     const dailyPLPercent = yesterdayValue > 0 ? (dailyPL / yesterdayValue) * 100 : 0;
 
+    // Set side effects for state (Avoid infinite loop by checking difference first)
+    if (dividendSum !== totalDividends) setTotalDividends(dividendSum);
+    if (divTaxSum !== totalDividendTax) setTotalDividendTax(divTaxSum);
+
     return { 
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
-        totalDividends, totalDividendTax, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC, 
+        totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC, 
         totalOtherFees, totalCGT, freeCash, cashInvestment, 
         netPrincipal, 
         peakNetPrincipal: lifetimeCash, 
         totalDeposits, reinvestedProfits, roi,
         mwrr
     };
-  }, [holdings, realizedTrades, totalDividends, portfolioTransactions, ldcpMap]); 
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
+  // Persistence for all state
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -614,6 +630,13 @@ const App: React.FC = () => {
           return () => clearTimeout(timer); 
       } 
   }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, driveUser, userApiKey, googleSheetId]);
+
+  useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND') { return; } if (tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
+  
+  if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
+  if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
+  
+  const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
