@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText } from 'lucide-react';
+import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download } from 'lucide-react';
 import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
@@ -14,7 +14,6 @@ import { exportToExcel, exportToCSV } from '../utils/export';
 interface TransactionListProps {
   transactions: Transaction[];
   onDelete: (id: string) => void;
-  // NEW: Bulk Delete Handler
   onDeleteMultiple?: (ids: string[]) => void;
   onEdit: (tx: Transaction) => void;
 }
@@ -25,7 +24,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   
-  // NEW: Selection State
+  // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredAndSortedTransactions = useMemo(() => {
@@ -95,8 +94,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const hasActiveFilters = searchTerm || dateFrom || dateTo || filterType !== 'ALL';
 
-  const handleExport = (type: 'excel' | 'csv') => {
-      const data = filteredAndSortedTransactions.map(tx => {
+  // --- HELPER: Prepare Data for Export ---
+  const prepareExportData = (txList: Transaction[]) => {
+      return txList.map(tx => {
           let netAmount = 0;
           const totalAmount = tx.price * tx.quantity;
           if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
@@ -122,10 +122,23 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               Notes: tx.notes || ''
           };
       });
+  };
 
+  // --- HANDLER: Export Current View ---
+  const handleExport = (type: 'excel' | 'csv') => {
+      const data = prepareExportData(filteredAndSortedTransactions);
       const filename = `Transactions_Export_${new Date().toISOString().split('T')[0]}`;
       if (type === 'excel') exportToExcel(data, filename);
       else exportToCSV(data, filename);
+  };
+
+  // --- NEW HANDLER: Export Selected Only ---
+  const handleExportSelected = () => {
+      const selectedTransactions = transactions.filter(t => selectedIds.has(t.id));
+      const data = prepareExportData(selectedTransactions);
+      const filename = `Selected_Transactions_${new Date().toISOString().split('T')[0]}`;
+      exportToExcel(data, filename);
+      setSelectedIds(new Set()); // Optional: clear selection after export
   };
 
   const getTypeConfig = (tx: Transaction) => {
@@ -154,23 +167,39 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               <h2 className="text-lg font-bold text-slate-800 tracking-tight">Transaction History</h2>
           </div>
           <div className="flex items-center gap-3">
-              {/* NEW: Bulk Delete Button */}
-              {selectedIds.size > 0 && onDeleteMultiple && (
-                  <button 
-                      onClick={executeBulkDelete}
-                      className="flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors text-xs font-bold animate-in fade-in"
-                  >
-                      <Trash2 size={14} />
-                      Delete ({selectedIds.size})
-                  </button>
+              
+              {/* --- NEW: Selection Actions (Export & Delete) --- */}
+              {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
+                      <button 
+                          onClick={handleExportSelected}
+                          className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-bold"
+                          title="Download Selected to Excel"
+                      >
+                          <Download size={14} />
+                          Export ({selectedIds.size})
+                      </button>
+                      
+                      {onDeleteMultiple && (
+                          <button 
+                              onClick={executeBulkDelete}
+                              className="flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors text-xs font-bold"
+                          >
+                              <Trash2 size={14} />
+                              Delete ({selectedIds.size})
+                          </button>
+                      )}
+                      <div className="h-5 w-[1px] bg-slate-300 mx-1"></div>
+                  </div>
               )}
 
+              {/* Standard Export Buttons (Whole List) */}
               <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
-                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel">
+                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export All to Excel">
                       <FileSpreadsheet size={16} />
                   </button>
                   <div className="w-[1px] bg-slate-100 my-1 mx-0.5"></div>
-                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export CSV">
+                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export All to CSV">
                       <FileText size={16} />
                   </button>
               </div>
