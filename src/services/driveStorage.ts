@@ -1,6 +1,6 @@
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
-// Includes Session Persistence and Auto-Refresh handling.
+// Includes Session Persistence, Auto-Refresh handling, and Google Sheets Sync.
 
 const HARDCODED_CLIENT_ID = '76622516302-malmubqvj1ms3klfsgr5p6jaom2o7e8s.apps.googleusercontent.com';
 const CLIENT_ID_KEY = 'VITE_GOOGLE_CLIENT_ID';
@@ -264,7 +264,6 @@ const findSheetFile = async () => {
     const token = await getValidToken();
     if (!token) return null;
 
-    // Look for Google Sheet specifically
     const query = `name = '${SHEET_FILE_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
     const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`;
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -290,7 +289,11 @@ const createSheetFile = async () => {
     return data.id;
 };
 
-export const syncTransactionsToSheet = async (transactions: any[]) => {
+export const getGoogleSheetId = async (): Promise<string | null> => {
+    return await findSheetFile();
+};
+
+export const syncTransactionsToSheet = async (transactions: any[], portfolios: any[]) => {
     const token = await getValidToken();
     if (!token) return;
 
@@ -302,69 +305,81 @@ export const syncTransactionsToSheet = async (transactions: any[]) => {
         }
         if (!sheetId) return;
 
-        // 1. Prepare Data Headers and Rows
+        // 1. Get existing sheets (tabs)
+        const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`, {
+            headers: { Authorization: `Bearer ${token}` }
+        });
+        const meta = await metaResp.json();
+        const existingTitles = new Set(meta.sheets?.map((s: any) => s.properties.title) || []);
+
         const headers = [
             'Date', 'Type', 'Category', 'Ticker', 'Broker', 
             'Quantity', 'Price', 'Commission', 'Tax', 'CDC Charges', 'Other Fees', 
-            'Total Amount', 'Notes', 'ID (Do Not Edit)'
+            'Total Amount', 'Notes', 'ID'
         ];
 
-        // Sort by date descending
-        const sortedTx = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-        const rows = sortedTx.map(t => {
-            // Calculate Total/Net Amount logic for the sheet
-            let total = 0;
-            const gross = t.quantity * t.price;
-            const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
-
-            if (t.type === 'BUY') total = gross + fees;
-            else if (t.type === 'SELL') total = gross - fees;
-            else if (t.type === 'DIVIDEND') total = gross - (t.tax || 0); // Net Dividend
-            else if (t.type === 'TAX') total = -Math.abs(t.price);
-            else if (t.type === 'DEPOSIT') total = t.price;
-            else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') total = -Math.abs(t.price);
-            else if (t.type === 'OTHER') {
-                 if (t.category === 'OTHER_TAX') total = -Math.abs(t.price);
-                 else total = t.price; // Adjustment
+        // 2. Iterate Portfolios and Sync
+        for (const p of portfolios) {
+            // Sanitize sheet title (Sheets doesn't allow * ? : [ ] \ /)
+            const sheetTitle = p.name.replace(/[*?:\/\\\[\]]/g, '_').substring(0, 100);
+            
+            // Create tab if missing
+            if (!existingTitles.has(sheetTitle)) {
+                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+                    method: 'POST',
+                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        requests: [{ addSheet: { properties: { title: sheetTitle } } }]
+                    })
+                });
+                existingTitles.add(sheetTitle); // Avoid trying to create again in same loop
             }
-            else if (t.type === 'HISTORY') total = t.price;
 
-            return [
-                t.date, 
-                t.type, 
-                t.category || '', 
-                t.ticker, 
-                t.broker || '', 
-                t.quantity, 
-                t.price, 
-                t.commission || 0, 
-                t.tax || 0, 
-                t.cdcCharges || 0, 
-                t.otherFees || 0, 
-                total, 
-                t.notes || '',
-                t.id
-            ];
-        });
+            // Prepare Data for this Portfolio
+            const pTx = transactions
+                .filter(t => t.portfolioId === p.id)
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        const values = [headers, ...rows];
+            const rows = pTx.map(t => {
+                let total = 0;
+                const gross = t.quantity * t.price;
+                const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
 
-        // 2. Clear Sheet First (to ensure deletions are reflected)
-        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A:Z:clear`, {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` }
-        });
+                if (t.type === 'BUY') total = gross + fees;
+                else if (t.type === 'SELL') total = gross - fees;
+                else if (t.type === 'DIVIDEND') total = gross - (t.tax || 0); 
+                else if (t.type === 'TAX') total = -Math.abs(t.price);
+                else if (t.type === 'DEPOSIT') total = t.price;
+                else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') total = -Math.abs(t.price);
+                else if (t.type === 'OTHER') {
+                     if (t.category === 'OTHER_TAX') total = -Math.abs(t.price);
+                     else total = t.price; 
+                }
+                else if (t.type === 'HISTORY') total = t.price;
 
-        // 3. Write New Data
-        await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/Sheet1!A1?valueInputOption=USER_ENTERED`, {
-            method: 'PUT',
-            headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ values })
-        });
+                return [
+                    t.date, t.type, t.category || '', t.ticker, t.broker || '', 
+                    t.quantity, t.price, t.commission || 0, t.tax || 0, 
+                    t.cdcCharges || 0, t.otherFees || 0, total, t.notes || '', t.id
+                ];
+            });
+
+            const values = [headers, ...rows];
+
+            // 3. Clear Sheet & Write (Quoted title handles spaces)
+            const range = `'${sheetTitle}'!A:Z`;
+            
+            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:clear`, {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'${sheetTitle}'!A1?valueInputOption=USER_ENTERED`, {
+                method: 'PUT',
+                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ values })
+            });
+        }
         
         console.log("Google Sheet synced successfully.");
 
