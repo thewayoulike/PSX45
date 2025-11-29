@@ -155,18 +155,6 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash",
             contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
-            
-            Sources to check: sarmaaya.pk, dps.psx.com.pk.
-            
-            STRICTLY SEARCH these specific URLs:
-            1. https://sarmaaya.pk/stocks/{TICKER} (Look for "Dividend" section)
-            2. https://dps.psx.com.pk/company/{TICKER} (Look for "Announcements" or "Payouts" table)
-            
-            Instructions:
-            1. Identify the Cash Dividend amount (Rs per share).
-            2. Identify the Ex-Dividend Date.
-            3. Ignore unrelated news or old dividends (> ${months} months).
-            
             Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
             
