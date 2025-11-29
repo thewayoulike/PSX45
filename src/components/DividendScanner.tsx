@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, FoundDividend } from '../types'; 
 import { fetchDividends } from '../services/gemini';
-import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles, Building2, Clock } from 'lucide-react';
+import { Coins, Loader2, CheckCircle, Calendar, Search, X, Trash2, AlertTriangle, Settings, RefreshCw, Sparkles, Building2, Clock, Undo2, History } from 'lucide-react';
 
 interface DividendScannerProps {
   transactions: Transaction[];
@@ -18,10 +18,13 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [foundDividends, setFoundDividends] = useState<FoundDividend[]>(savedResults);
+  
+  // NEW: Track dismissed items locally so they can be restored
+  const [dismissedItems, setDismissedItems] = useState<FoundDividend[]>([]);
+  const [showDismissed, setShowDismissed] = useState(false);
+  
   const [scanned, setScanned] = useState(savedResults.length > 0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  
-  // NEW: Deep Scan State (Default: False = 6 Months)
   const [useDeepScan, setUseDeepScan] = useState(false);
 
   const updateDividends = (newDividends: FoundDividend[]) => {
@@ -31,10 +34,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   const getHoldingsBreakdownOnDate = (ticker: string, targetDate: string) => {
       const breakdown: Record<string, number> = {};
-      
-      // LOGIC FIX: You are eligible if you own the stock BEFORE market open on Ex-Date.
-      // So we count all buys/sells strictly BEFORE (<) the Ex-Date.
-      // If you sold ON the Ex-Date, you still held it overnight, so you ARE eligible.
       const relevantTx = transactions.filter(t => 
           t.ticker === ticker && 
           t.date < targetDate && 
@@ -56,12 +55,10 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   };
 
   const handleScan = async () => {
-      updateDividends([]); 
-      setScanned(false);
+      // FIX: Don't wipe data immediately. Wait for success.
       setLoading(true);
       setErrorMsg(null);
       
-      // Get ALL tickers (Active AND Sold)
       const tickers = Array.from(new Set(transactions.map(t => t.ticker))) as string[];
       
       if (tickers.length === 0) {
@@ -71,7 +68,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       }
 
       try {
-          // Dynamic Months: 6 (Default) or 12 (Deep Scan)
           const months = useDeepScan ? 12 : 6;
           const announcements = await fetchDividends(tickers, months);
           const newEligible: FoundDividend[] = [];
@@ -97,8 +93,10 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
               });
           });
           
-          updateDividends(newEligible); 
+          updateDividends(newEligible);
           setScanned(true);
+          // Clear dismissed items on new scan to avoid confusion, or keep them? 
+          // Let's keep them so users can still restore previous sessions' items if needed
       } catch (e: any) {
           console.error(e);
           let msg = e.message || "Failed to scan.";
@@ -133,8 +131,18 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   };
 
   const handleIgnore = (div: FoundDividend) => {
+      // FIX: Move to dismissed list instead of deleting permanently
+      setDismissedItems(prev => [div, ...prev]);
+      
       const remaining = foundDividends.filter(d => d !== div);
       updateDividends(remaining);
+  };
+
+  const handleRestore = (div: FoundDividend) => {
+      // Remove from dismissed
+      setDismissedItems(prev => prev.filter(d => d !== div));
+      // Add back to found
+      updateDividends([div, ...foundDividends]);
   };
 
   if (!isOpen) return null;
@@ -149,13 +157,27 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     <Coins className="text-indigo-600" size={24} />
                     Dividend Scanner
                 </h2>
-                <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
-                    <X size={24} />
-                </button>
+                <div className="flex items-center gap-2">
+                    {/* Toggle Dismissed View */}
+                    {dismissedItems.length > 0 && (
+                        <button 
+                            onClick={() => setShowDismissed(!showDismissed)}
+                            className={`p-2 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors ${showDismissed ? 'bg-slate-200 text-slate-700' : 'text-slate-400 hover:bg-slate-100'}`}
+                            title="Show Dismissed History"
+                        >
+                            <History size={16} />
+                            {dismissedItems.length}
+                        </button>
+                    )}
+                    <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+                        <X size={24} />
+                    </button>
+                </div>
             </div>
 
             <div className="p-6 flex-1 overflow-y-auto custom-scrollbar relative">
                 
+                {/* Initial State */}
                 {!scanned && foundDividends.length === 0 && !loading && !errorMsg && (
                     <div className="text-center py-10">
                         <div className="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
@@ -166,7 +188,6 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             Scanning {uniqueTickersCount} unique stock(s) in your history.
                         </p>
                         
-                        {/* DEEP SCAN TOGGLE */}
                         <div className="flex justify-center mb-8">
                             <label className="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border border-slate-200 transition-colors select-none">
                                 <input 
@@ -199,6 +220,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     </div>
                 )}
 
+                {/* Error State */}
                 {errorMsg && !loading && (
                     <div className="text-center py-10 bg-rose-50/50 rounded-xl border border-rose-100">
                         <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-3 text-rose-500">
@@ -219,98 +241,120 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     </div>
                 )}
 
-                {scanned && !loading && foundDividends.length === 0 && !errorMsg && (
-                     <div className="text-center py-16">
-                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
-                            <CheckCircle size={32} />
-                        </div>
-                        <h3 className="text-lg font-bold text-slate-800 mb-1">All Caught Up</h3>
-                        <p className="text-slate-400 text-sm mb-6">No new eligible dividends found ({useDeepScan ? "12" : "6"} Months).</p>
-                        
-                        <div className="flex flex-col items-center gap-3">
-                            <button onClick={handleScan} className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
-                                <RefreshCw size={14} /> Force Re-Scan
-                            </button>
-                            {!useDeepScan && (
-                                <button onClick={() => { setUseDeepScan(true); setTimeout(handleScan, 100); }} className="text-slate-500 text-xs hover:text-indigo-600 hover:underline transition-colors">
-                                    Try Deep Scan (1 Year)?
-                                </button>
-                            )}
-                        </div>
-                     </div>
-                )}
+                {/* Main List View */}
+                {!loading && !errorMsg && (
+                    <>
+                        {/* Empty Results */}
+                        {scanned && foundDividends.length === 0 && !showDismissed && (
+                             <div className="text-center py-16">
+                                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4 text-emerald-500">
+                                    <CheckCircle size={32} />
+                                </div>
+                                <h3 className="text-lg font-bold text-slate-800 mb-1">All Caught Up</h3>
+                                <p className="text-slate-400 text-sm mb-6">No new eligible dividends found ({useDeepScan ? "12" : "6"} Months).</p>
+                                
+                                <div className="flex flex-col items-center gap-3">
+                                    <button onClick={handleScan} className="text-indigo-600 text-sm font-bold hover:bg-indigo-50 px-4 py-2 rounded-lg transition-colors flex items-center gap-2">
+                                        <RefreshCw size={14} /> Force Re-Scan
+                                    </button>
+                                    {!useDeepScan && (
+                                        <button onClick={() => { setUseDeepScan(true); setTimeout(handleScan, 100); }} className="text-slate-500 text-xs hover:text-indigo-600 hover:underline transition-colors">
+                                            Try Deep Scan (1 Year)?
+                                        </button>
+                                    )}
+                                </div>
+                             </div>
+                        )}
 
-                {foundDividends.length > 0 && !loading && (
-                    <div className="space-y-6">
-                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                            <div>
-                                <h3 className="text-slate-800 font-bold text-lg">Found {foundDividends.length} Eligible Dividends</h3>
-                                <p className="text-xs text-slate-400 mt-0.5">Matched against {uniqueTickersCount} stocks.</p>
-                            </div>
-                            <button 
-                                onClick={handleScan}
-                                className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
-                            >
-                                <RefreshCw size={14} /> Scan More
-                            </button>
-                        </div>
-                        
-                        <div className="space-y-4">
-                            {foundDividends.map((div, idx) => {
-                                const estTotal = div.eligibleQty * div.amount;
-                                const estNet = estTotal * 0.85; 
-
-                                return (
-                                    <div key={`${div.ticker}-${div.exDate}-${div.broker}-${idx}`} className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group">
-                                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500"></div>
-                                        <div className="flex items-start gap-4">
-                                            <div className="bg-indigo-50 h-12 w-16 rounded-lg flex items-center justify-center text-indigo-700 font-bold text-sm shadow-sm border border-indigo-100">
-                                                {div.ticker}
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-slate-800 font-bold text-base">{div.type} Dividend</span>
-                                                    <span className="text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1">
-                                                        <Building2 size={10} /> {div.broker}
-                                                    </span>
-                                                </div>
-                                                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
-                                                    <span className="flex items-center gap-1.5"><Calendar size={12} className="text-slate-400" /> Ex: <span className="font-medium text-slate-700">{div.exDate}</span></span>
-                                                    <span className="text-slate-300 hidden md:inline">|</span>
-                                                    <span>DPS: <span className="font-medium text-slate-700">Rs. {div.amount}</span></span>
-                                                    <span className="text-slate-300 hidden md:inline">|</span>
-                                                    <span className="text-slate-600 font-medium">Eligible Qty: {div.eligibleQty}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto pl-1 md:pl-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
-                                            <div className="text-right">
-                                                <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Net Payout</div>
-                                                <div className="text-xl font-bold text-emerald-600 font-mono tracking-tight">Rs. {estNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                                            </div>
-                                            
-                                            <div className="flex flex-col gap-2 min-w-[100px]">
-                                                <button 
-                                                    onClick={() => handleAdd(div)}
-                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
-                                                >
-                                                    Add Income
-                                                </button>
-                                                <button 
-                                                    onClick={() => handleIgnore(div)}
-                                                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors"
-                                                    title="Dismiss"
-                                                >
-                                                    Dismiss
-                                                </button>
-                                            </div>
-                                        </div>
+                        {/* List of Dividends (Active or Dismissed) */}
+                        {(foundDividends.length > 0 || showDismissed) && (
+                            <div className="space-y-6">
+                                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                                    <div>
+                                        <h3 className="text-slate-800 font-bold text-lg">
+                                            {showDismissed ? `Dismissed History (${dismissedItems.length})` : `Found ${foundDividends.length} Eligible`}
+                                        </h3>
+                                        <p className="text-xs text-slate-400 mt-0.5">Matched against {uniqueTickersCount} stocks.</p>
                                     </div>
-                                );
-                            })}
-                        </div>
-                    </div>
+                                    {!showDismissed && (
+                                        <button 
+                                            onClick={handleScan}
+                                            className="flex items-center gap-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-lg text-xs font-bold transition-colors"
+                                        >
+                                            <RefreshCw size={14} /> Scan More
+                                        </button>
+                                    )}
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    {(showDismissed ? dismissedItems : foundDividends).map((div, idx) => {
+                                        const estTotal = div.eligibleQty * div.amount;
+                                        const estNet = estTotal * 0.85; 
+
+                                        return (
+                                            <div key={`${div.ticker}-${div.exDate}-${div.broker}-${idx}`} className={`bg-white border border-slate-200 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-5 shadow-sm hover:shadow-md transition-shadow relative overflow-hidden group ${showDismissed ? 'opacity-75 grayscale-[0.5]' : ''}`}>
+                                                <div className={`absolute left-0 top-0 bottom-0 w-1 ${showDismissed ? 'bg-slate-400' : 'bg-indigo-500'}`}></div>
+                                                <div className="flex items-start gap-4">
+                                                    <div className="bg-indigo-50 h-12 w-16 rounded-lg flex items-center justify-center text-indigo-700 font-bold text-sm shadow-sm border border-indigo-100">
+                                                        {div.ticker}
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="text-slate-800 font-bold text-base">{div.type} Dividend</span>
+                                                            <span className="text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-100 px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1">
+                                                                <Building2 size={10} /> {div.broker}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+                                                            <span className="flex items-center gap-1.5"><Calendar size={12} className="text-slate-400" /> Ex: <span className="font-medium text-slate-700">{div.exDate}</span></span>
+                                                            <span className="text-slate-300 hidden md:inline">|</span>
+                                                            <span>DPS: <span className="font-medium text-slate-700">Rs. {div.amount}</span></span>
+                                                            <span className="text-slate-300 hidden md:inline">|</span>
+                                                            <span className="text-slate-600 font-medium">Eligible Qty: {div.eligibleQty}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between md:justify-end gap-6 w-full md:w-auto pl-1 md:pl-0 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
+                                                    <div className="text-right">
+                                                        <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Net Payout</div>
+                                                        <div className="text-xl font-bold text-emerald-600 font-mono tracking-tight">Rs. {estNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                                                    </div>
+                                                    
+                                                    <div className="flex flex-col gap-2 min-w-[100px]">
+                                                        {showDismissed ? (
+                                                            <button 
+                                                                onClick={() => handleRestore(div)}
+                                                                className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-2"
+                                                            >
+                                                                <Undo2 size={14} /> Restore
+                                                            </button>
+                                                        ) : (
+                                                            <>
+                                                                <button 
+                                                                    onClick={() => handleAdd(div)}
+                                                                    className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-4 py-2 rounded-lg shadow-lg shadow-indigo-600/20 transition-all active:scale-95"
+                                                                >
+                                                                    Add Income
+                                                                </button>
+                                                                <button 
+                                                                    onClick={() => handleIgnore(div)}
+                                                                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-500 hover:text-slate-700 text-xs font-bold px-4 py-2 rounded-lg transition-colors"
+                                                                    title="Dismiss"
+                                                                >
+                                                                    Dismiss
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
         </div>
