@@ -433,7 +433,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
                 <div className={TOP_SECTION_CLASS}>
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
-                        Rs. {formatCurrency(stats.totalDividends (Net))}
+                        Rs. {formatCurrency(stats.totalDividends)}
                     </div>
                 </div>
                 <div className="mt-2 md:mt-3">
