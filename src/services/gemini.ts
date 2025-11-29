@@ -156,14 +156,16 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
             model: "gemini-2.5-flash",
             contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             
-            Sources to check: dps.psx.com.pk, sarmaaya.pk, investing.com.
+            Sources to check: dps.psx.com.pk, stockanalysis.com, investing.com.
+            
+            STRICTLY SEARCH these specific URLs:
+            1. https://stockanalysis.com/quote/psx/{ticker}/dividend/ 
+            2. https://dps.psx.com.pk/company/{TICKER} (Look for "Announcements" or "Payouts" table)
             
             Instructions:
-            1. Search for "Financial Results", "Board Meetings", and "Book Closure" notices.
-            2. Identify the Cash Dividend amount (Rs per share). 
-               - NOTE: If dividend is stated as a percentage (e.g., "360%"), calculate the Rs amount based on Face Value (usually Rs 10 or Rs 5). 
-               - Example: 360% of Rs 5 = Rs 18.00.
-            3. Identify the Ex-Dividend Date (Ex-Date).
+            1. Identify the Cash Dividend amount (Rs per share).
+            2. Identify the Ex-Dividend Date.
+            3. Ignore unrelated news or old dividends (> ${months} months).
             
             Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
