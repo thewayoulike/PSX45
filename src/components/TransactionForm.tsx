@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2 } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 import { exportToCSV } from '../utils/export';
@@ -35,9 +35,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   savedScannedTrades = [],
   onSaveScannedTrades
 }) => {
-  // UPDATED: Added 'IMPORT' mode
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
   
   // Form State
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -56,6 +55,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [selectedScanIndices, setSelectedScanIndices] = useState<Set<number>>(new Set());
+
+  // Other/Manual States
+  const [formError, setFormError] = useState<string | null>(null);
+  const [cgtProfit, setCgtProfit] = useState<number | ''>('');
+  const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7));
+  const [histAmount, setHistAmount] = useState<number | ''>('');
+  const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
+  const [category, setCategory] = useState<'ADJUSTMENT' | 'OTHER_TAX'>('ADJUSTMENT');
+  
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const updateScannedTrades = (trades: EditableTrade[]) => {
       if (onSaveScannedTrades) onSaveScannedTrades(trades);
@@ -76,14 +85,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       });
       return { totalBuy, totalSell, net: totalSell - totalBuy };
   }, [savedScannedTrades]);
-
-  const [formError, setFormError] = useState<string | null>(null);
-  const [cgtProfit, setCgtProfit] = useState<number | ''>('');
-  const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7));
-  const [histAmount, setHistAmount] = useState<number | ''>('');
-  const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -124,6 +125,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(editingTransaction.type)) {
                 setHistAmount(editingTransaction.price); 
             }
+            if (editingTransaction.type === 'OTHER') {
+                 setCategory(editingTransaction.category || 'ADJUSTMENT');
+                 setHistAmount(editingTransaction.price);
+            }
         } else {
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
@@ -139,6 +144,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCgtMonth(new Date().toISOString().substring(0, 7));
             setCgtProfit('');
             setHistAmount(''); setHistTaxType('AFTER_TAX');
+            setCategory('ADJUSTMENT');
             setScanError(null); setSelectedFile(null);
             
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
@@ -156,6 +162,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
         else if (type === 'HISTORY' && typeof histAmount === 'number') { setQuantity(1); setTicker('PREV-PNL'); if (histTaxType === 'BEFORE_TAX') { if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0); } else setTax(0); setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0); }
         else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
+        else if (type === 'OTHER' && typeof histAmount === 'number') {
+             setQuantity(1);
+             setTicker(category === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'OTHER FEE');
+             setPrice(histAmount);
+             setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
+        }
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
              if (type === 'DIVIDEND') { setCommission(0); setCdcCharges(0); setOtherFees(0); const wht = gross * 0.15; setTax(parseFloat(wht.toFixed(2))); } else {
@@ -189,7 +201,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
              }
         } else { if (commission !== '') setCommission(''); if (tax !== '') setTax(''); if (cdcCharges !== '') setCdcCharges(''); }
     }
-  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType]);
+  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType, category]);
 
   const getHoldingQty = (ticker: string, brokerId: string) => {
       let qty = 0;
@@ -260,10 +272,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         }
     }
 
-    const txData = {
+    const txData: any = {
       ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId,
-      commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0
+      commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0,
+      category: type === 'OTHER' ? category : undefined
     };
+
+    if (type === 'OTHER') {
+         txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'OTHER FEE';
+    }
 
     if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData });
     else onAddTransaction(txData);
@@ -272,7 +289,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); updateScannedTrades([]); } };
   
-  // --- NEW: Handle Standard File Import ---
   const handleImportFile = async () => {
       if (!selectedFile) return;
       setIsScanning(true);
@@ -312,7 +328,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleProcessScan = async () => { 
       if (!selectedFile) return; 
       
-      // Redirect to simple import if mode matches
       if (mode === 'IMPORT') {
           handleImportFile();
           return;
@@ -414,7 +429,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
            return;
       }
 
-      // Calculate Net Batch Impact per Ticker+Broker
       const batchImpact: Record<string, { buy: number, sell: number }> = {};
 
       for (const t of selectedTrades) {
@@ -425,13 +439,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           if (t.type === 'SELL') batchImpact[key].sell += Number(t.quantity);
       }
 
-      // Check "Same-Day" Availability
       for (const [key, impact] of Object.entries(batchImpact)) {
           const [ticker, brokerId] = key.split('|');
           
           if (impact.sell > 0) {
               const currentQty = getHoldingQty(ticker, brokerId);
-              const totalAvailable = currentQty + impact.buy; // Existing + New Buys in this batch
+              const totalAvailable = currentQty + impact.buy; 
 
               if (impact.sell > totalAvailable) {
                    setFormError(`Insufficient Holdings for ${ticker}! Own: ${currentQty}, Buying Now: ${impact.buy}, Selling Now: ${impact.sell}. Net Shortfall: ${impact.sell - totalAvailable}.`);
@@ -511,8 +524,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
-                    {/* ... (Manual Form Fields Omitted for Brevity - Same as before) ... */}
-                    <div className="grid grid-cols-7 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
+                    <div className="grid grid-cols-8 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         <button type="button" onClick={() => setType('BUY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'BUY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>BUY</button>
                         <button type="button" onClick={() => setType('SELL')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'SELL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>SELL</button>
                         <button type="button" onClick={() => setType('DIVIDEND')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'DIVIDEND' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>DIV</button>
@@ -520,6 +532,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <button type="button" onClick={() => setType('HISTORY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'HISTORY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>HIST</button>
                         <button type="button" onClick={() => setType('DEPOSIT')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'DEPOSIT' || type === 'WITHDRAWAL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>CASH</button>
                         <button type="button" onClick={() => setType('ANNUAL_FEE')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'ANNUAL_FEE' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>FEE</button>
+                        <button type="button" onClick={() => setType('OTHER')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'OTHER' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>OTHER</button>
                     </div>
 
                     {type === 'TAX' ? (
@@ -566,6 +579,39 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             </div>
                             <div><label className="block text-xs font-bold text-slate-500 mb-1">Fee Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none text-slate-800" placeholder="e.g. 500"/><span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span></div></div>
                         </>
+                    ) : type === 'OTHER' ? (
+                        <>
+                            <div className="bg-slate-50/50 p-3 rounded-xl border border-slate-200 flex gap-3 items-start">
+                                <Settings2 className="text-slate-500 shrink-0 mt-0.5" size={18} />
+                                <div className="text-xs text-slate-700">
+                                    <p className="font-bold mb-0.5">Other Transactions</p>
+                                    <p className="opacity-80">Record manual adjustments or miscellaneous fees.</p>
+                                </div>
+                            </div>
+
+                            <div className="flex bg-slate-100 p-1 rounded-xl mb-2">
+                                <button type="button" onClick={() => setCategory('ADJUSTMENT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${category === 'ADJUSTMENT' ? 'bg-white shadow text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}> 
+                                    <ArrowRightLeft size={14} /> Adjustment Entry 
+                                </button>
+                                <button type="button" onClick={() => setCategory('OTHER_TAX')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${category === 'OTHER_TAX' ? 'bg-white shadow text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> 
+                                    <FileText size={14} /> Other Taxes/Fees 
+                                </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-lg p-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-3 top-3.5 text-slate-400" size={14} /></div></div>
+                                <div><label className="block text-xs font-bold text-slate-500 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"/></div>
+                            </div>
+
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1">Amount</label>
+                                <div className="relative">
+                                    <input required type="number" step="any" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full border border-slate-200 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${category === 'ADJUSTMENT' ? 'text-slate-800' : 'text-rose-600'}`} placeholder={category === 'ADJUSTMENT' ? "Positive (Credit) or Negative (Debit)" : "e.g. 500 (Deducted from Cash)"} />
+                                    <span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span>
+                                </div>
+                                {category === 'ADJUSTMENT' && <p className="text-[10px] text-slate-400 mt-1 ml-1">Positive adds to cash, Negative subtracts from cash.</p>}
+                            </div>
+                        </>
                     ) : (
                         <>
                             <div className="grid grid-cols-2 gap-4">
@@ -603,7 +649,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* Scanner / Import Mode View */}
             {(mode !== 'MANUAL') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     {!isScanning && savedScannedTrades.length === 0 && (
@@ -630,7 +675,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             )}
                             
-                            {/* Template Download (Only for IMPORT mode) */}
                             {mode === 'IMPORT' && !selectedFile && !scanError && (
                                 <button 
                                     onClick={handleDownloadTemplate}
@@ -680,7 +724,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
 
-                            {/* --- UPDATED SUMMARY BAR: 2 Decimals --- */}
                             <div className="grid grid-cols-3 gap-3 mb-3">
                                 <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex flex-col justify-center items-center shadow-sm">
                                     <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Total Buy Cost</span>
