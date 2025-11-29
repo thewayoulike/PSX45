@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2 } from 'lucide-react';
+import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink } from 'lucide-react';
 import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
@@ -16,9 +16,10 @@ interface TransactionListProps {
   onDelete: (id: string) => void;
   onDeleteMultiple?: (ids: string[]) => void;
   onEdit: (tx: Transaction) => void;
+  googleSheetId?: string | null;
 }
 
-export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onDelete, onDeleteMultiple, onEdit }) => {
+export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onDelete, onDeleteMultiple, onEdit, googleSheetId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [dateFrom, setDateFrom] = useState('');
@@ -173,6 +174,20 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           </div>
           <div className="flex items-center gap-3">
               
+              {/* GOOGLE SHEET LINK BUTTON */}
+              {googleSheetId && (
+                  <a 
+                      href={`https://docs.google.com/spreadsheets/d/${googleSheetId}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition-colors text-xs font-bold"
+                      title="Open Google Sheet"
+                  >
+                      <ExternalLink size={14} />
+                      Open Sheet
+                  </a>
+              )}
+
               {selectedIds.size > 0 && (
                   <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
                       <button 
