@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download } from 'lucide-react';
+import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2 } from 'lucide-react';
 import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
@@ -24,7 +24,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   
-  // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const filteredAndSortedTransactions = useMemo(() => {
@@ -46,7 +45,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [transactions, searchTerm, dateFrom, dateTo, filterType]);
 
-  // Bulk Selection Logic
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.checked) {
           const allIds = new Set(filteredAndSortedTransactions.map(t => t.id));
@@ -66,7 +64,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   const executeBulkDelete = () => {
       if (onDeleteMultiple && selectedIds.size > 0) {
           onDeleteMultiple(Array.from(selectedIds));
-          setSelectedIds(new Set()); // Clear selection after delete
+          setSelectedIds(new Set()); 
       }
   };
 
@@ -94,7 +92,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const hasActiveFilters = searchTerm || dateFrom || dateTo || filterType !== 'ALL';
 
-  // --- HELPER: Prepare Data for Export ---
   const prepareExportData = (txList: Transaction[]) => {
       return txList.map(tx => {
           let netAmount = 0;
@@ -102,6 +99,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
           else if (tx.type === 'TAX') netAmount = -totalAmount;
           else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') netAmount = (tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') ? -Math.abs(totalAmount) : totalAmount;
+          else if (tx.type === 'OTHER') {
+              if (tx.category === 'OTHER_TAX') netAmount = -Math.abs(totalAmount);
+              else netAmount = totalAmount; 
+          }
           else {
               const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
               netAmount = tx.type === 'BUY' ? totalAmount + totalFees : totalAmount - totalFees;
@@ -110,6 +111,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           return {
               Date: tx.date,
               Type: tx.type,
+              Category: tx.category || '',
               Ticker: tx.ticker,
               Broker: tx.broker || 'N/A',
               Quantity: tx.quantity,
@@ -124,7 +126,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       });
   };
 
-  // --- HANDLER: Export Current View ---
   const handleExport = (type: 'excel' | 'csv') => {
       const data = prepareExportData(filteredAndSortedTransactions);
       const filename = `Transactions_Export_${new Date().toISOString().split('T')[0]}`;
@@ -132,13 +133,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       else exportToCSV(data, filename);
   };
 
-  // --- NEW HANDLER: Export Selected Only ---
   const handleExportSelected = () => {
       const selectedTransactions = transactions.filter(t => selectedIds.has(t.id));
       const data = prepareExportData(selectedTransactions);
       const filename = `Selected_Transactions_${new Date().toISOString().split('T')[0]}`;
       exportToExcel(data, filename);
-      setSelectedIds(new Set()); // Optional: clear selection after export
+      setSelectedIds(new Set()); 
   };
 
   const getTypeConfig = (tx: Transaction) => {
@@ -151,6 +151,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'DEPOSIT': return { style: 'bg-blue-50 text-blue-600 border-blue-100', icon: <DepositIcon className="w-4 h-4" />, label: 'DEPOSIT' };
           case 'WITHDRAWAL': return { style: 'bg-rose-50 text-rose-600 border-rose-100', icon: <WithdrawIcon className="w-4 h-4" />, label: 'WITHDRAWAL' };
           case 'ANNUAL_FEE': return { style: 'bg-amber-50 text-amber-600 border-amber-100', icon: <FeeIcon className="w-4 h-4" />, label: 'ANNUAL FEE' };
+          case 'OTHER': return { 
+              style: 'bg-slate-50 text-slate-600 border-slate-200', 
+              icon: <Settings2 size={12} />, 
+              label: tx.category === 'OTHER_TAX' ? 'TAX/FEE' : 'ADJUST' 
+          };
           default: return { style: 'bg-slate-50 text-slate-600 border-slate-200', icon: <ArrowUpRight size={10} />, label: tx.type };
       }
   };
@@ -168,7 +173,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           </div>
           <div className="flex items-center gap-3">
               
-              {/* --- NEW: Selection Actions (Export & Delete) --- */}
               {selectedIds.size > 0 && (
                   <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
                       <button 
@@ -193,7 +197,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                   </div>
               )}
 
-              {/* Standard Export Buttons (Whole List) */}
               <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
                   <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export All to Excel">
                       <FileSpreadsheet size={16} />
@@ -228,6 +231,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <option value="DEPOSIT">Deposit</option>
                         <option value="WITHDRAWAL">Withdrawal</option>
                         <option value="ANNUAL_FEE">Annual Fee</option>
+                        <option value="OTHER">Other</option>
                     </select>
                 </div>
 
@@ -250,7 +254,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         <table className="w-full text-left border-collapse">
           <thead>
             <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
-              {/* CHECKBOX HEADER */}
               <th className="px-4 py-4 w-10 text-center">
                   <input 
                       type="checkbox" 
@@ -289,6 +292,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     const isDeposit = tx.type === 'DEPOSIT';
                     const isWithdrawal = tx.type === 'WITHDRAWAL';
                     const isFee = tx.type === 'ANNUAL_FEE';
+                    const isOtherTax = tx.type === 'OTHER' && tx.category === 'OTHER_TAX';
+                    const isNegAdjust = tx.type === 'OTHER' && tx.price < 0;
 
                     let netAmount = 0;
                     const totalAmount = tx.price * tx.quantity;
@@ -296,13 +301,17 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     if (isDiv) netAmount = totalAmount - (tx.tax || 0);
                     else if (isTax) netAmount = -totalAmount;
                     else if (isHistory || isDeposit || isWithdrawal || isFee) netAmount = (isWithdrawal || isFee) ? -Math.abs(totalAmount) : totalAmount;
+                    else if (tx.type === 'OTHER') {
+                        if (tx.category === 'OTHER_TAX') netAmount = -Math.abs(totalAmount);
+                        else netAmount = totalAmount;
+                    }
                     else {
                         const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
                         netAmount = isBuy ? totalAmount + totalFees : totalAmount - totalFees;
                     }
 
                     const typeConfig = getTypeConfig(tx);
-                    const isNegativeFlow = isTax || isWithdrawal || isFee || (isHistory && netAmount < 0);
+                    const isNegativeFlow = isTax || isWithdrawal || isFee || isOtherTax || isNegAdjust || (isHistory && netAmount < 0);
 
                     let qtyMismatch = false;
                     let expectedQty = 0;
@@ -315,7 +324,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
                     return (
                         <tr key={tx.id} className={`hover:bg-emerald-50/30 transition-colors ${isNegativeFlow ? 'bg-rose-50/30' : ''} ${isSelected ? 'bg-indigo-50/60' : ''}`}>
-                        {/* CHECKBOX ROW */}
                         <td className="px-4 py-4 text-center">
                             <input 
                                 type="checkbox" 
