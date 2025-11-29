@@ -156,10 +156,10 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
             model: "gemini-2.5-flash",
             contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             
-            Sources to check: dps.psx.com.pk, stockanalysis.com, investing.com.
+            Sources to check: sarmaaya.pk, dps.psx.com.pk.
             
             STRICTLY SEARCH these specific URLs:
-            1. https://stockanalysis.com/quote/psx/{ticker}/dividend/ 
+            1. https://sarmaaya.pk/stocks/{TICKER} (Look for "Dividend" section)
             2. https://dps.psx.com.pk/company/{TICKER} (Look for "Announcements" or "Payouts" table)
             
             Instructions:
