@@ -16,6 +16,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   
   const isDailyProfitable = stats.dailyPL >= 0;
 
+  // Calculate Dividend Yield (Net Income / Cost)
+  const dividendYield = stats.totalCost > 0 ? (stats.totalDividends / stats.totalCost) * 100 : 0;
+  
+  // Calculate Gross Dividends for display
+  const grossDividends = stats.totalDividends + stats.totalDividendTax;
+
   const totalNetWorth = stats.totalValue + stats.freeCash;
   const isCapitalEroded = totalNetWorth < stats.netPrincipal;
   const erosionAmount = stats.netPrincipal - totalNetWorth;
@@ -435,11 +441,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                         Rs. {formatCurrency(stats.totalDividends)}
                     </div>
+                    <div className="flex items-center gap-2 mt-1">
+                         <div className="text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border bg-emerald-50 text-emerald-700 border-emerald-100">
+                             Yield: {dividendYield.toFixed(2)}%
+                         </div>
+                    </div>
                 </div>
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Passive Income</span>
-                        <span className="text-slate-500 font-bold">Net</span>
+                        <span>Gross: {formatCurrency(grossDividends)}</span>
+                        <span className="text-rose-500">Tax: -{formatCurrency(stats.totalDividendTax)}</span>
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-emerald-500" style={{ width: '100%' }}></div>
