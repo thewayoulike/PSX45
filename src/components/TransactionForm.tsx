@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 import { exportToCSV } from '../utils/export';
+import * as XLSX from 'xlsx';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
@@ -34,7 +35,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   savedScannedTrades = [],
   onSaveScannedTrades
 }) => {
-  const [mode, setMode] = useState<'MANUAL' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
+  // UPDATED: Added 'IMPORT' mode
+  const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE'>('BUY');
   
   // Form State
@@ -127,7 +129,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
             
             if (savedScannedTrades.length > 0) {
-                setMode('AI_SCAN'); 
+                // Keep current mode if scanner data exists
             } else {
                 setMode('MANUAL'); 
             }
@@ -269,7 +271,77 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); updateScannedTrades([]); } };
-  const handleProcessScan = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); updateScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
+  
+  // --- NEW: Handle Standard File Import ---
+  const handleImportFile = async () => {
+      if (!selectedFile) return;
+      setIsScanning(true);
+      setScanError(null);
+      updateScannedTrades([]);
+
+      try {
+          const data = await selectedFile.arrayBuffer();
+          const workbook = XLSX.read(data);
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+          const trades: EditableTrade[] = jsonData.map((row: any) => ({
+              date: row['Date'],
+              type: (row['Type'] || 'BUY').toUpperCase(),
+              ticker: (row['Ticker'] || '').toUpperCase(),
+              broker: row['Broker'],
+              quantity: Number(row['Quantity']) || 0,
+              price: Number(row['Price']) || 0,
+              commission: Number(row['Commission']) || 0,
+              tax: Number(row['Tax']) || 0,
+              cdcCharges: Number(row['CDC Charges']) || 0,
+              otherFees: Number(row['Other Fees']) || 0,
+              brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id
+          })).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0);
+
+          if (trades.length === 0) throw new Error("No valid trades found. Please use the template.");
+          
+          updateScannedTrades(trades);
+      } catch (e: any) {
+          setScanError("Failed to parse file. Ensure matches template.");
+      } finally {
+          setIsScanning(false);
+      }
+  };
+
+  const handleProcessScan = async () => { 
+      if (!selectedFile) return; 
+      
+      // Redirect to simple import if mode matches
+      if (mode === 'IMPORT') {
+          handleImportFile();
+          return;
+      }
+
+      setIsScanning(true); 
+      setScanError(null); 
+      updateScannedTrades([]); 
+      try { 
+          let trades: ParsedTrade[] = []; 
+          if (mode === 'AI_SCAN') { 
+              trades = await parseTradeDocument(selectedFile); 
+          } else { 
+              const res = await parseTradeDocumentOCRSpace(selectedFile); 
+              trades = res.trades; 
+          } 
+          if (trades.length === 0) throw new Error("No trades found in this file."); 
+          const enrichedTrades: EditableTrade[] = trades.map(t => ({ 
+              ...t, 
+              brokerId: selectedBrokerId || undefined, 
+              broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker 
+          })); 
+          updateScannedTrades(enrichedTrades); 
+      } catch (err: any) { 
+          setScanError(err.message || "Failed to scan document."); 
+      } finally { 
+          setIsScanning(false); 
+      } 
+  };
   
   const toggleScanSelection = (index: number) => {
       const next = new Set(selectedScanIndices);
@@ -329,7 +401,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       updateScannedTrades(savedScannedTrades.filter(t => t !== trade));
   };
 
-  // --- UPDATED: Handle Accepting Bulk Selection with Smart Netting ---
   const handleAcceptSelected = () => {
       setFormError(null);
       const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i));
@@ -380,10 +451,24 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       updateScannedTrades(updated); 
   };
   
-  const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; return <ScanText size={32} className="text-emerald-500" />; };
-  const themeButton = mode === 'AI_SCAN' ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-emerald-500 hover:bg-emerald-600';
-  const themeText = mode === 'AI_SCAN' ? 'text-indigo-600' : 'text-emerald-600';
-  const themeShadow = mode === 'AI_SCAN' ? 'shadow-indigo-200' : 'shadow-emerald-200';
+  const getFileIcon = () => { 
+      if (selectedFile) { 
+          const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); 
+          if (isSheet) return <FileSpreadsheet size={32} />; 
+          return <FileText size={32} />; 
+      } 
+      if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; 
+      if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />;
+      return <ScanText size={32} className="text-emerald-500" />; 
+  };
+
+  const getThemeColor = () => {
+      if (mode === 'AI_SCAN') return { btn: 'bg-indigo-500 hover:bg-indigo-600', text: 'text-indigo-600', shadow: 'shadow-indigo-200', bg: 'bg-indigo-50/50', border: 'border-indigo-400' };
+      if (mode === 'IMPORT') return { btn: 'bg-blue-500 hover:bg-blue-600', text: 'text-blue-600', shadow: 'shadow-blue-200', bg: 'bg-blue-50/50', border: 'border-blue-400' };
+      return { btn: 'bg-emerald-500 hover:bg-emerald-600', text: 'text-emerald-600', shadow: 'shadow-emerald-200', bg: 'bg-emerald-50', border: 'border-emerald-200' };
+  };
+
+  const theme = getThemeColor();
 
   if (!isOpen) return null;
 
@@ -400,10 +485,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {!editingTransaction && (
             <div className="px-6 pt-6">
-                <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200 mb-6">
-                    <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'MANUAL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}> <Keyboard size={16} /> Manual </button>
-                    <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'AI_SCAN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}> <FileSpreadsheet size={16} /> Import / AI </button>
-                    <button onClick={() => setMode('OCR_SCAN')} className={`flex-1 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${mode === 'OCR_SCAN' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <ScanText size={16} /> OCR </button>
+                <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200 mb-6 overflow-x-auto">
+                    <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'MANUAL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}> <Keyboard size={16} /> Manual </button>
+                    
+                    <button onClick={() => setMode('IMPORT')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'IMPORT' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}> <FileSpreadsheet size={16} /> Import </button>
+                    
+                    <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'AI_SCAN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}> <Sparkles size={16} /> AI Scan </button>
+                    
+                    <button onClick={() => setMode('OCR_SCAN')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'OCR_SCAN' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <ScanText size={16} /> OCR </button>
                 </div>
             </div>
         )}
@@ -514,8 +603,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* Scanner Mode View */}
-            {(mode === 'AI_SCAN' || mode === 'OCR_SCAN') && (
+            {/* Scanner / Import Mode View */}
+            {(mode !== 'MANUAL') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     {!isScanning && savedScannedTrades.length === 0 && (
                         <>
@@ -532,20 +621,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             </div>
                             {!scanError && (
-                                <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? 'border-indigo-400 bg-indigo-50/50' : `border-emerald-200 bg-emerald-50`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}>
-                                    <input ref={fileInputRef} type="file" accept={mode === 'AI_SCAN' ? "image/*,.pdf,.csv,.xlsx,.xls" : "image/*,.pdf"} onChange={handleFileSelect} className="hidden" />
-                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-slate-400'}`}>
+                                <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 bg-slate-50`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}>
+                                    <input ref={fileInputRef} type="file" accept={mode === 'OCR_SCAN' ? "image/*,.pdf" : "image/*,.pdf,.csv,.xlsx,.xls"} onChange={handleFileSelect} className="hidden" />
+                                    <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? `${theme.text} bg-white` : 'bg-white text-slate-400'}`}>
                                         {getFileIcon()}
                                     </div>
-                                    {selectedFile ? ( <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </> ) : ( <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p> </> )}
+                                    {selectedFile ? ( <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </> ) : ( <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p> </> )}
                                 </div>
                             )}
                             
-                            {/* --- NEW: Download Template Button --- */}
-                            {mode === 'AI_SCAN' && !selectedFile && !scanError && (
+                            {/* Template Download (Only for IMPORT mode) */}
+                            {mode === 'IMPORT' && !selectedFile && !scanError && (
                                 <button 
                                     onClick={handleDownloadTemplate}
-                                    className="mt-4 flex items-center gap-1.5 text-xs text-indigo-600 font-bold hover:underline mx-auto opacity-80 hover:opacity-100 transition-opacity"
+                                    className="mt-4 flex items-center gap-1.5 text-xs text-blue-600 font-bold hover:underline mx-auto opacity-80 hover:opacity-100 transition-opacity"
                                 >
                                     <Download size={14} />
                                     Download Import Template (CSV)
@@ -563,17 +652,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                             )}
                             {!scanError && (
-                                <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${themeButton} ${themeShadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}>
-                                    {mode === 'AI_SCAN' ? <Sparkles size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze / Import' : 'Extract Text'}
+                                <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${theme.btn} ${theme.shadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}>
+                                    {mode === 'AI_SCAN' ? <Sparkles size={18} /> : mode === 'IMPORT' ? <Upload size={18} /> : <ScanText size={18} />} 
+                                    {mode === 'AI_SCAN' ? 'Analyze with AI' : mode === 'IMPORT' ? 'Process Import' : 'Extract Text'}
                                 </button>
                             )}
                         </>
                     )}
                     {isScanning && (
                         <div className="flex flex-col items-center justify-center h-full py-20">
-                            <Loader2 size={48} className={`animate-spin mb-6 ${themeText}`} />
-                            <h3 className="text-lg font-bold text-slate-700 mb-2">Analyzing Document</h3>
-                            <p className="text-slate-400 text-sm text-center max-w-[200px]">Extracting trade details, please wait...</p>
+                            <Loader2 size={48} className={`animate-spin mb-6 ${theme.text}`} />
+                            <h3 className="text-lg font-bold text-slate-700 mb-2">Processing Document</h3>
+                            <p className="text-slate-400 text-sm text-center max-w-[200px]">Reading file data, please wait...</p>
                         </div>
                     )}
                     {savedScannedTrades.length > 0 && (
