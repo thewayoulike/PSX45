@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
@@ -37,6 +37,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   
   // Sorting State
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
+
+  // Pagination State
+  const [itemsPerPage, setItemsPerPage] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
@@ -101,6 +105,18 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         return 0;
     });
   }, [transactions, searchTerm, dateFrom, dateTo, filterType, sortConfig]);
+
+  // Reset page when filters change
+  useEffect(() => {
+      setCurrentPage(1);
+  }, [searchTerm, filterType, dateFrom, dateTo]);
+
+  // Pagination Logic
+  const totalPages = Math.ceil(filteredAndSortedTransactions.length / itemsPerPage);
+  const paginatedTransactions = useMemo(() => {
+      const start = (currentPage - 1) * itemsPerPage;
+      return filteredAndSortedTransactions.slice(start, start + itemsPerPage);
+  }, [filteredAndSortedTransactions, currentPage, itemsPerPage]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.checked) {
@@ -225,8 +241,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 mb-20">
       
-      {/* HEADER SECTION - SAME AS BEFORE */}
+      {/* HEADER SECTION */}
       <div className="p-6 border-b border-slate-200/60 bg-white/40 space-y-4">
+        {/* ... (Existing Header Code) ... */}
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
               <History size={20} className="text-emerald-600" />
@@ -267,7 +284,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                   <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"> <FileText size={16} /> </button>
               </div>
               <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">
-                {filteredAndSortedTransactions.length} / {transactions.length} Entries
+                Total: {transactions.length}
               </div>
           </div>
         </div>
@@ -332,14 +349,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
-            {filteredAndSortedTransactions.length === 0 ? (
+            {paginatedTransactions.length === 0 ? (
                 <tr>
                     <td colSpan={13} className="px-6 py-10 text-center text-slate-400 italic">
                         {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'}
                     </td>
                 </tr>
             ) : (
-                filteredAndSortedTransactions.map((tx) => {
+                paginatedTransactions.map((tx) => {
                     const isBuy = tx.type === 'BUY';
                     const isDiv = tx.type === 'DIVIDEND';
                     const isTax = tx.type === 'TAX';
@@ -428,6 +445,49 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* PAGINATION FOOTER */}
+      <div className="p-4 border-t border-slate-200/60 bg-white/40 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Rows per page:</span>
+              <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer"
+              >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={500}>500</option>
+                  <option value={1000}>1000</option>
+              </select>
+          </div>
+
+          <div className="flex items-center gap-4">
+              <span className="text-xs text-slate-500">
+                  {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedTransactions.length)} of {filteredAndSortedTransactions.length}
+              </span>
+              <div className="flex gap-1">
+                  <button 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                  >
+                      <ChevronLeft size={16} className="text-slate-600" />
+                  </button>
+                  <button 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                  >
+                      <ChevronRight size={16} className="text-slate-600" />
+                  </button>
+              </div>
+          </div>
       </div>
     </div>
   );
