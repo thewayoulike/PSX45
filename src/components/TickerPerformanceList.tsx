@@ -38,16 +38,8 @@ interface Lot {
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
   transactions, currentPrices, sectors
 }) => {
-  // STATE: Initialize from localStorage to persist selection across page navigation
-  const [selectedTicker, setSelectedTicker] = useState<string | null>(() => {
-      return localStorage.getItem('psx_last_analyzed_ticker') || null;
-  });
-  
-  // STATE: Initialize search term from saved ticker if available
-  const [searchTerm, setSearchTerm] = useState(() => {
-      return localStorage.getItem('psx_last_analyzed_ticker') || '';
-  });
-
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -87,6 +79,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let totalOther = 0;
           
           let tradeCount = 0;
+          let buyCount = 0;  // NEW
+          let sellCount = 0; // NEW
           let lifetimeBuyCost = 0; 
           
           // FIFO Queue
@@ -96,7 +90,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               // Accumulate Fees
               if (t.type === 'BUY' || t.type === 'SELL') {
                   totalComm += (t.commission || 0);
-                  totalTradingTax += (t.tax || 0); // Only trading tax here
+                  totalTradingTax += (t.tax || 0); 
                   totalCDC += (t.cdcCharges || 0);
                   totalOther += (t.otherFees || 0);
               }
@@ -113,6 +107,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   ownedQty += t.quantity;
                   lifetimeBuyCost += buyCost; 
                   tradeCount++;
+                  buyCount++; // Increment Buy Count
               } 
               else if (t.type === 'SELL') {
                   const grossSell = t.quantity * t.price;
@@ -140,6 +135,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   ownedQty -= t.quantity;
                   soldQty += t.quantity;
                   tradeCount++;
+                  sellCount++; // Increment Sell Count
               } 
               else if (t.type === 'DIVIDEND') {
                   const grossDiv = t.quantity * t.price;
@@ -191,7 +187,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               totalCDC,
               totalOther,
               
+              // Trade Counts
               tradeCount,
+              buyCount,
+              sellCount,
+              
               lifetimeROI
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
@@ -333,7 +333,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       setSearchTerm(ticker);
       setIsDropdownOpen(false);
       
-      // PERSIST SELECTION
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
   };
 
@@ -584,9 +583,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                              </div>
 
                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                 <div className="flex justify-between items-center">
+                                 <div className="flex justify-between items-center mb-1">
                                      <span className="text-xs text-slate-500 font-bold uppercase">Trades Executed</span>
                                      <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 border-t border-slate-200 pt-1">
+                                     <div className="flex items-center gap-1">
+                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+                                         <span>{selectedStats.buyCount} Buys</span>
+                                     </div>
+                                     <div className="flex items-center gap-1">
+                                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
+                                         <span>{selectedStats.sellCount} Sells</span>
+                                     </div>
                                  </div>
                              </div>
                         </div>
