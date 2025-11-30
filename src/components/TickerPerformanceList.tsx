@@ -21,9 +21,10 @@ interface TickerPerformanceListProps {
 
 // Helper interface for the enriched table rows
 interface ActivityRow extends Transaction {
-  effectiveRate: number;
-  costBasisPerShare?: number; // For Sells: What was the buy avg?
-  realizedPnL?: number;       // For Sells: Net Sell - Cost Basis
+  avgBuyPrice: number;       // The Cost (Eff Buy Rate for BUY, Cost Basis for SELL)
+  sellOrCurrentPrice: number; // The Value (Eff Sell Rate for SELL, Current Price for BUY)
+  gain: number;              // Realized or Unrealized
+  gainType: 'REALIZED' | 'UNREALIZED';
 }
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
@@ -130,6 +131,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
 
+      const currentPrice = currentPrices[selectedTicker] || 0;
+
       // Sort chronologically first to build history
       const sortedTxs = transactions
           .filter(t => t.ticker === selectedTicker)
@@ -142,36 +145,50 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
           const totalVal = t.quantity * t.price;
           
-          let effectiveRate = 0;
-          let costBasisPerShare = undefined;
-          let realizedPnL = undefined;
+          let avgBuyPrice = 0;
+          let sellOrCurrentPrice = 0;
+          let gain = 0;
+          let gainType: 'REALIZED' | 'UNREALIZED' = 'REALIZED';
 
           if (t.type === 'BUY') {
-              // Effective Rate = (Price + Fees per share)
-              effectiveRate = (totalVal + fees) / t.quantity;
+              // Avg Buy Price = Effective Purchase Rate
+              avgBuyPrice = (totalVal + fees) / t.quantity;
+              
+              // Sell/Current Price = Current Market Price
+              sellOrCurrentPrice = currentPrice;
+
+              // Gain = Unrealized (Hypothetical if still held)
+              gain = (sellOrCurrentPrice - avgBuyPrice) * t.quantity;
+              gainType = 'UNREALIZED';
               
               // Update Running
               runningCost += (totalVal + fees);
               runningQty += t.quantity;
           } 
           else if (t.type === 'SELL') {
-              // Effective Rate = (Price - Fees per share) ie. Net per share
-              effectiveRate = (totalVal - fees) / t.quantity;
-
-              // Calculate P&L for this specific trade
+              // Avg Buy Price = Cost Basis of these shares
               const currentAvg = runningQty > 0 ? runningCost / runningQty : 0;
+              avgBuyPrice = currentAvg;
+
+              // Sell/Current Price = Effective Sell Rate
+              sellOrCurrentPrice = (totalVal - fees) / t.quantity;
+
+              // Gain = Realized Profit
               const costOfSale = t.quantity * currentAvg;
               const netProceeds = totalVal - fees;
-              
-              costBasisPerShare = currentAvg;
-              realizedPnL = netProceeds - costOfSale;
+              gain = netProceeds - costOfSale;
+              gainType = 'REALIZED';
 
               // Update Running
               runningCost -= costOfSale;
               runningQty -= t.quantity;
           }
           else if (t.type === 'DIVIDEND') {
-              effectiveRate = t.price; // Dividend per share
+              // Special case for dividend
+              avgBuyPrice = 0;
+              sellOrCurrentPrice = t.price; // Dividend per share
+              gain = (t.quantity * t.price) - (t.tax || 0); // Net Dividend
+              gainType = 'REALIZED';
           }
 
           // Floating point safety
@@ -179,15 +196,16 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
           return {
               ...t,
-              effectiveRate,
-              costBasisPerShare,
-              realizedPnL
+              avgBuyPrice,
+              sellOrCurrentPrice,
+              gain,
+              gainType
           };
       });
 
       // Reverse to show newest first
       return rows.reverse();
-  }, [selectedTicker, transactions]);
+  }, [selectedTicker, transactions, currentPrices]);
 
   // 3. Filtering and Selection Logic
   const filteredOptions = useMemo(() => {
@@ -444,17 +462,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <th className="px-6 py-4">Date</th>
                                     <th className="px-4 py-4">Type</th>
                                     <th className="px-4 py-4 text-right">Qty</th>
-                                    <th className="px-4 py-4 text-right">Price</th>
-                                    <th className="px-4 py-4 text-right text-slate-700" title="Effective Price per share (inc. fees)">Eff. Rate</th>
+                                    
+                                    {/* Consolidated Price Column 1 */}
+                                    <th className="px-4 py-4 text-right text-slate-700" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th>
+                                    
+                                    {/* Consolidated Price Column 2 */}
+                                    <th className="px-4 py-4 text-right text-slate-700" title="Effective Sell Rate or Current Market Price">Sell / Current</th>
+
                                     <th className="px-4 py-4 text-right text-slate-400">Comm</th>
                                     <th className="px-4 py-4 text-right text-slate-400">Tax</th>
                                     <th className="px-4 py-4 text-right text-slate-400">CDC</th>
                                     <th className="px-4 py-4 text-right text-slate-400">Other</th>
                                     <th className="px-6 py-4 text-right">Net Amount</th>
-                                    
-                                    {/* Sell Specific Columns */}
-                                    <th className="px-4 py-4 text-right text-blue-600 bg-blue-50/50">Buy Avg</th>
-                                    <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/50">Gain</th>
+                                    <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/50">Realized / Unrealized</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -476,14 +496,17 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                 }`}>{t.type}</span>
                                             </td>
                                             <td className="px-4 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
-                                            <td className="px-4 py-4 text-right text-slate-600 font-mono">{t.price.toLocaleString()}</td>
                                             
-                                            {/* Effective Rate */}
-                                            <td className="px-4 py-4 text-right font-mono text-xs font-bold text-slate-700">
-                                                {t.effectiveRate ? formatDecimal(t.effectiveRate) : '-'}
+                                            {/* Avg Buy Price (Cost) */}
+                                            <td className="px-4 py-4 text-right font-mono text-xs text-slate-600">
+                                                {t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}
                                             </td>
 
-                                            {/* Detailed Fees */}
+                                            {/* Sell / Current Price (Value) */}
+                                            <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600' : t.type === 'BUY' ? 'text-rose-500' : 'text-indigo-600'}`}>
+                                                {formatDecimal(t.sellOrCurrentPrice)}
+                                            </td>
+
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.cdcCharges || 0).toLocaleString()}</td>
@@ -493,16 +516,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                 {formatCurrency(net)}
                                             </td>
 
-                                            {/* Sell Specifics */}
-                                            <td className="px-4 py-4 text-right font-mono text-xs bg-blue-50/30">
-                                                {t.costBasisPerShare ? formatDecimal(t.costBasisPerShare) : ''}
-                                            </td>
-                                            <td className="px-6 py-4 text-right font-mono bg-blue-50/30">
-                                                {t.realizedPnL !== undefined ? (
-                                                    <span className={`font-bold ${t.realizedPnL >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                        {t.realizedPnL >= 0 ? '+' : ''}{formatCurrency(t.realizedPnL)}
-                                                    </span>
-                                                ) : ''}
+                                            {/* Gain Column */}
+                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 ${
+                                                t.gain >= 0 
+                                                    ? (t.gainType === 'REALIZED' ? 'text-emerald-600' : 'text-blue-600') 
+                                                    : (t.gainType === 'REALIZED' ? 'text-rose-600' : 'text-orange-500')
+                                            }`}>
+                                                {t.gain !== 0 ? (
+                                                    <>
+                                                        {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)}
+                                                        {t.gainType === 'UNREALIZED' && <span className="ml-1 text-[8px] opacity-60">UNR</span>}
+                                                    </>
+                                                ) : '-'}
                                             </td>
                                         </tr>
                                     );
