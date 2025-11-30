@@ -23,7 +23,7 @@ interface TickerPerformanceListProps {
 interface ActivityRow extends Transaction {
   avgBuyPrice: number;       // The Cost (Eff Buy Rate for BUY, Cost Basis for SELL)
   sellOrCurrentPrice: number; // The Value (Eff Sell Rate for SELL, Current Price for BUY)
-  gain: number;              // Realized or Unrealized
+  gain: number;              // The calculated gain amount
   gainType: 'REALIZED' | 'UNREALIZED';
 }
 
@@ -79,7 +79,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   const buyCost = grossBuy + fees; 
                   const costPerShare = buyCost / t.quantity;
                   
-                  // Add to FIFO Queue
                   lots.push({ quantity: t.quantity, costPerShare });
                   
                   ownedQty += t.quantity;
@@ -89,30 +88,22 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               else if (t.type === 'SELL') {
                   const grossSell = t.quantity * t.price;
                   const netSell = grossSell - fees;
-                  const sellPricePerShare = netSell / t.quantity; // Net sell price per share
                   
                   let qtyToSell = t.quantity;
                   let costBasisForSale = 0;
 
-                  // Consume lots (FIFO)
                   while (qtyToSell > 0 && lots.length > 0) {
-                      const currentLot = lots[0]; // Peek first lot
-                      
+                      const currentLot = lots[0]; 
                       if (currentLot.quantity > qtyToSell) {
-                          // Partial consume
                           costBasisForSale += qtyToSell * currentLot.costPerShare;
                           currentLot.quantity -= qtyToSell;
                           qtyToSell = 0;
                       } else {
-                          // Full consume
                           costBasisForSale += currentLot.quantity * currentLot.costPerShare;
                           qtyToSell -= currentLot.quantity;
-                          lots.shift(); // Remove empty lot
+                          lots.shift(); 
                       }
                   }
-
-                  // If we sold more than we had (data error), treat remainder as 0 cost basis
-                  // (Logic handled implicitly as loop terminates)
 
                   const tradeProfit = netSell - costBasisForSale;
                   realizedPL += tradeProfit;
@@ -129,10 +120,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               }
           });
 
-          // Floating Point Correction
           if (ownedQty < 0.001) ownedQty = 0;
 
-          // Calculate Current Avg Cost from remaining lots (Weighted Avg of remaining FIFO stack)
+          // Calculate Current Avg Cost from remaining lots
           let remainingTotalCost = 0;
           let remainingTotalQty = 0;
           lots.forEach(lot => {
@@ -167,18 +157,17 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors]);
 
-  // 2. Generate Detailed Activity Rows (Simulating FIFO history per row)
+  // 2. Generate Detailed Activity Rows
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
 
       const currentPrice = currentPrices[selectedTicker] || 0;
 
-      // Sort chronologically
       const sortedTxs = transactions
           .filter(t => t.ticker === selectedTicker)
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // Simulation State
+      // Simulation State for FIFO
       const tempLots: Lot[] = [];
 
       const rows: ActivityRow[] = sortedTxs.map(t => {
@@ -200,12 +189,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               // Sell/Current Price = Current Market Price
               sellOrCurrentPrice = currentPrice;
 
-              // Gain = Unrealized (Hypothetical gain for THIS specific buy lot if sold now)
+              // Gain = Unrealized
               gain = (sellOrCurrentPrice - avgBuyPrice) * t.quantity;
               gainType = 'UNREALIZED';
           } 
           else if (t.type === 'SELL') {
-              // Sell/Current Price = Effective Sell Rate
               const netProceeds = totalVal - fees;
               sellOrCurrentPrice = netProceeds / t.quantity;
 
@@ -213,30 +201,20 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               let qtyToSell = t.quantity;
               let costBasisForSale = 0;
               
-              // Deep copy lots logic for display purposes not strictly needed as map is linear,
-              // but we need to mutate tempLots statefully.
-              const soldLotCosts: number[] = [];
-
               while (qtyToSell > 0 && tempLots.length > 0) {
                   const currentLot = tempLots[0]; 
                   if (currentLot.quantity > qtyToSell) {
                       costBasisForSale += qtyToSell * currentLot.costPerShare;
-                      soldLotCosts.push(currentLot.costPerShare); // Track for avg
                       currentLot.quantity -= qtyToSell;
                       qtyToSell = 0;
                   } else {
                       costBasisForSale += currentLot.quantity * currentLot.costPerShare;
-                      soldLotCosts.push(currentLot.costPerShare);
                       qtyToSell -= currentLot.quantity;
                       tempLots.shift(); 
                   }
               }
 
-              // Avg Buy Price = The weighted average cost of the shares SOLD in this transaction
-              // Note: costBasisForSale is total cost. 
               avgBuyPrice = (t.quantity > 0) ? costBasisForSale / t.quantity : 0;
-
-              // Gain = Realized Profit
               gain = netProceeds - costBasisForSale;
               gainType = 'REALIZED';
           }
@@ -514,10 +492,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <th className="px-4 py-4">Type</th>
                                     <th className="px-4 py-4 text-right">Qty</th>
                                     
-                                    {/* Consolidated Price Column 1 */}
                                     <th className="px-4 py-4 text-right text-slate-700" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th>
-                                    
-                                    {/* Consolidated Price Column 2 */}
                                     <th className="px-4 py-4 text-right text-slate-700" title="Effective Sell Rate or Current Market Price">Sell / Current</th>
 
                                     <th className="px-4 py-4 text-right text-slate-400">Comm</th>
@@ -525,7 +500,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <th className="px-4 py-4 text-right text-slate-400">CDC</th>
                                     <th className="px-4 py-4 text-right text-slate-400">Other</th>
                                     <th className="px-6 py-4 text-right">Net Amount</th>
-                                    <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/50">Realized / Unrealized</th>
+                                    
+                                    {/* SEPARATED COLUMNS */}
+                                    <th className="px-6 py-4 text-right text-emerald-600 bg-emerald-50/30">Realized Gain</th>
+                                    <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/30">Unrealized Gain</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
@@ -534,7 +512,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                         ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0))
                                         : t.type === 'SELL'
                                         ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0))
-                                        : (t.quantity * t.price) - (t.tax||0); // Dividend
+                                        : (t.quantity * t.price) - (t.tax||0); 
 
                                     return (
                                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -548,12 +526,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                             </td>
                                             <td className="px-4 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
                                             
-                                            {/* Avg Buy Price (Cost) */}
                                             <td className="px-4 py-4 text-right font-mono text-xs text-slate-600">
                                                 {t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}
                                             </td>
 
-                                            {/* Sell / Current Price (Value) */}
                                             <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600' : t.type === 'BUY' ? 'text-rose-500' : 'text-indigo-600'}`}>
                                                 {formatDecimal(t.sellOrCurrentPrice)}
                                             </td>
@@ -567,16 +543,20 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                 {formatCurrency(net)}
                                             </td>
 
-                                            {/* Gain Column */}
-                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 ${
-                                                t.gain >= 0 
-                                                    ? (t.gainType === 'REALIZED' ? 'text-emerald-600' : 'text-blue-600') 
-                                                    : (t.gainType === 'REALIZED' ? 'text-rose-600' : 'text-orange-500')
-                                            }`}>
-                                                {t.gain !== 0 ? (
+                                            {/* REALIZED GAIN COLUMN */}
+                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-emerald-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {t.gainType === 'REALIZED' ? (
                                                     <>
                                                         {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)}
-                                                        {t.gainType === 'UNREALIZED' && <span className="ml-1 text-[8px] opacity-60">UNR</span>}
+                                                    </>
+                                                ) : '-'}
+                                            </td>
+
+                                            {/* UNREALIZED GAIN COLUMN */}
+                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                {t.gainType === 'UNREALIZED' ? (
+                                                    <>
+                                                        {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)}
                                                     </>
                                                 ) : '-'}
                                             </td>
