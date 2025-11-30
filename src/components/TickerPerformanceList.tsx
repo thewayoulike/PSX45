@@ -26,7 +26,6 @@ import {
   CartesianGrid, 
   Tooltip, 
   ResponsiveContainer, 
-  ReferenceLine,
   Scatter 
 } from 'recharts';
 import { exportToCSV } from '../utils/export';
@@ -60,6 +59,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Pagination State for Activity Table
   const [activityPage, setActivityPage] = useState<number>(1);
   const [activityRowsPerPage, setActivityRowsPerPage] = useState<number>(25);
 
@@ -69,7 +69,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const systemTypes = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       
       return uniqueTickers.reduce((total, tkr) => {
-          // Skip system tickers/types
           if (['CASH', 'CGT'].includes(tkr)) return total;
           
           const txs = transactions.filter(t => t.ticker === tkr && !systemTypes.includes(t.type));
@@ -86,7 +85,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
-  // 1. Calculate Comprehensive Stats per Ticker
+  // 1. Calculate Comprehensive Stats per Ticker using FIFO
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
@@ -99,6 +98,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       ));
       
       return uniqueTickers.map(ticker => {
+          // Sort chronologically for FIFO
           const txs = transactions
               .filter(t => t.ticker === ticker)
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -110,7 +110,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let totalDividends = 0;
           let dividendTax = 0;
           let dividendCount = 0;
+          let dividendSharesCount = 0;
           
+          // Fee Breakdown Trackers
           let totalComm = 0;
           let totalTradingTax = 0;
           let totalCDC = 0;
@@ -121,9 +123,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let sellCount = 0;
           let lifetimeBuyCost = 0; 
           
+          // FIFO Queue
           const lots: Lot[] = [];
 
           txs.forEach(t => {
+              // Accumulate Fees
               if (t.type === 'BUY' || t.type === 'SELL') {
                   totalComm += (t.commission || 0);
                   totalTradingTax += (t.tax || 0); 
@@ -178,11 +182,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   totalDividends += grossDiv;
                   dividendTax += (t.tax || 0);
                   dividendCount++;
+                  dividendSharesCount += t.quantity;
               }
           });
 
           if (ownedQty < 0.001) ownedQty = 0;
 
+          // Calculate Current Avg Cost from remaining lots
           let remainingTotalCost = 0;
           let remainingTotalQty = 0;
           lots.forEach(lot => {
@@ -199,16 +205,14 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
           const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
           
-          // FEATURE 2: Allocation %
           const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
-
-          // FEATURE 3: Break-Even Price
-          // Est. Sell Fee ~0.5% (approx) to cover comm + tax
-          // Formula: Cost Basis / (Qty * (1 - est_fee_rate))
-          const estFeeRate = 0.005; // 0.5% estimate
-          const breakEvenPrice = ownedQty > 0 ? (remainingTotalCost / ownedQty) / (1 - estFeeRate) : 0;
+          
+          // Break-Even: Avg Cost / (1 - ~0.5% Sell Fees)
+          const estFeeRate = 0.0055; // 0.55% approx
+          const breakEvenPrice = currentAvgPrice > 0 ? currentAvgPrice / (1 - estFeeRate) : 0;
 
           const dividendYieldOnCost = lifetimeBuyCost > 0 ? (totalDividends / lifetimeBuyCost) * 100 : 0;
+          const avgDPS = dividendSharesCount > 0 ? totalDividends / dividendSharesCount : 0;
 
           return {
               ticker,
@@ -227,7 +231,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               dividendTax,
               netDividends: totalDividends - dividendTax,
               dividendCount,
+              dividendSharesCount,
               dividendYieldOnCost,
+              avgDPS,
               feesPaid,
               totalComm,
               totalTradingTax,
@@ -237,13 +243,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               buyCount,
               sellCount,
               lifetimeROI,
-              allocationPercent, // New
-              breakEvenPrice     // New
+              allocationPercent,
+              breakEvenPrice
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors, totalPortfolioValue]);
 
-  // ... (activityRows Calculation same as before) ...
+  // ... (activityRows logic same as before) ...
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
       const currentPrice = currentPrices[selectedTicker] || 0;
@@ -301,36 +307,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return rows.reverse();
   }, [selectedTicker, transactions, currentPrices]);
 
-  // FEATURE 1: Chart Data Preparation
   const chartData = useMemo(() => {
       if (!selectedTicker) return [];
-      
-      const data = transactions
+      return transactions
           .filter(t => t.ticker === selectedTicker && (t.type === 'BUY' || t.type === 'SELL'))
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-          .map(t => ({
-              date: t.date,
-              price: t.price,
-              type: t.type,
-              quantity: t.quantity,
-              color: t.type === 'BUY' ? '#10b981' : '#f43f5e' // Green/Red
-          }));
-      
-      return data;
+          .map(t => ({ date: t.date, price: t.price, type: t.type, quantity: t.quantity, color: t.type === 'BUY' ? '#10b981' : '#f43f5e' }));
   }, [selectedTicker, transactions]);
 
-  // FEATURE 4: Export Handler
   const handleExportActivity = () => {
       if (!selectedTicker) return;
       const dataToExport = activityRows.map(row => ({
-          Date: row.date,
-          Type: row.type,
-          Qty: row.quantity,
-          Price: row.price,
-          'Avg Buy / Cost': row.avgBuyPrice,
-          'Sell / Current': row.sellOrCurrentPrice,
-          'Gain/Loss': row.gain,
-          'Gain Type': row.gainType
+          Date: row.date, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy / Cost': row.avgBuyPrice, 'Sell / Current': row.sellOrCurrentPrice, 'Gain/Loss': row.gain, 'Gain Type': row.gainType
       }));
       exportToCSV(dataToExport, `${selectedTicker}_Activity_Log`);
   };
@@ -393,12 +381,21 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}> {selectedStats.ticker.substring(0, 1)} </div>
                         <div> <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStats.ticker}</h1> <div className="flex items-center gap-2 mt-1"> <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStats.sector}</span> <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}> {selectedStats.status} </span> </div> </div>
                     </div>
+                    
                     <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
                         
-                        {/* FEATURE 2: ALLOCATION */}
+                        {/* FEATURE: ALLOCATION & BREAK-EVEN */}
                         {selectedStats.status === 'Active' && (
                             <>
-                                <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1"> Allocation </div> <div className="text-xl font-bold text-slate-800 flex items-center justify-end gap-1"> <PieChart size={16} className="text-slate-400" /> {selectedStats.allocationPercent.toFixed(1)}% </div> </div>
+                                <div className="text-right"> 
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1"> Portfolio Allocation </div> 
+                                    <div className="text-xl font-bold text-slate-800 flex items-center justify-end gap-1"> <PieChart size={16} className="text-slate-400" /> {selectedStats.allocationPercent.toFixed(1)}% </div> 
+                                </div>
+                                <div className="h-8 w-px bg-slate-200"></div>
+                                <div className="text-right"> 
+                                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Break-Even</div> 
+                                    <div className="text-xl font-bold text-indigo-600">Rs. {formatDecimal(selectedStats.breakEvenPrice)}</div> 
+                                </div>
                                 <div className="h-8 w-px bg-slate-200"></div>
                             </>
                         )}
@@ -419,7 +416,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <div className="grid grid-cols-2 gap-4"> <div> <div className="text-3xl font-bold text-slate-800">{selectedStats.ownedQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> </div> <div> <div className="text-3xl font-bold text-slate-400">{selectedStats.soldQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> </div> </div>
                             <div className="h-px bg-slate-100 w-full"></div>
                             
-                            {/* FEATURE 3: BREAK-EVEN & AVG COST */}
+                            {/* RESTORED MARKET VALUE SECTION */}
                             <div className="grid grid-cols-2 gap-4"> 
                                 <div> 
                                     <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.totalCostBasis)}</div> 
@@ -427,9 +424,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <div className="text-[9px] text-slate-400 mt-0.5"> Avg: <span className="font-mono text-slate-600">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</span> </div> 
                                 </div> 
                                 <div> 
-                                    <div className="text-sm font-bold text-indigo-700">Rs. {formatDecimal(selectedStats.breakEvenPrice)}</div> 
-                                    <div className="text-[10px] text-indigo-400 font-bold flex items-center gap-1"> <Target size={10} /> Break-Even Price </div>
-                                    <div className="text-[9px] text-indigo-300 mt-0.5"> (Est. with Sell Fees) </div>
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div>
+                                    <div className="text-[10px] text-slate-400">Market Value</div>
                                 </div> 
                             </div>
 
@@ -437,8 +433,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </Card>
 
+                    {/* Passive Income Card */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3> </div>
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
+                        </div>
                         <div className="space-y-6">
                              <div> <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div> </div>
                              <div className="h-px bg-slate-100 w-full"></div>
@@ -448,6 +448,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </Card>
 
+                     {/* Costs & Fees Card */}
                      <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3> </div>
                         <div className="space-y-6">
@@ -476,12 +477,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                 Price & Trade History
                             </h3>
                             <div className="flex gap-2">
-                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Buy
-                                </div>
-                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                                    <div className="w-2 h-2 rounded-full bg-rose-500"></div> Sell
-                                </div>
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded"> <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Buy </div>
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded"> <div className="w-2 h-2 rounded-full bg-rose-500"></div> Sell </div>
                             </div>
                         </div>
                         <div className="h-[250px] w-full">
@@ -490,117 +487,49 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
                                     <XAxis dataKey="date" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} minTickGap={30} />
                                     <YAxis domain={['auto', 'auto']} tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={40} />
-                                    <Tooltip 
-                                        contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px'}} 
-                                        labelStyle={{color: '#64748b', marginBottom: '4px'}}
-                                    />
+                                    <Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px'}} labelStyle={{color: '#64748b', marginBottom: '4px'}} />
                                     <Line type="monotone" dataKey="price" stroke="#cbd5e1" strokeWidth={2} dot={false} />
-                                    <Scatter data={chartData} fill="#8884d8" shape={(props: any) => {
-                                        const { cx, cy, payload } = props;
-                                        return (
-                                            <circle cx={cx} cy={cy} r={4} fill={payload.color} stroke="#fff" strokeWidth={1} />
-                                        );
-                                    }} />
+                                    <Scatter data={chartData} fill="#8884d8" shape={(props: any) => { const { cx, cy, payload } = props; return ( <circle cx={cx} cy={cy} r={4} fill={payload.color} stroke="#fff" strokeWidth={1} /> ); }} />
                                 </LineChart>
                             </ResponsiveContainer>
                         </div>
                     </div>
                 )}
 
-                {/* 3. DETAILED ACTIVITY TABLE */}
+                {/* DETAILED ACTIVITY TABLE */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                        <div className="flex items-center gap-2">
-                            <History size={20} className="text-slate-500" />
-                            <h3 className="font-bold text-slate-800">All Time Activity</h3>
-                        </div>
-                        {/* FEATURE 4: EXPORT BUTTON */}
-                        <button 
-                            onClick={handleExportActivity}
-                            className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
-                        >
-                            <Download size={14} /> Export CSV
-                        </button>
+                        <div className="flex items-center gap-2"> <History size={20} className="text-slate-500" /> <h3 className="font-bold text-slate-800">All Time Activity</h3> </div>
+                        <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"> <Download size={14} /> Export CSV </button>
                     </div>
-                    {/* ... (Table content same as before) ... */}
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200">
                                 <tr>
-                                    <th className="px-6 py-4">Date</th>
-                                    <th className="px-4 py-4">Type</th>
-                                    <th className="px-4 py-4 text-right">Qty</th>
-                                    
+                                    <th className="px-6 py-4">Date</th> <th className="px-4 py-4">Type</th> <th className="px-4 py-4 text-right">Qty</th>
                                     <th className="px-4 py-4 text-right text-slate-700" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th>
                                     <th className="px-4 py-4 text-right text-slate-700" title="Effective Sell Rate or Current Market Price">Sell / Current</th>
-
-                                    <th className="px-4 py-4 text-right text-slate-400">Comm</th>
-                                    <th className="px-4 py-4 text-right text-slate-400">Tax</th>
-                                    <th className="px-4 py-4 text-right text-slate-400">CDC</th>
-                                    <th className="px-4 py-4 text-right text-slate-400">Other</th>
-                                    <th className="px-6 py-4 text-right">Net Amount</th>
-                                    
-                                    <th className="px-6 py-4 text-right text-emerald-600 bg-emerald-50/30">Realized Gain</th>
-                                    <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/30">Unrealized Gain</th>
+                                    <th className="px-4 py-4 text-right text-slate-400">Comm</th> <th className="px-4 py-4 text-right text-slate-400">Tax</th> <th className="px-4 py-4 text-right text-slate-400">CDC</th> <th className="px-4 py-4 text-right text-slate-400">Other</th> <th className="px-6 py-4 text-right">Net Amount</th>
+                                    <th className="px-6 py-4 text-right text-emerald-600 bg-emerald-50/30">Realized Gain</th> <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/30">Unrealized Gain</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedActivity.map(t => {
-                                    const net = t.type === 'BUY' 
-                                        ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0))
-                                        : t.type === 'SELL'
-                                        ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0))
-                                        : (t.quantity * t.price) - (t.tax||0); 
-
+                                    const net = t.type === 'BUY' ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : t.type === 'SELL' ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : (t.quantity * t.price) - (t.tax||0); 
                                     return (
                                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-6 py-4 text-slate-500 font-mono text-xs">{t.date}</td>
-                                            <td className="px-4 py-4">
-                                                <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                                                    t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                    t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                    t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100'
-                                                }`}>{t.type}</span>
-                                            </td>
+                                            <td className="px-4 py-4"><span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-100' : t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100'}`}>{t.type}</span></td>
                                             <td className="px-4 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
-                                            
-                                            <td className="px-4 py-4 text-right font-mono text-xs text-slate-600">
-                                                {t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}
-                                            </td>
-
-                                            <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600' : t.type === 'BUY' ? 'text-rose-500' : 'text-indigo-600'}`}>
-                                                {formatDecimal(t.sellOrCurrentPrice)}
-                                            </td>
-
+                                            <td className="px-4 py-4 text-right font-mono text-xs text-slate-600">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
+                                            <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600' : t.type === 'BUY' ? 'text-rose-500' : 'text-indigo-600'}`}>{formatDecimal(t.sellOrCurrentPrice)}</td>
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.cdcCharges || 0).toLocaleString()}</td>
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.otherFees || 0).toLocaleString()}</td>
-
-                                            <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                {formatCurrency(net)}
-                                            </td>
-
-                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-emerald-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {t.gainType === 'REALIZED' ? (
-                                                    <>
-                                                        {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)}
-                                                    </>
-                                                ) : '-'}
-                                            </td>
-
-                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                {t.gainType === 'UNREALIZED' ? (
-                                                    <>
-                                                        {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)}
-                                                        {t.remainingQty && t.remainingQty < t.quantity && (
-                                                            <span className="block text-[8px] opacity-60 font-sans font-normal text-slate-500 mt-0.5">
-                                                                (On {t.remainingQty.toLocaleString()})
-                                                            </span>
-                                                        )}
-                                                    </>
-                                                ) : '-'}
-                                            </td>
+                                            <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{formatCurrency(net)}</td>
+                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-emerald-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{t.gainType === 'REALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} </> ) : '-'}</td>
+                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{t.gainType === 'UNREALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} {t.remainingQty && t.remainingQty < t.quantity && ( <span className="block text-[8px] opacity-60 font-sans font-normal text-slate-500 mt-0.5"> (On {t.remainingQty.toLocaleString()}) </span> )} </> ) : '-'}</td>
                                         </tr>
                                     );
                                 })}
@@ -610,61 +539,16 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     {/* PAGINATION FOOTER */}
                     {activityRows.length > 0 && (
                         <div className="p-4 border-t border-slate-200/60 bg-white/40 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-500">Rows per page:</span>
-                                <select 
-                                    value={activityRowsPerPage} 
-                                    onChange={(e) => {
-                                        setActivityRowsPerPage(Number(e.target.value));
-                                        setActivityPage(1);
-                                    }}
-                                    className="bg-white border border-slate-200 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer"
-                                >
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                    <option value={500}>500</option>
-                                    <option value={1000}>1000</option>
-                                </select>
-                            </div>
-
-                            <div className="flex items-center gap-4">
-                                <span className="text-xs text-slate-500">
-                                    {(activityPage - 1) * activityRowsPerPage + 1}-{Math.min(activityPage * activityRowsPerPage, activityRows.length)} of {activityRows.length}
-                                </span>
-                                <div className="flex gap-1">
-                                    <button 
-                                        onClick={() => setActivityPage(p => Math.max(1, p - 1))}
-                                        disabled={activityPage === 1}
-                                        className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-                                    >
-                                        <ChevronLeft size={16} className="text-slate-600" />
-                                    </button>
-                                    <button 
-                                        onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))}
-                                        disabled={activityPage === totalActivityPages || totalActivityPages === 0}
-                                        className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
-                                    >
-                                        <ChevronRight size={16} className="text-slate-600" />
-                                    </button>
-                                </div>
-                            </div>
+                            <div className="flex items-center gap-2"> <span className="text-xs text-slate-500">Rows per page:</span> <select value={activityRowsPerPage} onChange={(e) => { setActivityRowsPerPage(Number(e.target.value)); setActivityPage(1); }} className="bg-white border border-slate-200 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer" > <option value={25}>25</option> <option value={50}>50</option> <option value={100}>100</option> <option value={500}>500</option> <option value={1000}>1000</option> </select> </div>
+                            <div className="flex items-center gap-4"> <span className="text-xs text-slate-500"> {(activityPage - 1) * activityRowsPerPage + 1}-{Math.min(activityPage * activityRowsPerPage, activityRows.length)} of {activityRows.length} </span> <div className="flex gap-1"> <button onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage === 1} className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors" > <ChevronLeft size={16} className="text-slate-600" /> </button> <button onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))} disabled={activityPage === totalActivityPages || totalActivityPages === 0} className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors" > <ChevronRight size={16} className="text-slate-600" /> </button> </div> </div>
                         </div>
                     )}
-                    {activityRows.length === 0 && (
-                        <div className="p-8 text-center text-slate-400 text-sm">No transaction history found.</div>
-                    )}
+                    {activityRows.length === 0 && ( <div className="p-8 text-center text-slate-400 text-sm">No transaction history found.</div> )}
                 </div>
 
             </div>
         ) : (
-            <div className="flex flex-col items-center justify-center py-20 opacity-50">
-                <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
-                    <BarChart3 size={48} />
-                </div>
-                <h3 className="text-xl font-bold text-slate-400">No Stock Selected</h3>
-                <p className="text-slate-400">Use the search bar above to analyze a specific stock.</p>
-            </div>
+            <div className="flex flex-col items-center justify-center py-20 opacity-50"> <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300"> <BarChart3 size={48} /> </div> <h3 className="text-xl font-bold text-slate-400">No Stock Selected</h3> <p className="text-slate-400">Use the search bar above to analyze a specific stock.</p> </div>
         )}
       </div>
     </div>
