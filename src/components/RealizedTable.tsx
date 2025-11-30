@@ -1,33 +1,94 @@
 import React, { useState, useMemo } from 'react';
 import { RealizedTrade } from '../types';
-import { Search, X, FileSpreadsheet, FileText } from 'lucide-react'; // Added Icons
-import { exportToExcel, exportToCSV } from '../utils/export'; // Import Utility
+import { Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { exportToExcel, exportToCSV } from '../utils/export';
 
 interface RealizedTableProps {
   trades: RealizedTrade[];
   showBroker?: boolean;
 }
 
+type SortKey = keyof RealizedTrade | 'totalCost' | 'totalSell';
+type SortDirection = 'asc' | 'desc';
+
+interface SortConfig {
+  key: SortKey;
+  direction: SortDirection;
+}
+
 export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = false }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
+
+  const handleSort = (key: SortKey) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
 
   const filteredAndSortedTrades = useMemo(() => {
-    return trades
-      .filter(trade => {
-        const term = searchTerm.toLowerCase();
-        const matchesSearch = 
-          trade.ticker.toLowerCase().includes(term) || 
-          (trade.broker && trade.broker.toLowerCase().includes(term));
-        
-        const matchesFrom = dateFrom ? trade.date >= dateFrom : true;
-        const matchesTo = dateTo ? trade.date <= dateTo : true;
+    // 1. Filter
+    const filtered = trades.filter(trade => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = 
+        trade.ticker.toLowerCase().includes(term) || 
+        (trade.broker && trade.broker.toLowerCase().includes(term));
+      
+      const matchesFrom = dateFrom ? trade.date >= dateFrom : true;
+      const matchesTo = dateTo ? trade.date <= dateTo : true;
 
-        return matchesSearch && matchesFrom && matchesTo;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [trades, searchTerm, dateFrom, dateTo]);
+      return matchesSearch && matchesFrom && matchesTo;
+    });
+
+    // 2. Sort
+    return filtered.sort((a, b) => {
+      let aValue: any = a[sortConfig.key as keyof RealizedTrade];
+      let bValue: any = b[sortConfig.key as keyof RealizedTrade];
+
+      // Handle derived columns
+      if (sortConfig.key === 'totalCost') {
+        aValue = (a.buyAvg || 0) * a.quantity;
+        bValue = (b.buyAvg || 0) * b.quantity;
+      } else if (sortConfig.key === 'totalSell') {
+        aValue = (a.sellPrice || 0) * a.quantity;
+        bValue = (b.sellPrice || 0) * b.quantity;
+      }
+
+      // Handle strings (case-insensitive)
+      if (typeof aValue === 'string') {
+        aValue = aValue.toLowerCase();
+        bValue = bValue.toLowerCase();
+      }
+
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [trades, searchTerm, dateFrom, dateTo, sortConfig]);
+
+  // Calculate Grand Totals
+  const totals = useMemo(() => {
+      return filteredAndSortedTrades.reduce((acc, t) => {
+          const cost = (t.buyAvg || 0) * t.quantity;
+          const sell = (t.sellPrice || 0) * t.quantity;
+          return {
+              qty: acc.qty + t.quantity,
+              cost: acc.cost + cost,
+              sell: acc.sell + sell,
+              comm: acc.comm + (t.commission || 0),
+              tax: acc.tax + (t.tax || 0),
+              cdc: acc.cdc + (t.cdcCharges || 0),
+              other: acc.other + (t.otherFees || 0),
+              profit: acc.profit + t.profit
+          };
+      }, { qty: 0, cost: 0, sell: 0, comm: 0, tax: 0, cdc: 0, other: 0, profit: 0 });
+  }, [filteredAndSortedTrades]);
 
   const clearFilters = () => {
       setSearchTerm(''); setDateFrom(''); setDateTo('');
@@ -35,7 +96,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   
   const hasActiveFilters = searchTerm || dateFrom || dateTo;
 
-  // NEW: Export Handler
   const handleExport = (type: 'excel' | 'csv') => {
       const data = filteredAndSortedTrades.map(trade => {
           const totalCost = (trade.buyAvg || 0) * trade.quantity;
@@ -62,6 +122,23 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
       else exportToCSV(data, filename);
   };
 
+  const SortIcon = ({ column }: { column: SortKey }) => {
+      if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+      return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDown size={12} className="text-emerald-500" />;
+  };
+
+  const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => (
+      <th 
+          className={`px-4 py-4 font-semibold text-slate-600 cursor-pointer select-none group hover:bg-slate-100 transition-colors ${className}`}
+          onClick={() => sortKey && handleSort(sortKey)}
+      >
+          <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
+              {label}
+              {sortKey && <SortIcon column={sortKey} />}
+          </div>
+      </th>
+  );
+
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50">
       <div className="p-6 border-b border-slate-200/60 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/40">
@@ -74,7 +151,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </div>
 
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
-             {/* EXPORT BUTTONS */}
              <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm mr-2">
                   <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel">
                       <FileSpreadsheet size={16} />
@@ -113,20 +189,20 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
       <div className="overflow-x-auto flex-1">
         <table className="w-full text-left border-collapse">
           <thead>
-            <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
-              <th className="px-4 py-4 font-semibold">Date</th>
-              <th className="px-4 py-4 font-semibold">Ticker</th>
-              {showBroker && <th className="px-4 py-4 font-semibold">Broker</th>}
-              <th className="px-4 py-4 font-semibold text-right">Qty</th>
-              <th className="px-4 py-4 font-semibold text-right">Buy Avg</th>
-              <th className="px-4 py-4 font-semibold text-right">Sell Price</th>
-              <th className="px-4 py-4 font-semibold text-right text-slate-700">Total Cost</th>
-              <th className="px-4 py-4 font-semibold text-right text-slate-700">Total Sell</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">Comm</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">Other</th>
-              <th className="px-4 py-4 font-semibold text-right">Net Profit</th>
+            <tr className="text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
+              <Th label="Date" sortKey="date" />
+              <Th label="Ticker" sortKey="ticker" />
+              {showBroker && <Th label="Broker" sortKey="broker" />}
+              <Th label="Qty" sortKey="quantity" align="right" />
+              <Th label="Buy Avg" sortKey="buyAvg" align="right" />
+              <Th label="Sell Price" sortKey="sellPrice" align="right" />
+              <Th label="Total Cost" sortKey="totalCost" align="right" />
+              <Th label="Total Sell" sortKey="totalSell" align="right" />
+              <Th label="Comm" sortKey="commission" align="right" className="text-slate-400" />
+              <Th label="Tax" sortKey="tax" align="right" className="text-slate-400" />
+              <Th label="CDC" sortKey="cdcCharges" align="right" className="text-slate-400" />
+              <Th label="Other" sortKey="otherFees" align="right" className="text-slate-400" />
+              <Th label="Net Profit" sortKey="profit" align="right" />
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
@@ -166,6 +242,26 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
               })
             )}
           </tbody>
+          
+          {/* GRAND TOTALS FOOTER */}
+          {filteredAndSortedTrades.length > 0 && (
+              <tfoot className="bg-slate-50 border-t-2 border-slate-200 font-bold text-xs text-slate-800 shadow-inner">
+                  <tr>
+                      <td colSpan={showBroker ? 3 : 2} className="px-4 py-4 text-right uppercase tracking-wider text-slate-500">Totals</td>
+                      <td className="px-4 py-4 text-right">{totals.qty.toLocaleString()}</td>
+                      <td colSpan={2} className="px-4 py-4"></td>
+                      <td className="px-4 py-4 text-right">{totals.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-4 py-4 text-right">{totals.sell.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right text-rose-500">{totals.comm.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right text-rose-500">{totals.tax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right text-rose-500">{totals.cdc.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right text-rose-500">{totals.other.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className={`px-4 py-4 text-right text-sm ${totals.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          {totals.profit >= 0 ? '+' : ''}{totals.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </td>
+                  </tr>
+              </tfoot>
+          )}
         </table>
       </div>
     </div>
