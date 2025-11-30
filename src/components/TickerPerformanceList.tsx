@@ -27,6 +27,11 @@ interface ActivityRow extends Transaction {
   gainType: 'REALIZED' | 'UNREALIZED';
 }
 
+interface Lot {
+    quantity: number;
+    costPerShare: number; // Effective cost per share (inc. fees)
+}
+
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
   transactions, currentPrices, sectors
 }) => {
@@ -35,7 +40,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 1. Calculate Comprehensive Stats per Ticker
+  // 1. Calculate Comprehensive Stats per Ticker using FIFO
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
@@ -48,13 +53,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       ));
       
       return uniqueTickers.map(ticker => {
+          // Sort chronologically for FIFO
           const txs = transactions
               .filter(t => t.ticker === ticker)
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           
           let ownedQty = 0;
           let soldQty = 0;
-          let totalCostBasis = 0; 
           let realizedPL = 0;     
           
           let totalDividends = 0;
@@ -62,6 +67,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let feesPaid = 0;       
           
           let tradeCount = 0;
+          
+          // FIFO Queue
+          const lots: Lot[] = [];
 
           txs.forEach(t => {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
@@ -69,8 +77,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               if (t.type === 'BUY') {
                   const grossBuy = t.quantity * t.price;
                   const buyCost = grossBuy + fees; 
+                  const costPerShare = buyCost / t.quantity;
                   
-                  totalCostBasis += buyCost;
+                  // Add to FIFO Queue
+                  lots.push({ quantity: t.quantity, costPerShare });
+                  
                   ownedQty += t.quantity;
                   feesPaid += fees;
                   tradeCount++;
@@ -78,14 +89,34 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               else if (t.type === 'SELL') {
                   const grossSell = t.quantity * t.price;
                   const netSell = grossSell - fees;
+                  const sellPricePerShare = netSell / t.quantity; // Net sell price per share
                   
-                  const avgCostPerShare = ownedQty > 0 ? totalCostBasis / ownedQty : 0;
-                  const costOfSoldShares = t.quantity * avgCostPerShare;
-                  
-                  const tradeProfit = netSell - costOfSoldShares;
+                  let qtyToSell = t.quantity;
+                  let costBasisForSale = 0;
+
+                  // Consume lots (FIFO)
+                  while (qtyToSell > 0 && lots.length > 0) {
+                      const currentLot = lots[0]; // Peek first lot
+                      
+                      if (currentLot.quantity > qtyToSell) {
+                          // Partial consume
+                          costBasisForSale += qtyToSell * currentLot.costPerShare;
+                          currentLot.quantity -= qtyToSell;
+                          qtyToSell = 0;
+                      } else {
+                          // Full consume
+                          costBasisForSale += currentLot.quantity * currentLot.costPerShare;
+                          qtyToSell -= currentLot.quantity;
+                          lots.shift(); // Remove empty lot
+                      }
+                  }
+
+                  // If we sold more than we had (data error), treat remainder as 0 cost basis
+                  // (Logic handled implicitly as loop terminates)
+
+                  const tradeProfit = netSell - costBasisForSale;
                   realizedPL += tradeProfit;
 
-                  totalCostBasis -= costOfSoldShares;
                   ownedQty -= t.quantity;
                   soldQty += t.quantity;
                   feesPaid += fees;
@@ -98,12 +129,21 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               }
           });
 
-          if (ownedQty < 0.001) { ownedQty = 0; totalCostBasis = 0; }
+          // Floating Point Correction
+          if (ownedQty < 0.001) ownedQty = 0;
+
+          // Calculate Current Avg Cost from remaining lots (Weighted Avg of remaining FIFO stack)
+          let remainingTotalCost = 0;
+          let remainingTotalQty = 0;
+          lots.forEach(lot => {
+              remainingTotalCost += lot.quantity * lot.costPerShare;
+              remainingTotalQty += lot.quantity;
+          });
+          const currentAvgPrice = remainingTotalQty > 0 ? remainingTotalCost / remainingTotalQty : 0;
 
           const currentPrice = currentPrices[ticker] || 0;
           const currentValue = ownedQty * currentPrice;
-          const unrealizedPL = currentValue - totalCostBasis;
-          const currentAvgPrice = ownedQty > 0 ? totalCostBasis / ownedQty : 0;
+          const unrealizedPL = currentValue - remainingTotalCost;
           const totalNetReturn = realizedPL + unrealizedPL + (totalDividends - dividendTax);
 
           return {
@@ -127,19 +167,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors]);
 
-  // 2. Generate Detailed Activity Rows (With Historical Context)
+  // 2. Generate Detailed Activity Rows (Simulating FIFO history per row)
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
 
       const currentPrice = currentPrices[selectedTicker] || 0;
 
-      // Sort chronologically first to build history
+      // Sort chronologically
       const sortedTxs = transactions
           .filter(t => t.ticker === selectedTicker)
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      let runningQty = 0;
-      let runningCost = 0; // Total cost of currently held shares
+      // Simulation State
+      const tempLots: Lot[] = [];
 
       const rows: ActivityRow[] = sortedTxs.map(t => {
           const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
@@ -154,45 +194,58 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               // Avg Buy Price = Effective Purchase Rate
               avgBuyPrice = (totalVal + fees) / t.quantity;
               
+              // Push to temp lots
+              tempLots.push({ quantity: t.quantity, costPerShare: avgBuyPrice });
+
               // Sell/Current Price = Current Market Price
               sellOrCurrentPrice = currentPrice;
 
-              // Gain = Unrealized (Hypothetical if still held)
+              // Gain = Unrealized (Hypothetical gain for THIS specific buy lot if sold now)
               gain = (sellOrCurrentPrice - avgBuyPrice) * t.quantity;
               gainType = 'UNREALIZED';
-              
-              // Update Running
-              runningCost += (totalVal + fees);
-              runningQty += t.quantity;
           } 
           else if (t.type === 'SELL') {
-              // Avg Buy Price = Cost Basis of these shares
-              const currentAvg = runningQty > 0 ? runningCost / runningQty : 0;
-              avgBuyPrice = currentAvg;
-
               // Sell/Current Price = Effective Sell Rate
-              sellOrCurrentPrice = (totalVal - fees) / t.quantity;
+              const netProceeds = totalVal - fees;
+              sellOrCurrentPrice = netProceeds / t.quantity;
+
+              // Calculate Cost Basis from FIFO
+              let qtyToSell = t.quantity;
+              let costBasisForSale = 0;
+              
+              // Deep copy lots logic for display purposes not strictly needed as map is linear,
+              // but we need to mutate tempLots statefully.
+              const soldLotCosts: number[] = [];
+
+              while (qtyToSell > 0 && tempLots.length > 0) {
+                  const currentLot = tempLots[0]; 
+                  if (currentLot.quantity > qtyToSell) {
+                      costBasisForSale += qtyToSell * currentLot.costPerShare;
+                      soldLotCosts.push(currentLot.costPerShare); // Track for avg
+                      currentLot.quantity -= qtyToSell;
+                      qtyToSell = 0;
+                  } else {
+                      costBasisForSale += currentLot.quantity * currentLot.costPerShare;
+                      soldLotCosts.push(currentLot.costPerShare);
+                      qtyToSell -= currentLot.quantity;
+                      tempLots.shift(); 
+                  }
+              }
+
+              // Avg Buy Price = The weighted average cost of the shares SOLD in this transaction
+              // Note: costBasisForSale is total cost. 
+              avgBuyPrice = (t.quantity > 0) ? costBasisForSale / t.quantity : 0;
 
               // Gain = Realized Profit
-              const costOfSale = t.quantity * currentAvg;
-              const netProceeds = totalVal - fees;
-              gain = netProceeds - costOfSale;
+              gain = netProceeds - costBasisForSale;
               gainType = 'REALIZED';
-
-              // Update Running
-              runningCost -= costOfSale;
-              runningQty -= t.quantity;
           }
           else if (t.type === 'DIVIDEND') {
-              // Special case for dividend
               avgBuyPrice = 0;
-              sellOrCurrentPrice = t.price; // Dividend per share
-              gain = (t.quantity * t.price) - (t.tax || 0); // Net Dividend
+              sellOrCurrentPrice = t.price; 
+              gain = (t.quantity * t.price) - (t.tax || 0); 
               gainType = 'REALIZED';
           }
-
-          // Floating point safety
-          if (runningQty < 0.001) { runningQty = 0; runningCost = 0; }
 
           return {
               ...t,
@@ -203,7 +256,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           };
       });
 
-      // Reverse to show newest first
       return rows.reverse();
   }, [selectedTicker, transactions, currentPrices]);
 
@@ -237,7 +289,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       setIsDropdownOpen(false);
   };
 
-  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formatDecimal = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
@@ -275,7 +327,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   <ChevronDown size={18} className={`text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </div>
 
-              {/* DROPDOWN MENU */}
               {isDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 max-h-[300px] overflow-y-auto custom-scrollbar p-2">
                       {filteredOptions.length === 0 ? (
@@ -335,7 +386,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
                         <div className="text-right">
                             <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Current Price</div>
-                            <div className="text-xl font-bold text-slate-800">Rs. {selectedStats.currentPrice.toLocaleString()}</div>
+                            <div className="text-xl font-bold text-slate-800">Rs. {formatDecimal(selectedStats.currentPrice)}</div>
                         </div>
                         <div className="h-8 w-px bg-slate-200"></div>
                         <div className="text-right">
