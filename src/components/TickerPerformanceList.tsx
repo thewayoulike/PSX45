@@ -8,7 +8,8 @@ import {
   Receipt, 
   History, 
   XCircle,
-  BarChart3
+  BarChart3,
+  Percent
 } from 'lucide-react';
 import { Card } from './ui/Card';
 
@@ -19,19 +20,18 @@ interface TickerPerformanceListProps {
   onTickerClick: (ticker: string) => void;
 }
 
-// Helper interfaces
+// Helper interface for the enriched table rows
 interface ActivityRow extends Transaction {
   avgBuyPrice: number;       
   sellOrCurrentPrice: number; 
   gain: number;              
-  gainType: 'REALIZED' | 'UNREALIZED' | 'NONE'; // Added 'NONE' for fully sold buys
-  remainingQty?: number;      // For BUYs: How much is still held?
+  gainType: 'REALIZED' | 'UNREALIZED' | 'NONE';
+  remainingQty?: number;
 }
 
 interface Lot {
-    id: string; // Transaction ID to track origin
     quantity: number;
-    costPerShare: number;
+    costPerShare: number; 
 }
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
@@ -42,7 +42,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // 1. Calculate Comprehensive Stats per Ticker (Same as before)
+  // 1. Calculate Comprehensive Stats per Ticker using FIFO
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
@@ -55,13 +55,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       ));
       
       return uniqueTickers.map(ticker => {
+          // Sort chronologically for FIFO
           const txs = transactions
               .filter(t => t.ticker === ticker)
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           
           let ownedQty = 0;
           let soldQty = 0;
-          let totalCostBasis = 0; 
           let realizedPL = 0;     
           
           let totalDividends = 0;
@@ -69,8 +69,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let feesPaid = 0;       
           
           let tradeCount = 0;
+          let lifetimeBuyCost = 0; // Total capital ever put into this stock
           
-          const lots: { quantity: number, costPerShare: number }[] = [];
+          // FIFO Queue
+          const lots: Lot[] = [];
 
           txs.forEach(t => {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
@@ -83,6 +85,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   lots.push({ quantity: t.quantity, costPerShare });
                   
                   ownedQty += t.quantity;
+                  lifetimeBuyCost += buyCost; // Track total invested
                   feesPaid += fees;
                   tradeCount++;
               } 
@@ -123,6 +126,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
           if (ownedQty < 0.001) ownedQty = 0;
 
+          // Calculate Current Avg Cost from remaining lots
           let remainingTotalCost = 0;
           let remainingTotalQty = 0;
           lots.forEach(lot => {
@@ -135,6 +139,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const currentValue = ownedQty * currentPrice;
           const unrealizedPL = currentValue - remainingTotalCost;
           const totalNetReturn = realizedPL + unrealizedPL + (totalDividends - dividendTax);
+          
+          // ROI Calculation: Net Return / Total Capital Invested
+          const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
 
           return {
               ticker,
@@ -152,41 +159,35 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               dividendTax,
               netDividends: totalDividends - dividendTax,
               feesPaid,
-              tradeCount
+              tradeCount,
+              lifetimeROI
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors]);
 
-  // 2. Generate Detailed Activity Rows with "Remaining Qty" Tracking
+  // 2. Generate Detailed Activity Rows (Same as previous step)
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
 
       const currentPrice = currentPrices[selectedTicker] || 0;
 
-      // Sort chronologically
       const sortedTxs = transactions
           .filter(t => t.ticker === selectedTicker)
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // --- PASS 1: SIMULATION ---
-      // We run the full FIFO simulation to determine:
-      // 1. For SELLs: What was the exact cost basis?
-      // 2. For BUYs: How much of this specific lot is *still held today*?
-      
-      const inventory: Lot[] = [];
-      const buyRemainingMap: Record<string, number> = {}; // Map<TransactionID, RemainingQty>
-      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number }> = {}; // Map<TransactionID, Stats>
+      // Simulation State
+      const tempLots: { id: string, quantity: number, costPerShare: number }[] = [];
+      const buyRemainingMap: Record<string, number> = {};
+      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number }> = {};
 
+      // PASS 1: Simulation
       sortedTxs.forEach(t => {
           const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
           const totalVal = t.quantity * t.price;
 
           if (t.type === 'BUY') {
               const effRate = (totalVal + fees) / t.quantity;
-              
-              // Add to inventory
-              inventory.push({ id: t.id, quantity: t.quantity, costPerShare: effRate });
-              // Initialize remaining tracker
+              tempLots.push({ id: t.id, quantity: t.quantity, costPerShare: effRate });
               buyRemainingMap[t.id] = t.quantity;
           }
           else if (t.type === 'SELL') {
@@ -194,39 +195,27 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               let qtyToSell = t.quantity;
               let costBasisForSale = 0;
 
-              while (qtyToSell > 0 && inventory.length > 0) {
-                  const currentLot = inventory[0];
-                  
-                  // How much do we take from this lot?
+              while (qtyToSell > 0 && tempLots.length > 0) {
+                  const currentLot = tempLots[0];
                   const takeAmount = Math.min(qtyToSell, currentLot.quantity);
-                  
-                  // Update Math
                   costBasisForSale += takeAmount * currentLot.costPerShare;
-                  
-                  // Update Inventory state
                   currentLot.quantity -= takeAmount;
                   qtyToSell -= takeAmount;
 
-                  // CRITICAL: Update the source BUY's remaining quantity record
                   if (buyRemainingMap[currentLot.id] !== undefined) {
                       buyRemainingMap[currentLot.id] -= takeAmount;
                   }
 
-                  // If lot empty, remove from queue
-                  if (currentLot.quantity < 0.0001) {
-                      inventory.shift();
-                  }
+                  if (currentLot.quantity < 0.0001) tempLots.shift();
               }
 
-              // Store analysis for this SELL transaction
               const avgBuy = (t.quantity > 0) ? costBasisForSale / t.quantity : 0;
               const gain = netProceeds - costBasisForSale;
               sellAnalysisMap[t.id] = { avgBuy, gain };
           }
       });
 
-      // --- PASS 2: GENERATE ROWS ---
-      // Now we build the display data using the maps we populated above
+      // PASS 2: Generation
       const rows: ActivityRow[] = sortedTxs.map(t => {
           const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
           const totalVal = t.quantity * t.price;
@@ -238,27 +227,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let remainingQty = 0;
 
           if (t.type === 'BUY') {
-              // Cost
               avgBuyPrice = (totalVal + fees) / t.quantity;
-              // Value
               sellOrCurrentPrice = currentPrice;
-              
-              // Gain (Unrealized) - ONLY ON REMAINING QUANTITY
               remainingQty = buyRemainingMap[t.id] ?? 0;
               
-              // Fix floating point dust
               if (remainingQty < 0.001) remainingQty = 0;
 
               if (remainingQty > 0) {
                   gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty;
                   gainType = 'UNREALIZED';
-              } else {
-                  gain = 0;
-                  gainType = 'NONE'; // Fully sold, so no unrealized gain shown
               }
           } 
           else if (t.type === 'SELL') {
-              // Retrieve Pre-calculated Stats
               const analysis = sellAnalysisMap[t.id];
               if (analysis) {
                   avgBuyPrice = analysis.avgBuy;
@@ -322,7 +302,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   return (
     <div className="max-w-7xl mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* SEARCH HEADER */}
+      {/* --- SEARCH HEADER --- */}
       <div className="relative z-30 bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-xl shadow-slate-200/50 mb-8 flex flex-col items-center justify-center text-center">
           <div className="mb-6">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Stock Analyzer</h2>
@@ -420,6 +400,16 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lifetime Net</div>
                             <div className={`text-2xl font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                 {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)}
+                            </div>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200"></div>
+                        {/* ADDED ROI SECTION */}
+                        <div className="text-right">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1">
+                                Lifetime ROI
+                            </div>
+                            <div className={`text-2xl font-black flex items-center justify-end gap-1 ${selectedStats.lifetimeROI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {selectedStats.lifetimeROI >= 0 ? '+' : ''}{formatDecimal(selectedStats.lifetimeROI)}%
                             </div>
                         </div>
                     </div>
@@ -550,7 +540,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <th className="px-4 py-4 text-right text-slate-400">Other</th>
                                     <th className="px-6 py-4 text-right">Net Amount</th>
                                     
-                                    {/* SEPARATED COLUMNS */}
                                     <th className="px-6 py-4 text-right text-emerald-600 bg-emerald-50/30">Realized Gain</th>
                                     <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/30">Unrealized Gain</th>
                                 </tr>
@@ -601,7 +590,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                 ) : '-'}
                                             </td>
 
-                                            {/* UNREALIZED GAIN COLUMN (With partial remaining logic) */}
+                                            {/* UNREALIZED GAIN COLUMN */}
                                             <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                                 {t.gainType === 'UNREALIZED' ? (
                                                     <>
