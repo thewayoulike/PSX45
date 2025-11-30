@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { RealizedTrade } from '../types';
-import { Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
 interface RealizedTableProps {
@@ -23,6 +23,10 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   
   // Sorting State
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
+
+  // Pagination State
+  const [itemsPerPage, setItemsPerPage] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
@@ -51,7 +55,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
       let aValue: any = a[sortConfig.key as keyof RealizedTrade];
       let bValue: any = b[sortConfig.key as keyof RealizedTrade];
 
-      // Handle derived columns
       if (sortConfig.key === 'totalCost') {
         aValue = (a.buyAvg || 0) * a.quantity;
         bValue = (b.buyAvg || 0) * b.quantity;
@@ -60,7 +63,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         bValue = (b.sellPrice || 0) * b.quantity;
       }
 
-      // Handle strings (case-insensitive)
       if (typeof aValue === 'string') {
         aValue = aValue.toLowerCase();
         bValue = bValue.toLowerCase();
@@ -72,7 +74,18 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
     });
   }, [trades, searchTerm, dateFrom, dateTo, sortConfig]);
 
-  // Calculate Grand Totals
+  // Reset page when filters change
+  useEffect(() => {
+      setCurrentPage(1);
+  }, [searchTerm, dateFrom, dateTo]);
+
+  const totalPages = Math.ceil(filteredAndSortedTrades.length / itemsPerPage);
+  const paginatedTrades = useMemo(() => {
+      const start = (currentPage - 1) * itemsPerPage;
+      return filteredAndSortedTrades.slice(start, start + itemsPerPage);
+  }, [filteredAndSortedTrades, currentPage, itemsPerPage]);
+
+  // Calculate Grand Totals (On filtered set, not just paginated)
   const totals = useMemo(() => {
       return filteredAndSortedTrades.reduce((acc, t) => {
           const cost = (t.buyAvg || 0) * t.quantity;
@@ -206,14 +219,14 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-sm">
-            {filteredAndSortedTrades.length === 0 ? (
+            {paginatedTrades.length === 0 ? (
               <tr>
                 <td colSpan={showBroker ? 13 : 12} className="px-6 py-10 text-center text-slate-400 italic">
                   {hasActiveFilters ? 'No trades match your filters.' : 'No realized trades yet.'}
                 </td>
               </tr>
             ) : (
-              filteredAndSortedTrades.map((trade) => {
+              paginatedTrades.map((trade) => {
                 const isProfit = trade.profit >= 0;
                 const totalCost = (trade.buyAvg || 0) * trade.quantity;
                 const totalSell = (trade.sellPrice || 0) * trade.quantity;
@@ -263,6 +276,49 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
               </tfoot>
           )}
         </table>
+      </div>
+
+      {/* PAGINATION FOOTER */}
+      <div className="p-4 border-t border-slate-200/60 bg-white/40 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Rows per page:</span>
+              <select 
+                  value={itemsPerPage} 
+                  onChange={(e) => {
+                      setItemsPerPage(Number(e.target.value));
+                      setCurrentPage(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer"
+              >
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                  <option value={500}>500</option>
+                  <option value={1000}>1000</option>
+              </select>
+          </div>
+
+          <div className="flex items-center gap-4">
+              <span className="text-xs text-slate-500">
+                  {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedTrades.length)} of {filteredAndSortedTrades.length}
+              </span>
+              <div className="flex gap-1">
+                  <button 
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                  >
+                      <ChevronLeft size={16} className="text-slate-600" />
+                  </button>
+                  <button 
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages || totalPages === 0}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                  >
+                      <ChevronRight size={16} className="text-slate-600" />
+                  </button>
+              </div>
+          </div>
       </div>
     </div>
   );
