@@ -38,8 +38,16 @@ interface Lot {
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
   transactions, currentPrices, sectors
 }) => {
-  const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState('');
+  // STATE: Initialize from localStorage to persist selection across page navigation
+  const [selectedTicker, setSelectedTicker] = useState<string | null>(() => {
+      return localStorage.getItem('psx_last_analyzed_ticker') || null;
+  });
+  
+  // STATE: Initialize search term from saved ticker if available
+  const [searchTerm, setSearchTerm] = useState(() => {
+      return localStorage.getItem('psx_last_analyzed_ticker') || '';
+  });
+
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -168,7 +176,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               currentPrice,
               currentAvgPrice,
               currentValue,
-              totalCostBasis: remainingTotalCost, // EXPOSED: Total cost of current holdings
+              totalCostBasis: remainingTotalCost, 
               realizedPL,
               unrealizedPL,
               totalNetReturn,
@@ -324,6 +332,16 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       setSelectedTicker(ticker);
       setSearchTerm(ticker);
       setIsDropdownOpen(false);
+      
+      // PERSIST SELECTION
+      localStorage.setItem('psx_last_analyzed_ticker', ticker);
+  };
+
+  const handleClearSelection = (e: React.MouseEvent) => {
+      e.stopPropagation();
+      setSelectedTicker(null);
+      setSearchTerm('');
+      localStorage.removeItem('psx_last_analyzed_ticker');
   };
 
   const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -365,7 +383,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                       onFocus={() => setIsDropdownOpen(true)}
                   />
                   {selectedTicker && (
-                      <button onClick={(e) => { e.stopPropagation(); setSelectedTicker(null); setSearchTerm(''); }} className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-rose-500 mr-1">
+                      <button onClick={handleClearSelection} className="p-1 hover:bg-slate-100 rounded-full text-slate-400 hover:text-rose-500 mr-1">
                           <XCircle size={16} />
                       </button>
                   )}
