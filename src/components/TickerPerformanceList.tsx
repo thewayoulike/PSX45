@@ -180,7 +180,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
     <div className="max-w-7xl mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* --- SEARCH / SELECT HEADER --- */}
-      <div className="bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-xl shadow-slate-200/50 mb-8 flex flex-col items-center justify-center text-center">
+      {/* FIX: Added relative z-30 to force header and dropdown to be ABOVE the content below */}
+      <div className="relative z-30 bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-xl shadow-slate-200/50 mb-8 flex flex-col items-center justify-center text-center">
           <div className="mb-6">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Stock Analyzer</h2>
               <p className="text-slate-500 text-sm">Select a company to view position details, realized gains, and complete activity history.</p>
@@ -247,232 +248,235 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       </div>
 
       {/* --- DETAIL VIEW --- */}
-      {selectedStats ? (
-          <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-              
-              {/* 1. HEADER CARD */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                  <div className="flex items-center gap-4">
-                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
-                          {selectedStats.ticker.substring(0, 1)}
-                      </div>
-                      <div>
-                          <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStats.ticker}</h1>
-                          <div className="flex items-center gap-2 mt-1">
-                              <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStats.sector}</span>
-                              <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
-                                  {selectedStats.status}
-                              </span>
-                          </div>
-                      </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
-                      <div className="text-right">
-                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Current Price</div>
-                          <div className="text-xl font-bold text-slate-800">Rs. {selectedStats.currentPrice.toLocaleString()}</div>
-                      </div>
-                      <div className="h-8 w-px bg-slate-200"></div>
-                      <div className="text-right">
-                          <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lifetime Net</div>
-                          <div className={`text-2xl font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                              {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)}
-                          </div>
-                      </div>
-                  </div>
-              </div>
+      {/* FIX: Added relative z-10 to ensure this section stays below the header dropdown */}
+      <div className="relative z-10">
+        {selectedStats ? (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                
+                {/* 1. HEADER CARD */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                            {selectedStats.ticker.substring(0, 1)}
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStats.ticker}</h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStats.sector}</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                    {selectedStats.status}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
+                        <div className="text-right">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Current Price</div>
+                            <div className="text-xl font-bold text-slate-800">Rs. {selectedStats.currentPrice.toLocaleString()}</div>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200"></div>
+                        <div className="text-right">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lifetime Net</div>
+                            <div className={`text-2xl font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)}
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
-              {/* 2. STATS GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  
-                  {/* CARD 1: POSITION & GAINS */}
-                  <Card className="md:col-span-1">
-                      <div className="flex items-center gap-2 mb-6">
-                          <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div>
-                          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3>
-                      </div>
-                      
-                      <div className="space-y-6">
-                          <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <div className="text-3xl font-bold text-slate-800">{selectedStats.ownedQty.toLocaleString()}</div>
-                                  <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div>
-                              </div>
-                              <div>
-                                  <div className="text-3xl font-bold text-slate-400">{selectedStats.soldQty.toLocaleString()}</div>
-                                  <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div>
-                              </div>
-                          </div>
+                {/* 2. STATS GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    
+                    {/* CARD 1: POSITION & GAINS */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3>
+                        </div>
+                        
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div className="text-3xl font-bold text-slate-800">{selectedStats.ownedQty.toLocaleString()}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div>
+                                </div>
+                                <div>
+                                    <div className="text-3xl font-bold text-slate-400">{selectedStats.soldQty.toLocaleString()}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div>
+                                </div>
+                            </div>
 
-                          <div className="h-px bg-slate-100 w-full"></div>
+                            <div className="h-px bg-slate-100 w-full"></div>
 
-                          <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                  <div className="text-sm font-bold text-slate-700">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</div>
-                                  <div className="text-[10px] text-slate-400">Current Avg Buy</div>
-                              </div>
-                              <div>
-                                  <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div>
-                                  <div className="text-[10px] text-slate-400">Market Value</div>
-                              </div>
-                          </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</div>
+                                    <div className="text-[10px] text-slate-400">Current Avg Buy</div>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div>
+                                    <div className="text-[10px] text-slate-400">Market Value</div>
+                                </div>
+                            </div>
 
-                          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                              <div>
-                                  <div className={`text-sm font-bold ${selectedStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                      {selectedStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.realizedPL)}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div>
-                              </div>
-                              <div>
-                                  <div className={`text-sm font-bold ${selectedStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                      {selectedStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.unrealizedPL)}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div>
-                              </div>
-                          </div>
-                      </div>
-                  </Card>
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div>
+                                    <div className={`text-sm font-bold ${selectedStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {selectedStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.realizedPL)}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div>
+                                </div>
+                                <div>
+                                    <div className={`text-sm font-bold ${selectedStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {selectedStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.unrealizedPL)}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
 
-                  {/* CARD 2: PASSIVE INCOME */}
-                  <Card className="md:col-span-1">
-                      <div className="flex items-center gap-2 mb-6">
-                          <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div>
-                          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
-                      </div>
-                      
-                      <div className="space-y-6">
-                           <div>
-                               <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div>
-                               <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div>
-                           </div>
-                           
-                           <div className="h-px bg-slate-100 w-full"></div>
+                    {/* CARD 2: PASSIVE INCOME */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
+                        </div>
+                        
+                        <div className="space-y-6">
+                            <div>
+                                <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div>
+                            </div>
+                            
+                            <div className="h-px bg-slate-100 w-full"></div>
 
-                           <div className="flex justify-between items-center">
-                               <div>
-                                   <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedStats.totalDividends)}</div>
-                                   <div className="text-[10px] text-slate-400">Gross Dividends</div>
-                               </div>
-                               <div className="text-right">
-                                   <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedStats.dividendTax)}</div>
-                                   <div className="text-[10px] text-slate-400">Tax Paid</div>
-                               </div>
-                           </div>
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedStats.totalDividends)}</div>
+                                    <div className="text-[10px] text-slate-400">Gross Dividends</div>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedStats.dividendTax)}</div>
+                                    <div className="text-[10px] text-slate-400">Tax Paid</div>
+                                </div>
+                            </div>
 
-                           {/* Decorative chart */}
-                           <div className="flex gap-1 h-12 items-end mt-2 opacity-80">
-                               {[30, 45, 25, 60, 40, 70, 50].map((h, i) => (
-                                   <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div>
-                               ))}
-                           </div>
-                      </div>
-                  </Card>
+                            {/* Decorative chart */}
+                            <div className="flex gap-1 h-12 items-end mt-2 opacity-80">
+                                {[30, 45, 25, 60, 40, 70, 50].map((h, i) => (
+                                    <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div>
+                                ))}
+                            </div>
+                        </div>
+                    </Card>
 
-                   {/* CARD 3: COSTS & SUMMARY */}
-                   <Card className="md:col-span-1">
-                      <div className="flex items-center gap-2 mb-6">
-                          <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div>
-                          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3>
-                      </div>
-                      
-                      <div className="space-y-6">
-                           <div>
-                               <div className="text-3xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
-                               <div className="text-[10px] text-slate-400 font-bold uppercase">Total Commission & Taxes</div>
-                           </div>
-                           
-                           <div className="h-px bg-slate-100 w-full"></div>
+                    {/* CARD 3: COSTS & SUMMARY */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3>
+                        </div>
+                        
+                        <div className="space-y-6">
+                            <div>
+                                <div className="text-3xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase">Total Commission & Taxes</div>
+                            </div>
+                            
+                            <div className="h-px bg-slate-100 w-full"></div>
 
-                           <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                               <div className="flex justify-between items-center mb-2">
-                                   <span className="text-xs text-slate-500 font-bold uppercase">Total Trades</span>
-                                   <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
-                               </div>
-                               <div className="w-full bg-slate-200 rounded-full h-2">
-                                   <div className="bg-orange-400 h-2 rounded-full" style={{ width: '100%' }}></div>
-                               </div>
-                           </div>
-                      </div>
-                  </Card>
-              </div>
+                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                <div className="flex justify-between items-center mb-2">
+                                    <span className="text-xs text-slate-500 font-bold uppercase">Total Trades</span>
+                                    <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
+                                </div>
+                                <div className="w-full bg-slate-200 rounded-full h-2">
+                                    <div className="bg-orange-400 h-2 rounded-full" style={{ width: '100%' }}></div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
 
-              {/* 3. DETAILED ACTIVITY TABLE */}
-              <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                   <div className="p-6 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
-                       <History size={20} className="text-slate-500" />
-                       <h3 className="font-bold text-slate-800">All Time Activity for {selectedStats.ticker}</h3>
-                   </div>
-                   <div className="overflow-x-auto">
-                       <table className="w-full text-left text-sm whitespace-nowrap">
-                           <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200">
-                               <tr>
-                                   <th className="px-6 py-4">Date</th>
-                                   <th className="px-6 py-4">Type</th>
-                                   <th className="px-6 py-4 text-right">Qty</th>
-                                   <th className="px-6 py-4 text-right">Price</th>
-                                   <th className="px-4 py-4 text-right text-slate-400">Comm</th>
-                                   <th className="px-4 py-4 text-right text-slate-400">Tax</th>
-                                   <th className="px-4 py-4 text-right text-slate-400">Other</th>
-                                   <th className="px-6 py-4 text-right">Total Net</th>
-                               </tr>
-                           </thead>
-                           <tbody className="divide-y divide-slate-100">
-                               {transactions
-                                   .filter(t => t.ticker === selectedStats.ticker)
-                                   .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                                   .map(t => {
-                                      const total = t.quantity * t.price;
-                                      const fees = (t.commission || 0) + (t.cdcCharges || 0) + (t.otherFees || 0); 
-                                      
-                                      let net = 0;
-                                      if (t.type === 'BUY') net = -(total + fees + (t.tax||0));
-                                      else if (t.type === 'SELL') net = total - (fees + (t.tax||0));
-                                      else if (t.type === 'DIVIDEND') net = total - (t.tax || 0);
+                {/* 3. DETAILED ACTIVITY TABLE */}
+                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="p-6 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
+                        <History size={20} className="text-slate-500" />
+                        <h3 className="font-bold text-slate-800">All Time Activity for {selectedStats.ticker}</h3>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200">
+                                <tr>
+                                    <th className="px-6 py-4">Date</th>
+                                    <th className="px-6 py-4">Type</th>
+                                    <th className="px-6 py-4 text-right">Qty</th>
+                                    <th className="px-6 py-4 text-right">Price</th>
+                                    <th className="px-4 py-4 text-right text-slate-400">Comm</th>
+                                    <th className="px-4 py-4 text-right text-slate-400">Tax</th>
+                                    <th className="px-4 py-4 text-right text-slate-400">Other</th>
+                                    <th className="px-6 py-4 text-right">Total Net</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {transactions
+                                    .filter(t => t.ticker === selectedStats.ticker)
+                                    .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                    .map(t => {
+                                        const total = t.quantity * t.price;
+                                        const fees = (t.commission || 0) + (t.cdcCharges || 0) + (t.otherFees || 0); 
+                                        
+                                        let net = 0;
+                                        if (t.type === 'BUY') net = -(total + fees + (t.tax||0));
+                                        else if (t.type === 'SELL') net = total - (fees + (t.tax||0));
+                                        else if (t.type === 'DIVIDEND') net = total - (t.tax || 0);
 
-                                      return (
-                                          <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                                              <td className="px-6 py-4 text-slate-500 font-mono text-xs">{t.date}</td>
-                                              <td className="px-6 py-4">
-                                                  <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                                                      t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                      t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                      t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100'
-                                                  }`}>{t.type}</span>
-                                              </td>
-                                              <td className="px-6 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
-                                              <td className="px-6 py-4 text-right text-slate-600 font-mono">{t.price.toLocaleString()}</td>
-                                              
-                                              {/* Detailed Fee Columns */}
-                                              <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
-                                              <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
-                                              <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{((t.cdcCharges||0) + (t.otherFees||0)).toLocaleString()}</td>
+                                        return (
+                                            <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="px-6 py-4 text-slate-500 font-mono text-xs">{t.date}</td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
+                                                        t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                        t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                        t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100'
+                                                    }`}>{t.type}</span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
+                                                <td className="px-6 py-4 text-right text-slate-600 font-mono">{t.price.toLocaleString()}</td>
+                                                
+                                                {/* Detailed Fee Columns */}
+                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{((t.cdcCharges||0) + (t.otherFees||0)).toLocaleString()}</td>
 
-                                              <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                  {formatCurrency(net)}
-                                              </td>
-                                          </tr>
-                                      );
-                                   })
-                               }
-                           </tbody>
-                       </table>
-                   </div>
-                   {transactions.filter(t => t.ticker === selectedStats.ticker).length === 0 && (
-                       <div className="p-8 text-center text-slate-400 text-sm">No transaction history found.</div>
-                   )}
-              </div>
+                                                <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                    {formatCurrency(net)}
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    {transactions.filter(t => t.ticker === selectedStats.ticker).length === 0 && (
+                        <div className="p-8 text-center text-slate-400 text-sm">No transaction history found.</div>
+                    )}
+                </div>
 
-          </div>
-      ) : (
-          <div className="flex flex-col items-center justify-center py-20 opacity-50">
-              <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
-                  <BarChart3 size={48} />
-              </div>
-              <h3 className="text-xl font-bold text-slate-400">No Stock Selected</h3>
-              <p className="text-slate-400">Use the search bar above to analyze a specific stock.</p>
-          </div>
-      )}
+            </div>
+        ) : (
+            <div className="flex flex-col items-center justify-center py-20 opacity-50">
+                <div className="w-24 h-24 bg-slate-100 rounded-full flex items-center justify-center mb-4 text-slate-300">
+                    <BarChart3 size={48} />
+                </div>
+                <h3 className="text-xl font-bold text-slate-400">No Stock Selected</h3>
+                <p className="text-slate-400">Use the search bar above to analyze a specific stock.</p>
+            </div>
+        )}
+      </div>
     </div>
   );
 };
