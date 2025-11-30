@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Holding } from '../types';
-import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown } from 'lucide-react';
+import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
 interface HoldingsTableProps {
@@ -12,45 +12,101 @@ interface HoldingsTableProps {
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
 
+type SortKey = keyof Holding | 'costBasis' | 'marketValue' | 'dailyPL' | 'pnl' | 'pnlPercent';
+type SortDirection = 'asc' | 'desc';
+
+interface SortConfig {
+  key: SortKey;
+  direction: SortDirection;
+}
+
 export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {} }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
-  const filteredHoldings = useMemo(() => {
-      if (!searchTerm) return holdings;
-      const term = searchTerm.toLowerCase();
-      return holdings.filter(h => 
-          h.ticker.toLowerCase().includes(term) || 
-          h.sector.toLowerCase().includes(term) ||
-          (showBroker && h.broker?.toLowerCase().includes(term))
-      );
-  }, [holdings, searchTerm, showBroker]);
+  // DEFAULT SORTING: Ticker Ascending
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'ticker', direction: 'asc' });
 
-  const sortedHoldings = [...filteredHoldings].sort((a, b) => (b.currentPrice * b.quantity) - (a.currentPrice * a.quantity));
+  const handleSort = (key: SortKey) => {
+    let direction: SortDirection = 'asc';
+    // If clicking same key, toggle. Default for numbers is usually desc first, but simple toggle is fine.
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    } else {
+        // If new key is numeric, default to desc (highest first usually better for money)
+        if (['quantity', 'avgPrice', 'currentPrice', 'costBasis', 'marketValue', 'dailyPL', 'pnl', 'pnlPercent'].includes(key)) {
+            direction = 'desc';
+        }
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const filteredAndSortedHoldings = useMemo(() => {
+      // 1. Filter
+      let result = holdings;
+      if (searchTerm) {
+          const term = searchTerm.toLowerCase();
+          result = holdings.filter(h => 
+              h.ticker.toLowerCase().includes(term) || 
+              h.sector.toLowerCase().includes(term) ||
+              (showBroker && h.broker?.toLowerCase().includes(term))
+          );
+      }
+
+      // 2. Sort
+      return [...result].sort((a, b) => {
+          let aValue: any = '';
+          let bValue: any = '';
+
+          // Derived values calculation
+          const getVal = (h: Holding, key: SortKey) => {
+              const roundedAvg = Math.round(h.avgPrice * 100) / 100;
+              const cost = h.quantity * roundedAvg;
+              const mkt = h.quantity * h.currentPrice;
+              const ldcp = ldcpMap[h.ticker] || h.currentPrice;
+              
+              switch (key) {
+                  case 'costBasis': return cost;
+                  case 'marketValue': return mkt;
+                  case 'pnl': return mkt - cost;
+                  case 'pnlPercent': return cost > 0 ? ((mkt - cost) / cost) : 0;
+                  case 'dailyPL': return (h.currentPrice - ldcp) * h.quantity;
+                  default: return h[key as keyof Holding];
+              }
+          };
+
+          aValue = getVal(a, sortConfig.key);
+          bValue = getVal(b, sortConfig.key);
+
+          // String sort
+          if (typeof aValue === 'string') {
+              aValue = aValue.toLowerCase();
+              bValue = bValue.toLowerCase();
+          }
+
+          if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+          if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+          return 0;
+      });
+  }, [holdings, searchTerm, showBroker, sortConfig, ldcpMap]);
 
   const totals = useMemo(() => {
-      return sortedHoldings.reduce((acc, h) => {
-          // FORCE ROUNDING TO MATCH TABLE DISPLAY
-          // Logic: Round average to 2 decimals first, then multiply by quantity
+      return filteredAndSortedHoldings.reduce((acc, h) => {
           const roundedAvg = Math.round(h.avgPrice * 100) / 100;
           const cost = h.quantity * roundedAvg;
-          
           const marketVal = h.quantity * h.currentPrice;
-          
           const ldcp = ldcpMap[h.ticker] || h.currentPrice;
           const dailyChange = (h.currentPrice - ldcp) * h.quantity;
 
           return {
-              comm: acc.comm + (h.totalCommission || 0),
-              tax: acc.tax + (h.totalTax || 0),
-              cdc: acc.cdc + (h.totalCDC || 0),
-              other: acc.other + (h.totalOtherFees || 0),
               totalCost: acc.totalCost + cost,
               totalMarket: acc.totalMarket + marketVal,
               pnl: acc.pnl + (marketVal - cost),
               dailyPL: acc.dailyPL + dailyChange
           };
-      }, { comm: 0, tax: 0, cdc: 0, other: 0, totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0 });
-  }, [sortedHoldings, ldcpMap]);
+      }, { totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0 });
+  }, [filteredAndSortedHoldings, ldcpMap]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
   
@@ -74,7 +130,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   }, [holdings]);
 
   const handleExport = (type: 'excel' | 'csv') => {
-      const data = sortedHoldings.map(h => {
+      const data = filteredAndSortedHoldings.map(h => {
           const roundedAvg = Math.round(h.avgPrice * 100) / 100;
           const cost = h.quantity * roundedAvg;
           const marketVal = h.quantity * h.currentPrice;
@@ -84,7 +140,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               Sector: h.sector,
               Broker: h.broker || 'N/A',
               Quantity: h.quantity,
-              'Avg Price': roundedAvg, // Export rounded
+              'Avg Price': roundedAvg, 
               'Current Price': h.currentPrice,
               'Total Cost': cost,
               'Market Value': marketVal,
@@ -99,6 +155,23 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
       else exportToCSV(data, filename);
   };
 
+  const SortIcon = ({ column }: { column: SortKey }) => {
+      if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+      return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDown size={12} className="text-emerald-500" />;
+  };
+
+  const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => (
+      <th 
+          className={`px-4 py-4 font-semibold cursor-pointer select-none group hover:bg-slate-100 transition-colors ${className}`}
+          onClick={() => sortKey && handleSort(sortKey)}
+      >
+          <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
+              {label}
+              {sortKey && <SortIcon column={sortKey} />}
+          </div>
+      </th>
+  );
+
   return (
     <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 h-full">
         <div className="p-6 border-b border-slate-200/60 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/40">
@@ -106,7 +179,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           <div className="flex flex-wrap items-center gap-3">
              <h2 className="text-lg font-bold text-slate-800 tracking-tight">Current Holdings</h2>
              <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
-                {filteredHoldings.length} Assets
+                {filteredAndSortedHoldings.length} Assets
              </div>
              {globalLastUpdate && (
                  <div className="flex items-center gap-1.5 text-[10px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 ml-1 shadow-sm">
@@ -143,33 +216,28 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
-                <th className="px-4 py-4 font-semibold">Ticker</th>
-                {showBroker && <th className="px-4 py-4 font-semibold">Broker</th>}
-                <th className="px-4 py-4 font-semibold text-right">Qty</th>
-                <th className="px-4 py-4 font-semibold text-right">Avg</th>
-                <th className="px-4 py-4 font-semibold text-right">Current</th>
-                <th className="px-4 py-4 font-semibold text-right">Total Cost</th>
-                <th className="px-4 py-4 font-semibold text-right">Market Value</th>
-                <th className="px-4 py-4 font-semibold text-right">Daily P&L</th> 
-                <th className="px-4 py-4 font-semibold text-right">Total P&L</th>
+                <Th label="Ticker" sortKey="ticker" />
+                {showBroker && <Th label="Broker" sortKey="broker" />}
+                <Th label="Qty" sortKey="quantity" align="right" />
+                <Th label="Avg" sortKey="avgPrice" align="right" />
+                <Th label="Current" sortKey="currentPrice" align="right" />
+                <Th label="Total Cost" sortKey="costBasis" align="right" />
+                <Th label="Market Value" sortKey="marketValue" align="right" />
+                <Th label="Daily P&L" sortKey="dailyPL" align="right" />
+                <Th label="Total P&L" sortKey="pnl" align="right" />
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {sortedHoldings.length === 0 ? (
+              {filteredAndSortedHoldings.length === 0 ? (
                 <tr>
                   <td colSpan={showBroker ? 9 : 8} className="px-6 py-20 text-center text-slate-400 italic">
                     {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'}
                   </td>
                 </tr>
               ) : (
-                sortedHoldings.map((holding, idx) => {
-                  // --- DISPLAY LOGIC FIX ---
-                  // 1. Round Average Price to 2 decimals
+                filteredAndSortedHoldings.map((holding, idx) => {
                   const roundedAvg = Math.round(holding.avgPrice * 100) / 100;
-                  
-                  // 2. Calculate Total Cost based on that Rounded Average
                   const costBasis = holding.quantity * roundedAvg;
-                  
                   const marketValue = holding.quantity * holding.currentPrice;
                   const pnl = marketValue - costBasis;
                   const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
@@ -199,14 +267,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       {showBroker && (
                           <td className="px-4 py-4 text-xs text-slate-500">{holding.broker}</td>
                       )}
-                      
                       <td className="px-4 py-4 text-right text-slate-700 font-medium">{holding.quantity.toLocaleString()}</td>
-                      
-                      {/* REVERTED TO 2 DECIMALS AS REQUESTED */}
                       <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs">
                           {roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      
                       <td className="px-4 py-4 text-right text-slate-800 font-mono text-xs font-medium">
                         <div className="flex flex-col items-end">
                             <span className={isFailed ? "text-amber-600 font-bold" : ""}>
@@ -219,16 +283,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             )}
                         </div>
                       </td>
-
-                      {/* Display Cost based on (Rounded Avg * Qty) */}
                       <td className="px-4 py-4 text-right text-slate-500 font-mono text-xs font-medium">
                         {costBasis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      
                       <td className="px-4 py-4 text-right text-slate-900 font-bold font-mono tracking-tight text-xs">
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      
                       <td className="px-4 py-4 text-right">
                         <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                             <span className="font-bold text-xs">
@@ -240,7 +300,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             </span>
                         </div>
                       </td>
-
                       <td className="px-4 py-4 text-right">
                         <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600' : 'text-rose-500'}`}>
                           <span className="font-bold text-sm">{pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -253,13 +312,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               )}
             </tbody>
             
-            {sortedHoldings.length > 0 && (
+            {filteredAndSortedHoldings.length > 0 && (
                 <tfoot className="bg-slate-50 border-t-2 border-slate-200 text-slate-800 font-bold shadow-inner">
                     <tr>
                         <td colSpan={showBroker ? 5 : 4} className="px-4 py-4 text-right text-xs uppercase tracking-wider text-slate-500">
                             Grand Total
                         </td>
-                        
                         <td className="px-4 py-4 text-right text-xs font-mono text-slate-700">
                             {totals.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
