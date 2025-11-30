@@ -71,7 +71,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           
           let totalDividends = 0;
           let dividendTax = 0;
-          let feesPaid = 0;       
+          
+          // Fee Breakdown Trackers
+          let totalComm = 0;
+          let totalTradingTax = 0;
+          let totalCDC = 0;
+          let totalOther = 0;
           
           let tradeCount = 0;
           let lifetimeBuyCost = 0; 
@@ -80,6 +85,14 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const lots: Lot[] = [];
 
           txs.forEach(t => {
+              // Accumulate Fees
+              if (t.type === 'BUY' || t.type === 'SELL') {
+                  totalComm += (t.commission || 0);
+                  totalTradingTax += (t.tax || 0); // Only trading tax here
+                  totalCDC += (t.cdcCharges || 0);
+                  totalOther += (t.otherFees || 0);
+              }
+
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
               
               if (t.type === 'BUY') {
@@ -91,7 +104,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   
                   ownedQty += t.quantity;
                   lifetimeBuyCost += buyCost; 
-                  feesPaid += fees;
                   tradeCount++;
               } 
               else if (t.type === 'SELL') {
@@ -119,7 +131,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                   ownedQty -= t.quantity;
                   soldQty += t.quantity;
-                  feesPaid += fees;
                   tradeCount++;
               } 
               else if (t.type === 'DIVIDEND') {
@@ -146,6 +157,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const totalNetReturn = realizedPL + unrealizedPL + (totalDividends - dividendTax);
           
           const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
+          const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
 
           return {
               ticker,
@@ -156,20 +168,28 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               currentPrice,
               currentAvgPrice,
               currentValue,
+              totalCostBasis: remainingTotalCost, // EXPOSED: Total cost of current holdings
               realizedPL,
               unrealizedPL,
               totalNetReturn,
               totalDividends,
               dividendTax,
               netDividends: totalDividends - dividendTax,
+              
+              // Fee Breakdown
               feesPaid,
+              totalComm,
+              totalTradingTax,
+              totalCDC,
+              totalOther,
+              
               tradeCount,
               lifetimeROI
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors]);
 
-  // 2. Generate Detailed Activity Rows 
+  // 2. Generate Detailed Activity Rows (Same as previous)
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
 
@@ -421,7 +441,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             </div>
                         </div>
                         <div className="h-8 w-px bg-slate-200"></div>
-                        {/* ROI SECTION */}
                         <div className="text-right">
                             <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1">
                                 Lifetime ROI
@@ -455,8 +474,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <div className="h-px bg-slate-100 w-full"></div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <div className="text-sm font-bold text-slate-700">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</div>
-                                    <div className="text-[10px] text-slate-400">Current Avg Cost</div>
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.totalCostBasis)}</div>
+                                    <div className="text-[10px] text-slate-400">Current Stock Cost</div>
+                                    <div className="text-[9px] text-slate-400 mt-0.5">
+                                        Avg: <span className="font-mono text-slate-600">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</span>
+                                    </div>
                                 </div>
                                 <div>
                                     <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div>
@@ -510,25 +532,43 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </Card>
 
-                     {/* Costs Card */}
+                     {/* Costs & Fees Card */}
                      <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6">
                             <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div>
                             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3>
                         </div>
                         <div className="space-y-6">
-                             <div>
-                                 <div className="text-3xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
-                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Total Commission & Taxes</div>
-                             </div>
-                             <div className="h-px bg-slate-100 w-full"></div>
-                             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                                 <div className="flex justify-between items-center mb-2">
-                                     <span className="text-xs text-slate-500 font-bold uppercase">Total Trades</span>
-                                     <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
+                             <div className="space-y-2">
+                                 <div className="flex justify-between items-center text-xs">
+                                     <span className="text-slate-500">Commission</span>
+                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalComm)}</span>
                                  </div>
-                                 <div className="w-full bg-slate-200 rounded-full h-2">
-                                     <div className="bg-orange-400 h-2 rounded-full" style={{ width: '100%' }}></div>
+                                 <div className="flex justify-between items-center text-xs">
+                                     <span className="text-slate-500">Trading Tax</span>
+                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalTradingTax)}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-xs">
+                                     <span className="text-slate-500">CDC Charges</span>
+                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalCDC)}</span>
+                                 </div>
+                                 <div className="flex justify-between items-center text-xs">
+                                     <span className="text-slate-500">Other Fees</span>
+                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalOther)}</span>
+                                 </div>
+                             </div>
+                             
+                             <div className="h-px bg-slate-100 w-full"></div>
+
+                             <div>
+                                 <div className="text-2xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
+                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Total Charges</div>
+                             </div>
+
+                             <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
+                                 <div className="flex justify-between items-center">
+                                     <span className="text-xs text-slate-500 font-bold uppercase">Trades Executed</span>
+                                     <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
                                  </div>
                              </div>
                         </div>
