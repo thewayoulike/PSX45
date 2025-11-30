@@ -71,6 +71,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           
           let totalDividends = 0;
           let dividendTax = 0;
+          let dividendSharesCount = 0; // NEW: Track total shares that got divs
           
           // Fee Breakdown Trackers
           let totalComm = 0;
@@ -79,8 +80,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let totalOther = 0;
           
           let tradeCount = 0;
-          let buyCount = 0;  // NEW
-          let sellCount = 0; // NEW
           let lifetimeBuyCost = 0; 
           
           // FIFO Queue
@@ -107,7 +106,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   ownedQty += t.quantity;
                   lifetimeBuyCost += buyCost; 
                   tradeCount++;
-                  buyCount++; // Increment Buy Count
               } 
               else if (t.type === 'SELL') {
                   const grossSell = t.quantity * t.price;
@@ -135,12 +133,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   ownedQty -= t.quantity;
                   soldQty += t.quantity;
                   tradeCount++;
-                  sellCount++; // Increment Sell Count
               } 
               else if (t.type === 'DIVIDEND') {
                   const grossDiv = t.quantity * t.price;
                   totalDividends += grossDiv;
                   dividendTax += (t.tax || 0);
+                  dividendSharesCount += t.quantity; // Track quantity for avg calculation
               }
           });
 
@@ -162,6 +160,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           
           const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
           const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
+          
+          // Avg Dividend Per Share
+          const avgDPS = dividendSharesCount > 0 ? totalDividends / dividendSharesCount : 0;
 
           return {
               ticker,
@@ -179,6 +180,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               totalDividends,
               dividendTax,
               netDividends: totalDividends - dividendTax,
+              dividendSharesCount,
+              avgDPS,
               
               // Fee Breakdown
               feesPaid,
@@ -187,11 +190,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               totalCDC,
               totalOther,
               
-              // Trade Counts
               tradeCount,
-              buyCount,
-              sellCount,
-              
               lifetimeROI
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
@@ -332,7 +331,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       setSelectedTicker(ticker);
       setSearchTerm(ticker);
       setIsDropdownOpen(false);
-      
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
   };
 
@@ -541,6 +539,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                      <div className="text-[10px] text-slate-400">Tax Paid</div>
                                  </div>
                              </div>
+                             
+                             <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100 flex justify-between items-center">
+                                 <div>
+                                    <div className="text-xs font-bold text-slate-700">{selectedStats.dividendSharesCount.toLocaleString()}</div>
+                                    <div className="text-[9px] text-slate-400 uppercase">Paid On Shares</div>
+                                 </div>
+                                 <div className="text-right">
+                                    <div className="text-xs font-bold text-indigo-700">Rs. {formatDecimal(selectedStats.avgDPS)}</div>
+                                    <div className="text-[9px] text-slate-400 uppercase">Avg DPS</div>
+                                 </div>
+                             </div>
+
                              <div className="flex gap-1 h-12 items-end mt-2 opacity-80">
                                  {[30, 45, 25, 60, 40, 70, 50].map((h, i) => (
                                      <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div>
@@ -586,16 +596,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                  <div className="flex justify-between items-center mb-1">
                                      <span className="text-xs text-slate-500 font-bold uppercase">Trades Executed</span>
                                      <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
-                                 </div>
-                                 <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 border-t border-slate-200 pt-1">
-                                     <div className="flex items-center gap-1">
-                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                         <span>{selectedStats.buyCount} Buys</span>
-                                     </div>
-                                     <div className="flex items-center gap-1">
-                                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-                                         <span>{selectedStats.sellCount} Sells</span>
-                                     </div>
                                  </div>
                              </div>
                         </div>
