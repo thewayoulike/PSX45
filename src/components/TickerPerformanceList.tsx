@@ -15,9 +15,21 @@ import {
   CalendarCheck,
   Download,
   PieChart,
-  Target
+  Target,
+  TrendingUp,
+  Activity
 } from 'lucide-react';
 import { Card } from './ui/Card';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Scatter 
+} from 'recharts';
 import { exportToCSV } from '../utils/export';
 
 interface TickerPerformanceListProps {
@@ -88,7 +100,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       ));
       
       return uniqueTickers.map(ticker => {
-          // Sort chronologically for FIFO
           const txs = transactions
               .filter(t => t.ticker === ticker)
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -113,11 +124,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let sellCount = 0;
           let lifetimeBuyCost = 0; 
           
-          // FIFO Queue
           const lots: Lot[] = [];
 
           txs.forEach(t => {
-              // Accumulate Fees
               if (t.type === 'BUY' || t.type === 'SELL') {
                   totalComm += (t.commission || 0);
                   totalTradingTax += (t.tax || 0); 
@@ -178,7 +187,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
           if (ownedQty < 0.001) ownedQty = 0;
 
-          // Calculate Current Avg Cost from remaining lots
           let remainingTotalCost = 0;
           let remainingTotalQty = 0;
           lots.forEach(lot => {
@@ -197,8 +205,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           
           const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
           
-          // Break-Even: Avg Cost / (1 - ~0.5% Sell Fees)
-          const estFeeRate = 0.0055; // 0.55% approx
+          const estFeeRate = 0.0055; 
           const breakEvenPrice = currentAvgPrice > 0 ? currentAvgPrice / (1 - estFeeRate) : 0;
 
           const dividendYieldOnCost = lifetimeBuyCost > 0 ? (totalDividends / lifetimeBuyCost) * 100 : 0;
@@ -239,7 +246,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors, totalPortfolioValue]);
 
-  // 2. Generate Detailed Activity Rows
+  // 2. Generate Detailed Activity Rows (Same as previous)
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
       const currentPrice = currentPrices[selectedTicker] || 0;
@@ -357,53 +364,81 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       <div className="relative z-10">
         {selectedStats ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                {/* 1. HEADER CARD */}
-                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                
+                {/* 1. HEADER CARD (Cleaned) */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}> {selectedStats.ticker.substring(0, 1)} </div>
                         <div> <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStats.ticker}</h1> <div className="flex items-center gap-2 mt-1"> <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStats.sector}</span> <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}> {selectedStats.status} </span> </div> </div>
                     </div>
-                    
-                    <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
-                        <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Current Price</div> <div className="text-xl font-bold text-slate-800">Rs. {formatDecimal(selectedStats.currentPrice)}</div> </div>
-                        <div className="h-8 w-px bg-slate-200"></div>
-                        <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lifetime Net</div> <div className={`text-2xl font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)} </div> </div>
-                        <div className="h-8 w-px bg-slate-200"></div>
-                        <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1"> Lifetime ROI </div> <div className={`text-2xl font-black flex items-center justify-end gap-1 ${selectedStats.lifetimeROI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.lifetimeROI >= 0 ? '+' : ''}{formatDecimal(selectedStats.lifetimeROI)}% </div> </div>
-                    </div>
                 </div>
 
-                {/* 1.5 NEW METRICS ROW (Below Header) */}
-                {selectedStats.status === 'Active' && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl">
-                                    <PieChart size={20} />
-                                </div>
-                                <div>
-                                    <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Portfolio Allocation</div>
-                                    <div className="text-xl font-black text-slate-800">{selectedStats.allocationPercent.toFixed(1)}%</div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-violet-50 text-violet-600 rounded-xl">
-                                    <Target size={20} />
-                                </div>
-                                <div>
-                                    <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Break-Even Price</div>
-                                    <div className="text-xl font-black text-violet-600">Rs. {formatDecimal(selectedStats.breakEvenPrice)}</div>
-                                </div>
-                            </div>
-                            <div className="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 hidden sm:block">
-                                Est. with Sell Fees
+                {/* 1.5 QUICK STATS BAR (Consolidated) */}
+                <div className={`grid grid-cols-2 ${selectedStats.status === 'Active' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-3'} gap-4`}>
+                    
+                    {/* Current Price */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-slate-50 text-slate-600 rounded-xl"><Activity size={18} /></div>
+                            <div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Current Price</div>
+                                <div className="text-lg font-black text-slate-800">Rs. {formatDecimal(selectedStats.currentPrice)}</div>
                             </div>
                         </div>
                     </div>
-                )}
+
+                    {/* Lifetime Net */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${selectedStats.totalNetReturn >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}><TrendingUp size={18} /></div>
+                            <div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lifetime Net</div>
+                                <div className={`text-lg font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Lifetime ROI */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${selectedStats.lifetimeROI >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}><Percent size={18} /></div>
+                            <div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lifetime ROI</div>
+                                <div className={`text-lg font-black ${selectedStats.lifetimeROI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {selectedStats.lifetimeROI >= 0 ? '+' : ''}{formatDecimal(selectedStats.lifetimeROI)}%
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Allocation (Active Only) */}
+                    {selectedStats.status === 'Active' && (
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-sky-50 text-sky-600 rounded-xl"><PieChart size={18} /></div>
+                                <div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Allocation</div>
+                                    <div className="text-lg font-black text-slate-800">{selectedStats.allocationPercent.toFixed(1)}%</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Break-Even (Active Only) */}
+                    {selectedStats.status === 'Active' && (
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-violet-50 text-violet-600 rounded-xl"><Target size={18} /></div>
+                                <div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Break-Even Price</div>
+                                    <div className="text-lg font-black text-violet-600">Rs. {formatDecimal(selectedStats.breakEvenPrice)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
 
                 {/* 2. STATS GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -412,20 +447,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4"> <div> <div className="text-3xl font-bold text-slate-800">{selectedStats.ownedQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> </div> <div> <div className="text-3xl font-bold text-slate-400">{selectedStats.soldQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> </div> </div>
                             <div className="h-px bg-slate-100 w-full"></div>
-                            
-                            {/* MARKET VALUE SECTION */}
-                            <div className="grid grid-cols-2 gap-4"> 
-                                <div> 
-                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.totalCostBasis)}</div> 
-                                    <div className="text-[10px] text-slate-400">Total Cost Basis</div> 
-                                    <div className="text-[9px] text-slate-400 mt-0.5"> Avg: <span className="font-mono text-slate-600">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</span> </div> 
-                                </div> 
-                                <div> 
-                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div>
-                                    <div className="text-[10px] text-slate-400">Market Value</div>
-                                </div> 
-                            </div>
-
+                            <div className="grid grid-cols-2 gap-4"> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.totalCostBasis)}</div> <div className="text-[10px] text-slate-400">Total Cost Basis</div> <div className="text-[9px] text-slate-400 mt-0.5"> Avg: <span className="font-mono text-slate-600">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</span> </div> </div> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div> <div className="text-[10px] text-slate-400">Market Value</div> </div> </div>
                             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"> <div> <div className={`text-sm font-bold ${selectedStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.realizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div> </div> <div> <div className={`text-sm font-bold ${selectedStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.unrealizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div> </div> </div>
                         </div>
                     </Card>
