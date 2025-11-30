@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink } from 'lucide-react';
+import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
@@ -19,6 +19,14 @@ interface TransactionListProps {
   googleSheetId?: string | null;
 }
 
+type SortKey = keyof Transaction | 'netAmount';
+type SortDirection = 'asc' | 'desc';
+
+interface SortConfig {
+  key: SortKey;
+  direction: SortDirection;
+}
+
 export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onDelete, onDeleteMultiple, onEdit, googleSheetId }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
@@ -26,10 +34,38 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   const [dateTo, setDateTo] = useState('');
   
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
+
+  const handleSort = (key: SortKey) => {
+    let direction: SortDirection = 'asc';
+    if (sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getNetAmount = (tx: Transaction) => {
+      let netAmount = 0;
+      const totalAmount = tx.price * tx.quantity;
+      if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
+      else if (tx.type === 'TAX') netAmount = -totalAmount;
+      else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') netAmount = (tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') ? -Math.abs(totalAmount) : totalAmount;
+      else if (tx.type === 'OTHER') {
+          if (tx.category === 'OTHER_TAX') netAmount = -Math.abs(totalAmount);
+          else netAmount = totalAmount; 
+      }
+      else {
+          const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
+          netAmount = tx.type === 'BUY' ? totalAmount + totalFees : totalAmount - totalFees;
+      }
+      return netAmount;
+  };
 
   const filteredAndSortedTransactions = useMemo(() => {
-    return transactions
-      .filter(tx => {
+    // 1. Filter
+    const filtered = transactions.filter(tx => {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch = 
           tx.ticker.toLowerCase().includes(searchLower) || 
@@ -42,9 +78,29 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         const matchesType = filterType === 'ALL' || tx.type === filterType;
 
         return matchesSearch && matchesFrom && matchesTo && matchesType;
-      })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [transactions, searchTerm, dateFrom, dateTo, filterType]);
+    });
+
+    // 2. Sort
+    return filtered.sort((a, b) => {
+        let aValue: any = a[sortConfig.key as keyof Transaction];
+        let bValue: any = b[sortConfig.key as keyof Transaction];
+
+        if (sortConfig.key === 'netAmount') {
+            aValue = getNetAmount(a);
+            bValue = getNetAmount(b);
+        }
+
+        // Handle strings (case-insensitive)
+        if (typeof aValue === 'string') {
+            aValue = aValue.toLowerCase();
+            bValue = bValue.toLowerCase();
+        }
+
+        if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+        if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+  }, [transactions, searchTerm, dateFrom, dateTo, filterType, sortConfig]);
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
       if (e.target.checked) {
@@ -95,20 +151,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const prepareExportData = (txList: Transaction[]) => {
       return txList.map(tx => {
-          let netAmount = 0;
-          const totalAmount = tx.price * tx.quantity;
-          if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
-          else if (tx.type === 'TAX') netAmount = -totalAmount;
-          else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') netAmount = (tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') ? -Math.abs(totalAmount) : totalAmount;
-          else if (tx.type === 'OTHER') {
-              if (tx.category === 'OTHER_TAX') netAmount = -Math.abs(totalAmount);
-              else netAmount = totalAmount; 
-          }
-          else {
-              const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
-              netAmount = tx.type === 'BUY' ? totalAmount + totalFees : totalAmount - totalFees;
-          }
-
           return {
               Date: tx.date,
               Type: tx.type,
@@ -121,7 +163,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               Tax: tx.tax || 0,
               CDC: tx.cdcCharges || 0,
               Other: tx.otherFees || 0,
-              'Net Amount': netAmount,
+              'Net Amount': getNetAmount(tx),
               Notes: tx.notes || ''
           };
       });
@@ -161,11 +203,29 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       }
   };
 
+  const SortIcon = ({ column }: { column: SortKey }) => {
+      if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+      return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDown size={12} className="text-emerald-500" />;
+  };
+
+  const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => (
+      <th 
+          className={`px-4 py-4 font-semibold text-slate-600 cursor-pointer select-none group hover:bg-slate-100 transition-colors ${className}`}
+          onClick={() => sortKey && handleSort(sortKey)}
+      >
+          <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}>
+              {label}
+              {sortKey && <SortIcon column={sortKey} />}
+          </div>
+      </th>
+  );
+
   if (transactions.length === 0) return null;
 
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 mb-20">
       
+      {/* HEADER SECTION - SAME AS BEFORE */}
       <div className="p-6 border-b border-slate-200/60 bg-white/40 space-y-4">
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2">
@@ -173,8 +233,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               <h2 className="text-lg font-bold text-slate-800 tracking-tight">Transaction History</h2>
           </div>
           <div className="flex items-center gap-3">
-              
-              {/* GOOGLE SHEET LINK BUTTON */}
               {googleSheetId && (
                   <a 
                       href={`https://docs.google.com/spreadsheets/d/${googleSheetId}`} 
@@ -190,22 +248,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
               {selectedIds.size > 0 && (
                   <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
-                      <button 
-                          onClick={handleExportSelected}
-                          className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-bold"
-                          title="Download Selected to Excel"
-                      >
-                          <Download size={14} />
-                          Export ({selectedIds.size})
+                      <button onClick={handleExportSelected} className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-bold">
+                          <Download size={14} /> Export ({selectedIds.size})
                       </button>
                       
                       {onDeleteMultiple && (
-                          <button 
-                              onClick={executeBulkDelete}
-                              className="flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors text-xs font-bold"
-                          >
-                              <Trash2 size={14} />
-                              Delete ({selectedIds.size})
+                          <button onClick={executeBulkDelete} className="flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors text-xs font-bold">
+                              <Trash2 size={14} /> Delete ({selectedIds.size})
                           </button>
                       )}
                       <div className="h-5 w-[1px] bg-slate-300 mx-1"></div>
@@ -213,13 +262,9 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               )}
 
               <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
-                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export All to Excel">
-                      <FileSpreadsheet size={16} />
-                  </button>
+                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"> <FileSpreadsheet size={16} /> </button>
                   <div className="w-[1px] bg-slate-100 my-1 mx-0.5"></div>
-                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export All to CSV">
-                      <FileText size={16} />
-                  </button>
+                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"> <FileText size={16} /> </button>
               </div>
               <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">
                 {filteredAndSortedTransactions.length} / {transactions.length} Entries
@@ -270,24 +315,19 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           <thead>
             <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/50">
               <th className="px-4 py-4 w-10 text-center">
-                  <input 
-                      type="checkbox" 
-                      onChange={handleSelectAll}
-                      checked={filteredAndSortedTransactions.length > 0 && selectedIds.size === filteredAndSortedTransactions.length}
-                      className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                  />
+                  <input type="checkbox" onChange={handleSelectAll} checked={filteredAndSortedTransactions.length > 0 && selectedIds.size === filteredAndSortedTransactions.length} className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/>
               </th>
-              <th className="px-4 py-4 font-semibold">Date</th>
-              <th className="px-4 py-4 font-semibold">Type</th>
-              <th className="px-4 py-4 font-semibold">Ticker</th>
-              <th className="px-4 py-4 font-semibold">Broker</th>
-              <th className="px-4 py-4 font-semibold text-right">Qty</th>
-              <th className="px-4 py-4 font-semibold text-right">Price</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">Comm</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">Tax</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">CDC</th>
-              <th className="px-2 py-4 font-semibold text-right text-slate-400">Other</th>
-              <th className="px-4 py-4 font-semibold text-right">Net Amount</th>
+              <Th label="Date" sortKey="date" />
+              <Th label="Type" sortKey="type" />
+              <Th label="Ticker" sortKey="ticker" />
+              <Th label="Broker" sortKey="broker" />
+              <Th label="Qty" sortKey="quantity" align="right" />
+              <Th label="Price" sortKey="price" align="right" />
+              <Th label="Comm" sortKey="commission" align="right" className="text-slate-400" />
+              <Th label="Tax" sortKey="tax" align="right" className="text-slate-400" />
+              <Th label="CDC" sortKey="cdcCharges" align="right" className="text-slate-400" />
+              <Th label="Other" sortKey="otherFees" align="right" className="text-slate-400" />
+              <Th label="Net Amount" sortKey="netAmount" align="right" />
               <th className="px-4 py-4 font-semibold text-center">Action</th>
             </tr>
           </thead>
@@ -310,21 +350,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     const isOtherTax = tx.type === 'OTHER' && tx.category === 'OTHER_TAX';
                     const isNegAdjust = tx.type === 'OTHER' && tx.price < 0;
 
-                    let netAmount = 0;
-                    const totalAmount = tx.price * tx.quantity;
-
-                    if (isDiv) netAmount = totalAmount - (tx.tax || 0);
-                    else if (isTax) netAmount = -totalAmount;
-                    else if (isHistory || isDeposit || isWithdrawal || isFee) netAmount = (isWithdrawal || isFee) ? -Math.abs(totalAmount) : totalAmount;
-                    else if (tx.type === 'OTHER') {
-                        if (tx.category === 'OTHER_TAX') netAmount = -Math.abs(totalAmount);
-                        else netAmount = totalAmount;
-                    }
-                    else {
-                        const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
-                        netAmount = isBuy ? totalAmount + totalFees : totalAmount - totalFees;
-                    }
-
+                    const netAmount = getNetAmount(tx);
                     const typeConfig = getTypeConfig(tx);
                     const isNegativeFlow = isTax || isWithdrawal || isFee || isOtherTax || isNegAdjust || (isHistory && netAmount < 0);
 
@@ -340,12 +366,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     return (
                         <tr key={tx.id} className={`hover:bg-emerald-50/30 transition-colors ${isNegativeFlow ? 'bg-rose-50/30' : ''} ${isSelected ? 'bg-indigo-50/60' : ''}`}>
                         <td className="px-4 py-4 text-center">
-                            <input 
-                                type="checkbox" 
-                                checked={isSelected}
-                                onChange={() => handleSelectOne(tx.id)}
-                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                            />
+                            <input type="checkbox" checked={isSelected} onChange={() => handleSelectOne(tx.id)} className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/>
                         </td>
                         <td className="px-4 py-4 text-slate-500 text-xs font-mono whitespace-nowrap">{tx.date}</td>
                         <td className="px-4 py-4">
