@@ -12,11 +12,31 @@ import {
   ChevronLeft,
   ChevronRight,
   Percent,
-  CalendarCheck
+  CalendarCheck,
+  Download,
+  PieChart,
+  Target
 } from 'lucide-react';
 import { Card } from './ui/Card';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  ReferenceLine,
+  Scatter 
+} from 'recharts';
+import { exportToCSV } from '../utils/export';
 
-// ... (Existing Interfaces) ...
+interface TickerPerformanceListProps {
+  transactions: Transaction[];
+  currentPrices: Record<string, number>;
+  sectors: Record<string, string>;
+  onTickerClick: (ticker: string) => void;
+}
 
 // Helper interface for the enriched table rows
 interface ActivityRow extends Transaction {
@@ -35,7 +55,6 @@ interface Lot {
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
   transactions, currentPrices, sectors
 }) => {
-  // ... (Existing State: selectedTicker, searchTerm, etc.) ...
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -44,6 +63,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [activityPage, setActivityPage] = useState<number>(1);
   const [activityRowsPerPage, setActivityRowsPerPage] = useState<number>(25);
 
+  // --- HELPER: Calculate Total Portfolio Value for Allocation % ---
+  const totalPortfolioValue = useMemo(() => {
+      const uniqueTickers = Array.from(new Set(transactions.map(t => t.ticker)));
+      const systemTypes = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
+      
+      return uniqueTickers.reduce((total, tkr) => {
+          // Skip system tickers/types
+          if (['CASH', 'CGT'].includes(tkr)) return total;
+          
+          const txs = transactions.filter(t => t.ticker === tkr && !systemTypes.includes(t.type));
+          const netQty = txs.reduce((acc, t) => {
+              if (t.type === 'BUY') return acc + t.quantity;
+              if (t.type === 'SELL') return acc - t.quantity;
+              return acc;
+          }, 0);
+          
+          if (netQty > 0) {
+              return total + (netQty * (currentPrices[tkr] || 0));
+          }
+          return total;
+      }, 0);
+  }, [transactions, currentPrices]);
+
+  // 1. Calculate Comprehensive Stats per Ticker
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
@@ -66,7 +109,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           
           let totalDividends = 0;
           let dividendTax = 0;
-          let dividendCount = 0; // NEW: Count how many times paid
+          let dividendCount = 0;
           
           let totalComm = 0;
           let totalTradingTax = 0;
@@ -134,7 +177,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   const grossDiv = t.quantity * t.price;
                   totalDividends += grossDiv;
                   dividendTax += (t.tax || 0);
-                  dividendCount++; // Increment count
+                  dividendCount++;
               }
           });
 
@@ -156,7 +199,15 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
           const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
           
-          // Yield on Cost Calculation
+          // FEATURE 2: Allocation %
+          const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
+
+          // FEATURE 3: Break-Even Price
+          // Est. Sell Fee ~0.5% (approx) to cover comm + tax
+          // Formula: Cost Basis / (Qty * (1 - est_fee_rate))
+          const estFeeRate = 0.005; // 0.5% estimate
+          const breakEvenPrice = ownedQty > 0 ? (remainingTotalCost / ownedQty) / (1 - estFeeRate) : 0;
+
           const dividendYieldOnCost = lifetimeBuyCost > 0 ? (totalDividends / lifetimeBuyCost) * 100 : 0;
 
           return {
@@ -175,25 +226,24 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               totalDividends,
               dividendTax,
               netDividends: totalDividends - dividendTax,
-              
-              dividendCount, // New Metric
-              dividendYieldOnCost, // New Metric
-              
+              dividendCount,
+              dividendYieldOnCost,
               feesPaid,
               totalComm,
               totalTradingTax,
               totalCDC,
               totalOther,
-              
               tradeCount,
               buyCount,
               sellCount,
-              lifetimeROI
+              lifetimeROI,
+              allocationPercent, // New
+              breakEvenPrice     // New
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
-  }, [transactions, currentPrices, sectors]);
+  }, [transactions, currentPrices, sectors, totalPortfolioValue]);
 
-  // ... (Existing activityRows logic remains unchanged) ...
+  // ... (activityRows Calculation same as before) ...
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
       const currentPrice = currentPrices[selectedTicker] || 0;
@@ -251,7 +301,40 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return rows.reverse();
   }, [selectedTicker, transactions, currentPrices]);
 
-  // ... (Existing useEffects and handlers) ...
+  // FEATURE 1: Chart Data Preparation
+  const chartData = useMemo(() => {
+      if (!selectedTicker) return [];
+      
+      const data = transactions
+          .filter(t => t.ticker === selectedTicker && (t.type === 'BUY' || t.type === 'SELL'))
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .map(t => ({
+              date: t.date,
+              price: t.price,
+              type: t.type,
+              quantity: t.quantity,
+              color: t.type === 'BUY' ? '#10b981' : '#f43f5e' // Green/Red
+          }));
+      
+      return data;
+  }, [selectedTicker, transactions]);
+
+  // FEATURE 4: Export Handler
+  const handleExportActivity = () => {
+      if (!selectedTicker) return;
+      const dataToExport = activityRows.map(row => ({
+          Date: row.date,
+          Type: row.type,
+          Qty: row.quantity,
+          Price: row.price,
+          'Avg Buy / Cost': row.avgBuyPrice,
+          'Sell / Current': row.sellOrCurrentPrice,
+          'Gain/Loss': row.gain,
+          'Gain Type': row.gainType
+      }));
+      exportToCSV(dataToExport, `${selectedTicker}_Activity_Log`);
+  };
+
   const filteredOptions = useMemo(() => {
       if (!searchTerm) return allTickerStats;
       return allTickerStats.filter(s => s.ticker.toLowerCase().includes(searchTerm.toLowerCase()) || s.sector.toLowerCase().includes(searchTerm.toLowerCase()));
@@ -279,7 +362,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
   return (
     <div className="max-w-7xl mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      {/* ... (Search Header Code) ... */}
+      
+      {/* SEARCH HEADER */}
       <div className="relative z-30 bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-xl shadow-slate-200/50 mb-8 flex flex-col items-center justify-center text-center">
           <div className="mb-6">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Stock Analyzer</h2>
@@ -303,13 +387,22 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       <div className="relative z-10">
         {selectedStats ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
-                {/* ... (Header Card and Position Card) ... */}
+                {/* 1. HEADER CARD */}
                 <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div className="flex items-center gap-4">
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}> {selectedStats.ticker.substring(0, 1)} </div>
                         <div> <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStats.ticker}</h1> <div className="flex items-center gap-2 mt-1"> <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStats.sector}</span> <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}> {selectedStats.status} </span> </div> </div>
                     </div>
                     <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
+                        
+                        {/* FEATURE 2: ALLOCATION */}
+                        {selectedStats.status === 'Active' && (
+                            <>
+                                <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1"> Allocation </div> <div className="text-xl font-bold text-slate-800 flex items-center justify-end gap-1"> <PieChart size={16} className="text-slate-400" /> {selectedStats.allocationPercent.toFixed(1)}% </div> </div>
+                                <div className="h-8 w-px bg-slate-200"></div>
+                            </>
+                        )}
+
                         <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Current Price</div> <div className="text-xl font-bold text-slate-800">Rs. {formatDecimal(selectedStats.currentPrice)}</div> </div>
                         <div className="h-8 w-px bg-slate-200"></div>
                         <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lifetime Net</div> <div className={`text-2xl font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)} </div> </div>
@@ -318,126 +411,118 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </div>
                 </div>
 
+                {/* 2. STATS GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3> </div>
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4"> <div> <div className="text-3xl font-bold text-slate-800">{selectedStats.ownedQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> </div> <div> <div className="text-3xl font-bold text-slate-400">{selectedStats.soldQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> </div> </div>
                             <div className="h-px bg-slate-100 w-full"></div>
-                            <div className="grid grid-cols-2 gap-4"> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.totalCostBasis)}</div> <div className="text-[10px] text-slate-400">Current Stock Cost</div> <div className="text-[9px] text-slate-400 mt-0.5"> Avg: <span className="font-mono text-slate-600">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</span> </div> </div> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div> <div className="text-[10px] text-slate-400">Market Value</div> </div> </div>
+                            
+                            {/* FEATURE 3: BREAK-EVEN & AVG COST */}
+                            <div className="grid grid-cols-2 gap-4"> 
+                                <div> 
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.totalCostBasis)}</div> 
+                                    <div className="text-[10px] text-slate-400">Total Cost Basis</div> 
+                                    <div className="text-[9px] text-slate-400 mt-0.5"> Avg: <span className="font-mono text-slate-600">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</span> </div> 
+                                </div> 
+                                <div> 
+                                    <div className="text-sm font-bold text-indigo-700">Rs. {formatDecimal(selectedStats.breakEvenPrice)}</div> 
+                                    <div className="text-[10px] text-indigo-400 font-bold flex items-center gap-1"> <Target size={10} /> Break-Even Price </div>
+                                    <div className="text-[9px] text-indigo-300 mt-0.5"> (Est. with Sell Fees) </div>
+                                </div> 
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"> <div> <div className={`text-sm font-bold ${selectedStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.realizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div> </div> <div> <div className={`text-sm font-bold ${selectedStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.unrealizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div> </div> </div>
                         </div>
                     </Card>
 
-                    {/* UPDATED PASSIVE INCOME CARD */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div>
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
-                        </div>
+                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3> </div>
                         <div className="space-y-6">
-                             <div>
-                                 <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div>
-                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div>
-                             </div>
+                             <div> <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div> </div>
                              <div className="h-px bg-slate-100 w-full"></div>
-                             <div className="flex justify-between items-center">
-                                 <div>
-                                     <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedStats.totalDividends)}</div>
-                                     <div className="text-[10px] text-slate-400">Gross Dividends</div>
-                                 </div>
-                                 <div className="text-right">
-                                     <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedStats.dividendTax)}</div>
-                                     <div className="text-[10px] text-slate-400">Tax Paid</div>
-                                 </div>
-                             </div>
-                             
-                             {/* CHANGED SECTION: Yield on Cost & Payout Count */}
-                             <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100 flex justify-between items-center">
-                                 <div>
-                                    <div className="flex items-center gap-1.5 text-indigo-700 font-bold">
-                                        <Percent size={14} />
-                                        <span>{selectedStats.dividendYieldOnCost.toFixed(2)}%</span>
-                                    </div>
-                                    <div className="text-[9px] text-slate-400 uppercase mt-0.5">Yield on Cost</div>
-                                 </div>
-                                 <div className="h-6 w-px bg-indigo-200/50"></div>
-                                 <div className="text-right">
-                                    <div className="flex items-center justify-end gap-1.5 text-slate-700 font-bold">
-                                        <span>{selectedStats.dividendCount}</span>
-                                        <CalendarCheck size={14} className="text-slate-400" />
-                                    </div>
-                                    <div className="text-[9px] text-slate-400 uppercase mt-0.5">Payouts Received</div>
-                                 </div>
-                             </div>
-
-                             <div className="flex gap-1 h-12 items-end mt-2 opacity-80">
-                                 {[30, 45, 25, 60, 40, 70, 50].map((h, i) => (
-                                     <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div>
-                                 ))}
-                             </div>
+                             <div className="flex justify-between items-center"> <div> <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedStats.totalDividends)}</div> <div className="text-[10px] text-slate-400">Gross Dividends</div> </div> <div className="text-right"> <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedStats.dividendTax)}</div> <div className="text-[10px] text-slate-400">Tax Paid</div> </div> </div>
+                             <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100 flex justify-between items-center"> <div> <div className="flex items-center gap-1.5 text-indigo-700 font-bold"> <Percent size={14} /> <span>{selectedStats.dividendYieldOnCost.toFixed(2)}%</span> </div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Yield on Cost</div> </div> <div className="h-6 w-px bg-indigo-200/50"></div> <div className="text-right"> <div className="flex items-center justify-end gap-1.5 text-slate-700 font-bold"> <span>{selectedStats.dividendCount}</span> <CalendarCheck size={14} className="text-slate-400" /> </div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Payouts Received</div> </div> </div>
+                             <div className="flex gap-1 h-12 items-end mt-2 opacity-80"> {[30, 45, 25, 60, 40, 70, 50].map((h, i) => ( <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div> ))} </div>
                         </div>
                     </Card>
 
-                     {/* Costs & Fees Card */}
                      <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div>
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3>
-                        </div>
+                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3> </div>
                         <div className="space-y-6">
                              <div className="space-y-2">
-                                 <div className="flex justify-between items-center text-xs">
-                                     <span className="text-slate-500">Commission</span>
-                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalComm)}</span>
-                                 </div>
-                                 <div className="flex justify-between items-center text-xs">
-                                     <span className="text-slate-500">Trading Tax</span>
-                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalTradingTax)}</span>
-                                 </div>
-                                 <div className="flex justify-between items-center text-xs">
-                                     <span className="text-slate-500">CDC Charges</span>
-                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalCDC)}</span>
-                                 </div>
-                                 <div className="flex justify-between items-center text-xs">
-                                     <span className="text-slate-500">Other Fees</span>
-                                     <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalOther)}</span>
-                                 </div>
+                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500">Commission</span> <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalComm)}</span> </div>
+                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500">Trading Tax</span> <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalTradingTax)}</span> </div>
+                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500">CDC Charges</span> <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalCDC)}</span> </div>
+                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500">Other Fees</span> <span className="font-mono text-slate-700">{formatCurrency(selectedStats.totalOther)}</span> </div>
                              </div>
-                             
                              <div className="h-px bg-slate-100 w-full"></div>
-
-                             <div>
-                                 <div className="text-2xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
-                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Total Charges</div>
-                             </div>
-
+                             <div> <div className="text-2xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Total Charges</div> </div>
                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
-                                 <div className="flex justify-between items-center mb-1">
-                                     <span className="text-xs text-slate-500 font-bold uppercase">Trades Executed</span>
-                                     <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
-                                 </div>
-                                 <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 border-t border-slate-200 pt-1">
-                                     <div className="flex items-center gap-1">
-                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-                                         <span>{selectedStats.buyCount} Buys</span>
-                                     </div>
-                                     <div className="flex items-center gap-1">
-                                         <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-                                         <span>{selectedStats.sellCount} Sells</span>
-                                     </div>
-                                 </div>
+                                 <div className="flex justify-between items-center mb-1"> <span className="text-xs text-slate-500 font-bold uppercase">Trades Executed</span> <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span> </div>
+                                 <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 border-t border-slate-200 pt-1"> <div className="flex items-center gap-1"> <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> <span>{selectedStats.buyCount} Buys</span> </div> <div className="flex items-center gap-1"> <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div> <span>{selectedStats.sellCount} Sells</span> </div> </div>
                              </div>
                         </div>
                     </Card>
                 </div>
 
-                {/* ... (Detailed Activity Table remains the same) ... */}
-                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
-                        <History size={20} className="text-slate-500" />
-                        <h3 className="font-bold text-slate-800">All Time Activity for {selectedStats.ticker}</h3>
+                {/* FEATURE 1: TRADE HISTORY CHART */}
+                {chartData.length > 1 && (
+                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                <BarChart3 size={20} className="text-slate-400" />
+                                Price & Trade History
+                            </h3>
+                            <div className="flex gap-2">
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Buy
+                                </div>
+                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                                    <div className="w-2 h-2 rounded-full bg-rose-500"></div> Sell
+                                </div>
+                            </div>
+                        </div>
+                        <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                                <LineChart data={chartData}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
+                                    <XAxis dataKey="date" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} minTickGap={30} />
+                                    <YAxis domain={['auto', 'auto']} tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={40} />
+                                    <Tooltip 
+                                        contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px'}} 
+                                        labelStyle={{color: '#64748b', marginBottom: '4px'}}
+                                    />
+                                    <Line type="monotone" dataKey="price" stroke="#cbd5e1" strokeWidth={2} dot={false} />
+                                    <Scatter data={chartData} fill="#8884d8" shape={(props: any) => {
+                                        const { cx, cy, payload } = props;
+                                        return (
+                                            <circle cx={cx} cy={cy} r={4} fill={payload.color} stroke="#fff" strokeWidth={1} />
+                                        );
+                                    }} />
+                                </LineChart>
+                            </ResponsiveContainer>
+                        </div>
                     </div>
+                )}
+
+                {/* 3. DETAILED ACTIVITY TABLE */}
+                <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                        <div className="flex items-center gap-2">
+                            <History size={20} className="text-slate-500" />
+                            <h3 className="font-bold text-slate-800">All Time Activity</h3>
+                        </div>
+                        {/* FEATURE 4: EXPORT BUTTON */}
+                        <button 
+                            onClick={handleExportActivity}
+                            className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"
+                        >
+                            <Download size={14} /> Export CSV
+                        </button>
+                    </div>
+                    {/* ... (Table content same as before) ... */}
                     <div className="overflow-x-auto">
                         <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200">
