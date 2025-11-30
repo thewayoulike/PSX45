@@ -16,12 +16,21 @@ import {
   Download,
   PieChart,
   Target,
-  Layers,     // For Sector Icon
-  LayoutList  // For Stock Icon
+  Layers,     
+  LayoutList, 
+  TrendingUp, // Restored
+  Activity    // Restored
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { 
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Scatter 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  Scatter 
 } from 'recharts';
 import { exportToCSV } from '../utils/export';
 
@@ -32,7 +41,7 @@ interface TickerPerformanceListProps {
   onTickerClick: (ticker: string) => void;
 }
 
-// ... (Previous Interfaces) ...
+// Helper interface for the enriched table rows
 interface ActivityRow extends Transaction {
   avgBuyPrice: number;       
   sellOrCurrentPrice: number; 
@@ -46,7 +55,7 @@ interface Lot {
     costPerShare: number; 
 }
 
-// NEW: Interface for Sector Stats
+// Interface for Sector Stats
 interface SectorStats {
     name: string;
     stockCount: number;
@@ -61,7 +70,7 @@ interface SectorStats {
     lifetimeROI: number;
     allocationPercent: number;
     feesPaid: number;
-    tickers: string[]; // List of tickers in this sector
+    tickers: string[];
 }
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
@@ -71,7 +80,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>('STOCK');
 
   const [selectedTicker, setSelectedTicker] = useState<string | null>(null);
-  const [selectedSector, setSelectedSector] = useState<string | null>(null); // NEW
+  const [selectedSector, setSelectedSector] = useState<string | null>(null);
   
   const [searchTerm, setSearchTerm] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -98,7 +107,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
-  // 1. Calculate Ticker Stats (Existing FIFO Logic)
+  // 1. Calculate Ticker Stats (FIFO Logic)
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
@@ -111,8 +120,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       ));
       
       return uniqueTickers.map(ticker => {
-          // ... (Existing FIFO Calculation Code - Kept Identical for Brevity) ...
-          // Sort chronologically for FIFO
           const txs = transactions
               .filter(t => t.ticker === ticker)
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -203,12 +210,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               feesPaid, totalComm, totalTradingTax, totalCDC, totalOther,
               tradeCount, buyCount, sellCount,
               lifetimeROI, allocationPercent, breakEvenPrice,
-              lifetimeBuyCost // Needed for aggregation
+              lifetimeBuyCost 
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors, totalPortfolioValue]);
 
-  // 2. NEW: Calculate Sector Aggregation
+  // 2. Calculate Sector Aggregation
   const allSectorStats = useMemo(() => {
       const sectorMap: Record<string, SectorStats> = {};
 
@@ -249,14 +256,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           s.tickers.push(stat.ticker);
       });
 
-      // Calculate Aggregate ROI
-      // ROI = Net Return / Total Cost Basis (Active) + Total Cost of Solds (Hard to get exactly here without tracking sold cost separately globally)
-      // Approximation: Use the sum of lifetime net vs sums. 
-      // Better: Sum of all lifetimeBuyCost from tickers.
-      
       const sectorArray = Object.values(sectorMap);
       
-      // We need to re-loop to fix ROI properly
       sectorArray.forEach(sec => {
           const totalInvestedInSector = allTickerStats
               .filter(t => t.sector === sec.name)
@@ -265,16 +266,15 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           sec.lifetimeROI = totalInvestedInSector > 0 ? (sec.lifetimeNet / totalInvestedInSector) * 100 : 0;
       });
 
-      return sectorArray.sort((a, b) => b.allocationPercent - a.allocationPercent); // Sort by allocation
+      return sectorArray.sort((a, b) => b.allocationPercent - a.allocationPercent);
   }, [allTickerStats]);
 
-  // 3. Filtering and Selection Logic (Dual Mode)
+  // 3. Filtering and Selection Logic
   const filteredOptions = useMemo(() => {
       if (analysisMode === 'STOCK') {
           if (!searchTerm) return allTickerStats;
           return allTickerStats.filter(s => s.ticker.toLowerCase().includes(searchTerm.toLowerCase()));
       } else {
-          // SECTOR MODE
           if (!searchTerm) return allSectorStats;
           return allSectorStats.filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()));
       }
@@ -290,7 +290,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return allSectorStats.find(s => s.name === selectedSector);
   }, [selectedSector, allSectorStats, analysisMode]);
 
-  // ... (Existing Effect Hooks) ...
   useEffect(() => { setActivityPage(1); }, [selectedTicker, selectedSector]);
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => { if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) setIsDropdownOpen(false); };
@@ -298,14 +297,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handlers
   const handleSelect = (val: string) => {
       if (analysisMode === 'STOCK') {
           setSelectedTicker(val);
           localStorage.setItem('psx_last_analyzed_ticker', val);
       } else {
           setSelectedSector(val);
-          // Optional: persist sector too
       }
       setSearchTerm(val);
       setIsDropdownOpen(false);
@@ -322,14 +319,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }
   };
 
-  // Activity Rows Logic (Only relevant for Stock Mode, hiding for Sector initially)
-  // ... (Existing activityRows logic remains exactly the same, omitted for brevity but presumed present) ...
+  // Activity Rows Logic
   const activityRows = useMemo(() => {
       if (!selectedTicker || analysisMode !== 'STOCK') return [];
-      const sortedTxs = transactions.filter(t => t.ticker === selectedTicker).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      // ... (Same FIFO simulation logic as previous code) ...
-      // RE-INSERTING LOGIC TO ENSURE COMPLETENESS
       const currentPrice = currentPrices[selectedTicker] || 0;
+      const sortedTxs = transactions.filter(t => t.ticker === selectedTicker).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       const tempLots: { id: string, quantity: number, costPerShare: number }[] = [];
       const buyRemainingMap: Record<string, number> = {};
       const sellAnalysisMap: Record<string, { avgBuy: number, gain: number }> = {};
@@ -376,7 +370,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return rows.reverse();
   }, [selectedTicker, transactions, currentPrices, analysisMode]);
 
-  // Chart Data (Stock Mode Only)
+  // Chart Data
   const chartData = useMemo(() => {
       if (!selectedTicker || analysisMode !== 'STOCK') return [];
       return transactions
@@ -385,7 +379,14 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           .map(t => ({ date: t.date, price: t.price, type: t.type, quantity: t.quantity, color: t.type === 'BUY' ? '#10b981' : '#f43f5e' }));
   }, [selectedTicker, transactions, analysisMode]);
 
-  const handleExportActivity = () => { /* Same as before */ };
+  const handleExportActivity = () => {
+      if (!selectedTicker) return;
+      const dataToExport = activityRows.map(row => ({
+          Date: row.date, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy / Cost': row.avgBuyPrice, 'Sell / Current': row.sellOrCurrentPrice, 'Gain/Loss': row.gain, 'Gain Type': row.gainType
+      }));
+      exportToCSV(dataToExport, `${selectedTicker}_Activity_Log`);
+  };
+
   const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formatDecimal = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const paginatedActivity = useMemo(() => { const start = (activityPage - 1) * activityRowsPerPage; return activityRows.slice(start, start + activityRowsPerPage); }, [activityRows, activityPage, activityRowsPerPage]);
@@ -408,7 +409,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               </p>
           </div>
 
-          {/* MODE TOGGLE */}
           <div className="flex bg-slate-100 p-1 rounded-xl mb-6 shadow-inner border border-slate-200">
               <button 
                   onClick={() => { setAnalysisMode('STOCK'); setSearchTerm(''); setSelectedTicker(null); setIsDropdownOpen(false); }}
@@ -501,7 +501,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     {selectedStockStats.status === 'Active' && ( <> <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="p-2 bg-sky-50 text-sky-600 rounded-xl"><PieChart size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Allocation</div> <div className="text-lg font-black text-slate-800">{selectedStockStats.allocationPercent.toFixed(1)}%</div> </div> </div> </div> <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="p-2 bg-violet-50 text-violet-600 rounded-xl"><Target size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Break-Even Price</div> <div className="text-lg font-black text-violet-600">Rs. {formatDecimal(selectedStockStats.breakEvenPrice)}</div> </div> </div> </div> </> )}
                 </div>
 
-                {/* 2. STATS GRID (Same as before) */}
+                {/* 2. STATS GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3> </div>
@@ -513,7 +513,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </Card>
                     
-                    {/* ... (Passive Income & Costs Cards - same as before) ... */}
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3> </div>
                         <div className="space-y-6">
@@ -572,7 +571,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </div>
                 )}
 
-                {/* ... (Activity Table) ... */}
+                {/* ACTIVITY TABLE */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                     <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-2"> <History size={20} className="text-slate-500" /> <h3 className="font-bold text-slate-800">All Time Activity</h3> </div>
