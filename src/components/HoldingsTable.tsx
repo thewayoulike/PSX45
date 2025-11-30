@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Holding } from '../types';
-import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
 interface HoldingsTableProps {
@@ -26,15 +26,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   // DEFAULT SORTING: Ticker Ascending
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'ticker', direction: 'asc' });
 
+  // Pagination State
+  const [itemsPerPage, setItemsPerPage] = useState<number>(25);
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
-    // If clicking same key, toggle. Default for numbers is usually desc first, but simple toggle is fine.
     if (sortConfig.key === key && sortConfig.direction === 'asc') {
       direction = 'desc';
     } else if (sortConfig.key === key && sortConfig.direction === 'desc') {
       direction = 'asc';
     } else {
-        // If new key is numeric, default to desc (highest first usually better for money)
         if (['quantity', 'avgPrice', 'currentPrice', 'costBasis', 'marketValue', 'dailyPL', 'pnl', 'pnlPercent'].includes(key)) {
             direction = 'desc';
         }
@@ -79,7 +81,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           aValue = getVal(a, sortConfig.key);
           bValue = getVal(b, sortConfig.key);
 
-          // String sort
           if (typeof aValue === 'string') {
               aValue = aValue.toLowerCase();
               bValue = bValue.toLowerCase();
@@ -90,6 +91,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           return 0;
       });
   }, [holdings, searchTerm, showBroker, sortConfig, ldcpMap]);
+
+  // Reset page when filters change
+  useEffect(() => {
+      setCurrentPage(1);
+  }, [searchTerm]);
+
+  const totalPages = Math.ceil(filteredAndSortedHoldings.length / itemsPerPage);
+  const paginatedHoldings = useMemo(() => {
+      const start = (currentPage - 1) * itemsPerPage;
+      return filteredAndSortedHoldings.slice(start, start + itemsPerPage);
+  }, [filteredAndSortedHoldings, currentPage, itemsPerPage]);
 
   const totals = useMemo(() => {
       return filteredAndSortedHoldings.reduce((acc, h) => {
@@ -109,7 +121,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   }, [filteredAndSortedHoldings, ldcpMap]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
-  
   const yesterdayTotalMarket = totals.totalMarket - totals.dailyPL;
   const totalDailyPercent = yesterdayTotalMarket > 0 ? (totals.dailyPL / yesterdayTotalMarket) * 100 : 0;
 
@@ -228,14 +239,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredAndSortedHoldings.length === 0 ? (
+              {paginatedHoldings.length === 0 ? (
                 <tr>
                   <td colSpan={showBroker ? 9 : 8} className="px-6 py-20 text-center text-slate-400 italic">
                     {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'}
                   </td>
                 </tr>
               ) : (
-                filteredAndSortedHoldings.map((holding, idx) => {
+                paginatedHoldings.map((holding, idx) => {
                   const roundedAvg = Math.round(holding.avgPrice * 100) / 100;
                   const costBasis = holding.quantity * roundedAvg;
                   const marketValue = holding.quantity * holding.currentPrice;
@@ -325,7 +336,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             {totals.totalMarket.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-4 text-right">
-                            <div className={`flex flex-col items-end ${totals.dailyPL >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                            <div className={`flex flex-col items-end ${totals.dailyPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                 <span className="font-bold text-xs">
                                     {totals.dailyPL >= 0 ? '+' : ''}
                                     {totals.dailyPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -350,6 +361,49 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 </tfoot>
             )}
           </table>
+        </div>
+
+        {/* PAGINATION FOOTER */}
+        <div className="p-4 border-t border-slate-200/60 bg-white/40 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">Rows per page:</span>
+                <select 
+                    value={itemsPerPage} 
+                    onChange={(e) => {
+                        setItemsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                    }}
+                    className="bg-white border border-slate-200 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer"
+                >
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                    <option value={500}>500</option>
+                    <option value={1000}>1000</option>
+                </select>
+            </div>
+
+            <div className="flex items-center gap-4">
+                <span className="text-xs text-slate-500">
+                    {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedHoldings.length)} of {filteredAndSortedHoldings.length}
+                </span>
+                <div className="flex gap-1">
+                    <button 
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    >
+                        <ChevronLeft size={16} className="text-slate-600" />
+                    </button>
+                    <button 
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages || totalPages === 0}
+                        className="p-1.5 rounded-lg hover:bg-slate-100 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+                    >
+                        <ChevronRight size={16} className="text-slate-600" />
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
   );
