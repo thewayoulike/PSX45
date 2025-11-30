@@ -8,8 +8,7 @@ import {
   Receipt, 
   History, 
   XCircle,
-  BarChart3,
-  ArrowRightLeft
+  BarChart3
 } from 'lucide-react';
 import { Card } from './ui/Card';
 
@@ -18,6 +17,13 @@ interface TickerPerformanceListProps {
   currentPrices: Record<string, number>;
   sectors: Record<string, string>;
   onTickerClick: (ticker: string) => void;
+}
+
+// Helper interface for the enriched table rows
+interface ActivityRow extends Transaction {
+  effectiveRate: number;
+  costBasisPerShare?: number; // For Sells: What was the buy avg?
+  realizedPnL?: number;       // For Sells: Net Sell - Cost Basis
 }
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
@@ -30,7 +36,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
   // 1. Calculate Comprehensive Stats per Ticker
   const allTickerStats = useMemo(() => {
-      // Exclude system types
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
 
@@ -42,19 +47,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       ));
       
       return uniqueTickers.map(ticker => {
-          // Sort chronologically for accurate calculations
           const txs = transactions
               .filter(t => t.ticker === ticker)
               .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
           
           let ownedQty = 0;
           let soldQty = 0;
-          let totalCostBasis = 0; // Cost of currently held shares
-          let realizedPL = 0;     // Accumulated Profit/Loss from Sells
+          let totalCostBasis = 0; 
+          let realizedPL = 0;     
           
           let totalDividends = 0;
           let dividendTax = 0;
-          let feesPaid = 0;       // Comm + Tax + CDC + Other
+          let feesPaid = 0;       
           
           let tradeCount = 0;
 
@@ -74,15 +78,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   const grossSell = t.quantity * t.price;
                   const netSell = grossSell - fees;
                   
-                  // Calculate Cost of Goods Sold (COGS) based on current Weighted Avg
                   const avgCostPerShare = ownedQty > 0 ? totalCostBasis / ownedQty : 0;
                   const costOfSoldShares = t.quantity * avgCostPerShare;
                   
-                  // Profit = Net Revenue - Cost of Shares
                   const tradeProfit = netSell - costOfSoldShares;
                   realizedPL += tradeProfit;
 
-                  // Remove sold portion from holding
                   totalCostBasis -= costOfSoldShares;
                   ownedQty -= t.quantity;
                   soldQty += t.quantity;
@@ -96,53 +97,99 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               }
           });
 
-          // Floating Point Correction
           if (ownedQty < 0.001) { ownedQty = 0; totalCostBasis = 0; }
 
-          // Current Market Stats
           const currentPrice = currentPrices[ticker] || 0;
           const currentValue = ownedQty * currentPrice;
-          
-          // Unrealized P&L = Market Value - Remaining Cost Basis
           const unrealizedPL = currentValue - totalCostBasis;
-          
-          // Current Avg Buying Price
           const currentAvgPrice = ownedQty > 0 ? totalCostBasis / ownedQty : 0;
-
           const totalNetReturn = realizedPL + unrealizedPL + (totalDividends - dividendTax);
 
           return {
               ticker,
               sector: sectors[ticker] || 'Unknown',
               status: ownedQty > 0.01 ? 'Active' : 'Closed',
-              
-              // Qty Metrics
               ownedQty,
               soldQty,
-              
-              // Price Metrics
               currentPrice,
               currentAvgPrice,
               currentValue,
-              
-              // P&L Metrics
               realizedPL,
               unrealizedPL,
               totalNetReturn,
-
-              // Income Metrics
               totalDividends,
               dividendTax,
               netDividends: totalDividends - dividendTax,
-              
-              // Fees
               feesPaid,
               tradeCount
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors]);
 
-  // 2. Filter for Dropdown
+  // 2. Generate Detailed Activity Rows (With Historical Context)
+  const activityRows = useMemo(() => {
+      if (!selectedTicker) return [];
+
+      // Sort chronologically first to build history
+      const sortedTxs = transactions
+          .filter(t => t.ticker === selectedTicker)
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      let runningQty = 0;
+      let runningCost = 0; // Total cost of currently held shares
+
+      const rows: ActivityRow[] = sortedTxs.map(t => {
+          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+          const totalVal = t.quantity * t.price;
+          
+          let effectiveRate = 0;
+          let costBasisPerShare = undefined;
+          let realizedPnL = undefined;
+
+          if (t.type === 'BUY') {
+              // Effective Rate = (Price + Fees per share)
+              effectiveRate = (totalVal + fees) / t.quantity;
+              
+              // Update Running
+              runningCost += (totalVal + fees);
+              runningQty += t.quantity;
+          } 
+          else if (t.type === 'SELL') {
+              // Effective Rate = (Price - Fees per share) ie. Net per share
+              effectiveRate = (totalVal - fees) / t.quantity;
+
+              // Calculate P&L for this specific trade
+              const currentAvg = runningQty > 0 ? runningCost / runningQty : 0;
+              const costOfSale = t.quantity * currentAvg;
+              const netProceeds = totalVal - fees;
+              
+              costBasisPerShare = currentAvg;
+              realizedPnL = netProceeds - costOfSale;
+
+              // Update Running
+              runningCost -= costOfSale;
+              runningQty -= t.quantity;
+          }
+          else if (t.type === 'DIVIDEND') {
+              effectiveRate = t.price; // Dividend per share
+          }
+
+          // Floating point safety
+          if (runningQty < 0.001) { runningQty = 0; runningCost = 0; }
+
+          return {
+              ...t,
+              effectiveRate,
+              costBasisPerShare,
+              realizedPnL
+          };
+      });
+
+      // Reverse to show newest first
+      return rows.reverse();
+  }, [selectedTicker, transactions]);
+
+  // 3. Filtering and Selection Logic
   const filteredOptions = useMemo(() => {
       if (!searchTerm) return allTickerStats;
       return allTickerStats.filter(s => 
@@ -151,7 +198,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       );
   }, [allTickerStats, searchTerm]);
 
-  // 3. Get Selected Data
   const selectedStats = useMemo(() => {
       if (!selectedTicker) return null;
       return allTickerStats.find(s => s.ticker === selectedTicker);
@@ -179,8 +225,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   return (
     <div className="max-w-7xl mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* --- SEARCH / SELECT HEADER --- */}
-      {/* FIX: Added relative z-30 to force header and dropdown to be ABOVE the content below */}
+      {/* --- SEARCH HEADER --- */}
       <div className="relative z-30 bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-xl shadow-slate-200/50 mb-8 flex flex-col items-center justify-center text-center">
           <div className="mb-6">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Stock Analyzer</h2>
@@ -247,8 +292,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           </div>
       </div>
 
-      {/* --- DETAIL VIEW --- */}
-      {/* FIX: Added relative z-10 to ensure this section stays below the header dropdown */}
+      {/* --- DASHBOARD VIEW --- */}
       <div className="relative z-10">
         {selectedStats ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
@@ -287,14 +331,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* 2. STATS GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    
-                    {/* CARD 1: POSITION & GAINS */}
+                    {/* Position Card */}
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6">
                             <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div>
                             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3>
                         </div>
-                        
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
@@ -306,20 +348,17 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div>
                                 </div>
                             </div>
-
                             <div className="h-px bg-slate-100 w-full"></div>
-
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <div className="text-sm font-bold text-slate-700">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</div>
-                                    <div className="text-[10px] text-slate-400">Current Avg Buy</div>
+                                    <div className="text-[10px] text-slate-400">Current Avg Cost</div>
                                 </div>
                                 <div>
                                     <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div>
                                     <div className="text-[10px] text-slate-400">Market Value</div>
                                 </div>
                             </div>
-
                             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
                                 <div>
                                     <div className={`text-sm font-bold ${selectedStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -337,65 +376,57 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </Card>
 
-                    {/* CARD 2: PASSIVE INCOME */}
+                    {/* Passive Income Card */}
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6">
                             <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div>
                             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
                         </div>
-                        
                         <div className="space-y-6">
-                            <div>
-                                <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div>
-                            </div>
-                            
-                            <div className="h-px bg-slate-100 w-full"></div>
-
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedStats.totalDividends)}</div>
-                                    <div className="text-[10px] text-slate-400">Gross Dividends</div>
-                                </div>
-                                <div className="text-right">
-                                    <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedStats.dividendTax)}</div>
-                                    <div className="text-[10px] text-slate-400">Tax Paid</div>
-                                </div>
-                            </div>
-
-                            {/* Decorative chart */}
-                            <div className="flex gap-1 h-12 items-end mt-2 opacity-80">
-                                {[30, 45, 25, 60, 40, 70, 50].map((h, i) => (
-                                    <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div>
-                                ))}
-                            </div>
+                             <div>
+                                 <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div>
+                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div>
+                             </div>
+                             <div className="h-px bg-slate-100 w-full"></div>
+                             <div className="flex justify-between items-center">
+                                 <div>
+                                     <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedStats.totalDividends)}</div>
+                                     <div className="text-[10px] text-slate-400">Gross Dividends</div>
+                                 </div>
+                                 <div className="text-right">
+                                     <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedStats.dividendTax)}</div>
+                                     <div className="text-[10px] text-slate-400">Tax Paid</div>
+                                 </div>
+                             </div>
+                             <div className="flex gap-1 h-12 items-end mt-2 opacity-80">
+                                 {[30, 45, 25, 60, 40, 70, 50].map((h, i) => (
+                                     <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div>
+                                 ))}
+                             </div>
                         </div>
                     </Card>
 
-                    {/* CARD 3: COSTS & SUMMARY */}
-                    <Card className="md:col-span-1">
+                     {/* Costs Card */}
+                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6">
                             <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div>
                             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3>
                         </div>
-                        
                         <div className="space-y-6">
-                            <div>
-                                <div className="text-3xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase">Total Commission & Taxes</div>
-                            </div>
-                            
-                            <div className="h-px bg-slate-100 w-full"></div>
-
-                            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                                <div className="flex justify-between items-center mb-2">
-                                    <span className="text-xs text-slate-500 font-bold uppercase">Total Trades</span>
-                                    <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
-                                </div>
-                                <div className="w-full bg-slate-200 rounded-full h-2">
-                                    <div className="bg-orange-400 h-2 rounded-full" style={{ width: '100%' }}></div>
-                                </div>
-                            </div>
+                             <div>
+                                 <div className="text-3xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
+                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Total Commission & Taxes</div>
+                             </div>
+                             <div className="h-px bg-slate-100 w-full"></div>
+                             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                 <div className="flex justify-between items-center mb-2">
+                                     <span className="text-xs text-slate-500 font-bold uppercase">Total Trades</span>
+                                     <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
+                                 </div>
+                                 <div className="w-full bg-slate-200 rounded-full h-2">
+                                     <div className="bg-orange-400 h-2 rounded-full" style={{ width: '100%' }}></div>
+                                 </div>
+                             </div>
                         </div>
                     </Card>
                 </div>
@@ -411,57 +442,75 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200">
                                 <tr>
                                     <th className="px-6 py-4">Date</th>
-                                    <th className="px-6 py-4">Type</th>
-                                    <th className="px-6 py-4 text-right">Qty</th>
-                                    <th className="px-6 py-4 text-right">Price</th>
+                                    <th className="px-4 py-4">Type</th>
+                                    <th className="px-4 py-4 text-right">Qty</th>
+                                    <th className="px-4 py-4 text-right">Price</th>
+                                    <th className="px-4 py-4 text-right text-slate-700" title="Effective Price per share (inc. fees)">Eff. Rate</th>
                                     <th className="px-4 py-4 text-right text-slate-400">Comm</th>
                                     <th className="px-4 py-4 text-right text-slate-400">Tax</th>
+                                    <th className="px-4 py-4 text-right text-slate-400">CDC</th>
                                     <th className="px-4 py-4 text-right text-slate-400">Other</th>
-                                    <th className="px-6 py-4 text-right">Total Net</th>
+                                    <th className="px-6 py-4 text-right">Net Amount</th>
+                                    
+                                    {/* Sell Specific Columns */}
+                                    <th className="px-4 py-4 text-right text-blue-600 bg-blue-50/50">Buy Avg</th>
+                                    <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/50">Gain</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {transactions
-                                    .filter(t => t.ticker === selectedStats.ticker)
-                                    .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                                    .map(t => {
-                                        const total = t.quantity * t.price;
-                                        const fees = (t.commission || 0) + (t.cdcCharges || 0) + (t.otherFees || 0); 
-                                        
-                                        let net = 0;
-                                        if (t.type === 'BUY') net = -(total + fees + (t.tax||0));
-                                        else if (t.type === 'SELL') net = total - (fees + (t.tax||0));
-                                        else if (t.type === 'DIVIDEND') net = total - (t.tax || 0);
+                                {activityRows.map(t => {
+                                    const net = t.type === 'BUY' 
+                                        ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0))
+                                        : t.type === 'SELL'
+                                        ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0))
+                                        : (t.quantity * t.price) - (t.tax||0); // Dividend
 
-                                        return (
-                                            <tr key={t.id} className="hover:bg-slate-50/50 transition-colors">
-                                                <td className="px-6 py-4 text-slate-500 font-mono text-xs">{t.date}</td>
-                                                <td className="px-6 py-4">
-                                                    <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                                                        t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                        t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
-                                                        t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100'
-                                                    }`}>{t.type}</span>
-                                                </td>
-                                                <td className="px-6 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-right text-slate-600 font-mono">{t.price.toLocaleString()}</td>
-                                                
-                                                {/* Detailed Fee Columns */}
-                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
-                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
-                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{((t.cdcCharges||0) + (t.otherFees||0)).toLocaleString()}</td>
+                                    return (
+                                        <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
+                                            <td className="px-6 py-4 text-slate-500 font-mono text-xs">{t.date}</td>
+                                            <td className="px-4 py-4">
+                                                <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
+                                                    t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                    t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-100' :
+                                                    t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100'
+                                                }`}>{t.type}</span>
+                                            </td>
+                                            <td className="px-4 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
+                                            <td className="px-4 py-4 text-right text-slate-600 font-mono">{t.price.toLocaleString()}</td>
+                                            
+                                            {/* Effective Rate */}
+                                            <td className="px-4 py-4 text-right font-mono text-xs font-bold text-slate-700">
+                                                {t.effectiveRate ? formatDecimal(t.effectiveRate) : '-'}
+                                            </td>
 
-                                                <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                                                    {formatCurrency(net)}
-                                                </td>
-                                            </tr>
-                                        );
-                                    })
-                                }
+                                            {/* Detailed Fees */}
+                                            <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
+                                            <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
+                                            <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.cdcCharges || 0).toLocaleString()}</td>
+                                            <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.otherFees || 0).toLocaleString()}</td>
+
+                                            <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                {formatCurrency(net)}
+                                            </td>
+
+                                            {/* Sell Specifics */}
+                                            <td className="px-4 py-4 text-right font-mono text-xs bg-blue-50/30">
+                                                {t.costBasisPerShare ? formatDecimal(t.costBasisPerShare) : ''}
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-mono bg-blue-50/30">
+                                                {t.realizedPnL !== undefined ? (
+                                                    <span className={`font-bold ${t.realizedPnL >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                                        {t.realizedPnL >= 0 ? '+' : ''}{formatCurrency(t.realizedPnL)}
+                                                    </span>
+                                                ) : ''}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
-                    {transactions.filter(t => t.ticker === selectedStats.ticker).length === 0 && (
+                    {activityRows.length === 0 && (
                         <div className="p-8 text-center text-slate-400 text-sm">No transaction history found.</div>
                     )}
                 </div>
