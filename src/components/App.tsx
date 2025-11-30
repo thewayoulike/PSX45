@@ -12,10 +12,12 @@ import { DividendScanner } from './DividendScanner';
 import { ApiKeyManager } from './ApiKeyManager'; 
 import { LoginPage } from './LoginPage';
 import { Logo } from './ui/Logo';
+import { TickerPerformanceList } from './TickerPerformanceList'; // NEW
+import { TickerProfile } from './TickerProfile'; // NEW
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, Filter, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Check, Layers, ChevronDown, CheckSquare, Square } from 'lucide-react';
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -41,7 +43,7 @@ interface Lot {
     date: string;
 }
 
-type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY';
+type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -50,6 +52,9 @@ const App: React.FC = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+  
+  // State for Stock Profile Overlay
+  const [viewTicker, setViewTicker] = useState<string | null>(null);
   
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
@@ -169,6 +174,16 @@ const App: React.FC = () => {
       if (times.length === 0) return null;
       return times.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
   }, [priceTimestamps]);
+
+  // --- DERIVED: Full Sector Map ---
+  const sectorMap = useMemo(() => {
+      const map: Record<string, string> = {};
+      const allTickers = new Set(transactions.map(t => t.ticker));
+      allTickers.forEach(t => {
+          map[t] = sectorOverrides[t] || getSector(t);
+      });
+      return map;
+  }, [transactions, sectorOverrides]);
 
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
@@ -470,7 +485,6 @@ const App: React.FC = () => {
     });
 
     const netRealizedPL = realizedPL - totalCGT; 
-    const totalProfits = netRealizedPL + dividendSum;
     
     const txIndexMap = new Map<string, number>();
     portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
@@ -557,8 +571,10 @@ const App: React.FC = () => {
 
     const cashInvestment = totalDeposits - totalWithdrawals; 
     const netPrincipalAvailable = Math.max(0, netPrincipal);
-    const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
-    const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
+    // const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
+    // const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
+    // RECALCULATED for clarity (simplification for display)
+    const reinvestedProfits = Math.max(0, totalCost - netPrincipalAvailable);
     
     let cashIn = totalDeposits; 
     let cashOut = totalWithdrawals + totalCGT; 
@@ -640,7 +656,6 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
-      {/* ... (UI code remains exactly same as before) ... */}
       <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0"><div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div><div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[100px]"></div></div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
@@ -677,11 +692,23 @@ const App: React.FC = () => {
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+            {/* --- UPDATED NAVIGATION --- */}
             <div className="flex justify-center mb-8">
-                <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm">
-                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <LayoutDashboard size={18} /> Dashboard </button>
-                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <CheckCircle2 size={18} /> Realized Gains </button>
-                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> <History size={18} /> Transaction History </button>
+                <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto">
+                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                        <LayoutDashboard size={18} /> Dashboard 
+                    </button>
+                    
+                    <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                        <Briefcase size={18} /> Stocks 
+                    </button>
+
+                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                        <CheckCircle2 size={18} /> Realized Gains 
+                    </button>
+                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                        <History size={18} /> History 
+                    </button>
                 </div>
             </div>
 
@@ -770,8 +797,25 @@ const App: React.FC = () => {
                     <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
                     <div className="flex flex-col gap-6">
                         <AllocationChart holdings={holdings} />
-                        <HoldingsTable holdings={holdings} showBroker={true} failedTickers={failedTickers} ldcpMap={ldcpMap} />
+                        <HoldingsTable 
+                            holdings={holdings} 
+                            showBroker={true} 
+                            failedTickers={failedTickers} 
+                            ldcpMap={ldcpMap} 
+                            onTickerClick={(t) => setViewTicker(t)} // PASS CLICK HANDLER
+                        />
                     </div>
+                </div>
+            )}
+
+            {currentView === 'STOCKS' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <TickerPerformanceList 
+                        transactions={portfolioTransactions}
+                        currentPrices={manualPrices}
+                        sectors={sectorMap}
+                        onTickerClick={(t) => setViewTicker(t)}
+                    />
                 </div>
             )}
 
@@ -861,6 +905,18 @@ const App: React.FC = () => {
           savedResults={scannerState[currentPortfolioId] || []}
           onSaveResults={handleScannerUpdate}
       />
+
+      {/* --- STOCK PROFILE OVERLAY --- */}
+      {viewTicker && (
+          <TickerProfile 
+              ticker={viewTicker}
+              currentPrice={manualPrices[viewTicker] || 0} 
+              sector={sectorOverrides[viewTicker] || getSector(viewTicker)}
+              transactions={portfolioTransactions.filter(t => t.ticker === viewTicker)}
+              holding={holdings.find(h => h.ticker === viewTicker)} 
+              onClose={() => setViewTicker(null)}
+          />
+      )}
     </div>
   );
 };
