@@ -18,16 +18,6 @@ import {
   Target
 } from 'lucide-react';
 import { Card } from './ui/Card';
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  ResponsiveContainer, 
-  Scatter 
-} from 'recharts';
 import { exportToCSV } from '../utils/export';
 
 interface TickerPerformanceListProps {
@@ -249,7 +239,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors, totalPortfolioValue]);
 
-  // ... (activityRows logic same as before) ...
+  // 2. Generate Detailed Activity Rows
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
       const currentPrice = currentPrices[selectedTicker] || 0;
@@ -306,14 +296,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       });
       return rows.reverse();
   }, [selectedTicker, transactions, currentPrices]);
-
-  const chartData = useMemo(() => {
-      if (!selectedTicker) return [];
-      return transactions
-          .filter(t => t.ticker === selectedTicker && (t.type === 'BUY' || t.type === 'SELL'))
-          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-          .map(t => ({ date: t.date, price: t.price, type: t.type, quantity: t.quantity, color: t.type === 'BUY' ? '#10b981' : '#f43f5e' }));
-  }, [selectedTicker, transactions]);
 
   const handleExportActivity = () => {
       if (!selectedTicker) return;
@@ -383,23 +365,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </div>
                     
                     <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
-                        
-                        {/* FEATURE: ALLOCATION & BREAK-EVEN */}
-                        {selectedStats.status === 'Active' && (
-                            <>
-                                <div className="text-right"> 
-                                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1"> Portfolio Allocation </div> 
-                                    <div className="text-xl font-bold text-slate-800 flex items-center justify-end gap-1"> <PieChart size={16} className="text-slate-400" /> {selectedStats.allocationPercent.toFixed(1)}% </div> 
-                                </div>
-                                <div className="h-8 w-px bg-slate-200"></div>
-                                <div className="text-right"> 
-                                    <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Break-Even</div> 
-                                    <div className="text-xl font-bold text-indigo-600">Rs. {formatDecimal(selectedStats.breakEvenPrice)}</div> 
-                                </div>
-                                <div className="h-8 w-px bg-slate-200"></div>
-                            </>
-                        )}
-
                         <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Current Price</div> <div className="text-xl font-bold text-slate-800">Rs. {formatDecimal(selectedStats.currentPrice)}</div> </div>
                         <div className="h-8 w-px bg-slate-200"></div>
                         <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lifetime Net</div> <div className={`text-2xl font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)} </div> </div>
@@ -407,6 +372,38 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         <div className="text-right"> <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1"> Lifetime ROI </div> <div className={`text-2xl font-black flex items-center justify-end gap-1 ${selectedStats.lifetimeROI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStats.lifetimeROI >= 0 ? '+' : ''}{formatDecimal(selectedStats.lifetimeROI)}% </div> </div>
                     </div>
                 </div>
+
+                {/* 1.5 NEW METRICS ROW (Below Header) */}
+                {selectedStats.status === 'Active' && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-sky-50 text-sky-600 rounded-xl">
+                                    <PieChart size={20} />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Portfolio Allocation</div>
+                                    <div className="text-xl font-black text-slate-800">{selectedStats.allocationPercent.toFixed(1)}%</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2.5 bg-violet-50 text-violet-600 rounded-xl">
+                                    <Target size={20} />
+                                </div>
+                                <div>
+                                    <div className="text-xs text-slate-500 font-bold uppercase tracking-wider">Break-Even Price</div>
+                                    <div className="text-xl font-black text-violet-600">Rs. {formatDecimal(selectedStats.breakEvenPrice)}</div>
+                                </div>
+                            </div>
+                            <div className="text-[10px] text-slate-400 bg-slate-50 px-2 py-1 rounded border border-slate-100 hidden sm:block">
+                                Est. with Sell Fees
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* 2. STATS GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -416,7 +413,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <div className="grid grid-cols-2 gap-4"> <div> <div className="text-3xl font-bold text-slate-800">{selectedStats.ownedQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> </div> <div> <div className="text-3xl font-bold text-slate-400">{selectedStats.soldQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> </div> </div>
                             <div className="h-px bg-slate-100 w-full"></div>
                             
-                            {/* RESTORED MARKET VALUE SECTION */}
+                            {/* MARKET VALUE SECTION */}
                             <div className="grid grid-cols-2 gap-4"> 
                                 <div> 
                                     <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.totalCostBasis)}</div> 
@@ -435,10 +432,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                     {/* Passive Income Card */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div>
-                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
-                        </div>
+                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3> </div>
                         <div className="space-y-6">
                              <div> <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div> </div>
                              <div className="h-px bg-slate-100 w-full"></div>
@@ -467,34 +461,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </Card>
                 </div>
-
-                {/* FEATURE 1: TRADE HISTORY CHART */}
-                {chartData.length > 1 && (
-                    <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                <BarChart3 size={20} className="text-slate-400" />
-                                Price & Trade History
-                            </h3>
-                            <div className="flex gap-2">
-                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded"> <div className="w-2 h-2 rounded-full bg-emerald-500"></div> Buy </div>
-                                <div className="flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-2 py-1 rounded"> <div className="w-2 h-2 rounded-full bg-rose-500"></div> Sell </div>
-                            </div>
-                        </div>
-                        <div className="h-[250px] w-full">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" vertical={false} />
-                                    <XAxis dataKey="date" tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} minTickGap={30} />
-                                    <YAxis domain={['auto', 'auto']} tick={{fontSize: 10, fill: '#94a3b8'}} axisLine={false} tickLine={false} width={40} />
-                                    <Tooltip contentStyle={{backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '12px'}} labelStyle={{color: '#64748b', marginBottom: '4px'}} />
-                                    <Line type="monotone" dataKey="price" stroke="#cbd5e1" strokeWidth={2} dot={false} />
-                                    <Scatter data={chartData} fill="#8884d8" shape={(props: any) => { const { cx, cy, payload } = props; return ( <circle cx={cx} cy={cy} r={4} fill={payload.color} stroke="#fff" strokeWidth={1} /> ); }} />
-                                </LineChart>
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                )}
 
                 {/* DETAILED ACTIVITY TABLE */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
