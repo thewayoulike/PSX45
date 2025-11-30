@@ -9,7 +9,6 @@ import {
   History, 
   XCircle,
   BarChart3,
-  Percent,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -75,7 +74,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let feesPaid = 0;       
           
           let tradeCount = 0;
-          let lifetimeBuyCost = 0; // Total capital ever put into this stock
+          let lifetimeBuyCost = 0; 
           
           // FIFO Queue
           const lots: Lot[] = [];
@@ -170,7 +169,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors]);
 
-  // 2. Generate Detailed Activity Rows (All, then slice for display)
+  // 2. Generate Detailed Activity Rows 
   const activityRows = useMemo(() => {
       if (!selectedTicker) return [];
 
@@ -321,8 +320,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   return (
     <div className="max-w-7xl mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
-      {/* SEARCH HEADER */}
-      {/* ... (Existing Header Code) ... */}
+      {/* --- SEARCH HEADER --- */}
       <div className="relative z-30 bg-white/80 backdrop-blur-xl border border-white/60 rounded-3xl p-8 shadow-xl shadow-slate-200/50 mb-8 flex flex-col items-center justify-center text-center">
           <div className="mb-6">
               <h2 className="text-2xl font-black text-slate-800 tracking-tight mb-2">Stock Analyzer</h2>
@@ -393,9 +391,151 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
         {selectedStats ? (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
                 
-                {/* ... (Existing Cards Code) ... */}
-                
-                {/* DETAILED ACTIVITY TABLE */}
+                {/* 1. HEADER CARD */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}>
+                            {selectedStats.ticker.substring(0, 1)}
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStats.ticker}</h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStats.sector}</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                                    {selectedStats.status}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-6 bg-slate-50 p-4 rounded-2xl border border-slate-100 w-full md:w-auto justify-between md:justify-end">
+                        <div className="text-right">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Current Price</div>
+                            <div className="text-xl font-bold text-slate-800">Rs. {formatDecimal(selectedStats.currentPrice)}</div>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200"></div>
+                        <div className="text-right">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Lifetime Net</div>
+                            <div className={`text-2xl font-black ${selectedStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {selectedStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStats.totalNetReturn)}
+                            </div>
+                        </div>
+                        <div className="h-8 w-px bg-slate-200"></div>
+                        {/* ROI SECTION */}
+                        <div className="text-right">
+                            <div className="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center justify-end gap-1">
+                                Lifetime ROI
+                            </div>
+                            <div className={`text-2xl font-black flex items-center justify-end gap-1 ${selectedStats.lifetimeROI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {selectedStats.lifetimeROI >= 0 ? '+' : ''}{formatDecimal(selectedStats.lifetimeROI)}%
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. STATS GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Position Card */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3>
+                        </div>
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div className="text-3xl font-bold text-slate-800">{selectedStats.ownedQty.toLocaleString()}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div>
+                                </div>
+                                <div>
+                                    <div className="text-3xl font-bold text-slate-400">{selectedStats.soldQty.toLocaleString()}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div>
+                                </div>
+                            </div>
+                            <div className="h-px bg-slate-100 w-full"></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatDecimal(selectedStats.currentAvgPrice)}</div>
+                                    <div className="text-[10px] text-slate-400">Current Avg Cost</div>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStats.currentValue)}</div>
+                                    <div className="text-[10px] text-slate-400">Market Value</div>
+                                </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div>
+                                    <div className={`text-sm font-bold ${selectedStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {selectedStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.realizedPL)}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div>
+                                </div>
+                                <div>
+                                    <div className={`text-sm font-bold ${selectedStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {selectedStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStats.unrealizedPL)}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Passive Income Card */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
+                        </div>
+                        <div className="space-y-6">
+                             <div>
+                                 <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedStats.netDividends)}</div>
+                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div>
+                             </div>
+                             <div className="h-px bg-slate-100 w-full"></div>
+                             <div className="flex justify-between items-center">
+                                 <div>
+                                     <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedStats.totalDividends)}</div>
+                                     <div className="text-[10px] text-slate-400">Gross Dividends</div>
+                                 </div>
+                                 <div className="text-right">
+                                     <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedStats.dividendTax)}</div>
+                                     <div className="text-[10px] text-slate-400">Tax Paid</div>
+                                 </div>
+                             </div>
+                             <div className="flex gap-1 h-12 items-end mt-2 opacity-80">
+                                 {[30, 45, 25, 60, 40, 70, 50].map((h, i) => (
+                                     <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div>
+                                 ))}
+                             </div>
+                        </div>
+                    </Card>
+
+                     {/* Costs Card */}
+                     <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3>
+                        </div>
+                        <div className="space-y-6">
+                             <div>
+                                 <div className="text-3xl font-bold text-rose-500">-{formatCurrency(selectedStats.feesPaid)}</div>
+                                 <div className="text-[10px] text-slate-400 font-bold uppercase">Total Commission & Taxes</div>
+                             </div>
+                             <div className="h-px bg-slate-100 w-full"></div>
+                             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                                 <div className="flex justify-between items-center mb-2">
+                                     <span className="text-xs text-slate-500 font-bold uppercase">Total Trades</span>
+                                     <span className="text-lg font-black text-slate-800">{selectedStats.tradeCount}</span>
+                                 </div>
+                                 <div className="w-full bg-slate-200 rounded-full h-2">
+                                     <div className="bg-orange-400 h-2 rounded-full" style={{ width: '100%' }}></div>
+                                 </div>
+                             </div>
+                        </div>
+                    </Card>
+                </div>
+
+                {/* 3. DETAILED ACTIVITY TABLE */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                     <div className="p-6 border-b border-slate-100 flex items-center gap-2 bg-slate-50/50">
                         <History size={20} className="text-slate-500" />
@@ -432,7 +572,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                                     return (
                                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
-                                            {/* ... (Existing Row Cells) ... */}
                                             <td className="px-6 py-4 text-slate-500 font-mono text-xs">{t.date}</td>
                                             <td className="px-4 py-4">
                                                 <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
