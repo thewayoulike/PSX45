@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PSX Portfolio Tracker</title>
+
+    <link rel="apple-touch-icon" href="/pwa-192x192.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     
@@ -14,18 +16,28 @@
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        /* Your nice gradient background */
         background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #ffffff 100%);
         background-attachment: fixed;
         color: #0f172a;
       }
-      /* Custom Scrollbar */
-      ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-track { background: rgba(241, 245, 249, 0.8); }
-      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid rgba(241, 245, 249, 0.8); }
-      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+      /* Custom Scrollbar - Light Crystal Theme */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(241, 245, 249, 0.8);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+        border: 2px solid rgba(241, 245, 249, 0.8);
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
       
-      /* Glass Input Styles */
+      /* Utility for glass inputs */
       .glass-input {
         background-color: rgba(255, 255, 255, 0.7);
         border: 1px solid rgba(203, 213, 225, 0.6);
