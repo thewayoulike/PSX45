@@ -280,9 +280,9 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                </form>
             </div>
 
-            {/* TABLE SECTION */}
-            <div className="lg:col-span-2">
-              <table className="w-full text-left border-collapse">
+            {/* TABLE SECTION (FIXED FOR SCROLLING) */}
+            <div className="lg:col-span-2 overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[500px]">
                 <thead>
                   <tr className="text-slate-500 text-[10px] uppercase tracking-wider border-b border-slate-200 bg-slate-50/30">
                     <th className="px-4 py-3 font-semibold">Broker Name</th>
