@@ -47,8 +47,8 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks: {
-          vendor: ['react', 'react-dom', 'recharts', 'lucide-react'],
-          genai: ['@google/genai']
+          // Removed 'genai' chunk to fix resolution error
+          vendor: ['react', 'react-dom', 'recharts', 'lucide-react']
         }
       }
     }
