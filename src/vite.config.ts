@@ -30,7 +30,7 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any'  
+            purpose: 'any'
           },
           {
             src: 'maskable-icon-512x512.png',
@@ -42,12 +42,20 @@ export default defineConfig({
       }
     })
   ],
+
+  optimizeDeps: {
+    // Prevent Vite from pre-bundling @google/genai
+    exclude: ['@google/genai']
+  },
+
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
+      // ❗ This stops Vercel from crashing on @google/genai
+      external: ['@google/genai'],
+
       output: {
         manualChunks: {
-          // Removed 'genai' chunk to fix resolution error
           vendor: ['react', 'react-dom', 'recharts', 'lucide-react']
         }
       }
