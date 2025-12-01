@@ -8,6 +8,7 @@ interface HoldingsTableProps {
   showBroker?: boolean;
   failedTickers?: Set<string>;
   ldcpMap?: Record<string, number>;
+  onTickerClick?: (ticker: string) => void;
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
@@ -20,7 +21,7 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {} }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, onTickerClick }) => {
   const [searchTerm, setSearchTerm] = useState('');
   
   // DEFAULT SORTING: Ticker Ascending
@@ -185,33 +186,38 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   return (
     <div className="bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 h-full">
-        <div className="p-6 border-b border-slate-200/60 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 bg-white/40">
+        {/* RESPONSIVE HEADER */}
+        <div className="p-6 border-b border-slate-200/60 flex flex-col gap-4 bg-white/40">
           
-          <div className="flex flex-wrap items-center gap-3">
-             <h2 className="text-lg font-bold text-slate-800 tracking-tight">Current Holdings</h2>
-             <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
-                {filteredAndSortedHoldings.length} Assets
+          {/* Top Row: Title + Stats */}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+             <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-lg font-bold text-slate-800 tracking-tight">Current Holdings</h2>
+                <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
+                    {filteredAndSortedHoldings.length} Assets
+                </div>
+                {globalLastUpdate && (
+                    <div className="flex items-center gap-1.5 text-[10px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 shadow-sm">
+                        <Clock size={12} className="text-blue-600" />
+                        <span>Updated: {globalLastUpdate}</span>
+                    </div>
+                )}
              </div>
-             {globalLastUpdate && (
-                 <div className="flex items-center gap-1.5 text-[10px] text-blue-700 font-bold bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200 ml-1 shadow-sm">
-                     <Clock size={12} className="text-blue-600" />
-                     <span>Last Price Update: {globalLastUpdate}</span>
-                 </div>
-             )}
           </div>
           
-          <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-48">
+          {/* Bottom Row: Search + Actions */}
+          <div className="flex flex-col sm:flex-row gap-2 w-full">
+              <div className="relative flex-1">
                   <Search size={14} className="absolute left-3 top-3 text-slate-400" />
                   <input 
                       type="text" 
-                      placeholder="Filter..." 
+                      placeholder="Filter Ticker, Sector or Broker..." 
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="w-full bg-white border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none transition-all"
                   />
               </div>
-              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm">
+              <div className="flex bg-white rounded-xl border border-slate-200 p-1 shadow-sm shrink-0 w-fit">
                   <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors" title="Download Excel">
                       <FileSpreadsheet size={18} />
                   </button>
@@ -223,6 +229,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           </div>
         </div>
         
+        {/* TABLE */}
         <div className="overflow-x-auto flex-1">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -262,7 +269,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const isDailyProfit = dailyChange >= 0;
 
                   return (
-                    <tr key={`${holding.ticker}-${holding.broker || idx}`} className="hover:bg-emerald-50/30 transition-colors group">
+                    <tr 
+                        key={`${holding.ticker}-${holding.broker || idx}`} 
+                        className="hover:bg-emerald-50/30 transition-colors group cursor-pointer"
+                        onClick={() => onTickerClick && onTickerClick(holding.ticker)}
+                    >
                       <td className="px-4 py-4">
                         <div className="flex items-center gap-3">
                             <div className="w-1 h-6 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
