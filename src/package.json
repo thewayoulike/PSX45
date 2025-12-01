@@ -9,18 +9,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@google/genai": "^1.30.0",
-    "lucide-react": "^0.554.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "recharts": "^3.4.1",
+    "lucide-react": "^0.454.0",
+    "@radix-ui/react-popover": "^1.1.6",
+    "@radix-ui/react-toast": "^1.1.3",
+    "@tanstack/react-query": "^5.62.4",
+    "recharts": "^2.12.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
+    "@types/react": "^18.2.48",
+    "@types/react-dom": "^18.2.18",
     "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0",
-    "vite-plugin-pwa": "^0.21.1"
+    "typescript": "^5.6.2",
+    "vite": "^5.2.0",
+    "vite-plugin-pwa": "^0.19.8"
   }
 }
