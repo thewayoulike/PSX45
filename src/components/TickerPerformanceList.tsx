@@ -171,15 +171,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let remainingQty = 0;
 
           if (t.type === 'BUY') {
-              // Standard avg buy calculation for display
               avgBuyPrice = ((t.quantity * t.price) + fees) / t.quantity; 
               sellOrCurrentPrice = currentPrice; 
               remainingQty = buyRemainingMap[t.id] ?? 0;
               if (remainingQty < 0.001) remainingQty = 0;
               
               if (remainingQty > 0) { 
-                  // Unrealized Gain is based on FIFO cost of this specific lot vs current price
-                  // Note: The 'avgBuyPrice' here matches the lot's cost per share
                   gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty; 
                   gainType = 'UNREALIZED'; 
               }
@@ -446,6 +443,25 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   
   const totalActivityPages = Math.ceil(currentRows.length / activityRowsPerPage);
 
+  // Calculate Activity Totals (Grand Total of the visible set)
+  const activityTotals = useMemo(() => {
+      return currentRows.reduce((acc, row) => {
+          let net = 0;
+          const gross = row.quantity * row.price;
+          const fees = (row.commission || 0) + (row.tax || 0) + (row.cdcCharges || 0) + (row.otherFees || 0);
+          
+          if (row.type === 'BUY') net = -(gross + fees);
+          else if (row.type === 'SELL') net = gross - fees;
+          else if (row.type === 'DIVIDEND') net = gross - (row.tax || 0);
+
+          return {
+              netAmount: acc.netAmount + net,
+              realized: acc.realized + (row.gainType === 'REALIZED' ? row.gain : 0),
+              unrealized: acc.unrealized + (row.gainType === 'UNREALIZED' ? row.gain : 0)
+          };
+      }, { netAmount: 0, realized: 0, unrealized: 0 });
+  }, [currentRows]);
+
   const handleExportActivity = () => {
       if (analysisMode === 'STOCK' && selectedTicker) {
            const dataToExport = activityRows.map(row => ({ Date: row.date, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy / Cost': row.avgBuyPrice, 'Sell / Current': row.sellOrCurrentPrice, 'Gain/Loss': row.gain, 'Gain Type': row.gainType }));
@@ -561,7 +577,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* ACTIVITY TABLE (Stock Mode) */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-2"> <History size={20} className="text-slate-500" /> <h3 className="font-bold text-slate-800">All Time Activity</h3> </div>
                         <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"> <Download size={14} /> Export CSV </button>
                     </div>
@@ -597,6 +613,20 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     );
                                 })}
                             </tbody>
+                            <tfoot className="bg-slate-50 text-xs font-bold text-slate-700 border-t border-slate-200">
+                                <tr>
+                                    <td colSpan={9} className="px-6 py-3 text-right uppercase tracking-wider text-slate-500">Grand Total (Visible)</td>
+                                    <td className={`px-6 py-3 text-right font-mono ${activityTotals.netAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {activityTotals.netAmount >= 0 ? '+' : ''}{formatCurrency(activityTotals.netAmount)}
+                                    </td>
+                                    <td className={`px-6 py-3 text-right font-mono ${activityTotals.realized >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {activityTotals.realized >= 0 ? '+' : ''}{formatCurrency(activityTotals.realized)}
+                                    </td>
+                                    <td className={`px-6 py-3 text-right font-mono ${activityTotals.unrealized >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {activityTotals.unrealized >= 0 ? '+' : ''}{formatCurrency(activityTotals.unrealized)}
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                     {/* PAGINATION FOOTER */}
@@ -717,9 +747,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </Card>
                     
-                    {/* Card 2: Passive Income */}
+                    {/* Card 2: Sector Dividend Income */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3> </div>
+                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sector Dividend Income</h3> </div>
                         <div className="space-y-6">
                              <div> <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedSectorStats.netDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div> </div>
                              <div className="h-px bg-slate-100 w-full"></div>
@@ -857,6 +887,20 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                         );
                                     })}
                             </tbody>
+                            <tfoot className="bg-slate-50 text-xs font-bold text-slate-700 border-t border-slate-200">
+                                <tr>
+                                    <td colSpan={10} className="px-6 py-3 text-right uppercase tracking-wider text-slate-500">Grand Total (Visible)</td>
+                                    <td className={`px-6 py-3 text-right font-mono ${activityTotals.netAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {activityTotals.netAmount >= 0 ? '+' : ''}{formatCurrency(activityTotals.netAmount)}
+                                    </td>
+                                    <td className={`px-6 py-3 text-right font-mono ${activityTotals.realized >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {activityTotals.realized >= 0 ? '+' : ''}{formatCurrency(activityTotals.realized)}
+                                    </td>
+                                    <td className={`px-6 py-3 text-right font-mono ${activityTotals.unrealized >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                        {activityTotals.unrealized >= 0 ? '+' : ''}{formatCurrency(activityTotals.unrealized)}
+                                    </td>
+                                </tr>
+                            </tfoot>
                         </table>
                     </div>
                     {/* Pagination */}
