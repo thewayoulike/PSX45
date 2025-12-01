@@ -241,21 +241,22 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 mb-20">
       
-      {/* HEADER SECTION */}
+      {/* HEADER SECTION (UPDATED FOR RESPONSIVE SCROLLING) */}
       <div className="p-6 border-b border-slate-200/60 bg-white/40 space-y-4">
-        {/* ... (Existing Header Code) ... */}
-        <div className="flex justify-between items-center">
+        
+        <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
           <div className="flex items-center gap-2">
               <History size={20} className="text-emerald-600" />
               <h2 className="text-lg font-bold text-slate-800 tracking-tight">Transaction History</h2>
           </div>
-          <div className="flex items-center gap-3">
+          
+          <div className="flex items-center gap-3 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-auto no-scrollbar">
               {googleSheetId && (
                   <a 
                       href={`https://docs.google.com/spreadsheets/d/${googleSheetId}`} 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition-colors text-xs font-bold"
+                      className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-3 py-1.5 rounded-lg border border-emerald-200 hover:bg-emerald-100 transition-colors text-xs font-bold shrink-0"
                       title="Open Google Sheet"
                   >
                       <ExternalLink size={14} />
@@ -264,13 +265,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
               )}
 
               {selectedIds.size > 0 && (
-                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5">
-                      <button onClick={handleExportSelected} className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-bold">
+                  <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5 shrink-0">
+                      <button onClick={handleExportSelected} className="flex items-center gap-1.5 bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors text-xs font-bold shrink-0">
                           <Download size={14} /> Export ({selectedIds.size})
                       </button>
                       
                       {onDeleteMultiple && (
-                          <button onClick={executeBulkDelete} className="flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors text-xs font-bold">
+                          <button onClick={executeBulkDelete} className="flex items-center gap-1.5 bg-rose-50 text-rose-600 px-3 py-1.5 rounded-lg border border-rose-200 hover:bg-rose-100 transition-colors text-xs font-bold shrink-0">
                               <Trash2 size={14} /> Delete ({selectedIds.size})
                           </button>
                       )}
@@ -278,12 +279,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                   </div>
               )}
 
-              <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
-                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors"> <FileSpreadsheet size={16} /> </button>
+              <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm shrink-0">
+                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel"> <FileSpreadsheet size={16} /> </button>
                   <div className="w-[1px] bg-slate-100 my-1 mx-0.5"></div>
-                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"> <FileText size={16} /> </button>
+                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export CSV"> <FileText size={16} /> </button>
               </div>
-              <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">
+              <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 shrink-0">
                 Total: {transactions.length}
               </div>
           </div>
