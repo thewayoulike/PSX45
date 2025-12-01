@@ -113,6 +113,88 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
+  // --- HELPER: FIFO Calculation Logic ---
+  const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
+      const currentPrice = currentPrices[ticker] || 0;
+      // Sort chronologically for calculation
+      const sortedTxs = [...txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      const tempLots: { id: string, quantity: number, costPerShare: number }[] = [];
+      const buyRemainingMap: Record<string, number> = {};
+      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number }> = {};
+
+      sortedTxs.forEach(t => {
+          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+          const totalVal = t.quantity * t.price;
+          
+          if (t.type === 'BUY') {
+              const effRate = (totalVal + fees) / t.quantity;
+              tempLots.push({ id: t.id, quantity: t.quantity, costPerShare: effRate });
+              buyRemainingMap[t.id] = t.quantity;
+          } else if (t.type === 'SELL') {
+              const netProceeds = totalVal - fees;
+              let qtyToSell = t.quantity;
+              let costBasisForSale = 0;
+              
+              while (qtyToSell > 0 && tempLots.length > 0) {
+                  const currentLot = tempLots[0];
+                  const takeAmount = Math.min(qtyToSell, currentLot.quantity);
+                  costBasisForSale += takeAmount * currentLot.costPerShare;
+                  currentLot.quantity -= takeAmount;
+                  qtyToSell -= takeAmount;
+                  
+                  if (buyRemainingMap[currentLot.id] !== undefined) {
+                      buyRemainingMap[currentLot.id] -= takeAmount;
+                  }
+                  if (currentLot.quantity < 0.0001) tempLots.shift();
+              }
+              
+              const avgBuy = (t.quantity > 0) ? costBasisForSale / t.quantity : 0;
+              const gain = netProceeds - costBasisForSale;
+              sellAnalysisMap[t.id] = { avgBuy, gain };
+          }
+      });
+
+      // Map back to ActivityRow
+      return sortedTxs.map(t => {
+          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+          const totalVal = t.quantity * t.price;
+          
+          let avgBuyPrice = 0; 
+          let sellOrCurrentPrice = 0; 
+          let gain = 0; 
+          let gainType: 'REALIZED' | 'UNREALIZED' | 'NONE' = 'NONE'; 
+          let remainingQty = 0;
+
+          if (t.type === 'BUY') {
+              avgBuyPrice = (totalVal + fees) / t.quantity; 
+              sellOrCurrentPrice = currentPrice; 
+              remainingQty = buyRemainingMap[t.id] ?? 0;
+              if (remainingQty < 0.001) remainingQty = 0;
+              
+              if (remainingQty > 0) { 
+                  gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty; 
+                  gainType = 'UNREALIZED'; 
+              }
+          } else if (t.type === 'SELL') {
+              const analysis = sellAnalysisMap[t.id]; 
+              if (analysis) { 
+                  avgBuyPrice = analysis.avgBuy; 
+                  sellOrCurrentPrice = (totalVal - fees) / t.quantity; 
+                  gain = analysis.gain; 
+                  gainType = 'REALIZED'; 
+              }
+          } else if (t.type === 'DIVIDEND') { 
+              avgBuyPrice = 0; 
+              sellOrCurrentPrice = t.price; 
+              gain = (t.quantity * t.price) - (t.tax || 0); 
+              gainType = 'REALIZED'; 
+          }
+          
+          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
+      }).reverse(); // Return descending (newest first)
+  };
+
   // 1. Calculate Ticker Stats (FIFO Logic)
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
@@ -126,76 +208,54 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       ));
       
       return uniqueTickers.map(ticker => {
-          const txs = transactions
-              .filter(t => t.ticker === ticker)
-              .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+          const txs = transactions.filter(t => t.ticker === ticker);
+          // Reuse FIFO Logic logic to get accurate Realized/Unrealized PL for the summary card
+          // Note: Ideally we refactor this further, but to keep changes minimal we use the same loops
+          const enrichedRows = calculateEnrichedRows(ticker, txs);
           
-          let ownedQty = 0; let soldQty = 0; let realizedPL = 0;     
+          let ownedQty = 0; let soldQty = 0; let realizedPL = 0; let unrealizedPL = 0;
           let totalDividends = 0; let dividendTax = 0; let dividendCount = 0; let dividendSharesCount = 0;
           let totalComm = 0; let totalTradingTax = 0; let totalCDC = 0; let totalOther = 0;
-          let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0; 
-          
-          const lots: Lot[] = [];
+          let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0;
+          let totalCostBasis = 0; 
 
-          txs.forEach(t => {
-              if (t.type === 'BUY' || t.type === 'SELL') {
-                  totalComm += (t.commission || 0); totalTradingTax += (t.tax || 0); 
-                  totalCDC += (t.cdcCharges || 0); totalOther += (t.otherFees || 0);
-              }
-              const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-              
-              if (t.type === 'BUY') {
-                  const grossBuy = t.quantity * t.price;
-                  const buyCost = grossBuy + fees; 
-                  const costPerShare = buyCost / t.quantity;
-                  lots.push({ quantity: t.quantity, costPerShare });
-                  ownedQty += t.quantity;
-                  lifetimeBuyCost += buyCost; 
-                  tradeCount++; buyCount++; 
-              } 
-              else if (t.type === 'SELL') {
-                  const grossSell = t.quantity * t.price;
-                  const netSell = grossSell - fees;
-                  let qtyToSell = t.quantity;
-                  let costBasisForSale = 0;
-                  while (qtyToSell > 0 && lots.length > 0) {
-                      const currentLot = lots[0]; 
-                      if (currentLot.quantity > qtyToSell) {
-                          costBasisForSale += qtyToSell * currentLot.costPerShare;
-                          currentLot.quantity -= qtyToSell;
-                          qtyToSell = 0;
-                      } else {
-                          costBasisForSale += currentLot.quantity * currentLot.costPerShare;
-                          qtyToSell -= currentLot.quantity;
-                          lots.shift(); 
-                      }
+          enrichedRows.forEach(row => {
+              if (row.type === 'BUY') {
+                  ownedQty += row.quantity; // Note: calculateEnrichedRows returns original qty, not remaining
+                  lifetimeBuyCost += (row.quantity * row.avgBuyPrice); // Approximate for lifetime ROI calc
+                  if (row.gainType === 'UNREALIZED') unrealizedPL += row.gain;
+                  
+                  // Calculate remaining cost basis
+                  if ((row.remainingQty || 0) > 0) {
+                      totalCostBasis += (row.remainingQty || 0) * row.avgBuyPrice;
                   }
-                  const tradeProfit = netSell - costBasisForSale;
-                  realizedPL += tradeProfit;
-                  ownedQty -= t.quantity;
-                  soldQty += t.quantity;
+                  
+                  tradeCount++; buyCount++;
+                  totalComm += row.commission || 0; totalTradingTax += row.tax || 0; totalCDC += row.cdcCharges || 0; totalOther += row.otherFees || 0;
+              } else if (row.type === 'SELL') {
+                  // soldQty logic is slightly complex with FIFO, simplistic count here:
+                  soldQty += row.quantity;
+                  if (row.gainType === 'REALIZED') realizedPL += row.gain;
+                  
                   tradeCount++; sellCount++;
-              } 
-              else if (t.type === 'DIVIDEND') {
-                  const grossDiv = t.quantity * t.price;
-                  totalDividends += grossDiv;
-                  dividendTax += (t.tax || 0);
+                  totalComm += row.commission || 0; totalTradingTax += row.tax || 0; totalCDC += row.cdcCharges || 0; totalOther += row.otherFees || 0;
+              } else if (row.type === 'DIVIDEND') {
+                  totalDividends += (row.quantity * row.price);
+                  dividendTax += (row.tax || 0);
                   dividendCount++;
-                  dividendSharesCount += t.quantity;
+                  dividendSharesCount += row.quantity;
               }
           });
 
-          if (ownedQty < 0.001) ownedQty = 0;
-
-          let remainingTotalCost = 0; let remainingTotalQty = 0;
-          lots.forEach(lot => { remainingTotalCost += lot.quantity * lot.costPerShare; remainingTotalQty += lot.quantity; });
-          const currentAvgPrice = remainingTotalQty > 0 ? remainingTotalCost / remainingTotalQty : 0;
+          // Correction for ownedQty: it should be current holding
+          // Re-calculate ownedQty based on remainingQty from BUY rows
+          ownedQty = enrichedRows.filter(r => r.type === 'BUY').reduce((acc, r) => acc + (r.remainingQty || 0), 0);
 
           const currentPrice = currentPrices[ticker] || 0;
           const currentValue = ownedQty * currentPrice;
-          const unrealizedPL = currentValue - remainingTotalCost;
-          const totalNetReturn = realizedPL + unrealizedPL + (totalDividends - dividendTax);
+          const currentAvgPrice = ownedQty > 0 ? totalCostBasis / ownedQty : 0;
           
+          const totalNetReturn = realizedPL + unrealizedPL + (totalDividends - dividendTax);
           const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
           const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
           const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
@@ -209,7 +269,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               sector: sectors[ticker] || 'Unknown',
               status: ownedQty > 0.01 ? 'Active' : 'Closed',
               ownedQty, soldQty, currentPrice, currentAvgPrice, currentValue,
-              totalCostBasis: remainingTotalCost, 
+              totalCostBasis, 
               realizedPL, unrealizedPL, totalNetReturn,
               totalDividends, dividendTax, netDividends: totalDividends - dividendTax,
               dividendCount, dividendSharesCount, dividendYieldOnCost, avgDPS,
@@ -333,13 +393,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       setIsDropdownOpen(false);
   };
 
-  const handleSwitchToStock = (ticker: string) => {
-      setAnalysisMode('STOCK');
-      setSelectedTicker(ticker);
-      setSearchTerm(ticker);
-      localStorage.setItem('psx_last_analyzed_ticker', ticker);
-  };
-
   const handleClearSelection = (e: React.MouseEvent) => {
       e.stopPropagation();
       setSearchTerm('');
@@ -351,66 +404,26 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }
   };
 
-  // Stock Activity Rows
+  // Stock Activity Rows (Reused Helper)
   const activityRows = useMemo(() => {
       if (!selectedTicker || analysisMode !== 'STOCK') return [];
-      const currentPrice = currentPrices[selectedTicker] || 0;
-      const sortedTxs = transactions.filter(t => t.ticker === selectedTicker).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      const tempLots: { id: string, quantity: number, costPerShare: number }[] = [];
-      const buyRemainingMap: Record<string, number> = {};
-      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number }> = {};
-
-      sortedTxs.forEach(t => {
-          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-          const totalVal = t.quantity * t.price;
-          if (t.type === 'BUY') {
-              const effRate = (totalVal + fees) / t.quantity;
-              tempLots.push({ id: t.id, quantity: t.quantity, costPerShare: effRate });
-              buyRemainingMap[t.id] = t.quantity;
-          } else if (t.type === 'SELL') {
-              const netProceeds = totalVal - fees;
-              let qtyToSell = t.quantity;
-              let costBasisForSale = 0;
-              while (qtyToSell > 0 && tempLots.length > 0) {
-                  const currentLot = tempLots[0];
-                  const takeAmount = Math.min(qtyToSell, currentLot.quantity);
-                  costBasisForSale += takeAmount * currentLot.costPerShare;
-                  currentLot.quantity -= takeAmount;
-                  qtyToSell -= takeAmount;
-                  if (buyRemainingMap[currentLot.id] !== undefined) buyRemainingMap[currentLot.id] -= takeAmount;
-                  if (currentLot.quantity < 0.0001) tempLots.shift();
-              }
-              const avgBuy = (t.quantity > 0) ? costBasisForSale / t.quantity : 0;
-              const gain = netProceeds - costBasisForSale;
-              sellAnalysisMap[t.id] = { avgBuy, gain };
-          }
-      });
-
-      const rows: ActivityRow[] = sortedTxs.map(t => {
-          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-          const totalVal = t.quantity * t.price;
-          let avgBuyPrice = 0; let sellOrCurrentPrice = 0; let gain = 0; let gainType: 'REALIZED' | 'UNREALIZED' | 'NONE' = 'NONE'; let remainingQty = 0;
-          if (t.type === 'BUY') {
-              avgBuyPrice = (totalVal + fees) / t.quantity; sellOrCurrentPrice = currentPrice; remainingQty = buyRemainingMap[t.id] ?? 0;
-              if (remainingQty < 0.001) remainingQty = 0;
-              if (remainingQty > 0) { gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty; gainType = 'UNREALIZED'; }
-          } else if (t.type === 'SELL') {
-              const analysis = sellAnalysisMap[t.id]; if (analysis) { avgBuyPrice = analysis.avgBuy; sellOrCurrentPrice = (totalVal - fees) / t.quantity; gain = analysis.gain; gainType = 'REALIZED'; }
-          } else if (t.type === 'DIVIDEND') { avgBuyPrice = 0; sellOrCurrentPrice = t.price; gain = (t.quantity * t.price) - (t.tax || 0); gainType = 'REALIZED'; }
-          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
-      });
-      return rows.reverse();
+      const txs = transactions.filter(t => t.ticker === selectedTicker);
+      return calculateEnrichedRows(selectedTicker, txs);
   }, [selectedTicker, transactions, currentPrices, analysisMode]);
 
-  // Sector Activity Rows
+  // Sector Activity Rows (Iterate all tickers in sector and enrich)
   const sectorActivityRows = useMemo(() => {
       if (!selectedSector || analysisMode !== 'SECTOR' || !selectedSectorStats) return [];
-      const sectorTickers = new Set(selectedSectorStats.tickers);
-      const sectorTxs = transactions
-          .filter(t => sectorTickers.has(t.ticker))
-          .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      return sectorTxs;
-  }, [selectedSector, transactions, analysisMode, selectedSectorStats]);
+      
+      const allRows: ActivityRow[] = [];
+      selectedSectorStats.tickers.forEach(ticker => {
+          const txs = transactions.filter(t => t.ticker === ticker);
+          const enriched = calculateEnrichedRows(ticker, txs);
+          allRows.push(...enriched);
+      });
+
+      return allRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [selectedSector, transactions, analysisMode, selectedSectorStats, currentPrices]);
 
   // Pagination Logic (Unified)
   const currentRows = analysisMode === 'STOCK' ? activityRows : sectorActivityRows;
@@ -426,7 +439,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
            const dataToExport = activityRows.map(row => ({ Date: row.date, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy / Cost': row.avgBuyPrice, 'Sell / Current': row.sellOrCurrentPrice, 'Gain/Loss': row.gain, 'Gain Type': row.gainType }));
            exportToCSV(dataToExport, `${selectedTicker}_Activity_Log`);
       } else if (analysisMode === 'SECTOR' && selectedSector) {
-           const dataToExport = sectorActivityRows.map(row => ({ Date: row.date, Ticker: row.ticker, Type: row.type, Qty: row.quantity, Price: row.price, 'Net Amount': row.price * row.quantity })); 
+           const dataToExport = sectorActivityRows.map(row => ({ Date: row.date, Ticker: row.ticker, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy': row.avgBuyPrice, 'Sell/Current': row.sellOrCurrentPrice, 'Gain': row.gain })); 
            exportToCSV(dataToExport, `${selectedSector}_Sector_Activity`);
       }
   };
@@ -536,7 +549,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* ACTIVITY TABLE (Stock Mode) */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                         <div className="flex items-center gap-2"> <History size={20} className="text-slate-500" /> <h3 className="font-bold text-slate-800">All Time Activity</h3> </div>
                         <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"> <Download size={14} /> Export CSV </button>
                     </div>
@@ -749,23 +762,25 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200">
                                 <tr>
-                                    <th className="px-6 py-4">Date</th>
-                                    <th className="px-4 py-4">Ticker</th>
-                                    <th className="px-4 py-4">Type</th>
+                                    <th className="px-6 py-4">Date</th> 
+                                    <th className="px-4 py-4">Ticker</th> 
+                                    <th className="px-4 py-4">Type</th> 
                                     <th className="px-4 py-4 text-right">Qty</th>
-                                    <th className="px-4 py-4 text-right">Price</th>
-                                    <th className="px-6 py-4 text-right">Total Amount</th>
+                                    <th className="px-4 py-4 text-right text-slate-700" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th>
+                                    <th className="px-4 py-4 text-right text-slate-700" title="Effective Sell Rate or Current Market Price">Sell / Current</th>
+                                    <th className="px-4 py-4 text-right text-slate-400">Comm</th> 
+                                    <th className="px-4 py-4 text-right text-slate-400">Tax</th> 
+                                    <th className="px-4 py-4 text-right text-slate-400">CDC</th> 
+                                    <th className="px-4 py-4 text-right text-slate-400">Other</th> 
+                                    <th className="px-6 py-4 text-right">Net Amount</th>
+                                    <th className="px-6 py-4 text-right text-emerald-600 bg-emerald-50/30">Realized Gain</th> 
+                                    <th className="px-6 py-4 text-right text-blue-600 bg-blue-50/30">Unrealized Gain</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedActivity
                                     .map((t, i) => {
-                                        const gross = t.quantity * t.price;
-                                        const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-                                        let net = 0;
-                                        if (t.type === 'BUY') net = -(gross + fees);
-                                        else if (t.type === 'SELL') net = gross - fees;
-                                        else if (t.type === 'DIVIDEND') net = gross - (t.tax || 0);
+                                        const net = t.type === 'BUY' ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : t.type === 'SELL' ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : (t.quantity * t.price) - (t.tax||0); 
                                         
                                         return (
                                             <tr key={`${t.id}-${i}`} className="hover:bg-slate-50/50 transition-colors">
@@ -779,10 +794,21 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                     }`}>{t.type}</span>
                                                 </td>
                                                 <td className="px-4 py-4 text-right text-slate-700">{t.quantity.toLocaleString()}</td>
-                                                <td className="px-4 py-4 text-right font-mono text-xs text-slate-600">{t.price.toLocaleString()}</td>
+                                                
+                                                <td className="px-4 py-4 text-right font-mono text-xs text-slate-600">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
+                                                <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600' : t.type === 'BUY' ? 'text-rose-500' : 'text-indigo-600'}`}>{formatDecimal(t.sellOrCurrentPrice)}</td>
+                                                
+                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.cdcCharges || 0).toLocaleString()}</td>
+                                                <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.otherFees || 0).toLocaleString()}</td>
+                                                
                                                 <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                                                     {formatCurrency(net)}
                                                 </td>
+                                                
+                                                <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-emerald-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{t.gainType === 'REALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} </> ) : '-'}</td>
+                                                <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 ${t.gain >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{t.gainType === 'UNREALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} {t.remainingQty && t.remainingQty < t.quantity && ( <span className="block text-[8px] opacity-60 font-sans font-normal text-slate-500 mt-0.5"> (On {t.remainingQty.toLocaleString()}) </span> )} </> ) : '-'}</td>
                                             </tr>
                                         );
                                     })}
