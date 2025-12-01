@@ -154,27 +154,26 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
 
   return (
     <div className="mt-10 bg-white/60 backdrop-blur-xl border border-white/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50">
-      <div className="p-6 border-b border-slate-200/60 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white/40">
-        <div className="flex items-center gap-2 min-w-fit">
-            <h2 className="text-lg font-bold text-slate-800 tracking-tight">Realized History</h2>
-            <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 whitespace-nowrap font-medium">Sold Positions</span>
-            <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200 ml-2">
-               {filteredAndSortedTrades.length} / {trades.length}
+      
+      {/* RESPONSIVE HEADER */}
+      <div className="p-6 border-b border-slate-200/60 flex flex-col lg:flex-row justify-between gap-4 bg-white/40">
+        
+        {/* Title and Count */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <h2 className="text-lg font-bold text-slate-800 tracking-tight whitespace-nowrap">Realized History</h2>
+            <div className="flex items-center gap-2">
+                <span className="text-xs bg-blue-50 text-blue-600 px-2 py-0.5 rounded border border-blue-100 whitespace-nowrap font-medium">Sold Positions</span>
+                <div className="text-xs text-slate-500 bg-white px-2 py-1 rounded border border-slate-200">
+                   {filteredAndSortedTrades.length} / {trades.length}
+                </div>
             </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto md:justify-end">
-             <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm mr-2">
-                  <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel">
-                      <FileSpreadsheet size={16} />
-                  </button>
-                  <div className="w-[1px] bg-slate-100 my-1 mx-0.5"></div>
-                  <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export CSV">
-                      <FileText size={16} />
-                  </button>
-             </div>
-
-             <div className="relative flex-grow md:flex-grow-0 md:w-48">
+        {/* Controls */}
+        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+             
+             {/* Search */}
+             <div className="relative flex-grow sm:w-48">
                 <Search size={14} className="absolute left-3 top-2.5 text-slate-400" />
                 <input 
                     type="text" 
@@ -185,17 +184,31 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                 />
             </div>
 
-            <div className="flex gap-1 items-center">
-                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-28" />
-                 <span className="text-slate-400">-</span>
-                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-white border border-slate-200 rounded-lg px-2 py-2 text-xs text-slate-600 focus:ring-2 focus:ring-emerald-500/20 outline-none w-28" />
+            {/* Date Range */}
+            <div className="flex gap-2 items-center bg-white border border-slate-200 rounded-lg px-2 py-1 shrink-0">
+                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent border-none text-xs text-slate-600 focus:ring-0 outline-none w-24 p-0" />
+                 <span className="text-slate-300">-</span>
+                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent border-none text-xs text-slate-600 focus:ring-0 outline-none w-24 p-0" />
             </div>
 
-             {hasActiveFilters && (
-                <button onClick={clearFilters} className="p-2 rounded-lg bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-colors" title="Clear Filters">
-                    <X size={14} />
-                </button>
-            )}
+            <div className="flex gap-2 shrink-0">
+                 {/* Export Buttons */}
+                 <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
+                      <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Export Excel">
+                          <FileSpreadsheet size={16} />
+                      </button>
+                      <div className="w-[1px] bg-slate-100 my-1 mx-0.5"></div>
+                      <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors" title="Export CSV">
+                          <FileText size={16} />
+                      </button>
+                 </div>
+
+                 {hasActiveFilters && (
+                    <button onClick={clearFilters} className="p-2 rounded-lg bg-rose-50 text-rose-500 border border-rose-200 hover:bg-rose-100 transition-colors" title="Clear Filters">
+                        <X size={14} />
+                    </button>
+                )}
+            </div>
         </div>
       </div>
 
