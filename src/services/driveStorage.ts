@@ -146,8 +146,8 @@ export const signInWithDrive = () => {
         alert("Google Service initializing... please wait 2 seconds and try again.");
         return;
     }
-    // Force prompt to ensure user sees the consent screen for new scopes
-    tokenClient.requestAccessToken({ prompt: 'consent' });
+    // FIX: Using empty string '' allows skipping the consent screen if already approved
+    tokenClient.requestAccessToken({ prompt: '' });
 };
 
 export const signOutDrive = () => {
