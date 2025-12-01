@@ -43,17 +43,12 @@ export default defineConfig({
     })
   ],
 
-  optimizeDeps: {
-    // Prevent Vite from pre-bundling @google/genai
-    exclude: ['@google/genai']
-  },
+  // 1. REMOVED optimizeDeps.exclude
+  // 2. REMOVED build.rollupOptions.external
 
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
-      // ❗ This stops Vercel from crashing on @google/genai
-      external: ['@google/genai'],
-
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'recharts', 'lucide-react']
