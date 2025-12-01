@@ -192,7 +192,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               avgBuyPrice = 0; 
               sellOrCurrentPrice = t.price; 
               gain = (t.quantity * t.price) - (t.tax || 0); 
-              gainType = 'REALIZED'; 
+              // CHANGED: Dividends are Income, not "Realized Gain" from trading
+              gainType = 'NONE'; 
           }
           
           return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
@@ -577,7 +578,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* ACTIVITY TABLE (Stock Mode) */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
                         <div className="flex items-center gap-2"> <History size={20} className="text-slate-500" /> <h3 className="font-bold text-slate-800">All Time Activity</h3> </div>
                         <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"> <Download size={14} /> Export CSV </button>
                     </div>
