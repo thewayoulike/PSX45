@@ -71,6 +71,11 @@ interface SectorStats {
     sellCount: number;
     dividendYieldOnCost: number;
     
+    // New fields for matching Stock Card
+    ownedQty: number;
+    soldQty: number;
+    dividendCount: number;
+    
     tickers: string[];
 }
 
@@ -158,7 +163,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       // Map back to ActivityRow
       return sortedTxs.map(t => {
           const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-          const totalVal = t.quantity * t.price;
           
           let avgBuyPrice = 0; 
           let sellOrCurrentPrice = 0; 
@@ -167,12 +171,15 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let remainingQty = 0;
 
           if (t.type === 'BUY') {
-              avgBuyPrice = (totalVal + fees) / t.quantity; 
+              // Standard avg buy calculation for display
+              avgBuyPrice = ((t.quantity * t.price) + fees) / t.quantity; 
               sellOrCurrentPrice = currentPrice; 
               remainingQty = buyRemainingMap[t.id] ?? 0;
               if (remainingQty < 0.001) remainingQty = 0;
               
               if (remainingQty > 0) { 
+                  // Unrealized Gain is based on FIFO cost of this specific lot vs current price
+                  // Note: The 'avgBuyPrice' here matches the lot's cost per share
                   gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty; 
                   gainType = 'UNREALIZED'; 
               }
@@ -180,7 +187,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               const analysis = sellAnalysisMap[t.id]; 
               if (analysis) { 
                   avgBuyPrice = analysis.avgBuy; 
-                  sellOrCurrentPrice = (totalVal - fees) / t.quantity; 
+                  sellOrCurrentPrice = ((t.quantity * t.price) - fees) / t.quantity; 
                   gain = analysis.gain; 
                   gainType = 'REALIZED'; 
               }
@@ -209,8 +216,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       
       return uniqueTickers.map(ticker => {
           const txs = transactions.filter(t => t.ticker === ticker);
-          // Reuse FIFO Logic logic to get accurate Realized/Unrealized PL for the summary card
-          // Note: Ideally we refactor this further, but to keep changes minimal we use the same loops
           const enrichedRows = calculateEnrichedRows(ticker, txs);
           
           let ownedQty = 0; let soldQty = 0; let realizedPL = 0; let unrealizedPL = 0;
@@ -221,11 +226,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
           enrichedRows.forEach(row => {
               if (row.type === 'BUY') {
-                  ownedQty += row.quantity; // Note: calculateEnrichedRows returns original qty, not remaining
-                  lifetimeBuyCost += (row.quantity * row.avgBuyPrice); // Approximate for lifetime ROI calc
+                  // For lifetime metrics
+                  lifetimeBuyCost += (row.quantity * row.avgBuyPrice); 
                   if (row.gainType === 'UNREALIZED') unrealizedPL += row.gain;
                   
-                  // Calculate remaining cost basis
+                  // Cost basis of held shares
                   if ((row.remainingQty || 0) > 0) {
                       totalCostBasis += (row.remainingQty || 0) * row.avgBuyPrice;
                   }
@@ -233,7 +238,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   tradeCount++; buyCount++;
                   totalComm += row.commission || 0; totalTradingTax += row.tax || 0; totalCDC += row.cdcCharges || 0; totalOther += row.otherFees || 0;
               } else if (row.type === 'SELL') {
-                  // soldQty logic is slightly complex with FIFO, simplistic count here:
                   soldQty += row.quantity;
                   if (row.gainType === 'REALIZED') realizedPL += row.gain;
                   
@@ -247,8 +251,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               }
           });
 
-          // Correction for ownedQty: it should be current holding
-          // Re-calculate ownedQty based on remainingQty from BUY rows
+          // Current owned qty is sum of remaining lots
           ownedQty = enrichedRows.filter(r => r.type === 'BUY').reduce((acc, r) => acc + (r.remainingQty || 0), 0);
 
           const currentPrice = currentPrices[ticker] || 0;
@@ -310,6 +313,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   buyCount: 0,
                   sellCount: 0,
                   dividendYieldOnCost: 0,
+                  ownedQty: 0,
+                  soldQty: 0,
+                  dividendCount: 0,
                   tickers: []
               };
           }
@@ -335,6 +341,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           
           s.allocationPercent += stat.allocationPercent;
           s.lifetimeNet += stat.totalNetReturn;
+          
+          // New Aggregations
+          s.ownedQty += stat.ownedQty;
+          s.soldQty += stat.soldQty;
+          s.dividendCount += stat.dividendCount;
           
           s.tickers.push(stat.ticker);
       });
@@ -422,6 +433,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           allRows.push(...enriched);
       });
 
+      // Sort combined list by Date descending
       return allRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [selectedSector, transactions, analysisMode, selectedSectorStats, currentPrices]);
 
@@ -549,7 +561,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* ACTIVITY TABLE (Stock Mode) */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
                         <div className="flex items-center gap-2"> <History size={20} className="text-slate-500" /> <h3 className="font-bold text-slate-800">All Time Activity</h3> </div>
                         <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors"> <Download size={14} /> Export CSV </button>
                     </div>
@@ -664,30 +676,62 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </div>
                 </div>
 
-                {/* SECTOR DETAILED CARDS */}
+                {/* SECTOR DETAILED CARDS - IDENTICAL TO STOCK CARDS */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {/* Sector Position */}
+                    {/* Card 1: Position & Gains */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sector Position</h3> </div>
+                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3> </div>
                         <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-4"> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedSectorStats.totalCostBasis)}</div> <div className="text-[10px] text-slate-400">Total Cost Basis</div> </div> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedSectorStats.currentValue)}</div> <div className="text-[10px] text-slate-400">Total Value</div> </div> </div>
+                            <div className="grid grid-cols-2 gap-4"> 
+                                <div> 
+                                    <div className="text-3xl font-bold text-slate-800">{selectedSectorStats.ownedQty.toLocaleString()}</div> 
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> 
+                                </div> 
+                                <div> 
+                                    <div className="text-3xl font-bold text-slate-400">{selectedSectorStats.soldQty.toLocaleString()}</div> 
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> 
+                                </div> 
+                            </div>
                             <div className="h-px bg-slate-100 w-full"></div>
-                            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"> <div> <div className={`text-sm font-bold ${selectedSectorStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedSectorStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.realizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div> </div> <div> <div className={`text-sm font-bold ${selectedSectorStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedSectorStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.unrealizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div> </div> </div>
+                            <div className="grid grid-cols-2 gap-4"> 
+                                <div> 
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedSectorStats.totalCostBasis)}</div> 
+                                    <div className="text-[10px] text-slate-400">Total Cost Basis</div> 
+                                    {/* Avg Price is omitted for sector as it's not meaningful across different stocks */}
+                                </div> 
+                                <div> 
+                                    <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedSectorStats.currentValue)}</div> 
+                                    <div className="text-[10px] text-slate-400">Market Value</div> 
+                                </div> 
+                            </div>
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"> 
+                                <div> 
+                                    <div className={`text-sm font-bold ${selectedSectorStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedSectorStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.realizedPL)} </div> 
+                                    <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div> 
+                                </div> 
+                                <div> 
+                                    <div className={`text-sm font-bold ${selectedSectorStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedSectorStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.unrealizedPL)} </div> 
+                                    <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div> 
+                                </div> 
+                            </div>
                         </div>
                     </Card>
-                    {/* Sector Income */}
+                    
+                    {/* Card 2: Passive Income */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sector Income</h3> </div>
+                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 text-indigo-600 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3> </div>
                         <div className="space-y-6">
                              <div> <div className="text-3xl font-bold text-indigo-600">+{formatCurrency(selectedSectorStats.netDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div> </div>
                              <div className="h-px bg-slate-100 w-full"></div>
                              <div className="flex justify-between items-center"> <div> <div className="text-sm font-bold text-slate-700">{formatCurrency(selectedSectorStats.totalDividends)}</div> <div className="text-[10px] text-slate-400">Gross Dividends</div> </div> <div className="text-right"> <div className="text-sm font-bold text-rose-500">-{formatCurrency(selectedSectorStats.dividendTax)}</div> <div className="text-[10px] text-slate-400">Tax Paid</div> </div> </div>
-                             <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100 flex justify-between items-center"> <div> <div className="flex items-center gap-1.5 text-indigo-700 font-bold"> <Percent size={14} /> <span>{selectedSectorStats.dividendYieldOnCost.toFixed(2)}%</span> </div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Yield on Cost</div> </div> <div className="h-6 w-px bg-indigo-200/50"></div> <div className="text-right"> <div className="text-xs font-bold text-indigo-700">+{formatCurrency(selectedSectorStats.lifetimeNet)}</div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Sector Net P&L</div> </div> </div>
+                             <div className="bg-indigo-50/50 rounded-xl p-3 border border-indigo-100 flex justify-between items-center"> <div> <div className="flex items-center gap-1.5 text-indigo-700 font-bold"> <Percent size={14} /> <span>{selectedSectorStats.dividendYieldOnCost.toFixed(2)}%</span> </div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Yield on Cost</div> </div> <div className="h-6 w-px bg-indigo-200/50"></div> <div className="text-right"> <div className="flex items-center justify-end gap-1.5 text-slate-700 font-bold"> <span>{selectedSectorStats.dividendCount}</span> <CalendarCheck size={14} className="text-slate-400" /> </div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Payouts Received</div> </div> </div>
+                             <div className="flex gap-1 h-12 items-end mt-2 opacity-80"> {[30, 45, 25, 60, 40, 70, 50].map((h, i) => ( <div key={i} className="flex-1 bg-indigo-100 rounded-t-sm" style={{ height: `${h}%` }}></div> ))} </div>
                         </div>
                     </Card>
-                    {/* Sector Costs */}
-                    <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Sector Costs</h3> </div>
+
+                    {/* Card 3: Costs & Fees */}
+                     <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><Receipt size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Costs & Fees</h3> </div>
                         <div className="space-y-6">
                              <div className="space-y-2">
                                  <div className="flex justify-between items-center text-xs"> <span className="text-slate-500">Commission</span> <span className="font-mono text-slate-700">{formatCurrency(selectedSectorStats.totalComm)}</span> </div>
@@ -696,7 +740,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                  <div className="flex justify-between items-center text-xs"> <span className="text-slate-500">Other Fees</span> <span className="font-mono text-slate-700">{formatCurrency(selectedSectorStats.totalOther)}</span> </div>
                              </div>
                              <div className="h-px bg-slate-100 w-full"></div>
-                             <div> <div className="text-2xl font-bold text-rose-500">-{formatCurrency(selectedSectorStats.feesPaid)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Total Sector Charges</div> </div>
+                             <div> <div className="text-2xl font-bold text-rose-500">-{formatCurrency(selectedSectorStats.feesPaid)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Total Charges</div> </div>
                              <div className="bg-slate-50 rounded-xl p-3 border border-slate-100">
                                  <div className="flex justify-between items-center mb-1"> <span className="text-xs text-slate-500 font-bold uppercase">Trades Executed</span> <span className="text-lg font-black text-slate-800">{selectedSectorStats.tradeCount}</span> </div>
                                  <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 border-t border-slate-200 pt-1"> <div className="flex items-center gap-1"> <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> <span>{selectedSectorStats.buyCount} Buys</span> </div> <div className="flex items-center gap-1"> <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div> <span>{selectedSectorStats.sellCount} Sells</span> </div> </div>
@@ -752,7 +796,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </div>
                 </div>
                 
-                {/* SECTOR ACTIVITY TABLE (New) */}
+                {/* SECTOR ACTIVITY TABLE (Detailed) */}
                 <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-sm">
                     <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50">
                         <div className="flex items-center gap-2"> <History size={20} className="text-slate-500" /> <h3 className="font-bold text-slate-800">Recent Activity in {selectedSectorStats.name}</h3> </div>
