@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw, Landmark, Stamp } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw, Stamp } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -479,10 +479,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
             </Card>
         </div>
 
-        {/* ROW 3: Fees Breakdown - REFACTORED TO INDIVIDUAL CARDS */}
+        {/* ROW 3: Fees Breakdown - SEPARATED & SINGLE ROW */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mt-2">
             
-            {/* Commission */}
+            {/* 1. Commission */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100 transition-colors"><Receipt size={18} /></div>
                 <div>
@@ -491,7 +491,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
             
-            {/* Sales Tax (SST) */}
+            {/* 2. Sales Tax (SST) */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-purple-50 text-purple-600 rounded-lg group-hover:bg-purple-100 transition-colors"><Building2 size={18} /></div>
                 <div>
@@ -500,16 +500,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
-            {/* CDC Charges */}
+            {/* 3. CDC Charges */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-orange-50 text-orange-600 rounded-lg group-hover:bg-orange-100 transition-colors"><FileText size={18} /></div>
                 <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CDC & Other</div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CDC Charges</div>
                     <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalCDC)}</div>
                 </div>
             </div>
 
-            {/* Capital Gains Tax (CGT) */}
+            {/* 4. Capital Gains Tax (CGT) */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors"><PiggyBank size={18} /></div>
                 <div>
@@ -518,7 +518,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
-            {/* Other Fees / Adjustments */}
+            {/* 5. Other Fees / Adjustments */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-slate-100 transition-colors"><Stamp size={18} /></div>
                 <div>
