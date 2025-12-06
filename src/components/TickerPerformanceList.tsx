@@ -19,10 +19,13 @@ import {
   Layers,     
   LayoutList, 
   TrendingUp, 
-  Activity    
+  Activity,
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { exportToCSV } from '../utils/export';
+import { fetchCompanyFundamentals, CompanyFinancials, CompanyRatios } from '../services/financials';
 
 interface TickerPerformanceListProps {
   transactions: Transaction[];
@@ -38,11 +41,6 @@ interface ActivityRow extends Transaction {
   gain: number;              
   gainType: 'REALIZED' | 'UNREALIZED' | 'NONE';
   remainingQty?: number;
-}
-
-interface Lot {
-    quantity: number;
-    costPerShare: number; 
 }
 
 // Interface for Sector Stats
@@ -107,6 +105,32 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
   const [activityPage, setActivityPage] = useState<number>(1);
   const [activityRowsPerPage, setActivityRowsPerPage] = useState<number>(25);
+
+  // --- NEW: Financial Data State ---
+  const [fundamentals, setFundamentals] = useState<{ financials: CompanyFinancials[], ratios: CompanyRatios[] } | null>(null);
+  const [loadingFundamentals, setLoadingFundamentals] = useState(false);
+
+  // --- FETCH FUNDAMENTALS EFFECT ---
+  useEffect(() => {
+      if (analysisMode === 'STOCK' && selectedTicker) {
+          setLoadingFundamentals(true);
+          setFundamentals(null); // Reset while loading
+          
+          fetchCompanyFundamentals(selectedTicker)
+              .then(data => {
+                  setFundamentals(data);
+              })
+              .catch(err => {
+                  console.error("Failed to fetch fundamentals", err);
+              })
+              .finally(() => {
+                  setLoadingFundamentals(false);
+              });
+      } else {
+          setFundamentals(null);
+      }
+  }, [selectedTicker, analysisMode]);
+
 
   // --- HELPER: Total Portfolio Value ---
   const totalPortfolioValue = useMemo(() => {
@@ -593,6 +617,95 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`p-2 rounded-xl ${selectedStockStats.totalNetReturn >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}><TrendingUp size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lifetime Net</div> <div className={`text-lg font-black ${selectedStockStats.totalNetReturn >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStockStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(selectedStockStats.totalNetReturn)} </div> </div> </div> </div>
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`p-2 rounded-xl ${selectedStockStats.lifetimeROI >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}><Percent size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lifetime ROI</div> <div className={`text-lg font-black ${selectedStockStats.lifetimeROI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStockStats.lifetimeROI >= 0 ? '+' : ''}{formatDecimal(selectedStockStats.lifetimeROI)}% </div> </div> </div> </div>
                     {selectedStockStats.status === 'Active' && ( <> <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="p-2 bg-sky-50 text-sky-600 rounded-xl"><PieChart size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Allocation</div> <div className="text-lg font-black text-slate-800">{selectedStockStats.allocationPercent.toFixed(1)}%</div> </div> </div> </div> <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="p-2 bg-violet-50 text-violet-600 rounded-xl"><Target size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Break-Even Price</div> <div className="text-lg font-black text-violet-600">Rs. {formatDecimal(selectedStockStats.breakEvenPrice)}</div> </div> </div> </div> </> )}
+                </div>
+
+                {/* --- 1.6 COMPANY FINANCIALS (NEW) --- */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <FileText size={20} className="text-slate-500" />
+                            <h3 className="font-bold text-slate-800">Company Financials</h3>
+                        </div>
+                        {loadingFundamentals && <Loader2 size={18} className="animate-spin text-emerald-500" />}
+                    </div>
+                    
+                    {!fundamentals && !loadingFundamentals && (
+                        <div className="p-8 text-center text-slate-400 text-sm">
+                            No financial data available for this company.
+                        </div>
+                    )}
+
+                    {fundamentals && (
+                        <div className="p-6 space-y-8">
+                            {/* Financials Table */}
+                            <div>
+                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Annual Results (000's)</h4>
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="text-xs text-slate-500 font-bold uppercase bg-slate-50 border-b border-slate-200">
+                                            <tr>
+                                                <th className="px-4 py-3"></th>
+                                                {fundamentals.financials.map(f => (
+                                                    <th key={f.year} className="px-4 py-3 text-right">{f.year}</th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            <tr>
+                                                <td className="px-4 py-3 font-bold text-slate-700">Sales</td>
+                                                {fundamentals.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums">{f.sales}</td>)}
+                                            </tr>
+                                            <tr>
+                                                <td className="px-4 py-3 font-bold text-slate-700">Total Income</td>
+                                                {fundamentals.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums">{f.totalIncome}</td>)}
+                                            </tr>
+                                            <tr>
+                                                <td className="px-4 py-3 font-bold text-slate-700">Profit After Tax</td>
+                                                {fundamentals.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums font-bold text-emerald-600">{f.profitAfterTax}</td>)}
+                                            </tr>
+                                            <tr>
+                                                <td className="px-4 py-3 font-bold text-slate-700">EPS</td>
+                                                {fundamentals.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums font-bold text-indigo-600">{f.eps}</td>)}
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Ratios Table */}
+                            {fundamentals.ratios.length > 0 && (
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Key Ratios</h4>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="text-xs text-slate-500 font-bold uppercase bg-slate-50 border-b border-slate-200">
+                                                <tr>
+                                                    <th className="px-4 py-3"></th>
+                                                    {fundamentals.ratios.map(r => (
+                                                        <th key={r.year} className="px-4 py-3 text-right">{r.year}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                <tr>
+                                                    <td className="px-4 py-3 font-bold text-slate-700">Net Profit Margin (%)</td>
+                                                    {fundamentals.ratios.map(r => <td key={r.year} className="px-4 py-3 text-right tabular-nums">{r.netProfitMargin}</td>)}
+                                                </tr>
+                                                <tr>
+                                                    <td className="px-4 py-3 font-bold text-slate-700">EPS Growth (%)</td>
+                                                    {fundamentals.ratios.map(r => <td key={r.year} className={`px-4 py-3 text-right tabular-nums ${r.epsGrowth.includes('(') ? 'text-rose-500' : 'text-emerald-600'}`}>{r.epsGrowth}</td>)}
+                                                </tr>
+                                                <tr>
+                                                    <td className="px-4 py-3 font-bold text-slate-700">PEG</td>
+                                                    {fundamentals.ratios.map(r => <td key={r.year} className="px-4 py-3 text-right tabular-nums">{r.peg}</td>)}
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* 2. STATS GRID */}
