@@ -15,7 +15,18 @@ export interface CompanyRatios {
   peg: string;
 }
 
-export const fetchCompanyFundamentals = async (ticker: string) => {
+export interface FundamentalsData {
+    annual: {
+        financials: CompanyFinancials[];
+        ratios: CompanyRatios[];
+    };
+    quarterly: {
+        financials: CompanyFinancials[];
+        ratios: CompanyRatios[];
+    };
+}
+
+export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   
   // Use proxies to bypass CORS since we are fetching from the browser
@@ -45,23 +56,16 @@ export const fetchCompanyFundamentals = async (ticker: string) => {
         // Get ALL tables in the document
         const tables = Array.from(doc.querySelectorAll('table'));
 
-        // --- 1. Extract Financials ---
-        const financialData: CompanyFinancials[] = [];
-        
-        // Strategy: Find the table that explicitly contains "Sales" and "Profit after Taxation"
-        const financialsTable = tables.find(t => 
-            t.textContent?.includes('Sales') && 
-            t.textContent?.includes('Profit after Taxation')
-        );
-        
-        if (financialsTable) {
-            const rows = Array.from(financialsTable.querySelectorAll('tr'));
-            
-            // Row 0 has years (Skip the first cell which is empty/label)
+        // --- Helper to parse a specific table ---
+        const parseFinancialsTable = (table: HTMLTableElement): CompanyFinancials[] => {
+            const data: CompanyFinancials[] = [];
+            const rows = Array.from(table.querySelectorAll('tr'));
+            if (rows.length === 0) return data;
+
+            // Row 0 has years/periods
             const headerCells = Array.from(rows[0].querySelectorAll('th, td'));
-            const years = headerCells.slice(1).map(c => c.textContent?.trim() || '');
+            const periods = headerCells.slice(1).map(c => c.textContent?.trim() || '');
             
-            // Helper to get row data by fuzzy text matching
             const getRowData = (keywords: string[]) => {
                 const row = rows.find(r => {
                     const firstCell = r.querySelector('td, th');
@@ -74,14 +78,13 @@ export const fetchCompanyFundamentals = async (ticker: string) => {
 
             const sales = getRowData(['Sales']);
             const income = getRowData(['Total Income']);
-            const profit = getRowData(['Profit after Taxation']);
+            const profit = getRowData(['Profit after Taxation', 'Profit After Tax']);
             const eps = getRowData(['EPS']);
 
-            years.forEach((year, i) => {
-                // Basic validation to ensure 'year' looks like a year (4 digits)
-                if (year && year.match(/\d{4}/)) {
-                    financialData.push({
-                        year,
+            periods.forEach((period, i) => {
+                if (period) {
+                    data.push({
+                        year: period,
                         sales: sales[i] || '-',
                         totalIncome: income[i] || '-',
                         profitAfterTax: profit[i] || '-',
@@ -89,21 +92,16 @@ export const fetchCompanyFundamentals = async (ticker: string) => {
                     });
                 }
             });
-        }
+            return data;
+        };
 
-        // --- 2. Extract Ratios ---
-        const ratiosData: CompanyRatios[] = [];
-        
-        // Strategy: Find table containing "Net Profit Margin"
-        const ratiosTable = tables.find(t => 
-            t.textContent?.includes('Net Profit Margin') && 
-            t.textContent?.includes('EPS Growth')
-        );
-        
-        if (ratiosTable) {
-            const rows = Array.from(ratiosTable.querySelectorAll('tr'));
+        const parseRatiosTable = (table: HTMLTableElement): CompanyRatios[] => {
+            const data: CompanyRatios[] = [];
+            const rows = Array.from(table.querySelectorAll('tr'));
+            if (rows.length === 0) return data;
+
             const headerCells = Array.from(rows[0].querySelectorAll('th, td'));
-            const years = headerCells.slice(1).map(c => c.textContent?.trim() || '');
+            const periods = headerCells.slice(1).map(c => c.textContent?.trim() || '');
 
             const getRowData = (keywords: string[]) => {
                 const row = rows.find(r => {
@@ -119,19 +117,49 @@ export const fetchCompanyFundamentals = async (ticker: string) => {
             const growth = getRowData(['EPS Growth']);
             const peg = getRowData(['PEG']);
 
-            years.forEach((year, i) => {
-                if (year && year.match(/\d{4}/)) {
-                    ratiosData.push({
-                        year,
+            periods.forEach((period, i) => {
+                if (period) {
+                    data.push({
+                        year: period,
                         netProfitMargin: margins[i] || '-',
                         epsGrowth: growth[i] || '-',
                         peg: peg[i] || '-'
                     });
                 }
             });
-        }
+            return data;
+        };
 
-        return { financials: financialData, ratios: ratiosData };
+        // --- Find Candidates ---
+        // We look for tables containing specific keywords. 
+        // If multiple are found, we assume order: 1. Annual, 2. Quarterly (common pattern)
+        const financialTables = tables.filter(t => 
+            t.textContent?.includes('Sales') && 
+            t.textContent?.includes('Profit after Taxation')
+        );
+
+        const ratioTables = tables.filter(t => 
+            t.textContent?.includes('Net Profit Margin') && 
+            t.textContent?.includes('EPS Growth')
+        );
+
+        const annualFinancials = financialTables.length > 0 ? parseFinancialsTable(financialTables[0]) : [];
+        const quarterlyFinancials = financialTables.length > 1 ? parseFinancialsTable(financialTables[1]) : [];
+
+        const annualRatios = ratioTables.length > 0 ? parseRatiosTable(ratioTables[0]) : [];
+        const quarterlyRatios = ratioTables.length > 1 ? parseRatiosTable(ratioTables[1]) : [];
+
+        // If scraping failed to distinguish, we default to putting what we found in Annual
+        return {
+            annual: {
+                financials: annualFinancials,
+                ratios: annualRatios
+            },
+            quarterly: {
+                financials: quarterlyFinancials,
+                ratios: quarterlyRatios
+            }
+        };
       }
     } catch (e) {
       console.warn(`Proxy ${proxyUrl} failed`, e);
