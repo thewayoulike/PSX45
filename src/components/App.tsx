@@ -441,54 +441,10 @@ const App: React.FC = () => {
     });
     
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
-    
-    const cashFlows: { amount: number, date: Date }[] = [];
-
-    portfolioTransactions.forEach(t => {
-        totalCommission += (t.commission || 0); totalCDC += (t.cdcCharges || 0); totalOtherFees += (t.otherFees || 0);
-        
-        if (t.type === 'DEPOSIT') {
-            totalDeposits += t.price;
-            cashFlows.push({ amount: -t.price, date: new Date(t.date) });
-        } 
-        else if (t.type === 'WITHDRAWAL') {
-            totalWithdrawals += t.price;
-            cashFlows.push({ amount: t.price, date: new Date(t.date) }); 
-        }
-        else if (t.type === 'ANNUAL_FEE') {
-            totalWithdrawals += t.price;
-            cashFlows.push({ amount: t.price, date: new Date(t.date) });
-        }
-        else if (t.type === 'OTHER') {
-            if (t.category === 'OTHER_TAX') {
-                totalWithdrawals += Math.abs(t.price);
-                cashFlows.push({ amount: Math.abs(t.price), date: new Date(t.date) });
-            } else {
-                if (t.price >= 0) {
-                    totalDeposits += t.price;
-                    cashFlows.push({ amount: -t.price, date: new Date(t.date) });
-                } else {
-                    totalWithdrawals += Math.abs(t.price);
-                    cashFlows.push({ amount: Math.abs(t.price), date: new Date(t.date) });
-                }
-            }
-        }
-        
-        if (t.type === 'DIVIDEND') { 
-            const grossDiv = t.quantity * t.price;
-            dividendSum += grossDiv - (t.tax || 0);
-            divTaxSum += (t.tax || 0);
-        } 
-        else if (t.type === 'TAX') { totalCGT += t.price; } 
-        else if (t.type === 'HISTORY') { totalCGT += (t.tax || 0); historyPnL += t.price; } 
-        else { totalSalesTax += (t.tax || 0); }
-    });
-
     const netRealizedPL = realizedPL - totalCGT; 
     
-    const txIndexMap = new Map<string, number>();
-    portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
-
+    // --- BUILD SORTED EVENT TIMELINE ---
+    // Merge standard transactions with realized trade events
     const events: { 
         date: string, 
         type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', 
@@ -496,20 +452,67 @@ const App: React.FC = () => {
         originalIndex: number 
     }[] = [];
 
+    // Map existing transactions to get index for stable sorting
+    const txIndexMap = new Map<string, number>();
+    portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
+
     portfolioTransactions.forEach((t, idx) => {
-        if (t.type === 'DEPOSIT') events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
-        else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx });
-        else if (t.type === 'OTHER') {
-            if (t.category === 'OTHER_TAX') events.push({ date: t.date, type: 'OUT', amount: Math.abs(t.price), originalIndex: idx });
-            else if (t.price >= 0) events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
-            else events.push({ date: t.date, type: 'OUT', amount: Math.abs(t.price), originalIndex: idx });
+        // Aggregate Fees
+        totalCommission += (t.commission || 0); totalCDC += (t.cdcCharges || 0); totalOtherFees += (t.otherFees || 0);
+        
+        // Handle Cash Flows
+        if (t.type === 'DEPOSIT') {
+            totalDeposits += t.price;
+            events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
+        } 
+        else if (t.type === 'WITHDRAWAL') {
+            totalWithdrawals += t.price;
+            events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx }); 
         }
-        else if (t.type === 'DIVIDEND') {
+        else if (t.type === 'ANNUAL_FEE') {
+            totalWithdrawals += t.price;
+            events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx });
+        }
+        else if (t.type === 'OTHER') {
+            if (t.category === 'OTHER_TAX') {
+                totalWithdrawals += Math.abs(t.price);
+                events.push({ date: t.date, type: 'OUT', amount: Math.abs(t.price), originalIndex: idx });
+            } else {
+                if (t.price >= 0) {
+                    totalDeposits += t.price;
+                    events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
+                } else {
+                    totalWithdrawals += Math.abs(t.price);
+                    events.push({ date: t.date, type: 'OUT', amount: Math.abs(t.price), originalIndex: idx });
+                }
+            }
+        }
+        else if (t.type === 'DIVIDEND') { 
+            const grossDiv = t.quantity * t.price;
+            dividendSum += grossDiv - (t.tax || 0);
+            divTaxSum += (t.tax || 0);
+            
             const netDiv = (t.quantity * t.price) - (t.tax || 0);
             if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv, originalIndex: idx });
         }
+        else if (t.type === 'TAX') { 
+            totalCGT += t.price; 
+            // Manual Tax payment is a LOSS of capital/profit
+            events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx });
+        } 
+        else if (t.type === 'HISTORY') { 
+            totalCGT += (t.tax || 0); 
+            historyPnL += t.price; 
+            // Historical PnL affects profit buffer
+            if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
+            else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
+        }
+        else { 
+            totalSalesTax += (t.tax || 0); 
+        }
     });
     
+    // Add Realized Trades (Profit/Loss) events
     realizedTrades.forEach((t) => {
         const originalIdx = txIndexMap.get(t.id) ?? 999999; 
         if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
@@ -522,82 +525,86 @@ const App: React.FC = () => {
         return a.originalIndex - b.originalIndex;
     });
 
-    let lifetimeCash = 0; 
-    let withdrawalGap = 0;
-    let lossGap = 0;
-    let profitBuffer = 0; 
-    let netPrincipal = 0; 
+    // --- NEW PROFIT BUFFER LOGIC ---
+    let currentPrincipal = 0;
+    let peakPrincipal = 0;
+    let profitBuffer = 0;
 
     events.forEach(e => {
-        if (e.type === 'IN') { 
-            const deposit = e.amount;
-            const fillWithdrawal = Math.min(deposit, withdrawalGap);
-            withdrawalGap -= fillWithdrawal;
-            const remaining = deposit - fillWithdrawal;
-            if (remaining > 0) {
-                lifetimeCash += remaining;
+        if (e.type === 'IN') { // Deposit
+            currentPrincipal += e.amount;
+            if (currentPrincipal > peakPrincipal) {
+                peakPrincipal = currentPrincipal;
             }
-            netPrincipal += deposit;
-        } 
+        }
+        else if (e.type === 'OUT' || e.type === 'LOSS') { // Withdrawal or Realized Loss
+            const amount = e.amount; // Positive amount
+            
+            // Deduct from Profit Buffer first ("House Money")
+            if (profitBuffer >= amount) {
+                profitBuffer -= amount;
+            } else {
+                // If buffer exhausted, deduct remainder from Principal
+                const remainder = amount - profitBuffer;
+                profitBuffer = 0;
+                currentPrincipal -= remainder;
+            }
+        }
         else if (e.type === 'PROFIT') {
-            const profit = e.amount;
-            const fillLoss = Math.min(profit, lossGap);
-            lossGap -= fillLoss;
-            netPrincipal += fillLoss;
-            const remainingProfit = profit - fillLoss;
-            profitBuffer += remainingProfit;
-        } 
-        else if (e.type === 'LOSS') {
-            const loss = e.amount;
-            const profitsEaten = Math.min(loss, profitBuffer);
-            profitBuffer -= profitsEaten;
-            const principalEaten = loss - profitsEaten;
-            if (principalEaten > 0) {
-                netPrincipal -= principalEaten;
-                lossGap += principalEaten; 
-            }
-        } 
-        else if (e.type === 'OUT') { 
-            const withdrawal = e.amount;
-            const profitsWithdrawn = Math.min(withdrawal, profitBuffer);
-            profitBuffer -= profitsWithdrawn;
-            const principalWithdrawn = withdrawal - profitsWithdrawn;
-            if (principalWithdrawn > 0) {
-                netPrincipal -= principalWithdrawn;
-                withdrawalGap += principalWithdrawn; 
-            }
+            // Profits simply add to the buffer, they don't increase "Invested Principal"
+            profitBuffer += e.amount;
         }
     });
 
-    const cashInvestment = totalDeposits - totalWithdrawals; 
-    const netPrincipalAvailable = Math.max(0, netPrincipal);
-    // const surplusInvested = Math.max(0, totalCost - netPrincipalAvailable);
-    // const reinvestedProfits = Math.min(surplusInvested, Math.max(0, totalProfits));
-    // RECALCULATED for clarity (simplification for display)
-    const reinvestedProfits = Math.max(0, totalCost - netPrincipalAvailable);
+    // --- FINAL METRICS ---
+    const netPrincipal = currentPrincipal; // "Current Cash Invested"
+    const peakNetPrincipal = peakPrincipal; // "Lifetime Cash Investment"
+
+    // Cash Calculation
+    let tradingCashFlow = 0; 
+    portfolioTransactions.forEach(t => { 
+        const val = t.price * t.quantity; 
+        const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); 
+        if (t.type === 'BUY') tradingCashFlow -= (val + fees); 
+        else if (t.type === 'SELL') tradingCashFlow += (val - fees); 
+    });
     
+    // Cash In/Out for "Free Cash" logic
     let cashIn = totalDeposits; 
     let cashOut = totalWithdrawals + totalCGT; 
-    
-    let tradingCashFlow = 0; 
-    portfolioTransactions.forEach(t => { const val = t.price * t.quantity; const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); if (t.type === 'BUY') tradingCashFlow -= (val + fees); else if (t.type === 'SELL') tradingCashFlow += (val - fees); });
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    const roiDenominator = lifetimeCash; 
-    
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum;
-    const roi = roiDenominator > 0 ? (totalNetReturn / roiDenominator) * 100 : 0;
+    
+    // ROI Denominator: Use Peak Principal (Max Capital At Risk)
+    // This is standard for Simple ROI to prevent skewed % when principal is withdrawn
+    const roiDenominator = peakPrincipal > 0 ? peakPrincipal : 1;
+    const roi = (totalNetReturn / roiDenominator) * 100;
+    
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
 
+    // MWRR Calc
+    const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
+    portfolioTransactions.forEach(t => {
+        if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX')) {
+             cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
+        } else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE' || (t.type === 'OTHER' && (t.price < 0 || t.category === 'OTHER_TAX'))) {
+             cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
+        }
+    });
     const currentTotalNetWorth = totalValue + freeCash;
     if (currentTotalNetWorth > 0) {
-        cashFlows.push({ amount: currentTotalNetWorth, date: new Date() });
+        cashFlowsForXIRR.push({ amount: currentTotalNetWorth, date: new Date() });
     }
-    const mwrr = calculateXIRR(cashFlows);
+    const mwrr = calculateXIRR(cashFlowsForXIRR);
     
     const yesterdayValue = totalValue - dailyPL;
     const dailyPLPercent = yesterdayValue > 0 ? (dailyPL / yesterdayValue) * 100 : 0;
+
+    // Reinvested profits display (Optional metric)
+    // This is essentially (Cost - NetPrincipal), representing how much of the portfolio was funded by gains
+    const reinvestedProfits = Math.max(0, totalCost - Math.max(0, netPrincipal));
 
     // Set side effects for state (Avoid infinite loop by checking difference first)
     if (dividendSum !== totalDividends) setTotalDividends(dividendSum);
@@ -606,9 +613,9 @@ const App: React.FC = () => {
     return { 
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
         totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC, 
-        totalOtherFees, totalCGT, freeCash, cashInvestment, 
+        totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals, 
         netPrincipal, 
-        peakNetPrincipal: lifetimeCash, 
+        peakNetPrincipal, 
         totalDeposits, reinvestedProfits, roi,
         mwrr
     };
