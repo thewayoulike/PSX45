@@ -18,7 +18,7 @@ export interface CompanyRatios {
 export const fetchCompanyFundamentals = async (ticker: string) => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   
-  // Use the same proxy list as your existing psxData.ts to bypass CORS
+  // Use proxies to bypass CORS since we are fetching from the browser
   const proxies = [
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
     `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
@@ -42,76 +42,71 @@ export const fetchCompanyFundamentals = async (ticker: string) => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // 1. Extract Financials (Sales, Income, Profit, EPS)
-        // The table is usually identified by the header "Financials"
+        // --- 1. Extract Financials ---
         const financialData: CompanyFinancials[] = [];
+        // Find header that contains "Financials"
         const financialsHeader = Array.from(doc.querySelectorAll('h4')).find(h => h.textContent?.includes('Financials'));
         
-        if (financialsHeader) {
-            // The table is usually immediately following the header or inside a container below it
-            // We look for the table within the same section
-            const container = financialsHeader.parentElement;
-            const table = container?.querySelector('table');
-            
+        if (financialsHeader && financialsHeader.parentElement) {
+            const table = financialsHeader.parentElement.querySelector('table');
             if (table) {
-                const rows = table.querySelectorAll('tr');
-                // Row 0 is headers (Years: 2024, 2023, etc.)
+                const rows = Array.from(table.querySelectorAll('tr'));
+                // Row 0 has years
                 const years = Array.from(rows[0].querySelectorAll('th, td')).slice(1).map(c => c.textContent?.trim() || '');
                 
-                // Map rows by their label (first cell)
-                const map: Record<string, string[]> = {};
-                
-                Array.from(rows).slice(1).forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    const label = cells[0]?.textContent?.trim();
-                    if (label) {
-                        map[label] = Array.from(cells).slice(1).map(c => c.textContent?.trim() || '0');
-                    }
-                });
+                // Helper to get row data by label
+                const getRowData = (labelPart: string) => {
+                    const row = rows.find(r => r.querySelector('td')?.textContent?.includes(labelPart));
+                    if (!row) return [];
+                    return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
+                };
 
-                // Construct result objects for each year column
-                years.forEach((year, index) => {
+                const sales = getRowData('Sales');
+                const income = getRowData('Total Income');
+                const profit = getRowData('Profit after Taxation');
+                const eps = getRowData('EPS');
+
+                years.forEach((year, i) => {
                     if (year) {
                         financialData.push({
                             year,
-                            sales: map['Sales']?.[index] || '-',
-                            totalIncome: map['Total Income']?.[index] || '-',
-                            profitAfterTax: map['Profit after Taxation']?.[index] || '-',
-                            eps: map['EPS']?.[index] || '-'
+                            sales: sales[i] || '-',
+                            totalIncome: income[i] || '-',
+                            profitAfterTax: profit[i] || '-',
+                            eps: eps[i] || '-'
                         });
                     }
                 });
             }
         }
 
-        // 2. Extract Ratios (Net Profit Margin, EPS Growth, PEG)
+        // --- 2. Extract Ratios ---
         const ratiosData: CompanyRatios[] = [];
         const ratiosHeader = Array.from(doc.querySelectorAll('h4')).find(h => h.textContent?.includes('Ratios'));
         
-        if (ratiosHeader) {
-            const container = ratiosHeader.parentElement;
-            const table = container?.querySelector('table');
-            
+        if (ratiosHeader && ratiosHeader.parentElement) {
+            const table = ratiosHeader.parentElement.querySelector('table');
             if (table) {
-                const rows = table.querySelectorAll('tr');
+                const rows = Array.from(table.querySelectorAll('tr'));
                 const years = Array.from(rows[0].querySelectorAll('th, td')).slice(1).map(c => c.textContent?.trim() || '');
-                
-                const map: Record<string, string[]> = {};
-                Array.from(rows).slice(1).forEach(row => {
-                    const cells = row.querySelectorAll('td');
-                    const label = cells[0]?.textContent?.trim();
-                    if (label) {
-                        map[label] = Array.from(cells).slice(1).map(c => c.textContent?.trim() || '0');
-                    }
-                });
 
-                years.forEach((year, index) => {
+                const getRowData = (labelPart: string) => {
+                    const row = rows.find(r => r.querySelector('td')?.textContent?.includes(labelPart));
+                    if (!row) return [];
+                    return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
+                };
+
+                const margins = getRowData('Net Profit Margin');
+                const growth = getRowData('EPS Growth');
+                const peg = getRowData('PEG');
+
+                years.forEach((year, i) => {
                     if (year) {
                         ratiosData.push({
                             year,
-                            netProfitMargin: map['Net Profit Margin (%)']?.[index] || '-',
-                            epsGrowth: map['EPS Growth (%)']?.[index] || '-',
-                            peg: map['PEG']?.[index] || '-'
+                            netProfitMargin: margins[i] || '-',
+                            epsGrowth: growth[i] || '-',
+                            peg: peg[i] || '-'
                         });
                     }
                 });
