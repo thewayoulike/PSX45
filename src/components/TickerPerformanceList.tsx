@@ -82,15 +82,23 @@ interface SectorStats {
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
   transactions, currentPrices, sectors
 }) => {
-  const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>('STOCK');
+  // 1. Initialize State from LocalStorage to persist selection
+  const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
+      return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
+  });
 
   const [selectedTicker, setSelectedTicker] = useState<string | null>(() => {
       return localStorage.getItem('psx_last_analyzed_ticker') || null;
   });
 
-  const [selectedSector, setSelectedSector] = useState<string | null>(null);
+  const [selectedSector, setSelectedSector] = useState<string | null>(() => {
+      return localStorage.getItem('psx_last_analyzed_sector') || null;
+  });
   
+  // Initialize search term based on the active mode's persisted value
   const [searchTerm, setSearchTerm] = useState(() => {
+      const mode = localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR';
+      if (mode === 'SECTOR') return localStorage.getItem('psx_last_analyzed_sector') || '';
       return localStorage.getItem('psx_last_analyzed_ticker') || '';
   });
 
@@ -390,13 +398,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // HANDLERS
+  // UPDATED HANDLERS WITH PERSISTENCE
+  const switchToStockMode = () => {
+      setAnalysisMode('STOCK');
+      localStorage.setItem('psx_analyzer_mode', 'STOCK');
+      const lastTicker = localStorage.getItem('psx_last_analyzed_ticker');
+      setSearchTerm(lastTicker || '');
+      setIsDropdownOpen(false);
+  };
+
+  const switchToSectorMode = () => {
+      setAnalysisMode('SECTOR');
+      localStorage.setItem('psx_analyzer_mode', 'SECTOR');
+      const lastSector = localStorage.getItem('psx_last_analyzed_sector');
+      setSearchTerm(lastSector || '');
+      setIsDropdownOpen(false);
+  };
+
   const handleSelect = (val: string) => {
       if (analysisMode === 'STOCK') {
           setSelectedTicker(val);
           localStorage.setItem('psx_last_analyzed_ticker', val);
       } else {
           setSelectedSector(val);
+          localStorage.setItem('psx_last_analyzed_sector', val);
       }
       setSearchTerm(val);
       setIsDropdownOpen(false);
@@ -410,6 +435,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           localStorage.removeItem('psx_last_analyzed_ticker');
       } else {
           setSelectedSector(null);
+          localStorage.removeItem('psx_last_analyzed_sector');
       }
   };
 
@@ -494,8 +520,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           </div>
 
           <div className="flex bg-slate-100 p-1 rounded-xl mb-6 shadow-inner border border-slate-200">
-              <button onClick={() => { setAnalysisMode('STOCK'); setSearchTerm(''); setSelectedTicker(null); setIsDropdownOpen(false); }} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'STOCK' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}> <LayoutList size={16} /> Stock </button>
-              <button onClick={() => { setAnalysisMode('SECTOR'); setSearchTerm(''); setSelectedSector(null); setIsDropdownOpen(false); }} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'SECTOR' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}> <Layers size={16} /> Sector </button>
+              <button onClick={switchToStockMode} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'STOCK' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}> <LayoutList size={16} /> Stock </button>
+              <button onClick={switchToSectorMode} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'SECTOR' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}> <Layers size={16} /> Sector </button>
           </div>
 
           <div className="relative w-full max-w-md" ref={dropdownRef}>
@@ -811,9 +837,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                 <button 
                                                     onClick={() => { 
                                                         setAnalysisMode('STOCK'); 
-                                                        setSelectedTicker(t.ticker); // Directly set state
-                                                        setSearchTerm(t.ticker);
+                                                        localStorage.setItem('psx_analyzer_mode', 'STOCK');
+                                                        setSelectedTicker(t.ticker); 
                                                         localStorage.setItem('psx_last_analyzed_ticker', t.ticker);
+                                                        setSearchTerm(t.ticker);
                                                     }}
                                                     className="text-xs text-blue-600 hover:underline font-bold"
                                                 >
