@@ -114,10 +114,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                                 {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
                             </span>
                         </div>
-                        {/* Excluding Dividends (Secondary) */}
+                        {/* Excluding Dividends (Secondary) - UPDATED SIZE */}
                         <div className="flex items-baseline justify-between w-full">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Exc. Div</span>
-                            <span className={`text-sm md:text-base font-bold tracking-tight ${isRoiExcPositive ? 'text-emerald-600/80' : 'text-rose-600/80'}`}>
+                            <span className={`text-lg md:text-xl font-bold tracking-tight ${isRoiExcPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                                 {isRoiExcPositive ? '+' : ''}{roiExcDiv.toFixed(2)}%
                             </span>
                         </div>
