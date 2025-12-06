@@ -80,7 +80,7 @@ interface SectorStats {
 }
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
-  transactions, currentPrices, sectors
+  transactions, currentPrices, sectors, onTickerClick
 }) => {
   // 1. Initialize State from LocalStorage to persist selection
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
@@ -200,7 +200,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               avgBuyPrice = 0; 
               sellOrCurrentPrice = t.price; 
               gain = (t.quantity * t.price) - (t.tax || 0); 
-              // CHANGED: Dividends are Income, not "Realized Gain" from trading
               gainType = 'NONE'; 
           }
           
@@ -229,6 +228,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let totalComm = 0; let totalTradingTax = 0; let totalCDC = 0; let totalOther = 0;
           let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0;
           let totalCostBasis = 0; 
+          
+          // NEW: Track Fee Components separately for Break-Even calc
+          let aggBuyComm = 0;
+          let aggBuyCDC = 0;
+          let aggBuyOther = 0;
+          let totalBuyVolume = 0;
 
           enrichedRows.forEach(row => {
               if (row.type === 'BUY') {
@@ -242,7 +247,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   }
                   
                   tradeCount++; buyCount++;
-                  totalComm += row.commission || 0; totalTradingTax += row.tax || 0; totalCDC += row.cdcCharges || 0; totalOther += row.otherFees || 0;
+                  
+                  // Main aggregate counters
+                  totalComm += row.commission || 0; 
+                  totalTradingTax += row.tax || 0; 
+                  totalCDC += row.cdcCharges || 0; 
+                  totalOther += row.otherFees || 0;
+                  
+                  // Accumulate Buy-Side Specifics
+                  aggBuyComm += row.commission || 0;
+                  aggBuyCDC += row.cdcCharges || 0;
+                  aggBuyOther += row.otherFees || 0;
+                  totalBuyVolume += row.quantity;
+
               } else if (row.type === 'SELL') {
                   soldQty += row.quantity;
                   if (row.gainType === 'REALIZED') realizedPL += row.gain;
@@ -268,8 +285,26 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
           const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
           const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
-          const estFeeRate = 0.0055; 
-          const breakEvenPrice = currentAvgPrice > 0 ? currentAvgPrice / (1 - estFeeRate) : 0;
+          
+          // --- UPDATED BREAK EVEN LOGIC ---
+          let breakEvenPrice = 0;
+          
+          if (totalBuyVolume > 0) {
+              // 1. Calculate weighted average of each fee component per share
+              const avgBuyCommPerShare = aggBuyComm / totalBuyVolume;
+              const avgBuyCDCPerShare = aggBuyCDC / totalBuyVolume;
+              const avgBuyOtherPerShare = aggBuyOther / totalBuyVolume;
+              
+              // 2. Enforce "Sales Tax is 15% of Commission" rule for selling estimate
+              const estSellTaxPerShare = avgBuyCommPerShare * 0.15;
+              
+              // 3. Sum all to get Estimated Sell Fee Per Share
+              const estSellFeePerShare = avgBuyCommPerShare + estSellTaxPerShare + avgBuyCDCPerShare + avgBuyOtherPerShare;
+              
+              // 4. Break Even = Current Cost Basis + Est Sell Fee
+              breakEvenPrice = currentAvgPrice + estSellFeePerShare;
+          }
+
           const dividendYieldOnCost = lifetimeBuyCost > 0 ? (totalDividends / lifetimeBuyCost) * 100 : 0;
           const avgDPS = dividendSharesCount > 0 ? totalDividends / dividendSharesCount : 0;
 
@@ -550,6 +585,16 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStockStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}> {selectedStockStats.ticker.substring(0, 1)} </div>
                         <div> <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStockStats.ticker}</h1> <div className="flex items-center gap-2 mt-1"> <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStockStats.sector}</span> <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStockStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}> {selectedStockStats.status} </span> </div> </div>
                     </div>
+                    {/* View Profile Action */}
+                    {selectedStockStats.status === 'Active' && onTickerClick && (
+                        <button 
+                            onClick={() => onTickerClick(selectedStockStats.ticker)}
+                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-5 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
+                        >
+                            <BarChart3 size={16} />
+                            View Profile
+                        </button>
+                    )}
                 </div>
 
                 {/* 1.5 QUICK STATS BAR */}
