@@ -585,16 +585,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStockStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 text-slate-500'}`}> {selectedStockStats.ticker.substring(0, 1)} </div>
                         <div> <h1 className="text-3xl font-black text-slate-800 tracking-tight">{selectedStockStats.ticker}</h1> <div className="flex items-center gap-2 mt-1"> <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200">{selectedStockStats.sector}</span> <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStockStats.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}> {selectedStockStats.status} </span> </div> </div>
                     </div>
-                    {/* View Profile Action */}
-                    {selectedStockStats.status === 'Active' && onTickerClick && (
-                        <button 
-                            onClick={() => onTickerClick(selectedStockStats.ticker)}
-                            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 px-5 py-2.5 rounded-xl font-bold text-sm transition-colors flex items-center gap-2"
-                        >
-                            <BarChart3 size={16} />
-                            View Profile
-                        </button>
-                    )}
                 </div>
 
                 {/* 1.5 QUICK STATS BAR */}
