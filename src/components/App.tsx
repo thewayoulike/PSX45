@@ -444,7 +444,6 @@ const App: React.FC = () => {
     const netRealizedPL = realizedPL - totalCGT; 
     
     // --- BUILD SORTED EVENT TIMELINE ---
-    // Merge standard transactions with realized trade events
     const events: { 
         date: string, 
         type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', 
@@ -452,7 +451,6 @@ const App: React.FC = () => {
         originalIndex: number 
     }[] = [];
 
-    // Map existing transactions to get index for stable sorting
     const txIndexMap = new Map<string, number>();
     portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
 
@@ -497,13 +495,12 @@ const App: React.FC = () => {
         }
         else if (t.type === 'TAX') { 
             totalCGT += t.price; 
-            // Manual Tax payment is a LOSS of capital/profit
+            // Tax is treated as a loss event
             events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx });
         } 
         else if (t.type === 'HISTORY') { 
             totalCGT += (t.tax || 0); 
             historyPnL += t.price; 
-            // Historical PnL affects profit buffer
             if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
         }
@@ -512,7 +509,6 @@ const App: React.FC = () => {
         }
     });
     
-    // Add Realized Trades (Profit/Loss) events
     realizedTrades.forEach((t) => {
         const originalIdx = txIndexMap.get(t.id) ?? 999999; 
         if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
@@ -528,7 +524,7 @@ const App: React.FC = () => {
     // --- NEW PROFIT BUFFER LOGIC ---
     let currentPrincipal = 0;
     let peakPrincipal = 0;
-    let profitBuffer = 0;
+    let profitBuffer = 0; // "Realized Balance on the backend"
 
     events.forEach(e => {
         if (e.type === 'IN') { // Deposit
@@ -537,27 +533,33 @@ const App: React.FC = () => {
                 peakPrincipal = currentPrincipal;
             }
         }
-        else if (e.type === 'OUT' || e.type === 'LOSS') { // Withdrawal or Realized Loss
-            const amount = e.amount; // Positive amount
+        else if (e.type === 'OUT') { // Withdrawal (Cash Out)
+            const amount = e.amount;
             
-            // Deduct from Profit Buffer first ("House Money")
+            // 1. Try to take from Profit Buffer ("Backend Balance")
             if (profitBuffer >= amount) {
                 profitBuffer -= amount;
+                // Principal remains untouched
             } else {
-                // If buffer exhausted, deduct remainder from Principal
+                // 2. Buffer exhausted, deduct remainder from Principal
                 const remainder = amount - profitBuffer;
                 profitBuffer = 0;
                 currentPrincipal -= remainder;
             }
         }
-        else if (e.type === 'PROFIT') {
-            // Profits simply add to the buffer, they don't increase "Invested Principal"
+        else if (e.type === 'LOSS') { // Realized Loss
+            // User requested: "realized loss or gains will only keep update the realized balance"
+            // So losses simply subtract from the buffer. They do NOT touch principal directly here.
+            // If buffer goes negative, it just means we have a "loss hole" to fill before we have real profit again.
+            profitBuffer -= e.amount;
+        }
+        else if (e.type === 'PROFIT') { // Realized Profit / Dividend
+            // Profits simply add to the buffer
             profitBuffer += e.amount;
         }
     });
 
-    // --- FINAL METRICS ---
-    const netPrincipal = currentPrincipal; // "Current Cash Invested"
+    const netPrincipal = Math.max(0, currentPrincipal); // "Current Cash Invested"
     const peakNetPrincipal = peakPrincipal; // "Lifetime Cash Investment"
 
     // Cash Calculation
@@ -577,7 +579,6 @@ const App: React.FC = () => {
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum;
     
     // ROI Denominator: Use Peak Principal (Max Capital At Risk)
-    // This is standard for Simple ROI to prevent skewed % when principal is withdrawn
     const roiDenominator = peakPrincipal > 0 ? peakPrincipal : 1;
     const roi = (totalNetReturn / roiDenominator) * 100;
     
@@ -602,11 +603,8 @@ const App: React.FC = () => {
     const yesterdayValue = totalValue - dailyPL;
     const dailyPLPercent = yesterdayValue > 0 ? (dailyPL / yesterdayValue) * 100 : 0;
 
-    // Reinvested profits display (Optional metric)
-    // This is essentially (Cost - NetPrincipal), representing how much of the portfolio was funded by gains
     const reinvestedProfits = Math.max(0, totalCost - Math.max(0, netPrincipal));
 
-    // Set side effects for state (Avoid infinite loop by checking difference first)
     if (dividendSum !== totalDividends) setTotalDividends(dividendSum);
     if (divTaxSum !== totalDividendTax) setTotalDividendTax(divTaxSum);
 
