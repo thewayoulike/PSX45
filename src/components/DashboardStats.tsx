@@ -33,6 +33,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
       : 0;
   const isTotalReturnPositive = totalReturnPercent >= 0;
 
+  // --- NEW: Calculate ROI Excluding Dividends ---
+  let roiExcDiv = 0;
+  if (stats.peakNetPrincipal > 0) {
+      const totalProfitValue = (stats.roi / 100) * stats.peakNetPrincipal;
+      const profitExcDiv = totalProfitValue - stats.totalDividends;
+      roiExcDiv = (profitExcDiv / stats.peakNetPrincipal) * 100;
+  }
+  const isRoiExcPositive = roiExcDiv >= 0;
+  // ----------------------------------------------
+
   const formatCurrency = (val: number) => 
     val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   
@@ -85,27 +95,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Simple ROI */}
+            {/* ROI (Inc & Exc Dividends) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
                         <Percent className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                     </div>
                     <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
-                        Simple ROI
+                        ROI
                     </h3>
                 </div>
                 <div className={TOP_SECTION_CLASS}>
-                    <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                        {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
+                    <div className="flex flex-col gap-1 w-full">
+                        {/* Including Dividends (Main) */}
+                        <div className="flex items-baseline justify-between w-full">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Inc. Div</span>
+                            <span className={`text-lg md:text-xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
+                            </span>
+                        </div>
+                        {/* Excluding Dividends (Secondary) */}
+                        <div className="flex items-baseline justify-between w-full">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Exc. Div</span>
+                            <span className={`text-sm md:text-base font-bold tracking-tight ${isRoiExcPositive ? 'text-emerald-600/80' : 'text-rose-600/80'}`}>
+                                {isRoiExcPositive ? '+' : ''}{roiExcDiv.toFixed(2)}%
+                            </span>
+                        </div>
                     </div>
                 </div>
                 <div className="mt-2 md:mt-3">
-                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
-                        <span>Return on Capital</span>
-                    </div>
-                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${isRoiPositive ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
+                    <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
+                        <div className={`h-full ${isRoiPositive ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
                     </div>
                 </div>
             </Card>
