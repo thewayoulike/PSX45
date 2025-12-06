@@ -166,6 +166,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Capital Status</span>
+                        {/* Display negative amount on Total Assets card as well */}
+                        {isCapitalEroded && (
+                            <span className="text-rose-500 flex items-center gap-1" title="Principal Eroded">
+                                -{formatCurrency(erosionAmount)}
+                            </span>
+                        )}
                     </div>
                     <div className="h-1 md:h-1.5 w-full bg-slate-200 rounded-full overflow-hidden flex">
                         {!isCapitalEroded ? (
