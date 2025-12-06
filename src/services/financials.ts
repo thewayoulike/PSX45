@@ -42,75 +42,93 @@ export const fetchCompanyFundamentals = async (ticker: string) => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
+        // Get ALL tables in the document
+        const tables = Array.from(doc.querySelectorAll('table'));
+
         // --- 1. Extract Financials ---
         const financialData: CompanyFinancials[] = [];
-        // Find header that contains "Financials"
-        const financialsHeader = Array.from(doc.querySelectorAll('h4')).find(h => h.textContent?.includes('Financials'));
         
-        if (financialsHeader && financialsHeader.parentElement) {
-            const table = financialsHeader.parentElement.querySelector('table');
-            if (table) {
-                const rows = Array.from(table.querySelectorAll('tr'));
-                // Row 0 has years
-                const years = Array.from(rows[0].querySelectorAll('th, td')).slice(1).map(c => c.textContent?.trim() || '');
-                
-                // Helper to get row data by label
-                const getRowData = (labelPart: string) => {
-                    const row = rows.find(r => r.querySelector('td')?.textContent?.includes(labelPart));
-                    if (!row) return [];
-                    return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
-                };
-
-                const sales = getRowData('Sales');
-                const income = getRowData('Total Income');
-                const profit = getRowData('Profit after Taxation');
-                const eps = getRowData('EPS');
-
-                years.forEach((year, i) => {
-                    if (year) {
-                        financialData.push({
-                            year,
-                            sales: sales[i] || '-',
-                            totalIncome: income[i] || '-',
-                            profitAfterTax: profit[i] || '-',
-                            eps: eps[i] || '-'
-                        });
-                    }
+        // Strategy: Find the table that explicitly contains "Sales" and "Profit after Taxation"
+        const financialsTable = tables.find(t => 
+            t.textContent?.includes('Sales') && 
+            t.textContent?.includes('Profit after Taxation')
+        );
+        
+        if (financialsTable) {
+            const rows = Array.from(financialsTable.querySelectorAll('tr'));
+            
+            // Row 0 has years (Skip the first cell which is empty/label)
+            const headerCells = Array.from(rows[0].querySelectorAll('th, td'));
+            const years = headerCells.slice(1).map(c => c.textContent?.trim() || '');
+            
+            // Helper to get row data by fuzzy text matching
+            const getRowData = (keywords: string[]) => {
+                const row = rows.find(r => {
+                    const firstCell = r.querySelector('td, th');
+                    const text = firstCell?.textContent?.trim() || '';
+                    return keywords.some(k => text.includes(k));
                 });
-            }
+                if (!row) return [];
+                return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
+            };
+
+            const sales = getRowData(['Sales']);
+            const income = getRowData(['Total Income']);
+            const profit = getRowData(['Profit after Taxation']);
+            const eps = getRowData(['EPS']);
+
+            years.forEach((year, i) => {
+                // Basic validation to ensure 'year' looks like a year (4 digits)
+                if (year && year.match(/\d{4}/)) {
+                    financialData.push({
+                        year,
+                        sales: sales[i] || '-',
+                        totalIncome: income[i] || '-',
+                        profitAfterTax: profit[i] || '-',
+                        eps: eps[i] || '-'
+                    });
+                }
+            });
         }
 
         // --- 2. Extract Ratios ---
         const ratiosData: CompanyRatios[] = [];
-        const ratiosHeader = Array.from(doc.querySelectorAll('h4')).find(h => h.textContent?.includes('Ratios'));
         
-        if (ratiosHeader && ratiosHeader.parentElement) {
-            const table = ratiosHeader.parentElement.querySelector('table');
-            if (table) {
-                const rows = Array.from(table.querySelectorAll('tr'));
-                const years = Array.from(rows[0].querySelectorAll('th, td')).slice(1).map(c => c.textContent?.trim() || '');
+        // Strategy: Find table containing "Net Profit Margin"
+        const ratiosTable = tables.find(t => 
+            t.textContent?.includes('Net Profit Margin') && 
+            t.textContent?.includes('EPS Growth')
+        );
+        
+        if (ratiosTable) {
+            const rows = Array.from(ratiosTable.querySelectorAll('tr'));
+            const headerCells = Array.from(rows[0].querySelectorAll('th, td'));
+            const years = headerCells.slice(1).map(c => c.textContent?.trim() || '');
 
-                const getRowData = (labelPart: string) => {
-                    const row = rows.find(r => r.querySelector('td')?.textContent?.includes(labelPart));
-                    if (!row) return [];
-                    return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
-                };
-
-                const margins = getRowData('Net Profit Margin');
-                const growth = getRowData('EPS Growth');
-                const peg = getRowData('PEG');
-
-                years.forEach((year, i) => {
-                    if (year) {
-                        ratiosData.push({
-                            year,
-                            netProfitMargin: margins[i] || '-',
-                            epsGrowth: growth[i] || '-',
-                            peg: peg[i] || '-'
-                        });
-                    }
+            const getRowData = (keywords: string[]) => {
+                const row = rows.find(r => {
+                    const firstCell = r.querySelector('td, th');
+                    const text = firstCell?.textContent?.trim() || '';
+                    return keywords.some(k => text.includes(k));
                 });
-            }
+                if (!row) return [];
+                return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
+            };
+
+            const margins = getRowData(['Net Profit Margin']);
+            const growth = getRowData(['EPS Growth']);
+            const peg = getRowData(['PEG']);
+
+            years.forEach((year, i) => {
+                if (year && year.match(/\d{4}/)) {
+                    ratiosData.push({
+                        year,
+                        netProfitMargin: margins[i] || '-',
+                        epsGrowth: growth[i] || '-',
+                        peg: peg[i] || '-'
+                    });
+                }
+            });
         }
 
         return { financials: financialData, ratios: ratiosData };
