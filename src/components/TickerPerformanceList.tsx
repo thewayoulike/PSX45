@@ -22,7 +22,8 @@ import {
   Activity,
   Loader2,
   FileText,
-  RefreshCw 
+  RefreshCw,
+  Clock 
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { exportToCSV } from '../utils/export';
@@ -35,7 +36,6 @@ interface TickerPerformanceListProps {
   onTickerClick: (ticker: string) => void;
 }
 
-// Helper interface for the enriched table rows
 interface ActivityRow extends Transaction {
   avgBuyPrice: number;       
   sellOrCurrentPrice: number; 
@@ -44,7 +44,6 @@ interface ActivityRow extends Transaction {
   remainingQty?: number;
 }
 
-// Interface for Sector Stats
 interface SectorStats {
     name: string;
     stockCount: number;
@@ -59,8 +58,6 @@ interface SectorStats {
     lifetimeROI: number;
     allocationPercent: number;
     feesPaid: number;
-    
-    // Detailed Aggregations
     totalComm: number;
     totalTradingTax: number;
     totalCDC: number;
@@ -69,19 +66,39 @@ interface SectorStats {
     buyCount: number;
     sellCount: number;
     dividendYieldOnCost: number;
-    
-    // New fields for matching Stock Card
     ownedQty: number;
     soldQty: number;
     dividendCount: number;
-    
     tickers: string[];
 }
+
+// --- HELPER: Calculate Holding Duration ---
+const getHoldingDuration = (dateStr: string) => {
+    const start = new Date(dateStr);
+    const now = new Date();
+    
+    let years = now.getFullYear() - start.getFullYear();
+    let months = now.getMonth() - start.getMonth();
+    let days = now.getDate() - start.getDate();
+
+    if (days < 0) {
+        months--;
+        const prevMonth = new Date(now.getFullYear(), now.getMonth(), 0);
+        days += prevMonth.getDate();
+    }
+    if (months < 0) {
+        years--;
+        months += 12;
+    }
+    
+    if (years > 0) return `${years}Y ${months}M`;
+    if (months > 0) return `${months}M ${days}D`;
+    return `${days} Days`;
+};
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
   transactions, currentPrices, sectors, onTickerClick
 }) => {
-  // 1. Initialize State from LocalStorage to persist selection
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
       return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
   });
@@ -94,7 +111,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return localStorage.getItem('psx_last_analyzed_sector') || null;
   });
   
-  // Initialize search term based on the active mode's persisted value
   const [searchTerm, setSearchTerm] = useState(() => {
       const mode = localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR';
       if (mode === 'SECTOR') return localStorage.getItem('psx_last_analyzed_sector') || '';
@@ -107,17 +123,14 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [activityPage, setActivityPage] = useState<number>(1);
   const [activityRowsPerPage, setActivityRowsPerPage] = useState<number>(25);
 
-  // --- FINANCIALS STATE ---
   const [fundamentals, setFundamentals] = useState<FundamentalsData | null>(null);
   const [loadingFundamentals, setLoadingFundamentals] = useState(false);
   const [financialPeriod, setFinancialPeriod] = useState<'Annual' | 'Quarterly'>('Annual');
 
-  // --- REUSABLE FETCH FUNCTION ---
   const loadFundamentals = useCallback(async () => {
       if (analysisMode === 'STOCK' && selectedTicker) {
           setLoadingFundamentals(true);
           setFundamentals(null); 
-          
           try {
               const data = await fetchCompanyFundamentals(selectedTicker);
               setFundamentals(data);
@@ -131,13 +144,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }
   }, [selectedTicker, analysisMode]);
 
-  // --- INITIAL LOAD EFFECT ---
   useEffect(() => {
       loadFundamentals();
   }, [loadFundamentals]);
 
-
-  // --- HELPER: Total Portfolio Value ---
   const totalPortfolioValue = useMemo(() => {
       const uniqueTickers = Array.from(new Set(transactions.map(t => t.ticker)));
       const systemTypes = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
@@ -155,7 +165,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
-  // --- HELPER: FIFO Calculation Logic ---
   const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
       const currentPrice = currentPrices[ticker] || 0;
       const sortedTxs = [...txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -231,7 +240,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }).reverse();
   };
 
-  // 1. Calculate Ticker Stats (FIFO Logic)
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
       const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
@@ -245,7 +253,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       
       return uniqueTickers.map(ticker => {
           const txs = transactions.filter(t => t.ticker === ticker);
-          const enrichedRows = calculateEnrichedRows(ticker, txs);
+          const enrichedRows = calculateEnrichedRows(ticker, txs); 
           
           let ownedQty = 0; let soldQty = 0; let realizedPL = 0; let unrealizedPL = 0;
           let totalDividends = 0; let dividendTax = 0; let dividendCount = 0; let dividendSharesCount = 0;
@@ -253,6 +261,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0;
           let totalCostBasis = 0; 
           let aggBuyComm = 0; let aggBuyCDC = 0; let aggBuyOther = 0; let totalBuyVolume = 0;
+
+          // Holding Period Calculation
+          const activeBuys = enrichedRows.filter(r => r.type === 'BUY' && (r.remainingQty || 0) > 0);
+          const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null;
+          const holdingPeriod = oldestBuyDate ? getHoldingDuration(oldestBuyDate) : '-';
 
           enrichedRows.forEach(row => {
               if (row.type === 'BUY') {
@@ -317,12 +330,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               feesPaid, totalComm, totalTradingTax, totalCDC, totalOther,
               tradeCount, buyCount, sellCount,
               lifetimeROI, allocationPercent, breakEvenPrice,
-              lifetimeBuyCost 
+              lifetimeBuyCost,
+              holdingPeriod
           };
       }).sort((a, b) => a.ticker.localeCompare(b.ticker));
   }, [transactions, currentPrices, sectors, totalPortfolioValue]);
 
-  // 2. Calculate Sector Aggregation
   const allSectorStats = useMemo(() => {
       const sectorMap: Record<string, SectorStats> = {};
       allTickerStats.forEach(stat => {
@@ -344,7 +357,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return sectorArray.sort((a, b) => b.allocationPercent - a.allocationPercent);
   }, [allTickerStats]);
 
-  // 3. Filtering and Selection Logic
   const filteredOptions = useMemo(() => {
       if (analysisMode === 'STOCK') {
           if (!searchTerm) return allTickerStats;
@@ -377,7 +389,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const handleSelect = (val: string) => { if (analysisMode === 'STOCK') { setSelectedTicker(val); localStorage.setItem('psx_last_analyzed_ticker', val); } else { setSelectedSector(val); localStorage.setItem('psx_last_analyzed_sector', val); } setSearchTerm(val); setIsDropdownOpen(false); };
   const handleClearSelection = (e: React.MouseEvent) => { e.stopPropagation(); setSearchTerm(''); if (analysisMode === 'STOCK') { setSelectedTicker(null); localStorage.removeItem('psx_last_analyzed_ticker'); } else { setSelectedSector(null); localStorage.removeItem('psx_last_analyzed_sector'); } };
 
-  // Data helpers
   const activityRows = useMemo(() => { if (!selectedTicker || analysisMode !== 'STOCK') return []; const txs = transactions.filter(t => t.ticker === selectedTicker); return calculateEnrichedRows(selectedTicker, txs); }, [selectedTicker, transactions, currentPrices, analysisMode]);
   const sectorActivityRows = useMemo(() => { if (!selectedSector || analysisMode !== 'SECTOR' || !selectedSectorStats) return []; const allRows: ActivityRow[] = []; selectedSectorStats.tickers.forEach(ticker => { const txs = transactions.filter(t => t.ticker === ticker); const enriched = calculateEnrichedRows(ticker, txs); allRows.push(...enriched); }); return allRows.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); }, [selectedSector, transactions, analysisMode, selectedSectorStats, currentPrices]);
   const currentRows = analysisMode === 'STOCK' ? activityRows : sectorActivityRows;
@@ -389,7 +400,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formatDecimal = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // --- DERIVE CURRENT FINANCIALS FOR DISPLAY ---
   const displayFinancials = useMemo(() => {
       if (!fundamentals) return null;
       return financialPeriod === 'Annual' ? fundamentals.annual : fundamentals.quarterly;
@@ -458,7 +468,23 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Position & Gains</h3> </div>
                         <div className="space-y-6">
-                            <div className="grid grid-cols-2 gap-4"> <div> <div className="text-3xl font-bold text-slate-800">{selectedStockStats.ownedQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> </div> <div> <div className="text-3xl font-bold text-slate-400">{selectedStockStats.soldQty.toLocaleString()}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> </div> </div>
+                            <div className="grid grid-cols-2 gap-4"> 
+                                <div> 
+                                    <div className="text-3xl font-bold text-slate-800">{selectedStockStats.ownedQty.toLocaleString()}</div> 
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> 
+                                    {/* NEW HOLDING PERIOD BADGE */}
+                                    {selectedStockStats.holdingPeriod !== '-' && (
+                                        <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 font-bold bg-blue-50 px-1.5 py-0.5 rounded w-fit" title="Duration of oldest unsold shares">
+                                            <Clock size={10} />
+                                            <span>Oldest: {selectedStockStats.holdingPeriod}</span>
+                                        </div>
+                                    )}
+                                </div> 
+                                <div> 
+                                    <div className="text-3xl font-bold text-slate-400">{selectedStockStats.soldQty.toLocaleString()}</div> 
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> 
+                                </div> 
+                            </div>
                             <div className="h-px bg-slate-100 w-full"></div>
                             <div className="grid grid-cols-2 gap-4"> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStockStats.totalCostBasis)}</div> <div className="text-[10px] text-slate-400">Total Cost Basis</div> <div className="text-[9px] text-slate-400 mt-0.5"> Avg: <span className="font-mono text-slate-600">Rs. {formatDecimal(selectedStockStats.currentAvgPrice)}</span> </div> </div> <div> <div className="text-sm font-bold text-slate-700">Rs. {formatCurrency(selectedStockStats.currentValue)}</div> <div className="text-[10px] text-slate-400">Market Value</div> </div> </div>
                             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-3 rounded-xl border border-slate-100"> <div> <div className={`text-sm font-bold ${selectedStockStats.realizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStockStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStockStats.realizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div> </div> <div> <div className={`text-sm font-bold ${selectedStockStats.unrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}> {selectedStockStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedStockStats.unrealizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div> </div> </div>
@@ -507,13 +533,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <div className="flex bg-slate-100 p-1 rounded-lg">
                                 <button 
                                     onClick={() => setFinancialPeriod('Annual')}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${financialPeriod === 'Annual' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${financialPeriod === 'Annual' ? 'bg-emerald-50 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     Annual
                                 </button>
                                 <button 
                                     onClick={() => setFinancialPeriod('Quarterly')}
-                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${financialPeriod === 'Quarterly' ? 'bg-emerald-500 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                    className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${financialPeriod === 'Quarterly' ? 'bg-emerald-50 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     Quarterly
                                 </button>
@@ -623,6 +649,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <thead className="bg-slate-50 text-[10px] uppercase text-slate-500 font-bold tracking-wider border-b border-slate-200">
                                 <tr>
                                     <th className="px-6 py-4">Date</th> <th className="px-4 py-4">Type</th> <th className="px-4 py-4 text-right">Qty</th>
+                                    {/* NEW HEADER COLUMN */}
+                                    <th className="px-4 py-4 text-center">Held</th>
                                     <th className="px-4 py-4 text-right text-slate-700" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th>
                                     <th className="px-4 py-4 text-right text-slate-700" title="Effective Sell Rate or Current Market Price">Sell / Current</th>
                                     <th className="px-4 py-4 text-right text-slate-400">Comm</th> <th className="px-4 py-4 text-right text-slate-400">Tax</th> <th className="px-4 py-4 text-right text-slate-400">CDC</th> <th className="px-4 py-4 text-right text-slate-400">Other</th> <th className="px-6 py-4 text-right">Net Amount</th>
@@ -632,11 +660,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             <tbody className="divide-y divide-slate-100">
                                 {paginatedActivity.map(t => {
                                     const net = t.type === 'BUY' ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : t.type === 'SELL' ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : (t.quantity * t.price) - (t.tax||0); 
+                                    
+                                    // Determine Holding Duration string for this specific row
+                                    let rowDuration = '-';
+                                    if (t.type === 'BUY' && (t.remainingQty || 0) > 0) {
+                                        rowDuration = getHoldingDuration(t.date);
+                                    }
+
                                     return (
                                         <tr key={t.id} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-6 py-4 text-slate-500 font-mono text-xs">{t.date}</td>
                                             <td className="px-4 py-4"><span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-100' : t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-slate-100'}`}>{t.type}</span></td>
                                             <td className="px-4 py-4 text-right text-slate-700 font-medium">{t.quantity.toLocaleString()}</td>
+                                            
+                                            {/* NEW DURATION COLUMN */}
+                                            <td className="px-4 py-4 text-center">
+                                                {rowDuration !== '-' ? (
+                                                    <span className="text-[10px] font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">
+                                                        {rowDuration}
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-slate-300 text-xs">-</span>
+                                                )}
+                                            </td>
+
                                             <td className="px-4 py-4 text-right font-mono text-xs text-slate-600">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
                                             <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600' : t.type === 'BUY' ? 'text-rose-500' : 'text-indigo-600'}`}>{formatDecimal(t.sellOrCurrentPrice)}</td>
                                             <td className="px-4 py-4 text-right text-slate-400 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
@@ -652,7 +699,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             </tbody>
                             <tfoot className="bg-slate-50 text-xs font-bold text-slate-700 border-t border-slate-200">
                                 <tr>
-                                    <td colSpan={9} className="px-6 py-3 text-right uppercase tracking-wider text-slate-500">Grand Total (Visible)</td>
+                                    {/* Adjusted colSpan for new column */}
+                                    <td colSpan={10} className="px-6 py-3 text-right uppercase tracking-wider text-slate-500">Grand Total (Visible)</td>
                                     <td className={`px-6 py-3 text-right font-mono ${activityTotals.netAmount >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                         {activityTotals.netAmount >= 0 ? '+' : ''}{formatCurrency(activityTotals.netAmount)}
                                     </td>
