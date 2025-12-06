@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw, Landmark, Stamp } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -114,7 +114,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                                 {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
                             </span>
                         </div>
-                        {/* Excluding Dividends (Secondary) - UPDATED SIZE */}
+                        {/* Excluding Dividends (Secondary) */}
                         <div className="flex items-baseline justify-between w-full">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Exc. Div</span>
                             <span className={`text-lg md:text-xl font-bold tracking-tight ${isRoiExcPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -479,39 +479,54 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
             </Card>
         </div>
 
-        {/* ROW 3: Fees Breakdown */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-2">
-            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Receipt size={18} /></div>
+        {/* ROW 3: Fees Breakdown - REFACTORED TO INDIVIDUAL CARDS */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mt-2">
+            
+            {/* Commission */}
+            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100 transition-colors"><Receipt size={18} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Commission</div>
                     <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalCommission)}</div>
                 </div>
             </div>
             
-            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm">
-                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Building2 size={18} /></div>
+            {/* Sales Tax (SST) */}
+            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
+                <div className="p-2 bg-purple-50 text-purple-600 rounded-lg group-hover:bg-purple-100 transition-colors"><Building2 size={18} /></div>
                 <div>
-                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Taxes (SST/WHT)</div>
-                    <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalSalesTax + stats.totalDividendTax)}</div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Taxes (SST)</div>
+                    <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalSalesTax)}</div>
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm">
-                <div className="p-2 bg-orange-50 text-orange-600 rounded-lg"><FileText size={18} /></div>
+            {/* CDC Charges */}
+            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
+                <div className="p-2 bg-orange-50 text-orange-600 rounded-lg group-hover:bg-orange-100 transition-colors"><FileText size={18} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">CDC & Other</div>
-                    <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalCDC + stats.totalOtherFees)}</div>
+                    <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalCDC)}</div>
                 </div>
             </div>
 
-            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm">
-                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg"><PiggyBank size={18} /></div>
+            {/* Capital Gains Tax (CGT) */}
+            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
+                <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors"><PiggyBank size={18} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total CGT</div>
                     <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalCGT)}</div>
                 </div>
             </div>
+
+            {/* Other Fees / Adjustments */}
+            <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
+                <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-slate-100 transition-colors"><Stamp size={18} /></div>
+                <div>
+                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Other Fees</div>
+                    <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalOtherFees)}</div>
+                </div>
+            </div>
+
         </div>
 
     </div>
