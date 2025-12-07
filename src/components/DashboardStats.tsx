@@ -33,13 +33,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
       : 0;
   const isTotalReturnPositive = totalReturnPercent >= 0;
 
-  // --- NEW: Calculate ROI Excluding Dividends ---
+  // --- UPDATED: Calculate ROI Excluding Dividends ---
   let roiExcDiv = 0;
-  if (stats.peakNetPrincipal > 0) {
-      const totalProfitValue = (stats.roi / 100) * stats.peakNetPrincipal;
+  
+  // MATCH THE DENOMINATOR used in App.tsx (Net Principal preferred)
+  const denominator = stats.netPrincipal > 0 ? stats.netPrincipal : (stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : 1);
+
+  if (denominator > 0) {
+      // 1. Reverse the ROI to get the Total Return Value ($)
+      const totalProfitValue = (stats.roi / 100) * denominator;
+      
+      // 2. Subtract Dividends to get Capital Gains only
       const profitExcDiv = totalProfitValue - stats.totalDividends;
-      roiExcDiv = (profitExcDiv / stats.peakNetPrincipal) * 100;
+      
+      // 3. Recalculate ROI percentage
+      roiExcDiv = (profitExcDiv / denominator) * 100;
   }
+  
   const isRoiExcPositive = roiExcDiv >= 0;
   // ----------------------------------------------
 
