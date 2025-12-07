@@ -578,8 +578,9 @@ const App: React.FC = () => {
     
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum;
     
-    // ROI Denominator: Use Peak Principal (Max Capital At Risk)
-    const roiDenominator = peakPrincipal > 0 ? peakPrincipal : 1;
+    // ROI Denominator: Use Net Principal (Current Invested) if available, otherwise Peak
+    const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakPrincipal > 0 ? peakPrincipal : 1);
+    
     const roi = (totalNetReturn / roiDenominator) * 100;
     
     const unrealizedPL = totalValue - totalCost;
