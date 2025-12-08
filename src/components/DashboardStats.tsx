@@ -271,7 +271,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
-                        <History className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                        <Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                     </div>
                     <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
                         Lifetime Cash Investment
