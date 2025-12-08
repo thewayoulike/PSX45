@@ -446,7 +446,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Realized Gains */}
+            {/* Realized Gains (FIXED DISPLAY) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
