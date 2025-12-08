@@ -1,9 +1,9 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 import * as XLSX from 'xlsx';
 
 let userProvidedKey: string | null = null;
-let genAI: GoogleGenerativeAI | null = null;
+let aiClient: GoogleGenAI | null = null;
 
 const sanitizeKey = (key: string): string => {
     return key.replace(/[^\x00-\x7F]/g, "").trim();
@@ -11,18 +11,18 @@ const sanitizeKey = (key: string): string => {
 
 export const setGeminiApiKey = (key: string | null) => {
     userProvidedKey = key ? sanitizeKey(key) : null;
-    genAI = null;
+    aiClient = null;
 };
 
-const getModel = () => {
-    if (genAI) return genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    
-    const key = userProvidedKey;
+const getApiKey = () => userProvidedKey;
+
+const getAi = (): GoogleGenAI | null => {
+    if (aiClient) return aiClient;
+    const key = getApiKey();
     if (!key) return null;
-    
     try {
-        genAI = new GoogleGenerativeAI(key);
-        return genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        aiClient = new GoogleGenAI({ apiKey: key });
+        return aiClient;
     } catch (e) {
         console.error("Failed to initialize Gemini Client", e);
         return null;
@@ -83,18 +83,18 @@ const extractJsonArray = (text: string): string | null => {
 
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
   try {
-    const model = getModel(); 
-    if (!model) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
+    const ai = getAi(); 
+    if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
 
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
-    let promptParts: any[] = [];
+    let parts: any[] = [];
 
     if (isSpreadsheet) {
         const sheetData = await readSpreadsheetAsText(file);
-        promptParts = [
-            "Here is the raw data from a trade history spreadsheet:",
-            sheetData,
-            "Analyze this data. Extract all trade executions. Return JSON array with properties: ticker, type (BUY/SELL), quantity, price, date, broker, commission, tax, cdcCharges, otherFees."
+        parts = [
+            { text: "Here is the raw data from a trade history spreadsheet:" },
+            { text: sheetData },
+            { text: `Analyze this data. Extract all trade executions. Return JSON array.` }
         ];
     } else {
         const base64Data = await new Promise<string>((resolve, reject) => {
@@ -103,20 +103,40 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
             reader.onerror = reject;
             reader.readAsDataURL(file);
         });
-        
-        promptParts = [
+        parts = [
             { inlineData: { mimeType: file.type, data: base64Data } },
-            "Analyze this trade confirmation document. Extract all trade executions. Return JSON array with properties: ticker, type (BUY/SELL), quantity, price, date, broker, commission, tax, cdcCharges, otherFees."
+            { text: `Analyze this trade confirmation document. Extract all trade executions. Return JSON array.` }
         ];
     }
 
-    const result = await model.generateContent(promptParts);
-    const response = await result.response;
-    const text = response.text();
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              ticker: { type: Type.STRING },
+              type: { type: Type.STRING, enum: ["BUY", "SELL"] },
+              quantity: { type: Type.NUMBER },
+              price: { type: Type.NUMBER },
+              date: { type: Type.STRING },
+              broker: { type: Type.STRING, nullable: true },
+              commission: { type: Type.NUMBER, nullable: true },
+              tax: { type: Type.NUMBER, nullable: true },
+              cdcCharges: { type: Type.NUMBER, nullable: true },
+              otherFees: { type: Type.NUMBER, nullable: true }
+            },
+            required: ["ticker", "type", "quantity", "price"]
+          }
+        }
+      }
+    });
 
-    const jsonString = extractJsonArray(text);
-    if (jsonString) return JSON.parse(jsonString);
-    
+    if (response.text) return JSON.parse(response.text);
     return [];
   } catch (error: any) {
     console.error("Error parsing document:", error);
@@ -124,25 +144,28 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
   }
 };
 
+// UPDATED: Added 'months' param and improved prompt for PSX
 export const fetchDividends = async (tickers: string[], months: number = 6): Promise<DividendAnnouncement[]> => {
     try {
-        const model = getModel(); 
-        if (!model) throw new Error("API Key missing. Please go to Settings to add one.");
+        const ai = getAi(); 
+        if (!ai) throw new Error("API Key missing. Please go to Settings to add one.");
 
         const tickerList = tickers.join(", ");
         
-        // Note: Google Search tool is not standard in the client-side SDK. 
-        // We rely on the model's internal knowledge or prompt capabilities here.
-        const result = await model.generateContent([
-            `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
             
-            Ignore any dividends older than ${months} months.`
-        ]);
+            Ignore any dividends older than ${months} months.`,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
+        });
 
-        const response = await result.response;
-        const text = response.text();
+        const text = response.text;
+        if (!text) return [];
 
         const jsonString = extractJsonArray(text);
         if (jsonString) {
