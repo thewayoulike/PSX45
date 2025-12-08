@@ -12,8 +12,8 @@ import { DividendScanner } from './DividendScanner';
 import { ApiKeyManager } from './ApiKeyManager'; 
 import { LoginPage } from './LoginPage';
 import { Logo } from './ui/Logo';
-import { TickerPerformanceList } from './TickerPerformanceList';
-import { TickerProfile } from './TickerProfile';
+import { TickerPerformanceList } from './TickerPerformanceList'; 
+import { TickerProfile } from './TickerProfile'; 
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
@@ -310,7 +310,9 @@ const App: React.FC = () => {
   // --- MAIN STATS CALCULATION ---
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
-    let operationalExpenses = 0; // NEW: Track expenses like Annual Fees
+    
+    // NEW: Variable to track "Operational Expenses" which reduce profit but aren't withdrawals
+    let operationalExpenses = 0; 
     let dailyPL = 0;
 
     holdings.forEach(h => { 
@@ -340,22 +342,24 @@ const App: React.FC = () => {
             events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx }); 
         }
         else if (t.type === 'ANNUAL_FEE') {
-            // FIX: Treat as Expense (Loss), not Withdrawal
+            // FIX: Annual Fee is an Expense (Loss), not a Capital Withdrawal
             operationalExpenses += t.price;
             events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx });
         }
         else if (t.type === 'OTHER') {
             if (t.category === 'OTHER_TAX') {
-                // FIX: Treat as Expense (Loss), not Withdrawal
+                // FIX: Other Tax is an Expense (Loss)
                 operationalExpenses += Math.abs(t.price);
                 events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
             } else {
+                // Adjustments: Negative is expense, Positive is deposit/gift
                 if (t.price >= 0) {
                     totalDeposits += t.price;
                     events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
                 } else {
-                    totalWithdrawals += Math.abs(t.price);
-                    events.push({ date: t.date, type: 'OUT', amount: Math.abs(t.price), originalIndex: idx });
+                    // Negative Adjustment -> Treated as Expense/Loss
+                    operationalExpenses += Math.abs(t.price);
+                    events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
                 }
             }
         }
@@ -432,14 +436,18 @@ const App: React.FC = () => {
     });
     
     let cashIn = totalDeposits; 
-    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; // operationalExpenses reduce cash
+    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; // Expenses reduce cash balance
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    // UPDATED: Net Return now subtracts operational expenses (Fees, Other Taxes)
-    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses;
+    // --- UPDATED ROI FORMULA ---
+    // Numerator: (Realized Net - CGT) + Unrealized + Dividends - Operational Expenses
+    const profitExcDiv = netRealizedPL + (totalValue - totalCost) - operationalExpenses;
+    const profitIncDiv = profitExcDiv + dividendSum;
     
-    const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakPrincipal > 0 ? peakPrincipal : 1);
-    const roi = (totalNetReturn / roiDenominator) * 100;
+    // Denominator: Lifetime Investment (Peak Net Principal)
+    const roiDenominator = peakNetPrincipal > 0 ? peakNetPrincipal : 1;
+    
+    const roi = (profitIncDiv / roiDenominator) * 100;
     
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
@@ -447,14 +455,12 @@ const App: React.FC = () => {
     // MWRR Calc
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
-        // Only actual deposits/withdrawals affect XIRR capital flows
-        // Fees are negative performance, not capital flows
+        // Operational Expenses are NOT cash flows for XIRR (they are internal losses)
         if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX')) {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
         }
-        // ANNUAL_FEE is left out of flows -> it acts as internal loss
     });
     const currentTotalNetWorth = totalValue + freeCash;
     if (currentTotalNetWorth > 0) {
@@ -665,7 +671,7 @@ const App: React.FC = () => {
                             showBroker={true} 
                             failedTickers={failedTickers} 
                             ldcpMap={ldcpMap} 
-                            onTickerClick={handleGoToStockPage} // UPDATED: NAVIGATE TO STOCKS TAB
+                            onTickerClick={handleGoToStockPage} 
                         />
                     </div>
                 </div>
@@ -677,7 +683,7 @@ const App: React.FC = () => {
                         transactions={portfolioTransactions}
                         currentPrices={manualPrices}
                         sectors={sectorMap}
-                        onTickerClick={(t) => setViewTicker(t)} // Inner clicks still open overlay
+                        onTickerClick={(t) => setViewTicker(t)}
                     />
                 </div>
             )}
