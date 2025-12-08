@@ -40,7 +40,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   const roiDenominator = stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : 1;
 
   if (roiDenominator > 0) {
-      // 1. Reverse the ROI to get the Total Return Value ($)
+      // 1. Reverse the ROI to get the Total Return Value (Net Profit including Dividends)
       // stats.roi represents (Capital Gains - Expenses + Dividends) / Denominator
       const totalProfitIncDiv = (stats.roi / 100) * roiDenominator;
       
