@@ -1,8 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, Info } from 'lucide-react';
-
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, Info, RefreshCcw } from 'lucide-react';
 interface DashboardProps {
   stats: PortfolioStats;
   lastUpdated?: string | null; 
