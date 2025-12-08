@@ -12,8 +12,8 @@ import { DividendScanner } from './DividendScanner';
 import { ApiKeyManager } from './ApiKeyManager'; 
 import { LoginPage } from './LoginPage';
 import { Logo } from './ui/Logo';
-import { TickerPerformanceList } from './TickerPerformanceList'; 
-import { TickerProfile } from './TickerProfile'; 
+import { TickerPerformanceList } from './TickerPerformanceList';
+import { TickerProfile } from './TickerProfile';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
@@ -311,7 +311,7 @@ const App: React.FC = () => {
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     
-    // Track Operational Expenses separately (for ROI Numerator)
+    // NEW: Variable to track "Operational Expenses" which reduce profit but aren't withdrawals
     let operationalExpenses = 0; 
     let dailyPL = 0;
 
@@ -438,18 +438,17 @@ const App: React.FC = () => {
     let cashOut = totalWithdrawals + totalCGT + operationalExpenses; 
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    // --- ROI CALCULATION ---
-    // Formula: ( (Realized Gain - CGT) + Unrealized Gain - Expenses + Net Dividends ) / Lifetime Invested
-    // 1. Gross Profit Components
-    const grossProfitExcDiv = netRealizedPL + (totalValue - totalCost) - operationalExpenses;
+    // --- UPDATED ROI FORMULA ---
+    // 1. Numerator Component: Net Capital Gain (Realized - CGT + Unrealized - Expenses)
+    const capitalGainNet = netRealizedPL + (totalValue - totalCost) - operationalExpenses;
     
-    // 2. Total Net Return (Including Dividends)
-    const totalNetReturn = grossProfitExcDiv + dividendSum;
+    // 2. Numerator: Total Return = Capital Gain + Net Dividends
+    const totalNetReturn = capitalGainNet + dividendSum;
     
-    // 3. Denominator: Lifetime Investment (Peak Net Principal)
+    // 3. Denominator: Lifetime Investment (Peak Principal)
     const roiDenominator = peakNetPrincipal > 0 ? peakNetPrincipal : 1;
     
-    // 4. Calculate ROI %
+    // 4. Final ROI
     const roi = (totalNetReturn / roiDenominator) * 100;
     
     const unrealizedPL = totalValue - totalCost;
