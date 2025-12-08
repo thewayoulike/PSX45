@@ -19,8 +19,8 @@ import {
   Percent, 
   BarChart3, 
   Info,
-  RefreshCcw, // Fixed: Added back to prevent crash
-  Stamp       // Fixed: Added back to prevent crash
+  RefreshCcw, // Fixed: Added back
+  Stamp       // Fixed: Added back
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -29,10 +29,8 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
-  // --- REALIZED GAINS LOGIC ---
-  // Main Figure (Net) = Gross (stats.realizedPL) - Tax (stats.totalCGT)
-  const displayNetRealized = stats.realizedPL - stats.totalCGT;
-  const isRealizedProfitable = displayNetRealized >= 0;
+  // --- REALIZED GAINS LOGIC (Reverted to Original) ---
+  const isRealizedProfitable = stats.netRealizedPL >= 0;
 
   // --- UNREALIZED GAINS LOGIC ---
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
@@ -446,7 +444,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Realized Gains (FIXED DISPLAY) */}
+            {/* Realized Gains (Reverted to Original) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -458,7 +456,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
-                        {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(displayNetRealized))}
+                        {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
                     </div>
                 </div>
                 <div className="mt-2 md:mt-3">
