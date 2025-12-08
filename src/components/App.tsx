@@ -310,9 +310,7 @@ const App: React.FC = () => {
   // --- MAIN STATS CALCULATION ---
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
-    
-    // NEW: Variable to track "Operational Expenses" which reduce profit but aren't withdrawals
-    let operationalExpenses = 0; 
+    let operationalExpenses = 0; // NEW: Track expenses like Annual Fees
     let dailyPL = 0;
 
     holdings.forEach(h => { 
@@ -348,7 +346,7 @@ const App: React.FC = () => {
         }
         else if (t.type === 'OTHER') {
             if (t.category === 'OTHER_TAX') {
-                // FIX: Treat as Expense (Loss)
+                // FIX: Treat as Expense (Loss), not Withdrawal
                 operationalExpenses += Math.abs(t.price);
                 events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
             } else {
@@ -356,9 +354,8 @@ const App: React.FC = () => {
                     totalDeposits += t.price;
                     events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
                 } else {
-                    // Negative Adjustment -> Treated as Expense/Loss
-                    operationalExpenses += Math.abs(t.price);
-                    events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
+                    totalWithdrawals += Math.abs(t.price);
+                    events.push({ date: t.date, type: 'OUT', amount: Math.abs(t.price), originalIndex: idx });
                 }
             }
         }
@@ -435,20 +432,13 @@ const App: React.FC = () => {
     });
     
     let cashIn = totalDeposits; 
-    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; 
+    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; // operationalExpenses reduce cash
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    // --- UPDATED ROI FORMULA ---
-    // 1. Numerator Component: Net Capital Gain (Realized - CGT + Unrealized - Expenses)
-    const capitalGainNet = netRealizedPL + (totalValue - totalCost) - operationalExpenses;
+    // UPDATED: Net Return now subtracts operational expenses (Fees, Other Taxes)
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses;
     
-    // 2. Numerator: Total Return = Capital Gain + Net Dividends
-    const totalNetReturn = capitalGainNet + dividendSum;
-    
-    // 3. Denominator: Lifetime Investment (Peak Principal)
-    const roiDenominator = peakNetPrincipal > 0 ? peakNetPrincipal : 1;
-    
-    // 4. Final ROI
+    const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakPrincipal > 0 ? peakPrincipal : 1);
     const roi = (totalNetReturn / roiDenominator) * 100;
     
     const unrealizedPL = totalValue - totalCost;
@@ -457,11 +447,14 @@ const App: React.FC = () => {
     // MWRR Calc
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
+        // Only actual deposits/withdrawals affect XIRR capital flows
+        // Fees are negative performance, not capital flows
         if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX')) {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
         }
+        // ANNUAL_FEE is left out of flows -> it acts as internal loss
     });
     const currentTotalNetWorth = totalValue + freeCash;
     if (currentTotalNetWorth > 0) {
@@ -672,7 +665,7 @@ const App: React.FC = () => {
                             showBroker={true} 
                             failedTickers={failedTickers} 
                             ldcpMap={ldcpMap} 
-                            onTickerClick={handleGoToStockPage} 
+                            onTickerClick={handleGoToStockPage} // UPDATED: NAVIGATE TO STOCKS TAB
                         />
                     </div>
                 </div>
@@ -684,7 +677,7 @@ const App: React.FC = () => {
                         transactions={portfolioTransactions}
                         currentPrices={manualPrices}
                         sectors={sectorMap}
-                        onTickerClick={(t) => setViewTicker(t)}
+                        onTickerClick={(t) => setViewTicker(t)} // Inner clicks still open overlay
                     />
                 </div>
             )}
