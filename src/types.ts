@@ -136,3 +136,13 @@ export interface Broker {
   isDefault?: boolean;
   slabs?: CommissionSlab[];
 }
+
+// --- NEW INTERFACE FOR FUTURE DIVIDENDS ---
+export interface CompanyPayout {
+    ticker: string;
+    announceDate: string;
+    financialResult: string;
+    details: string; // e.g. "50% (F) (D)"
+    bookClosure: string; // e.g. "12/12/2024 - 19/12/2024"
+    isUpcoming: boolean;
+}
