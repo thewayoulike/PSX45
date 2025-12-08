@@ -19,8 +19,8 @@ import {
   Percent, 
   BarChart3, 
   Info,
-  RefreshCcw, // Added back
-  Stamp       // Added back
+  RefreshCcw, // FIXED: Added missing import
+  Stamp       // FIXED: Added missing import
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -29,15 +29,17 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
-  // Explicitly calculate Net Realized for display reliability
-  // This ensures Main Figure (Net) = Gross (stats.realizedPL) - Tax (stats.totalCGT)
+  // --- REALIZED GAINS LOGIC ---
+  // Explicitly calculate Net Realized for display
+  // Main Figure (Net) = Gross (stats.realizedPL) - Tax (stats.totalCGT)
   const displayNetRealized = stats.realizedPL - stats.totalCGT;
   const isRealizedProfitable = displayNetRealized >= 0;
 
+  // --- UNREALIZED GAINS LOGIC ---
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
+  
   const isRoiPositive = stats.roi >= 0;
   const isMwrrPositive = stats.mwrr >= 0;
-  
   const isDailyProfitable = stats.dailyPL >= 0;
 
   const dividendYield = stats.totalCost > 0 ? (stats.totalDividends / stats.totalCost) * 100 : 0;
@@ -271,7 +273,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
-                        <Briefcase className="w-4 h-4 md:w-[18px] md:h-[18px]" />
+                        <History className="w-4 h-4 md:w-[18px] md:h-[18px]" />
                     </div>
                     <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
                         Lifetime Cash Investment
@@ -335,7 +337,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                         Rs. {formatCurrency(stats.totalCost)}
                     </div>
-                    {/* NEW: Reinvested Gains Badge */}
+                    {/* Reinvested Gains Badge */}
                     {stats.reinvestedProfits > 0 && (
                         <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 w-fit">
                              <RefreshCcw size={10} />
@@ -354,7 +356,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Unrealized P&L */}
+            {/* Unrealized P&L (FIXED SIGN) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -365,8 +367,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     </h3>
                 </div>
                 <div className={TOP_SECTION_CLASS}>
+                    {/* FIXED: Display minus sign if unprofitable */}
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
-                    {isUnrealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
+                        {isUnrealizedProfitable ? '+' : '-'}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
                     </div>
                     
                     <div className="flex items-center gap-2 mt-1 w-full">
