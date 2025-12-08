@@ -41,10 +41,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
 
   if (roiDenominator > 0) {
       // 1. Reverse the ROI to get the Total Return Value ($)
-      // stats.roi already represents the Net Profit (Inc Dividends) / Denominator * 100
+      // stats.roi represents (Capital Gains - Expenses + Dividends) / Denominator
       const totalProfitIncDiv = (stats.roi / 100) * roiDenominator;
       
-      // 2. Subtract Net Dividends to get Capital Gains (Realized + Unrealized - Expenses) only
+      // 2. Subtract Net Dividends to isolate (Capital Gains - Expenses)
       const totalProfitExcDiv = totalProfitIncDiv - stats.totalDividends;
       
       // 3. Recalculate ROI percentage
