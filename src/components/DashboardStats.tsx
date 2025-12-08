@@ -1,7 +1,27 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, Info } from 'lucide-react';
+import { 
+  DollarSign, 
+  Briefcase, 
+  CheckCircle2, 
+  Activity, 
+  Coins, 
+  Receipt, 
+  Building2, 
+  FileText, 
+  PiggyBank, 
+  Wallet, 
+  Scale, 
+  TrendingUp, 
+  AlertTriangle, 
+  TrendingDown, 
+  Percent, 
+  BarChart3, 
+  Info,
+  RefreshCcw, // Added back
+  Stamp       // Added back
+} from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -315,6 +335,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                         Rs. {formatCurrency(stats.totalCost)}
                     </div>
+                    {/* NEW: Reinvested Gains Badge */}
                     {stats.reinvestedProfits > 0 && (
                         <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 w-fit">
                              <RefreshCcw size={10} />
@@ -392,6 +413,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
                             Today's P&L
                         </h3>
+                        {/* Display the Last Updated Date if available */}
                         {lastUpdated && (
                             <p className="text-[10px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
                                 {formatTime(lastUpdated)}
@@ -480,9 +502,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
             </Card>
         </div>
 
-        {/* ROW 3: Fees Breakdown */}
+        {/* ROW 3: Fees Breakdown - SEPARATED & SINGLE ROW */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mt-2">
             
+            {/* 1. Commission */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100 transition-colors"><Receipt size={18} /></div>
                 <div>
@@ -491,6 +514,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
             
+            {/* 2. Sales Tax (SST) */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-purple-50 text-purple-600 rounded-lg group-hover:bg-purple-100 transition-colors"><Building2 size={18} /></div>
                 <div>
@@ -499,6 +523,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
+            {/* 3. CDC Charges */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-orange-50 text-orange-600 rounded-lg group-hover:bg-orange-100 transition-colors"><FileText size={18} /></div>
                 <div>
@@ -507,6 +532,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
+            {/* 4. Capital Gains Tax (CGT) */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors"><PiggyBank size={18} /></div>
                 <div>
@@ -515,8 +541,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
+            {/* 5. Other Fees / Adjustments */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
-                <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-slate-100 transition-colors"><Scale size={18} /></div>
+                <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-slate-100 transition-colors"><Stamp size={18} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Other Fees</div>
                     <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalOtherFees)}</div>
