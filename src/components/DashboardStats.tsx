@@ -19,8 +19,8 @@ import {
   Percent, 
   BarChart3, 
   Info,
-  RefreshCcw, // FIXED: Added missing import
-  Stamp       // FIXED: Added missing import
+  RefreshCcw, // Fixed: Added back to prevent crash
+  Stamp       // Fixed: Added back to prevent crash
 } from 'lucide-react';
 
 interface DashboardProps {
@@ -30,7 +30,6 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   // --- REALIZED GAINS LOGIC ---
-  // Explicitly calculate Net Realized for display
   // Main Figure (Net) = Gross (stats.realizedPL) - Tax (stats.totalCGT)
   const displayNetRealized = stats.realizedPL - stats.totalCGT;
   const isRealizedProfitable = displayNetRealized >= 0;
@@ -356,7 +355,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Unrealized P&L (FIXED SIGN) */}
+            {/* Unrealized P&L (Fixed Sign Display) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -367,7 +366,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     </h3>
                 </div>
                 <div className={TOP_SECTION_CLASS}>
-                    {/* FIXED: Display minus sign if unprofitable */}
+                    {/* FIXED: Explicitly display negative sign if not profitable */}
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isUnrealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
                         {isUnrealizedProfitable ? '+' : '-'}Rs. {formatCurrency(Math.abs(stats.unrealizedPL))}
                     </div>
@@ -447,7 +446,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Realized Gains (FIXED DISPLAY) */}
+            {/* Realized Gains */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
