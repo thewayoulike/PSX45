@@ -1,4 +1,4 @@
-// src/services/financials.ts
+import { CompanyPayout } from '../types';
 
 export interface CompanyFinancials {
   year: string;
@@ -26,15 +26,15 @@ export interface FundamentalsData {
     };
 }
 
-export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
-  const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
-  
-  // Use proxies to bypass CORS since we are fetching from the browser
-  const proxies = [
+const getProxies = (targetUrl: string) => [
     `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
     `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
     `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
-  ];
+];
+
+export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
+  const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
+  const proxies = getProxies(targetUrl);
 
   for (const proxyUrl of proxies) {
     try {
@@ -131,8 +131,6 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
         };
 
         // --- Find Candidates ---
-        // We look for tables containing specific keywords. 
-        // If multiple are found, we assume order: 1. Annual, 2. Quarterly (common pattern)
         const financialTables = tables.filter(t => 
             t.textContent?.includes('Sales') && 
             t.textContent?.includes('Profit after Taxation')
@@ -149,7 +147,6 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
         const annualRatios = ratioTables.length > 0 ? parseRatiosTable(ratioTables[0]) : [];
         const quarterlyRatios = ratioTables.length > 1 ? parseRatiosTable(ratioTables[1]) : [];
 
-        // If scraping failed to distinguish, we default to putting what we found in Annual
         return {
             annual: {
                 financials: annualFinancials,
@@ -166,4 +163,83 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
     }
   }
   return null;
+};
+
+// --- NEW: Fetch Dividend Payouts ---
+export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
+  const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
+  const proxies = getProxies(targetUrl);
+
+  for (const proxyUrl of proxies) {
+    try {
+      const response = await fetch(proxyUrl);
+      if (!response.ok) continue;
+
+      let html = '';
+      if (proxyUrl.includes('allorigins')) {
+        const data = await response.json();
+        html = data.contents;
+      } else {
+        html = await response.text();
+      }
+
+      if (html && html.length > 500) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        
+        // Find the "Payouts" table by looking for specific headers
+        const tables = Array.from(doc.querySelectorAll('table'));
+        const payoutTable = tables.find(t => 
+            t.querySelector('th')?.textContent?.includes('Financial Results') && 
+            t.querySelector('th')?.textContent?.includes('Book Closure')
+        );
+
+        if (!payoutTable) return [];
+
+        const payouts: CompanyPayout[] = [];
+        const rows = Array.from(payoutTable.querySelectorAll('tr')).slice(1); // Skip header
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        rows.forEach(row => {
+            const cols = row.querySelectorAll('td');
+            if (cols.length >= 4) {
+                const announceDate = cols[0].textContent?.trim() || '-';
+                const financialResult = cols[1].textContent?.trim() || '-';
+                const details = cols[2].textContent?.trim() || '-';
+                const bookClosure = cols[3].textContent?.trim() || '-';
+
+                // Determine if Upcoming based on Book Closure Start Date
+                let isUpcoming = false;
+                if (bookClosure.includes('-')) {
+                    const [startStr] = bookClosure.split('-');
+                    // PSX dates are usually DD/MM/YYYY.
+                    const parts = startStr.trim().split('/');
+                    if (parts.length === 3) {
+                        const bookStart = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                        if (bookStart >= today) {
+                            isUpcoming = true;
+                        }
+                    }
+                }
+
+                payouts.push({
+                    ticker: ticker.toUpperCase(),
+                    announceDate,
+                    financialResult,
+                    details,
+                    bookClosure,
+                    isUpcoming
+                });
+            }
+        });
+
+        return payouts;
+      }
+    } catch (e) {
+      console.warn(`Proxy ${proxyUrl} failed for payouts`, e);
+    }
+  }
+  return [];
 };
