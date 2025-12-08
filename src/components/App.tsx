@@ -311,7 +311,7 @@ const App: React.FC = () => {
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     
-    // NEW: Variable to track "Operational Expenses" which reduce profit but aren't withdrawals
+    // Track Operational Expenses separately (for ROI Numerator)
     let operationalExpenses = 0; 
     let dailyPL = 0;
 
@@ -342,17 +342,16 @@ const App: React.FC = () => {
             events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx }); 
         }
         else if (t.type === 'ANNUAL_FEE') {
-            // FIX: Annual Fee is an Expense (Loss), not a Capital Withdrawal
+            // FIX: Treat as Expense (Loss), not Withdrawal
             operationalExpenses += t.price;
             events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx });
         }
         else if (t.type === 'OTHER') {
             if (t.category === 'OTHER_TAX') {
-                // FIX: Other Tax is an Expense (Loss)
+                // FIX: Treat as Expense (Loss)
                 operationalExpenses += Math.abs(t.price);
                 events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
             } else {
-                // Adjustments: Negative is expense, Positive is deposit/gift
                 if (t.price >= 0) {
                     totalDeposits += t.price;
                     events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
@@ -436,18 +435,22 @@ const App: React.FC = () => {
     });
     
     let cashIn = totalDeposits; 
-    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; // Expenses reduce cash balance
+    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; 
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    // --- UPDATED ROI FORMULA ---
-    // Numerator: (Realized Net - CGT) + Unrealized + Dividends - Operational Expenses
-    const profitExcDiv = netRealizedPL + (totalValue - totalCost) - operationalExpenses;
-    const profitIncDiv = profitExcDiv + dividendSum;
+    // --- ROI CALCULATION ---
+    // Formula: ( (Realized Gain - CGT) + Unrealized Gain - Expenses + Net Dividends ) / Lifetime Invested
+    // 1. Gross Profit Components
+    const grossProfitExcDiv = netRealizedPL + (totalValue - totalCost) - operationalExpenses;
     
-    // Denominator: Lifetime Investment (Peak Net Principal)
+    // 2. Total Net Return (Including Dividends)
+    const totalNetReturn = grossProfitExcDiv + dividendSum;
+    
+    // 3. Denominator: Lifetime Investment (Peak Net Principal)
     const roiDenominator = peakNetPrincipal > 0 ? peakNetPrincipal : 1;
     
-    const roi = (profitIncDiv / roiDenominator) * 100;
+    // 4. Calculate ROI %
+    const roi = (totalNetReturn / roiDenominator) * 100;
     
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
@@ -455,7 +458,6 @@ const App: React.FC = () => {
     // MWRR Calc
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
-        // Operational Expenses are NOT cash flows for XIRR (they are internal losses)
         if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX')) {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
