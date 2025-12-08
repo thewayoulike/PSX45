@@ -322,7 +322,7 @@ const App: React.FC = () => {
     });
     
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
-    const netRealizedPL = realizedPL - totalCGT; 
+    // REMOVED INCORRECT CALCULATION HERE
     
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number }[] = [];
     const txIndexMap = new Map<string, number>();
@@ -391,6 +391,9 @@ const App: React.FC = () => {
         if (dateDiff !== 0) return dateDiff;
         return a.originalIndex - b.originalIndex;
     });
+
+    // --- FIX: CALCULATE NET REALIZED PL AFTER TOTAL CGT IS KNOWN ---
+    const netRealizedPL = realizedPL - totalCGT; 
 
     // --- PROFIT BUFFER LOGIC ---
     let currentPrincipal = 0;
