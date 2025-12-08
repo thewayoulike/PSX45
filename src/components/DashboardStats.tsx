@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw, Stamp } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, Info } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -9,17 +9,18 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
+  // Explicitly calculate Net Realized for display reliability
+  // This ensures Main Figure (Net) = Gross (stats.realizedPL) - Tax (stats.totalCGT)
+  const displayNetRealized = stats.realizedPL - stats.totalCGT;
+  const isRealizedProfitable = displayNetRealized >= 0;
+
   const isUnrealizedProfitable = stats.unrealizedPL >= 0;
-  const isRealizedProfitable = stats.netRealizedPL >= 0; 
   const isRoiPositive = stats.roi >= 0;
   const isMwrrPositive = stats.mwrr >= 0;
   
   const isDailyProfitable = stats.dailyPL >= 0;
 
-  // Calculate Dividend Yield (Net Income / Cost)
   const dividendYield = stats.totalCost > 0 ? (stats.totalDividends / stats.totalCost) * 100 : 0;
-  
-  // Calculate Gross Dividends for display
   const grossDividends = stats.totalDividends + stats.totalDividendTax;
 
   const totalNetWorth = stats.totalValue + stats.freeCash;
@@ -33,26 +34,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
       : 0;
   const isTotalReturnPositive = totalReturnPercent >= 0;
 
-  // --- UPDATED: Calculate ROI Excluding Dividends ---
+  // ROI Excluding Dividends Calculation
   let roiExcDiv = 0;
-  
-  // MATCH THE DENOMINATOR used in App.tsx (Peak Net Principal - Lifetime Investment)
   const roiDenominator = stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : 1;
-
   if (roiDenominator > 0) {
-      // 1. Reverse the ROI to get the Total Return Value (Net Profit including Dividends)
-      // stats.roi represents (Capital Gains - Expenses + Dividends) / Denominator
       const totalProfitIncDiv = (stats.roi / 100) * roiDenominator;
-      
-      // 2. Subtract Net Dividends to isolate (Capital Gains - Expenses)
       const totalProfitExcDiv = totalProfitIncDiv - stats.totalDividends;
-      
-      // 3. Recalculate ROI percentage
       roiExcDiv = (totalProfitExcDiv / roiDenominator) * 100;
   }
-  
   const isRoiExcPositive = roiExcDiv >= 0;
-  // ----------------------------------------------
 
   const formatCurrency = (val: number) => 
     val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -66,9 +56,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   const TOP_SECTION_CLASS = "min-h-[3.5rem] flex flex-col justify-center"; 
 
   const getMwrrTooltip = () => {
-      if (stats.mwrr <= -99) return "Why -100%? You suffered a loss almost immediately after depositing. Since MWRR is an annualized metric (XIRR), it projects this rate of loss over a full year, resulting in a total write-off projection.";
-      if (stats.mwrr >= 500) return "Why so high? You made a profit very quickly after depositing. MWRR annualizes this short-term gain, projecting it as if it continued for a full year.";
-      return "Money-Weighted Rate of Return (XIRR): Calculates your personal performance by weighing your returns against the timing and size of your deposits and withdrawals.";
+      if (stats.mwrr <= -99) return "Why -100%? You suffered a loss almost immediately after depositing. Since MWRR is an annualized metric (XIRR), it projects this rate of loss over a full year.";
+      if (stats.mwrr >= 500) return "Why so high? You made a profit very quickly after depositing. MWRR annualizes this short-term gain.";
+      return "Money-Weighted Rate of Return (XIRR): Calculates performance by weighing returns against the timing/size of deposits.";
   };
 
   return (
@@ -106,7 +96,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* ROI (Inc & Exc Dividends) */}
+            {/* ROI */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -118,14 +108,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
                 <div className={TOP_SECTION_CLASS}>
                     <div className="flex flex-col gap-1 w-full">
-                        {/* Including Dividends (Main) */}
                         <div className="flex items-baseline justify-between w-full">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Inc. Div</span>
                             <span className={`text-lg md:text-xl font-bold tracking-tight ${isRoiPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                                 {isRoiPositive ? '+' : ''}{stats.roi.toFixed(2)}%
                             </span>
                         </div>
-                        {/* Excluding Dividends (Secondary) */}
                         <div className="flex items-baseline justify-between w-full">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Exc. Div</span>
                             <span className={`text-lg md:text-xl font-bold tracking-tight ${isRoiExcPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
@@ -177,7 +165,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 <div className="mt-2 md:mt-3">
                     <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Capital Status</span>
-                        {/* Display negative amount on Total Assets card as well */}
                         {isCapitalEroded && (
                             <span className="text-rose-500 flex items-center gap-1" title="Principal Eroded">
                                 -{formatCurrency(erosionAmount)}
@@ -314,7 +301,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Stock Assets (Cost) - UPDATED WITH REINVESTED GAINS */}
+            {/* Stock Assets (Cost) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -328,7 +315,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     <div className="text-lg sm:text-xl md:text-2xl font-bold text-slate-800 tracking-tight">
                         Rs. {formatCurrency(stats.totalCost)}
                     </div>
-                    {/* NEW: Reinvested Gains Badge */}
                     {stats.reinvestedProfits > 0 && (
                         <div className="flex items-center gap-1 mt-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 w-fit">
                              <RefreshCcw size={10} />
@@ -367,7 +353,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                             {isUnrealizedProfitable ? '+' : ''}{stats.unrealizedPLPercent.toFixed(2)}%
                         </div>
                         
-                        {/* Moved to far right */}
                         <div className={`ml-auto text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-0.5 rounded-md border ${isTotalReturnPositive ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`} title="Net Portfolio Return (Total Assets vs Invested)">
                             Net: {isTotalReturnPositive ? '+' : ''}{totalReturnPercent.toFixed(2)}%
                         </div>
@@ -407,7 +392,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         <h3 className="text-slate-500 font-semibold text-[10px] md:text-xs uppercase tracking-[0.1em] leading-tight mt-0.5">
                             Today's P&L
                         </h3>
-                        {/* Display the Last Updated Date if available */}
                         {lastUpdated && (
                             <p className="text-[10px] text-slate-400 font-medium mt-0.5 whitespace-nowrap">
                                 {formatTime(lastUpdated)}
@@ -438,7 +422,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Realized Gains */}
+            {/* Realized Gains (FIXED DISPLAY) */}
             <Card>
                 <div className="flex items-start gap-2 md:gap-3 mb-3 md:mb-5">
                     <div className="p-1.5 md:p-2 rounded-lg md:rounded-xl bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors">
@@ -450,7 +434,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
                 <div className={TOP_SECTION_CLASS}>
                     <div className={`text-lg sm:text-xl md:text-2xl font-bold tracking-tight ${isRealizedProfitable ? 'text-emerald-600' : 'text-rose-500'}`}>
-                    {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
+                        {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(displayNetRealized))}
                     </div>
                 </div>
                 <div className="mt-2 md:mt-3">
@@ -496,10 +480,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
             </Card>
         </div>
 
-        {/* ROW 3: Fees Breakdown - SEPARATED & SINGLE ROW */}
+        {/* ROW 3: Fees Breakdown */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mt-2">
             
-            {/* 1. Commission */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-100 transition-colors"><Receipt size={18} /></div>
                 <div>
@@ -508,7 +491,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
             
-            {/* 2. Sales Tax (SST) */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-purple-50 text-purple-600 rounded-lg group-hover:bg-purple-100 transition-colors"><Building2 size={18} /></div>
                 <div>
@@ -517,7 +499,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
-            {/* 3. CDC Charges */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-orange-50 text-orange-600 rounded-lg group-hover:bg-orange-100 transition-colors"><FileText size={18} /></div>
                 <div>
@@ -526,7 +507,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
-            {/* 4. Capital Gains Tax (CGT) */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
                 <div className="p-2 bg-rose-50 text-rose-600 rounded-lg group-hover:bg-rose-100 transition-colors"><PiggyBank size={18} /></div>
                 <div>
@@ -535,9 +515,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </div>
 
-            {/* 5. Other Fees / Adjustments */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 md:p-4 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
-                <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-slate-100 transition-colors"><Stamp size={18} /></div>
+                <div className="p-2 bg-slate-50 text-slate-600 rounded-lg group-hover:bg-slate-100 transition-colors"><Scale size={18} /></div>
                 <div>
                     <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Other Fees</div>
                     <div className="text-sm md:text-lg font-bold text-slate-700">{formatCurrency(stats.totalOtherFees)}</div>
