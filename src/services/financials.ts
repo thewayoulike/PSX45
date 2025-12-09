@@ -173,7 +173,7 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
   return [];
 };
 
-// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - FINAL FIX ---
+// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - FIXED ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const targetUrl = `https://www.scstrade.com/MarketStatistics/MS_xDates.aspx`;
   const proxies = getProxies(targetUrl);
@@ -205,8 +205,8 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             const rows = Array.from(table.querySelectorAll('tr'));
             for (let i = 0; i < Math.min(rows.length, 5); i++) {
                 const text = rows[i].textContent?.toUpperCase() || '';
-                // Strict check for headers visible in your screenshot
-                if (text.includes('CODE') && text.includes('XDATE')) {
+                // Improved Header Detection
+                if (text.includes('CODE') && (text.includes('XDATE') || text.includes('X-DATE') || text.includes('X DATE') || text.includes('BOOK CLOSURE'))) {
                     targetTable = table;
                     headerRowIndex = i;
                     break;
@@ -233,12 +233,11 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             else if (txt === 'DIVIDEND') colMap.dividend = idx;
             else if (txt === 'BONUS') colMap.bonus = idx;
             else if (txt === 'RIGHT') colMap.right = idx;
-            else if (txt === 'XDATE' || txt === 'X-DATE' || txt === 'X DATE') colMap.xdate = idx;
+            else if (txt.includes('XDATE') || txt.includes('X-DATE') || txt.includes('X DATE') || txt.includes('BOOK CLOSURE')) colMap.xdate = idx;
         });
 
-        // Use hardcoded indices if dynamic detection fails (based on your image)
+        // Fallback for known layouts if detection fails
         if (colMap.code === -1) {
-            // CODE(0) | NAME(1) | DIVIDEND(2) | BONUS(3) | RIGHT(4) | XDATE(5)
             colMap = { code: 0, name: 1, dividend: 2, bonus: 3, right: 4, xdate: 5 };
         }
 
@@ -263,17 +262,16 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             const bonus = cols[colMap.bonus]?.textContent?.trim();
             const right = cols[colMap.right]?.textContent?.trim();
 
-            // Only add if not empty/nil
             if (div && div !== '&nbsp;' && div !== 'Nil' && div !== '') details += `Div: ${div} `;
             if (bonus && bonus !== '&nbsp;' && bonus !== 'Nil' && bonus !== '') details += `Bonus: ${bonus} `;
             if (right && right !== '&nbsp;' && right !== 'Nil' && right !== '') details += `Right: ${right}`;
             
-            if (!details) continue; // Skip rows with no payout info
+            if (!details) continue; // Skip if no payout
 
             // Parse Date: "15 Dec 2025" or "15-Dec-2025"
             let isUpcoming = false;
             try {
-                // Normalize string: remove &nbsp;, convert dashes to spaces
+                // Normalize: remove &nbsp;, double spaces, and convert hyphens to spaces
                 const cleanDate = dateStr.replace(/&nbsp;/g, '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
                 const dateParts = cleanDate.split(' '); // [15, Dec, 2025]
                 
@@ -283,18 +281,15 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
                     const year = parseInt(dateParts[2]);
                     
                     const monthMap: Record<string, number> = {
-                        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
                         'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
                         'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
                     };
                     
-                    const monthKey = Object.keys(monthMap).find(k => k.toUpperCase() === monthStr.toUpperCase().substring(0, 3));
+                    const monthKey = Object.keys(monthMap).find(k => k.startsWith(monthStr.toUpperCase().substring(0, 3)));
                     const month = monthKey ? monthMap[monthKey] : undefined;
 
                     if (!isNaN(day) && month !== undefined && !isNaN(year)) {
                         const xDateObj = new Date(year, month, day);
-                        // Check if FUTURE or TODAY
                         if (xDateObj >= today) {
                             isUpcoming = true;
                         }
