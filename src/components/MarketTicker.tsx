@@ -38,7 +38,7 @@ export const MarketTicker: React.FC = () => {
 
   return (
     <div className="w-full bg-slate-900 text-white border-b border-slate-800 shadow-sm relative z-50 h-10 flex items-center overflow-hidden">
-      {/* Static Badge */}
+      {/* Static Badge - Matches your "Add Transaction" button color */}
       <div className="bg-emerald-600 h-full px-4 flex items-center justify-center font-bold text-[10px] md:text-xs uppercase tracking-wider shadow-lg z-20 shrink-0 relative">
         Top Active
         {/* Right Arrow/Triangle for visual separation */}
