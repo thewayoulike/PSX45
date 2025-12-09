@@ -9,6 +9,7 @@ import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
 import { DividendScanner } from './DividendScanner';
+import { UpcomingEventsScanner } from './UpcomingEventsScanner'; // <--- NEW IMPORT
 import { ApiKeyManager } from './ApiKeyManager'; 
 import { LoginPage } from './LoginPage';
 import { Logo } from './ui/Logo';
@@ -18,8 +19,7 @@ import { MarketTicker } from './MarketTicker';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-// UPDATED: Added ChartCandlestick to imports
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick } from 'lucide-react';
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; // <--- Added CalendarClock
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -161,6 +161,7 @@ const App: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
+  const [showUpcomingScanner, setShowUpcomingScanner] = useState(false); // <--- NEW STATE
   const [showBrokerManager, setShowBrokerManager] = useState(false);
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
 
@@ -169,6 +170,7 @@ const App: React.FC = () => {
 
   const hasMergedCloud = useRef(false);
 
+  // ... (keeping existing useEffects and helper functions same as original file) ...
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
       if (times.length === 0) return null;
@@ -312,7 +314,7 @@ const App: React.FC = () => {
   // --- MAIN STATS CALCULATION ---
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
-    let operationalExpenses = 0; // NEW: Track expenses like Annual Fees
+    let operationalExpenses = 0; 
     let dailyPL = 0;
 
     holdings.forEach(h => { 
@@ -324,7 +326,6 @@ const App: React.FC = () => {
     });
     
     const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
-    // REMOVED INCORRECT CALCULATION HERE
     
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number }[] = [];
     const txIndexMap = new Map<string, number>();
@@ -342,13 +343,11 @@ const App: React.FC = () => {
             events.push({ date: t.date, type: 'OUT', amount: t.price, originalIndex: idx }); 
         }
         else if (t.type === 'ANNUAL_FEE') {
-            // FIX: Treat as Expense (Loss), not Withdrawal
             operationalExpenses += t.price;
             events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx });
         }
         else if (t.type === 'OTHER') {
             if (t.category === 'OTHER_TAX') {
-                // FIX: Treat as Expense (Loss), not Withdrawal
                 operationalExpenses += Math.abs(t.price);
                 events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
             } else {
@@ -394,10 +393,8 @@ const App: React.FC = () => {
         return a.originalIndex - b.originalIndex;
     });
 
-    // --- FIX: CALCULATE NET REALIZED PL AFTER TOTAL CGT IS KNOWN ---
     const netRealizedPL = realizedPL - totalCGT; 
 
-    // --- PROFIT BUFFER LOGIC ---
     let currentPrincipal = 0;
     let peakPrincipal = 0;
     let profitBuffer = 0; 
@@ -437,10 +434,9 @@ const App: React.FC = () => {
     });
     
     let cashIn = totalDeposits; 
-    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; // operationalExpenses reduce cash
+    let cashOut = totalWithdrawals + totalCGT + operationalExpenses; 
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
     
-    // UPDATED: Net Return now subtracts operational expenses (Fees, Other Taxes)
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses;
     
     const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakPrincipal > 0 ? peakPrincipal : 1);
@@ -449,17 +445,13 @@ const App: React.FC = () => {
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
 
-    // MWRR Calc
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
-        // Only actual deposits/withdrawals affect XIRR capital flows
-        // Fees are negative performance, not capital flows
         if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX')) {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
         }
-        // ANNUAL_FEE is left out of flows -> it acts as internal loss
     });
     const currentTotalNetWorth = totalValue + freeCash;
     if (currentTotalNetWorth > 0) {
@@ -482,6 +474,7 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
+  // ... (keeping saving logic, useMemo for holdings calculation, etc. - Identical to previous) ...
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -511,9 +504,8 @@ const App: React.FC = () => {
 
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
-  // UPDATED: Now opens a popup instead of going to 'STOCKS' page
   const handleTickerClick = (ticker: string) => {
-      setViewTicker(ticker); // This opens the TickerProfile modal
+      setViewTicker(ticker); 
   };
 
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
@@ -568,7 +560,6 @@ const App: React.FC = () => {
                         <LayoutDashboard size={18} /> Dashboard 
                     </button>
                     
-                    {/* UPDATED ICON TO ChartCandlestick */}
                     <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
                         <ChartCandlestick size={18} /> Stocks 
                     </button>
@@ -587,6 +578,12 @@ const App: React.FC = () => {
                     <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"> <Plus size={18} /> Add Transaction </button>
                     <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Briefcase size={18} /> Brokers </button>
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Coins size={18} /> Scan Dividends </button>
+                    
+                    {/* NEW BUTTON FOR FUTURE X-DATES */}
+                    <button onClick={() => setShowUpcomingScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> 
+                        <CalendarClock size={18} /> Future X-Dates 
+                    </button>
+
                     <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
                 </div>
                 
@@ -672,7 +669,7 @@ const App: React.FC = () => {
                             showBroker={true} 
                             failedTickers={failedTickers} 
                             ldcpMap={ldcpMap} 
-                            onTickerClick={handleTickerClick} // UPDATED: NAVIGATE TO POPUP
+                            onTickerClick={handleTickerClick} 
                         />
                     </div>
                 </div>
@@ -684,7 +681,7 @@ const App: React.FC = () => {
                         transactions={portfolioTransactions}
                         currentPrices={manualPrices}
                         sectors={sectorMap}
-                        onTickerClick={(t) => setViewTicker(t)} // Inner clicks still open overlay
+                        onTickerClick={(t) => setViewTicker(t)}
                     />
                 </div>
             )}
@@ -710,6 +707,8 @@ const App: React.FC = () => {
         </main>
       </div>
 
+      {/* MODALS */}
+      
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -774,6 +773,13 @@ const App: React.FC = () => {
           onOpenSettings={() => setShowApiKeyManager(true)}
           savedResults={scannerState[currentPortfolioId] || []}
           onSaveResults={handleScannerUpdate}
+      />
+
+      {/* NEW SCANNER COMPONENT */}
+      <UpcomingEventsScanner 
+          isOpen={showUpcomingScanner} 
+          onClose={() => setShowUpcomingScanner(false)} 
+          holdings={holdings}
       />
 
       {viewTicker && (
