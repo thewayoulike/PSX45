@@ -11,32 +11,27 @@ import { SECTOR_CODE_MAP } from './sectors';
 // Ignore these "Ticker" names because they are actually table headers or metadata
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
+// --- PROXY LIST ---
+// We rotate through these to avoid blocking
+const PROXIES = [
+    (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+    (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`,
+    (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`,
+    (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
+];
+
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number }>> => {
     const results: Record<string, { price: number, sector: string, ldcp: number }> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
-    
-    // Create a Lookup Set for the tickers we want (for robust matching)
-    // FIX: Trim whitespace from input tickers just in case
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
 
-    // UPDATED PROXY LIST (Prioritizing CodeTabs which is often more permissive)
-    const proxies = [
-        `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-        `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
-        `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
-        `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`
-    ];
-
-    for (const proxyUrl of proxies) {
+    for (const proxyGen of PROXIES) {
         try {
-            console.log(`Attempting fetch via: ${proxyUrl}`);
+            const proxyUrl = proxyGen(targetUrl);
             const response = await fetch(proxyUrl);
-            
-            if (!response.ok) throw new Error(`Status ${response.status}`);
+            if (!response.ok) continue;
             
             let html = '';
-            
-            // AllOrigins returns JSON with 'contents', others return raw text
             if (proxyUrl.includes('allorigins')) {
                 const data = await response.json();
                 html = data.contents;
@@ -46,21 +41,12 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
 
             if (html && html.length > 500) { 
                 parseMarketWatchTable(html, results, targetTickers);
-                
-                // Only return if we actually found data
-                if (Object.keys(results).length > 0) {
-                    console.log(`Fetch successful! Found ${Object.keys(results).length} prices.`);
-                    return results; // Exit loop on REAL success
-                } else {
-                    console.warn(`Proxy ${proxyUrl} returned HTML but no prices found (likely blocked).`);
-                }
+                if (Object.keys(results).length > 0) return results;
             }
         } catch (err) {
-            console.warn(`Proxy failed: ${proxyUrl}`, err);
+            console.warn(`Proxy failed:`, err);
         }
     }
-
-    console.error("All proxies failed to fetch PSX data.");
     return results; 
 };
 
@@ -68,160 +54,87 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
     try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
-        
-        // Find ALL tables in the document
         const tables = doc.querySelectorAll("table");
         if (tables.length === 0) return;
 
-        // Iterate through every table found
         tables.forEach(table => {
             const rows = table.querySelectorAll("tr");
             if (rows.length < 2) return;
 
-            // --- 1. Header Discovery for THIS Table ---
             const colMap = { SYMBOL: -1, PRICE: -1, SECTOR: -1, LDCP: -1 };
             let headerFound = false;
 
-            // Scan first 5 rows of this table
             for (let i = 0; i < Math.min(rows.length, 5); i++) {
                 const cells = rows[i].querySelectorAll("th, td");
                 cells.forEach((cell, idx) => {
                     const txt = cell.textContent?.trim().toUpperCase() || "";
                     if (txt === 'SYMBOL' || txt === 'SCRIP') colMap.SYMBOL = idx;
-                    if (txt.includes('CURRENT') || txt === 'PRICE' || txt === 'RATE' || txt === 'LAST') colMap.PRICE = idx;
+                    if (txt.includes('CURRENT') || txt === 'PRICE' || txt === 'RATE') colMap.PRICE = idx;
                     if (txt === 'SECTOR') colMap.SECTOR = idx;
-                    // Improved LDCP Matching
-                    if (txt === 'LDCP' || txt === 'PREVIOUS' || txt === 'PREV' || txt === 'CLOSE') colMap.LDCP = idx;
+                    if (txt === 'LDCP' || txt === 'PREV') colMap.LDCP = idx;
                 });
-                
-                // If we found the critical columns (Symbol + Price), assume we found headers
                 if (colMap.SYMBOL !== -1 && colMap.PRICE !== -1) {
                     headerFound = true;
                     break;
                 }
             }
 
-            // --- FALLBACK LOGIC ---
-            if (!headerFound) {
-                // If NO headers found, use standard "All Scrips" layout
-                colMap.SYMBOL = 0;
-                colMap.LDCP = 3; 
-                colMap.PRICE = 7; 
-                if (colMap.SECTOR === -1) colMap.SECTOR = 1;
-            } else {
-                // If headers WERE found but LDCP was missed (e.g. weird label), default it to 3 or 1 depending on price idx
-                if (colMap.LDCP === -1) {
-                    // Heuristic: If Price is at 7 (All Scrips), LDCP is usually 3. 
-                    // If Price is at 5 (Main Board), LDCP is usually 1.
-                    if (colMap.PRICE >= 6) colMap.LDCP = 3;
-                    else colMap.LDCP = 1;
-                }
-            }
+            if (!headerFound) { colMap.SYMBOL = 0; colMap.LDCP = 3; colMap.PRICE = 7; colMap.SECTOR = 1; }
+            else if (colMap.LDCP === -1) { colMap.LDCP = colMap.PRICE >= 6 ? 3 : 1; }
 
-            // --- 2. Data Extraction ---
             let currentGroupHeader = "Unknown Sector";
 
             rows.forEach(row => {
                 const cols = row.querySelectorAll("td");
-                
-                // A. Check for Group Header (Sector Row)
                 if (cols.length === 1 || (cols.length > 0 && cols.length < 4)) {
                     const text = cols[0]?.textContent?.trim();
-                    if (text && text.length > 3 && !TICKER_BLACKLIST.includes(text.toUpperCase())) {
-                        currentGroupHeader = text;
-                    }
+                    if (text && text.length > 3 && !TICKER_BLACKLIST.includes(text.toUpperCase())) currentGroupHeader = text;
                     return; 
                 }
 
-                // B. Extract Data
                 if (!cols[colMap.SYMBOL] || !cols[colMap.PRICE]) return;
 
                 const symCell = cols[colMap.SYMBOL];
-                let symbolText = "";
-
-                // STRATEGY: Prefer text inside <a> tag to isolate ticker from noise
-                const anchor = symCell.querySelector('a');
-                if (anchor) {
-                    const anchorText = anchor.textContent?.trim().toUpperCase() || "";
-                    for (const ticker of targetTickers) {
-                        if (anchorText.startsWith(ticker)) {
-                            symbolText = ticker;
-                            break;
-                        }
-                    }
-                    if (!symbolText && targetTickers.has(anchorText)) symbolText = anchorText;
-                } 
-                
-                // Fallback: Parse full cell text (cleaning <br> etc)
+                let symbolText = symCell.querySelector('a')?.textContent?.trim().toUpperCase() || "";
                 if (!symbolText) {
-                    let rawHtml = symCell.innerHTML;
-                    rawHtml = rawHtml.replace(/<br\s*\/?>/gi, ' ').replace(/<\/div>/gi, ' ').replace(/<\/p>/gi, ' ');
-                    
                     const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = rawHtml;
+                    tempDiv.innerHTML = symCell.innerHTML.replace(/<br\s*\/?>/gi, ' ');
                     const rawText = (tempDiv.textContent || "").toUpperCase().replace(/\s+/g, ' ').trim();
-                    
-                    // Match against target tickers
                     for (const ticker of targetTickers) {
-                        // Check for Exact Match or "TICKER " start
-                        if (rawText === ticker || rawText.startsWith(ticker + ' ') || rawText.startsWith(ticker + '\xa0')) {
-                            symbolText = ticker;
-                            break;
-                        }
+                        if (rawText === ticker || rawText.startsWith(ticker + ' ')) { symbolText = ticker; break; }
                     }
                 }
 
                 if (!symbolText || TICKER_BLACKLIST.includes(symbolText)) return;
 
-                // Extract Price
-                const priceText = cols[colMap.PRICE].textContent?.trim().replace(/,/g, '');
-                const price = parseFloat(priceText || '');
-
-                // Extract LDCP
+                const price = parseFloat(cols[colMap.PRICE].textContent?.trim().replace(/,/g, '') || '');
                 let ldcp = 0;
                 if (colMap.LDCP !== -1 && cols[colMap.LDCP]) {
-                    const ldcpText = cols[colMap.LDCP].textContent?.trim().replace(/,/g, '');
-                    ldcp = parseFloat(ldcpText || '');
+                    ldcp = parseFloat(cols[colMap.LDCP].textContent?.trim().replace(/,/g, '') || '');
                 }
 
-                // Extract Sector
                 let sector = currentGroupHeader;
                 if (colMap.SECTOR !== -1 && cols[colMap.SECTOR]) {
                     const secText = cols[colMap.SECTOR].textContent?.trim();
-                    if (secText) {
-                        sector = SECTOR_CODE_MAP[secText] || secText;
-                    }
+                    if (secText) sector = SECTOR_CODE_MAP[secText] || secText;
                 }
 
-                if (symbolText.length >= 2 && !isNaN(price)) {
-                    // First Match Wins
-                    if (results[symbolText]) return;
-                    
-                    if (price > 0) {
-                        results[symbolText] = { price, sector, ldcp };
-                    }
+                if (symbolText.length >= 2 && !isNaN(price) && price > 0 && !results[symbolText]) {
+                    results[symbolText] = { price, sector, ldcp };
                 }
             });
         });
-
-    } catch (e) {
-        console.error("Error parsing HTML", e);
-    }
+    } catch (e) { console.error("Error parsing HTML", e); }
 };
 
 // --- NEW FUNCTION: Fetch Top 20 Active Stocks by Volume ---
 export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
   const targetUrl = `https://dps.psx.com.pk/market-watch`;
-  
-  // Use the same proxy list as the batch fetcher
-  const proxies = [
-      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-      `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
-      `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
-  ];
+  console.log("Fetching Top Stocks from:", targetUrl);
 
-  for (const proxyUrl of proxies) {
+  for (const proxyGen of PROXIES) {
       try {
+          const proxyUrl = proxyGen(targetUrl);
           const response = await fetch(proxyUrl);
           if (!response.ok) continue;
           
@@ -240,10 +153,7 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
               
               if (rows.length < 2) continue;
 
-              // 1. Detect Headers
               const colMap = { SYMBOL: -1, CURRENT: -1, CHANGE: -1, VOLUME: -1 };
-              
-              // Scan first few rows for headers
               for (let i = 0; i < Math.min(rows.length, 5); i++) {
                   const cells = rows[i].querySelectorAll("th, td");
                   cells.forEach((cell, idx) => {
@@ -256,40 +166,36 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
                   if (colMap.SYMBOL !== -1 && colMap.VOLUME !== -1) break;
               }
 
-              // Fallback if detection fails (Standard PSX Layout)
               if (colMap.SYMBOL === -1) { colMap.SYMBOL = 0; colMap.CURRENT = 5; colMap.CHANGE = 6; colMap.VOLUME = 7; }
 
               const stockList: { symbol: string; price: number; change: number; volume: number }[] = [];
 
-              // 2. Parse Rows
               for (const row of rows) {
                   const cols = row.querySelectorAll("td");
                   if (!cols[colMap.SYMBOL] || !cols[colMap.VOLUME]) continue;
 
-                  // Extract Symbol (Cleanup newlines/spaces)
                   let symbol = cols[colMap.SYMBOL].textContent?.trim().split(/\s+/)[0] || "";
-                  if (!symbol || symbol.length > 8) continue; // Skip garbage rows
+                  if (!symbol || symbol.length > 8 || TICKER_BLACKLIST.includes(symbol)) continue;
 
-                  // Extract Values
-                  const priceStr = cols[colMap.CURRENT]?.textContent?.replace(/,/g, '') || "0";
-                  const changeStr = cols[colMap.CHANGE]?.textContent?.replace(/,/g, '') || "0";
-                  const volStr = cols[colMap.VOLUME]?.textContent?.replace(/,/g, '') || "0";
-
-                  const price = parseFloat(priceStr);
-                  const change = parseFloat(changeStr);
-                  const volume = parseFloat(volStr);
+                  const price = parseFloat(cols[colMap.CURRENT]?.textContent?.replace(/,/g, '') || "0");
+                  const change = parseFloat(cols[colMap.CHANGE]?.textContent?.replace(/,/g, '') || "0");
+                  const volume = parseFloat(cols[colMap.VOLUME]?.textContent?.replace(/,/g, '') || "0");
 
                   if (!isNaN(price) && !isNaN(volume) && volume > 0) {
                       stockList.push({ symbol, price, change, volume });
                   }
               }
 
-              // 3. Sort by Volume Descending & Take Top 20
-              return stockList.sort((a, b) => b.volume - a.volume).slice(0, 20);
+              const final = stockList.sort((a, b) => b.volume - a.volume).slice(0, 20);
+              if (final.length > 0) {
+                  console.log(`PSX fetch success via proxy. Found ${final.length} stocks.`);
+                  return final;
+              }
           }
       } catch (e) {
           console.warn("Proxy failed for top stocks", e);
       }
   }
+  console.warn("All proxies failed to fetch Top Stocks.");
   return [];
 };
