@@ -28,7 +28,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [useDeepScan, setUseDeepScan] = useState(false);
 
-  // --- NEW MARKET WIDE STATE ---
+  // --- MARKET WIDE STATE ---
   const [marketPayouts, setMarketPayouts] = useState<CompanyPayout[]>([]);
   const [loadingMarket, setLoadingMarket] = useState(false);
   const [marketScanned, setMarketScanned] = useState(false);
@@ -174,11 +174,11 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             <div className="text-center py-10 animate-in fade-in">
                                 <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600"> <Globe size={40} /> </div>
                                 <h3 className="text-lg font-bold text-slate-800 mb-2">Scan Entire Market</h3>
-                                <p className="text-slate-500 mb-6 max-w-md mx-auto"> Check the latest PSX Financial Announcements page for ANY upcoming dividends. </p>
+                                <p className="text-slate-500 mb-6 max-w-md mx-auto"> Check SCSTrade.com for ANY upcoming dividends (not just stocks you own). </p>
                                 <button onClick={handleScanMarket} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-2 mx-auto"> <Search size={18} /> Scan All Companies </button>
                             </div>
                         )}
-                        {loadingMarket && <div className="flex flex-col items-center justify-center py-20"><Loader2 size={40} className="animate-spin text-blue-600 mb-4" /><p className="text-slate-400 text-sm">Fetching Announcements...</p></div>}
+                        {loadingMarket && <div className="flex flex-col items-center justify-center py-20"><Loader2 size={40} className="animate-spin text-blue-600 mb-4" /><p className="text-slate-400 text-sm">Fetching SCSTrade Data...</p></div>}
                         {marketScanned && !loadingMarket && (
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between pb-2 border-b border-slate-100"> <h3 className="text-slate-800 font-bold">Market Opportunities ({marketPayouts.length})</h3> <button onClick={handleScanMarket} className="text-blue-600 text-xs font-bold flex items-center gap-1"><RefreshCw size={12} /> Refresh</button> </div>
@@ -192,14 +192,13 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                             <div className="flex-1"> 
                                                 <div className="font-bold text-slate-800">{p.details}</div> 
                                                 <div className="text-xs text-slate-500 mt-0.5">
-                                                    <span className={`${owned ? 'text-amber-600' : 'text-blue-600'} font-bold`}>Book Closure: {p.bookClosure}</span>
+                                                    <span className={`${owned ? 'text-amber-600' : 'text-blue-600'} font-bold`}>{p.bookClosure}</span>
                                                 </div> 
                                             </div>
-                                            <div className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500 font-medium">{p.financialResult}</div>
                                         </div>
                                     );
                                 })}
-                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-700 flex items-start gap-2"> <Info size={14} className="shrink-0 mt-0.5" /> <p>Tip: These are pulled directly from the PSX "Financial Announcements" board. <br/> <strong>Orange Highlight</strong> indicates stocks you currently own.</p> </div>
+                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-xs text-blue-700 flex items-start gap-2"> <Info size={14} className="shrink-0 mt-0.5" /> <p>Tip: These are pulled directly from SCSTrade xDates. <br/> <strong>Orange Highlight</strong> indicates stocks you currently own.</p> </div>
                             </div>
                         )}
                     </>
