@@ -21,6 +21,39 @@ interface TransactionFormProps {
   onSaveScannedTrades?: (trades: EditableTrade[]) => void;
 }
 
+// Helper to handle various date formats from Excel/CSV
+const normalizeDate = (input: any): string => {
+    if (!input) return new Date().toISOString().split('T')[0];
+    
+    // 1. Handle Excel Serial Date (e.g., 45321)
+    if (typeof input === 'number') {
+        const date = new Date(Math.round((input - 25569) * 86400 * 1000));
+        return date.toISOString().split('T')[0];
+    }
+
+    // 2. Handle String Dates
+    const str = String(input).trim();
+    const dateObj = new Date(str);
+    
+    if (!isNaN(dateObj.getTime())) {
+        return dateObj.toISOString().split('T')[0];
+    }
+    
+    // 3. Fallback for DD/MM/YYYY or DD-MM-YYYY manually if JS Date fails
+    // (Common in regions like Pakistan/UK)
+    const parts = str.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (parts) {
+        // Assume Day-Month-Year
+        const day = parseInt(parts[1]);
+        const month = parseInt(parts[2]);
+        const year = parseInt(parts[3]);
+        const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        return iso;
+    }
+
+    return new Date().toISOString().split('T')[0]; // Final fallback to today
+};
+
 export const TransactionForm: React.FC<TransactionFormProps> = ({ 
   onAddTransaction, 
   onUpdateTransaction,
@@ -173,9 +206,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
              if (type === 'DIVIDEND') { 
                  setCommission(0); 
                  setCdcCharges(0); 
-                 // NOTE: setOtherFees(0) removed to allow manual input persistence during auto-calc if needed, 
-                 // but typically auto-calc resets. For now, we keep it resetting to clean up, 
-                 // but user can edit after calculation since field is unlocked.
                  setOtherFees(0); 
                  const wht = gross * 0.15; 
                  setTax(parseFloat(wht.toFixed(2))); 
@@ -311,7 +341,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
           const trades: EditableTrade[] = jsonData.map((row: any) => ({
-              date: row['Date'],
+              date: normalizeDate(row['Date']), // Use new normalizer
               type: (row['Type'] || 'BUY').toUpperCase(),
               ticker: (row['Ticker'] || '').toUpperCase(),
               broker: row['Broker'],
@@ -320,7 +350,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               commission: Number(row['Commission']) || 0,
               tax: Number(row['Tax']) || 0,
               cdcCharges: Number(row['CDC Charges']) || 0,
-              otherFees: Number(row['Other Fees']) || 0,
+              otherFees: Number(row['Other Fees']) || Number(row['Other']) || 0, // Catch 'Other' too
               brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id
           })).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0);
 
@@ -533,6 +563,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
+                    {/* ... (Keep Manual Form logic same as before, omitted for brevity but should be here) ... */}
+                    {/* Just ensuring the core structure remains valid for compilation */}
                     <div className="grid grid-cols-8 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         <button type="button" onClick={() => setType('BUY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'BUY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>BUY</button>
                         <button type="button" onClick={() => setType('SELL')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'SELL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>SELL</button>
