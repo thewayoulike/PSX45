@@ -12,9 +12,12 @@ const PROXIES = [
     (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
 ];
 
+// --- 1. Fetch Batch Prices (Dashboard) ---
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number }>> => {
     const results: Record<string, { price: number, sector: string, ldcp: number }> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
+    
+    // Create a Lookup Set for the tickers we want (for robust matching)
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
 
     for (const proxyGen of PROXIES) {
@@ -119,7 +122,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
     } catch (e) { console.error("Error parsing HTML", e); }
 };
 
-// --- NEW FUNCTION: Fetch Top 20 Active Stocks by Volume ---
+// --- 2. Fetch Top 20 Active Stocks (Ticker) ---
 export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
   const targetUrl = `https://dps.psx.com.pk/market-watch`;
   console.log("Fetching Top Stocks from:", targetUrl);
@@ -190,4 +193,41 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
   }
   console.warn("All proxies failed to fetch Top Stocks.");
   return [];
+};
+
+// --- 3. Fetch Stock History (For Charts) ---
+export const fetchStockHistory = async (symbol: string): Promise<{ time: number; price: number }[]> => {
+    // Remove "PSX:" prefix if present
+    const cleanSymbol = symbol.toUpperCase().replace('PSX:', '').trim();
+    const targetUrl = `https://dps.psx.com.pk/timeseries/intraday/${cleanSymbol}`;
+    
+    console.log(`Fetching history for ${cleanSymbol}...`);
+  
+    for (const proxyGen of PROXIES) {
+        try {
+            const proxyUrl = proxyGen(targetUrl);
+            const response = await fetch(proxyUrl);
+            if (!response.ok) continue;
+            
+            let data;
+            if (proxyUrl.includes('allorigins')) {
+                const json = await response.json();
+                data = JSON.parse(json.contents);
+            } else {
+                data = await response.json();
+            }
+  
+            // The API returns { data: [[timestamp, price], [timestamp, price]...] }
+            if (data && data.data && Array.isArray(data.data)) {
+                console.log(`History fetch success for ${cleanSymbol}`);
+                return data.data.map((point: any[]) => ({
+                    time: point[0] * 1000, // Convert seconds to milliseconds
+                    price: point[1]
+                }));
+            }
+        } catch (e) {
+            console.warn(`Proxy failed for history (${cleanSymbol}):`, e);
+        }
+    }
+    return [];
 };
