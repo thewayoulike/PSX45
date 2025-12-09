@@ -70,7 +70,6 @@ const PSXChart: React.FC<PSXChartProps> = ({ symbol, height = 400 }) => {
   const endPrice = data[data.length - 1]?.price || 0;
   const isUp = endPrice >= startPrice;
   const color = isUp ? "#10b981" : "#f43f5e"; // Emerald-500 or Rose-500
-  const fillColor = isUp ? "#d1fae5" : "#ffe4e6"; // Emerald-100 or Rose-100
 
   return (
     <div className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-2" style={{ height }}>
@@ -86,7 +85,11 @@ const PSXChart: React.FC<PSXChartProps> = ({ symbol, height = 400 }) => {
           <XAxis 
             dataKey="time" 
             tickFormatter={(unix) => new Date(unix).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            hide={true} // Hide X axis labels for cleaner look (optional)
+            hide={false} 
+            minTickGap={30}
+            tick={{ fill: '#94a3b8', fontSize: 10 }}
+            axisLine={false}
+            tickLine={false}
           />
           <YAxis 
             domain={[minPrice - padding, maxPrice + padding]} 
