@@ -1,5 +1,22 @@
 import { OHLCData } from '../services/psxData';
 
+// --- NEW: ATR Calculation for Stoploss/Targets ---
+export const calculateATR = (data: OHLCData[], period: number = 14): number => {
+    if (data.length < period + 1) return 0;
+    let trSum = 0;
+    // Simple SMA of TR for efficiency
+    for (let i = data.length - period; i < data.length; i++) {
+        const current = data[i];
+        const prev = data[i - 1];
+        const hl = current.high - current.low;
+        const hc = Math.abs(current.high - prev.close);
+        const lc = Math.abs(current.low - prev.close);
+        const tr = Math.max(hl, hc, lc);
+        trSum += tr;
+    }
+    return trSum / period;
+};
+
 export const calculateRSI = (data: OHLCData[], period: number = 14): number => {
     if (data.length < period + 1) return 0;
     let gains = 0, losses = 0;
@@ -18,24 +35,14 @@ export const calculateRSI = (data: OHLCData[], period: number = 14): number => {
 export const calculatePivots = (high: number, low: number, close: number) => {
     const p = (high + low + close) / 3;
     return { 
-        p, r1: (2 * p) - low, s1: (2 * p) - high,
-        r2: p + (high - low), s2: p - (high - low)
+        p, 
+        r1: (2 * p) - low, 
+        s1: (2 * p) - high,
+        r2: p + (high - low), 
+        s2: p - (high - low),
+        r3: high + 2 * (p - low),
+        s3: low - 2 * (high - p)
     };
-};
-
-export const calculateVolatility = (data: OHLCData[], period: number = 20): number => {
-    if (data.length < period) return 0;
-    const slice = data.slice(-period).map(d => d.close);
-    const mean = slice.reduce((a, b) => a + b, 0) / slice.length;
-    const variance = slice.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / slice.length;
-    return (Math.sqrt(variance) / mean) * 100;
-};
-
-export const calculateChange = (data: OHLCData[], days: number): number => {
-    if (data.length <= days) return 0;
-    const current = data[data.length - 1].close;
-    const past = data[data.length - 1 - days].close;
-    return ((current - past) / past) * 100;
 };
 
 export const calculateSMA = (data: OHLCData[], period: number): number => {
@@ -44,25 +51,30 @@ export const calculateSMA = (data: OHLCData[], period: number): number => {
     return slice.reduce((acc, curr) => acc + curr.close, 0) / period;
 };
 
-export const generateSignal = (currentPrice: number, rsi: number, sma50: number) => {
+export const generateSignal = (currentPrice: number, rsi: number, sma50: number, sma200: number) => {
     let trend = "NEUTRAL";
     let signal = "WAIT";
-    let sentiment = "Neutral";
+    let strength = "WEAK";
 
+    // Determine Trend
     if (sma50 > 0) {
-        if (currentPrice > sma50) trend = "BULLISH";
-        else trend = "BEARISH";
+        if (currentPrice > sma50) {
+            trend = "BULLISH";
+            strength = currentPrice > sma50 * 1.02 ? "STRONG" : "WEAK"; // 2% above SMA
+        } else {
+            trend = "BEARISH";
+            strength = currentPrice < sma50 * 0.98 ? "STRONG" : "WEAK";
+        }
     }
 
+    // Determine Signal
     if (rsi > 0) {
-        if (rsi < 30) { signal = "BUY"; sentiment = "Oversold"; }
-        else if (rsi > 70) { signal = "SELL"; sentiment = "Overbought"; }
-        else if (rsi > 60 && trend === "BULLISH") { signal = "STRONG BUY"; }
-        else if (rsi < 40 && trend === "BEARISH") { signal = "STRONG SELL"; }
-    } else {
-        // If we have price but no RSI (fallback mode)
-        signal = "HOLD";
+        if (rsi < 30) signal = "BUY (Oversold)";
+        else if (rsi > 70) signal = "SELL (Overbought)";
+        else if (rsi > 60 && trend === "BULLISH") signal = "CONTINUATION BUY";
+        else if (rsi < 40 && trend === "BEARISH") signal = "CONTINUATION SELL";
+        else signal = "WAIT";
     }
 
-    return { trend, signal, sentiment };
+    return { trend, signal, strength };
 };
