@@ -27,20 +27,19 @@ export const MarketTicker: React.FC = () => {
 
   if (loading || stocks.length === 0) return null;
 
-  // Duplicate list for smooth seamless scrolling
   const tickerItems = [...stocks, ...stocks, ...stocks];
 
   return (
-    // THEME CHANGE: bg-slate-900 -> bg-white/90 with backdrop blur to match your glass UI
-    <div className="w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm relative z-50 h-10 flex items-center overflow-hidden font-sans">
+    // THEME UPDATE: "Green Whitish" Background (Emerald-50 with blur)
+    <div className="w-full bg-emerald-50/90 backdrop-blur-md border-b border-emerald-100 shadow-sm relative z-50 h-10 flex items-center overflow-hidden font-sans">
       
-      {/* Static Badge - Using your primary emerald color */}
+      {/* Badge: Kept Emerald Green for branding consistency */}
       <div className="bg-emerald-600 h-full px-4 flex items-center justify-center gap-2 shadow-lg z-20 shrink-0 relative">
         <Activity size={14} className="text-white" />
         <span className="font-black text-[10px] md:text-xs uppercase tracking-widest text-white">
           Top Active
         </span>
-        {/* Decorative arrow removed for cleaner 'card' look, or keep simpler edge */}
+        {/* Right edge decoration */}
         <div className="absolute -right-2 top-0 h-full w-4 bg-emerald-600 transform skew-x-12"></div>
       </div>
 
@@ -50,27 +49,27 @@ export const MarketTicker: React.FC = () => {
           {tickerItems.map((s, i) => (
             <div key={`${s.symbol}-${i}`} className="flex items-center gap-3 text-xs mr-8">
               
-              {/* Symbol: Dark Slate */}
+              {/* Symbol: Dark Slate for readability on light bg */}
               <span className="font-black text-slate-800">{s.symbol}</span>
               
-              {/* Price: Slate */}
-              <span className="font-mono font-medium text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded">
+              {/* Price: Dark Gray */}
+              <span className="font-mono font-bold text-slate-700">
                 {s.price.toFixed(2)}
               </span>
               
-              {/* Change: Darker Green/Red for visibility on light bg */}
+              {/* Change: Green/Red */}
               <div className={`flex items-center gap-0.5 font-bold ${s.change > 0 ? 'text-emerald-600' : s.change < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                 {s.change > 0 ? <TrendingUp size={12} /> : s.change < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
                 <span>{Math.abs(s.change).toFixed(2)}</span>
               </div>
               
-              {/* Volume: Lighter Slate */}
-              <span className="text-[10px] text-slate-400 font-medium">
-                {(s.volume / 1000000).toFixed(2)}M
+              {/* Volume: DARK ORANGE as requested */}
+              <span className="text-[10px] text-orange-700 font-bold font-mono">
+                Vol: {(s.volume / 1000000).toFixed(2)}M
               </span>
               
-              {/* Separator */}
-              <div className="w-1 h-1 rounded-full bg-slate-300 mx-2"></div>
+              {/* Separator: Light Green to match theme */}
+              <div className="w-1 h-1 rounded-full bg-emerald-200 mx-2"></div>
             </div>
           ))}
         </div>
@@ -83,12 +82,11 @@ export const MarketTicker: React.FC = () => {
         }
         .animate-ticker {
           display: flex;
-          animation: ticker 80s linear infinite; /* Slowed down slightly for readability */
+          animation: ticker 80s linear infinite;
         }
         .group:hover .animate-ticker {
           animation-play-state: paused;
         }
-        /* Fade effect on the right edge */
         .mask-gradient {
           mask-image: linear-gradient(to right, transparent, black 20px, black 95%, transparent);
           -webkit-mask-image: linear-gradient(to right, transparent, black 20px, black 95%, transparent);
