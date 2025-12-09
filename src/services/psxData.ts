@@ -208,3 +208,88 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
         console.error("Error parsing HTML", e);
     }
 };
+
+// --- NEW FUNCTION: Fetch Top 20 Active Stocks by Volume ---
+export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
+  const targetUrl = `https://dps.psx.com.pk/market-watch`;
+  
+  // Use the same proxy list as the batch fetcher
+  const proxies = [
+      `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+      `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
+      `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
+  ];
+
+  for (const proxyUrl of proxies) {
+      try {
+          const response = await fetch(proxyUrl);
+          if (!response.ok) continue;
+          
+          let html = '';
+          if (proxyUrl.includes('allorigins')) {
+              const data = await response.json();
+              html = data.contents;
+          } else {
+              html = await response.text();
+          }
+
+          if (html && html.length > 500) {
+              const parser = new DOMParser();
+              const doc = parser.parseFromString(html, "text/html");
+              const rows = Array.from(doc.querySelectorAll("table tr"));
+              
+              if (rows.length < 2) continue;
+
+              // 1. Detect Headers
+              const colMap = { SYMBOL: -1, CURRENT: -1, CHANGE: -1, VOLUME: -1 };
+              
+              // Scan first few rows for headers
+              for (let i = 0; i < Math.min(rows.length, 5); i++) {
+                  const cells = rows[i].querySelectorAll("th, td");
+                  cells.forEach((cell, idx) => {
+                      const txt = cell.textContent?.trim().toUpperCase() || "";
+                      if (txt === 'SYMBOL' || txt === 'SCRIP') colMap.SYMBOL = idx;
+                      if (txt.includes('CURRENT') || txt === 'PRICE' || txt === 'RATE') colMap.CURRENT = idx;
+                      if (txt === 'CHANGE' || txt.includes('NET')) colMap.CHANGE = idx;
+                      if (txt === 'VOLUME' || txt.includes('VOL')) colMap.VOLUME = idx;
+                  });
+                  if (colMap.SYMBOL !== -1 && colMap.VOLUME !== -1) break;
+              }
+
+              // Fallback if detection fails (Standard PSX Layout)
+              if (colMap.SYMBOL === -1) { colMap.SYMBOL = 0; colMap.CURRENT = 5; colMap.CHANGE = 6; colMap.VOLUME = 7; }
+
+              const stockList: { symbol: string; price: number; change: number; volume: number }[] = [];
+
+              // 2. Parse Rows
+              for (const row of rows) {
+                  const cols = row.querySelectorAll("td");
+                  if (!cols[colMap.SYMBOL] || !cols[colMap.VOLUME]) continue;
+
+                  // Extract Symbol (Cleanup newlines/spaces)
+                  let symbol = cols[colMap.SYMBOL].innerText?.trim().split(/\s+/)[0] || "";
+                  if (!symbol || symbol.length > 8) continue; // Skip garbage rows
+
+                  // Extract Values
+                  const priceStr = cols[colMap.CURRENT]?.innerText?.replace(/,/g, '') || "0";
+                  const changeStr = cols[colMap.CHANGE]?.innerText?.replace(/,/g, '') || "0";
+                  const volStr = cols[colMap.VOLUME]?.innerText?.replace(/,/g, '') || "0";
+
+                  const price = parseFloat(priceStr);
+                  const change = parseFloat(changeStr);
+                  const volume = parseFloat(volStr);
+
+                  if (!isNaN(price) && !isNaN(volume) && volume > 0) {
+                      stockList.push({ symbol, price, change, volume });
+                  }
+              }
+
+              // 3. Sort by Volume Descending & Take Top 20
+              return stockList.sort((a, b) => b.volume - a.volume).slice(0, 20);
+          }
+      } catch (e) {
+          console.warn("Proxy failed for top stocks", e);
+      }
+  }
+  return [];
+};
