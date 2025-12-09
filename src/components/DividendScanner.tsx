@@ -45,7 +45,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       });
 
       Object.entries(balances).forEach(([ticker, qty]) => {
-          if (qty > 0) owned.add(ticker.toUpperCase());
+          if (qty > 0.01) owned.add(ticker.toUpperCase());
       });
       return owned;
   }, [transactions]);
@@ -107,7 +107,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       const upperMarket = marketTicker.toUpperCase();
       if (ownedTickers.has(upperMarket)) return true;
       for (const owned of ownedTickers) {
-          if (upperMarket.includes(owned)) return true;
+          if (upperMarket === owned) return true;
       }
       return false;
   };
@@ -190,11 +190,16 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                                 {p.ticker}
                                             </div>
                                             <div className="flex-1"> 
-                                                <div className="font-bold text-slate-800">{p.details}</div> 
+                                                <div className="font-bold text-slate-800 flex items-center gap-2">
+                                                    {p.ticker} 
+                                                    {owned && <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full">OWNED</span>}
+                                                </div>
+                                                <div className="text-xs text-slate-600 mt-1">{p.details}</div>
                                                 <div className="text-xs text-slate-500 mt-0.5">
                                                     <span className={`${owned ? 'text-amber-600' : 'text-blue-600'} font-bold`}>{p.bookClosure}</span>
                                                 </div> 
                                             </div>
+                                            <div className="text-[10px] text-slate-400 font-medium max-w-[80px] text-right truncate">{p.announceDate !== 'SCSTrade' ? p.announceDate : ''}</div>
                                         </div>
                                     );
                                 })}
