@@ -19,14 +19,13 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
     // 1. Clean up previous script
     containerRef.current.innerHTML = '';
 
-    // 2. Create script for the "Symbol Overview" widget (More permissive than Advanced Chart)
+    // 2. Create script for "Symbol Overview" (This widget allows PSX data)
     const script = document.createElement('script');
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js";
     script.type = "text/javascript";
     script.async = true;
 
     // 3. Configure Widget
-    // We use the "Symbol Overview" widget which rarely blocks PSX data
     const tvSymbol = symbol.toUpperCase().startsWith('PSX:') 
       ? symbol.toUpperCase() 
       : `PSX:${symbol.toUpperCase()}`;
@@ -34,7 +33,8 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
     script.innerHTML = JSON.stringify({
       "symbols": [
         [
-          tvSymbol + "|1D" // Appending |1D ensures daily timeframe
+          tvSymbol,
+          tvSymbol + "|1D"
         ]
       ],
       "chartOnly": false,
