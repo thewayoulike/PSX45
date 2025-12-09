@@ -16,11 +16,13 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 1. Clear previous content
+    // 1. Clear previous content to prevent duplicates
     containerRef.current.innerHTML = '';
 
     // 2. Create the script
     const script = document.createElement('script');
+    // IMPORTANT: This must be 'embed-widget-symbol-overview.js'
+    // If it says 'advanced-chart', you are using the wrong widget!
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js";
     script.type = "text/javascript";
     script.async = true;
