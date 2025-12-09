@@ -18,7 +18,8 @@ import { MarketTicker } from './MarketTicker';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square } from 'lucide-react';
+// UPDATED: Added ChartCandlestick to imports
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -567,8 +568,9 @@ const App: React.FC = () => {
                         <LayoutDashboard size={18} /> Dashboard 
                     </button>
                     
+                    {/* UPDATED ICON TO ChartCandlestick */}
                     <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
-                        <Briefcase size={18} /> Stocks 
+                        <ChartCandlestick size={18} /> Stocks 
                     </button>
 
                     <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
