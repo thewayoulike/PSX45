@@ -1,6 +1,6 @@
 import { CompanyPayout } from '../types';
 
-// --- Interfaces for Financials ---
+// --- Interfaces ---
 export interface CompanyFinancials {
   year: string;
   sales: string;
@@ -34,7 +34,7 @@ const getProxies = (targetUrl: string) => [
     `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
 ];
 
-// --- 1. Fetch Company Fundamentals (from PSX) ---
+// --- 1. Fetch Company Fundamentals (PSX) ---
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   const proxies = getProxies(targetUrl);
@@ -125,7 +125,7 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
   return null;
 };
 
-// --- 2. Fetch Specific Company Payouts (from PSX Company Page) ---
+// --- 2. Fetch Specific Company Payouts (PSX) ---
 export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   const proxies = getProxies(targetUrl);
@@ -174,14 +174,14 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
   return [];
 };
 
-// --- 3. UPDATED: Fetch Market Wide Dividends (from SCSTrade xDates) ---
+// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - ROBUST VERSION ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const targetUrl = `https://www.scstrade.com/MarketStatistics/MS_xDates.aspx`;
   const proxies = getProxies(targetUrl);
 
   for (const proxyUrl of proxies) {
     try {
-      console.log(`Trying proxy for SCSTrade: ${proxyUrl}`);
+      console.log(`SCSTrade attempt via: ${proxyUrl}`);
       const response = await fetch(proxyUrl);
       if (!response.ok) continue;
 
@@ -193,125 +193,118 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         html = await response.text();
       }
 
-      if (html && html.length > 1000) {
+      if (html && html.length > 500) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // Find the table containing "CODE" and "XDATE"
+        // Find ALL tables and search for the one with specific headers
         const tables = Array.from(doc.querySelectorAll('table'));
-        const mainTable = tables.find(t => 
-            t.textContent?.toUpperCase().includes('CODE') && 
-            t.textContent?.toUpperCase().includes('XDATE')
-        );
+        let targetTable = null;
+        let headerRowIndex = -1;
 
-        if (!mainTable) {
-            console.warn("SCSTrade: Table not found in HTML");
+        for (const table of tables) {
+            const rows = Array.from(table.querySelectorAll('tr'));
+            for (let i = 0; i < Math.min(rows.length, 5); i++) {
+                const text = rows[i].textContent?.toUpperCase() || '';
+                if (text.includes('CODE') && text.includes('XDATE')) {
+                    targetTable = table;
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+            if (targetTable) break;
+        }
+
+        if (!targetTable || headerRowIndex === -1) {
+            console.warn("SCSTrade table not found");
             continue;
         }
 
-        const payouts: CompanyPayout[] = [];
-        const rows = Array.from(mainTable.querySelectorAll('tr'));
+        const rows = Array.from(targetTable.querySelectorAll('tr'));
         
-        // 1. Identify Column Indices from Header
-        let colMap = { ticker: -1, dividend: -1, bonus: -1, right: -1, xdate: -1 };
+        // Map Columns dynamically based on header text
+        const headerCells = rows[headerRowIndex].querySelectorAll('td, th');
+        let colMap = { code: -1, dividend: -1, bonus: -1, right: -1, xdate: -1 };
         
-        // Assume first row is header
-        const headerCells = rows[0].querySelectorAll('th, td');
         headerCells.forEach((cell, idx) => {
             const txt = cell.textContent?.toUpperCase().trim() || '';
-            if (txt === 'CODE') colMap.ticker = idx;
-            if (txt === 'DIVIDEND') colMap.dividend = idx;
-            if (txt === 'BONUS') colMap.bonus = idx;
-            if (txt === 'RIGHT') colMap.right = idx;
-            if (txt === 'XDATE' || txt === 'X-DATE') colMap.xdate = idx;
+            if (txt === 'CODE') colMap.code = idx;
+            else if (txt === 'DIVIDEND') colMap.dividend = idx;
+            else if (txt === 'BONUS') colMap.bonus = idx;
+            else if (txt === 'RIGHT') colMap.right = idx;
+            else if (txt === 'XDATE' || txt === 'X-DATE') colMap.xdate = idx;
         });
 
-        // Fallback indices if header detection failed (based on typical structure)
-        if (colMap.ticker === -1) colMap = { ticker: 0, dividend: 2, bonus: 3, right: 4, xdate: 5 };
+        // Fallback if dynamic mapping fails (Standard SCSTrade layout)
+        if (colMap.code === -1) colMap = { code: 0, dividend: 2, bonus: 3, right: 4, xdate: 5 };
 
+        const payouts: CompanyPayout[] = [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // 2. Parse Data Rows (skip header)
-        for (let i = 1; i < rows.length; i++) {
+        // Iterate rows AFTER header
+        for (let i = headerRowIndex + 1; i < rows.length; i++) {
             const cols = rows[i].querySelectorAll('td');
-            if (cols.length > colMap.xdate) {
-                const ticker = cols[colMap.ticker]?.textContent?.trim() || 'Unknown';
-                const divAmt = cols[colMap.dividend]?.textContent?.trim() || '';
-                const bonus = cols[colMap.bonus]?.textContent?.trim() || '';
-                const right = cols[colMap.right]?.textContent?.trim() || '';
-                const dateStr = cols[colMap.xdate]?.textContent?.trim() || '';
+            if (!cols[colMap.code] || !cols[colMap.xdate]) continue;
 
-                if (!ticker || ticker === '&nbsp;' || !dateStr) continue;
+            const ticker = cols[colMap.code].textContent?.trim();
+            const dateStr = cols[colMap.xdate].textContent?.trim();
+            
+            if (!ticker || !dateStr || ticker === '&nbsp;') continue;
 
-                // Build Details String
-                const detailsParts = [];
-                if (divAmt && divAmt !== '&nbsp;') detailsParts.push(`Div: ${divAmt}`);
-                if (bonus && bonus !== '&nbsp;') detailsParts.push(`Bonus: ${bonus}`);
-                if (right && right !== '&nbsp;') detailsParts.push(`Right: ${right}`);
-                
-                if (detailsParts.length === 0) continue; // Skip if no payout info
+            // Extract Payout Details
+            let details = '';
+            const div = cols[colMap.dividend]?.textContent?.trim();
+            const bonus = cols[colMap.bonus]?.textContent?.trim();
+            const right = cols[colMap.right]?.textContent?.trim();
 
-                const details = detailsParts.join(' | ');
+            if (div && div !== '&nbsp;' && div !== 'Nil') details += `Div: ${div} `;
+            if (bonus && bonus !== '&nbsp;' && bonus !== 'Nil') details += `Bonus: ${bonus} `;
+            if (right && right !== '&nbsp;' && right !== 'Nil') details += `Right: ${right}`;
+            
+            if (!details) continue; // Skip if no payout
 
-                // Parse Date: "15 Dec 2025"
-                let isUpcoming = false;
-                try {
-                    // Remove potential extra spaces or invisible chars
-                    const cleanDate = dateStr.replace(/&nbsp;/g, '').replace(/\s+/g, ' ').trim();
-                    const dateParts = cleanDate.split(' '); // [15, Dec, 2025]
+            // Parse Date: "15 Dec 2025"
+            let isUpcoming = false;
+            try {
+                const parts = dateStr.replace(/,/g, '').split(' ');
+                if (parts.length >= 3) {
+                    const day = parseInt(parts[0]);
+                    const monthStr = parts[1].substring(0, 3);
+                    const year = parseInt(parts[2]);
                     
-                    if (dateParts.length === 3) {
-                        const day = parseInt(dateParts[0]);
-                        const monthStr = dateParts[1];
-                        const year = parseInt(dateParts[2]);
-                        
-                        const monthMap: Record<string, number> = {
-                            'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
-                            'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
-                            'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
-                            'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
-                        };
-                        
-                        const month = monthMap[monthStr.substring(0, 3)];
-                        
-                        if (!isNaN(day) && month !== undefined && !isNaN(year)) {
-                            const xDateObj = new Date(year, month, day);
-                            // Include if today or future
-                            if (xDateObj >= today) {
-                                isUpcoming = true;
-                            }
-                        }
-                    }
-                } catch (e) {
-                    console.warn('Date parse error', dateStr);
-                }
+                    const monthMap: Record<string, number> = {
+                        'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5,
+                        'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11,
+                        'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
+                        'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
+                    };
 
-                if (isUpcoming) {
-                    payouts.push({
-                        ticker: ticker,
-                        announceDate: 'SCSTrade',
-                        financialResult: '-', 
-                        details: details, 
-                        bookClosure: `Ex-Date: ${dateStr}`,
-                        isUpcoming: true
-                    });
+                    if (!isNaN(day) && !isNaN(year) && monthMap[monthStr] !== undefined) {
+                        const xDate = new Date(year, monthMap[monthStr], day);
+                        if (xDate >= today) isUpcoming = true;
+                    }
                 }
+            } catch (err) {
+                console.warn("Date parse error", dateStr);
+            }
+
+            if (isUpcoming) {
+                payouts.push({
+                    ticker: ticker,
+                    announceDate: 'SCSTrade',
+                    financialResult: '-', 
+                    details: details.trim(), 
+                    bookClosure: `Ex-Date: ${dateStr}`,
+                    isUpcoming: true
+                });
             }
         }
 
-        // Deduplicate based on Ticker + Date
-        const uniquePayouts = payouts.filter((p, index, self) =>
-            index === self.findIndex((t) => (
-                t.ticker === p.ticker && t.bookClosure === p.bookClosure
-            ))
-        );
-
-        console.log(`SCSTrade scan success: Found ${uniquePayouts.length} items`);
-        return uniquePayouts;
+        return payouts;
       }
     } catch (e) {
-      console.warn(`Proxy ${proxyUrl} failed for SCSTrade`, e);
+      console.warn(`Proxy ${proxyUrl} failed`, e);
     }
   }
   return [];
