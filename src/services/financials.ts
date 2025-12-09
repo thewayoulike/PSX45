@@ -205,7 +205,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             const rows = Array.from(table.querySelectorAll('tr'));
             for (let i = 0; i < Math.min(rows.length, 5); i++) {
                 const text = rows[i].textContent?.toUpperCase() || '';
-                // Improved Header Detection
+                // Improved Header Detection: Look for CODE + (XDATE or variations)
                 if (text.includes('CODE') && (text.includes('XDATE') || text.includes('X-DATE') || text.includes('X DATE') || text.includes('BOOK CLOSURE'))) {
                     targetTable = table;
                     headerRowIndex = i;
@@ -236,7 +236,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             else if (txt.includes('XDATE') || txt.includes('X-DATE') || txt.includes('X DATE') || txt.includes('BOOK CLOSURE')) colMap.xdate = idx;
         });
 
-        // Fallback for known layouts if detection fails
+        // Fallback for known layouts if detection fails (Code is usually 0, XDate usually last/5)
         if (colMap.code === -1) {
             colMap = { code: 0, name: 1, dividend: 2, bonus: 3, right: 4, xdate: 5 };
         }
