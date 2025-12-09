@@ -12,6 +12,23 @@ const PROXIES = [
     (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
 ];
 
+// Helper to prevent hanging requests
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 5000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeout);
+    try {
+        const response = await fetch(url, {
+            ...options,
+            signal: controller.signal
+        });
+        clearTimeout(id);
+        return response;
+    } catch (error) {
+        clearTimeout(id);
+        throw error;
+    }
+};
+
 // --- 1. Fetch Batch Prices (Dashboard) ---
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number }>> => {
     const results: Record<string, { price: number, sector: string, ldcp: number }> = {};
@@ -23,7 +40,7 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     for (const proxyGen of PROXIES) {
         try {
             const proxyUrl = proxyGen(targetUrl);
-            const response = await fetch(proxyUrl);
+            const response = await fetchWithTimeout(proxyUrl, {}, 8000); // 8s timeout for large page
             if (!response.ok) continue;
             
             let html = '';
@@ -130,7 +147,7 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
   for (const proxyGen of PROXIES) {
       try {
           const proxyUrl = proxyGen(targetUrl);
-          const response = await fetch(proxyUrl);
+          const response = await fetchWithTimeout(proxyUrl, {}, 8000);
           if (!response.ok) continue;
           
           let html = '';
@@ -206,64 +223,55 @@ export const fetchStockHistory = async (symbol: string): Promise<{ time: number;
     for (const proxyGen of PROXIES) {
         try {
             const proxyUrl = proxyGen(targetUrl);
-            const response = await fetch(proxyUrl);
+            const response = await fetchWithTimeout(proxyUrl, {
+                headers: { 'Cache-Control': 'no-cache' }
+            }, 6000); 
             
-            // If the proxy returns a non-200 status, skip it immediately
             if (!response.ok) {
-                console.warn(`Proxy error ${response.status} for ${proxyUrl}`);
+                console.warn(`Proxy ${proxyUrl} returned ${response.status}`);
                 continue;
             }
             
             let rawData;
             const contentType = response.headers.get("content-type");
 
-            // 1. Handle AllOrigins (returns JSON wrapper)
+            // 1. Handle AllOrigins
             if (proxyUrl.includes('allorigins')) {
                 const wrapper = await response.json();
-                // Check if contents is a string (needs parsing) or object
-                if (typeof wrapper.contents === 'string') {
-                    try {
-                        rawData = JSON.parse(wrapper.contents);
-                    } catch (e) {
-                        // Sometimes proxies return HTML error pages inside the JSON wrapper
-                        console.warn("AllOrigins returned non-JSON content");
-                        continue;
+                if (wrapper.contents) {
+                    if (typeof wrapper.contents === 'string') {
+                        try {
+                            rawData = JSON.parse(wrapper.contents);
+                        } catch (e) { continue; }
+                    } else {
+                        rawData = wrapper.contents;
                     }
-                } else {
-                    rawData = wrapper.contents;
                 }
             } 
-            // 2. Handle Standard JSON Proxies
-            else if (contentType && contentType.includes("application/json")) {
-                rawData = await response.json();
-            } 
-            // 3. Fallback: Try text parsing (some proxies send JSON with text/html header)
+            // 2. Handle Standard JSON
             else {
                 const text = await response.text();
                 try {
                     rawData = JSON.parse(text);
-                } catch (e) {
-                    continue; // Not JSON, likely an HTML error page
-                }
+                } catch (e) { continue; }
             }
   
-            // 4. Validate and Map Data
-            // The PSX API returns: { data: [[timestamp, price], [timestamp, price]...] }
+            // 3. Map & SORT Data (Critical for "Latest on Right")
             if (rawData && rawData.data && Array.isArray(rawData.data)) {
-                console.log(`History fetch success for ${cleanSymbol} via ${proxyUrl}`);
+                console.log(`History fetch success for ${cleanSymbol}`);
                 
                 const history = rawData.data.map((point: any[]) => ({
-                    time: point[0] * 1000, // Convert seconds to milliseconds
+                    time: point[0] * 1000, 
                     price: point[1]
                 }));
 
-                // Ensure we actually have data points before returning
                 if (history.length > 0) {
-                    return history;
+                    // SORT ASCENDING BY TIME: Oldest (Left) -> Newest (Right)
+                    return history.sort((a: any, b: any) => a.time - b.time);
                 }
             }
         } catch (e) {
-            console.warn(`Proxy failed for history (${cleanSymbol}):`, e);
+            // Silently fail to next proxy
         }
     }
     
