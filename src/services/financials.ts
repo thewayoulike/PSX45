@@ -42,8 +42,14 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
     try {
       const response = await fetch(proxyUrl);
       if (!response.ok) continue;
+
       let html = '';
-      if (proxyUrl.includes('allorigins')) { const data = await response.json(); html = data.contents; } else { html = await response.text(); }
+      if (proxyUrl.includes('allorigins')) {
+        const data = await response.json();
+        html = data.contents;
+      } else {
+        html = await response.text();
+      }
 
       if (html && html.length > 500) {
         const parser = new DOMParser();
@@ -167,7 +173,7 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
   return [];
 };
 
-// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - FIXED ---
+// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - FINAL FIX ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const targetUrl = `https://www.scstrade.com/MarketStatistics/MS_xDates.aspx`;
   const proxies = getProxies(targetUrl);
@@ -190,7 +196,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // Find the table containing "CODE" and "XDATE" headers
+        // Find the specific table with "XDATE" header
         const tables = Array.from(doc.querySelectorAll('table'));
         let targetTable = null;
         let headerRowIndex = -1;
@@ -199,8 +205,8 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             const rows = Array.from(table.querySelectorAll('tr'));
             for (let i = 0; i < Math.min(rows.length, 5); i++) {
                 const text = rows[i].textContent?.toUpperCase() || '';
-                // The table in your screenshot has "CODE" and "XDATE"
-                if (text.includes('CODE') && (text.includes('XDATE') || text.includes('X-DATE'))) {
+                // Strict check for headers visible in your screenshot
+                if (text.includes('CODE') && text.includes('XDATE')) {
                     targetTable = table;
                     headerRowIndex = i;
                     break;
@@ -216,7 +222,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
         const rows = Array.from(targetTable.querySelectorAll('tr'));
         
-        // Map Columns dynamically based on header text
+        // Map Columns based on Header
         const headerCells = rows[headerRowIndex].querySelectorAll('td, th');
         let colMap = { code: -1, name: -1, dividend: -1, bonus: -1, right: -1, xdate: -1 };
         
@@ -230,15 +236,17 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             else if (txt === 'XDATE' || txt === 'X-DATE' || txt === 'X DATE') colMap.xdate = idx;
         });
 
-        // Fallback indices if header text varies slightly
-        // Based on screenshot: CODE(0) | NAME(1) | DIVIDEND(2) | BONUS(3) | RIGHT(4) | XDATE(5)
-        if (colMap.code === -1) colMap = { code: 0, name: 1, dividend: 2, bonus: 3, right: 4, xdate: 5 };
+        // Use hardcoded indices if dynamic detection fails (based on your image)
+        if (colMap.code === -1) {
+            // CODE(0) | NAME(1) | DIVIDEND(2) | BONUS(3) | RIGHT(4) | XDATE(5)
+            colMap = { code: 0, name: 1, dividend: 2, bonus: 3, right: 4, xdate: 5 };
+        }
 
         const payouts: CompanyPayout[] = [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        // Iterate rows AFTER header
+        // Parse Rows
         for (let i = headerRowIndex + 1; i < rows.length; i++) {
             const cols = rows[i].querySelectorAll('td');
             if (!cols[colMap.code] || !cols[colMap.xdate]) continue;
@@ -255,16 +263,17 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             const bonus = cols[colMap.bonus]?.textContent?.trim();
             const right = cols[colMap.right]?.textContent?.trim();
 
+            // Only add if not empty/nil
             if (div && div !== '&nbsp;' && div !== 'Nil' && div !== '') details += `Div: ${div} `;
             if (bonus && bonus !== '&nbsp;' && bonus !== 'Nil' && bonus !== '') details += `Bonus: ${bonus} `;
             if (right && right !== '&nbsp;' && right !== 'Nil' && right !== '') details += `Right: ${right}`;
             
-            if (!details) continue; // Skip if no payout info
+            if (!details) continue; // Skip rows with no payout info
 
             // Parse Date: "15 Dec 2025" or "15-Dec-2025"
             let isUpcoming = false;
             try {
-                // Remove invisible chars and normalize spaces
+                // Normalize string: remove &nbsp;, convert dashes to spaces
                 const cleanDate = dateStr.replace(/&nbsp;/g, '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
                 const dateParts = cleanDate.split(' '); // [15, Dec, 2025]
                 
@@ -280,7 +289,6 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
                         'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
                     };
                     
-                    // Handle case-insensitive month matching
                     const monthKey = Object.keys(monthMap).find(k => k.toUpperCase() === monthStr.toUpperCase().substring(0, 3));
                     const month = monthKey ? monthMap[monthKey] : undefined;
 
@@ -299,7 +307,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             if (isUpcoming) {
                 payouts.push({
                     ticker: ticker,
-                    announceDate: companyName || 'SCSTrade', // Use Name if available
+                    announceDate: companyName || 'SCSTrade', 
                     financialResult: '-', 
                     details: details.trim(), 
                     bookClosure: `Ex-Date: ${dateStr}`,
@@ -308,7 +316,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             }
         }
 
-        // Deduplicate based on Ticker + Date
+        // Deduplicate
         const uniquePayouts = payouts.filter((p, index, self) =>
             index === self.findIndex((t) => (
                 t.ticker === p.ticker && t.bookClosure === p.bookClosure
