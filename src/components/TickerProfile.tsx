@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { Transaction, Holding } from '../types';
 import { ArrowLeft, TrendingUp, Wallet, Briefcase, PieChart, History, Coins, BarChart3 } from 'lucide-react';
-// IMPORT THE NEW COMPONENT
-import MarketChart from './MarketChart'; 
+
+// --- CHANGE THIS IMPORT ---
+import StockDetailChart from './StockDetailChart'; 
 
 interface TickerProfileProps {
   ticker: string;
@@ -106,7 +107,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
 
       <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-8">
           
-          {/* 1. CHART SECTION (Updated) */}
+          {/* 1. CHART SECTION */}
           <div className="bg-white p-1 rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                   <h3 className="font-bold text-slate-800 flex items-center gap-2">
@@ -115,9 +116,9 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
                   </h3>
               </div>
               
-              {/* Force height to 600px */}
               <div className="w-full">
-                  <MarketChart symbol={ticker} height={600} />
+                  {/* --- USE NEW COMPONENT HERE --- */}
+                  <StockDetailChart symbol={ticker} height={600} />
               </div>
           </div>
 
