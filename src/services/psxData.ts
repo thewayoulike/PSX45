@@ -1,11 +1,3 @@
-/**
- * Service to fetch live stock prices AND SECTORS from PSX.
- * STRATEGY: Bulk Fetch (Scrape the Market Watch Summary)
- * UPDATED: Fixed LDCP Extraction Bug.
- * - Adds a safety check: if LDCP column isn't explicitly found in headers, default to col 3 (standard PSX layout).
- * - Ensures LDCP is extracted even if the header name varies slightly.
- */
-
 import { SECTOR_CODE_MAP } from './sectors';
 
 // Ignore these "Ticker" names because they are actually table headers or metadata
