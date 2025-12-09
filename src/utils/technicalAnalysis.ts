@@ -1,10 +1,11 @@
 import { OHLCData } from '../services/psxData';
 
-// --- NEW: ATR Calculation for Stoploss/Targets ---
+// --- NEW: ATR Calculation for Volatility-Based Targets ---
 export const calculateATR = (data: OHLCData[], period: number = 14): number => {
     if (data.length < period + 1) return 0;
     let trSum = 0;
-    // Simple SMA of TR for efficiency
+    
+    // Calculate True Range for the period
     for (let i = data.length - period; i < data.length; i++) {
         const current = data[i];
         const prev = data[i - 1];
