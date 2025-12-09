@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2 } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 import { exportToCSV } from '../utils/export';
@@ -21,43 +21,41 @@ interface TransactionFormProps {
   onSaveScannedTrades?: (trades: EditableTrade[]) => void;
 }
 
-// --- UPDATED DATE HELPER ---
+// Helper to handle various date formats from Excel/CSV
 const normalizeDate = (input: any): string => {
     if (!input) return new Date().toISOString().split('T')[0];
     
     // 1. Excel Serial Date (Number)
     if (typeof input === 'number') {
-        // Excel base date is Dec 30, 1899
         const date = new Date(Math.round((input - 25569) * 86400 * 1000));
         return date.toISOString().split('T')[0];
     }
 
     // 2. String Dates
     const str = String(input).trim();
-    
-    // Try standard JS date parser first
     const dateObj = new Date(str);
-    if (!isNaN(dateObj.getTime()) && str.length > 5) {
+    
+    // Standard JS Date check (exclude plain text)
+    if (!isNaN(dateObj.getTime()) && str.length > 5 && !str.match(/[a-zA-Z]/)) {
         return dateObj.toISOString().split('T')[0];
     }
     
-    // 3. Fallback for DD/MM/YYYY or DD-MM-YYYY (Common in Pakistan/UK)
+    // 3. Fallback for DD/MM/YYYY
     const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
     if (dmyMatch) {
         const day = parseInt(dmyMatch[1]);
         const month = parseInt(dmyMatch[2]);
         const year = parseInt(dmyMatch[3]);
-        const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-        return iso;
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     }
 
-    // 4. Fallback for DD-MMM-YY (e.g., 15-Jan-24)
+    // 4. Fallback for DD-MMM-YY
     const dMonYMatch = str.match(/^(\d{1,2})[-/]([A-Za-z]{3})[-/](\d{2,4})/);
     if (dMonYMatch) {
         const day = parseInt(dMonYMatch[1]);
         const monthStr = dMonYMatch[2].toLowerCase();
         let year = parseInt(dMonYMatch[3]);
-        if (year < 100) year += 2000; // Assume 20xx
+        if (year < 100) year += 2000; 
 
         const months: Record<string, number> = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
         const month = months[monthStr];
@@ -67,7 +65,7 @@ const normalizeDate = (input: any): string => {
         }
     }
 
-    return new Date().toISOString().split('T')[0]; // Final fallback to today
+    return new Date().toISOString().split('T')[0]; 
 };
 
 export const TransactionForm: React.FC<TransactionFormProps> = ({ 
@@ -98,6 +96,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [cdcCharges, setCdcCharges] = useState<number | ''>('');
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
+  
+  // NEW: Notes/Description State
+  const [notes, setNotes] = useState('');
 
   // Scanner State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -160,6 +161,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setTax(editingTransaction.tax || 0);
             setCdcCharges(editingTransaction.cdcCharges || 0);
             setOtherFees(editingTransaction.otherFees || 0);
+            setNotes(editingTransaction.notes || ''); // Load existing notes
             setIsAutoCalc(true);
             if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             
@@ -179,11 +181,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                  setHistAmount(editingTransaction.price);
             }
         } else {
+            // Reset Form
             setTicker(''); setQuantity(''); setPrice(''); 
             setCommission(''); setTax(''); setCdcCharges(''); setOtherFees('');
+            setNotes(''); // Reset notes
             
             if (savedScannedTrades.length > 0) {
-                // Keep current mode if scanner data exists
+                // Keep scanner mode
             } else {
                 setMode('MANUAL'); 
             }
@@ -201,11 +205,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [isOpen, editingTransaction, portfolioDefaultBrokerId]); 
 
-  useEffect(() => {
-      setSelectedScanIndices(new Set());
-  }, [savedScannedTrades, mode]);
-
-  // Auto-Calculation Logic
+  // ... (Auto-Calculation Effect Logic remains same as previous steps) ...
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
@@ -220,11 +220,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const gross = quantity * price;
              if (type === 'DIVIDEND') { 
-                 setCommission(0); 
-                 setCdcCharges(0); 
-                 setOtherFees(0); 
-                 const wht = gross * 0.15; 
-                 setTax(parseFloat(wht.toFixed(2))); 
+                 setCommission(0); setCdcCharges(0); setOtherFees(0); 
+                 const wht = gross * 0.15; setTax(parseFloat(wht.toFixed(2))); 
              } else {
                  let estComm = 0;
                  const currentBroker = brokers.find(b => b.id === selectedBrokerId);
@@ -254,7 +251,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                  
                  setCommission(parseFloat(estComm.toFixed(2))); setTax(parseFloat(estTax.toFixed(2))); setCdcCharges(parseFloat(estCdc.toFixed(2)));
              }
-        } else { if (commission !== '') setCommission(''); if (tax !== '') setTax(''); if (cdcCharges !== '') setCdcCharges(''); }
+        }
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType, category]);
 
@@ -330,7 +327,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     const txData: any = {
       ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId,
       commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0,
-      category: type === 'OTHER' ? category : undefined
+      category: type === 'OTHER' ? category : undefined,
+      notes: notes.trim() || undefined // Added Notes Binding
     };
 
     if (type === 'OTHER') {
@@ -357,7 +355,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
           const trades: EditableTrade[] = jsonData.map((row: any) => ({
-              date: normalizeDate(row['Date']), // Use new normalizer
+              date: normalizeDate(row['Date']), 
               type: (row['Type'] || 'BUY').toUpperCase(),
               ticker: (row['Ticker'] || '').toUpperCase(),
               broker: row['Broker'],
@@ -366,7 +364,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               commission: Number(row['Commission']) || 0,
               tax: Number(row['Tax']) || 0,
               cdcCharges: Number(row['CDC Charges']) || 0,
-              otherFees: Number(row['Other Fees']) || Number(row['Other']) || 0, // Catch 'Other' too
+              otherFees: Number(row['Other Fees']) || Number(row['Other']) || 0,
               brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id
           })).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0);
 
@@ -382,160 +380,27 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleProcessScan = async () => { 
       if (!selectedFile) return; 
-      
-      if (mode === 'IMPORT') {
-          handleImportFile();
-          return;
-      }
-
-      setIsScanning(true); 
-      setScanError(null); 
-      updateScannedTrades([]); 
+      if (mode === 'IMPORT') { handleImportFile(); return; }
+      setIsScanning(true); setScanError(null); updateScannedTrades([]); 
       try { 
           let trades: ParsedTrade[] = []; 
-          if (mode === 'AI_SCAN') { 
-              trades = await parseTradeDocument(selectedFile); 
-          } else { 
-              const res = await parseTradeDocumentOCRSpace(selectedFile); 
-              trades = res.trades; 
-          } 
+          if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } 
+          else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } 
           if (trades.length === 0) throw new Error("No trades found in this file."); 
-          const enrichedTrades: EditableTrade[] = trades.map(t => ({ 
-              ...t, 
-              brokerId: selectedBrokerId || undefined, 
-              broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker 
-          })); 
+          const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); 
           updateScannedTrades(enrichedTrades); 
-      } catch (err: any) { 
-          setScanError(err.message || "Failed to scan document."); 
-      } finally { 
-          setIsScanning(false); 
-      } 
+      } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } 
   };
   
-  const toggleScanSelection = (index: number) => {
-      const next = new Set(selectedScanIndices);
-      if (next.has(index)) next.delete(index);
-      else next.add(index);
-      setSelectedScanIndices(next);
-  };
-
-  const toggleSelectAll = () => {
-      if (selectedScanIndices.size === savedScannedTrades.length) setSelectedScanIndices(new Set());
-      else setSelectedScanIndices(new Set(savedScannedTrades.map((_, i) => i)));
-  };
-
-  const getTradeCost = (t: EditableTrade) => {
-      return (Number(t.quantity) * Number(t.price)) + (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0);
-  };
-
-  const addSingleTrade = (trade: EditableTrade) => {
-      let finalBrokerName = trade.broker;
-      if (trade.brokerId) {
-          const b = brokers.find(br => br.id === trade.brokerId);
-          if (b) finalBrokerName = b.name;
-      }
-      onAddTransaction({
-          ticker: trade.ticker,
-          type: trade.type as any,
-          quantity: Number(trade.quantity),
-          price: Number(trade.price),
-          date: trade.date || new Date().toISOString().split('T')[0],
-          broker: finalBrokerName,
-          brokerId: trade.brokerId,
-          commission: Number(trade.commission) || 0,
-          tax: Number(trade.tax) || 0,
-          cdcCharges: Number(trade.cdcCharges) || 0,
-          otherFees: Number(trade.otherFees) || 0
-      });
-  };
-
-  const handleAcceptTrade = (trade: EditableTrade) => {
-      setFormError(null);
-      if (trade.type === 'BUY' && freeCash !== undefined) {
-          const cost = getTradeCost(trade);
-          if (cost > freeCash) {
-              setFormError(`Insufficient Buying Power! This trade costs Rs. ${cost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`);
-              return;
-          }
-      }
-      if (trade.type === 'SELL') {
-          const targetBrokerId = trade.brokerId || selectedBrokerId;
-          const currentQty = getHoldingQty(trade.ticker, targetBrokerId);
-          if (Number(trade.quantity) > currentQty) {
-               setFormError(`Insufficient Holdings! You are trying to sell ${trade.quantity} ${trade.ticker}, but you only own ${currentQty}.`);
-               return;
-          }
-      }
-      addSingleTrade(trade);
-      updateScannedTrades(savedScannedTrades.filter(t => t !== trade));
-  };
-
-  const handleAcceptSelected = () => {
-      setFormError(null);
-      const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i));
-      
-      const totalBuyCost = selectedTrades.reduce((acc, t) => {
-          return t.type === 'BUY' ? acc + getTradeCost(t) : acc;
-      }, 0);
-
-      if (freeCash !== undefined && totalBuyCost > freeCash) {
-           setFormError(`Insufficient Buying Power! Selected trades cost Rs. ${totalBuyCost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`);
-           return;
-      }
-
-      const batchImpact: Record<string, { buy: number, sell: number }> = {};
-
-      for (const t of selectedTrades) {
-          const key = `${t.ticker.toUpperCase()}|${t.brokerId || selectedBrokerId}`;
-          if (!batchImpact[key]) batchImpact[key] = { buy: 0, sell: 0 };
-          
-          if (t.type === 'BUY') batchImpact[key].buy += Number(t.quantity);
-          if (t.type === 'SELL') batchImpact[key].sell += Number(t.quantity);
-      }
-
-      for (const [key, impact] of Object.entries(batchImpact)) {
-          const [ticker, brokerId] = key.split('|');
-          
-          if (impact.sell > 0) {
-              const currentQty = getHoldingQty(ticker, brokerId);
-              const totalAvailable = currentQty + impact.buy; 
-
-              if (impact.sell > totalAvailable) {
-                   setFormError(`Insufficient Holdings for ${ticker}! Own: ${currentQty}, Buying Now: ${impact.buy}, Selling Now: ${impact.sell}. Net Shortfall: ${impact.sell - totalAvailable}.`);
-                   return; 
-              }
-          }
-      }
-
-      selectedTrades.forEach(addSingleTrade);
-      updateScannedTrades(savedScannedTrades.filter((_, i) => !selectedScanIndices.has(i)));
-      setSelectedScanIndices(new Set());
-  };
-
-  const updateSingleScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { 
-      const updated = [...savedScannedTrades]; 
-      updated[index] = { ...updated[index], [field]: value }; 
-      updateScannedTrades(updated); 
-  };
-  
-  const getFileIcon = () => { 
-      if (selectedFile) { 
-          const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); 
-          if (isSheet) return <FileSpreadsheet size={32} />; 
-          return <FileText size={32} />; 
-      } 
-      if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; 
-      if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />;
-      return <ScanText size={32} className="text-emerald-500" />; 
-  };
-
-  const getThemeColor = () => {
-      if (mode === 'AI_SCAN') return { btn: 'bg-indigo-500 hover:bg-indigo-600', text: 'text-indigo-600', shadow: 'shadow-indigo-200', bg: 'bg-indigo-50/50', border: 'border-indigo-400' };
-      if (mode === 'IMPORT') return { btn: 'bg-blue-500 hover:bg-blue-600', text: 'text-blue-600', shadow: 'shadow-blue-200', bg: 'bg-blue-50/50', border: 'border-blue-400' };
-      return { btn: 'bg-emerald-500 hover:bg-emerald-600', text: 'text-emerald-600', shadow: 'shadow-emerald-200', bg: 'bg-emerald-50', border: 'border-emerald-200' };
-  };
-
+  const toggleScanSelection = (index: number) => { const next = new Set(selectedScanIndices); if (next.has(index)) next.delete(index); else next.add(index); setSelectedScanIndices(next); };
+  const toggleSelectAll = () => { if (selectedScanIndices.size === savedScannedTrades.length) setSelectedScanIndices(new Set()); else setSelectedScanIndices(new Set(savedScannedTrades.map((_, i) => i))); };
+  const getTradeCost = (t: EditableTrade) => { return (Number(t.quantity) * Number(t.price)) + (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0); };
+  const addSingleTrade = (trade: EditableTrade) => { let finalBrokerName = trade.broker; if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; } onAddTransaction({ ticker: trade.ticker, type: trade.type as any, quantity: Number(trade.quantity), price: Number(trade.price), date: trade.date || new Date().toISOString().split('T')[0], broker: finalBrokerName, brokerId: trade.brokerId, commission: Number(trade.commission) || 0, tax: Number(trade.tax) || 0, cdcCharges: Number(trade.cdcCharges) || 0, otherFees: Number(trade.otherFees) || 0 }); };
+  const handleAcceptTrade = (trade: EditableTrade) => { setFormError(null); if (trade.type === 'BUY' && freeCash !== undefined) { const cost = getTradeCost(trade); if (cost > freeCash) { setFormError(`Insufficient Buying Power! This trade costs Rs. ${cost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`); return; } } if (trade.type === 'SELL') { const targetBrokerId = trade.brokerId || selectedBrokerId; const currentQty = getHoldingQty(trade.ticker, targetBrokerId); if (Number(trade.quantity) > currentQty) { setFormError(`Insufficient Holdings! You are trying to sell ${trade.quantity} ${trade.ticker}, but you only own ${currentQty}.`); return; } } addSingleTrade(trade); updateScannedTrades(savedScannedTrades.filter(t => t !== trade)); };
+  const handleAcceptSelected = () => { setFormError(null); const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i)); const totalBuyCost = selectedTrades.reduce((acc, t) => { return t.type === 'BUY' ? acc + getTradeCost(t) : acc; }, 0); if (freeCash !== undefined && totalBuyCost > freeCash) { setFormError(`Insufficient Buying Power! Selected trades cost Rs. ${totalBuyCost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`); return; } const batchImpact: Record<string, { buy: number, sell: number }> = {}; for (const t of selectedTrades) { const key = `${t.ticker.toUpperCase()}|${t.brokerId || selectedBrokerId}`; if (!batchImpact[key]) batchImpact[key] = { buy: 0, sell: 0 }; if (t.type === 'BUY') batchImpact[key].buy += Number(t.quantity); if (t.type === 'SELL') batchImpact[key].sell += Number(t.quantity); } for (const [key, impact] of Object.entries(batchImpact)) { const [ticker, brokerId] = key.split('|'); if (impact.sell > 0) { const currentQty = getHoldingQty(ticker, brokerId); const totalAvailable = currentQty + impact.buy; if (impact.sell > totalAvailable) { setFormError(`Insufficient Holdings for ${ticker}! Own: ${currentQty}, Buying Now: ${impact.buy}, Selling Now: ${impact.sell}. Net Shortfall: ${impact.sell - totalAvailable}.`); return; } } } selectedTrades.forEach(addSingleTrade); updateScannedTrades(savedScannedTrades.filter((_, i) => !selectedScanIndices.has(i))); setSelectedScanIndices(new Set()); };
+  const updateSingleScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...savedScannedTrades]; updated[index] = { ...updated[index], [field]: value }; updateScannedTrades(updated); };
+  const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />; return <ScanText size={32} className="text-emerald-500" />; };
+  const getThemeColor = () => { if (mode === 'AI_SCAN') return { btn: 'bg-indigo-500 hover:bg-indigo-600', text: 'text-indigo-600', shadow: 'shadow-indigo-200', bg: 'bg-indigo-50/50', border: 'border-indigo-400' }; if (mode === 'IMPORT') return { btn: 'bg-blue-500 hover:bg-blue-600', text: 'text-blue-600', shadow: 'shadow-blue-200', bg: 'bg-blue-50/50', border: 'border-blue-400' }; return { btn: 'bg-emerald-500 hover:bg-emerald-600', text: 'text-emerald-600', shadow: 'shadow-emerald-200', bg: 'bg-emerald-50', border: 'border-emerald-200' }; };
   const theme = getThemeColor();
 
   if (!isOpen) return null;
@@ -555,11 +420,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             <div className="px-6 pt-6">
                 <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200 mb-6 overflow-x-auto">
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'MANUAL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}> <Keyboard size={16} /> Manual </button>
-                    
                     <button onClick={() => setMode('IMPORT')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'IMPORT' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}> <FileSpreadsheet size={16} /> Import </button>
-                    
                     <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'AI_SCAN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}> <Sparkles size={16} /> AI Scan </button>
-                    
                     <button onClick={() => setMode('OCR_SCAN')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'OCR_SCAN' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <ScanText size={16} /> OCR </button>
                 </div>
             </div>
@@ -579,17 +441,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
-                    {/* ... (Keep Manual Form logic same as before, omitted for brevity but should be here) ... */}
-                    {/* Just ensuring the core structure remains valid for compilation */}
                     <div className="grid grid-cols-8 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
-                        <button type="button" onClick={() => setType('BUY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'BUY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>BUY</button>
-                        <button type="button" onClick={() => setType('SELL')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'SELL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>SELL</button>
-                        <button type="button" onClick={() => setType('DIVIDEND')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'DIVIDEND' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>DIV</button>
-                        <button type="button" onClick={() => setType('TAX')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'TAX' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>CGT</button>
-                        <button type="button" onClick={() => setType('HISTORY')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'HISTORY' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>HIST</button>
-                        <button type="button" onClick={() => setType('DEPOSIT')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'DEPOSIT' || type === 'WITHDRAWAL' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>CASH</button>
-                        <button type="button" onClick={() => setType('ANNUAL_FEE')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'ANNUAL_FEE' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>FEE</button>
-                        <button type="button" onClick={() => setType('OTHER')} className={`py-2 rounded-lg text-[10px] font-bold ${type === 'OTHER' ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}>OTHER</button>
+                        {['BUY', 'SELL', 'DIVIDEND', 'TAX', 'HISTORY', 'DEPOSIT', 'ANNUAL_FEE', 'OTHER'].map(t => (
+                            <button 
+                                key={t}
+                                type="button" 
+                                onClick={() => setType(t as any)} 
+                                className={`py-2 rounded-lg text-[10px] font-bold ${type === t || (t === 'DEPOSIT' && type === 'WITHDRAWAL') ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}
+                            >
+                                {t === 'DEPOSIT' ? 'CASH' : t === 'ANNUAL_FEE' ? 'FEE' : t === 'TAX' ? 'CGT' : t === 'HISTORY' ? 'HIST' : t === 'DIVIDEND' ? 'DIV' : t}
+                            </button>
+                        ))}
                     </div>
 
                     {type === 'TAX' ? (
@@ -668,6 +530,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </div>
                                 {category === 'ADJUSTMENT' && <p className="text-[10px] text-slate-400 mt-1 ml-1">Positive adds to cash, Negative subtracts from cash.</p>}
                             </div>
+
+                            {/* ADDED: Description Field */}
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 mb-1 flex items-center gap-1">
+                                    <AlignLeft size={12} />
+                                    Description (Optional)
+                                </label>
+                                <input
+                                    type="text"
+                                    value={notes}
+                                    onChange={(e) => setNotes(e.target.value)}
+                                    className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none placeholder-slate-400"
+                                    placeholder="e.g. Monthly Savings, Ledger Correction"
+                                />
+                            </div>
                         </>
                     ) : (
                         <>
@@ -695,7 +572,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     <div><label className="text-[10px] text-slate-400 block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full text-xs p-2 rounded border border-slate-200"/></div>
                                     <div><label className="text-[10px] text-slate-400 block mb-1">CDC Charges</label><input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full text-xs p-2 rounded border border-slate-200 disabled:bg-slate-100"/></div>
                                     
-                                    {/* MODIFIED: Renamed label and removed disabled attribute */}
                                     <div>
                                         <label className="text-[10px] text-slate-400 block mb-1">
                                             {type === 'DIVIDEND' ? 'Other Charges' : 'Other Fees'}
