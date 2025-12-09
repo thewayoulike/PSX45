@@ -1,12 +1,12 @@
 import React, { useEffect, useRef, memo } from 'react';
 
-interface StockDetailChartProps {
+interface PSXChartProps {
   symbol: string;
   theme?: 'light' | 'dark';
   height?: number;
 }
 
-const StockDetailChart: React.FC<StockDetailChartProps> = ({ 
+const PSXChart: React.FC<PSXChartProps> = ({ 
   symbol, 
   theme = 'light', 
   height = 600 
@@ -16,23 +16,22 @@ const StockDetailChart: React.FC<StockDetailChartProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 1. Wipe clean
+    // 1. Wipe the container clean to prevent duplicates
     containerRef.current.innerHTML = '';
 
-    // 2. Create the "Symbol Overview" script (The permissive widget)
+    // 2. Create the script for "Symbol Overview" 
+    // (This specific widget DOES NOT block PSX data)
     const script = document.createElement('script');
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js";
     script.type = "text/javascript";
     script.async = true;
 
-    // 3. Format Symbol
+    // 3. Format Symbol with PSX prefix
     const tvSymbol = symbol.toUpperCase().startsWith('PSX:') 
       ? symbol.toUpperCase() 
       : `PSX:${symbol.toUpperCase()}`;
 
-    console.log("Loading StockDetailChart for:", tvSymbol); // Check your console for this!
-
-    // 4. Configure
+    // 4. Configure Widget
     script.innerHTML = JSON.stringify({
       "symbols": [
         [
@@ -55,7 +54,7 @@ const StockDetailChart: React.FC<StockDetailChartProps> = ({
       "noTimeScale": false,
       "valuesTracking": "1",
       "changeMode": "price-and-percent",
-      "chartType": "candlesticks",
+      "chartType": "candlesticks", // Professional candlesticks
       "maLineColor": "#2962FF",
       "maLineWidth": 1,
       "maLength": 9,
@@ -75,15 +74,14 @@ const StockDetailChart: React.FC<StockDetailChartProps> = ({
 
   return (
     <div 
-      key={symbol} // Forces React to re-mount on symbol change
-      className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm bg-white" 
-      // TEMPORARY RED BORDER TO VERIFY UPDATE
-      style={{ height: `${height}px`, border: '2px solid red' }} 
+      className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white" 
       ref={containerRef}
+      // CRITICAL: Explicitly set height in pixels here to force size
+      style={{ height: `${height}px` }} 
     >
       <div className="tradingview-widget-container__widget"></div>
     </div>
   );
 };
 
-export default memo(StockDetailChart);
+export default memo(PSXChart);
