@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { Transaction, Holding } from '../types';
-import { ArrowLeft, TrendingUp, TrendingDown, Wallet, Briefcase, PieChart, History, Coins, BarChart3 } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { ArrowLeft, TrendingUp, Wallet, Briefcase, PieChart, History, Coins, BarChart3 } from 'lucide-react';
+import TradingViewChart from './TradingViewChart'; // <--- IMPORTED
 
 interface TickerProfileProps {
   ticker: string;
@@ -17,18 +17,13 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
 }) => {
   
   // --- STATS CALCULATION ---
-  const { stats, chartData } = useMemo(() => {
+  const { stats } = useMemo(() => {
     let totalDividends = 0;
     let dividendTax = 0;
     let totalFees = 0;
-    let buyCount = 0;
-    let sellCount = 0;
     let totalCashIn = 0; 
     let totalCashOut = 0; 
 
-    // For Charting
-    const timeSeries: any[] = [];
-    
     // Sort chronologically
     const sortedTxs = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -38,10 +33,8 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         const gross = t.quantity * t.price;
 
         if (t.type === 'BUY') {
-            buyCount++;
             totalCashIn += (gross + fees);
         } else if (t.type === 'SELL') {
-            sellCount++;
             const netProceeds = gross - fees;
             totalCashOut += netProceeds;
         } else if (t.type === 'DIVIDEND') {
@@ -49,15 +42,6 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
             dividendTax += (t.tax || 0);
             const netDiv = gross - (t.tax || 0);
             totalCashOut += netDiv;
-        }
-
-        // Add point to chart
-        if (['BUY', 'SELL', 'DIVIDEND'].includes(t.type)) {
-             timeSeries.push({
-                 date: t.date,
-                 netCashflow: totalCashOut - totalCashIn, 
-                 event: t.type
-             });
         }
     });
 
@@ -70,8 +54,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
             totalFees,
             lifetimeNet,
             totalExtracted: totalCashOut
-        },
-        chartData: timeSeries
+        }
     };
   }, [transactions, holding, currentPrice]);
 
@@ -79,7 +62,6 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   const avgPrice = holding?.avgPrice || 0;
   const marketValue = quantity * currentPrice;
   
-  // Visual Helpers
   const isLifetimeProfit = stats.lifetimeNet >= 0;
   const unrealizedPL = marketValue - (quantity * avgPrice);
   const unrealizedPLPercent = (quantity * avgPrice) > 0 ? (unrealizedPL / (quantity * avgPrice)) * 100 : 0;
@@ -123,7 +105,22 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
 
       <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-8">
           
-          {/* METRICS GRID */}
+          {/* 1. CHART SECTION (MOVED TO TOP) */}
+          <div className="bg-white p-1 rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                  <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                      <BarChart3 size={20} className="text-emerald-600" />
+                      Live Market Chart
+                  </h3>
+              </div>
+              
+              {/* TradingView Chart Component */}
+              <div className="w-full">
+                  <TradingViewChart symbol={ticker} height={500} />
+              </div>
+          </div>
+
+          {/* 2. METRICS GRID */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* CARD 1: Position */}
               <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden">
@@ -204,43 +201,6 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
                   </div>
               </div>
           </div>
-
-          {/* CHART SECTION */}
-          {chartData.length > 1 && (
-              <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
-                  <div className="flex items-center justify-between mb-6">
-                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                          <BarChart3 size={20} className="text-slate-400" />
-                          Cumulative Net Cashflow
-                      </h3>
-                      <div className="text-xs text-slate-400 font-medium bg-slate-50 px-3 py-1 rounded-full">
-                          (Cash Out - Cash In) Over Time
-                      </div>
-                  </div>
-                  <div className="h-[300px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                          <AreaChart data={chartData}>
-                              <defs>
-                                  <linearGradient id="colorNet" x1="0" y1="0" x2="0" y2="1">
-                                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.1}/>
-                                      <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                                  </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                              <XAxis dataKey="date" tick={{fontSize: 10, fill: '#94a3b8'}} tickLine={false} axisLine={false} minTickGap={30} />
-                              <YAxis tick={{fontSize: 10, fill: '#94a3b8'}} tickLine={false} axisLine={false} tickFormatter={(val) => `${val/1000}k`} />
-                              <Tooltip 
-                                  contentStyle={{backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'}}
-                                  itemStyle={{color: '#0f172a', fontWeight: 'bold', fontSize: '12px'}}
-                                  formatter={(value: number) => [`Rs. ${value.toLocaleString()}`, 'Net Cashflow']}
-                                  labelStyle={{color: '#64748b', marginBottom: '4px', fontSize: '10px'}}
-                              />
-                              <Area type="stepAfter" dataKey="netCashflow" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#colorNet)" />
-                          </AreaChart>
-                      </ResponsiveContainer>
-                  </div>
-              </div>
-          )}
 
           {/* HISTORY TABLE */}
           <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
