@@ -21,34 +21,50 @@ interface TransactionFormProps {
   onSaveScannedTrades?: (trades: EditableTrade[]) => void;
 }
 
-// Helper to handle various date formats from Excel/CSV
+// --- UPDATED DATE HELPER ---
 const normalizeDate = (input: any): string => {
     if (!input) return new Date().toISOString().split('T')[0];
     
-    // 1. Handle Excel Serial Date (e.g., 45321)
+    // 1. Excel Serial Date (Number)
     if (typeof input === 'number') {
+        // Excel base date is Dec 30, 1899
         const date = new Date(Math.round((input - 25569) * 86400 * 1000));
         return date.toISOString().split('T')[0];
     }
 
-    // 2. Handle String Dates
+    // 2. String Dates
     const str = String(input).trim();
-    const dateObj = new Date(str);
     
-    if (!isNaN(dateObj.getTime())) {
+    // Try standard JS date parser first
+    const dateObj = new Date(str);
+    if (!isNaN(dateObj.getTime()) && str.length > 5) {
         return dateObj.toISOString().split('T')[0];
     }
     
-    // 3. Fallback for DD/MM/YYYY or DD-MM-YYYY manually if JS Date fails
-    // (Common in regions like Pakistan/UK)
-    const parts = str.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-    if (parts) {
-        // Assume Day-Month-Year
-        const day = parseInt(parts[1]);
-        const month = parseInt(parts[2]);
-        const year = parseInt(parts[3]);
+    // 3. Fallback for DD/MM/YYYY or DD-MM-YYYY (Common in Pakistan/UK)
+    const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmyMatch) {
+        const day = parseInt(dmyMatch[1]);
+        const month = parseInt(dmyMatch[2]);
+        const year = parseInt(dmyMatch[3]);
         const iso = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
         return iso;
+    }
+
+    // 4. Fallback for DD-MMM-YY (e.g., 15-Jan-24)
+    const dMonYMatch = str.match(/^(\d{1,2})[-/]([A-Za-z]{3})[-/](\d{2,4})/);
+    if (dMonYMatch) {
+        const day = parseInt(dMonYMatch[1]);
+        const monthStr = dMonYMatch[2].toLowerCase();
+        let year = parseInt(dMonYMatch[3]);
+        if (year < 100) year += 2000; // Assume 20xx
+
+        const months: Record<string, number> = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
+        const month = months[monthStr];
+        
+        if (month) {
+            return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        }
     }
 
     return new Date().toISOString().split('T')[0]; // Final fallback to today
