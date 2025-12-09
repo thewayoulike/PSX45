@@ -1,25 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { fetchTopVolumeStocks } from '../services/psxData';
-import { TrendingUp, TrendingDown, Minus, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Activity } from 'lucide-react';
 
 export const MarketTicker: React.FC = () => {
   const [stocks, setStocks] = useState<{ symbol: string; price: number; change: number; volume: number }[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
 
   useEffect(() => {
     const loadData = async () => {
       try {
         const data = await fetchTopVolumeStocks();
-        console.log("Market Ticker Data:", data); // Check Console for this!
         if (data && data.length > 0) {
           setStocks(data);
-        } else {
-          setError(true);
         }
       } catch (e) {
         console.error("Ticker fetch failed", e);
-        setError(true);
       } finally {
         setLoading(false);
       }
@@ -30,39 +25,52 @@ export const MarketTicker: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) return null; 
-  if (stocks.length === 0) return null;
+  if (loading || stocks.length === 0) return null;
 
-  // Duplicate list multiple times to ensure smooth infinite scroll even on wide screens
-  const tickerItems = [...stocks, ...stocks, ...stocks, ...stocks];
+  // Duplicate list for smooth seamless scrolling
+  const tickerItems = [...stocks, ...stocks, ...stocks];
 
   return (
-    <div className="w-full bg-slate-900 text-white border-b border-slate-800 shadow-sm relative z-50 h-10 flex items-center overflow-hidden">
-      {/* Static Badge - Matches your "Add Transaction" button color */}
-      <div className="bg-emerald-600 h-full px-4 flex items-center justify-center font-bold text-[10px] md:text-xs uppercase tracking-wider shadow-lg z-20 shrink-0 relative">
-        Top Active
-        {/* Right Arrow/Triangle for visual separation */}
-        <div className="absolute -right-2 top-0 h-full w-0 border-t-[20px] border-t-transparent border-l-[10px] border-l-emerald-600 border-b-[20px] border-b-transparent"></div>
+    // THEME CHANGE: bg-slate-900 -> bg-white/90 with backdrop blur to match your glass UI
+    <div className="w-full bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-sm relative z-50 h-10 flex items-center overflow-hidden font-sans">
+      
+      {/* Static Badge - Using your primary emerald color */}
+      <div className="bg-emerald-600 h-full px-4 flex items-center justify-center gap-2 shadow-lg z-20 shrink-0 relative">
+        <Activity size={14} className="text-white" />
+        <span className="font-black text-[10px] md:text-xs uppercase tracking-widest text-white">
+          Top Active
+        </span>
+        {/* Decorative arrow removed for cleaner 'card' look, or keep simpler edge */}
+        <div className="absolute -right-2 top-0 h-full w-4 bg-emerald-600 transform skew-x-12"></div>
       </div>
 
-      {/* Scrolling Content Container */}
-      <div className="flex-1 overflow-hidden relative h-full flex items-center group">
-        <div className="animate-ticker flex items-center whitespace-nowrap pl-4">
+      {/* Scrolling Content */}
+      <div className="flex-1 overflow-hidden relative h-full flex items-center group mask-gradient">
+        <div className="animate-ticker flex items-center whitespace-nowrap pl-6">
           {tickerItems.map((s, i) => (
-            <div key={`${s.symbol}-${i}`} className="flex items-center gap-2 text-xs mr-8">
-              <span className="font-bold text-emerald-400">{s.symbol}</span>
-              <span className="font-mono text-slate-100">{s.price.toFixed(2)}</span>
+            <div key={`${s.symbol}-${i}`} className="flex items-center gap-3 text-xs mr-8">
               
-              <div className={`flex items-center gap-0.5 font-bold ${s.change > 0 ? 'text-emerald-500' : s.change < 0 ? 'text-rose-500' : 'text-slate-400'}`}>
+              {/* Symbol: Dark Slate */}
+              <span className="font-black text-slate-800">{s.symbol}</span>
+              
+              {/* Price: Slate */}
+              <span className="font-mono font-medium text-slate-600 bg-slate-50 px-1.5 py-0.5 rounded">
+                {s.price.toFixed(2)}
+              </span>
+              
+              {/* Change: Darker Green/Red for visibility on light bg */}
+              <div className={`flex items-center gap-0.5 font-bold ${s.change > 0 ? 'text-emerald-600' : s.change < 0 ? 'text-rose-600' : 'text-slate-400'}`}>
                 {s.change > 0 ? <TrendingUp size={12} /> : s.change < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
                 <span>{Math.abs(s.change).toFixed(2)}</span>
               </div>
               
-              <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">
-                Vol: {(s.volume / 1000000).toFixed(2)}M
+              {/* Volume: Lighter Slate */}
+              <span className="text-[10px] text-slate-400 font-medium">
+                {(s.volume / 1000000).toFixed(2)}M
               </span>
               
-              <span className="text-slate-700 opacity-30 mx-2">|</span>
+              {/* Separator */}
+              <div className="w-1 h-1 rounded-full bg-slate-300 mx-2"></div>
             </div>
           ))}
         </div>
@@ -75,10 +83,15 @@ export const MarketTicker: React.FC = () => {
         }
         .animate-ticker {
           display: flex;
-          animation: ticker 60s linear infinite;
+          animation: ticker 80s linear infinite; /* Slowed down slightly for readability */
         }
         .group:hover .animate-ticker {
           animation-play-state: paused;
+        }
+        /* Fade effect on the right edge */
+        .mask-gradient {
+          mask-image: linear-gradient(to right, transparent, black 20px, black 95%, transparent);
+          -webkit-mask-image: linear-gradient(to right, transparent, black 20px, black 95%, transparent);
         }
       `}</style>
     </div>
