@@ -89,14 +89,18 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
     let parts: any[] = [];
 
-    // Prompt instructions for date handling
+    // Prompt instructions with explicit Fee Summing logic
     const promptText = `Analyze this trade confirmation document/data. Extract all trade executions. 
     
     CRITICAL INSTRUCTIONS:
     1. **Dates**: Look for the trade/execution date. Normalize ALL dates to 'YYYY-MM-DD' format (ISO 8601). 
-       - Support formats like "01-JAN-2024", "01/01/2024", "Jan 1, 2024".
-       - If multiple dates exist (Trade vs Settlement), prefer TRADE date.
-    2. **Fees**: Extract commission, tax (SST/WHT), CDC charges, and any other fees separately if listed.
+       - Support formats like "01-JAN-2024", "01/01/2024", "Jan 1, 2024", "15-12-2024".
+       - If multiple dates exist (e.g. Trade Date vs Settlement Date), ALWAYS use the **TRADE DATE**.
+    2. **Fees Breakdown**:
+       - **Commission**: Extract the trading commission/brokerage.
+       - **Tax**: Extract SST (Sindh Sales Tax), WHT, or CVT.
+       - **CDC Charges**: Extract CDC or Custody fees.
+       - **Other Fees**: Look for ANY other charges (e.g. FED, Regulatory Fee, NCPL Fee, Service Charges). **SUM THEM ALL UP** and put the total in the 'otherFees' field. Do NOT include commission, tax, or CDC in this sum.
     3. **Output**: Return a JSON array of objects.`;
 
     if (isSpreadsheet) {
@@ -138,7 +142,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
               commission: { type: Type.NUMBER, nullable: true },
               tax: { type: Type.NUMBER, nullable: true },
               cdcCharges: { type: Type.NUMBER, nullable: true },
-              otherFees: { type: Type.NUMBER, nullable: true }
+              otherFees: { type: Type.NUMBER, nullable: true, description: "Sum of FED, Reg Fee, etc." }
             },
             required: ["ticker", "type", "quantity", "price", "date"]
           }
@@ -154,7 +158,6 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
   }
 };
 
-// UPDATED: Added 'months' param and improved prompt for PSX
 export const fetchDividends = async (tickers: string[], months: number = 6): Promise<DividendAnnouncement[]> => {
     try {
         const ai = getAi(); 
