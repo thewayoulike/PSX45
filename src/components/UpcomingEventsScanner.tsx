@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { CompanyPayout, Holding } from '../types';
 import { fetchMarketWideDividends } from '../services/financials';
-import { X, Calendar, Search, Loader2, Filter, RefreshCw, AlertCircle, TrendingUp, Layers } from 'lucide-react';
+import { X, Calendar, Search, Loader2, Filter, RefreshCw, AlertCircle, TrendingUp, Layers, CalendarClock } from 'lucide-react';
 
 interface UpcomingEventsScannerProps {
   isOpen: boolean;
   onClose: () => void;
-  holdings: Holding[]; // Passed to check if user owns the stock
+  holdings: Holding[]; // Passed to verify if you own the stock
 }
 
 export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({ 
@@ -30,10 +30,6 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
     setError(null);
     try {
       const data = await fetchMarketWideDividends();
-      // Sort by date (closest first)
-      // The date is in "bookClosure" usually as "Ex-Date: YYYY-MM-DD" or similar from the scraper
-      // We'll trust the scraper's order or simple render order for now, 
-      // but let's try to sort if possible.
       setPayouts(data);
       setHasFetched(true);
     } catch (e) {
@@ -53,16 +49,16 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
       <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden max-h-[85vh] flex flex-col animate-in fade-in zoom-in-95 duration-200">
         
         {/* Header */}
         <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <div className="flex items-center gap-2">
-            <Calendar className="text-emerald-600" size={24} />
+            <CalendarClock className="text-blue-600" size={24} />
             <div>
               <h2 className="text-lg font-bold text-slate-800">Future X-Dates</h2>
-              <p className="text-xs text-slate-500">Upcoming Book Closures & Payouts (SCSTrade)</p>
+              <p className="text-xs text-slate-500">Upcoming Book Closures (Market Wide)</p>
             </div>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-2 rounded-full hover:bg-slate-100 transition-colors">
@@ -90,7 +86,7 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
            <button 
              onClick={handleScan} 
              disabled={loading}
-             className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors"
+             className="flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors"
            >
              <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
              Refresh
@@ -102,8 +98,8 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
           
           {loading && (
             <div className="flex flex-col items-center justify-center py-20">
-              <Loader2 size={40} className="animate-spin text-emerald-500 mb-3" />
-              <p className="text-sm font-bold text-slate-500">Scanning Market Data...</p>
+              <Loader2 size={40} className="animate-spin text-blue-500 mb-3" />
+              <p className="text-sm font-bold text-slate-500">Scanning SCSTrade Data...</p>
             </div>
           )}
 
@@ -134,7 +130,7 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
                 const isOwned = holdings.some(h => h.ticker === item.ticker);
                 const holding = holdings.find(h => h.ticker === item.ticker);
                 
-                // Parse date for cleaner display
+                // Format details for display (strip extra spaces)
                 const rawDate = item.bookClosure.replace('Ex-Date:', '').trim();
                 
                 return (
@@ -146,14 +142,14 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
                       
                       <div>
                         <div className="flex items-center gap-2 mb-1">
-                          <h3 className="font-bold text-slate-800 text-sm">{item.announceDate || item.ticker}</h3>
+                          <h3 className="font-bold text-slate-800 text-sm">{item.ticker}</h3>
                           {isOwned && (
                             <span className="text-[10px] bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5">
                               <TrendingUp size={10} /> Owned: {holding?.quantity}
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-slate-500 font-medium">
+                        <div className="text-xs text-slate-600 font-medium bg-slate-100 px-2 py-1 rounded inline-block">
                           {item.details || "Book Closure"}
                         </div>
                       </div>
@@ -162,7 +158,7 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
                     <div className="flex items-center justify-between sm:justify-end gap-6 pl-16 sm:pl-0">
                         <div className="text-right">
                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Ex-Date</div>
-                           <div className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded border border-indigo-100">
+                           <div className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100 whitespace-nowrap">
                              {rawDate}
                            </div>
                         </div>
