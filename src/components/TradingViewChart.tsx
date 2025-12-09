@@ -19,33 +19,52 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
     // 1. Clean up previous script
     containerRef.current.innerHTML = '';
 
-    // 2. Create script
+    // 2. Create script for the "Symbol Overview" widget (More permissive than Advanced Chart)
     const script = document.createElement('script');
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js";
     script.type = "text/javascript";
     script.async = true;
 
     // 3. Configure Widget
-    // IMPORTANT: We use explicit width/height strings instead of autosize
-    // to guarantee the chart is tall enough in the modal.
+    // We use the "Symbol Overview" widget which rarely blocks PSX data
     const tvSymbol = symbol.toUpperCase().startsWith('PSX:') 
       ? symbol.toUpperCase() 
       : `PSX:${symbol.toUpperCase()}`;
 
     script.innerHTML = JSON.stringify({
+      "symbols": [
+        [
+          tvSymbol + "|1D" // Appending |1D ensures daily timeframe
+        ]
+      ],
+      "chartOnly": false,
       "width": "100%",
-      "height": height.toString(), // Explicitly set height here
-      "symbol": tvSymbol,
-      "interval": "D",
-      "timezone": "Asia/Karachi",
-      "theme": theme,
-      "style": "1",
+      "height": height.toString(),
       "locale": "en",
-      "enable_publishing": false,
-      "allow_symbol_change": false,
-      "calendar": false,
-      "hide_side_toolbar": false,
-      "support_host": "https://www.tradingview.com"
+      "colorTheme": theme,
+      "autosize": false,
+      "showVolume": true,
+      "hideDateRanges": false,
+      "scalePosition": "right",
+      "scaleMode": "Normal",
+      "fontFamily": "-apple-system, BlinkMacSystemFont, Trebuchet MS, Roboto, Ubuntu, sans-serif",
+      "fontSize": "10",
+      "noTimeScale": false,
+      "valuesTracking": "1",
+      "changeMode": "price-and-percent",
+      "chartType": "candlesticks", // Keeps the professional candle look
+      "maLineColor": "#2962FF",
+      "maLineWidth": 1,
+      "maLength": 9,
+      "gridLineColor": "rgba(240, 243, 250, 0)",
+      "backgroundColor": "rgba(255, 255, 255, 1)",
+      "widgetFontColor": "rgba(19, 23, 34, 1)",
+      "upColor": "#22ab94",
+      "downColor": "#f7525f",
+      "borderUpColor": "#22ab94",
+      "borderDownColor": "#f7525f",
+      "wickUpColor": "#22ab94",
+      "wickDownColor": "#f7525f"
     });
 
     // 4. Append
@@ -56,7 +75,7 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
     <div 
       className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white" 
       ref={containerRef}
-      style={{ height: `${height}px` }} 
+      style={{ height: `${height}px` }}
     >
       <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
     </div>
