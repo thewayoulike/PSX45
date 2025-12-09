@@ -3,20 +3,20 @@ import React, { useEffect, useRef, memo } from 'react';
 interface TradingViewChartProps {
   symbol: string;
   theme?: 'light' | 'dark';
-  height?: number | string;
+  className?: string; // Added className prop for better sizing control
 }
 
 const TradingViewChart: React.FC<TradingViewChartProps> = ({ 
   symbol, 
   theme = 'light', 
-  height = 500 
+  className = "h-[600px]" // Default tall height
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 1. Clean up previous script to prevent duplicates
+    // 1. Clean up previous script
     containerRef.current.innerHTML = '';
 
     // 2. Create script
@@ -25,13 +25,13 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
     script.type = "text/javascript";
     script.async = true;
 
-    // 3. Configure Widget (Auto-adds PSX: prefix if missing)
+    // 3. Configure Widget
     const tvSymbol = symbol.toUpperCase().startsWith('PSX:') 
       ? symbol.toUpperCase() 
       : `PSX:${symbol.toUpperCase()}`;
 
     script.innerHTML = JSON.stringify({
-      "autosize": true,
+      "autosize": true, // This makes it fill the parent container
       "symbol": tvSymbol,
       "interval": "D",
       "timezone": "Asia/Karachi",
@@ -51,9 +51,8 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
 
   return (
     <div 
-      className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white" 
-      ref={containerRef} 
-      style={{ height }}
+      className={`tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white ${className}`} 
+      ref={containerRef}
     >
       <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
     </div>
