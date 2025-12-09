@@ -9,24 +9,23 @@ interface TradingViewChartProps {
 const TradingViewChart: React.FC<TradingViewChartProps> = ({ 
   symbol, 
   theme = 'light', 
-  height = 400 
+  height = 500 
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // 1. Clean up previous script if any (to prevent duplicates)
-    if (containerRef.current) {
-      containerRef.current.innerHTML = '';
-    }
+    if (!containerRef.current) return;
 
-    // 2. Create the script element
+    // 1. Clean up previous script to prevent duplicates
+    containerRef.current.innerHTML = '';
+
+    // 2. Create script
     const script = document.createElement('script');
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
     script.type = "text/javascript";
     script.async = true;
 
-    // 3. Define the widget configuration
-    // PSX symbols on TradingView usually need the "PSX:" prefix
+    // 3. Configure Widget (Auto-adds PSX: prefix if missing)
     const tvSymbol = symbol.toUpperCase().startsWith('PSX:') 
       ? symbol.toUpperCase() 
       : `PSX:${symbol.toUpperCase()}`;
@@ -40,20 +39,19 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
       "style": "1",
       "locale": "en",
       "enable_publishing": false,
-      "allow_symbol_change": true,
+      "allow_symbol_change": false,
       "calendar": false,
+      "hide_side_toolbar": false,
       "support_host": "https://www.tradingview.com"
     });
 
-    // 4. Append script to container
-    if (containerRef.current) {
-      containerRef.current.appendChild(script);
-    }
+    // 4. Append
+    containerRef.current.appendChild(script);
   }, [symbol, theme]);
 
   return (
     <div 
-      className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200" 
+      className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white" 
       ref={containerRef} 
       style={{ height }}
     >
