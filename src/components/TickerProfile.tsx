@@ -114,9 +114,9 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
                   </h3>
               </div>
               
-              {/* UPDATED: Height increased to 600 for better visibility */}
+              {/* UPDATED: We now use a forced height class 'h-[600px]' */}
               <div className="w-full">
-                  <TradingViewChart symbol={ticker} height={600} />
+                  <TradingViewChart symbol={ticker} className="h-[600px] md:h-[700px]" />
               </div>
           </div>
 
