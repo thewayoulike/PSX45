@@ -89,12 +89,22 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
     let parts: any[] = [];
 
+    // Prompt instructions for date handling
+    const promptText = `Analyze this trade confirmation document/data. Extract all trade executions. 
+    
+    CRITICAL INSTRUCTIONS:
+    1. **Dates**: Look for the trade/execution date. Normalize ALL dates to 'YYYY-MM-DD' format (ISO 8601). 
+       - Support formats like "01-JAN-2024", "01/01/2024", "Jan 1, 2024".
+       - If multiple dates exist (Trade vs Settlement), prefer TRADE date.
+    2. **Fees**: Extract commission, tax (SST/WHT), CDC charges, and any other fees separately if listed.
+    3. **Output**: Return a JSON array of objects.`;
+
     if (isSpreadsheet) {
         const sheetData = await readSpreadsheetAsText(file);
         parts = [
             { text: "Here is the raw data from a trade history spreadsheet:" },
             { text: sheetData },
-            { text: `Analyze this data. Extract all trade executions. Return JSON array.` }
+            { text: promptText }
         ];
     } else {
         const base64Data = await new Promise<string>((resolve, reject) => {
@@ -105,7 +115,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
         });
         parts = [
             { inlineData: { mimeType: file.type, data: base64Data } },
-            { text: `Analyze this trade confirmation document. Extract all trade executions. Return JSON array.` }
+            { text: promptText }
         ];
     }
 
@@ -123,14 +133,14 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
               type: { type: Type.STRING, enum: ["BUY", "SELL"] },
               quantity: { type: Type.NUMBER },
               price: { type: Type.NUMBER },
-              date: { type: Type.STRING },
+              date: { type: Type.STRING, description: "YYYY-MM-DD format" },
               broker: { type: Type.STRING, nullable: true },
               commission: { type: Type.NUMBER, nullable: true },
               tax: { type: Type.NUMBER, nullable: true },
               cdcCharges: { type: Type.NUMBER, nullable: true },
               otherFees: { type: Type.NUMBER, nullable: true }
             },
-            required: ["ticker", "type", "quantity", "price"]
+            required: ["ticker", "type", "quantity", "price", "date"]
           }
         }
       }
