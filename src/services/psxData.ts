@@ -207,27 +207,66 @@ export const fetchStockHistory = async (symbol: string): Promise<{ time: number;
         try {
             const proxyUrl = proxyGen(targetUrl);
             const response = await fetch(proxyUrl);
-            if (!response.ok) continue;
             
-            let data;
+            // If the proxy returns a non-200 status, skip it immediately
+            if (!response.ok) {
+                console.warn(`Proxy error ${response.status} for ${proxyUrl}`);
+                continue;
+            }
+            
+            let rawData;
+            const contentType = response.headers.get("content-type");
+
+            // 1. Handle AllOrigins (returns JSON wrapper)
             if (proxyUrl.includes('allorigins')) {
-                const json = await response.json();
-                data = JSON.parse(json.contents);
-            } else {
-                data = await response.json();
+                const wrapper = await response.json();
+                // Check if contents is a string (needs parsing) or object
+                if (typeof wrapper.contents === 'string') {
+                    try {
+                        rawData = JSON.parse(wrapper.contents);
+                    } catch (e) {
+                        // Sometimes proxies return HTML error pages inside the JSON wrapper
+                        console.warn("AllOrigins returned non-JSON content");
+                        continue;
+                    }
+                } else {
+                    rawData = wrapper.contents;
+                }
+            } 
+            // 2. Handle Standard JSON Proxies
+            else if (contentType && contentType.includes("application/json")) {
+                rawData = await response.json();
+            } 
+            // 3. Fallback: Try text parsing (some proxies send JSON with text/html header)
+            else {
+                const text = await response.text();
+                try {
+                    rawData = JSON.parse(text);
+                } catch (e) {
+                    continue; // Not JSON, likely an HTML error page
+                }
             }
   
-            // The API returns { data: [[timestamp, price], [timestamp, price]...] }
-            if (data && data.data && Array.isArray(data.data)) {
-                console.log(`History fetch success for ${cleanSymbol}`);
-                return data.data.map((point: any[]) => ({
+            // 4. Validate and Map Data
+            // The PSX API returns: { data: [[timestamp, price], [timestamp, price]...] }
+            if (rawData && rawData.data && Array.isArray(rawData.data)) {
+                console.log(`History fetch success for ${cleanSymbol} via ${proxyUrl}`);
+                
+                const history = rawData.data.map((point: any[]) => ({
                     time: point[0] * 1000, // Convert seconds to milliseconds
                     price: point[1]
                 }));
+
+                // Ensure we actually have data points before returning
+                if (history.length > 0) {
+                    return history;
+                }
             }
         } catch (e) {
             console.warn(`Proxy failed for history (${cleanSymbol}):`, e);
         }
     }
+    
+    console.warn(`All proxies failed to fetch history for ${cleanSymbol}`);
     return [];
 };
