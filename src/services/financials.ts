@@ -27,9 +27,11 @@ export interface FundamentalsData {
     };
 }
 
+// Updated Proxy List - Prioritizing more reliable ones for HTML scraping
 const getProxies = (targetUrl: string) => [
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
+    `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`, 
     `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
+    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
     `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
 ];
 
@@ -173,7 +175,7 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
   return [];
 };
 
-// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - FIXED ---
+// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - UPDATED & ROBUST ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const targetUrl = `https://www.scstrade.com/MarketStatistics/MS_xDates.aspx`;
   const proxies = getProxies(targetUrl);
@@ -196,16 +198,16 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         
-        // Find the specific table with "XDATE" header
         const tables = Array.from(doc.querySelectorAll('table'));
         let targetTable = null;
         let headerRowIndex = -1;
 
+        // Strategy 1: Find table by specific Headers
         for (const table of tables) {
             const rows = Array.from(table.querySelectorAll('tr'));
             for (let i = 0; i < Math.min(rows.length, 5); i++) {
                 const text = rows[i].textContent?.toUpperCase() || '';
-                // Improved Header Detection: Look for CODE + (XDATE or variations)
+                // Relaxed check: Look for CODE and XDATE
                 if (text.includes('CODE') && (text.includes('XDATE') || text.includes('X-DATE') || text.includes('X DATE') || text.includes('BOOK CLOSURE'))) {
                     targetTable = table;
                     headerRowIndex = i;
@@ -215,9 +217,27 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             if (targetTable) break;
         }
 
+        // Strategy 2: Fallback - Find the biggest table with at least 6 columns (Standard SCSTrade layout)
+        if (!targetTable) {
+            console.log("Strategy 1 failed, trying Strategy 2 (Table Heuristic)");
+            let maxRows = 0;
+            for (const table of tables) {
+                const rows = Array.from(table.querySelectorAll('tr'));
+                if (rows.length > maxRows) {
+                    // Check if first row has enough columns
+                    const cols = rows[0]?.querySelectorAll('td, th');
+                    if (cols && cols.length >= 5) {
+                        targetTable = table;
+                        maxRows = rows.length;
+                        headerRowIndex = 0; // Assume first row is header
+                    }
+                }
+            }
+        }
+
         if (!targetTable || headerRowIndex === -1) {
-            console.warn("SCSTrade table not found");
-            continue;
+            console.warn("SCSTrade table structure not found");
+            continue; // Try next proxy
         }
 
         const rows = Array.from(targetTable.querySelectorAll('tr'));
@@ -229,15 +249,16 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         headerCells.forEach((cell, idx) => {
             const txt = cell.textContent?.toUpperCase().trim() || '';
             if (txt === 'CODE') colMap.code = idx;
-            else if (txt === 'NAME') colMap.name = idx;
+            else if (txt === 'NAME' || txt === 'COMPANY') colMap.name = idx;
             else if (txt === 'DIVIDEND') colMap.dividend = idx;
             else if (txt === 'BONUS') colMap.bonus = idx;
             else if (txt === 'RIGHT') colMap.right = idx;
             else if (txt.includes('XDATE') || txt.includes('X-DATE') || txt.includes('X DATE') || txt.includes('BOOK CLOSURE')) colMap.xdate = idx;
         });
 
-        // Fallback for known layouts if detection fails (Code is usually 0, XDate usually last/5)
-        if (colMap.code === -1) {
+        // Fallback Mapping if header detection failed (Standard Layout: Code=0, Name=1, Div=2, Bonus=3, Right=4, XDate=5)
+        if (colMap.code === -1 || colMap.xdate === -1) {
+            console.log("Using Fallback Column Mapping");
             colMap = { code: 0, name: 1, dividend: 2, bonus: 3, right: 4, xdate: 5 };
         }
 
@@ -248,32 +269,34 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         // Parse Rows
         for (let i = headerRowIndex + 1; i < rows.length; i++) {
             const cols = rows[i].querySelectorAll('td');
+            // Ensure we have enough columns
             if (!cols[colMap.code] || !cols[colMap.xdate]) continue;
 
             const ticker = cols[colMap.code].textContent?.trim();
-            const companyName = colMap.name !== -1 ? cols[colMap.name].textContent?.trim() : '';
+            const companyName = colMap.name !== -1 && cols[colMap.name] ? cols[colMap.name].textContent?.trim() : '';
             const dateStr = cols[colMap.xdate].textContent?.trim();
             
             if (!ticker || !dateStr || ticker === '&nbsp;' || ticker === '') continue;
 
             // Extract Payout Details
             let details = '';
-            const div = cols[colMap.dividend]?.textContent?.trim();
-            const bonus = cols[colMap.bonus]?.textContent?.trim();
-            const right = cols[colMap.right]?.textContent?.trim();
+            const div = colMap.dividend !== -1 && cols[colMap.dividend] ? cols[colMap.dividend].textContent?.trim() : '';
+            const bonus = colMap.bonus !== -1 && cols[colMap.bonus] ? cols[colMap.bonus].textContent?.trim() : '';
+            const right = colMap.right !== -1 && cols[colMap.right] ? cols[colMap.right].textContent?.trim() : '';
 
             if (div && div !== '&nbsp;' && div !== 'Nil' && div !== '') details += `Div: ${div} `;
             if (bonus && bonus !== '&nbsp;' && bonus !== 'Nil' && bonus !== '') details += `Bonus: ${bonus} `;
             if (right && right !== '&nbsp;' && right !== 'Nil' && right !== '') details += `Right: ${right}`;
             
-            if (!details) continue; // Skip if no payout
+            // Allow row even if details are empty, sometimes just XDate is valuable
+            if (!details) details = "Payout Announced"; 
 
             // Parse Date: "15 Dec 2025" or "15-Dec-2025"
             let isUpcoming = false;
             try {
                 // Normalize: remove &nbsp;, double spaces, and convert hyphens to spaces
                 const cleanDate = dateStr.replace(/&nbsp;/g, '').replace(/-/g, ' ').replace(/\s+/g, ' ').trim();
-                const dateParts = cleanDate.split(' '); // [15, Dec, 2025]
+                const dateParts = cleanDate.split(' '); // Expected: [15, Dec, 2025]
                 
                 if (dateParts.length >= 3) {
                     const day = parseInt(dateParts[0]);
@@ -290,8 +313,11 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
                     if (!isNaN(day) && month !== undefined && !isNaN(year)) {
                         const xDateObj = new Date(year, month, day);
-                        if (xDateObj >= today) {
-                            isUpcoming = true;
+                        // Show all dates in the list, even if slightly past (recent history is useful)
+                        // Or stricly future:
+                        if (xDateObj >= new Date(new Date().setDate(new Date().getDate() - 30))) {
+                             // Include items from last 30 days + Future
+                             isUpcoming = true;
                         }
                     }
                 }
@@ -318,8 +344,8 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
             ))
         );
 
-        console.log(`SCSTrade scan success: Found ${uniquePayouts.length} future items`);
-        return uniquePayouts;
+        console.log(`SCSTrade scan success: Found ${uniquePayouts.length} items`);
+        if (uniquePayouts.length > 0) return uniquePayouts;
       }
     } catch (e) {
       console.warn(`Proxy ${proxyUrl} failed`, e);
