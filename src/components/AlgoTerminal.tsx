@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { OHLCData, fetchStockOHLC } from '../services/psxData';
 import { fetchCompanyFundamentals, FundamentalsData } from '../services/financials';
 import { calculateRSI, calculatePivots, calculateVolatility, calculateChange, calculateSMA, generateSignal } from '../utils/technicalAnalysis';
-import { X, Search, Terminal, TrendingUp, AlertTriangle, Target, Activity, Zap, BarChart3, Loader2 } from 'lucide-react';
+import { X, Search, Terminal, TrendingUp, AlertTriangle, Target, Activity, Zap, BarChart3, Loader2, Layers } from 'lucide-react';
 import { AreaChart, Area, YAxis, ResponsiveContainer } from 'recharts';
 
 interface AlgoTerminalProps {
