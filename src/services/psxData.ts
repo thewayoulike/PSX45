@@ -267,13 +267,13 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
                   if (!cols[colMap.SYMBOL] || !cols[colMap.VOLUME]) continue;
 
                   // Extract Symbol (Cleanup newlines/spaces)
-                  let symbol = cols[colMap.SYMBOL].innerText?.trim().split(/\s+/)[0] || "";
+                  let symbol = cols[colMap.SYMBOL].textContent?.trim().split(/\s+/)[0] || "";
                   if (!symbol || symbol.length > 8) continue; // Skip garbage rows
 
                   // Extract Values
-                  const priceStr = cols[colMap.CURRENT]?.innerText?.replace(/,/g, '') || "0";
-                  const changeStr = cols[colMap.CHANGE]?.innerText?.replace(/,/g, '') || "0";
-                  const volStr = cols[colMap.VOLUME]?.innerText?.replace(/,/g, '') || "0";
+                  const priceStr = cols[colMap.CURRENT]?.textContent?.replace(/,/g, '') || "0";
+                  const changeStr = cols[colMap.CHANGE]?.textContent?.replace(/,/g, '') || "0";
+                  const volStr = cols[colMap.VOLUME]?.textContent?.replace(/,/g, '') || "0";
 
                   const price = parseFloat(priceStr);
                   const change = parseFloat(changeStr);
