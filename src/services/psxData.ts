@@ -25,10 +25,56 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
-// ... (keep fetchBatchPSXPrices and fetchTopVolumeStocks as they are) ...
+// --- NEW: OHLC Data Interface ---
+export interface OHLCData {
+    time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+}
+
+// --- NEW: Fetch Full OHLC History for Algo ---
+export const fetchStockOHLC = async (symbol: string): Promise<OHLCData[]> => {
+    const cleanSymbol = symbol.toUpperCase().replace('PSX:', '').trim();
+    // Use EOD endpoint to get daily candles for RSI/Pivots
+    const targetUrl = `https://dps.psx.com.pk/timeseries/eod/${cleanSymbol}`;
+    
+    for (const proxyGen of PROXIES) {
+        try {
+            const proxyUrl = proxyGen(targetUrl);
+            const response = await fetchWithTimeout(proxyUrl, { headers: { 'Cache-Control': 'no-cache' } }, 7000); 
+            if (!response.ok) continue;
+            
+            let rawData;
+            if (proxyUrl.includes('allorigins')) {
+                const wrapper = await response.json();
+                rawData = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
+            } else {
+                const text = await response.text();
+                rawData = JSON.parse(text);
+            }
+  
+            if (rawData && rawData.data && Array.isArray(rawData.data)) {
+                // PSX EOD Format: [timestamp, open, high, low, close, volume]
+                return rawData.data.map((point: any[]) => ({
+                    time: point[0] * 1000, 
+                    open: Number(point[1]),
+                    high: Number(point[2]),
+                    low: Number(point[3]),
+                    close: Number(point[4]),
+                    volume: Number(point[5])
+                })).sort((a: any, b: any) => a.time - b.time);
+            }
+        } catch (e) { console.warn("Proxy failed for OHLC", e); }
+    }
+    return [];
+};
+
+// --- Existing Functions ---
+
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number }>> => {
-    // ... [Use previous code for this function] ...
-    // (I am omitting the body here for brevity since it hasn't changed, but keep it in your file)
     const results: Record<string, { price: number, sector: string, ldcp: number }> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
@@ -54,9 +100,7 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     return results; 
 };
 
-// ... (keep parseMarketWatchTable) ...
 const parseMarketWatchTable = (html: string, results: Record<string, { price: number, sector: string, ldcp: number }>, targetTickers: Set<string>) => {
-    // ... [Use previous code] ...
     try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
@@ -112,9 +156,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, { price: nu
     } catch (e) { console.error("Error parsing HTML", e); }
 };
 
-// ... (keep fetchTopVolumeStocks) ...
 export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
-    // ... [Use previous code] ...
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     for (const proxyGen of PROXIES) {
       try {
@@ -160,7 +202,6 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
   return [];
 };
 
-// --- 3. Fetch Stock History (Updated for Ranges) ---
 export type TimeRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y';
 
 export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D'): Promise<{ time: number; price: number }[]> => {
@@ -174,8 +215,6 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
     const endpoint = isIntraday ? 'intraday' : 'eod';
     const targetUrl = `https://dps.psx.com.pk/timeseries/${endpoint}/${cleanSymbol}`;
     
-    console.log(`Fetching ${range} history for ${cleanSymbol}...`);
-  
     for (const proxyGen of PROXIES) {
         try {
             const proxyUrl = proxyGen(targetUrl);
@@ -184,7 +223,6 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
             if (!response.ok) continue;
             
             let rawData;
-            // Handle AllOrigins
             if (proxyUrl.includes('allorigins')) {
                 const wrapper = await response.json();
                 if (wrapper.contents) {
@@ -198,18 +236,12 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
             }
   
             if (rawData && rawData.data && Array.isArray(rawData.data)) {
-                
-                // Map Data
-                // Intraday: [timestamp, price]
-                // EOD: [timestamp, open, high, low, close, vol] -> We use Close (index 4)
                 const priceIndex = isIntraday ? 1 : 4;
-                
                 let history = rawData.data.map((point: any[]) => ({
                     time: point[0] * 1000, 
-                    price: point[priceIndex] || point[1] // Fallback for safety
+                    price: point[priceIndex] || point[1]
                 }));
 
-                // Filter for Ranges
                 if (!isIntraday && history.length > 0) {
                     const now = new Date();
                     let startTime = 0;
@@ -222,7 +254,6 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
                         case '3Y': startTime = new Date(now.setFullYear(now.getFullYear() - 3)).getTime(); break;
                         case '5Y': startTime = new Date(now.setFullYear(now.getFullYear() - 5)).getTime(); break;
                     }
-                    
                     history = history.filter((d: any) => d.time >= startTime);
                 }
 
