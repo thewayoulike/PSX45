@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 import { exportToCSV } from '../utils/export';
@@ -21,7 +21,7 @@ interface TransactionFormProps {
   onSaveScannedTrades?: (trades: EditableTrade[]) => void;
 }
 
-// Helper to handle various date formats from Excel/CSV
+// Helper to handle various date formats
 const normalizeDate = (input: any): string => {
     if (!input) return new Date().toISOString().split('T')[0];
     if (typeof input === 'number') {
@@ -112,6 +112,108 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       return { totalBuy, totalSell, net: totalSell - totalBuy };
   }, [savedScannedTrades]);
 
+  // --- REUSABLE FEE CALCULATOR ---
+  const calculateFeesForTrade = (
+      tradeType: string, 
+      qty: number, 
+      prc: number, 
+      brokerId: string
+  ) => {
+      if (qty <= 0 || prc <= 0) return { commission: 0, tax: 0, cdcCharges: 0 };
+
+      const gross = qty * prc;
+      let estComm = 0;
+      let estTax = 0;
+      let estCdc = 0;
+
+      if (tradeType === 'DIVIDEND') {
+          estTax = gross * 0.15; // Standard 15% WHT
+      } else {
+          const currentBroker = brokers.find(b => b.id === brokerId);
+          if (currentBroker) {
+              // Commission Logic
+              if (currentBroker.commissionType === 'PERCENTAGE') estComm = gross * (currentBroker.rate1 / 100);
+              else if (currentBroker.commissionType === 'FIXED') estComm = currentBroker.rate1;
+              else if (currentBroker.commissionType === 'PER_SHARE') estComm = qty * currentBroker.rate1;
+              else if (currentBroker.commissionType === 'HIGHER_OF') { 
+                  const pct = gross * (currentBroker.rate1 / 100); 
+                  const fixed = qty * (currentBroker.rate2 || 0); 
+                  estComm = Math.max(pct, fixed); 
+              }
+              else if (currentBroker.commissionType === 'SLAB' && currentBroker.slabs) {
+                  const slab = currentBroker.slabs.find(s => prc >= s.min && prc <= s.max);
+                  let slabComm = 0;
+                  if (slab) {
+                      if (slab.type === 'FIXED') slabComm = qty * slab.rate;
+                      else if (slab.type === 'PERCENTAGE') slabComm = gross * (slab.rate / 100);
+                  }
+                  // Higher of Slab OR Comparison %
+                  if (currentBroker.rate1 && currentBroker.rate1 > 0) {
+                      const pctComm = gross * (currentBroker.rate1 / 100);
+                      estComm = Math.max(slabComm, pctComm);
+                  } else {
+                      estComm = slabComm;
+                  }
+              }
+
+              // Tax (SST)
+              const taxRate = (currentBroker.sstRate / 100);
+              estTax = estComm * taxRate;
+
+              // CDC Logic
+              const cdcType = currentBroker.cdcType || 'PER_SHARE';
+              const cdcRate = currentBroker.cdcRate !== undefined ? currentBroker.cdcRate : 0.005;
+              if (cdcType === 'PER_SHARE') estCdc = qty * cdcRate;
+              else if (cdcType === 'FIXED') estCdc = cdcRate;
+              else if (cdcType === 'HIGHER_OF') { 
+                  const shareVal = qty * cdcRate; 
+                  const fixedVal = currentBroker.cdcMin || 0; 
+                  estCdc = Math.max(shareVal, fixedVal); 
+              }
+          } else {
+              // Default Fallback
+              estComm = gross * 0.0015;
+              estTax = estComm * 0.15;
+              estCdc = qty * 0.005;
+          }
+      }
+
+      return {
+          commission: parseFloat(estComm.toFixed(2)),
+          tax: parseFloat(estTax.toFixed(2)),
+          cdcCharges: parseFloat(estCdc.toFixed(2))
+      };
+  };
+
+  const handleAutoFillFees = () => {
+      const updatedTrades = savedScannedTrades.map(trade => {
+          // Determine which broker to use (Trade specific -> Form selection -> Default)
+          const targetBrokerId = trade.brokerId || selectedBrokerId;
+          
+          if (!targetBrokerId) return trade; // Cannot calc without broker
+
+          const fees = calculateFeesForTrade(
+              trade.type, 
+              Number(trade.quantity), 
+              Number(trade.price), 
+              targetBrokerId
+          );
+
+          // Only overwrite if value is missing/zero or user explicitly wants auto-calc
+          // Here we overwrite Comm/Tax/CDC to ensure accuracy, but preserve 'Other Fees' if import had them
+          return {
+              ...trade,
+              commission: fees.commission,
+              tax: fees.tax,
+              cdcCharges: fees.cdcCharges,
+              brokerId: targetBrokerId // Ensure ID is linked
+          };
+      });
+      updateScannedTrades(updatedTrades);
+  };
+
+  // ------------------------------------
+
   useEffect(() => {
     if (isOpen) {
         if (portfolioDefaultBrokerId) {
@@ -164,7 +266,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   useEffect(() => { setSelectedScanIndices(new Set()); }, [savedScannedTrades, mode]);
 
-  // --- UPDATED AUTO-CALCULATION LOGIC ---
+  // Auto-Calculation Logic (Using shared helper)
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
@@ -172,48 +274,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
         else if (type === 'OTHER' && typeof histAmount === 'number') { setQuantity(1); setTicker(category === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'OTHER FEE'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
-             const gross = quantity * price;
-             if (type === 'DIVIDEND') { 
-                 setCommission(0); setCdcCharges(0); setOtherFees(0); 
-                 const wht = gross * 0.15; setTax(parseFloat(wht.toFixed(2))); 
-             } else {
-                 let estComm = 0;
-                 const currentBroker = brokers.find(b => b.id === selectedBrokerId);
-                 if (currentBroker) {
-                     if (currentBroker.commissionType === 'PERCENTAGE') estComm = gross * (currentBroker.rate1 / 100);
-                     else if (currentBroker.commissionType === 'FIXED') estComm = currentBroker.rate1;
-                     else if (currentBroker.commissionType === 'PER_SHARE') estComm = quantity * currentBroker.rate1;
-                     else if (currentBroker.commissionType === 'HIGHER_OF') { const pct = gross * (currentBroker.rate1 / 100); const fixed = quantity * (currentBroker.rate2 || 0); estComm = Math.max(pct, fixed); }
-                     else if (currentBroker.commissionType === 'SLAB' && currentBroker.slabs) {
-                         const slab = currentBroker.slabs.find(s => price >= s.min && price <= s.max);
-                         let slabComm = 0;
-                         if (slab) {
-                             if (slab.type === 'FIXED') slabComm = quantity * slab.rate;
-                             else if (slab.type === 'PERCENTAGE') slabComm = gross * (slab.rate / 100);
-                         }
-                         
-                         // UPDATED LOGIC: Slab OR Percentage (Whichever is Higher)
-                         if (currentBroker.rate1 && currentBroker.rate1 > 0) {
-                             const pctComm = gross * (currentBroker.rate1 / 100);
-                             estComm = Math.max(slabComm, pctComm);
-                         } else {
-                             estComm = slabComm;
-                         }
-                     }
-                 } else { estComm = gross * 0.0015; }
-                 
-                 const taxRate = currentBroker ? (currentBroker.sstRate / 100) : 0.15; const estTax = estComm * taxRate;
-                 let estCdc = 0;
-                 if (currentBroker) {
-                     const cdcType = currentBroker.cdcType || 'PER_SHARE';
-                     const cdcRate = currentBroker.cdcRate !== undefined ? currentBroker.cdcRate : 0.005;
-                     if (cdcType === 'PER_SHARE') estCdc = quantity * cdcRate;
-                     else if (cdcType === 'FIXED') estCdc = cdcRate;
-                     else if (cdcType === 'HIGHER_OF') { const shareVal = quantity * cdcRate; const fixedVal = currentBroker.cdcMin || 0; estCdc = Math.max(shareVal, fixedVal); }
-                 } else { estCdc = quantity * 0.005; }
-                 
-                 setCommission(parseFloat(estComm.toFixed(2))); setTax(parseFloat(estTax.toFixed(2))); setCdcCharges(parseFloat(estCdc.toFixed(2)));
-             }
+             const fees = calculateFeesForTrade(type, quantity, price, selectedBrokerId);
+             setCommission(fees.commission);
+             setTax(fees.tax);
+             setCdcCharges(fees.cdcCharges);
         }
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType, category]);
@@ -328,7 +392,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* Import & AI Scan Sections Remain Unchanged */}
             {(mode !== 'MANUAL') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     {!isScanning && savedScannedTrades.length === 0 && (
@@ -340,11 +403,26 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             {!scanError && ( <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-lg transition-all flex items-center justify-center gap-2 ${selectedFile ? `${theme.btn} ${theme.shadow} cursor-pointer` : 'bg-slate-300 text-slate-100 cursor-not-allowed shadow-none'}`}> {mode === 'AI_SCAN' ? <Sparkles size={18} /> : mode === 'IMPORT' ? <Upload size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze with AI' : mode === 'IMPORT' ? 'Process Import' : 'Extract Text'} </button> )}
                         </>
                     )}
-                    {/* ... (Keep Scan Results Table & Logic) ... */}
                     {isScanning && ( <div className="flex flex-col items-center justify-center h-full py-20"> <Loader2 size={48} className={`animate-spin mb-6 ${theme.text}`} /> <h3 className="text-lg font-bold text-slate-700 mb-2">Processing Document</h3> <p className="text-slate-400 text-sm text-center max-w-[200px]">Reading file data, please wait...</p> </div> )}
                     {savedScannedTrades.length > 0 && (
                         <div className="w-full flex-1 flex flex-col overflow-hidden">
-                            <div className="flex justify-between items-center mb-2 px-1"> <h3 className="font-bold text-slate-800 text-lg">Found {savedScannedTrades.length} Trades</h3> <div className="flex items-center gap-2"> {selectedScanIndices.size > 0 && ( <button onClick={handleAcceptSelected} className="text-xs bg-emerald-600 text-white hover:bg-emerald-700 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all shadow-sm"> <Plus size={14} /> Add Selected ({selectedScanIndices.size}) </button> )} <button onClick={() => { updateScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-all"> <RefreshCcw size={12} /> Clear All </button> </div> </div>
+                            <div className="flex justify-between items-center mb-2 px-1">
+                                <h3 className="font-bold text-slate-800 text-lg">Found {savedScannedTrades.length} Trades</h3>
+                                <div className="flex items-center gap-2">
+                                    {/* NEW: Auto-Calculate Fees Button */}
+                                    <button 
+                                        onClick={handleAutoFillFees}
+                                        className="text-xs bg-white text-indigo-600 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-sm"
+                                        title="Recalculate fees for all items based on your broker settings"
+                                    >
+                                        <Calculator size={14} /> Auto-Fill Fees
+                                    </button>
+
+                                    {selectedScanIndices.size > 0 && ( <button onClick={handleAcceptSelected} className="text-xs bg-emerald-600 text-white hover:bg-emerald-700 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 transition-all shadow-sm"> <Plus size={14} /> Add Selected ({selectedScanIndices.size}) </button> )}
+                                    <button onClick={() => { updateScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1 px-2 py-1.5 hover:bg-rose-50 rounded-lg transition-all"> <RefreshCcw size={12} /> Clear All </button>
+                                </div>
+                            </div>
+
                             <div className="grid grid-cols-3 gap-3 mb-3"> <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 flex flex-col justify-center items-center shadow-sm"> <span className="text-[10px] uppercase font-bold text-emerald-600 tracking-wider">Total Buy Cost</span> <div className="text-sm font-bold text-emerald-800">Rs. {scanTotals.totalBuy.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div> </div> <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 flex flex-col justify-center items-center shadow-sm"> <span className="text-[10px] uppercase font-bold text-blue-600 tracking-wider">Total Sell Proceeds</span> <div className="text-sm font-bold text-blue-800">Rs. {scanTotals.totalSell.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div> </div> <div className={`border rounded-xl p-3 flex flex-col justify-center items-center shadow-sm ${scanTotals.net >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}> <span className={`text-[10px] uppercase font-bold tracking-wider ${scanTotals.net >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>Net Flow (In/Out)</span> <div className={`text-sm font-bold ${scanTotals.net >= 0 ? 'text-indigo-800' : 'text-rose-800'}`}> {scanTotals.net >= 0 ? '+' : ''}Rs. {scanTotals.net.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </div> </div> </div>
                             <div className="flex-1 overflow-auto border border-slate-200 rounded-xl bg-white shadow-sm">
                                 <table className="w-full text-left border-collapse min-w-[1000px]">
