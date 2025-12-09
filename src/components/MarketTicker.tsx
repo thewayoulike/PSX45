@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchTopVolumeStocks } from '../services/psxData';
-import { TrendingUp, TrendingDown, Minus, Loader2 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
 export const MarketTicker: React.FC = () => {
   const [stocks, setStocks] = useState<{ symbol: string; price: number; change: number; volume: number }[]>([]);
@@ -9,29 +9,31 @@ export const MarketTicker: React.FC = () => {
   useEffect(() => {
     const loadData = async () => {
       const data = await fetchTopVolumeStocks();
-      setStocks(data);
+      if (data.length > 0) {
+        setStocks(data);
+      }
       setLoading(false);
     };
+
     loadData();
     // Refresh every 5 minutes
     const interval = setInterval(loadData, 5 * 60 * 1000); 
     return () => clearInterval(interval);
   }, []);
 
-  if (loading) return null; // Hide until data is ready
-  if (stocks.length === 0) return null;
+  if (loading || stocks.length === 0) return null;
 
   return (
     <div className="w-full bg-slate-900 text-white overflow-hidden border-b border-slate-800 shadow-sm relative z-50 h-10 flex items-center">
-      {/* Label Badge */}
-      <div className="bg-emerald-600 h-full px-3 flex items-center justify-center font-bold text-[10px] uppercase tracking-wider shadow-lg z-20 shrink-0">
+      {/* Static Badge */}
+      <div className="bg-emerald-600 h-full px-4 flex items-center justify-center font-bold text-[10px] md:text-xs uppercase tracking-wider shadow-lg z-20 shrink-0">
         Top Active
       </div>
 
       {/* Scrolling Content */}
       <div className="flex-1 overflow-hidden relative group">
         <div className="animate-ticker flex items-center whitespace-nowrap gap-8 pl-4 absolute top-1/2 -translate-y-1/2">
-          {/* We duplicate the list to make the loop seamless */}
+          {/* Duplicate list for seamless loop */}
           {[...stocks, ...stocks].map((s, i) => (
             <div key={`${s.symbol}-${i}`} className="flex items-center gap-2 text-xs">
               <span className="font-bold text-slate-100">{s.symbol}</span>
@@ -46,7 +48,7 @@ export const MarketTicker: React.FC = () => {
                 {(s.volume / 1000000).toFixed(2)}M
               </span>
               
-              <span className="text-slate-700">|</span>
+              <span className="text-slate-700 opacity-30">|</span>
             </div>
           ))}
         </div>
@@ -58,9 +60,8 @@ export const MarketTicker: React.FC = () => {
           100% { transform: translateX(-50%); }
         }
         .animate-ticker {
-          animation: ticker 40s linear infinite;
+          animation: ticker 60s linear infinite;
         }
-        /* Pause on hover */
         .group:hover .animate-ticker {
           animation-play-state: paused;
         }
