@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OHLCData, fetchStockOHLC } from '../services/psxData';
 import { calculateRSI, calculatePivots, calculateATR, calculateSMA, generateSignal } from '../utils/technicalAnalysis';
-import { X, Terminal, Loader2, Target, Shield, Zap, TrendingUp, BarChart4, ArrowUp, ArrowDown, Activity } from 'lucide-react';
+import { X, Terminal, Loader2, Target, Shield, Zap, TrendingUp, BarChart4, Activity, AlertCircle, Search } from 'lucide-react';
 import { AreaChart, Area, YAxis, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface AlgoTerminalProps {
@@ -31,15 +31,16 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
       
       try {
           const ohlc = await fetchStockOHLC(symbol);
+          // Only show analysis if we have enough history (approx 14 days for RSI/ATR)
           if (!ohlc || ohlc.length < 14) {
-              setErrorMsg(`Insufficient data for ${symbol}.`);
+              setErrorMsg(`Insufficient historical data to analyze ${symbol}. Check connection or proxies.`);
               setLoading(false);
               return;
           }
           setData(ohlc);
           setAnalyzedTicker(symbol.toUpperCase());
       } catch (e) {
-          setErrorMsg("Connection failed.");
+          setErrorMsg("Connection failed. Proxies might be blocked.");
       } finally {
           setLoading(false);
       }
@@ -57,7 +58,7 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
   const rsi = calculateRSI(data);
   const atr = calculateATR(data);
   const sma50 = calculateSMA(data, 50);
-  const sma200 = calculateSMA(data, 200); // For Long-term trend
+  const sma200 = calculateSMA(data, 200);
   
   // Use Previous Day's High/Low/Close for Pivot Calculations
   const pivots = prev ? calculatePivots(prev.high, prev.low, prev.close) : null;
@@ -92,6 +93,10 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
 
   const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  // Determine chart color
+  const isGreen = latest && prev ? latest.close >= prev.close : true;
+  const chartColor = isGreen ? '#22c55e' : '#f43f5e';
+
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
       <div className="bg-[#1e1f22] w-full max-w-3xl rounded-xl shadow-2xl border border-[#2b2d31] overflow-hidden flex flex-col max-h-[90vh] font-sans">
@@ -104,7 +109,7 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                 </div>
                 <div>
                     <h2 className="text-white font-bold text-sm tracking-wide">PSX ALGO</h2>
-                    <p className="text-[10px] text-[#949ba4] font-medium">Technical Analysis Bot</p>
+                    <p className="text-[10px] text-[#949ba4] font-medium">AI Market Analysis</p>
                 </div>
             </div>
             <button onClick={onClose} className="text-[#949ba4] hover:text-white transition-colors"><X size={20} /></button>
@@ -135,12 +140,12 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
             {errorMsg && (
                 <div className="flex flex-col items-center justify-center py-10 text-rose-400">
                     <AlertCircle size={40} className="mb-2" />
-                    <span className="font-bold">{errorMsg}</span>
+                    <span className="font-bold text-center">{errorMsg}</span>
                 </div>
             )}
 
             {!analyzedTicker && !loading && !errorMsg && (
-                <div className="flex flex-col items-center justify-center h-full opacity-30">
+                <div className="flex flex-col items-center justify-center h-full opacity-30 py-10">
                     <BarChart4 size={64} className="mb-4 text-white" />
                     <p className="text-white font-bold">READY TO ANALYZE</p>
                 </div>
@@ -155,15 +160,17 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                             <div className="flex items-baseline gap-3">
                                 <h1 className="text-3xl font-black text-white tracking-tight">{analyzedTicker}</h1>
                                 <span className="text-2xl font-mono text-[#f2f3f5] font-bold">{fmt(currentPrice)}</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${isGreen ? 'bg-green-500/20 text-green-400' : 'bg-rose-500/20 text-rose-400'}`}>
+                                    {prev ? ((latest.close - prev.close) / prev.close * 100).toFixed(2) : 0}%
+                                </span>
                             </div>
                             <div className="flex items-center gap-2 mt-1 text-xs font-bold">
                                 <span className="text-[#949ba4]">{new Date(latest.time).toLocaleString()}</span>
-                                <span className="bg-[#5865F2]/20 text-[#5865F2] px-2 py-0.5 rounded border border-[#5865F2]/30">PSX</span>
                             </div>
                         </div>
                     </div>
 
-                    {/* 2. Analysis Grid (Like Screenshot) */}
+                    {/* 2. Analysis Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         
                         {/* Market Analysis */}
@@ -186,7 +193,7 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-[#949ba4]">Distance to Support</span>
-                                    <span className="text-green-400 font-mono">{distSup.toFixed(2)}%</span>
+                                    <span className="text-green-400 font-mono">{Math.abs(distSup).toFixed(2)}%</span>
                                 </div>
                             </div>
                         </div>
@@ -269,8 +276,8 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                                 <AreaChart data={data.slice(-30)}>
                                     <defs>
                                         <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#5865F2" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#5865F2" stopOpacity={0}/>
+                                            <stop offset="5%" stopColor={chartColor} stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor={chartColor} stopOpacity={0}/>
                                         </linearGradient>
                                     </defs>
                                     <YAxis domain={['auto', 'auto']} hide />
@@ -286,7 +293,7 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                                     <ReferenceLine y={slMax} stroke="#f43f5e" strokeDasharray="3 3" />
                                     <ReferenceLine y={currentPrice} stroke="#facc15" strokeWidth={1} />
 
-                                    <Area type="monotone" dataKey="close" stroke="#5865F2" strokeWidth={2} fill="url(#chartGrad)" />
+                                    <Area type="monotone" dataKey="close" stroke={chartColor} strokeWidth={2} fill="url(#chartGrad)" />
                                 </AreaChart>
                             </ResponsiveContainer>
                         </div>
