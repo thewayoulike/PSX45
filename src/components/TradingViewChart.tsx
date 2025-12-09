@@ -16,16 +16,16 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 1. Clear previous chart to prevent duplicates
+    // 1. Clear previous content
     containerRef.current.innerHTML = '';
 
-    // 2. Load the "Symbol Overview" widget (This one allows PSX data)
+    // 2. Create the script
     const script = document.createElement('script');
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js";
     script.type = "text/javascript";
     script.async = true;
 
-    // 3. Format Symbol (Add PSX: prefix if missing)
+    // 3. Ensure PSX prefix
     const tvSymbol = symbol.toUpperCase().startsWith('PSX:') 
       ? symbol.toUpperCase() 
       : `PSX:${symbol.toUpperCase()}`;
@@ -34,8 +34,8 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
     script.innerHTML = JSON.stringify({
       "symbols": [
         [
-          tvSymbol,
-          tvSymbol + "|1D"
+          tvSymbol,         // Label shown on chart
+          tvSymbol + "|1D"  // Data source (forced to Daily)
         ]
       ],
       "chartOnly": false,
@@ -53,7 +53,7 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
       "noTimeScale": false,
       "valuesTracking": "1",
       "changeMode": "price-and-percent",
-      "chartType": "candlesticks", // Keeps the professional candle look
+      "chartType": "candlesticks", // Nice candles instead of line
       "maLineColor": "#2962FF",
       "maLineWidth": 1,
       "maLength": 9,
@@ -73,9 +73,12 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
 
   return (
     <div 
-      className="tradingview-widget-container" 
+      // KEY PROP is critical - it forces React to destroy and recreate 
+      // the div when the symbol changes, preventing glitches.
+      key={symbol} 
+      className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white" 
       ref={containerRef}
-      style={{ height: `${height}px`, width: '100%' }} // Forces the height
+      style={{ height: `${height}px`, width: '100%' }}
     >
       <div className="tradingview-widget-container__widget"></div>
     </div>
