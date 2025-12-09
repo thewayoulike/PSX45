@@ -174,7 +174,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             <div className="text-center py-10 animate-in fade-in">
                                 <div className="w-20 h-20 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6 text-blue-600"> <Globe size={40} /> </div>
                                 <h3 className="text-lg font-bold text-slate-800 mb-2">Scan Entire Market</h3>
-                                <p className="text-slate-500 mb-6 max-w-md mx-auto"> Check SCSTrade.com for ANY upcoming dividends (not just stocks you own). </p>
+                                <p className="text-slate-500 mb-6 max-w-md mx-auto"> Check SCSTrade xDates for ANY upcoming dividends (not just stocks you own). </p>
                                 <button onClick={handleScanMarket} className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg transition-all flex items-center gap-2 mx-auto"> <Search size={18} /> Scan All Companies </button>
                             </div>
                         )}
