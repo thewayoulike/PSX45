@@ -33,7 +33,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   const [loadingMarket, setLoadingMarket] = useState(false);
   const [marketScanned, setMarketScanned] = useState(false);
 
-  // Get set of tickers currently owned
+  // Get set of tickers currently owned (ignoring fully sold)
   const ownedTickers = useMemo(() => {
       const owned = new Set<string>();
       const balances: Record<string, number> = {};
@@ -105,9 +105,11 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   const isTickerOwned = (marketTicker: string) => {
       const upperMarket = marketTicker.toUpperCase();
+      // Direct match
       if (ownedTickers.has(upperMarket)) return true;
+      // Partial match (SCSTrade returns "ENGRO CORP", you own "ENGRO")
       for (const owned of ownedTickers) {
-          if (upperMarket === owned) return true;
+          if (upperMarket === owned || upperMarket.startsWith(owned + ' ')) return true;
       }
       return false;
   };
@@ -191,15 +193,14 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                             </div>
                                             <div className="flex-1"> 
                                                 <div className="font-bold text-slate-800 flex items-center gap-2">
-                                                    {p.ticker} 
-                                                    {owned && <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full">OWNED</span>}
-                                                </div>
-                                                <div className="text-xs text-slate-600 mt-1">{p.details}</div>
+                                                    {p.announceDate} 
+                                                    {owned && <span className="text-[9px] bg-amber-200 text-amber-800 px-1.5 py-0.5 rounded-full font-bold">OWNED</span>}
+                                                </div> 
+                                                <div className="text-xs text-slate-600 mt-1 font-medium">{p.details}</div>
                                                 <div className="text-xs text-slate-500 mt-0.5">
-                                                    <span className={`${owned ? 'text-amber-600' : 'text-blue-600'} font-bold`}>{p.bookClosure}</span>
+                                                    <span className={`${owned ? 'text-amber-700' : 'text-blue-600'} font-bold`}>{p.bookClosure}</span>
                                                 </div> 
                                             </div>
-                                            <div className="text-[10px] text-slate-400 font-medium max-w-[80px] text-right truncate">{p.announceDate !== 'SCSTrade' ? p.announceDate : ''}</div>
                                         </div>
                                     );
                                 })}
