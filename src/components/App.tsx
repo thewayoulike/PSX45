@@ -9,7 +9,8 @@ import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
 import { DividendScanner } from './DividendScanner';
-import { UpcomingEventsScanner } from './UpcomingEventsScanner'; // <--- NEW IMPORT
+import { UpcomingEventsScanner } from './UpcomingEventsScanner'; 
+import { AlgoTerminal } from './AlgoTerminal'; // <--- NEW IMPORT
 import { ApiKeyManager } from './ApiKeyManager'; 
 import { LoginPage } from './LoginPage';
 import { Logo } from './ui/Logo';
@@ -19,7 +20,7 @@ import { MarketTicker } from './MarketTicker';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; // <--- Added CalendarClock
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, TerminalSquare } from 'lucide-react'; // <--- Added TerminalSquare
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -161,7 +162,8 @@ const App: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
-  const [showUpcomingScanner, setShowUpcomingScanner] = useState(false); // <--- NEW STATE
+  const [showUpcomingScanner, setShowUpcomingScanner] = useState(false); 
+  const [showAlgoTerminal, setShowAlgoTerminal] = useState(false); // <--- NEW STATE
   const [showBrokerManager, setShowBrokerManager] = useState(false);
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
 
@@ -170,7 +172,6 @@ const App: React.FC = () => {
 
   const hasMergedCloud = useRef(false);
 
-  // ... (keeping existing useEffects and helper functions same as original file) ...
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
       if (times.length === 0) return null;
@@ -474,7 +475,6 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
-  // ... (keeping saving logic, useMemo for holdings calculation, etc. - Identical to previous) ...
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -579,9 +579,12 @@ const App: React.FC = () => {
                     <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Briefcase size={18} /> Brokers </button>
                     <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Coins size={18} /> Scan Dividends </button>
                     
-                    {/* NEW BUTTON FOR FUTURE X-DATES */}
                     <button onClick={() => setShowUpcomingScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> 
                         <CalendarClock size={18} /> Future X-Dates 
+                    </button>
+
+                    <button onClick={() => setShowAlgoTerminal(true)} className="bg-slate-800 hover:bg-slate-900 text-white px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2 border border-slate-600"> 
+                        <TerminalSquare size={18} className="text-emerald-400" /> PSX Algo 
                     </button>
 
                     <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
@@ -707,8 +710,6 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* MODALS */}
-      
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
               <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
@@ -775,11 +776,16 @@ const App: React.FC = () => {
           onSaveResults={handleScannerUpdate}
       />
 
-      {/* NEW SCANNER COMPONENT */}
       <UpcomingEventsScanner 
           isOpen={showUpcomingScanner} 
           onClose={() => setShowUpcomingScanner(false)} 
           holdings={holdings}
+      />
+
+      <AlgoTerminal 
+          isOpen={showAlgoTerminal} 
+          onClose={() => setShowAlgoTerminal(false)} 
+          defaultTicker={viewTicker} // Optional: Pass currently viewed ticker if any
       />
 
       {viewTicker && (
