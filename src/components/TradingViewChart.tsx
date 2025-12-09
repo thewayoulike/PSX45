@@ -16,20 +16,21 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
   useEffect(() => {
     if (!containerRef.current) return;
 
-    // 1. Clean up previous script
+    // 1. Clear previous chart to prevent duplicates
     containerRef.current.innerHTML = '';
 
-    // 2. Create script for "Symbol Overview" (This widget allows PSX data)
+    // 2. Load the "Symbol Overview" widget (This one allows PSX data)
     const script = document.createElement('script');
     script.src = "https://s3.tradingview.com/external-embedding/embed-widget-symbol-overview.js";
     script.type = "text/javascript";
     script.async = true;
 
-    // 3. Configure Widget
+    // 3. Format Symbol (Add PSX: prefix if missing)
     const tvSymbol = symbol.toUpperCase().startsWith('PSX:') 
       ? symbol.toUpperCase() 
       : `PSX:${symbol.toUpperCase()}`;
 
+    // 4. Configure Widget
     script.innerHTML = JSON.stringify({
       "symbols": [
         [
@@ -39,7 +40,7 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
       ],
       "chartOnly": false,
       "width": "100%",
-      "height": height.toString(),
+      "height": height,
       "locale": "en",
       "colorTheme": theme,
       "autosize": false,
@@ -67,17 +68,16 @@ const TradingViewChart: React.FC<TradingViewChartProps> = ({
       "wickDownColor": "#f7525f"
     });
 
-    // 4. Append
     containerRef.current.appendChild(script);
   }, [symbol, theme, height]);
 
   return (
     <div 
-      className="tradingview-widget-container w-full rounded-2xl overflow-hidden shadow-sm border border-slate-200 bg-white" 
+      className="tradingview-widget-container" 
       ref={containerRef}
-      style={{ height: `${height}px` }}
+      style={{ height: `${height}px`, width: '100%' }} // Forces the height
     >
-      <div className="tradingview-widget-container__widget" style={{ height: '100%', width: '100%' }}></div>
+      <div className="tradingview-widget-container__widget"></div>
     </div>
   );
 };
