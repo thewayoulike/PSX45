@@ -1,11 +1,10 @@
 import { OHLCData } from '../services/psxData';
 
-// --- NEW: ATR Calculation for Volatility-Based Targets ---
+// --- NEW: ATR for Volatility-based Targets ---
 export const calculateATR = (data: OHLCData[], period: number = 14): number => {
     if (data.length < period + 1) return 0;
     let trSum = 0;
-    
-    // Calculate True Range for the period
+    // Calculate True Range (TR)
     for (let i = data.length - period; i < data.length; i++) {
         const current = data[i];
         const prev = data[i - 1];
@@ -57,23 +56,24 @@ export const generateSignal = (currentPrice: number, rsi: number, sma50: number,
     let signal = "WAIT";
     let strength = "WEAK";
 
-    // Determine Trend
+    // 1. Trend Analysis
     if (sma50 > 0) {
         if (currentPrice > sma50) {
             trend = "BULLISH";
-            strength = currentPrice > sma50 * 1.02 ? "STRONG" : "WEAK"; // 2% above SMA
+            strength = currentPrice > sma50 * 1.02 ? "STRONG" : "WEAK";
         } else {
             trend = "BEARISH";
             strength = currentPrice < sma50 * 0.98 ? "STRONG" : "WEAK";
         }
     }
 
-    // Determine Signal
+    // 2. Signal Logic
     if (rsi > 0) {
         if (rsi < 30) signal = "BUY (Oversold)";
         else if (rsi > 70) signal = "SELL (Overbought)";
         else if (rsi > 60 && trend === "BULLISH") signal = "CONTINUATION BUY";
         else if (rsi < 40 && trend === "BEARISH") signal = "CONTINUATION SELL";
+        else if (currentPrice > sma200 && rsi < 45) signal = "DIP BUY";
         else signal = "WAIT";
     }
 
