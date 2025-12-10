@@ -1,6 +1,6 @@
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
-// Includes Session Persistence, Auto-Refresh handling, and Google Sheets Sync.
+// Includes Session Persistence, Auto-Refresh handling, Google Sheets Sync, and Gmail Integration.
 
 const HARDCODED_CLIENT_ID = '76622516302-malmubqvj1ms3klfsgr5p6jaom2o7e8s.apps.googleusercontent.com';
 const CLIENT_ID_KEY = 'VITE_GOOGLE_CLIENT_ID';
@@ -468,6 +468,23 @@ export const searchGmailMessages = async (query: string) => {
     }
 };
 
+// Helper to fix MIME types
+const getMimeType = (filename: string, originalMime: string) => {
+    if (originalMime && originalMime !== 'application/octet-stream') return originalMime;
+    
+    const ext = filename.split('.').pop()?.toLowerCase();
+    switch (ext) {
+        case 'pdf': return 'application/pdf';
+        case 'jpg':
+        case 'jpeg': return 'image/jpeg';
+        case 'png': return 'image/png';
+        case 'csv': return 'text/csv';
+        case 'xlsx': return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+        case 'xls': return 'application/vnd.ms-excel';
+        default: return originalMime || 'application/octet-stream';
+    }
+};
+
 export const downloadGmailAttachment = async (messageId: string, attachmentId: string, filename: string, mimeType: string): Promise<File | null> => {
     const token = await getValidToken();
     if (!token) return null;
@@ -486,9 +503,11 @@ export const downloadGmailAttachment = async (messageId: string, attachmentId: s
                 byteNumbers[i] = byteCharacters.charCodeAt(i);
             }
             const byteArray = new Uint8Array(byteNumbers);
-            const blob = new Blob([byteArray], { type: mimeType });
             
-            return new File([blob], filename, { type: mimeType });
+            // FIX: Correct the MIME type before creating the File object
+            const finalMimeType = getMimeType(filename, mimeType);
+            
+            return new File([byteArray], filename, { type: finalMimeType });
         }
     } catch (e) {
         console.error("Attachment Download Failed", e);
