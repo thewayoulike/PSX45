@@ -2,14 +2,14 @@ import { SECTOR_CODE_MAP } from './sectors';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
+// Updated Proxy List - Prioritizing reliable ones
 const PROXIES = [
+    (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
     (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`,
-    (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
     (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`,
-    (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`
 ];
 
-const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 6000) => {
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 8000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -29,12 +29,33 @@ export interface OHLCData {
     low: number;
     close: number;
     volume: number;
+    isSynthetic?: boolean; // Marker for fake data
 }
+
+// Scrape Live Data (Fallback)
+const fetchLivePriceData = async (symbol: string): Promise<OHLCData | null> => {
+    try {
+        const data = await fetchBatchPSXPrices([symbol]);
+        const stock = data[symbol];
+        if (stock && stock.price > 0) {
+            return {
+                time: Date.now(),
+                open: stock.price, // Approx
+                high: stock.high || stock.price,
+                low: stock.low || stock.price,
+                close: stock.price,
+                volume: stock.volume || 0,
+                isSynthetic: true
+            };
+        }
+    } catch (e) { console.error("Live scrap failed", e); }
+    return null;
+};
 
 export const fetchStockOHLC = async (symbol: string): Promise<OHLCData[]> => {
     const cleanSymbol = symbol.toUpperCase().replace('PSX:', '').trim();
     
-    // 1. Try Official EOD API
+    // 1. Try Historical API
     const targetUrl = `https://dps.psx.com.pk/timeseries/eod/${cleanSymbol}`;
     
     for (const proxyGen of PROXIES) {
@@ -46,47 +67,34 @@ export const fetchStockOHLC = async (symbol: string): Promise<OHLCData[]> => {
             let rawData;
             if (proxyUrl.includes('allorigins')) {
                 const wrapper = await response.json();
-                rawData = typeof wrapper.contents === 'string' ? JSON.parse(wrapper.contents) : wrapper.contents;
+                rawData = JSON.parse(wrapper.contents);
             } else {
                 const text = await response.text();
+                // Handle corsproxy sometimes returning the raw string
                 rawData = JSON.parse(text);
             }
   
             if (rawData && rawData.data && Array.isArray(rawData.data) && rawData.data.length > 0) {
-                const validData = rawData.data
+                return rawData.data
                     .map((point: any[]) => ({
                         time: point[0] * 1000, 
-                        open: Number(point[1]) || 0,
-                        high: Number(point[2]) || 0,
-                        low: Number(point[3]) || 0,
-                        close: Number(point[4]) || 0,
-                        volume: Number(point[5]) || 0
+                        open: Number(point[1]),
+                        high: Number(point[2]),
+                        low: Number(point[3]),
+                        close: Number(point[4]),
+                        volume: Number(point[5])
                     }))
-                    .filter((d: any) => d.close > 0 && !isNaN(d.close))
                     .sort((a: any, b: any) => a.time - b.time);
-                
-                if (validData.length > 0) return validData;
             }
-        } catch (e) { }
+        } catch (e) { 
+            // Continue to next proxy
+        }
     }
 
-    // 2. Fallback: Scrape Live Data (Prevents "NaN" on screen)
-    console.log("EOD API failed. Falling back to Live Scraping...");
-    const liveData = await fetchBatchPSXPrices([cleanSymbol]);
-    const stock = liveData[cleanSymbol];
-    
-    if (stock && stock.price > 0) {
-        return [{
-            time: Date.now(),
-            open: stock.price, 
-            high: stock.high || stock.price,
-            low: stock.low || stock.price,
-            close: stock.price,
-            volume: stock.volume || 0
-        }];
-    }
-
-    return [];
+    // 2. Fallback: If history fails, get ONE live candle so the UI doesn't crash
+    console.warn("History fetch failed. switching to Live Fallback...");
+    const liveCandle = await fetchLivePriceData(cleanSymbol);
+    return liveCandle ? [liveCandle] : [];
 };
 
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number, high: number, low: number, volume: number }>> => {
@@ -117,6 +125,7 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     return results; 
 };
 
+// ... keep parseMarketWatchTable and fetchTopVolumeStocks as they were ...
 const parseMarketWatchTable = (html: string, results: Record<string, any>, targetTickers: Set<string>) => {
     try {
         const parser = new DOMParser();
