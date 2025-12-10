@@ -1,5 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
-import { ParsedTrade, DividendAnnouncement } from '../types';
+import { ParsedTrade, DividendAnnouncement, FundamentalsData } from '../types';
 import * as XLSX from 'xlsx';
 
 let userProvidedKey: string | null = null;
@@ -195,3 +195,46 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
         throw error; 
     }
 }
+
+// --- NEW FUNCTION: Financial Analysis ---
+export const getFinancialAnalysis = async (ticker: string, data: FundamentalsData): Promise<string> => {
+  try {
+    const ai = getAi();
+    if (!ai) return "AI Key missing. Please check Settings.";
+
+    // Prepare a summary of the data to save tokens
+    const recentAnnual = data.annual.financials.slice(0, 3); // Last 3 years
+    const recentQuarter = data.quarterly.financials.slice(0, 2); // Last 2 quarters
+    
+    const prompt = `
+      Act as a senior stock market analyst for the Pakistan Stock Exchange (PSX).
+      Analyze the following financial data for **${ticker}**.
+      
+      **Recent Annual Performance:**
+      ${JSON.stringify(recentAnnual)}
+      
+      **Recent Quarterly Performance:**
+      ${JSON.stringify(recentQuarter)}
+      
+      **Ratios:**
+      ${JSON.stringify(data.annual.ratios.slice(0, 2))}
+
+      Provide a concise 3-4 sentence summary covering:
+      1. Growth trend (Sales/Profit).
+      2. Valuation attractiveness (based on EPS).
+      3. A sentiment rating (Bullish, Bearish, or Neutral) with a brief reason.
+      
+      Keep it professional and data-driven.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: [{ parts: [{ text: prompt }] }],
+    });
+
+    return response.text || "Could not generate analysis.";
+  } catch (error: any) {
+    console.error("AI Analysis Error:", error);
+    return "AI Service is currently unavailable.";
+  }
+};
