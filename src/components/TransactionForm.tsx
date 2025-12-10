@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Search as SearchIcon } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
+import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
 import { exportToCSV } from '../utils/export';
 import * as XLSX from 'xlsx';
 
@@ -67,7 +68,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   savedScannedTrades = [],
   onSaveScannedTrades
 }) => {
-  const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN'>('MANUAL');
+  // Added EMAIL_IMPORT mode
+  const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
   
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -93,6 +95,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [histAmount, setHistAmount] = useState<number | ''>('');
   const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
   const [category, setCategory] = useState<'ADJUSTMENT' | 'OTHER_TAX'>('ADJUSTMENT');
+  
+  // -- NEW STATE FOR EMAIL --
+  const [emailQuery, setEmailQuery] = useState('');
+  const [emailSender, setEmailSender] = useState('');
+  const [emailMessages, setEmailMessages] = useState<any[]>([]);
+  const [loadingEmails, setLoadingEmails] = useState(false);
+  const [downloadingAttachment, setDownloadingAttachment] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -147,7 +156,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                       if (slab.type === 'FIXED') slabComm = qty * slab.rate;
                       else if (slab.type === 'PERCENTAGE') slabComm = gross * (slab.rate / 100);
                   }
-                  // Higher of Slab OR Comparison %
                   if (currentBroker.rate1 && currentBroker.rate1 > 0) {
                       const pctComm = gross * (currentBroker.rate1 / 100);
                       estComm = Math.max(slabComm, pctComm);
@@ -187,10 +195,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   const handleAutoFillFees = () => {
       const updatedTrades = savedScannedTrades.map(trade => {
-          // Determine which broker to use (Trade specific -> Form selection -> Default)
           const targetBrokerId = trade.brokerId || selectedBrokerId;
-          
-          if (!targetBrokerId) return trade; // Cannot calc without broker
+          if (!targetBrokerId) return trade; 
 
           const fees = calculateFeesForTrade(
               trade.type, 
@@ -199,17 +205,58 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               targetBrokerId
           );
 
-          // Only overwrite if value is missing/zero or user explicitly wants auto-calc
-          // Here we overwrite Comm/Tax/CDC to ensure accuracy, but preserve 'Other Fees' if import had them
           return {
               ...trade,
               commission: fees.commission,
               tax: fees.tax,
               cdcCharges: fees.cdcCharges,
-              brokerId: targetBrokerId // Ensure ID is linked
+              brokerId: targetBrokerId
           };
       });
       updateScannedTrades(updatedTrades);
+  };
+
+  const handleEmailSearch = async (e?: React.FormEvent) => {
+      if (e) e.preventDefault();
+      if (!emailQuery && !emailSender) return;
+      
+      setLoadingEmails(true);
+      setEmailMessages([]);
+      setScanError(null);
+      
+      try {
+          let q = '';
+          if (emailSender) q += `from:${emailSender} `;
+          if (emailQuery) q += `subject:(${emailQuery}) `;
+          
+          const msgs = await searchGmailMessages(q.trim());
+          setEmailMessages(msgs);
+          if (msgs.length === 0) {
+              setScanError("No emails with attachments found matching criteria.");
+          }
+      } catch (err: any) {
+          setScanError(err.message);
+      } finally {
+          setLoadingEmails(false);
+      }
+  };
+
+  const handleSelectAttachment = async (msgId: string, att: any) => {
+      setDownloadingAttachment(true);
+      try {
+          const file = await downloadGmailAttachment(msgId, att.id, att.filename, att.mimeType);
+          if (file) {
+              setSelectedFile(file);
+              setMode('AI_SCAN');
+              setScanError(null);
+          } else {
+              setScanError("Failed to download attachment.");
+          }
+      } catch (e) {
+          setScanError("Error processing attachment.");
+      } finally {
+          setDownloadingAttachment(false);
+      }
   };
 
   // ------------------------------------
@@ -259,6 +306,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setHistAmount(''); setHistTaxType('AFTER_TAX');
             setCategory('ADJUSTMENT');
             setScanError(null); setSelectedFile(null);
+            setEmailMessages([]); setEmailQuery(''); setEmailSender('');
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
@@ -266,7 +314,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   useEffect(() => { setSelectedScanIndices(new Set()); }, [savedScannedTrades, mode]);
 
-  // Auto-Calculation Logic (Using shared helper)
   useEffect(() => {
     if (isAutoCalc && mode === 'MANUAL') {
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
@@ -295,7 +342,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleAcceptTrade = (trade: EditableTrade) => { setFormError(null); if (trade.type === 'BUY' && freeCash !== undefined) { const cost = getTradeCost(trade); if (cost > freeCash) { setFormError(`Insufficient Buying Power! This trade costs Rs. ${cost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`); return; } } if (trade.type === 'SELL') { const targetBrokerId = trade.brokerId || selectedBrokerId; const currentQty = getHoldingQty(trade.ticker, targetBrokerId); if (Number(trade.quantity) > currentQty) { setFormError(`Insufficient Holdings! You are trying to sell ${trade.quantity} ${trade.ticker}, but you only own ${currentQty}.`); return; } } addSingleTrade(trade); updateScannedTrades(savedScannedTrades.filter(t => t !== trade)); };
   const handleAcceptSelected = () => { setFormError(null); const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i)); const totalBuyCost = selectedTrades.reduce((acc, t) => { return t.type === 'BUY' ? acc + getTradeCost(t) : acc; }, 0); if (freeCash !== undefined && totalBuyCost > freeCash) { setFormError(`Insufficient Buying Power! Selected trades cost Rs. ${totalBuyCost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`); return; } const batchImpact: Record<string, { buy: number, sell: number }> = {}; for (const t of selectedTrades) { const key = `${t.ticker.toUpperCase()}|${t.brokerId || selectedBrokerId}`; if (!batchImpact[key]) batchImpact[key] = { buy: 0, sell: 0 }; if (t.type === 'BUY') batchImpact[key].buy += Number(t.quantity); if (t.type === 'SELL') batchImpact[key].sell += Number(t.quantity); } for (const [key, impact] of Object.entries(batchImpact)) { const [ticker, brokerId] = key.split('|'); if (impact.sell > 0) { const currentQty = getHoldingQty(ticker, brokerId); const totalAvailable = currentQty + impact.buy; if (impact.sell > totalAvailable) { setFormError(`Insufficient Holdings for ${ticker}! Own: ${currentQty}, Buying Now: ${impact.buy}, Selling Now: ${impact.sell}. Net Shortfall: ${impact.sell - totalAvailable}.`); return; } } } selectedTrades.forEach(addSingleTrade); updateScannedTrades(savedScannedTrades.filter((_, i) => !selectedScanIndices.has(i))); setSelectedScanIndices(new Set()); };
   const updateSingleScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...savedScannedTrades]; updated[index] = { ...updated[index], [field]: value }; updateScannedTrades(updated); };
-  const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />; return <ScanText size={32} className="text-emerald-500" />; };
+  const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />; if (mode === 'EMAIL_IMPORT') return <Mail size={32} className="text-rose-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const getThemeColor = () => { if (mode === 'AI_SCAN') return { btn: 'bg-indigo-500 hover:bg-indigo-600', text: 'text-indigo-600', shadow: 'shadow-indigo-200', bg: 'bg-indigo-50/50', border: 'border-indigo-400' }; if (mode === 'IMPORT') return { btn: 'bg-blue-500 hover:bg-blue-600', text: 'text-blue-600', shadow: 'shadow-blue-200', bg: 'bg-blue-50/50', border: 'border-blue-400' }; return { btn: 'bg-emerald-500 hover:bg-emerald-600', text: 'text-emerald-600', shadow: 'shadow-emerald-200', bg: 'bg-emerald-50', border: 'border-emerald-200' }; };
   const theme = getThemeColor();
 
@@ -314,10 +361,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
         {!editingTransaction && (
             <div className="px-6 pt-6">
-                <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200 mb-6 overflow-x-auto">
+                <div className="flex bg-slate-50 p-1.5 rounded-xl border border-slate-200 mb-6 overflow-x-auto no-scrollbar">
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'MANUAL' ? 'bg-white shadow-sm text-slate-800' : 'text-slate-500 hover:text-slate-700'}`}> <Keyboard size={16} /> Manual </button>
                     <button onClick={() => setMode('IMPORT')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'IMPORT' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}> <FileSpreadsheet size={16} /> Import </button>
                     <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'AI_SCAN' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}> <Sparkles size={16} /> AI Scan </button>
+                    <button onClick={() => setMode('EMAIL_IMPORT')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'EMAIL_IMPORT' ? 'bg-white shadow-sm text-rose-600' : 'text-slate-500 hover:text-slate-700'}`}> <Mail size={16} /> Email </button>
                     <button onClick={() => setMode('OCR_SCAN')} className={`flex-1 py-2 px-3 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'OCR_SCAN' ? 'bg-white shadow-sm text-emerald-600' : 'text-slate-500 hover:text-slate-700'}`}> <ScanText size={16} /> OCR </button>
                 </div>
             </div>
@@ -328,6 +376,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
+                    {/* ... (Existing Manual Form Content - No changes here) ... */}
                     <div className="grid grid-cols-8 gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200">
                         {['BUY', 'SELL', 'DIVIDEND', 'TAX', 'HISTORY', 'DEPOSIT', 'ANNUAL_FEE', 'OTHER'].map(t => (
                             <button key={t} type="button" onClick={() => setType(t as any)} className={`py-2 rounded-lg text-[10px] font-bold ${type === t || (t === 'DEPOSIT' && type === 'WITHDRAWAL') ? 'bg-white shadow text-slate-900' : 'text-slate-500'}`}> {t === 'DEPOSIT' ? 'CASH' : t === 'ANNUAL_FEE' ? 'FEE' : t === 'TAX' ? 'CGT' : t === 'HISTORY' ? 'HIST' : t === 'DIVIDEND' ? 'DIV' : t} </button>
@@ -394,7 +443,97 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {(mode !== 'MANUAL') && (
                 <div className="flex flex-col min-h-[360px] relative">
-                    {!isScanning && savedScannedTrades.length === 0 && (
+                    
+                    {/* --- EMAIL IMPORT UI --- */}
+                    {mode === 'EMAIL_IMPORT' && (
+                        <div className="space-y-4">
+                            <div className="bg-rose-50 border border-rose-100 rounded-xl p-4">
+                                <h4 className="text-sm font-bold text-rose-800 flex items-center gap-2 mb-2">
+                                    <Mail size={16} /> Search Inbox
+                                </h4>
+                                <div className="grid grid-cols-2 gap-3 mb-3">
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-rose-400 uppercase mb-1">Sender (Optional)</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. alerts@scstrade.com" 
+                                            value={emailSender}
+                                            onChange={e => setEmailSender(e.target.value)}
+                                            className="w-full text-xs p-2.5 rounded-lg border border-rose-200 focus:border-rose-400 outline-none"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] font-bold text-rose-400 uppercase mb-1">Subject Keyword</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="e.g. Confirmation" 
+                                            value={emailQuery}
+                                            onChange={e => setEmailQuery(e.target.value)}
+                                            className="w-full text-xs p-2.5 rounded-lg border border-rose-200 focus:border-rose-400 outline-none"
+                                        />
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => handleEmailSearch()} 
+                                    disabled={loadingEmails}
+                                    className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-2.5 rounded-lg text-xs flex items-center justify-center gap-2 transition-all"
+                                >
+                                    {loadingEmails ? <Loader2 className="animate-spin" size={14} /> : <SearchIcon size={14} />}
+                                    Find Emails with Attachments
+                                </button>
+                            </div>
+
+                            {/* Results List */}
+                            <div className="space-y-2">
+                                {emailMessages.length > 0 && (
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recent Matches</p>
+                                )}
+                                
+                                {emailMessages.map(msg => (
+                                    <div key={msg.id} className="border border-slate-200 rounded-xl p-3 hover:bg-slate-50 transition-colors">
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h5 className="font-bold text-slate-800 text-sm line-clamp-1">{msg.subject}</h5>
+                                                <p className="text-[10px] text-slate-500">{msg.from} • {new Date(msg.date).toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="space-y-1.5">
+                                            {msg.attachments.map((att: any) => (
+                                                <button 
+                                                    key={att.id}
+                                                    onClick={() => handleSelectAttachment(msg.id, att)}
+                                                    disabled={downloadingAttachment}
+                                                    className="w-full flex items-center justify-between bg-white border border-slate-200 hover:border-emerald-400 hover:bg-emerald-50 p-2 rounded-lg group transition-all text-left"
+                                                >
+                                                    <div className="flex items-center gap-2 overflow-hidden">
+                                                        <Paperclip size={14} className="text-slate-400 group-hover:text-emerald-500 shrink-0" />
+                                                        <span className="text-xs font-medium text-slate-700 group-hover:text-emerald-700 truncate">
+                                                            {att.filename}
+                                                        </span>
+                                                        <span className="text-[10px] text-slate-400 shrink-0">
+                                                            ({Math.round(att.size / 1024)} KB)
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                        {downloadingAttachment ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ))}
+                                
+                                {!loadingEmails && emailMessages.length === 0 && (emailQuery || emailSender) && !scanError && (
+                                    <div className="text-center py-8 text-slate-400 text-xs">
+                                        No matching emails found. Try broadening your search.
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {!isScanning && savedScannedTrades.length === 0 && mode !== 'EMAIL_IMPORT' && (
                         <>
                             <div className="mb-6"> <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Default Broker for Import</label> <div className="flex gap-2"> <div className="relative flex-1"> <select disabled value={selectedBrokerId} className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-bold text-slate-500 focus:outline-none appearance-none cursor-not-allowed"> {brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)} </select> <Lock className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" size={18} /> </div> <button onClick={onManageBrokers} disabled className="p-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-300 cursor-not-allowed" title="Manage Brokers"> <Briefcase size={20} /> </button> </div> </div>
                             {!scanError && ( <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 bg-slate-50`} rounded-2xl cursor-pointer hover:bg-white transition-all group flex flex-col items-center justify-center p-8`}> <input ref={fileInputRef} type="file" accept={mode === 'OCR_SCAN' ? "image/*,.pdf" : "image/*,.pdf,.csv,.xlsx,.xls"} onChange={handleFileSelect} className="hidden" /> <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? `${theme.text} bg-white` : 'bg-white text-slate-400'}`}> {getFileIcon()} </div> {selectedFile ? ( <> <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedFile.name}</h3> <p className="text-slate-500 text-sm">Click to change file</p> </> ) : ( <> <h3 className="text-lg font-bold text-slate-700 mb-1">Click to Upload</h3> <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p> </> )} </div> )}
@@ -409,11 +548,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <div className="flex justify-between items-center mb-2 px-1">
                                 <h3 className="font-bold text-slate-800 text-lg">Found {savedScannedTrades.length} Trades</h3>
                                 <div className="flex items-center gap-2">
-                                    {/* NEW: Auto-Calculate Fees Button */}
                                     <button 
                                         onClick={handleAutoFillFees}
                                         className="text-xs bg-white text-indigo-600 hover:text-indigo-700 border border-indigo-200 hover:border-indigo-300 font-bold px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all shadow-sm"
-                                        title="Recalculate fees for all items based on your broker settings"
+                                        title="Recalculate fees based on your broker settings"
                                     >
                                         <Calculator size={14} /> Auto-Fill Fees
                                     </button>
