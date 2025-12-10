@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { OHLCData, fetchStockOHLC } from '../services/psxData';
 import { calculateRSI, calculatePivots, calculateATR, calculateSMA, generateSignal } from '../utils/technicalAnalysis';
-import { X, Terminal, Loader2, Target, Shield, Zap, TrendingUp, BarChart4, ArrowUp, ArrowDown, Activity, AlertCircle, Search } from 'lucide-react';
+import { X, Terminal, Loader2, Target, Shield, Zap, TrendingUp, BarChart4, Activity, AlertCircle, Search, WifiOff } from 'lucide-react';
 import { AreaChart, Area, YAxis, XAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
 interface AlgoTerminalProps {
@@ -16,6 +16,7 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
   const [loading, setLoading] = useState(false);
   const [analyzedTicker, setAnalyzedTicker] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isLimitedMode, setIsLimitedMode] = useState(false);
 
   useEffect(() => {
       if (isOpen && defaultTicker) {
@@ -28,20 +29,27 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
       if (!symbol) return;
       setLoading(true);
       setErrorMsg(null);
-      setAnalyzedTicker(null);
+      setIsLimitedMode(false);
       
       try {
           const ohlc = await fetchStockOHLC(symbol);
-          // Need at least 14 periods for RSI/ATR
-          if (!ohlc || ohlc.length < 14) {
-              setErrorMsg(`Insufficient historical data for ${symbol}. Cannot calculate Indicators.`);
+          
+          if (!ohlc || ohlc.length === 0) {
+              setErrorMsg(`No data found for ${symbol}. Market might be closed or proxy blocked.`);
               setLoading(false);
               return;
           }
+
+          // FALLBACK LOGIC: If we have < 14 candles, we can't do RSI/ATR.
+          // Enable Limited Mode to show basic estimates.
+          if (ohlc.length < 14) {
+              setIsLimitedMode(true);
+          }
+
           setData(ohlc);
           setAnalyzedTicker(symbol.toUpperCase());
       } catch (e) {
-          setErrorMsg("Connection failed. Proxies might be blocked.");
+          setErrorMsg("Connection failed.");
       } finally {
           setLoading(false);
       }
@@ -51,45 +59,74 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
 
   if (!isOpen) return null;
 
-  // --- CALCULATION LOGIC ---
+  // --- ANALYSIS ENGINE ---
   const latest = data[data.length - 1];
-  const prev = data[data.length - 2]; // Yesterday's close is critical for pivots
-  
+  const prev = data.length > 1 ? data[data.length - 2] : null;
   const currentPrice = latest?.close || 0;
-  const rsi = calculateRSI(data);
-  const atr = calculateATR(data);
-  const sma50 = calculateSMA(data, 50);
-  const sma200 = calculateSMA(data, 200);
-  
-  // Pivot Points (Using Previous Candle)
-  const pivots = prev ? calculatePivots(prev.high, prev.low, prev.close) : null;
-  const { trend, signal, strength } = generateSignal(currentPrice, rsi, sma50, sma200);
 
-  // 1. Support & Resistance (Based on Pivots)
-  const resistance = pivots ? pivots.r1 : currentPrice * 1.02;
-  const support = pivots ? pivots.s1 : currentPrice * 0.98;
-  
-  // 2. Distances (%)
-  const distRes = ((resistance - currentPrice) / currentPrice) * 100;
-  const distSup = ((currentPrice - support) / currentPrice) * 100; // Negative usually
+  // Variables
+  let rsi = 0, atr = 0, sma50 = 0, sma200 = 0;
+  let resistance = 0, support = 0;
+  let tpMin = 0, tpMax = 0, slMin = 0, slMax = 0;
+  let trend = "NEUTRAL", signal = "WAIT", strength = "WEAK";
+  let distRes = 0, distSup = 0, profitPot = 0;
+  let trailingSL = 0, buyZoneMin = 0, buyZoneMax = 0;
+  let longTpMin = 0, longTpMax = 0, longProfit = 0;
 
-  // 3. Short Term Targets (TP = Resistance, SL = Support)
-  const tpMin = resistance;
-  const tpMax = resistance + (atr * 0.5);
-  const potentialProfit = ((tpMin - currentPrice) / currentPrice) * 100;
+  if (isLimitedMode) {
+      // --- FALLBACK ANALYSIS (Standard Percentages) ---
+      // Used when proxies fail to get history
+      atr = currentPrice * 0.02; // Estimate ATR as 2% of price
+      resistance = currentPrice * 1.03; // Est. Resistance +3%
+      support = currentPrice * 0.97; // Est. Support -3%
+      
+      trend = "UNKNOWN";
+      signal = "HOLD";
+      strength = "N/A";
 
-  const slMin = support - (atr * 0.5);
-  const slMax = support;
+      tpMin = resistance;
+      tpMax = resistance * 1.02;
+      slMin = support * 0.98;
+      slMax = support;
+      
+      trailingSL = currentPrice * 0.95;
+      buyZoneMin = support;
+      buyZoneMax = support * 1.01;
 
-  // 4. Long Term Targets (R2)
-  const longTpMin = pivots ? pivots.r2 : currentPrice * 1.05;
-  const longTpMax = longTpMin + atr;
-  const longProfit = ((longTpMin - currentPrice) / currentPrice) * 100;
+      longTpMin = currentPrice * 1.10;
+      longTpMax = currentPrice * 1.15;
+  } else {
+      // --- FULL AI ANALYSIS ---
+      rsi = calculateRSI(data);
+      atr = calculateATR(data);
+      sma50 = calculateSMA(data, 50);
+      sma200 = calculateSMA(data, 200);
+      const pivots = prev ? calculatePivots(prev.high, prev.low, prev.close) : calculatePivots(latest.high, latest.low, latest.close);
+      
+      const sigData = generateSignal(currentPrice, rsi, sma50, sma200);
+      trend = sigData.trend; signal = sigData.signal; strength = sigData.strength;
 
-  // 5. Risk Management
-  const trailingSL = currentPrice - (2.5 * atr); // 2.5x ATR Trailing
-  const buyZoneMin = support;
-  const buyZoneMax = support + (atr * 0.25);
+      resistance = pivots.r1;
+      support = pivots.s1;
+
+      tpMin = resistance;
+      tpMax = resistance + (atr * 0.5);
+      slMin = support - (atr * 0.5);
+      slMax = support;
+
+      trailingSL = currentPrice - (2.5 * atr);
+      buyZoneMin = support;
+      buyZoneMax = support + (atr * 0.25);
+
+      longTpMin = pivots.r2;
+      longTpMax = pivots.r2 + atr;
+  }
+
+  // Common Calculations
+  distRes = ((resistance - currentPrice) / currentPrice) * 100;
+  distSup = ((currentPrice - support) / currentPrice) * 100;
+  profitPot = ((tpMin - currentPrice) / currentPrice) * 100;
+  longProfit = ((longTpMin - currentPrice) / currentPrice) * 100;
 
   const fmt = (n: number) => n ? n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-';
   const isGreen = latest && prev ? latest.close >= prev.close : true;
@@ -150,9 +187,20 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                 </div>
             )}
             
-            {analyzedTicker && latest && pivots && !loading && (
+            {analyzedTicker && latest && !loading && (
                 <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                     
+                    {/* Limited Mode Warning */}
+                    {isLimitedMode && (
+                        <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 flex items-center gap-3 text-amber-200 text-xs">
+                            <WifiOff size={16} />
+                            <div>
+                                <span className="font-bold">Limited Data Mode:</span> Historical data unavailable. 
+                                Showing <span className="font-bold">Estimated Targets</span> based on current price volatility.
+                            </div>
+                        </div>
+                    )}
+
                     {/* TOP SUMMARY */}
                     <div className="flex justify-between items-start">
                         <div>
@@ -177,7 +225,7 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                         </div>
                     </div>
 
-                    {/* ANALYSIS GRID - Matches Screenshot Layout */}
+                    {/* ANALYSIS GRID */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         
                         {/* 1. Market Analysis */}
@@ -191,15 +239,15 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                                     <span className="text-white font-bold">{trend} ({strength})</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-[#949ba4]">Recommendation:</span>
-                                    <span className={`font-bold ${signal.includes('BUY') ? 'text-green-400' : signal.includes('SELL') ? 'text-rose-400' : 'text-yellow-400'}`}>{signal}</span>
+                                    <span className="text-[#949ba4]">RSI (14):</span>
+                                    <span className="text-white font-mono">{!isLimitedMode ? fmt(rsi) : 'N/A'}</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-[#949ba4]">Distance to Resistance:</span>
+                                    <span className="text-[#949ba4]">Dist. to Resistance:</span>
                                     <span className="text-rose-400 font-mono">{distRes.toFixed(2)}%</span>
                                 </div>
                                 <div className="flex justify-between">
-                                    <span className="text-[#949ba4]">Distance to Support:</span>
+                                    <span className="text-[#949ba4]">Dist. to Support:</span>
                                     <span className="text-green-400 font-mono">{Math.abs(distSup).toFixed(2)}%</span>
                                 </div>
                             </div>
@@ -221,7 +269,7 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                                 </div>
                                 <div className="flex justify-between pt-1 border-t border-[#3f4147] mt-1">
                                     <span className="text-[#949ba4]">Potential Profit:</span>
-                                    <span className="text-[#facc15] font-bold">{potentialProfit.toFixed(2)}%</span>
+                                    <span className="text-[#facc15] font-bold">{profitPot.toFixed(2)}%</span>
                                 </div>
                             </div>
                         </div>
@@ -242,8 +290,8 @@ export const AlgoTerminal: React.FC<AlgoTerminalProps> = ({ isOpen, onClose, def
                                 </div>
                                 <div className="flex justify-between">
                                     <span className="text-[#949ba4]">Long-term Trend:</span>
-                                    <span className={`font-bold ${currentPrice > sma200 ? 'text-green-400' : 'text-rose-400'}`}>
-                                        {currentPrice > sma200 ? 'BULLISH' : 'BEARISH'}
+                                    <span className={`font-bold ${!isLimitedMode ? (currentPrice > sma200 ? 'text-green-400' : 'text-rose-400') : 'text-slate-500'}`}>
+                                        {!isLimitedMode ? (currentPrice > sma200 ? 'BULLISH' : 'BEARISH') : 'N/A'}
                                     </span>
                                 </div>
                             </div>
