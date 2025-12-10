@@ -16,10 +16,11 @@ import { Logo } from './ui/Logo';
 import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
+import { AnalysisPage } from './AnalysisPage'; // Import the new Analysis Page
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, Sparkles } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
@@ -45,7 +46,8 @@ interface Lot {
     date: string;
 }
 
-type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS';
+// Updated View Type to include ANALYSIS
+type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'ANALYSIS';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -568,6 +570,11 @@ const App: React.FC = () => {
                     <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
                         <History size={18} /> History 
                     </button>
+                    
+                    {/* NEW ANALYSIS BUTTON */}
+                    <button onClick={() => setCurrentView('ANALYSIS')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'ANALYSIS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                        <Sparkles size={18} /> AI Analysis 
+                    </button>
                 </div>
             </div>
 
@@ -698,6 +705,13 @@ const App: React.FC = () => {
                         onEdit={handleEditClick} 
                         googleSheetId={googleSheetId}
                     />
+                </div>
+            )}
+
+            {/* Render the new Analysis Page */}
+            {currentView === 'ANALYSIS' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <AnalysisPage />
                 </div>
             )}
 
