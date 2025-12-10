@@ -10,8 +10,8 @@ const STORAGE_TOKEN_KEY = 'psx_drive_access_token';
 const STORAGE_USER_KEY = 'psx_drive_user_profile';
 const STORAGE_EXPIRY_KEY = 'psx_drive_token_expiry';
 
-// SCOPES: Critical that 'spreadsheets' is included here
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets openid';
+// SCOPES: Updated to include 'gmail.readonly'
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.readonly openid';
 const DB_FILE_NAME = 'psx_tracker_data.json';
 const SHEET_FILE_NAME = 'PSX_Portfolio_Transactions'; // Name of the Google Sheet
 
@@ -146,7 +146,6 @@ export const signInWithDrive = () => {
         alert("Google Service initializing... please wait 2 seconds and try again.");
         return;
     }
-    // FIX: Using empty string '' allows skipping the consent screen if already approved
     tokenClient.requestAccessToken({ prompt: '' });
 };
 
@@ -313,13 +312,11 @@ export const syncTransactionsToSheet = async (transactions: any[], portfolios: a
             headers: { Authorization: `Bearer ${token}` }
         });
         
-        // --- IMPROVED 403 HANDLING ---
         if (metaResp.status === 403) {
              console.error("403 Forbidden: App cannot access Google Sheets.");
              alert("Sync Failed: The app does not have permission to access Google Sheets. Please Sign Out and Sign In again, ensuring all permissions are checked.");
              return;
         }
-        // -----------------------------
 
         const meta = await metaResp.json();
         const existingTitles = new Set(meta.sheets?.map((s: any) => s.properties.title) || []);
@@ -332,7 +329,7 @@ export const syncTransactionsToSheet = async (transactions: any[], portfolios: a
 
         // 2. Iterate Portfolios and Sync
         for (const p of portfolios) {
-            // Sanitize sheet title (Sheets doesn't allow * ? : [ ] \ /)
+            // Sanitize sheet title
             const sheetTitle = p.name.replace(/[*?:\/\\\[\]]/g, '_').substring(0, 100);
             
             // Create tab if missing
@@ -398,6 +395,105 @@ export const syncTransactionsToSheet = async (transactions: any[], portfolios: a
     } catch (e) {
         console.error("Sheet Sync Failed", e);
     }
+};
+
+// --- GMAIL INTEGRATION FUNCTIONS ---
+
+export const searchGmailMessages = async (query: string) => {
+    const token = await getValidToken();
+    if (!token) return [];
+
+    try {
+        // 1. Search for messages
+        // Force 'has:attachment' to ensure we only get files
+        const q = `${query} has:attachment`;
+        const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=10`;
+        const listResp = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
+        
+        if (listResp.status === 403) {
+            throw new Error("Permission denied. Please sign out and sign in again to grant Gmail access.");
+        }
+
+        const listData = await listResp.json();
+        
+        if (!listData.messages) return [];
+
+        // 2. Fetch details for each message to get snippet and attachment info
+        const messages = await Promise.all(listData.messages.map(async (msg: any) => {
+            const detailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`;
+            const detailResp = await fetch(detailUrl, { headers: { Authorization: `Bearer ${token}` } });
+            const detailData = await detailResp.json();
+            
+            // Extract Headers
+            const subject = detailData.payload.headers.find((h: any) => h.name === 'Subject')?.value || '(No Subject)';
+            const from = detailData.payload.headers.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+            const date = detailData.internalDate;
+
+            // Find Attachments Recursively
+            const attachments: any[] = [];
+            
+            const traverseParts = (partList: any[]) => {
+                partList.forEach((part: any) => {
+                    if (part.body && part.body.attachmentId) {
+                        attachments.push({
+                            id: part.body.attachmentId,
+                            filename: part.filename,
+                            mimeType: part.mimeType,
+                            messageId: msg.id,
+                            size: part.body.size
+                        });
+                    }
+                    if (part.parts) traverseParts(part.parts);
+                });
+            };
+            
+            if (detailData.payload.parts) {
+                traverseParts(detailData.payload.parts);
+            }
+
+            return {
+                id: msg.id,
+                snippet: detailData.snippet,
+                subject,
+                from,
+                date: parseInt(date),
+                attachments
+            };
+        }));
+
+        return messages;
+    } catch (e: any) {
+        console.error("Gmail Search Failed", e);
+        throw new Error(e.message || "Failed to access Gmail.");
+    }
+};
+
+export const downloadGmailAttachment = async (messageId: string, attachmentId: string, filename: string, mimeType: string): Promise<File | null> => {
+    const token = await getValidToken();
+    if (!token) return null;
+
+    try {
+        const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${messageId}/attachments/${attachmentId}`;
+        const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await response.json();
+        
+        if (data.data) {
+            // Convert Base64URL to standard Base64
+            const base64 = data.data.replace(/-/g, '+').replace(/_/g, '/');
+            const byteCharacters = atob(base64);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: mimeType });
+            
+            return new File([blob], filename, { type: mimeType });
+        }
+    } catch (e) {
+        console.error("Attachment Download Failed", e);
+    }
+    return null;
 };
 
 export const hasValidSession = (): boolean => {
