@@ -54,6 +54,23 @@ const normalizeDate = (input: any): string => {
     return new Date().toISOString().split('T')[0]; 
 };
 
+// --- NEW HELPER: Fuzzy Header Matching ---
+// Looks for value in a row using a list of possible aliases
+const getRowValue = (row: any, aliases: string[]): number => {
+    const rowKeys = Object.keys(row);
+    for (const alias of aliases) {
+        const match = rowKeys.find(k => k.toLowerCase().trim() === alias.toLowerCase().trim());
+        if (match) {
+            const val = row[match];
+            // Remove currency symbols or commas if present string
+            const cleanVal = typeof val === 'string' ? val.replace(/,/g, '').replace(/Rs\.?/gi, '') : val;
+            const num = Number(cleanVal);
+            if (!isNaN(num)) return num;
+        }
+    }
+    return 0;
+};
+
 export const TransactionForm: React.FC<TransactionFormProps> = ({ 
   onAddTransaction, 
   onUpdateTransaction,
@@ -330,10 +347,62 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType, category]);
 
   const getHoldingQty = (ticker: string, brokerId: string) => { let qty = 0; const cleanTicker = ticker.toUpperCase(); const brokerObj = brokers.find(b => b.id === brokerId); const brokerName = brokerObj?.name; existingTransactions.forEach(t => { const isSameBroker = t.brokerId === brokerId || (t.broker && brokerName && t.broker === brokerName); if (t.ticker === cleanTicker && isSameBroker) { if (t.type === 'BUY') qty += t.quantity; if (t.type === 'SELL') qty -= t.quantity; } }); return Math.max(0, qty); };
+  
   const handleDownloadTemplate = () => { const templateData = [ { Date: new Date().toISOString().split('T')[0], Type: 'BUY', Ticker: 'OGDC', Broker: brokers.length > 0 ? brokers[0].name : 'My Broker', Quantity: 500, Price: 120.50, Commission: 150, Tax: 20, 'CDC Charges': 5, 'Other Fees': 0, Notes: 'Sample Entry (Delete this row)' } ]; exportToCSV(templateData, 'PSX_Tracker_Import_Template'); };
+  
   const handleManualSubmit = (e: React.FormEvent) => { e.preventDefault(); setFormError(null); const cleanTicker = ticker.toUpperCase(); let brokerName = undefined; const b = brokers.find(b => b.id === selectedBrokerId); if (b) brokerName = b.name; const qtyNum = Number(quantity); if (type === 'SELL') { const heldQty = getHoldingQty(cleanTicker, selectedBrokerId); let adjustedQty = heldQty; if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) { adjustedQty += editingTransaction.quantity; } else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) { adjustedQty -= editingTransaction.quantity; } if (qtyNum > adjustedQty) { setFormError(`Insufficient holdings! You only have ${adjustedQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}.`); return; } } if (type === 'BUY' && !editingTransaction && freeCash !== undefined) { const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees); if (totalCost > freeCash) { setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`); return; } } const txData: any = { ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId, commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0, category: type === 'OTHER' ? category : undefined, notes: notes.trim() || undefined }; if (type === 'OTHER') { txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'OTHER FEE'; } if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData }); else onAddTransaction(txData); onClose(); };
+  
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); updateScannedTrades([]); } };
-  const handleImportFile = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { const data = await selectedFile.arrayBuffer(); const workbook = XLSX.read(data); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); const trades: EditableTrade[] = jsonData.map((row: any) => ({ date: normalizeDate(row['Date']), type: (row['Type'] || 'BUY').toUpperCase(), ticker: (row['Ticker'] || '').toUpperCase(), broker: row['Broker'], quantity: Number(row['Quantity']) || 0, price: Number(row['Price']) || 0, commission: Number(row['Commission']) || 0, tax: Number(row['Tax']) || 0, cdcCharges: Number(row['CDC Charges']) || 0, otherFees: Number(row['Other Fees']) || Number(row['Other']) || 0, brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id })).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0); if (trades.length === 0) throw new Error("No valid trades found. Please use the template."); updateScannedTrades(trades); } catch (e: any) { setScanError("Failed to parse file. Ensure matches template."); } finally { setIsScanning(false); } };
+  
+  // --- IMPROVED IMPORT HANDLER (ROBUST MAPPING) ---
+  const handleImportFile = async () => { 
+      if (!selectedFile) return; 
+      setIsScanning(true); 
+      setScanError(null); 
+      updateScannedTrades([]); 
+      
+      try { 
+          const data = await selectedFile.arrayBuffer(); 
+          const workbook = XLSX.read(data); 
+          const worksheet = workbook.Sheets[workbook.SheetNames[0]]; 
+          const jsonData = XLSX.utils.sheet_to_json(worksheet); 
+          
+          const trades: EditableTrade[] = jsonData.map((row: any) => {
+              // Try to find columns by multiple common names
+              const comm = getRowValue(row, ['Commission', 'Comm', 'Brokerage', 'Trading Fee']);
+              const tax = getRowValue(row, ['Tax', 'SST', 'WHT', 'Sales Tax', 'Govt Tax']);
+              const cdc = getRowValue(row, ['CDC Charges', 'CDC', 'CDC Fee', 'Regulatory Fee', 'Reg Fee']);
+              const other = getRowValue(row, ['Other Fees', 'Other', 'FED', 'Service Charges', 'Misc', 'Tax 2']);
+              const price = getRowValue(row, ['Price', 'Rate', 'Exec Price']);
+              const qty = getRowValue(row, ['Quantity', 'Qty', 'Volume']);
+              const type = row['Type'] ? row['Type'].toString().toUpperCase() : 'BUY';
+              const ticker = row['Ticker'] ? row['Ticker'].toString().toUpperCase() : row['Symbol'] ? row['Symbol'].toString().toUpperCase() : '';
+              const dateVal = row['Date'] || row['Trade Date'];
+
+              return { 
+                  date: normalizeDate(dateVal), 
+                  type, 
+                  ticker, 
+                  broker: row['Broker'], 
+                  quantity: qty || 0, 
+                  price: price || 0, 
+                  commission: comm, 
+                  tax: tax, 
+                  cdcCharges: cdc, 
+                  otherFees: other, 
+                  brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id 
+              };
+          }).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0); 
+          
+          if (trades.length === 0) throw new Error("No valid trades found. Please check column headers."); 
+          updateScannedTrades(trades); 
+      } catch (e: any) { 
+          setScanError("Failed to parse file. Ensure it is a valid Excel/CSV."); 
+      } finally { 
+          setIsScanning(false); 
+      } 
+  };
+
   const handleProcessScan = async () => { if (!selectedFile) return; if (mode === 'IMPORT') { handleImportFile(); return; } setIsScanning(true); setScanError(null); updateScannedTrades([]); try { let trades: ParsedTrade[] = []; if (mode === 'AI_SCAN') { trades = await parseTradeDocument(selectedFile); } else { const res = await parseTradeDocumentOCRSpace(selectedFile); trades = res.trades; } if (trades.length === 0) throw new Error("No trades found in this file."); const enrichedTrades: EditableTrade[] = trades.map(t => ({ ...t, brokerId: selectedBrokerId || undefined, broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker })); updateScannedTrades(enrichedTrades); } catch (err: any) { setScanError(err.message || "Failed to scan document."); } finally { setIsScanning(false); } };
   const toggleScanSelection = (index: number) => { const next = new Set(selectedScanIndices); if (next.has(index)) next.delete(index); else next.add(index); setSelectedScanIndices(next); };
   const toggleSelectAll = () => { if (selectedScanIndices.size === savedScannedTrades.length) setSelectedScanIndices(new Set()); else setSelectedScanIndices(new Set(savedScannedTrades.map((_, i) => i))); };
