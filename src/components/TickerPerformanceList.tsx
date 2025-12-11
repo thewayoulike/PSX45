@@ -747,7 +747,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 </div>
 
                 {/* SECTOR QUICK STATS */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
                     <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
                         <div className="flex items-center gap-3">
                             <div className="p-2 bg-slate-50 text-slate-600 rounded-xl"><Wallet size={18} /></div>
@@ -765,6 +765,21 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                 <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Sector Net P&L</div>
                                 <div className={`text-lg font-black ${selectedSectorStats.lifetimeNet >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                                     {selectedSectorStats.lifetimeNet >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.lifetimeNet)}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* NEW SECTOR ROI CARD */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-xl ${selectedSectorStats.lifetimeROI >= 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                <Percent size={18} />
+                            </div>
+                            <div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lifetime ROI</div>
+                                <div className={`text-lg font-black ${selectedSectorStats.lifetimeROI >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {selectedSectorStats.lifetimeROI >= 0 ? '+' : ''}{selectedSectorStats.lifetimeROI.toFixed(2)}%
                                 </div>
                             </div>
                         </div>
