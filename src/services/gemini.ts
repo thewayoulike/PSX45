@@ -2,16 +2,6 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 import * as XLSX from 'xlsx';
 
-// --- CONFIGURATION ---
-// Reverted to 2.5 as primary. 
-// Added 2.0 as fallback because your logs showed it "Found" the model (even if busy), 
-// whereas 1.5 gave "404 Not Found".
-const MODEL_FALLBACKS = [
-    "gemini-2.5-flash",       // Primary
-    "gemini-2.0-flash-exp",   // Fallback 1 (Experimental but available to your key)
-    "gemini-1.5-pro",         // Fallback 2 (Slower, just in case)
-];
-
 let userProvidedKey: string | null = null;
 let aiClient: GoogleGenAI | null = null;
 
@@ -91,15 +81,15 @@ const extractJsonArray = (text: string): string | null => {
     return null;
 };
 
-// --- MAIN PARSE FUNCTION WITH RETRY LOGIC ---
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
-  const ai = getAi(); 
-  if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
-
   try {
+    const ai = getAi(); 
+    if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
+
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
     let parts: any[] = [];
 
+    // Prompt instructions with explicit Fee Summing logic
     const promptText = `Analyze this trade confirmation document/data. Extract all trade executions. 
     
     CRITICAL INSTRUCTIONS:
@@ -133,70 +123,35 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
         ];
     }
 
-    // --- FALLBACK LOOP ---
-    let lastError: any;
-
-    for (const modelName of MODEL_FALLBACKS) {
-        try {
-            console.log(`Scanning with model: ${modelName}...`);
-            
-            const response = await ai.models.generateContent({
-              model: modelName,
-              contents: { parts: parts },
-              config: {
-                responseMimeType: "application/json",
-                responseSchema: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      ticker: { type: Type.STRING },
-                      type: { type: Type.STRING, enum: ["BUY", "SELL"] },
-                      quantity: { type: Type.NUMBER },
-                      price: { type: Type.NUMBER },
-                      date: { type: Type.STRING, description: "YYYY-MM-DD format" },
-                      broker: { type: Type.STRING, nullable: true },
-                      commission: { type: Type.NUMBER, nullable: true },
-                      tax: { type: Type.NUMBER, nullable: true },
-                      cdcCharges: { type: Type.NUMBER, nullable: true },
-                      otherFees: { type: Type.NUMBER, nullable: true, description: "Sum of FED, Reg Fee, etc." }
-                    },
-                    required: ["ticker", "type", "quantity", "price", "date"]
-                  }
-                }
-              }
-            });
-
-            if (response.text) {
-                return JSON.parse(response.text);
-            }
-            throw new Error("Empty response received from AI");
-
-        } catch (error: any) {
-            console.warn(`Model ${modelName} failed: ${error.message}`);
-            lastError = error;
-            
-            // Check if we should retry with next model
-            const isRetryable = 
-                error.message?.includes('404') || 
-                error.message?.includes('503') || 
-                error.message?.includes('429') || // Added 429 (Quota limit) as retryable
-                error.message?.includes('overloaded') ||
-                error.message?.includes('not found');
-
-            if (!isRetryable) {
-                // If it's a file format error or API key error, don't try other models
-                throw error;
-            }
-            
-            // Short delay before next model
-            await new Promise(resolve => setTimeout(resolve, 800));
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: { parts: parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              ticker: { type: Type.STRING },
+              type: { type: Type.STRING, enum: ["BUY", "SELL"] },
+              quantity: { type: Type.NUMBER },
+              price: { type: Type.NUMBER },
+              date: { type: Type.STRING, description: "YYYY-MM-DD format" },
+              broker: { type: Type.STRING, nullable: true },
+              commission: { type: Type.NUMBER, nullable: true },
+              tax: { type: Type.NUMBER, nullable: true },
+              cdcCharges: { type: Type.NUMBER, nullable: true },
+              otherFees: { type: Type.NUMBER, nullable: true, description: "Sum of FED, Reg Fee, etc." }
+            },
+            required: ["ticker", "type", "quantity", "price", "date"]
+          }
         }
-    }
+      }
+    });
 
-    // If all models fail
-    throw lastError || new Error("Failed to scan document. All AI models are currently busy or unavailable.");
-
+    if (response.text) return JSON.parse(response.text);
+    return [];
   } catch (error: any) {
     console.error("Error parsing document:", error);
     throw new Error(error.message || "Failed to scan document.");
@@ -210,31 +165,28 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
 
         const tickerList = tickers.join(", ");
         
-        // Also use fallback logic for dividends to be safe
-        for (const modelName of MODEL_FALLBACKS) {
+        const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
+            Return ONLY a raw JSON array (no markdown) with objects:
+            [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
+            
+            Ignore any dividends older than ${months} months.`,
+            config: {
+                tools: [{ googleSearch: {} }]
+            }
+        });
+
+        const text = response.text;
+        if (!text) return [];
+
+        const jsonString = extractJsonArray(text);
+        if (jsonString) {
             try {
-                const response = await ai.models.generateContent({
-                    model: modelName,
-                    contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
-                    Return ONLY a raw JSON array (no markdown) with objects:
-                    [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
-                    
-                    Ignore any dividends older than ${months} months.`,
-                    config: {
-                        tools: [{ googleSearch: {} }]
-                    }
-                });
-
-                const text = response.text;
-                if (!text) continue; 
-
-                const jsonString = extractJsonArray(text);
-                if (jsonString) {
-                    return JSON.parse(jsonString);
-                }
+                return JSON.parse(jsonString);
             } catch (e) {
-                console.warn(`Dividend fetch failed on ${modelName}`, e);
-                // Continue to next model
+                console.error("JSON Parse Error:", e, "Raw Text:", text);
+                return [];
             }
         }
         return [];
