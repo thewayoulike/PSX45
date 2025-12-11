@@ -577,125 +577,127 @@ const App: React.FC = () => {
             </div>
 
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
-                {/* RESPONSIVE BUTTON GRID: flex-nowrap to prevent wrapping, shrinking enabled */}
-                <div className="flex flex-nowrap items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 no-scrollbar max-w-full">
-                    <button 
-                        onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} 
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
-                    > 
-                        <Plus size={16} /> Add Transaction 
-                    </button>
-                    <button 
-                        onClick={() => setShowBrokerManager(true)} 
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
-                    > 
-                        <Briefcase size={16} /> Brokers 
-                    </button>
-                    <button 
-                        onClick={() => setShowDividendScanner(true)} 
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
-                    > 
-                        <Coins size={16} /> Scan Dividends 
-                    </button>
-                    
-                    <button 
-                        onClick={() => setShowUpcomingScanner(true)} 
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
-                    > 
-                        <CalendarClock size={16} /> Future X-Dates 
-                    </button>
-
-                    <button 
-                        onClick={() => setShowApiKeyManager(true)} 
-                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm" 
-                        title="AI Settings"
-                    > 
-                        <Key size={16} className="text-emerald-500" /> <span>API Key</span> 
-                    </button>
-                </div>
                 
-                {/* SECOND BUTTON GROUP (Right Side) - UPDATED FOR RESPONSIVENESS */}
-                {/* Removed 'flex-1' which was forcing this to steal width from the left group */}
-                <div className="flex flex-nowrap items-center gap-2 w-full md:w-auto overflow-x-auto pb-1 no-scrollbar justify-start md:justify-end max-w-full">
-                    <div className="flex items-center gap-2 bg-white px-2 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0" ref={filterDropdownRef}>
-                        
-                        {isCombinedView && (
-                            <div className="relative">
-                                <button 
-                                    onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                                    className="flex items-center gap-2 px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] sm:text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"
-                                >
-                                    <Layers size={14} />
-                                    <span>Portfolios ({combinedPortfolioIds.size})</span>
-                                    <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
-                                </button>
-
-                                {showFilterDropdown && (
-                                    <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
-                                        <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 mb-1">
-                                            <span className="text-[10px] uppercase font-bold text-slate-400">Included Portfolios</span>
-                                            <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 font-bold hover:underline">Select All</button>
-                                        </div>
-                                        <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                                            {portfolios.map(p => {
-                                                const isSelected = combinedPortfolioIds.has(p.id);
-                                                return (
-                                                    <div 
-                                                        key={p.id} 
-                                                        onClick={() => handleTogglePortfolioSelection(p.id)}
-                                                        className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
-                                                    >
-                                                        {isSelected ? 
-                                                            <CheckSquare size={16} className="text-emerald-600" /> : 
-                                                            <Square size={16} className="text-slate-300" />
-                                                        }
-                                                        <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}>{p.name}</span>
-                                                    </div>
-                                                );
-                                            })}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="h-5 w-[1px] bg-slate-200 mx-1"></div>
-
-                        <div className="flex items-center gap-2">
-                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wide">Combined</span>
-                            <button 
-                                onClick={() => {
-                                    const newState = !isCombinedView;
-                                    setIsCombinedView(newState);
-                                    if (newState) setShowFilterDropdown(true);
-                                }} 
-                                className={`w-8 h-4 sm:w-10 sm:h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                            >
-                                <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 sm:top-1 transition-all shadow-sm ${isCombinedView ? 'left-4 sm:left-6' : 'left-0.5 sm:left-1'}`}></div>
-                            </button>
-                        </div>
+                {/* 1. FLEX CONTAINER FOR BOTH GROUPS */}
+                <div className="flex flex-wrap lg:flex-nowrap items-center justify-between w-full gap-4">
+                    
+                    {/* LEFT GROUP: Add, Brokers, Scan, Etc */}
+                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 max-w-full lg:max-w-none">
+                        <button 
+                            onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} 
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
+                        > 
+                            <Plus size={16} /> Add Transaction 
+                        </button>
+                        <button 
+                            onClick={() => setShowBrokerManager(true)} 
+                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
+                        > 
+                            <Briefcase size={16} /> Brokers 
+                        </button>
+                        <button 
+                            onClick={() => setShowDividendScanner(true)} 
+                            className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
+                        > 
+                            <Coins size={16} /> Scan Dividends 
+                        </button>
+                        <button 
+                            onClick={() => setShowUpcomingScanner(true)} 
+                            className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm"
+                        > 
+                            <CalendarClock size={16} /> Future X-Dates 
+                        </button>
+                        <button 
+                            onClick={() => setShowApiKeyManager(true)} 
+                            className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-5 lg:py-3 lg:text-sm" 
+                            title="AI Settings"
+                        > 
+                            <Key size={16} className="text-emerald-500" /> <span>API Key</span> 
+                        </button>
                     </div>
 
-                    {currentView === 'DASHBOARD' && (
-                        <>
-                            <button 
-                                onClick={() => setShowPriceEditor(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-4 lg:py-3 lg:text-sm shrink-0"
-                            > 
-                                <Edit3 size={16} /> <span>Manual Prices</span> 
-                            </button>
-                             <div className="flex items-center gap-2 shrink-0">
+                    {/* RIGHT GROUP: Combined, Manual, Sync - ADJUSTED */}
+                    {/* Added overflow-x-auto, max-w-full, flex-1, and justify-start/end to ensure it scrolls instead of disappearing */}
+                    <div className="flex flex-nowrap items-center gap-2 overflow-x-auto pb-1 max-w-full flex-1 justify-start md:justify-end min-w-0">
+                        <div className="flex items-center gap-2 bg-white px-2 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0" ref={filterDropdownRef}>
+                            {isCombinedView && (
+                                <div className="relative">
+                                    <button 
+                                        onClick={() => setShowFilterDropdown(!showFilterDropdown)}
+                                        className="flex items-center gap-2 px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] sm:text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"
+                                    >
+                                        <Layers size={14} />
+                                        <span>Portfolios ({combinedPortfolioIds.size})</span>
+                                        <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
+                                    </button>
+                                    {showFilterDropdown && (
+                                        <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
+                                            <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 mb-1">
+                                                <span className="text-[10px] uppercase font-bold text-slate-400">Included Portfolios</span>
+                                                <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 font-bold hover:underline">Select All</button>
+                                            </div>
+                                            <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                                                {portfolios.map(p => {
+                                                    const isSelected = combinedPortfolioIds.has(p.id);
+                                                    return (
+                                                        <div 
+                                                            key={p.id} 
+                                                            onClick={() => handleTogglePortfolioSelection(p.id)}
+                                                            className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
+                                                        >
+                                                            {isSelected ? 
+                                                                <CheckSquare size={16} className="text-emerald-600" /> : 
+                                                                <Square size={16} className="text-slate-300" />
+                                                            }
+                                                            <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}>{p.name}</span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="h-5 w-[1px] bg-slate-200 mx-1"></div>
+
+                            <div className="flex items-center gap-2">
+                                <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wide">Combined</span>
                                 <button 
-                                    onClick={handleSyncPrices} 
-                                    disabled={isSyncing} 
-                                    className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-4 lg:py-3 lg:text-sm"
-                                > 
-                                    {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} <span>Sync PSX</span> 
+                                    onClick={() => {
+                                        const newState = !isCombinedView;
+                                        setIsCombinedView(newState);
+                                        if (newState) setShowFilterDropdown(true);
+                                    }} 
+                                    className={`w-8 h-4 sm:w-10 sm:h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                                >
+                                    <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 sm:top-1 transition-all shadow-sm ${isCombinedView ? 'left-4 sm:left-6' : 'left-0.5 sm:left-1'}`}></div>
                                 </button>
-                                {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                             </div>
-                        </>
-                    )}
+                        </div>
+
+                        {currentView === 'DASHBOARD' && (
+                            <>
+                                <button 
+                                    onClick={() => setShowPriceEditor(true)} 
+                                    className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-4 lg:py-3 lg:text-sm shrink-0"
+                                > 
+                                    <Edit3 size={16} /> <span>Manual Prices</span> 
+                                </button>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <button 
+                                        onClick={handleSyncPrices} 
+                                        disabled={isSyncing} 
+                                        className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-4 lg:py-3 lg:text-sm"
+                                    > 
+                                        {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} <span>Sync PSX</span> 
+                                    </button>
+                                    {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
+                                </div>
+                            </>
+                        )}
+                    </div>
+
                 </div>
             </div>
 
