@@ -82,10 +82,10 @@ const extractJsonArray = (text: string): string | null => {
 };
 
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
-  try {
-    const ai = getAi(); 
-    if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
+  const ai = getAi(); 
+  if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
 
+  try {
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
     let parts: any[] = [];
 
@@ -123,35 +123,66 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
         ];
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: { parts: parts },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              ticker: { type: Type.STRING },
-              type: { type: Type.STRING, enum: ["BUY", "SELL"] },
-              quantity: { type: Type.NUMBER },
-              price: { type: Type.NUMBER },
-              date: { type: Type.STRING, description: "YYYY-MM-DD format" },
-              broker: { type: Type.STRING, nullable: true },
-              commission: { type: Type.NUMBER, nullable: true },
-              tax: { type: Type.NUMBER, nullable: true },
-              cdcCharges: { type: Type.NUMBER, nullable: true },
-              otherFees: { type: Type.NUMBER, nullable: true, description: "Sum of FED, Reg Fee, etc." }
-            },
-            required: ["ticker", "type", "quantity", "price", "date"]
-          }
-        }
-      }
-    });
+    // --- RETRY LOGIC START ---
+    let attempts = 0;
+    const maxAttempts = 3;
+    let lastError: any;
 
-    if (response.text) return JSON.parse(response.text);
-    return [];
+    while (attempts < maxAttempts) {
+        try {
+            const response = await ai.models.generateContent({
+              // Switched to 1.5-flash for better stability. 
+              // Change back to "gemini-2.5-flash" if you specifically need 2.5 features.
+              model: "gemini-1.5-flash", 
+              contents: { parts: parts },
+              config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      ticker: { type: Type.STRING },
+                      type: { type: Type.STRING, enum: ["BUY", "SELL"] },
+                      quantity: { type: Type.NUMBER },
+                      price: { type: Type.NUMBER },
+                      date: { type: Type.STRING, description: "YYYY-MM-DD format" },
+                      broker: { type: Type.STRING, nullable: true },
+                      commission: { type: Type.NUMBER, nullable: true },
+                      tax: { type: Type.NUMBER, nullable: true },
+                      cdcCharges: { type: Type.NUMBER, nullable: true },
+                      otherFees: { type: Type.NUMBER, nullable: true, description: "Sum of FED, Reg Fee, etc." }
+                    },
+                    required: ["ticker", "type", "quantity", "price", "date"]
+                  }
+                }
+              }
+            });
+
+            if (response.text) return JSON.parse(response.text);
+            return []; // Return empty if no text
+
+        } catch (error: any) {
+            lastError = error;
+            // Check for 503 or overload messages
+            if (error.message?.includes('503') || error.message?.includes('overloaded') || error.status === 503) {
+                attempts++;
+                console.warn(`Gemini 503 Overload. Retrying attempt ${attempts}/${maxAttempts}...`);
+                if (attempts >= maxAttempts) break; 
+                
+                // Exponential backoff: Wait 2s, then 4s, etc.
+                await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
+            } else {
+                // If it's a different error (e.g., 400 Bad Request), fail immediately
+                throw error;
+            }
+        }
+    }
+    
+    // If loop finishes without success
+    throw lastError || new Error("Failed to scan document after multiple attempts.");
+    // --- RETRY LOGIC END ---
+
   } catch (error: any) {
     console.error("Error parsing document:", error);
     throw new Error(error.message || "Failed to scan document.");
@@ -166,7 +197,7 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
         const tickerList = tickers.join(", ");
         
         const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-1.5-flash", // Using 1.5-flash here too for stability
             contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
