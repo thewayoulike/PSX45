@@ -55,12 +55,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   };
 
   // --- STYLING CONSTANTS FOR RESPONSIVENESS ---
-  // Adjusted to handle 6-columns on Laptop (lg) by shrinking text slightly, then growing on Desktop (xl)
   const TOP_SECTION_CLASS = "min-h-[3rem] flex flex-col justify-center"; 
   const LABEL_CLASS = "text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5 truncate";
   const ICON_BOX_CLASS = "p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors";
-  
-  // Dynamic value size: Large on mobile, Medium on Laptop (to fit 6 cols), Huge on Desktop
   const VALUE_SIZE_CLASS = "text-lg sm:text-xl lg:text-lg xl:text-2xl font-bold tracking-tight"; 
 
   const getMwrrTooltip = () => {
@@ -73,7 +70,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
     <div className="flex flex-col gap-3 mb-6 md:mb-10">
         
         {/* ROW 1: Key Performance & Capital */}
-        {/* UPDATED GRID: Switches to 6 columns at 'lg' (1024px) instead of 'xl' */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
            {/* Portfolio MWRR */}
            <Card>
@@ -230,7 +226,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
         </div>
 
         {/* ROW 2: Holdings, Profits & Breakdown */}
-        {/* Same responsive logic: lg:grid-cols-6 */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             
              {/* Current Stock Value */}
@@ -373,8 +368,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     </div>
                 </div>
                 <div className="mt-2">
+                    {/* ADDED TAX DISPLAY BACK HERE */}
                     <div className="flex justify-between text-[8px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Gross: {formatCurrency(stats.realizedPL)}</span>
+                        <span className="text-rose-500">Tax: -{formatCurrency(stats.totalCGT)}</span>
                     </div>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden flex">
                         <div className={`h-full ${isRealizedProfitable ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
@@ -408,7 +405,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
             </Card>
         </div>
 
-        {/* ROW 3: Fees Breakdown - Uses 5 columns on laptop (lg) */}
+        {/* ROW 3: Fees Breakdown */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mt-2">
             {/* 1. Commission */}
             <div className="bg-white border border-slate-200 rounded-xl p-3 flex items-center gap-3 shadow-sm hover:shadow-md transition-all group">
