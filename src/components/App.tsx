@@ -577,11 +577,7 @@ const App: React.FC = () => {
             </div>
 
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
-                {/* UPDATED RESPONSIVE BUTTON GRID: 
-                   - Uses flex-nowrap to FORCE single line.
-                   - Allows scrolling (overflow-x-auto) on tiny screens as a fail-safe.
-                   - Uses aggressive shrinking (text-[10px], px-2) on small screens to fit without scroll.
-                */}
+                {/* RESPONSIVE BUTTON GRID: flex-nowrap to prevent wrapping, shrinking enabled */}
                 <div className="flex flex-nowrap items-center gap-2 w-full xl:w-auto overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar">
                     <button 
                         onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} 
@@ -618,14 +614,15 @@ const App: React.FC = () => {
                     </button>
                 </div>
                 
-                <div className="flex flex-wrap gap-3">
-                    <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm" ref={filterDropdownRef}>
+                {/* SECOND BUTTON GROUP (Right Side) */}
+                <div className="flex flex-nowrap items-center gap-2 w-full xl:w-auto overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar">
+                    <div className="flex items-center gap-2 bg-white px-2 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0" ref={filterDropdownRef}>
                         
                         {isCombinedView && (
                             <div className="relative">
                                 <button 
                                     onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"
+                                    className="flex items-center gap-2 px-2 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] sm:text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"
                                 >
                                     <Layers size={14} />
                                     <span>Portfolios ({combinedPortfolioIds.size})</span>
@@ -664,25 +661,36 @@ const App: React.FC = () => {
                         <div className="h-5 w-[1px] bg-slate-200 mx-1"></div>
 
                         <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">Combined</span>
+                            <span className="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wide">Combined</span>
                             <button 
                                 onClick={() => {
                                     const newState = !isCombinedView;
                                     setIsCombinedView(newState);
                                     if (newState) setShowFilterDropdown(true);
                                 }} 
-                                className={`w-10 h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                                className={`w-8 h-4 sm:w-10 sm:h-5 rounded-full relative transition-colors ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
                             >
-                                <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
+                                <div className={`w-3 h-3 bg-white rounded-full absolute top-0.5 sm:top-1 transition-all shadow-sm ${isCombinedView ? 'left-4 sm:left-6' : 'left-0.5 sm:left-1'}`}></div>
                             </button>
                         </div>
                     </div>
 
                     {currentView === 'DASHBOARD' && (
                         <>
-                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
-                             <div className="flex items-center gap-2">
-                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"> {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span className="hidden sm:inline">Sync PSX</span> </button>
+                            <button 
+                                onClick={() => setShowPriceEditor(true)} 
+                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-4 lg:py-3 lg:text-sm shrink-0"
+                            > 
+                                <Edit3 size={16} /> <span>Manual Prices</span> 
+                            </button>
+                             <div className="flex items-center gap-2 shrink-0">
+                                <button 
+                                    onClick={handleSyncPrices} 
+                                    disabled={isSyncing} 
+                                    className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap px-2 py-2 text-[10px] sm:px-3 sm:text-xs lg:px-4 lg:py-3 lg:text-sm"
+                                > 
+                                    {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} <span>Sync PSX</span> 
+                                </button>
                                 {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                             </div>
                         </>
