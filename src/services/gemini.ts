@@ -2,6 +2,16 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 import * as XLSX from 'xlsx';
 
+// --- CONFIGURATION ---
+// We will try these models in order. If one fails (404 or 503), we move to the next.
+const MODEL_FALLBACKS = [
+    "gemini-1.5-flash",       // Standard alias (Fastest)
+    "gemini-1.5-flash-002",   // Specific stable version
+    "gemini-1.5-flash-8b",    // Ultra-light version
+    "gemini-1.5-pro",         // More powerful (Slower)
+    "gemini-2.0-flash-exp"    // Experimental (Newest)
+];
+
 let userProvidedKey: string | null = null;
 let aiClient: GoogleGenAI | null = null;
 
@@ -81,6 +91,7 @@ const extractJsonArray = (text: string): string | null => {
     return null;
 };
 
+// --- MAIN PARSE FUNCTION WITH RETRY LOGIC ---
 export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => {
   const ai = getAi(); 
   if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
@@ -89,7 +100,6 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
     let parts: any[] = [];
 
-    // Prompt instructions with explicit Fee Summing logic
     const promptText = `Analyze this trade confirmation document/data. Extract all trade executions. 
     
     CRITICAL INSTRUCTIONS:
@@ -123,16 +133,15 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
         ];
     }
 
-    // --- RETRY LOGIC START ---
-    let attempts = 0;
-    const maxAttempts = 3;
+    // --- FALLBACK LOOP ---
     let lastError: any;
 
-    while (attempts < maxAttempts) {
+    for (const modelName of MODEL_FALLBACKS) {
         try {
+            console.log(`Scanning with model: ${modelName}...`);
+            
             const response = await ai.models.generateContent({
-              // UPDATED: Using specific version "gemini-1.5-flash-001" to resolve 404 errors
-              model: "gemini-1.5-flash-001", 
+              model: modelName,
               contents: { parts: parts },
               config: {
                 responseMimeType: "application/json",
@@ -158,29 +167,34 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
               }
             });
 
-            if (response.text) return JSON.parse(response.text);
-            return []; // Return empty if no text
+            if (response.text) {
+                return JSON.parse(response.text);
+            }
+            throw new Error("Empty response received from AI");
 
         } catch (error: any) {
+            console.warn(`Model ${modelName} failed: ${error.message}`);
             lastError = error;
-            // Check for 503 or overload messages
-            if (error.message?.includes('503') || error.message?.includes('overloaded') || error.status === 503) {
-                attempts++;
-                console.warn(`Gemini 503 Overload. Retrying attempt ${attempts}/${maxAttempts}...`);
-                if (attempts >= maxAttempts) break; 
-                
-                // Exponential backoff: Wait 2s, then 4s, etc.
-                await new Promise(resolve => setTimeout(resolve, 2000 * attempts));
-            } else {
-                // If it's a different error (e.g., 400 Bad Request), fail immediately
+            
+            // Check if we should retry with next model
+            const isRetryable = 
+                error.message?.includes('404') || 
+                error.message?.includes('503') || 
+                error.message?.includes('overloaded') ||
+                error.message?.includes('not found');
+
+            if (!isRetryable) {
+                // If it's a file format error or API key error, don't try other models
                 throw error;
             }
+            
+            // Short delay before next model
+            await new Promise(resolve => setTimeout(resolve, 800));
         }
     }
-    
-    // If loop finishes without success
-    throw lastError || new Error("Failed to scan document after multiple attempts.");
-    // --- RETRY LOGIC END ---
+
+    // If all models fail
+    throw lastError || new Error("Failed to scan document. All AI models are currently busy or unavailable.");
 
   } catch (error: any) {
     console.error("Error parsing document:", error);
@@ -195,29 +209,31 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
 
         const tickerList = tickers.join(", ");
         
-        const response = await ai.models.generateContent({
-            // UPDATED: Using specific version "gemini-1.5-flash-001" to resolve 404 errors
-            model: "gemini-1.5-flash-001", 
-            contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
-            Return ONLY a raw JSON array (no markdown) with objects:
-            [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
-            
-            Ignore any dividends older than ${months} months.`,
-            config: {
-                tools: [{ googleSearch: {} }]
-            }
-        });
-
-        const text = response.text;
-        if (!text) return [];
-
-        const jsonString = extractJsonArray(text);
-        if (jsonString) {
+        // Also use fallback logic for dividends to be safe
+        for (const modelName of MODEL_FALLBACKS) {
             try {
-                return JSON.parse(jsonString);
+                const response = await ai.models.generateContent({
+                    model: modelName,
+                    contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
+                    Return ONLY a raw JSON array (no markdown) with objects:
+                    [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
+                    
+                    Ignore any dividends older than ${months} months.`,
+                    config: {
+                        tools: [{ googleSearch: {} }]
+                    }
+                });
+
+                const text = response.text;
+                if (!text) continue; 
+
+                const jsonString = extractJsonArray(text);
+                if (jsonString) {
+                    return JSON.parse(jsonString);
+                }
             } catch (e) {
-                console.error("JSON Parse Error:", e, "Raw Text:", text);
-                return [];
+                console.warn(`Dividend fetch failed on ${modelName}`, e);
+                // Continue to next model
             }
         }
         return [];
