@@ -54,11 +54,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
       });
   };
 
-  // --- STYLING CONSTANTS FOR RESPONSIVENESS ---
+  // --- STYLING CONSTANTS ---
   const TOP_SECTION_CLASS = "min-h-[3rem] flex flex-col justify-center"; 
   const LABEL_CLASS = "text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-0.5 truncate";
   const ICON_BOX_CLASS = "p-1.5 rounded-lg bg-emerald-50 text-emerald-600 shadow-sm group-hover:text-emerald-700 transition-colors";
   const VALUE_SIZE_CLASS = "text-lg sm:text-xl lg:text-lg xl:text-2xl font-bold tracking-tight"; 
+  
+  // New constant for the footer to ensure alignment
+  const FOOTER_CLASS = "mt-auto pt-2";
 
   const getMwrrTooltip = () => {
       if (stats.mwrr <= -99) return "Why -100%? You suffered a loss almost immediately after depositing. Since MWRR is an annualized metric (XIRR), it projects this rate of loss over a full year.";
@@ -89,7 +92,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${isMwrrPositive ? 'bg-indigo-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
                     </div>
@@ -120,7 +123,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         </div>
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className={`h-full ${isRoiPositive ? 'bg-emerald-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
                     </div>
@@ -150,7 +153,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         )}
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden flex">
                         {!isCapitalEroded ? (
                             <div className="h-full bg-emerald-500 w-full rounded-full"></div>
@@ -177,7 +180,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         Rs. {formatCurrency(stats.freeCash)}
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-blue-500 rounded-full" style={{ width: '100%' }}></div>
                     </div>
@@ -197,7 +200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     Rs. {formatCurrency(stats.netPrincipal)}
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
                     </div>
@@ -217,7 +220,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     Rs. {formatCurrency(stats.peakNetPrincipal)}
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-slate-400 rounded-full" style={{ width: '100%' }}></div>
                     </div>
@@ -241,7 +244,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     Rs. {formatCurrency(stats.totalValue)}
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-teal-500 rounded-full" style={{ width: '100%' }}></div>
                     </div>
@@ -267,7 +270,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         </div>
                     )}
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-emerald-500 rounded-full" style={{ width: '100%' }}></div>
                     </div>
@@ -298,7 +301,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                         </div>
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden flex">
                          {stats.totalCost > 0 || stats.totalValue > 0 ? (
                              isUnrealizedProfitable ? (
@@ -347,7 +350,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     </div>
                 </div>
                 
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden flex">
                         <div className={`h-full w-full ${isDailyProfitable ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                     </div>
@@ -367,8 +370,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     {isRealizedProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.netRealizedPL))}
                     </div>
                 </div>
-                <div className="mt-2">
-                    {/* ADDED TAX DISPLAY BACK HERE */}
+                <div className={FOOTER_CLASS}>
                     <div className="flex justify-between text-[8px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
                         <span>Gross: {formatCurrency(stats.realizedPL)}</span>
                         <span className="text-rose-500">Tax: -{formatCurrency(stats.totalCGT)}</span>
@@ -397,7 +399,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                          </div>
                     </div>
                 </div>
-                <div className="mt-2">
+                <div className={FOOTER_CLASS}>
+                    <div className="flex justify-between text-[8px] md:text-[10px] text-slate-400 uppercase tracking-wider mb-1 font-semibold">
+                        <span>Gross: {formatCurrency(grossDividends)}</span>
+                        <span className="text-rose-500">Tax: -{formatCurrency(stats.totalDividendTax)}</span>
+                    </div>
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className="h-full bg-emerald-500" style={{ width: '100%' }}></div>
                     </div>
