@@ -577,17 +577,17 @@ const App: React.FC = () => {
             </div>
 
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
-                {/* RESPONSIVE BUTTON GRID HERE */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 xl:flex xl:flex-row items-center gap-2 w-full xl:w-auto">
-                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 w-full xl:w-auto sm:col-span-1"> <Plus size={18} /> Add Transaction </button>
-                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto"> <Briefcase size={18} /> Brokers </button>
-                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto"> <Coins size={18} /> Scan Dividends </button>
+                {/* RESPONSIVE BUTTON GRID: flex-wrap with shrink on XL, Grid on Small */}
+                <div className="flex flex-wrap xl:flex-nowrap items-center gap-2 w-full xl:w-auto">
+                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 shrink-0 whitespace-nowrap text-xs md:text-sm"> <Plus size={16} /> Add Transaction </button>
+                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink min-w-0 text-xs md:text-sm whitespace-nowrap overflow-hidden"> <Briefcase size={16} className="shrink-0" /> Brokers </button>
+                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink min-w-0 text-xs md:text-sm whitespace-nowrap overflow-hidden"> <Coins size={16} className="shrink-0" /> Scan Dividends </button>
                     
-                    <button onClick={() => setShowUpcomingScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto"> 
-                        <CalendarClock size={18} /> Future X-Dates 
+                    <button onClick={() => setShowUpcomingScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink min-w-0 text-xs md:text-sm whitespace-nowrap overflow-hidden"> 
+                        <CalendarClock size={16} className="shrink-0" /> Future X-Dates 
                     </button>
 
-                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto sm:col-span-1 md:col-span-1" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
+                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 shrink-0 text-xs md:text-sm whitespace-nowrap" title="AI Settings"> <Key size={16} className="text-emerald-500" /> <span>API Key</span> </button>
                 </div>
                 
                 <div className="flex flex-wrap gap-3">
@@ -597,10 +597,10 @@ const App: React.FC = () => {
                             <div className="relative">
                                 <button 
                                     onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors"
+                                    className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"
                                 >
                                     <Layers size={14} />
-                                    <span>Select Portfolios ({combinedPortfolioIds.size})</span>
+                                    <span>Portfolios ({combinedPortfolioIds.size})</span>
                                     <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
                                 </button>
 
@@ -652,9 +652,9 @@ const App: React.FC = () => {
 
                     {currentView === 'DASHBOARD' && (
                         <>
-                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
+                            <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap"> <Edit3 size={18} /> <span className="hidden sm:inline">Manual Prices</span> </button>
                              <div className="flex items-center gap-2">
-                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"> {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span className="hidden sm:inline">Sync PSX</span> </button>
+                                <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"> {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span className="hidden sm:inline">Sync PSX</span> </button>
                                 {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                             </div>
                         </>
