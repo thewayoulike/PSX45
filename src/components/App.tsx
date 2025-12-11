@@ -614,8 +614,8 @@ const App: React.FC = () => {
                     </button>
                 </div>
                 
-                {/* SECOND BUTTON GROUP (Right Side) */}
-                <div className="flex flex-nowrap items-center gap-2 w-full xl:w-auto overflow-x-auto md:overflow-visible pb-1 md:pb-0 no-scrollbar">
+                {/* SECOND BUTTON GROUP (Right Side) - UPDATED FOR RESPONSIVENESS */}
+                <div className="flex flex-nowrap items-center gap-2 w-full xl:w-auto overflow-x-auto pb-1 no-scrollbar justify-start md:justify-end">
                     <div className="flex items-center gap-2 bg-white px-2 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0" ref={filterDropdownRef}>
                         
                         {isCombinedView && (
