@@ -4,17 +4,24 @@ const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VO
 
 export type TimeRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y';
 
-// --- PROXY LIST ---
-const PROXIES = [
+// --- KEY STORAGE (In Memory) ---
+let userScrapingKey: string | null = null;
+
+export const setScrapingApiKey = (key: string | null) => {
+    userScrapingKey = key ? key.trim() : null;
+};
+
+// FREE PROXIES (Tried First)
+const FREE_PROXIES = [
     (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`,
     (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&t=${Date.now()}`,
     (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}&_t=${Date.now()}`,
     (url: string) => `https://thingproxy.freeboard.io/fetch/${url}?t=${Date.now()}`,
-    (url: string) => `https://api.microlink.io?url=${encodeURIComponent(url)}&embed=body.content&t=${Date.now()}`, 
 ];
 
-const getShuffledProxies = () => {
-    const array = [...PROXIES];
+// Helper to shuffle free proxies
+const getShuffledFreeProxies = () => {
+    const array = [...FREE_PROXIES];
     for (let i = array.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [array[i], array[j]] = [array[j], array[i]];
@@ -35,7 +42,59 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
-// Scrape Live Data (Fallback for 1D)
+// The core logic: Try Free -> Fail -> Try User Paid Key
+const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> => {
+    
+    // 1. TRY FREE PROXIES FIRST (Save credits)
+    const freeList = getShuffledFreeProxies();
+    
+    for (const proxyGen of freeList) {
+        try {
+            const proxyUrl = proxyGen(targetUrl);
+            const response = await fetchWithTimeout(proxyUrl, {}, 6000); 
+            if (!response.ok) continue;
+
+            const text = await response.text();
+            
+            // Handle AllOrigins JSON wrapper
+            if (proxyUrl.includes('allorigins')) {
+                try {
+                    const json = JSON.parse(text);
+                    if (json.contents && json.contents.length > 500) return json.contents;
+                } catch (e) { continue; }
+            } else {
+                if (text && text.length > 500) return text; 
+            }
+
+        } catch (e) {
+            // Try next
+        }
+    }
+
+    // 2. FALLBACK TO USER SCRAPER KEY
+    if (userScrapingKey) {
+        try {
+            console.log("Free proxies failed. Switching to User ScraperAPI Key...");
+            const premiumUrl = `http://api.scraperapi.com?api_key=${userScrapingKey}&url=${encodeURIComponent(targetUrl)}`;
+            const response = await fetchWithTimeout(premiumUrl, {}, 25000); // 25s timeout for premium
+            
+            if (response.ok) {
+                return await response.text();
+            }
+        } catch (e) {
+            console.error("User ScraperAPI Key failed:", e);
+        }
+    } else {
+        console.warn("No ScraperAPI key provided. Sync failed.");
+    }
+
+    return null; 
+};
+
+// ... (Rest of the file: fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks remains exactly the same, using fetchUrlWithFallback) ...
+// (I will include the full file content below for copy-pasting convenience)
+
+// Scrape Live Data (Fallback for 1D chart)
 const fetchLivePriceData = async (symbol: string): Promise<{ time: number; price: number } | null> => {
     try {
         const data = await fetchBatchPSXPrices([symbol]);
@@ -50,98 +109,97 @@ const fetchLivePriceData = async (symbol: string): Promise<{ time: number; price
     return null;
 };
 
-// --- MAIN HISTORY FUNCTION ---
+// A. FETCH STOCK HISTORY
 export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D'): Promise<{ time: number; price: number }[]> => {
     const cleanSymbol = symbol.toUpperCase().replace('PSX:', '').trim();
     
-    // For '1D', we mostly rely on live data since public intraday APIs are scarce.
-    // If you have a specific intraday endpoint, add it here.
-    // Otherwise, we return a single live point to render a "current" state or fallback.
     if (range === '1D') {
         const live = await fetchLivePriceData(cleanSymbol);
         return live ? [live] : [];
     }
 
-    // For Historical Data (> 1D), use EOD endpoint
     const targetUrl = `https://dps.psx.com.pk/timeseries/eod/${cleanSymbol}`;
-    const proxyList = getShuffledProxies();
+    const htmlOrJson = await fetchUrlWithFallback(targetUrl);
 
-    for (const proxyGen of proxyList) {
+    if (htmlOrJson) {
         try {
-            const proxyUrl = proxyGen(targetUrl);
-            const response = await fetchWithTimeout(proxyUrl);
-            if (!response.ok) continue;
-            
-            let rawData;
-            const text = await response.text();
-
-            try {
-                const json = JSON.parse(text);
-                if (proxyUrl.includes('allorigins')) {
-                    rawData = JSON.parse(json.contents);
-                } else if (proxyUrl.includes('microlink')) {
-                    rawData = typeof json.data?.body === 'string' ? JSON.parse(json.data.body) : json.data?.body;
-                } else {
-                    rawData = json;
-                }
-            } catch (e) {
-                rawData = JSON.parse(text); 
-            }
-  
-            if (rawData && rawData.data && Array.isArray(rawData.data) && rawData.data.length > 0) {
-                // Filter based on range if needed, or return all EOD data
-                // For simplicity, we return all available EOD data and let the Chart component scale it
-                // PSX EOD format: [timestamp, open, high, low, close, volume]
+            const rawData = JSON.parse(htmlOrJson);
+            if (rawData && rawData.data && Array.isArray(rawData.data)) {
                 return rawData.data
                     .map((point: any[]) => ({
                         time: point[0] * 1000, 
-                        price: Number(point[4]) // Closing price
+                        price: Number(point[4])
                     }))
                     .sort((a: any, b: any) => a.time - b.time);
             }
-        } catch (e) { 
-            // Try next proxy
-        }
+        } catch (e) { /* ignore */ }
     }
 
-    // Fallback if history fails
-    console.warn("History fetch failed. switching to Live Fallback...");
+    console.warn("History fetch failed. Switching to Live Fallback...");
     const liveCandle = await fetchLivePriceData(cleanSymbol);
     return liveCandle ? [liveCandle] : [];
 };
 
+// B. FETCH BATCH PRICES (Sync PSX)
 export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number, high: number, low: number, volume: number }>> => {
     const results: Record<string, any> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
-    const proxyList = getShuffledProxies();
 
-    for (const proxyGen of proxyList) {
-        try {
-            const proxyUrl = proxyGen(targetUrl);
-            const response = await fetchWithTimeout(proxyUrl);
-            if (!response.ok) continue;
-            
-            let html = '';
-            const text = await response.text();
+    const html = await fetchUrlWithFallback(targetUrl);
 
-            if (proxyUrl.includes('allorigins') || proxyUrl.includes('microlink')) {
-                try {
-                    const json = JSON.parse(text);
-                    if (proxyUrl.includes('allorigins')) html = json.contents;
-                    else if (proxyUrl.includes('microlink')) html = json.data?.body || '';
-                } catch (e) { continue; }
-            } else {
-                html = text;
-            }
-
-            if (html && html.length > 500) { 
-                parseMarketWatchTable(html, results, targetTickers);
-                if (Object.keys(results).length > 0) return results;
-            }
-        } catch (err) { }
+    if (html && html.length > 500) {
+        parseMarketWatchTable(html, results, targetTickers);
     }
+    
     return results; 
+};
+
+// C. FETCH TOP VOLUME STOCKS (Ticker)
+export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
+    const targetUrl = `https://dps.psx.com.pk/market-watch`;
+    const html = await fetchUrlWithFallback(targetUrl);
+
+    if (!html || html.length < 500) return [];
+
+    const stocks: { symbol: string; price: number; change: number; volume: number }[] = [];
+    
+    try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const tables = doc.querySelectorAll("table");
+
+        tables.forEach(table => {
+            const rows = table.querySelectorAll("tr");
+            if (rows.length < 2) return;
+            
+            rows.forEach(row => {
+                const cols = row.querySelectorAll("td");
+                if (cols.length < 8) return; 
+
+                let symbol = cols[0].textContent?.trim().toUpperCase() || "";
+                symbol = symbol.split(/\s+/)[0]; 
+                if (!symbol || TICKER_BLACKLIST.includes(symbol)) return;
+
+                const priceText = cols[7]?.textContent?.trim().replace(/,/g, '');
+                const price = parseFloat(priceText || '0');
+
+                const changeText = cols[8]?.textContent?.trim().replace(/,/g, '');
+                const change = parseFloat(changeText || '0');
+
+                const volText = cols[9]?.textContent?.trim().replace(/,/g, '');
+                const volume = parseFloat(volText || '0');
+
+                if (price > 0 && volume > 0) {
+                    stocks.push({ symbol, price, change, volume });
+                }
+            });
+        });
+
+        return stocks.sort((a, b) => b.volume - a.volume).slice(0, 20);
+    } catch (e) {
+        return [];
+    }
 };
 
 const parseMarketWatchTable = (html: string, results: Record<string, any>, targetTickers: Set<string>) => {
@@ -231,71 +289,4 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
             });
         });
     } catch (e) { console.error("Error parsing HTML", e); }
-};
-
-// --- FETCH TOP VOLUME STOCKS ---
-export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
-    const targetUrl = `https://dps.psx.com.pk/market-watch`;
-    const proxyList = getShuffledProxies();
-    
-    for (const proxyGen of proxyList) {
-        try {
-            const proxyUrl = proxyGen(targetUrl);
-            const response = await fetchWithTimeout(proxyUrl);
-            if (!response.ok) continue;
-
-            let html = '';
-            const text = await response.text();
-
-            if (proxyUrl.includes('allorigins') || proxyUrl.includes('microlink')) {
-                try {
-                    const json = JSON.parse(text);
-                    if (proxyUrl.includes('allorigins')) html = json.contents;
-                    else if (proxyUrl.includes('microlink')) html = json.data?.body || '';
-                } catch (e) { continue; }
-            } else {
-                html = text;
-            }
-
-            if (!html || html.length < 500) continue;
-
-            const stocks: { symbol: string; price: number; change: number; volume: number }[] = [];
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(html, "text/html");
-            const tables = doc.querySelectorAll("table");
-
-            tables.forEach(table => {
-                const rows = table.querySelectorAll("tr");
-                if (rows.length < 2) return;
-                
-                rows.forEach(row => {
-                    const cols = row.querySelectorAll("td");
-                    if (cols.length < 8) return; 
-
-                    let symbol = cols[0].textContent?.trim().toUpperCase() || "";
-                    symbol = symbol.split(/\s+/)[0]; 
-                    if (!symbol || TICKER_BLACKLIST.includes(symbol)) return;
-
-                    const priceText = cols[7]?.textContent?.trim().replace(/,/g, '');
-                    const price = parseFloat(priceText || '0');
-
-                    const changeText = cols[8]?.textContent?.trim().replace(/,/g, '');
-                    const change = parseFloat(changeText || '0');
-
-                    const volText = cols[9]?.textContent?.trim().replace(/,/g, '');
-                    const volume = parseFloat(volText || '0');
-
-                    if (price > 0 && volume > 0) {
-                        stocks.push({ symbol, price, change, volume });
-                    }
-                });
-            });
-
-            return stocks.sort((a, b) => b.volume - a.volume).slice(0, 20);
-
-        } catch (e) {
-            // Try next proxy
-        }
-    }
-    return [];
 };
