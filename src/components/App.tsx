@@ -577,16 +577,17 @@ const App: React.FC = () => {
             </div>
 
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
-                <div className="flex items-center gap-2 flex-wrap">
-                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center gap-2"> <Plus size={18} /> Add Transaction </button>
-                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Briefcase size={18} /> Brokers </button>
-                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> <Coins size={18} /> Scan Dividends </button>
+                {/* RESPONSIVE BUTTON GRID HERE */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:flex xl:flex-row items-center gap-2 w-full xl:w-auto">
+                    <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-2 w-full xl:w-auto sm:col-span-1"> <Plus size={18} /> Add Transaction </button>
+                    <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto"> <Briefcase size={18} /> Brokers </button>
+                    <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto"> <Coins size={18} /> Scan Dividends </button>
                     
-                    <button onClick={() => setShowUpcomingScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center gap-2"> 
+                    <button onClick={() => setShowUpcomingScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto"> 
                         <CalendarClock size={18} /> Future X-Dates 
                     </button>
 
-                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
+                    <button onClick={() => setShowApiKeyManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-2 w-full xl:w-auto sm:col-span-1 md:col-span-1" title="AI Settings"> <Key size={18} className="text-emerald-500" /> <span>API Key</span> </button>
                 </div>
                 
                 <div className="flex flex-wrap gap-3">
