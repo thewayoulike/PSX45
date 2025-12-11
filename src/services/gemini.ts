@@ -131,9 +131,8 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
     while (attempts < maxAttempts) {
         try {
             const response = await ai.models.generateContent({
-              // Switched to 1.5-flash for better stability. 
-              // Change back to "gemini-2.5-flash" if you specifically need 2.5 features.
-              model: "gemini-1.5-flash", 
+              // UPDATED: Using specific version "gemini-1.5-flash-001" to resolve 404 errors
+              model: "gemini-1.5-flash-001", 
               contents: { parts: parts },
               config: {
                 responseMimeType: "application/json",
@@ -197,7 +196,8 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
         const tickerList = tickers.join(", ");
         
         const response = await ai.models.generateContent({
-            model: "gemini-1.5-flash", // Using 1.5-flash here too for stability
+            // UPDATED: Using specific version "gemini-1.5-flash-001" to resolve 404 errors
+            model: "gemini-1.5-flash-001", 
             contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
