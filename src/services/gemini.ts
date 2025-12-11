@@ -9,7 +9,8 @@ const MODEL_FALLBACKS = [
     "gemini-1.5-flash-002",   // Specific stable version
     "gemini-1.5-flash-8b",    // Ultra-light version
     "gemini-1.5-pro",         // More powerful (Slower)
-    "gemini-2.0-flash-exp"    // Experimental (Newest)
+    "gemini-2.0-flash-exp",    // Experimental (Newest)
+    "gemini-2.5-flash"
 ];
 
 let userProvidedKey: string | null = null;
