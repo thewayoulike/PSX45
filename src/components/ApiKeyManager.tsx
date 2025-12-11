@@ -1,31 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, ShieldCheck, Lock, ExternalLink, Save } from 'lucide-react';
+import { X, Key, ShieldCheck, Lock, ExternalLink, Save, Globe } from 'lucide-react';
 
 interface ApiKeyManagerProps {
   isOpen: boolean;
   onClose: () => void;
-  apiKey: string;
-  onSave: (key: string) => void;
+  apiKey: string;         // Gemini Key
+  scrapingApiKey: string; // NEW: Scraper Key
+  onSave: (geminiKey: string, scraperKey: string) => void;
   isDriveConnected: boolean;
 }
 
 export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ 
-  isOpen, onClose, apiKey, onSave, isDriveConnected 
+  isOpen, onClose, apiKey, scrapingApiKey, onSave, isDriveConnected 
 }) => {
-  const [inputKey, setInputKey] = useState(apiKey);
+  const [inputGeminiKey, setInputGeminiKey] = useState(apiKey);
+  const [inputScraperKey, setInputScraperKey] = useState(scrapingApiKey);
   
   useEffect(() => {
-    setInputKey(apiKey);
-  }, [apiKey]);
+    setInputGeminiKey(apiKey);
+    setInputScraperKey(scrapingApiKey);
+  }, [apiKey, scrapingApiKey]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // FIX: Aggressively remove any non-ASCII characters before saving
-    // This removes hidden spaces, newlines, or formatting artifacts
-    const sanitizedKey = inputKey.replace(/[^\x00-\x7F]/g, "").trim();
-    
-    onSave(sanitizedKey);
+    const cleanGemini = inputGeminiKey.replace(/[^\x00-\x7F]/g, "").trim();
+    const cleanScraper = inputScraperKey.replace(/[^\x00-\x7F]/g, "").trim();
+    onSave(cleanGemini, cleanScraper);
     onClose();
   };
 
@@ -33,26 +33,26 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] flex items-center justify-center p-4">
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
         
         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <Key className="text-indigo-600" size={20} />
-            AI Settings
+            API Configurations
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={24} />
           </button>
         </div>
 
-        <div className="p-6 space-y-6">
+        <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
             {!isDriveConnected ? (
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
                     <Lock className="text-amber-500 shrink-0 mt-0.5" size={18} />
                     <div>
                         <h4 className="font-bold text-amber-800 text-sm">Sync Disabled</h4>
                         <p className="text-xs text-amber-700 mt-1">
-                            You must be logged in to Google Drive to save your API Key securely.
+                            Login to Google Drive to securely save your keys for cross-device access.
                         </p>
                     </div>
                 </div>
@@ -62,36 +62,54 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                     <div>
                         <h4 className="font-bold text-emerald-800 text-sm">Secure Storage</h4>
                         <p className="text-xs text-emerald-700 mt-1">
-                            Your key will be encrypted and saved to your personal Google Drive (psx_tracker_data.json).
+                            Keys are encrypted and stored in your private Google Drive file.
                         </p>
                     </div>
                 </div>
             )}
 
-            <form onSubmit={handleSave} className="space-y-4">
-                <div>
-                    <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Gemini API Key</label>
+            <form onSubmit={handleSave} className="space-y-6">
+                
+                {/* GEMINI AI KEY SECTION */}
+                <div className="space-y-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                        <Key size={14} /> Gemini AI Key (for Scanning)
+                    </label>
                     <input 
                         type="password" 
-                        value={inputKey}
-                        onChange={(e) => setInputKey(e.target.value)}
+                        value={inputGeminiKey}
+                        onChange={(e) => setInputGeminiKey(e.target.value)}
                         placeholder="AIzaSy..." 
                         disabled={!isDriveConnected}
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm"
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono text-sm"
                     />
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-[10px] text-indigo-600 hover:underline inline-flex items-center gap-1">
+                        Get free key from Google <ExternalLink size={10} />
+                    </a>
                 </div>
 
-                <div className="text-xs text-slate-500 space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                    <p className="font-bold text-slate-700">How to get a key:</p>
-                    <ol className="list-decimal pl-4 space-y-1">
-                        <li>Go to <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline inline-flex items-center gap-0.5">Google AI Studio <ExternalLink size={10} /></a></li>
-                        <li>Click "Create API Key"</li>
-                        <li>Copy the key and paste it above</li>
-                    </ol>
-                    <p className="italic opacity-70 mt-2">
-                        Free tier is sufficient for personal use. <br/>
-                        <span className="font-bold text-rose-500 not-italic">Please refresh the page after saving KEY.</span>
-                    </p>
+                <div className="h-px bg-slate-100 w-full"></div>
+
+                {/* SCRAPER API KEY SECTION */}
+                <div className="space-y-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                        <Globe size={14} /> ScraperAPI Key (for Sync)
+                    </label>
+                    <input 
+                        type="password" 
+                        value={inputScraperKey}
+                        onChange={(e) => setInputScraperKey(e.target.value)}
+                        placeholder="e.g. 54a1..." 
+                        disabled={!isDriveConnected}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono text-sm"
+                    />
+                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-[10px] text-blue-700 leading-relaxed">
+                        <p className="font-bold mb-1">Why do I need this?</p>
+                        <p>Public proxies get blocked often. A free ScraperAPI key gives you ~1000 reliable syncs/month.</p>
+                        <a href="https://www.scraperapi.com/" target="_blank" rel="noopener noreferrer" className="text-blue-800 hover:underline font-bold mt-1 inline-block">
+                            Get Free Key &rarr;
+                        </a>
+                    </div>
                 </div>
 
                 <button 
