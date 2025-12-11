@@ -2,14 +2,29 @@ import { SECTOR_CODE_MAP } from './sectors';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
-// Updated Proxy List - Prioritizing reliable ones
+// --- UPDATED PROXY LIST ---
+// We define these as functions to inject a random timestamp (t=...) 
+// This forces a fresh request every time, bypassing browser/proxy caches.
 const PROXIES = [
-    (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
     (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`,
-    (url: string) => `https://thingproxy.freeboard.io/fetch/${url}`,
+    (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&t=${Date.now()}`,
+    (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}&_t=${Date.now()}`,
+    (url: string) => `https://thingproxy.freeboard.io/fetch/${url}?t=${Date.now()}`,
+    // Backup: specialized scrape-friendly proxy
+    (url: string) => `https://api.microlink.io?url=${encodeURIComponent(url)}&embed=body.content&t=${Date.now()}`, 
 ];
 
-const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 8000) => {
+// Helper to shuffle the proxy list so we don't always hit the same broken one first
+const getShuffledProxies = () => {
+    const array = [...PROXIES];
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+};
+
+const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -29,7 +44,7 @@ export interface OHLCData {
     low: number;
     close: number;
     volume: number;
-    isSynthetic?: boolean; // Marker for fake data
+    isSynthetic?: boolean; 
 }
 
 // Scrape Live Data (Fallback)
@@ -40,7 +55,7 @@ const fetchLivePriceData = async (symbol: string): Promise<OHLCData | null> => {
         if (stock && stock.price > 0) {
             return {
                 time: Date.now(),
-                open: stock.price, // Approx
+                open: stock.price, 
                 high: stock.high || stock.price,
                 low: stock.low || stock.price,
                 close: stock.price,
@@ -54,24 +69,34 @@ const fetchLivePriceData = async (symbol: string): Promise<OHLCData | null> => {
 
 export const fetchStockOHLC = async (symbol: string): Promise<OHLCData[]> => {
     const cleanSymbol = symbol.toUpperCase().replace('PSX:', '').trim();
-    
-    // 1. Try Historical API
     const targetUrl = `https://dps.psx.com.pk/timeseries/eod/${cleanSymbol}`;
     
-    for (const proxyGen of PROXIES) {
+    // Use shuffled proxies to spread load
+    const proxyList = getShuffledProxies();
+
+    for (const proxyGen of proxyList) {
         try {
             const proxyUrl = proxyGen(targetUrl);
             const response = await fetchWithTimeout(proxyUrl);
             if (!response.ok) continue;
             
             let rawData;
-            if (proxyUrl.includes('allorigins')) {
-                const wrapper = await response.json();
-                rawData = JSON.parse(wrapper.contents);
-            } else {
-                const text = await response.text();
-                // Handle corsproxy sometimes returning the raw string
-                rawData = JSON.parse(text);
+            const text = await response.text();
+
+            // Handle different proxy response formats
+            try {
+                const json = JSON.parse(text);
+                if (proxyUrl.includes('allorigins')) {
+                    rawData = JSON.parse(json.contents);
+                } else if (proxyUrl.includes('microlink')) {
+                    // Microlink wraps body in data.body
+                    rawData = typeof json.data?.body === 'string' ? JSON.parse(json.data.body) : json.data?.body;
+                } else {
+                    rawData = json;
+                }
+            } catch (e) {
+                // If direct JSON parse fails, it might be raw text from corsproxy
+                rawData = JSON.parse(text); 
             }
   
             if (rawData && rawData.data && Array.isArray(rawData.data) && rawData.data.length > 0) {
@@ -91,7 +116,6 @@ export const fetchStockOHLC = async (symbol: string): Promise<OHLCData[]> => {
         }
     }
 
-    // 2. Fallback: If history fails, get ONE live candle so the UI doesn't crash
     console.warn("History fetch failed. switching to Live Fallback...");
     const liveCandle = await fetchLivePriceData(cleanSymbol);
     return liveCandle ? [liveCandle] : [];
@@ -101,26 +125,37 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     const results: Record<string, any> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
+    
+    // Randomize proxies for better success rate
+    const proxyList = getShuffledProxies();
 
-    for (const proxyGen of PROXIES) {
+    for (const proxyGen of proxyList) {
         try {
+            console.log("Trying proxy:", proxyGen(targetUrl));
             const proxyUrl = proxyGen(targetUrl);
             const response = await fetchWithTimeout(proxyUrl);
             if (!response.ok) continue;
             
             let html = '';
-            if (proxyUrl.includes('allorigins')) {
-                const data = await response.json();
-                html = data.contents;
+            const text = await response.text();
+
+            if (proxyUrl.includes('allorigins') || proxyUrl.includes('microlink')) {
+                try {
+                    const json = JSON.parse(text);
+                    if (proxyUrl.includes('allorigins')) html = json.contents;
+                    else if (proxyUrl.includes('microlink')) html = json.data?.body || '';
+                } catch (e) { continue; }
             } else {
-                html = await response.text();
+                html = text;
             }
 
             if (html && html.length > 500) { 
                 parseMarketWatchTable(html, results, targetTickers);
                 if (Object.keys(results).length > 0) return results;
             }
-        } catch (err) { }
+        } catch (err) { 
+            console.warn("Proxy failed, trying next...");
+        }
     }
     return results; 
 };
