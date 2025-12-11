@@ -3,14 +3,13 @@ import { ParsedTrade, DividendAnnouncement } from '../types';
 import * as XLSX from 'xlsx';
 
 // --- CONFIGURATION ---
-// We will try these models in order. If one fails (404 or 503), we move to the next.
+// Reverted to 2.5 as primary. 
+// Added 2.0 as fallback because your logs showed it "Found" the model (even if busy), 
+// whereas 1.5 gave "404 Not Found".
 const MODEL_FALLBACKS = [
-    "gemini-1.5-flash",       // Standard alias (Fastest)
-    "gemini-1.5-flash-002",   // Specific stable version
-    "gemini-1.5-flash-8b",    // Ultra-light version
-    "gemini-1.5-pro",         // More powerful (Slower)
-    "gemini-2.0-flash-exp",    // Experimental (Newest)
-    "gemini-2.5-flash"
+    "gemini-2.5-flash",       // Primary
+    "gemini-2.0-flash-exp",   // Fallback 1 (Experimental but available to your key)
+    "gemini-1.5-pro",         // Fallback 2 (Slower, just in case)
 ];
 
 let userProvidedKey: string | null = null;
@@ -181,6 +180,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
             const isRetryable = 
                 error.message?.includes('404') || 
                 error.message?.includes('503') || 
+                error.message?.includes('429') || // Added 429 (Quota limit) as retryable
                 error.message?.includes('overloaded') ||
                 error.message?.includes('not found');
 
