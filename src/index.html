@@ -4,17 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PSX Portfolio Tracker</title>
+
     <link rel="apple-touch-icon" href="/pwa-192x192.png">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class', // This enables manual toggling
+        darkMode: 'class',
         theme: {
           extend: {
             colors: {
               slate: {
-                850: '#151e2e', // Custom dark background
+                850: '#151e2e',
+                900: '#0f172a',
                 950: '#020617',
               }
             }
@@ -24,56 +26,52 @@
     </script>
     
     <script src="https://accounts.google.com/gsi/client" async defer id="google-gsi-script"></script>
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
       body {
         font-family: 'Inter', sans-serif;
-        /* Default Light Mode Background */
         background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #ffffff 100%);
         background-attachment: fixed;
         color: #0f172a;
         transition: background 0.3s ease, color 0.3s ease;
       }
-
-      /* Dark Mode Background Override */
-      .dark body {
+      
+      /* Dark Mode Global Overrides */
+      html.dark body {
         background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
         color: #f8fafc;
       }
 
-      /* Custom Scrollbar - Light */
+      /* Custom Scrollbar */
       ::-webkit-scrollbar { width: 8px; height: 8px; }
       ::-webkit-scrollbar-track { background: rgba(241, 245, 249, 0.8); }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid rgba(241, 245, 249, 0.8); }
       ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-
-      /* Custom Scrollbar - Dark */
-      .dark ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.8); border-color: rgba(15, 23, 42, 0.8); }
-      .dark ::-webkit-scrollbar-thumb { background: #475569; border-color: rgba(15, 23, 42, 0.8); }
+      
+      /* Dark Scrollbar */
+      .dark ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.8); }
+      .dark ::-webkit-scrollbar-thumb { background: #475569; border: 2px solid rgba(30, 41, 59, 0.8); }
       .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
       
-      /* Glass Input - Light */
       .glass-input {
         background-color: rgba(255, 255, 255, 0.7);
         border: 1px solid rgba(203, 213, 225, 0.6);
         color: #0f172a;
+      }
+      .dark .glass-input {
+        background-color: rgba(30, 41, 59, 0.7);
+        border: 1px solid rgba(71, 85, 105, 0.6);
+        color: #f8fafc;
       }
       .glass-input:focus {
         background-color: #ffffff;
         border-color: #10b981;
         box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
       }
-
-      /* Glass Input - Dark */
-      .dark .glass-input {
-        background-color: rgba(30, 41, 59, 0.7);
-        border: 1px solid rgba(71, 85, 105, 0.6);
-        color: #f8fafc;
-      }
       .dark .glass-input:focus {
         background-color: #1e293b;
-        border-color: #10b981;
         box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
       }
     </style>
