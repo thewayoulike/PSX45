@@ -89,6 +89,7 @@ export interface PortfolioStats {
   roi: number;
   
   mwrr: number;
+  beta?: number; // New field for Risk
 }
 
 export interface Portfolio {
@@ -137,12 +138,11 @@ export interface Broker {
   slabs?: CommissionSlab[];
 }
 
-// --- NEW INTERFACE FOR FUTURE DIVIDENDS ---
 export interface CompanyPayout {
     ticker: string;
     announceDate: string;
     financialResult: string;
-    details: string; // e.g. "50% (F) (D)"
-    bookClosure: string; // e.g. "12/12/2024 - 19/12/2024"
+    details: string; 
+    bookClosure: string; 
     isUpcoming: boolean;
 }
