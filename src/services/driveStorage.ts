@@ -213,7 +213,14 @@ export const saveToDrive = async (data: any) => {
 
     try {
         const fileId = await findDbFile();
-        const fileContent = JSON.stringify(data);
+        
+        // Add timestamp and ensure keys are preserved
+        const contentToSave = {
+            ...data,
+            lastModified: new Date().toISOString()
+        };
+        
+        const fileContent = JSON.stringify(contentToSave);
         
         const metadata = { name: DB_FILE_NAME, mimeType: 'application/json' };
         const form = new FormData();
