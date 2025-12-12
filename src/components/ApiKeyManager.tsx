@@ -106,7 +106,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-[10px] text-blue-700 leading-relaxed">
                         <p className="font-bold mb-1">Why do I need this?</p>
                         <p>Public proxies get blocked often. A free Scrape.do token gives you ~1000 reliable syncs/month.</p>
-                        <a href="https://scrape.do/" target="_blank" rel="noopener noreferrer" className="text-blue-800 hover:underline font-bold mt-1 inline-block">
+                        <a href="https://dashboard.scrape.do/login" target="_blank" rel="noopener noreferrer" className="text-blue-800 hover:underline font-bold mt-1 inline-block">
                             Get Free Token &rarr;
                         </a>
                     </div>
