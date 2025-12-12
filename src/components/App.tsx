@@ -21,7 +21,7 @@ import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../
 import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
-import { ThemeToggle } from './ui/ThemeToggle'; // <--- Import this
+import { ThemeToggle } from './ui/ThemeToggle'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
 import { calculateXIRR } from '../utils/finance';
@@ -39,12 +39,6 @@ const DEFAULT_BROKER: Broker = {
 };
 
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
-
-interface Lot {
-    quantity: number;
-    costPerShare: number; 
-    date: string;
-}
 
 type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS';
 
@@ -150,7 +144,7 @@ const App: React.FC = () => {
       return {};
   });
 
-  // API KEYS STATE
+  // API KEYS
   const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || ''); 
   const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || ''); 
   const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || ''); 
@@ -172,7 +166,7 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
-  // SAFETY LOCK: Prevent auto-save until initial load is done
+  // Safety lock for auto-save
   const isReadyToSave = useRef(false);
 
   const lastPriceUpdate = useMemo(() => {
@@ -206,7 +200,6 @@ const App: React.FC = () => {
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
 
-  // --- INITIALIZE SERVICES FROM LOCAL STATE ---
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
       if (userScraperKey) setScrapingApiKey(userScraperKey);
@@ -237,7 +230,6 @@ const App: React.FC = () => {
           
           getGoogleSheetId().then(id => setGoogleSheetId(id));
 
-          // START LOADING FROM CLOUD
           setIsCloudSyncing(true);
           try {
               const cloudData = await loadFromDrive();
@@ -262,7 +254,6 @@ const App: React.FC = () => {
                           return merged;
                       });
                   }
-                  // RESTORE API KEYS IF PRESENT IN CLOUD
                   if (cloudData.geminiApiKey) {
                       setUserApiKey(cloudData.geminiApiKey);
                       setGeminiApiKey(cloudData.geminiApiKey); 
@@ -283,43 +274,22 @@ const App: React.FC = () => {
               console.error("Drive Load Error", e); 
           } finally { 
               setIsCloudSyncing(false); 
-              isReadyToSave.current = true; // <--- ONLY NOW ALLOW AUTO-SAVE
+              isReadyToSave.current = true;
           }
       });
-      
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
 
   const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => { 
-      // Update State & Services
-      setUserApiKey(geminiKey); 
-      setUserScraperKey(scraperKey);
-      setUserWebScrapingAIKey(webAIKey);
-      
-      setGeminiApiKey(geminiKey); 
-      setScrapingApiKey(scraperKey);
-      setWebScrapingAIKey(webAIKey);
-
-      // Persist to Local Storage
+      setUserApiKey(geminiKey); setUserScraperKey(scraperKey); setUserWebScrapingAIKey(webAIKey);
+      setGeminiApiKey(geminiKey); setScrapingApiKey(scraperKey); setWebScrapingAIKey(webAIKey);
       localStorage.setItem('psx_gemini_api_key', geminiKey);
       localStorage.setItem('psx_scraping_api_key', scraperKey);
       localStorage.setItem('psx_webscraping_ai_key', webAIKey);
-
-      // FORCE SAVE IMMEDIATELY (Bypass auto-save debounce)
       if (driveUser) {
           saveToDrive({ 
-              transactions, 
-              portfolios, 
-              currentPortfolioId, 
-              manualPrices, 
-              ldcpMap, 
-              priceTimestamps, 
-              brokers, 
-              sectorOverrides, 
-              scannerState, 
-              geminiApiKey: geminiKey,
-              scrapingApiKey: scraperKey, // Correctly save the NEW keys
-              webScrapingAIKey: webAIKey
+              transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, 
+              sectorOverrides, scannerState, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
           }); 
       }
   };
@@ -331,24 +301,15 @@ const App: React.FC = () => {
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => { 
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
-
       const brokerToUse = brokers.find(b => b.id === currentPortfolio.defaultBrokerId);
       const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString(); 
-      
-      const newTx: Transaction = { 
-          ...txData, 
-          id: newId, 
-          portfolioId: currentPortfolioId,
-          brokerId: currentPortfolio.defaultBrokerId,
-          broker: brokerToUse?.name || 'Unknown'
-      }; 
+      const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId, brokerId: currentPortfolio.defaultBrokerId, broker: brokerToUse?.name || 'Unknown' }; 
       setTransactions(prev => [...prev, newTx]); 
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleDeleteTransactions = (ids: string[]) => { if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) { setTransactions(prev => prev.filter(t => !ids.includes(t.id))); } };
-
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
@@ -373,7 +334,6 @@ const App: React.FC = () => {
       return transactions.filter(t => t.portfolioId === currentPortfolioId); 
   }, [transactions, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
-  // --- MAIN STATS CALCULATION ---
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     let operationalExpenses = 0; 
@@ -536,7 +496,6 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
-  // AUTO-SAVE EFFECT (With Safety Lock)
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -595,32 +554,37 @@ const App: React.FC = () => {
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200">
+    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200 dark:bg-slate-950 dark:text-slate-100 dark:selection:bg-emerald-900">
       
       <MarketTicker />
 
-      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0"><div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 rounded-full blur-[120px]"></div><div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 rounded-full blur-[120px]"></div><div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 rounded-full blur-[100px]"></div></div>
+      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 dark:bg-emerald-600/10 rounded-full blur-[120px]"></div>
+          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 dark:bg-teal-600/10 rounded-full blur-[120px]"></div>
+          <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 dark:bg-blue-600/5 rounded-full blur-[100px]"></div>
+      </div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           <div className="flex flex-col gap-1">
-            <Logo />
-            <p className="text-sm ml-1 font-bold tracking-wide mt-1"><span className="text-slate-700">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
+             <div className="flex items-center gap-4">
+               <Logo />
+             </div>
+             <p className="text-sm ml-1 font-bold tracking-wide mt-1"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
           </div>
           <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
             <div className="flex flex-col items-end mr-4">
                 <div className="flex items-center gap-3">
                     
-                    {/* Dark Mode Toggle */}
                     <ThemeToggle />
 
                     {driveUser ? (
-                        <div className="flex items-center gap-3 bg-white p-1 pr-3 rounded-xl border border-emerald-200 shadow-sm">
+                        <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-1 pr-3 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm">
                             {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
-                            <div className="flex flex-col"><span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span><span className="text-xs font-bold text-slate-800 max-w-[100px] truncate">{driveUser.name}</span></div>
-                            <div className="h-6 w-[1px] bg-slate-200 mx-1"></div>
+                            <div className="flex flex-col"><span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span><span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span></div>
+                            <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
                             {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500" /> )}
-                            <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
+                            <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
                         </div>
                     ) : (
                         <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> Sign in with Google</button>
@@ -628,37 +592,37 @@ const App: React.FC = () => {
                 </div>
             </div>
             
-            <div className="flex items-center gap-2 bg-white p-1 rounded-xl border border-slate-200 shadow-sm">
-                <div className="relative group"><FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" /><select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48">{portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800">{p.name}</option>)}</select></div>
+            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="relative group"><FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" /><select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48 dark:bg-slate-900">{portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}</select></div>
                 
-                <button onClick={openEditPortfolioModal} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Edit Portfolio Settings"> <Pencil size={16} /> </button>
-                <button onClick={openCreatePortfolioModal} className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-lg transition-colors border border-emerald-100 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
-                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
+                <button onClick={openEditPortfolioModal} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit Portfolio Settings"> <Pencil size={16} /> </button>
+                <button onClick={openCreatePortfolioModal} className="p-2 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 rounded-lg transition-colors border border-emerald-100 dark:border-emerald-800 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
+                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100 dark:border-slate-700" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
             </div>
           </div>
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
             <div className="flex justify-center mb-8">
-                <div className="bg-white/80 backdrop-blur border border-slate-200 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto">
-                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto">
+                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <LayoutDashboard size={18} /> Dashboard 
                     </button>
                     
-                    <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                    <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <ChartCandlestick size={18} /> Stocks 
                     </button>
 
-                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <CheckCircle2 size={18} /> Realized Gains 
                     </button>
-                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`}> 
+                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <History size={18} /> History 
                     </button>
                 </div>
             </div>
 
-            <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
+            <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-white/60 dark:border-slate-700/60 backdrop-blur-md shadow-sm">
                 
                 {/* 1. UNIFIED BUTTON CONTAINER FOR RESPONSIVENESS */}
                 <div className="w-full overflow-x-auto pb-2">
@@ -676,19 +640,19 @@ const App: React.FC = () => {
                             </button>
                             <button 
                                 onClick={() => setShowBrokerManager(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
                             > 
                                 <Briefcase size={16} /> Brokers 
                             </button>
                             <button 
                                 onClick={() => setShowDividendScanner(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
                             > 
                                 <Coins size={16} /> Scan Dividends 
                             </button>
                             <button 
                                 onClick={() => setShowUpcomingScanner(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
                             > 
                                 <CalendarClock size={16} /> Future X-Dates 
                             </button>
@@ -697,7 +661,7 @@ const App: React.FC = () => {
                                 className={`border px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm ${
                                     (!userApiKey || !userScraperKey) 
                                         ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' 
-                                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
                                 }`}
                                 title={(!userApiKey || !userScraperKey) ? "Action Required: Save API Keys" : "AI Settings"}
                             > 
@@ -708,20 +672,20 @@ const App: React.FC = () => {
 
                         {/* RIGHT GROUP: Settings & Sync */}
                         <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0" ref={filterDropdownRef}>
+                            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0" ref={filterDropdownRef}>
                                 {isCombinedView && (
                                     <div className="relative">
                                         <button 
                                             onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap"
                                         >
                                             <Layers size={14} />
                                             <span>Portfolios ({combinedPortfolioIds.size})</span>
                                             <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
                                         </button>
                                         {showFilterDropdown && (
-                                            <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
-                                                <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 mb-1">
+                                            <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
+                                                <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 dark:border-slate-700 mb-1">
                                                     <span className="text-[10px] uppercase font-bold text-slate-400">Included Portfolios</span>
                                                     <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 font-bold hover:underline">Select All</button>
                                                 </div>
@@ -732,13 +696,13 @@ const App: React.FC = () => {
                                                             <div 
                                                                 key={p.id} 
                                                                 onClick={() => handleTogglePortfolioSelection(p.id)}
-                                                                className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
+                                                                className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                                             >
                                                                 {isSelected ? 
-                                                                    <CheckSquare size={16} className="text-emerald-600" /> : 
+                                                                    <CheckSquare size={16} className="text-emerald-600 dark:text-emerald-400" /> : 
                                                                     <Square size={16} className="text-slate-300" />
                                                                 }
-                                                                <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}>{p.name}</span>
+                                                                <span className={`text-sm font-medium ${isSelected ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>{p.name}</span>
                                                             </div>
                                                         );
                                                     })}
@@ -748,7 +712,7 @@ const App: React.FC = () => {
                                     </div>
                                 )}
 
-                                <div className="h-5 w-[1px] bg-slate-200 mx-1"></div>
+                                <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
 
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">Combined</span>
@@ -758,7 +722,7 @@ const App: React.FC = () => {
                                             setIsCombinedView(newState);
                                             if (newState) setShowFilterDropdown(true);
                                         }} 
-                                        className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
+                                        className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-600'}`}
                                     >
                                         <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
                                     </button>
@@ -769,7 +733,7 @@ const App: React.FC = () => {
                                 <>
                                     <button 
                                         onClick={() => setShowPriceEditor(true)} 
-                                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+                                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
                                     > 
                                         <Edit3 size={18} /> <span>Manual Prices</span> 
                                     </button>
@@ -777,7 +741,7 @@ const App: React.FC = () => {
                                         <button 
                                             onClick={handleSyncPrices} 
                                             disabled={isSyncing} 
-                                            className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                            className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                                         > 
                                             {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span>Sync PSX</span> 
                                         </button>
