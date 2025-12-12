@@ -22,7 +22,7 @@ import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 import { ThemeToggle } from './ui/ThemeToggle'; 
-import * as Popover from '@radix-ui/react-popover'; // <--- Using Radix for the dropdown
+import * as Popover from '@radix-ui/react-popover'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
 import { calculateXIRR } from '../utils/finance';
@@ -110,8 +110,6 @@ const App: React.FC = () => {
 
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
-  
-  // Removed manual dropdown state and ref, Radix handles this now.
 
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
@@ -167,7 +165,6 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
-  // Safety lock for auto-save
   const isReadyToSave = useRef(false);
 
   const lastPriceUpdate = useMemo(() => {
@@ -531,11 +528,8 @@ const App: React.FC = () => {
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
   const handleTickerClick = (ticker: string) => {
-      // 1. Save the selection to LocalStorage so the Stocks page reads it
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
-      
-      // 2. Switch the current view to the Stocks tab
       setCurrentView('STOCKS');
   };
 
@@ -556,59 +550,72 @@ const App: React.FC = () => {
       </div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <header className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
-          <div className="flex flex-col gap-1">
+        <header className="flex flex-col xl:flex-row justify-between items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
+          <div className="flex flex-col gap-1 items-center xl:items-start">
              <div className="flex items-center gap-4">
                <Logo />
              </div>
              <p className="text-sm ml-1 font-bold tracking-wide mt-1"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
           </div>
-          <div className="flex flex-wrap items-center gap-4 w-full xl:w-auto">
-            <div className="flex flex-col items-end mr-4">
-                <div className="flex items-center gap-3">
-                    
-                    <ThemeToggle />
-
-                    {driveUser ? (
-                        <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-1 pr-3 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm">
-                            {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
-                            <div className="flex flex-col"><span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span><span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span></div>
-                            <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                            {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500" /> )}
-                            <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
+          
+          {/* UPDATED HEADER LAYOUT */}
+          <div className="flex flex-wrap items-center justify-center gap-4 w-full xl:w-auto">
+             {/* GROUP 1: User & Theme */}
+             <div className="flex items-center gap-3">
+                 <ThemeToggle />
+                 {driveUser ? (
+                    <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-1 pr-3 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm">
+                        {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
+                        <div className="flex flex-col">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider hidden sm:block">Synced</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
                         </div>
-                    ) : (
-                        <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> Sign in with Google</button>
-                    )}
+                        <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
+                        {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500 hidden sm:block" /> )}
+                        <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
+                    </div>
+                ) : (
+                    <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> <span className="hidden sm:inline">Sign in</span></button>
+                )}
+             </div>
+
+             {/* GROUP 2: Portfolio Controls */}
+             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <div className="relative group">
+                    <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
+                    <select 
+                        value={currentPortfolioId} 
+                        onChange={(e) => setCurrentPortfolioId(e.target.value)} 
+                        className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-32 sm:w-48 dark:bg-slate-900"
+                    >
+                        {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
+                    </select>
                 </div>
-            </div>
-            
-            <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="relative group"><FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" /><select value={currentPortfolioId} onChange={(e) => setCurrentPortfolioId(e.target.value)} className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-40 sm:w-48 dark:bg-slate-900">{portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}</select></div>
                 
-                <button onClick={openEditPortfolioModal} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit Portfolio Settings"> <Pencil size={16} /> </button>
-                <button onClick={openCreatePortfolioModal} className="p-2 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 rounded-lg transition-colors border border-emerald-100 dark:border-emerald-800 flex items-center gap-1 pr-3" title="Create New Portfolio"> <PlusCircle size={18} /> <span className="text-xs font-bold">New</span> </button>
-                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100 dark:border-slate-700" title="Delete Current Portfolio"> <Trash2 size={18} /> </button>
+                <button onClick={openEditPortfolioModal} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit Portfolio"> <Pencil size={16} /> </button>
+                <button onClick={openCreatePortfolioModal} className="p-2 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 rounded-lg transition-colors border border-emerald-100 dark:border-emerald-800 flex items-center gap-1 pr-3" title="New"> <PlusCircle size={18} /> <span className="text-xs font-bold hidden sm:inline">New</span> </button>
+                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100 dark:border-slate-700" title="Delete"> <Trash2 size={18} /> </button>
             </div>
           </div>
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-            <div className="flex justify-center mb-8">
-                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto">
-                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
-                        <LayoutDashboard size={18} /> Dashboard 
+            {/* UPDATED NAV TABS: Smaller on mobile, scrollable */}
+            <div className="flex justify-center mb-8 w-full">
+                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto w-full sm:w-auto flex justify-start sm:justify-center no-scrollbar">
+                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
+                        <LayoutDashboard size={16} className="sm:w-[18px] sm:h-[18px]" /> Dashboard 
                     </button>
                     
-                    <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
-                        <ChartCandlestick size={18} /> Stocks 
+                    <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
+                        <ChartCandlestick size={16} className="sm:w-[18px] sm:h-[18px]" /> Stocks 
                     </button>
 
-                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
-                        <CheckCircle2 size={18} /> Realized Gains 
+                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
+                        <CheckCircle2 size={16} className="sm:w-[18px] sm:h-[18px]" /> Realized Gains 
                     </button>
-                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-4 md:px-6 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
-                        <History size={18} /> History 
+                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
+                        <History size={16} className="sm:w-[18px] sm:h-[18px]" /> History 
                     </button>
                 </div>
             </div>
