@@ -107,7 +107,6 @@ const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> =
     return null; 
 };
 
-// ... (Keep fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks exactly as they were) ...
 // Scrape Live Data (Fallback for 1D chart)
 const fetchLivePriceData = async (symbol: string): Promise<{ time: number; price: number } | null> => {
     try {
