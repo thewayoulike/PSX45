@@ -17,7 +17,7 @@ import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices } from '../services/psxData';
+import { fetchBatchPSXPrices, setScrapingApiKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
@@ -150,6 +150,7 @@ const App: React.FC = () => {
   });
 
   const [userApiKey, setUserApiKey] = useState<string>('');
+  const [userScraperKey, setUserScraperKey] = useState<string>('');
   
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
@@ -188,7 +189,9 @@ const App: React.FC = () => {
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
       setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]);
-      setUserApiKey(''); setGeminiApiKey(null); setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
+      setUserApiKey(''); setUserScraperKey('');
+      setGeminiApiKey(null); setScrapingApiKey(null);
+      setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
   }, []);
 
   useIdleTimer(1800000, () => {
@@ -252,6 +255,10 @@ const App: React.FC = () => {
                           setUserApiKey(cloudData.geminiApiKey);
                           setGeminiApiKey(cloudData.geminiApiKey); 
                       }
+                      if (cloudData.scrapingApiKey) {
+                          setUserScraperKey(cloudData.scrapingApiKey);
+                          setScrapingApiKey(cloudData.scrapingApiKey);
+                      }
                   }
               } catch (e) { console.error("Drive Load Error", e); } 
               finally { setIsCloudSyncing(false); }
@@ -260,7 +267,28 @@ const App: React.FC = () => {
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
 
-  const handleSaveApiKey = (key: string) => { setUserApiKey(key); setGeminiApiKey(key); if (driveUser) saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: key }); };
+  const handleSaveApiKey = (geminiKey: string, scraperKey: string) => { 
+      setUserApiKey(geminiKey); 
+      setGeminiApiKey(geminiKey); 
+      
+      setUserScraperKey(scraperKey);
+      setScrapingApiKey(scraperKey);
+
+      if (driveUser) saveToDrive({ 
+          transactions, 
+          portfolios, 
+          currentPortfolioId, 
+          manualPrices, 
+          ldcpMap, 
+          priceTimestamps, 
+          brokers, 
+          sectorOverrides, 
+          scannerState, 
+          geminiApiKey: geminiKey,
+          scrapingApiKey: scraperKey 
+      }); 
+  };
+  
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
@@ -489,7 +517,7 @@ const App: React.FC = () => {
       if (driveUser) { 
           setIsCloudSyncing(true); 
           const timer = setTimeout(async () => { 
-              await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey }); 
+              await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey, scrapingApiKey: userScraperKey }); 
               if (transactions.length > 0) {
                   await syncTransactionsToSheet(transactions, portfolios);
                   if (!googleSheetId) { const id = await getGoogleSheetId(); setGoogleSheetId(id); }
@@ -498,7 +526,7 @@ const App: React.FC = () => {
           }, 3000); 
           return () => clearTimeout(timer); 
       } 
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, driveUser, userApiKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, driveUser, userApiKey, userScraperKey, googleSheetId]);
 
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
@@ -578,14 +606,14 @@ const App: React.FC = () => {
 
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
                 
-                {/* 1. SINGLE UNIFIED SCROLLABLE CONTAINER FOR ALL BUTTONS */}
-                <div className="w-full overflow-x-auto pb-2 no-scrollbar">
+                {/* 1. UNIFIED BUTTON CONTAINER FOR RESPONSIVENESS */}
+                <div className="w-full overflow-x-auto pb-2">
                     
-                    {/* Inner Flex Container with min-w-max to FORCE width and trigger scroll */}
-                    <div className="flex items-center justify-between min-w-max gap-4">
+                    {/* Inner Flex: Use min-w-max to force width and enable scroll when tight */}
+                    <div className="flex items-center justify-between min-w-max gap-6">
                         
-                        {/* LEFT GROUP: Action Buttons */}
-                        <div className="flex items-center gap-2">
+                        {/* LEFT GROUP: Actions */}
+                        <div className="flex items-center gap-3">
                             <button 
                                 onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} 
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
@@ -620,7 +648,7 @@ const App: React.FC = () => {
                         </div>
 
                         {/* RIGHT GROUP: Settings & Sync */}
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0" ref={filterDropdownRef}>
                                 {isCombinedView && (
                                     <div className="relative">
@@ -682,7 +710,7 @@ const App: React.FC = () => {
                                 <>
                                     <button 
                                         onClick={() => setShowPriceEditor(true)} 
-                                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap"
+                                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
                                     > 
                                         <Edit3 size={18} /> <span>Manual Prices</span> 
                                     </button>
@@ -699,7 +727,6 @@ const App: React.FC = () => {
                                 </>
                             )}
                         </div>
-
                     </div>
                 </div>
 
