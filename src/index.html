@@ -9,7 +9,6 @@
     
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="PSX Tracker">
     <meta name="format-detection" content="telephone=no">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,11 +18,7 @@
         theme: {
           extend: {
             colors: {
-              slate: {
-                850: '#151e2e',
-                900: '#0f172a',
-                950: '#020617',
-              }
+              slate: { 850: '#151e2e', 900: '#0f172a', 950: '#020617' }
             }
           }
         }
@@ -40,7 +35,10 @@
         background-attachment: fixed;
         color: #0f172a;
         transition: background 0.3s ease, color 0.3s ease;
-        -webkit-tap-highlight-color: transparent; /* Makes clicks feel faster on iOS */
+        -webkit-tap-highlight-color: transparent;
+        /* PERFORMANCE FIX: Promote body to its own layer to avoid full page repaints */
+        transform: translateZ(0);
+        will-change: background;
       }
       
       html.dark body {
@@ -48,21 +46,22 @@
         color: #f8fafc;
       }
 
-      /* Better scrolling on iOS */
-      html {
-        -webkit-overflow-scrolling: touch;
+      /* Reduce Glass Blur on Mobile specifically */
+      @media (max-width: 768px) {
+        .backdrop-blur-xl {
+           backdrop-filter: blur(12px) !important;
+           -webkit-backdrop-filter: blur(12px) !important;
+        }
+        .backdrop-blur-md {
+           backdrop-filter: blur(8px) !important;
+           -webkit-backdrop-filter: blur(8px) !important;
+        }
       }
 
-      /* Custom Scrollbar - Light */
-      ::-webkit-scrollbar { width: 8px; height: 8px; }
-      ::-webkit-scrollbar-track { background: rgba(241, 245, 249, 0.8); }
-      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; border: 2px solid rgba(241, 245, 249, 0.8); }
-      ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
-      
-      /* Dark Scrollbar */
-      .dark ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.8); }
-      .dark ::-webkit-scrollbar-thumb { background: #475569; border: 2px solid rgba(30, 41, 59, 0.8); }
-      .dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      .dark ::-webkit-scrollbar-thumb { background: #475569; }
       
       .glass-input {
         background-color: rgba(255, 255, 255, 0.7);
@@ -73,15 +72,6 @@
         background-color: rgba(30, 41, 59, 0.7);
         border: 1px solid rgba(71, 85, 105, 0.6);
         color: #f8fafc;
-      }
-      .glass-input:focus {
-        background-color: #ffffff;
-        border-color: #10b981;
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1);
-      }
-      .dark .glass-input:focus {
-        background-color: #1e293b;
-        box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
       }
     </style>
   </head>
