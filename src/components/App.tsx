@@ -17,13 +17,13 @@ import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey, fetchStockHistory } from '../services/psxData';
+import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession, fetchSheetCellValue } from '../services/driveStorage';
-import { calculateXIRR, calculateBeta, calculateReturns } from '../utils/finance';
+import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
+import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 
@@ -161,9 +161,6 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
   
-  // Beta State
-  const [portfolioBeta, setPortfolioBeta] = useState<number | undefined>(undefined);
-  
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
@@ -174,7 +171,7 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
-  // --- SAFETY LOCK: Prevent auto-save until initial load is done ---
+  // SAFETY LOCK: Prevent auto-save until initial load is done
   const isReadyToSave = useRef(false);
 
   const lastPriceUpdate = useMemo(() => {
@@ -208,6 +205,7 @@ const App: React.FC = () => {
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
 
+  // --- INITIALIZE SERVICES FROM LOCAL STATE ---
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
       if (userScraperKey) setScrapingApiKey(userScraperKey);
@@ -292,11 +290,12 @@ const App: React.FC = () => {
   }, []);
 
   const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => { 
-      // Update State & Services
+      // Update State
       setUserApiKey(geminiKey); 
       setUserScraperKey(scraperKey);
       setUserWebScrapingAIKey(webAIKey);
-      
+
+      // Update Service Singletons
       setGeminiApiKey(geminiKey); 
       setScrapingApiKey(scraperKey);
       setWebScrapingAIKey(webAIKey);
@@ -306,7 +305,7 @@ const App: React.FC = () => {
       localStorage.setItem('psx_scraping_api_key', scraperKey);
       localStorage.setItem('psx_webscraping_ai_key', webAIKey);
 
-      // FORCE SAVE IMMEDIATELY (Bypass auto-save debounce)
+      // FORCE SAVE IMMEDIATELY
       if (driveUser) {
           saveToDrive({ 
               transactions, 
@@ -319,7 +318,7 @@ const App: React.FC = () => {
               sectorOverrides, 
               scannerState, 
               geminiApiKey: geminiKey,
-              scrapingApiKey: scraperKey, // Correctly save the NEW keys
+              scrapingApiKey: scraperKey, 
               webScrapingAIKey: webAIKey
           }); 
       }
@@ -365,28 +364,6 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const ldcpUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.ldcp > 0) ldcpUpdates[ticker] = data.ldcp; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setLdcpMap(prev => ({ ...prev, ...ldcpUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
-
-  // --- BETA CALCULATION ---
-  useEffect(() => {
-      // Logic: If we are connected to Drive and syncing is done
-      if (driveUser && !isCloudSyncing) {
-          const loadBeta = async () => {
-              // Assumes you have a tab named 'Analysis' and Beta is in cell 'B2'
-              const betaVal = await fetchSheetCellValue('Analysis', 'B2');
-              
-              if (betaVal) {
-                  const num = parseFloat(betaVal);
-                  if (!isNaN(num)) {
-                      setPortfolioBeta(num);
-                  }
-              }
-          };
-          
-          // Small delay to ensure sheet is ready/synced
-          const timer = setTimeout(loadBeta, 5000);
-          return () => clearTimeout(timer);
-      }
-  }, [driveUser, isCloudSyncing, transactions]);
 
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
@@ -555,12 +532,11 @@ const App: React.FC = () => {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
         totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC, 
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals, 
-        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr,
-        beta: portfolioBeta 
+        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr
     };
-  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, portfolioBeta]); 
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
-  // --- AUTO SAVE EFFECT (WITH SAFETY LOCK) ---
+  // AUTO-SAVE EFFECT (With Safety Lock)
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -575,8 +551,6 @@ const App: React.FC = () => {
           localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
       } 
       
-      // AUTO-SAVE to Drive (Debounced)
-      // Only runs if user is logged in AND we have successfully loaded (isReadyToSave)
       if (driveUser && isReadyToSave.current) { 
           setIsCloudSyncing(true); 
           const timer = setTimeout(async () => { 
@@ -604,17 +578,11 @@ const App: React.FC = () => {
       } 
   }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
 
-  // ... (rest of the file remains the same)
-  // ... (Holdings Calculation Effect, TickerClick handler, Render)
-
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
   const handleTickerClick = (ticker: string) => {
-      // 1. Save the selection to LocalStorage so the Stocks page reads it
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
-      
-      // 2. Switch the current view to the Stocks tab
       setCurrentView('STOCKS');
   };
 
@@ -684,128 +652,37 @@ const App: React.FC = () => {
             </div>
 
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 p-4 rounded-2xl border border-white/60 backdrop-blur-md shadow-sm">
-                
-                {/* 1. UNIFIED BUTTON CONTAINER FOR RESPONSIVENESS */}
+                {/* Actions Bar (Same as before) */}
                 <div className="w-full overflow-x-auto pb-2">
-                    
-                    {/* Inner Flex: Use min-w-max to force width and enable scroll when tight */}
                     <div className="flex items-center justify-between min-w-max gap-6">
-                        
-                        {/* LEFT GROUP: Actions */}
                         <div className="flex items-center gap-3">
-                            <button 
-                                onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} 
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            > 
-                                <Plus size={16} /> Add Transaction 
-                            </button>
-                            <button 
-                                onClick={() => setShowBrokerManager(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            > 
-                                <Briefcase size={16} /> Brokers 
-                            </button>
-                            <button 
-                                onClick={() => setShowDividendScanner(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            > 
-                                <Coins size={16} /> Scan Dividends 
-                            </button>
-                            <button 
-                                onClick={() => setShowUpcomingScanner(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            > 
-                                <CalendarClock size={16} /> Future X-Dates 
-                            </button>
-                            <button 
-                                onClick={() => setShowApiKeyManager(true)} 
-                                className={`border px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm ${
-                                    (!userApiKey || !userScraperKey) 
-                                        ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' 
-                                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
-                                }`}
-                                title={(!userApiKey || !userScraperKey) ? "Action Required: Save API Keys" : "AI Settings"}
-                            > 
-                                <Key size={16} className={(!userApiKey || !userScraperKey) ? "text-rose-500" : "text-emerald-500"} /> 
-                                <span>{(!userApiKey || !userScraperKey) ? "Save API Key" : "API Key"}</span> 
-                            </button>
+                            <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"> <Plus size={16} /> Add Transaction </button>
+                            <button onClick={() => setShowBrokerManager(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"> <Briefcase size={16} /> Brokers </button>
+                            <button onClick={() => setShowDividendScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"> <Coins size={16} /> Scan Dividends </button>
+                            <button onClick={() => setShowUpcomingScanner(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-blue-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"> <CalendarClock size={16} /> Future X-Dates </button>
+                            <button onClick={() => setShowApiKeyManager(true)} className={`border px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm ${(!userApiKey || !userScraperKey) ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'}`} title={(!userApiKey || !userScraperKey) ? "Action Required: Save API Keys" : "AI Settings"}> <Key size={16} className={(!userApiKey || !userScraperKey) ? "text-rose-500" : "text-emerald-500"} /> <span>{(!userApiKey || !userScraperKey) ? "Save API Key" : "API Key"}</span> </button>
                         </div>
-
-                        {/* RIGHT GROUP: Settings & Sync */}
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-sm shrink-0" ref={filterDropdownRef}>
                                 {isCombinedView && (
                                     <div className="relative">
-                                        <button 
-                                            onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"
-                                        >
-                                            <Layers size={14} />
-                                            <span>Portfolios ({combinedPortfolioIds.size})</span>
-                                            <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
-                                        </button>
+                                        <button onClick={() => setShowFilterDropdown(!showFilterDropdown)} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-bold text-slate-600 transition-colors whitespace-nowrap"> <Layers size={14} /> <span>Portfolios ({combinedPortfolioIds.size})</span> <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} /> </button>
                                         {showFilterDropdown && (
                                             <div className="absolute top-full right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
-                                                <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 mb-1">
-                                                    <span className="text-[10px] uppercase font-bold text-slate-400">Included Portfolios</span>
-                                                    <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 font-bold hover:underline">Select All</button>
-                                                </div>
-                                                <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                                                    {portfolios.map(p => {
-                                                        const isSelected = combinedPortfolioIds.has(p.id);
-                                                        return (
-                                                            <div 
-                                                                key={p.id} 
-                                                                onClick={() => handleTogglePortfolioSelection(p.id)}
-                                                                className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}
-                                                            >
-                                                                {isSelected ? 
-                                                                    <CheckSquare size={16} className="text-emerald-600" /> : 
-                                                                    <Square size={16} className="text-slate-300" />
-                                                                }
-                                                                <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}>{p.name}</span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 mb-1"> <span className="text-[10px] uppercase font-bold text-slate-400">Included Portfolios</span> <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 font-bold hover:underline">Select All</button> </div>
+                                                <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1"> {portfolios.map(p => { const isSelected = combinedPortfolioIds.has(p.id); return ( <div key={p.id} onClick={() => handleTogglePortfolioSelection(p.id)} className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50' : 'hover:bg-slate-50'}`}> {isSelected ? <CheckSquare size={16} className="text-emerald-600" /> : <Square size={16} className="text-slate-300" />} <span className={`text-sm font-medium ${isSelected ? 'text-slate-800' : 'text-slate-500'}`}>{p.name}</span> </div> ); })} </div>
                                             </div>
                                         )}
                                     </div>
                                 )}
-
                                 <div className="h-5 w-[1px] bg-slate-200 mx-1"></div>
-
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">Combined</span>
-                                    <button 
-                                        onClick={() => {
-                                            const newState = !isCombinedView;
-                                            setIsCombinedView(newState);
-                                            if (newState) setShowFilterDropdown(true);
-                                        }} 
-                                        className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}
-                                    >
-                                        <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
-                                    </button>
-                                </div>
+                                <div className="flex items-center gap-2"> <span className="text-xs font-bold text-slate-500 uppercase tracking-wide whitespace-nowrap">Combined</span> <button onClick={() => { const newState = !isCombinedView; setIsCombinedView(newState); if (newState) setShowFilterDropdown(true); }} className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200'}`}> <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div> </button> </div>
                             </div>
-
                             {currentView === 'DASHBOARD' && (
                                 <>
-                                    <button 
-                                        onClick={() => setShowPriceEditor(true)} 
-                                        className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
-                                    > 
-                                        <Edit3 size={18} /> <span>Manual Prices</span> 
-                                    </button>
+                                    <button onClick={() => setShowPriceEditor(true)} className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"> <Edit3 size={18} /> <span>Manual Prices</span> </button>
                                      <div className="flex items-center gap-2 shrink-0">
-                                        <button 
-                                            onClick={handleSyncPrices} 
-                                            disabled={isSyncing} 
-                                            className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                                        > 
-                                            {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span>Sync PSX</span> 
-                                        </button>
+                                        <button onClick={handleSyncPrices} disabled={isSyncing} className="bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"> {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span>Sync PSX</span> </button>
                                         {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                                     </div>
                                 </>
@@ -813,7 +690,6 @@ const App: React.FC = () => {
                         </div>
                     </div>
                 </div>
-
             </div>
 
             {currentView === 'DASHBOARD' && (
@@ -821,45 +697,14 @@ const App: React.FC = () => {
                     <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
                     <div className="flex flex-col gap-6">
                         <AllocationChart holdings={holdings} />
-                        <HoldingsTable 
-                            holdings={holdings} 
-                            showBroker={true} 
-                            failedTickers={failedTickers} 
-                            ldcpMap={ldcpMap} 
-                            onTickerClick={handleTickerClick} 
-                        />
+                        <HoldingsTable holdings={holdings} showBroker={true} failedTickers={failedTickers} ldcpMap={ldcpMap} onTickerClick={handleTickerClick} />
                     </div>
                 </div>
             )}
 
-            {currentView === 'STOCKS' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <TickerPerformanceList 
-                        transactions={portfolioTransactions}
-                        currentPrices={manualPrices}
-                        sectors={sectorMap}
-                        onTickerClick={(t) => setViewTicker(t)}
-                    />
-                </div>
-            )}
-
-            {currentView === 'REALIZED' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <RealizedTable trades={realizedTrades} showBroker={true} />
-                </div>
-            )}
-
-            {currentView === 'HISTORY' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <TransactionList 
-                        transactions={portfolioTransactions} 
-                        onDelete={handleDeleteTransaction} 
-                        onDeleteMultiple={handleDeleteTransactions}
-                        onEdit={handleEditClick} 
-                        googleSheetId={googleSheetId}
-                    />
-                </div>
-            )}
+            {currentView === 'STOCKS' && ( <div className="animate-in fade-in slide-in-from-bottom-2 duration-500"> <TickerPerformanceList transactions={portfolioTransactions} currentPrices={manualPrices} sectors={sectorMap} onTickerClick={(t) => setViewTicker(t)} /> </div> )}
+            {currentView === 'REALIZED' && ( <div className="animate-in fade-in slide-in-from-bottom-2 duration-500"> <RealizedTable trades={realizedTrades} showBroker={true} /> </div> )}
+            {currentView === 'HISTORY' && ( <div className="animate-in fade-in slide-in-from-bottom-2 duration-500"> <TransactionList transactions={portfolioTransactions} onDelete={handleDeleteTransaction} onDeleteMultiple={handleDeleteTransactions} onEdit={handleEditClick} googleSheetId={googleSheetId} /> </div> )}
 
         </main>
       </div>
@@ -876,23 +721,14 @@ const App: React.FC = () => {
                   <form onSubmit={handleSavePortfolio}>
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Portfolio Name <span className="text-rose-500">*</span></label>
                       <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
-                      
                       <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Default Broker <span className="text-rose-500">*</span></label>
                       <div className="relative mb-6">
-                          <select 
-                              required
-                              value={portfolioBrokerIdInput} 
-                              onChange={(e) => setPortfolioBrokerIdInput(e.target.value)} 
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-emerald-500"
-                          >
+                          <select required value={portfolioBrokerIdInput} onChange={(e) => setPortfolioBrokerIdInput(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-emerald-500" >
                               <option value="">Select a Broker</option>
-                              {brokers.map(b => (
-                                  <option key={b.id} value={b.id}>{b.name}</option>
-                              ))}
+                              {brokers.map(b => ( <option key={b.id} value={b.id}>{b.name}</option> ))}
                           </select>
                           <Briefcase size={16} className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" />
                       </div>
-
                       <button type="submit" disabled={!portfolioNameInput.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all">
                           {editingPortfolioId ? 'Save Changes' : 'Create Portfolio'}
                       </button>
@@ -901,61 +737,13 @@ const App: React.FC = () => {
           </div>
       )}
       
-      <TransactionForm 
-          isOpen={showAddModal} 
-          onClose={() => setShowAddModal(false)} 
-          onAddTransaction={handleAddTransaction} 
-          onUpdateTransaction={handleUpdateTransaction} 
-          existingTransactions={transactions} 
-          editingTransaction={editingTransaction} 
-          brokers={brokers} 
-          onManageBrokers={() => setShowBrokerManager(true)}
-          portfolioDefaultBrokerId={currentPortfolio?.defaultBrokerId}
-          freeCash={stats.freeCash}
-          savedScannedTrades={tradeScanResults}
-          onSaveScannedTrades={handleUpdateTradeScanResults}
-      />
+      <TransactionForm isOpen={showAddModal} onClose={() => setShowAddModal(false)} onAddTransaction={handleAddTransaction} onUpdateTransaction={handleUpdateTransaction} existingTransactions={transactions} editingTransaction={editingTransaction} brokers={brokers} onManageBrokers={() => setShowBrokerManager(true)} portfolioDefaultBrokerId={currentPortfolio?.defaultBrokerId} freeCash={stats.freeCash} savedScannedTrades={tradeScanResults} onSaveScannedTrades={handleUpdateTradeScanResults} />
       <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
-      
-      <ApiKeyManager 
-          isOpen={showApiKeyManager} 
-          onClose={() => setShowApiKeyManager(false)} 
-          apiKey={userApiKey} 
-          scrapingApiKey={userScraperKey}
-          webScrapingAIKey={userWebScrapingAIKey} 
-          onSave={handleSaveApiKey} 
-          isDriveConnected={!!driveUser} 
-      />
-
+      <ApiKeyManager isOpen={showApiKeyManager} onClose={() => setShowApiKeyManager(false)} apiKey={userApiKey} scrapingApiKey={userScraperKey} webScrapingAIKey={userWebScrapingAIKey} onSave={handleSaveApiKey} isDriveConnected={!!driveUser} />
       <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
-      
-      <DividendScanner 
-          key={currentPortfolioId}
-          isOpen={showDividendScanner} 
-          onClose={() => setShowDividendScanner(false)} 
-          transactions={portfolioTransactions} 
-          onAddTransaction={handleAddTransaction} 
-          onOpenSettings={() => setShowApiKeyManager(true)}
-          savedResults={scannerState[currentPortfolioId] || []}
-          onSaveResults={handleScannerUpdate}
-      />
-
-      <UpcomingEventsScanner 
-          isOpen={showUpcomingScanner} 
-          onClose={() => setShowUpcomingScanner(false)} 
-          holdings={holdings}
-      />
-
-      {viewTicker && (
-          <TickerProfile 
-              ticker={viewTicker}
-              currentPrice={manualPrices[viewTicker] || 0} 
-              sector={sectorOverrides[viewTicker] || getSector(viewTicker)}
-              transactions={portfolioTransactions.filter(t => t.ticker === viewTicker)}
-              holding={holdings.find(h => h.ticker === viewTicker)} 
-              onClose={() => setViewTicker(null)}
-          />
-      )}
+      <DividendScanner key={currentPortfolioId} isOpen={showDividendScanner} onClose={() => setShowDividendScanner(false)} transactions={portfolioTransactions} onAddTransaction={handleAddTransaction} onOpenSettings={() => setShowApiKeyManager(true)} savedResults={scannerState[currentPortfolioId] || []} onSaveResults={handleScannerUpdate} />
+      <UpcomingEventsScanner isOpen={showUpcomingScanner} onClose={() => setShowUpcomingScanner(false)} holdings={holdings} />
+      {viewTicker && ( <TickerProfile ticker={viewTicker} currentPrice={manualPrices[viewTicker] || 0} sector={sectorOverrides[viewTicker] || getSector(viewTicker)} transactions={portfolioTransactions.filter(t => t.ticker === viewTicker)} holding={holdings.find(h => h.ticker === viewTicker)} onClose={() => setViewTicker(null)} /> )}
     </div>
   );
 };
