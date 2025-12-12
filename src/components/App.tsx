@@ -149,10 +149,10 @@ const App: React.FC = () => {
       return {};
   });
 
-  // API KEYS STATE
-  const [userApiKey, setUserApiKey] = useState<string>(''); // Gemini
-  const [userScraperKey, setUserScraperKey] = useState<string>(''); // Scrape.do
-  const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(''); // WebScraping.AI
+  // API KEYS STATE - UPDATED TO LOAD FROM LOCALSTORAGE
+  const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || ''); 
+  const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || ''); 
+  const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || ''); 
   
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
@@ -202,6 +202,14 @@ const App: React.FC = () => {
 
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
+
+  // --- NEW EFFECT: INITIALIZE SERVICES FROM LOCAL STATE ---
+  // This ensures that even on refresh (before cloud sync), the keys are active if they exist in localStorage
+  useEffect(() => {
+      if (userApiKey) setGeminiApiKey(userApiKey);
+      if (userScraperKey) setScrapingApiKey(userScraperKey);
+      if (userWebScrapingAIKey) setWebScrapingAIKey(userWebScrapingAIKey);
+  }, [userApiKey, userScraperKey, userWebScrapingAIKey]);
 
   useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
@@ -256,14 +264,17 @@ const App: React.FC = () => {
                       if (cloudData.geminiApiKey) {
                           setUserApiKey(cloudData.geminiApiKey);
                           setGeminiApiKey(cloudData.geminiApiKey); 
+                          localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
                       }
                       if (cloudData.scrapingApiKey) {
                           setUserScraperKey(cloudData.scrapingApiKey);
                           setScrapingApiKey(cloudData.scrapingApiKey);
+                          localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
                       }
                       if (cloudData.webScrapingAIKey) {
                           setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
                           setWebScrapingAIKey(cloudData.webScrapingAIKey);
+                          localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
                       }
                   }
               } catch (e) { console.error("Drive Load Error", e); } 
@@ -274,15 +285,22 @@ const App: React.FC = () => {
   }, []);
 
   const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => { 
+      // Update State
       setUserApiKey(geminiKey); 
-      setGeminiApiKey(geminiKey); 
-      
       setUserScraperKey(scraperKey);
-      setScrapingApiKey(scraperKey);
-
       setUserWebScrapingAIKey(webAIKey);
+
+      // Update Service Singletons
+      setGeminiApiKey(geminiKey); 
+      setScrapingApiKey(scraperKey);
       setWebScrapingAIKey(webAIKey);
 
+      // Persist to Local Storage
+      localStorage.setItem('psx_gemini_api_key', geminiKey);
+      localStorage.setItem('psx_scraping_api_key', scraperKey);
+      localStorage.setItem('psx_webscraping_ai_key', webAIKey);
+
+      // Persist to Drive (if connected)
       if (driveUser) saveToDrive({ 
           transactions, 
           portfolios, 
