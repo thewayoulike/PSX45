@@ -484,6 +484,7 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
+  // AUTO-SAVE EFFECT (With Safety Lock)
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -550,57 +551,66 @@ const App: React.FC = () => {
       </div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <header className="flex flex-col xl:flex-row justify-between items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
-          <div className="flex flex-col gap-1 items-center xl:items-start">
-             <div className="flex items-center gap-4">
+        {/* NEW HEADER LAYOUT */}
+        <header className="flex flex-row justify-between items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
+          
+          {/* LEFT: Logo Section */}
+          <div className="flex items-center gap-2">
+             <div className="scale-75 sm:scale-100 origin-left">
                <Logo />
              </div>
-             <p className="text-sm ml-1 font-bold tracking-wide mt-1"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
+             {/* Tagline hidden on mobile to save space */}
+             <div className="hidden md:flex flex-col">
+                <p className="text-sm font-bold tracking-wide mt-1"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
+             </div>
           </div>
           
-          {/* UPDATED HEADER LAYOUT */}
-          <div className="flex flex-wrap items-center justify-center gap-4 w-full xl:w-auto">
-             {/* GROUP 1: User & Theme */}
-             <div className="flex items-center gap-3">
-                 <ThemeToggle />
-                 {driveUser ? (
-                    <div className="flex items-center gap-3 bg-white dark:bg-slate-900 p-1 pr-3 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm">
-                        {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider hidden sm:block">Synced</span>
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
-                        </div>
-                        <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
-                        {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500 hidden sm:block" /> )}
-                        <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={16} /> </button>
-                    </div>
-                ) : (
-                    <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> <span className="hidden sm:inline">Sign in</span></button>
-                )}
-             </div>
+          {/* RIGHT: Controls Section */}
+          <div className="flex items-center gap-2">
+            
+            {/* Theme Toggle */}
+            <ThemeToggle />
 
-             {/* GROUP 2: Portfolio Controls */}
-             <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                <div className="relative group">
-                    <FolderOpen size={18} className="absolute left-3 top-2.5 text-emerald-600" />
-                    <select 
-                        value={currentPortfolioId} 
-                        onChange={(e) => setCurrentPortfolioId(e.target.value)} 
-                        className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-2 pl-10 pr-8 cursor-pointer focus:ring-0 outline-none w-32 sm:w-48 dark:bg-slate-900"
-                    >
-                        {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
-                    </select>
+            {driveUser ? (
+                <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 pr-2 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm h-10">
+                    {/* Avatar Only on Mobile */}
+                    {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
+                    
+                    {/* Name Hidden on Mobile */}
+                    <div className="hidden sm:flex flex-col">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
+                    </div>
+
+                    {/* Portfolio Selector - Grouped Here */}
+                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                    <div className="relative group">
+                        <select 
+                            value={currentPortfolioId} 
+                            onChange={(e) => setCurrentPortfolioId(e.target.value)} 
+                            className="appearance-none bg-transparent border-none text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-6 cursor-pointer focus:ring-0 outline-none w-24 sm:w-32 dark:bg-slate-900 truncate"
+                        >
+                            {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
+                        </select>
+                        <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
+                    </div>
+
+                    {/* Edit/New/Delete - Hidden on Mobile to save space (Available in desktop or via dedicated settings menu if needed later) */}
+                    <div className="hidden md:flex items-center gap-1 ml-1">
+                        <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 rounded transition-colors" title="Edit"> <Pencil size={14} /> </button>
+                        <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 rounded transition-colors" title="New"> <PlusCircle size={14} /> </button>
+                    </div>
+
+                    {/* Logout */}
+                    <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors ml-1" title="Sign Out"> <LogOut size={16} /> </button>
                 </div>
-                
-                <button onClick={openEditPortfolioModal} className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit Portfolio"> <Pencil size={16} /> </button>
-                <button onClick={openCreatePortfolioModal} className="p-2 bg-emerald-50 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-800/30 text-emerald-600 dark:text-emerald-400 rounded-lg transition-colors border border-emerald-100 dark:border-emerald-800 flex items-center gap-1 pr-3" title="New"> <PlusCircle size={18} /> <span className="text-xs font-bold hidden sm:inline">New</span> </button>
-                <button onClick={handleDeletePortfolio} className="p-2 bg-slate-50 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors border border-slate-100 dark:border-slate-700" title="Delete"> <Trash2 size={18} /> </button>
-            </div>
+            ) : (
+                <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> <span className="hidden sm:inline">Sign in</span></button>
+            )}
           </div>
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* UPDATED NAV TABS: Smaller on mobile, scrollable */}
             <div className="flex justify-center mb-8 w-full">
                 <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto w-full sm:w-auto flex justify-start sm:justify-center no-scrollbar">
                     <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
