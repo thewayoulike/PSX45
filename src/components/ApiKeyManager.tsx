@@ -93,7 +93,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                 {/* SCRAPER API KEY SECTION */}
                 <div className="space-y-2">
                     <label className="block text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                        <Globe size={14} /> ScraperAPI Key (for Sync)
+                        <Globe size={14} /> Scrape.do Token (for Sync)
                     </label>
                     <input 
                         type="password" 
@@ -105,9 +105,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                     />
                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-[10px] text-blue-700 leading-relaxed">
                         <p className="font-bold mb-1">Why do I need this?</p>
-                        <p>Public proxies get blocked often. A free ScraperAPI key gives you ~1000 reliable syncs/month.</p>
-                        <a href="https://www.scraperapi.com/" target="_blank" rel="noopener noreferrer" className="text-blue-800 hover:underline font-bold mt-1 inline-block">
-                            Get Free Key &rarr;
+                        <p>Public proxies get blocked often. A free Scrape.do token gives you ~1000 reliable syncs/month.</p>
+                        <a href="https://scrape.do/" target="_blank" rel="noopener noreferrer" className="text-blue-800 hover:underline font-bold mt-1 inline-block">
+                            Get Free Token &rarr;
                         </a>
                     </div>
                 </div>
