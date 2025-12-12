@@ -14,7 +14,7 @@ export const useIdleTimer = (timeout: number, onIdle: () => void) => {
     const handleActivity = () => {
       const now = Date.now();
       // Optimization: Only reset timer if 1 second has passed since last reset
-      // This prevents the app from freezing during scrolling/swiping
+      // This massively reduces CPU usage on mobile scrolling
       if (now - throttleRef.current > 1000) {
         throttleRef.current = now;
         lastActivity.current = now;
@@ -22,8 +22,7 @@ export const useIdleTimer = (timeout: number, onIdle: () => void) => {
       }
     };
 
-    // Reduced event list for better mobile performance
-    // Removed 'mousemove' and 'scroll' which fire too frequently
+    // Removed 'mousemove' and 'scroll' to prevent lag on phones
     const events = ['mousedown', 'keydown', 'touchstart', 'click'];
     
     events.forEach(event => {
