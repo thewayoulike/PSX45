@@ -9,12 +9,14 @@ interface CardProps {
 
 export const Card: React.FC<CardProps> = ({ children, className = '', title, icon }) => {
   return (
-    <div className={`group relative bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/60 dark:border-slate-800/60 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.2)] overflow-hidden transition-all hover:shadow-[0_8px_30px_rgba(16,185,129,0.1)] h-full flex flex-col ${className}`}>
-      {/* Crystal Gloss/Shine Effect - Dark mode adjusted */}
+    // OPTIMIZATION: Used 'backdrop-blur-md' for mobile, 'backdrop-blur-xl' only for desktop
+    <div className={`group relative bg-white/60 dark:bg-slate-900/60 backdrop-blur-md md:backdrop-blur-xl border border-white/60 dark:border-slate-800/60 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-sm md:shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none overflow-hidden transition-all hover:shadow-[0_8px_30px_rgba(16,185,129,0.1)] h-full flex flex-col ${className}`}>
+      
+      {/* Crystal Gloss/Shine Effect */}
       <div className="absolute inset-0 bg-gradient-to-br from-white/80 via-transparent to-transparent opacity-80 dark:from-slate-800/50 dark:opacity-30 pointer-events-none"></div>
       
-      {/* Interactive Glow */}
-      <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-[60px] group-hover:bg-emerald-500/10 dark:group-hover:bg-emerald-500/20 transition-all duration-500 pointer-events-none"></div>
+      {/* Interactive Glow - Disabled on mobile to prevent lag */}
+      <div className="hidden md:block absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-[60px] group-hover:bg-emerald-500/10 dark:group-hover:bg-emerald-500/20 transition-all duration-500 pointer-events-none"></div>
       
       {/* Inner Content */}
       <div className="relative z-10 flex-1 flex flex-col">
