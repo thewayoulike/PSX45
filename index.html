@@ -2,15 +2,20 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>PSX Portfolio Tracker</title>
 
     <link rel="apple-touch-icon" href="/pwa-192x192.png">
     
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="PSX Tracker">
+    <meta name="format-detection" content="telephone=no">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
-        darkMode: 'class',
+        darkMode: 'class', 
         theme: {
           extend: {
             colors: {
@@ -26,7 +31,6 @@
     </script>
     
     <script src="https://accounts.google.com/gsi/client" async defer id="google-gsi-script"></script>
-    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <style>
@@ -36,12 +40,17 @@
         background-attachment: fixed;
         color: #0f172a;
         transition: background 0.3s ease, color 0.3s ease;
+        -webkit-tap-highlight-color: transparent; /* Makes clicks feel faster on iOS */
       }
       
-      /* FORCE DARK BACKGROUND */
       html.dark body {
         background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%) !important;
         color: #f8fafc;
+      }
+
+      /* Better scrolling on iOS */
+      html {
+        -webkit-overflow-scrolling: touch;
       }
 
       /* Custom Scrollbar - Light */
