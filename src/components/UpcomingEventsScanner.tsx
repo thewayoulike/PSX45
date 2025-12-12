@@ -29,7 +29,8 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({ is
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[80] flex items-center justify-center p-4">
+    // MODAL CONTAINER: Top Aligned
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[80] flex items-start justify-center p-4 pt-16 md:pt-24">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden max-h-[85vh] flex flex-col">
         
         <div className="p-5 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
