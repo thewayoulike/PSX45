@@ -17,13 +17,13 @@ import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey, fetchStockHistory } from '../services/psxData';
+import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
-import { calculateXIRR, calculateBeta, calculateReturns } from '../utils/finance';
+import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 
@@ -149,7 +149,7 @@ const App: React.FC = () => {
       return {};
   });
 
-  // API KEYS STATE
+  // API KEYS STATE - UPDATED TO LOAD FROM LOCALSTORAGE
   const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || ''); 
   const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || ''); 
   const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || ''); 
@@ -160,9 +160,6 @@ const App: React.FC = () => {
   const [totalDividendTax, setTotalDividendTax] = useState<number>(0);
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
-  
-  // NEW: State for Beta Calculation
-  const [portfolioBeta, setPortfolioBeta] = useState<number | undefined>(undefined);
   
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
@@ -206,6 +203,7 @@ const App: React.FC = () => {
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
 
+  // --- INITIALIZE SERVICES FROM LOCAL STATE ---
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
       if (userScraperKey) setScrapingApiKey(userScraperKey);
@@ -358,90 +356,6 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const ldcpUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.ldcp > 0) ldcpUpdates[ticker] = data.ldcp; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setLdcpMap(prev => ({ ...prev, ...ldcpUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
-
-  // --- CALCULATE BETA & RISK ---
-  useEffect(() => {
-      // Don't run if we have no holdings or already calculated
-      if (holdings.length === 0) return;
-      
-      const calculateRisk = async () => {
-          try {
-              console.log("Starting Beta Calculation...");
-              
-              // 1. Fetch Market History (KSE-100) - 90 Days
-              // Use fallback mechanism: If 'KSE100' fails (returns < 30 points), try 'OGDC' as proxy
-              let marketData = await fetchStockHistory('KSE100', '1Y'); 
-              
-              if (marketData.length < 30) {
-                  console.warn("KSE100 history failed. Trying OGDC as market proxy...");
-                  marketData = await fetchStockHistory('OGDC', '1Y');
-              }
-
-              if (marketData.length < 30) {
-                  console.error("Market data fetch failed entirely. Cannot calculate Beta.");
-                  return;
-              }
-
-              const marketPrices = marketData.map(d => d.price);
-              const marketReturns = calculateReturns(marketPrices);
-              const marketDates = marketData.map(d => new Date(d.time).toISOString().split('T')[0]);
-
-              // 2. Fetch History for each Holding
-              const totalPortfolioValue = holdings.reduce((sum, h) => sum + (h.quantity * h.currentPrice), 0);
-              let weightedBetaSum = 0;
-              let totalWeight = 0;
-
-              for (const holding of holdings) {
-                  const stockData = await fetchStockHistory(holding.ticker, '1Y');
-                  if (stockData.length < 30) {
-                      console.log(`Insufficient history for ${holding.ticker} (${stockData.length} pts)`);
-                      continue;
-                  }
-
-                  // Align Data: Create intersection of dates
-                  const stockMap = new Map(stockData.map(d => [new Date(d.time).toISOString().split('T')[0], d.price]));
-                  
-                  const alignedStockPrices: number[] = [];
-                  const alignedMarketPrices: number[] = [];
-
-                  marketDates.forEach((date, i) => {
-                      if (stockMap.has(date)) {
-                          alignedStockPrices.push(stockMap.get(date)!);
-                          alignedMarketPrices.push(marketPrices[i]);
-                      }
-                  });
-
-                  if (alignedStockPrices.length < 20) {
-                      console.log(`Not enough overlapping data for ${holding.ticker}`);
-                      continue; 
-                  }
-
-                  const stockReturns = calculateReturns(alignedStockPrices);
-                  const alignedMarketReturns = calculateReturns(alignedMarketPrices);
-
-                  const beta = calculateBeta(stockReturns, alignedMarketReturns);
-                  
-                  const weight = (holding.quantity * holding.currentPrice) / totalPortfolioValue;
-                  weightedBetaSum += beta * weight;
-                  totalWeight += weight;
-              }
-
-              if (totalWeight > 0) {
-                  const finalBeta = weightedBetaSum / totalWeight;
-                  console.log("Calculated Portfolio Beta:", finalBeta);
-                  setPortfolioBeta(finalBeta);
-              }
-
-          } catch (e) {
-              console.error("Failed to calculate Portfolio Risk", e);
-          }
-      };
-
-      // Debounce slightly to avoid running on every render
-      const timer = setTimeout(calculateRisk, 2000);
-      return () => clearTimeout(timer);
-  }, [holdings.length, userScraperKey, userWebScrapingAIKey]); // Re-run if keys change!
-
 
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
@@ -610,10 +524,9 @@ const App: React.FC = () => {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
         totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC, 
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals, 
-        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr,
-        beta: portfolioBeta // Pass calculated beta
+        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr
     };
-  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, portfolioBeta]); 
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
