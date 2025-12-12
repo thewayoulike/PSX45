@@ -131,7 +131,7 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                      <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 text-[10px] text-purple-700 leading-relaxed">
                         <p className="font-bold mb-1">Backup 2: WebScraping.AI</p>
                         <p>If Scrape.do fails or runs out, this will be used.</p>
-                        <a href="https://webscraping.ai/" target="_blank" rel="noopener noreferrer" className="text-purple-800 hover:underline font-bold mt-1 inline-block">
+                        <a href="https://webscraping.ai/dashboard" target="_blank" rel="noopener noreferrer" className="text-purple-800 hover:underline font-bold mt-1 inline-block">
                             Get Free Key &rarr;
                         </a>
                     </div>
