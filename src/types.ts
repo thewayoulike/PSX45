@@ -89,7 +89,6 @@ export interface PortfolioStats {
   roi: number;
   
   mwrr: number;
-  beta?: number; // New field for Risk
 }
 
 export interface Portfolio {
