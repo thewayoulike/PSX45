@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Broker, CommissionType, CDCType, CommissionSlab } from '../types';
-import { X, Plus, Pencil, Trash2, Save, Settings2, ArrowDown } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Save, Settings2, ArrowDown, AlertCircle } from 'lucide-react';
 
 interface BrokerManagerProps {
   isOpen: boolean;
@@ -121,7 +121,8 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+    // MODAL CONTAINER: Top Aligned
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-16 md:pt-24 overflow-y-auto">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh]">
         
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
