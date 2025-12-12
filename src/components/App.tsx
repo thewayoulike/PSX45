@@ -17,13 +17,13 @@ import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
+import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey, fetchStockHistory } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
-import { calculateXIRR } from '../utils/finance';
+import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession, fetchSheetCellValue } from '../services/driveStorage';
+import { calculateXIRR, calculateBeta, calculateReturns } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 
@@ -149,7 +149,7 @@ const App: React.FC = () => {
       return {};
   });
 
-  // API KEYS STATE - UPDATED TO LOAD FROM LOCALSTORAGE
+  // API KEYS STATE
   const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || ''); 
   const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || ''); 
   const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || ''); 
@@ -161,6 +161,9 @@ const App: React.FC = () => {
   const [isSyncing, setIsSyncing] = useState(false);
   const [priceError, setPriceError] = useState(false);
   
+  // Beta State
+  const [portfolioBeta, setPortfolioBeta] = useState<number | undefined>(undefined);
+  
   const [showAddModal, setShowAddModal] = useState(false);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
@@ -171,7 +174,8 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
-  const hasMergedCloud = useRef(false);
+  // --- SAFETY LOCK: Prevent auto-save until initial load is done ---
+  const isReadyToSave = useRef(false);
 
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
@@ -194,6 +198,7 @@ const App: React.FC = () => {
       setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
       setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
       setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
+      isReadyToSave.current = false;
   }, []);
 
   useIdleTimer(1800000, () => {
@@ -203,7 +208,6 @@ const App: React.FC = () => {
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
 
-  // --- INITIALIZE SERVICES FROM LOCAL STATE ---
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
       if (userScraperKey) setScrapingApiKey(userScraperKey);
@@ -234,62 +238,65 @@ const App: React.FC = () => {
           
           getGoogleSheetId().then(id => setGoogleSheetId(id));
 
-          if (!hasMergedCloud.current) {
-              setIsCloudSyncing(true);
-              try {
-                  const cloudData = await loadFromDrive();
-                  if (cloudData) {
-                      hasMergedCloud.current = true;
-                      if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
-                      if (cloudData.transactions) {
-                          const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
-                          setTransactions(cleanTx);
-                      }
-                      if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
-                      if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap); 
-                      if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
-                      if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                      if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
-                      if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
-                      if (cloudData.brokers) {
-                          setBrokers(currentLocal => {
-                              const localIds = new Set(currentLocal.map(b => b.id));
-                              const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
-                              const merged = [...currentLocal, ...missingLocally];
-                              localStorage.setItem('psx_brokers', JSON.stringify(merged));
-                              return merged;
-                          });
-                      }
-                      if (cloudData.geminiApiKey) {
-                          setUserApiKey(cloudData.geminiApiKey);
-                          setGeminiApiKey(cloudData.geminiApiKey); 
-                          localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
-                      }
-                      if (cloudData.scrapingApiKey) {
-                          setUserScraperKey(cloudData.scrapingApiKey);
-                          setScrapingApiKey(cloudData.scrapingApiKey);
-                          localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
-                      }
-                      if (cloudData.webScrapingAIKey) {
-                          setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
-                          setWebScrapingAIKey(cloudData.webScrapingAIKey);
-                          localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
-                      }
+          // START LOADING FROM CLOUD
+          setIsCloudSyncing(true);
+          try {
+              const cloudData = await loadFromDrive();
+              if (cloudData) {
+                  if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
+                  if (cloudData.transactions) {
+                      const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
+                      setTransactions(cleanTx);
                   }
-              } catch (e) { console.error("Drive Load Error", e); } 
-              finally { setIsCloudSyncing(false); }
+                  if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
+                  if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap); 
+                  if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
+                  if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
+                  if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
+                  if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
+                  if (cloudData.brokers) {
+                      setBrokers(currentLocal => {
+                          const localIds = new Set(currentLocal.map(b => b.id));
+                          const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
+                          const merged = [...currentLocal, ...missingLocally];
+                          localStorage.setItem('psx_brokers', JSON.stringify(merged));
+                          return merged;
+                      });
+                  }
+                  // RESTORE API KEYS IF PRESENT IN CLOUD
+                  if (cloudData.geminiApiKey) {
+                      setUserApiKey(cloudData.geminiApiKey);
+                      setGeminiApiKey(cloudData.geminiApiKey); 
+                      localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
+                  }
+                  if (cloudData.scrapingApiKey) {
+                      setUserScraperKey(cloudData.scrapingApiKey);
+                      setScrapingApiKey(cloudData.scrapingApiKey);
+                      localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
+                  }
+                  if (cloudData.webScrapingAIKey) {
+                      setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
+                      setWebScrapingAIKey(cloudData.webScrapingAIKey);
+                      localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
+                  }
+              }
+          } catch (e) { 
+              console.error("Drive Load Error", e); 
+          } finally { 
+              setIsCloudSyncing(false); 
+              isReadyToSave.current = true; // <--- ONLY NOW ALLOW AUTO-SAVE
           }
       });
+      
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
 
   const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => { 
-      // Update State
+      // Update State & Services
       setUserApiKey(geminiKey); 
       setUserScraperKey(scraperKey);
       setUserWebScrapingAIKey(webAIKey);
-
-      // Update Service Singletons
+      
       setGeminiApiKey(geminiKey); 
       setScrapingApiKey(scraperKey);
       setWebScrapingAIKey(webAIKey);
@@ -299,21 +306,23 @@ const App: React.FC = () => {
       localStorage.setItem('psx_scraping_api_key', scraperKey);
       localStorage.setItem('psx_webscraping_ai_key', webAIKey);
 
-      // Persist to Drive (if connected)
-      if (driveUser) saveToDrive({ 
-          transactions, 
-          portfolios, 
-          currentPortfolioId, 
-          manualPrices, 
-          ldcpMap, 
-          priceTimestamps, 
-          brokers, 
-          sectorOverrides, 
-          scannerState, 
-          geminiApiKey: geminiKey,
-          scrapingApiKey: scraperKey,
-          webScrapingAIKey: webAIKey
-      }); 
+      // FORCE SAVE IMMEDIATELY (Bypass auto-save debounce)
+      if (driveUser) {
+          saveToDrive({ 
+              transactions, 
+              portfolios, 
+              currentPortfolioId, 
+              manualPrices, 
+              ldcpMap, 
+              priceTimestamps, 
+              brokers, 
+              sectorOverrides, 
+              scannerState, 
+              geminiApiKey: geminiKey,
+              scrapingApiKey: scraperKey, // Correctly save the NEW keys
+              webScrapingAIKey: webAIKey
+          }); 
+      }
   };
   
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
@@ -356,6 +365,28 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = async () => { const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); if (uniqueTickers.length === 0) return; setIsSyncing(true); setPriceError(false); setFailedTickers(new Set()); try { const newResults = await fetchBatchPSXPrices(uniqueTickers); const failed = new Set<string>(); const validUpdates: Record<string, number> = {}; const ldcpUpdates: Record<string, number> = {}; const newSectors: Record<string, string> = {}; const now = new Date().toISOString(); const timestampUpdates: Record<string, string> = {}; uniqueTickers.forEach(ticker => { const data = newResults[ticker]; if (data && data.price > 0) { validUpdates[ticker] = data.price; timestampUpdates[ticker] = now; if (data.ldcp > 0) ldcpUpdates[ticker] = data.ldcp; if (data.sector && data.sector !== 'Unknown Sector') { newSectors[ticker] = data.sector; } } else { failed.add(ticker); } }); if (Object.keys(validUpdates).length > 0) { setManualPrices(prev => ({ ...prev, ...validUpdates })); setLdcpMap(prev => ({ ...prev, ...ldcpUpdates })); setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates })); } if (Object.keys(newSectors).length > 0) { setSectorOverrides(prev => ({ ...prev, ...newSectors })); } if (failed.size > 0) { setFailedTickers(failed); setPriceError(true); } } catch (e) { console.error(e); setPriceError(true); } finally { setIsSyncing(false); } };
+
+  // --- BETA CALCULATION ---
+  useEffect(() => {
+      // Logic: If we are connected to Drive and syncing is done
+      if (driveUser && !isCloudSyncing) {
+          const loadBeta = async () => {
+              // Assumes you have a tab named 'Analysis' and Beta is in cell 'B2'
+              const betaVal = await fetchSheetCellValue('Analysis', 'B2');
+              
+              if (betaVal) {
+                  const num = parseFloat(betaVal);
+                  if (!isNaN(num)) {
+                      setPortfolioBeta(num);
+                  }
+              }
+          };
+          
+          // Small delay to ensure sheet is ready/synced
+          const timer = setTimeout(loadBeta, 5000);
+          return () => clearTimeout(timer);
+      }
+  }, [driveUser, isCloudSyncing, transactions]);
 
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
@@ -524,10 +555,12 @@ const App: React.FC = () => {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL, 
         totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC, 
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals, 
-        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr
+        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr,
+        beta: portfolioBeta 
     };
-  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, portfolioBeta]); 
 
+  // --- AUTO SAVE EFFECT (WITH SAFETY LOCK) ---
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -541,10 +574,26 @@ const App: React.FC = () => {
           localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); 
           localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
       } 
-      if (driveUser) { 
+      
+      // AUTO-SAVE to Drive (Debounced)
+      // Only runs if user is logged in AND we have successfully loaded (isReadyToSave)
+      if (driveUser && isReadyToSave.current) { 
           setIsCloudSyncing(true); 
           const timer = setTimeout(async () => { 
-              await saveToDrive({ transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, geminiApiKey: userApiKey, scrapingApiKey: userScraperKey, webScrapingAIKey: userWebScrapingAIKey }); 
+              await saveToDrive({ 
+                  transactions, 
+                  portfolios, 
+                  currentPortfolioId, 
+                  manualPrices, 
+                  ldcpMap, 
+                  priceTimestamps, 
+                  brokers, 
+                  sectorOverrides, 
+                  scannerState, 
+                  geminiApiKey: userApiKey,
+                  scrapingApiKey: userScraperKey,
+                  webScrapingAIKey: userWebScrapingAIKey 
+              }); 
               if (transactions.length > 0) {
                   await syncTransactionsToSheet(transactions, portfolios);
                   if (!googleSheetId) { const id = await getGoogleSheetId(); setGoogleSheetId(id); }
@@ -554,6 +603,9 @@ const App: React.FC = () => {
           return () => clearTimeout(timer); 
       } 
   }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+
+  // ... (rest of the file remains the same)
+  // ... (Holdings Calculation Effect, TickerClick handler, Render)
 
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
