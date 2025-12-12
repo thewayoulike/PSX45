@@ -40,6 +40,12 @@ const DEFAULT_BROKER: Broker = {
 
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
+interface Lot {
+    quantity: number;
+    costPerShare: number; 
+    date: string;
+}
+
 type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS';
 
 const App: React.FC = () => {
@@ -144,7 +150,7 @@ const App: React.FC = () => {
       return {};
   });
 
-  // API KEYS
+  // API KEYS STATE
   const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || ''); 
   const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || ''); 
   const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || ''); 
@@ -245,15 +251,14 @@ const App: React.FC = () => {
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
-                  if (cloudData.brokers) {
-                      setBrokers(currentLocal => {
-                          const localIds = new Set(currentLocal.map(b => b.id));
-                          const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
-                          const merged = [...currentLocal, ...missingLocally];
-                          localStorage.setItem('psx_brokers', JSON.stringify(merged));
-                          return merged;
-                      });
+                  
+                  // --- FIX: Broker Merging Logic ---
+                  // Prioritize Cloud Brokers. If Cloud has brokers, use them to overwrite local state completely.
+                  if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
+                      setBrokers(cloudData.brokers);
+                      localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
                   }
+                  
                   if (cloudData.geminiApiKey) {
                       setUserApiKey(cloudData.geminiApiKey);
                       setGeminiApiKey(cloudData.geminiApiKey); 
@@ -674,7 +679,7 @@ const App: React.FC = () => {
                                     <div className="relative">
                                         <button 
                                             onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-200 transition-colors whitespace-nowrap"
+                                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap"
                                         >
                                             <Layers size={14} />
                                             <span>Portfolios ({combinedPortfolioIds.size})</span>
