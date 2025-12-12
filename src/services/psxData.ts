@@ -71,21 +71,22 @@ const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> =
         }
     }
 
-    // 2. FALLBACK TO USER SCRAPER KEY
+    // 2. FALLBACK TO USER SCRAPER KEY (Scrape.do)
     if (userScrapingKey) {
         try {
-            console.log("Free proxies failed. Switching to User ScraperAPI Key...");
-            const premiumUrl = `http://api.scraperapi.com?api_key=${userScrapingKey}&url=${encodeURIComponent(targetUrl)}`;
-            const response = await fetchWithTimeout(premiumUrl, {}, 25000); // 25s timeout for premium
+            console.log("Free proxies failed. Switching to Scrape.do...");
+            // Scrape.do uses 'token' instead of 'api_key'
+            const premiumUrl = `http://api.scrape.do?token=${userScrapingKey}&url=${encodeURIComponent(targetUrl)}`;
+            const response = await fetchWithTimeout(premiumUrl, {}, 25000); 
             
             if (response.ok) {
                 return await response.text();
             }
         } catch (e) {
-            console.error("User ScraperAPI Key failed:", e);
+            console.error("Scrape.do failed:", e);
         }
     } else {
-        console.warn("No ScraperAPI key provided. Sync failed.");
+        console.warn("No Scraper key provided. Sync failed.");
     }
 
     return null; 
