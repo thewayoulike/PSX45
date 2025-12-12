@@ -205,6 +205,16 @@ const App: React.FC = () => {
   }, [userApiKey, userScraperKey, userWebScrapingAIKey]);
 
   useEffect(() => {
+      const handleClickOutside = (event: MouseEvent) => {
+          if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
+              setShowFilterDropdown(false);
+          }
+      };
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
@@ -484,7 +494,6 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
-  // AUTO-SAVE EFFECT (With Safety Lock)
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -551,24 +560,19 @@ const App: React.FC = () => {
       </div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        {/* NEW HEADER LAYOUT */}
-        <header className="flex flex-row justify-between items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
+        <header className="flex flex-row justify-between items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
           
-          {/* LEFT: Logo Section */}
-          <div className="flex items-center gap-2">
-             <div className="scale-75 sm:scale-100 origin-left">
+          {/* LEFT: Logo Section (FIXED: Vertical Stacking for Desktop) */}
+          <div className="flex flex-col gap-0.5">
+             <div className="scale-75 sm:scale-100 origin-top-left sm:origin-center">
                <Logo />
              </div>
-             {/* Tagline hidden on mobile to save space */}
-             <div className="hidden md:flex flex-col">
-                <p className="text-sm font-bold tracking-wide mt-1"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
-             </div>
+             <p className="hidden md:block text-sm font-bold tracking-wide mt-1 ml-1 whitespace-nowrap"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
           </div>
           
-          {/* RIGHT: Controls Section */}
+          {/* RIGHT: Controls Section (Compact Mobile Layout) */}
           <div className="flex items-center gap-2">
             
-            {/* Theme Toggle */}
             <ThemeToggle />
 
             {driveUser ? (
@@ -595,13 +599,11 @@ const App: React.FC = () => {
                         <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
                     </div>
 
-                    {/* Edit/New/Delete - Hidden on Mobile to save space (Available in desktop or via dedicated settings menu if needed later) */}
                     <div className="hidden md:flex items-center gap-1 ml-1">
-                        <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 rounded transition-colors" title="Edit"> <Pencil size={14} /> </button>
+                        <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={14} /> </button>
                         <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 rounded transition-colors" title="New"> <PlusCircle size={14} /> </button>
                     </div>
 
-                    {/* Logout */}
                     <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors ml-1" title="Sign Out"> <LogOut size={16} /> </button>
                 </div>
             ) : (
