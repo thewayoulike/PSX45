@@ -1,31 +1,35 @@
 import React, { useState, useEffect } from 'react';
-import { X, Key, ShieldCheck, Lock, ExternalLink, Save, Globe } from 'lucide-react';
+import { X, Key, ShieldCheck, Lock, ExternalLink, Save, Globe, Server } from 'lucide-react';
 
 interface ApiKeyManagerProps {
   isOpen: boolean;
   onClose: () => void;
   apiKey: string;         // Gemini Key
-  scrapingApiKey: string; // NEW: Scraper Key
-  onSave: (geminiKey: string, scraperKey: string) => void;
+  scrapingApiKey: string; // Scrape.do Token
+  webScrapingAIKey: string; // NEW: WebScraping.AI Key
+  onSave: (geminiKey: string, scraperKey: string, webScrapingAIKey: string) => void;
   isDriveConnected: boolean;
 }
 
 export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({ 
-  isOpen, onClose, apiKey, scrapingApiKey, onSave, isDriveConnected 
+  isOpen, onClose, apiKey, scrapingApiKey, webScrapingAIKey, onSave, isDriveConnected 
 }) => {
   const [inputGeminiKey, setInputGeminiKey] = useState(apiKey);
   const [inputScraperKey, setInputScraperKey] = useState(scrapingApiKey);
+  const [inputWebScrapingAIKey, setInputWebScrapingAIKey] = useState(webScrapingAIKey);
   
   useEffect(() => {
     setInputGeminiKey(apiKey);
     setInputScraperKey(scrapingApiKey);
-  }, [apiKey, scrapingApiKey]);
+    setInputWebScrapingAIKey(webScrapingAIKey);
+  }, [apiKey, scrapingApiKey, webScrapingAIKey]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanGemini = inputGeminiKey.replace(/[^\x00-\x7F]/g, "").trim();
     const cleanScraper = inputScraperKey.replace(/[^\x00-\x7F]/g, "").trim();
-    onSave(cleanGemini, cleanScraper);
+    const cleanWebAI = inputWebScrapingAIKey.replace(/[^\x00-\x7F]/g, "").trim();
+    onSave(cleanGemini, cleanScraper, cleanWebAI);
     onClose();
   };
 
@@ -90,10 +94,10 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
                 <div className="h-px bg-slate-100 w-full"></div>
 
-                {/* SCRAPER API KEY SECTION */}
+                {/* SCRAPE.DO SECTION */}
                 <div className="space-y-2">
                     <label className="block text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                        <Globe size={14} /> Scrape.do Token (for Sync)
+                        <Globe size={14} /> Scrape.do Token (Primary Fallback)
                     </label>
                     <input 
                         type="password" 
@@ -104,10 +108,31 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                         className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono text-sm"
                     />
                      <div className="bg-blue-50 p-3 rounded-lg border border-blue-100 text-[10px] text-blue-700 leading-relaxed">
-                        <p className="font-bold mb-1">Why do I need this?</p>
-                        <p>Public proxies get blocked often. A free Scrape.do token gives you ~1000 reliable syncs/month.</p>
+                        <p className="font-bold mb-1">Backup 1: Scrape.do</p>
                         <a href="https://dashboard.scrape.do/login" target="_blank" rel="noopener noreferrer" className="text-blue-800 hover:underline font-bold mt-1 inline-block">
                             Get Free Token &rarr;
+                        </a>
+                    </div>
+                </div>
+
+                {/* WEBSCRAPING.AI SECTION */}
+                <div className="space-y-2">
+                    <label className="block text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                        <Server size={14} /> WebScraping.AI Key (Secondary Fallback)
+                    </label>
+                    <input 
+                        type="password" 
+                        value={inputWebScrapingAIKey}
+                        onChange={(e) => setInputWebScrapingAIKey(e.target.value)}
+                        placeholder="e.g. xx-xxxx-xxxx" 
+                        disabled={!isDriveConnected}
+                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-800 focus:ring-2 focus:ring-indigo-500/20 outline-none font-mono text-sm"
+                    />
+                     <div className="bg-purple-50 p-3 rounded-lg border border-purple-100 text-[10px] text-purple-700 leading-relaxed">
+                        <p className="font-bold mb-1">Backup 2: WebScraping.AI</p>
+                        <p>If Scrape.do fails or runs out, this will be used.</p>
+                        <a href="https://webscraping.ai/" target="_blank" rel="noopener noreferrer" className="text-purple-800 hover:underline font-bold mt-1 inline-block">
+                            Get Free Key &rarr;
                         </a>
                     </div>
                 </div>
