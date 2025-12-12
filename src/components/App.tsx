@@ -560,7 +560,7 @@ const App: React.FC = () => {
       </div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <header className="flex flex-row justify-between items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
+        <header className="flex flex-row justify-between items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
           
           {/* LEFT: Logo Section (FIXED: Vertical Stacking for Desktop) */}
           <div className="flex flex-col gap-0.5">
@@ -599,7 +599,8 @@ const App: React.FC = () => {
                         <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
                     </div>
 
-                    <div className="hidden md:flex items-center gap-1 ml-1">
+                    {/* ALWAYS VISIBLE Edit/New Buttons (Icon Only on Mobile) */}
+                    <div className="flex items-center gap-1 ml-1">
                         <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={14} /> </button>
                         <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 rounded transition-colors" title="New"> <PlusCircle size={14} /> </button>
                     </div>
