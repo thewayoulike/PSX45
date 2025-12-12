@@ -640,10 +640,15 @@ const App: React.FC = () => {
                             </button>
                             <button 
                                 onClick={() => setShowApiKeyManager(true)} 
-                                className="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm" 
-                                title="AI Settings"
+                                className={`border px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm ${
+                                    (!userApiKey || !userScraperKey) 
+                                        ? 'bg-rose-50 border-rose-200 text-rose-600 animate-pulse' 
+                                        : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                                }`}
+                                title={(!userApiKey || !userScraperKey) ? "Action Required: Save API Keys" : "AI Settings"}
                             > 
-                                <Key size={16} className="text-emerald-500" /> <span>API Key</span> 
+                                <Key size={16} className={(!userApiKey || !userScraperKey) ? "text-rose-500" : "text-emerald-500"} /> 
+                                <span>{(!userApiKey || !userScraperKey) ? "Save API Key" : "API Key"}</span> 
                             </button>
                         </div>
 
