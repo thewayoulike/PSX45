@@ -22,6 +22,7 @@ import { setGeminiApiKey } from '../services/gemini';
 import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 import { ThemeToggle } from './ui/ThemeToggle'; 
+import * as Popover from '@radix-ui/react-popover'; // <--- Using Radix for the dropdown
 
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
 import { calculateXIRR } from '../utils/finance';
@@ -39,12 +40,6 @@ const DEFAULT_BROKER: Broker = {
 };
 
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
-
-interface Lot {
-    quantity: number;
-    costPerShare: number; 
-    date: string;
-}
 
 type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS';
 
@@ -115,8 +110,8 @@ const App: React.FC = () => {
 
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
-  const [showFilterDropdown, setShowFilterDropdown] = useState(false);
-  const filterDropdownRef = useRef<HTMLDivElement>(null);
+  
+  // Removed manual dropdown state and ref, Radix handles this now.
 
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
       try {
@@ -150,7 +145,7 @@ const App: React.FC = () => {
       return {};
   });
 
-  // API KEYS STATE
+  // API KEYS
   const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || ''); 
   const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || ''); 
   const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || ''); 
@@ -213,16 +208,6 @@ const App: React.FC = () => {
   }, [userApiKey, userScraperKey, userWebScrapingAIKey]);
 
   useEffect(() => {
-      const handleClickOutside = (event: MouseEvent) => {
-          if (filterDropdownRef.current && !filterDropdownRef.current.contains(event.target as Node)) {
-              setShowFilterDropdown(false);
-          }
-      };
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
@@ -251,14 +236,15 @@ const App: React.FC = () => {
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
-                  
-                  // --- FIX: Broker Merging Logic ---
-                  // Prioritize Cloud Brokers. If Cloud has brokers, use them to overwrite local state completely.
-                  if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
-                      setBrokers(cloudData.brokers);
-                      localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
+                  if (cloudData.brokers) {
+                      setBrokers(currentLocal => {
+                          const localIds = new Set(currentLocal.map(b => b.id));
+                          const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
+                          const merged = [...currentLocal, ...missingLocally];
+                          localStorage.setItem('psx_brokers', JSON.stringify(merged));
+                          return merged;
+                      });
                   }
-                  
                   if (cloudData.geminiApiKey) {
                       setUserApiKey(cloudData.geminiApiKey);
                       setGeminiApiKey(cloudData.geminiApiKey); 
@@ -545,8 +531,11 @@ const App: React.FC = () => {
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
   const handleTickerClick = (ticker: string) => {
+      // 1. Save the selection to LocalStorage so the Stocks page reads it
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
+      
+      // 2. Switch the current view to the Stocks tab
       setCurrentView('STOCKS');
   };
 
@@ -674,19 +663,24 @@ const App: React.FC = () => {
 
                         {/* RIGHT GROUP: Settings & Sync */}
                         <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0" ref={filterDropdownRef}>
+                            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
                                 {isCombinedView && (
-                                    <div className="relative">
-                                        <button 
-                                            onClick={() => setShowFilterDropdown(!showFilterDropdown)}
-                                            className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap"
-                                        >
-                                            <Layers size={14} />
-                                            <span>Portfolios ({combinedPortfolioIds.size})</span>
-                                            <ChevronDown size={14} className={`transition-transform ${showFilterDropdown ? 'rotate-180' : ''}`} />
-                                        </button>
-                                        {showFilterDropdown && (
-                                            <div className="absolute top-full right-0 mt-2 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95">
+                                    <Popover.Root>
+                                        <Popover.Trigger asChild>
+                                            <button 
+                                                className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap outline-none"
+                                            >
+                                                <Layers size={14} />
+                                                <span>Portfolios ({combinedPortfolioIds.size})</span>
+                                                <ChevronDown size={14} />
+                                            </button>
+                                        </Popover.Trigger>
+                                        <Popover.Portal>
+                                            <Popover.Content 
+                                                className="w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2" 
+                                                sideOffset={5} 
+                                                align="end"
+                                            >
                                                 <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 dark:border-slate-700 mb-1">
                                                     <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Included Portfolios</span>
                                                     <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline">Select All</button>
@@ -709,9 +703,10 @@ const App: React.FC = () => {
                                                         );
                                                     })}
                                                 </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                                <Popover.Arrow className="fill-white dark:fill-slate-800" />
+                                            </Popover.Content>
+                                        </Popover.Portal>
+                                    </Popover.Root>
                                 )}
 
                                 <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
@@ -722,7 +717,6 @@ const App: React.FC = () => {
                                         onClick={() => {
                                             const newState = !isCombinedView;
                                             setIsCombinedView(newState);
-                                            if (newState) setShowFilterDropdown(true);
                                         }} 
                                         className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
                                     >
