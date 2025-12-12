@@ -1,7 +1,7 @@
 import React from 'react';
 import { PortfolioStats } from '../types';
 import { Card } from './ui/Card';
-import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw, Stamp, ShieldAlert } from 'lucide-react';
+import { DollarSign, Briefcase, CheckCircle2, Activity, Coins, Receipt, Building2, FileText, PiggyBank, Wallet, Scale, TrendingUp, AlertTriangle, TrendingDown, Percent, BarChart3, History, Info, RefreshCcw, Stamp } from 'lucide-react';
 
 interface DashboardProps {
   stats: PortfolioStats;
@@ -64,7 +64,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   const FOOTER_CLASS = "mt-auto pt-2";
 
   const getMwrrTooltip = () => {
-      return "MWRR: Money-Weighted Return (your personal performance based on deposit timing).\n\nBeta: Volatility vs KSE-100.\n• 1.0: Same as market\n• >1.0: Higher Risk\n• <1.0: Lower Risk";
+      if (stats.mwrr <= -99) return "Why -100%? You suffered a loss almost immediately after depositing. Since MWRR is an annualized metric (XIRR), it projects this rate of loss over a full year.";
+      if (stats.mwrr >= 500) return "Why so high? You made a profit very quickly after depositing. MWRR annualizes this short-term gain.";
+      return "Money-Weighted Rate of Return (XIRR): Calculates your personal performance by weighing your returns against the timing and size of your deposits and withdrawals.";
   };
 
   return (
@@ -72,13 +74,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
         
         {/* ROW 1: Key Performance & Capital */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-           {/* COMBINED: Risk & Return (MWRR + Beta) */}
+           {/* Portfolio MWRR */}
            <Card>
                 <div className="flex items-start gap-2 mb-2 relative">
                     <div className={ICON_BOX_CLASS}>
                         <TrendingUp size={16} />
                     </div>
-                    <h3 className={LABEL_CLASS}>Risk & Return</h3>
+                    <h3 className={LABEL_CLASS}>MWRR</h3>
                     <div className="absolute top-0 right-0 -mt-1 -mr-1">
                         <div className="text-slate-300 hover:text-indigo-500 cursor-help transition-colors p-1" title={getMwrrTooltip()}>
                             <Info size={12} />
@@ -86,29 +88,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     </div>
                 </div>
                 <div className={TOP_SECTION_CLASS}>
-                    <div className="flex flex-col gap-0.5 w-full">
-                        {/* MWRR Row */}
-                        <div className="flex items-baseline justify-between w-full">
-                            <span className="text-[8px] text-slate-400 font-bold uppercase">MWRR</span>
-                            <span className={`${isMwrrPositive ? 'text-indigo-600' : 'text-rose-600'} text-sm lg:text-xs xl:text-base font-bold`}>
-                                {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
-                            </span>
-                        </div>
-                        
-                        {/* Beta Row */}
-                        <div className="flex items-baseline justify-between w-full">
-                            <span className="text-[8px] text-slate-400 font-bold uppercase">Beta</span>
-                            <span className={`font-bold text-sm lg:text-xs xl:text-base ${
-                                (stats.beta || 0) > 1.1 ? 'text-rose-500' : 
-                                (stats.beta || 0) < 0.9 ? 'text-emerald-500' : 'text-blue-500'
-                            }`}>
-                                {stats.beta !== undefined ? stats.beta.toFixed(2) : '-'}
-                            </span>
-                        </div>
+                    <div className={`${VALUE_SIZE_CLASS} ${isMwrrPositive ? 'text-indigo-600' : 'text-rose-600'}`}>
+                        {isMwrrPositive ? '+' : ''}{stats.mwrr.toFixed(2)}%
                     </div>
                 </div>
                 <div className={FOOTER_CLASS}>
-                    {/* Visual bar for MWRR (Primary Metric) */}
                     <div className="h-1 w-full bg-slate-200 rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${isMwrrPositive ? 'bg-indigo-500' : 'bg-rose-500'}`} style={{ width: '100%' }}></div>
                     </div>
@@ -203,7 +187,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Net Invested */}
+            {/* Current Cash Invested */}
             <Card>
                 <div className="flex items-start gap-2 mb-2">
                     <div className={ICON_BOX_CLASS}>
