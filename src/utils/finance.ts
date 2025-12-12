@@ -59,38 +59,3 @@ export const calculateXIRR = (cashFlows: CashFlow[], guess = 0.1): number => {
 
     return isFinite(rate) ? rate * 100 : 0;
 };
-
-// --- NEW STATISTICS UTILS ---
-
-export const calculateReturns = (prices: number[]): number[] => {
-  const returns = [];
-  for (let i = 1; i < prices.length; i++) {
-    if (prices[i-1] === 0) returns.push(0);
-    else returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
-  }
-  return returns;
-};
-
-export const calculateVariance = (values: number[]): number => {
-  if (values.length < 2) return 0;
-  const mean = values.reduce((a, b) => a + b, 0) / values.length;
-  return values.reduce((sq, n) => sq + Math.pow(n - mean, 2), 0) / (values.length - 1);
-};
-
-export const calculateCovariance = (x: number[], y: number[]): number => {
-  const n = Math.min(x.length, y.length);
-  if (n < 2) return 0;
-  const meanX = x.reduce((a, b) => a + b, 0) / n;
-  const meanY = y.reduce((a, b) => a + b, 0) / n;
-  let sum = 0;
-  for (let i = 0; i < n; i++) {
-    sum += (x[i] - meanX) * (y[i] - meanY);
-  }
-  return sum / (n - 1);
-};
-
-export const calculateBeta = (assetReturns: number[], marketReturns: number[]): number => {
-    const cov = calculateCovariance(assetReturns, marketReturns);
-    const varM = calculateVariance(marketReturns);
-    return varM === 0 ? 0 : cov / varM;
-};
