@@ -168,7 +168,7 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     return results; 
 };
 
-// C. FETCH TOP VOLUME STOCKS (Ticker)
+// C. FETCH TOP VOLUME STOCKS (Ticker) - UPDATED FOR DYNAMIC COLUMNS
 export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     const html = await fetchUrlWithFallback(targetUrl);
@@ -186,21 +186,59 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
             const rows = table.querySelectorAll("tr");
             if (rows.length < 2) return;
             
-            rows.forEach(row => {
+            // --- DYNAMIC HEADER DETECTION ---
+            const headerCells = rows[0].querySelectorAll("th, td");
+            const colMap = { SYMBOL: -1, PRICE: -1, CHANGE: -1, VOLUME: -1 };
+
+            headerCells.forEach((cell, idx) => {
+                const txt = cell.textContent?.trim().toUpperCase() || "";
+                if (txt === 'SYMBOL' || txt === 'SCRIP') colMap.SYMBOL = idx;
+                if (txt === 'CURRENT' || txt === 'PRICE' || txt === 'RATE') colMap.PRICE = idx;
+                if (txt === 'CHANGE' || txt === 'NET CHANGE') colMap.CHANGE = idx;
+                if (txt.includes('VOL') || txt === 'VOLUME') colMap.VOLUME = idx;
+            });
+
+            // Fallback indices if header detection fails
+            if (colMap.SYMBOL === -1 || colMap.PRICE === -1) {
+                // Verified Layout as of Late 2024: 
+                // [0] SCRIP, [1] LDCP, [2] OPEN, [3] HIGH, [4] LOW, [5] CURRENT, [6] CHANGE, [7] VOLUME
+                colMap.SYMBOL = 0;
+                colMap.PRICE = 5;
+                colMap.CHANGE = 6;
+                colMap.VOLUME = 7;
+            }
+
+            rows.forEach((row, rIdx) => {
+                if (rIdx === 0) return; // Skip Header
+
                 const cols = row.querySelectorAll("td");
-                if (cols.length < 8) return; 
+                // Ensure we have enough columns for the max index we need
+                const maxIndex = Math.max(colMap.SYMBOL, colMap.PRICE, colMap.CHANGE, colMap.VOLUME);
+                if (cols.length <= maxIndex) return; 
 
-                let symbol = cols[0].textContent?.trim().toUpperCase() || "";
-                symbol = symbol.split(/\s+/)[0]; 
-                if (!symbol || TICKER_BLACKLIST.includes(symbol)) return;
+                // SYMBOL EXTRACTION
+                let symbol = "";
+                const symCell = cols[colMap.SYMBOL];
+                
+                // Try getting text from anchor tag first (usually just ticker)
+                const anchor = symCell.querySelector('a');
+                if (anchor) {
+                    symbol = anchor.textContent?.trim().toUpperCase() || "";
+                } else {
+                    // Fallback to text splitting if mixed (e.g., "OGDC Oil & Gas...")
+                    const rawText = symCell.textContent?.trim().toUpperCase() || "";
+                    symbol = rawText.split(/[\s-]/)[0]; // Split by space or dash
+                }
 
-                const priceText = cols[7]?.textContent?.trim().replace(/,/g, '');
+                if (!symbol || TICKER_BLACKLIST.includes(symbol) || symbol.length > 8 || !isNaN(Number(symbol))) return;
+
+                const priceText = cols[colMap.PRICE]?.textContent?.trim().replace(/,/g, '');
                 const price = parseFloat(priceText || '0');
 
-                const changeText = cols[8]?.textContent?.trim().replace(/,/g, '');
+                const changeText = cols[colMap.CHANGE]?.textContent?.trim().replace(/,/g, '');
                 const change = parseFloat(changeText || '0');
 
-                const volText = cols[9]?.textContent?.trim().replace(/,/g, '');
+                const volText = cols[colMap.VOLUME]?.textContent?.trim().replace(/,/g, '');
                 const volume = parseFloat(volText || '0');
 
                 if (price > 0 && volume > 0) {
@@ -211,6 +249,7 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
 
         return stocks.sort((a, b) => b.volume - a.volume).slice(0, 20);
     } catch (e) {
+        console.error("Ticker Parse Error:", e);
         return [];
     }
 };
@@ -242,9 +281,9 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
             });
 
             if (colMap.SYMBOL === -1) { 
-                colMap.SYMBOL = 0; colMap.SECTOR = 1; colMap.LDCP = 3; 
-                colMap.HIGH = 5; colMap.LOW = 6; 
-                colMap.PRICE = 7; colMap.VOLUME = 9; 
+                colMap.SYMBOL = 0; colMap.SECTOR = 1; colMap.LDCP = 1; // LDCP often index 1 now
+                colMap.HIGH = 3; colMap.LOW = 4; 
+                colMap.PRICE = 5; colMap.VOLUME = 7; 
             }
 
             let currentGroupHeader = "Unknown Sector";
