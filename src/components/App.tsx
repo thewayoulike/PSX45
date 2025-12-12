@@ -366,9 +366,21 @@ const App: React.FC = () => {
       
       const calculateRisk = async () => {
           try {
+              console.log("Starting Beta Calculation...");
+              
               // 1. Fetch Market History (KSE-100) - 90 Days
-              const marketData = await fetchStockHistory('KSE100', '1Y'); // Use 1Y to ensure enough data
-              if (marketData.length < 30) return;
+              // Use fallback mechanism: If 'KSE100' fails (returns < 30 points), try 'OGDC' as proxy
+              let marketData = await fetchStockHistory('KSE100', '1Y'); 
+              
+              if (marketData.length < 30) {
+                  console.warn("KSE100 history failed. Trying OGDC as market proxy...");
+                  marketData = await fetchStockHistory('OGDC', '1Y');
+              }
+
+              if (marketData.length < 30) {
+                  console.error("Market data fetch failed entirely. Cannot calculate Beta.");
+                  return;
+              }
 
               const marketPrices = marketData.map(d => d.price);
               const marketReturns = calculateReturns(marketPrices);
@@ -381,7 +393,10 @@ const App: React.FC = () => {
 
               for (const holding of holdings) {
                   const stockData = await fetchStockHistory(holding.ticker, '1Y');
-                  if (stockData.length < 30) continue;
+                  if (stockData.length < 30) {
+                      console.log(`Insufficient history for ${holding.ticker} (${stockData.length} pts)`);
+                      continue;
+                  }
 
                   // Align Data: Create intersection of dates
                   const stockMap = new Map(stockData.map(d => [new Date(d.time).toISOString().split('T')[0], d.price]));
@@ -396,7 +411,10 @@ const App: React.FC = () => {
                       }
                   });
 
-                  if (alignedStockPrices.length < 20) continue; // Not enough overlapping data
+                  if (alignedStockPrices.length < 20) {
+                      console.log(`Not enough overlapping data for ${holding.ticker}`);
+                      continue; 
+                  }
 
                   const stockReturns = calculateReturns(alignedStockPrices);
                   const alignedMarketReturns = calculateReturns(alignedMarketPrices);
@@ -409,7 +427,9 @@ const App: React.FC = () => {
               }
 
               if (totalWeight > 0) {
-                  setPortfolioBeta(weightedBetaSum / totalWeight);
+                  const finalBeta = weightedBetaSum / totalWeight;
+                  console.log("Calculated Portfolio Beta:", finalBeta);
+                  setPortfolioBeta(finalBeta);
               }
 
           } catch (e) {
@@ -420,7 +440,7 @@ const App: React.FC = () => {
       // Debounce slightly to avoid running on every render
       const timer = setTimeout(calculateRisk, 2000);
       return () => clearTimeout(timer);
-  }, [holdings.length]); // Only re-run if number of holdings changes (or manually triggered)
+  }, [holdings.length, userScraperKey, userWebScrapingAIKey]); // Re-run if keys change!
 
 
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
