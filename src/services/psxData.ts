@@ -5,10 +5,15 @@ const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VO
 export type TimeRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y';
 
 // --- KEY STORAGE (In Memory) ---
-let userScrapingKey: string | null = null;
+let userScrapingKey: string | null = null;      // Scrape.do
+let userWebScrapingAIKey: string | null = null; // WebScraping.AI
 
 export const setScrapingApiKey = (key: string | null) => {
     userScrapingKey = key ? key.trim() : null;
+};
+
+export const setWebScrapingAIKey = (key: string | null) => {
+    userWebScrapingAIKey = key ? key.trim() : null;
 };
 
 // FREE PROXIES (Tried First)
@@ -42,12 +47,11 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
-// The core logic: Try Free -> Fail -> Try User Paid Key
+// The core logic: Free -> Scrape.do -> WebScraping.AI
 const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> => {
     
-    // 1. TRY FREE PROXIES FIRST (Save credits)
+    // 1. TRY FREE PROXIES FIRST
     const freeList = getShuffledFreeProxies();
-    
     for (const proxyGen of freeList) {
         try {
             const proxyUrl = proxyGen(targetUrl);
@@ -56,7 +60,6 @@ const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> =
 
             const text = await response.text();
             
-            // Handle AllOrigins JSON wrapper
             if (proxyUrl.includes('allorigins')) {
                 try {
                     const json = JSON.parse(text);
@@ -65,19 +68,15 @@ const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> =
             } else {
                 if (text && text.length > 500) return text; 
             }
-
-        } catch (e) {
-            // Try next
-        }
+        } catch (e) { /* Try next */ }
     }
 
-    // 2. FALLBACK TO USER SCRAPER KEY (Scrape.do)
+    // 2. FALLBACK: Scrape.do
     if (userScrapingKey) {
         try {
             console.log("Free proxies failed. Switching to Scrape.do...");
-            // Scrape.do uses 'token' instead of 'api_key'
             const premiumUrl = `http://api.scrape.do?token=${userScrapingKey}&url=${encodeURIComponent(targetUrl)}`;
-            const response = await fetchWithTimeout(premiumUrl, {}, 25000); 
+            const response = await fetchWithTimeout(premiumUrl, {}, 25000);
             
             if (response.ok) {
                 return await response.text();
@@ -85,16 +84,30 @@ const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> =
         } catch (e) {
             console.error("Scrape.do failed:", e);
         }
+    }
+
+    // 3. FALLBACK: WebScraping.AI
+    if (userWebScrapingAIKey) {
+        try {
+            console.log("Scrape.do failed/empty. Switching to WebScraping.AI...");
+            // WebScraping.AI uses 'api_key' parameter
+            const wsUrl = `https://api.webscraping.ai/html?api_key=${userWebScrapingAIKey}&url=${encodeURIComponent(targetUrl)}`;
+            const response = await fetchWithTimeout(wsUrl, {}, 25000);
+            
+            if (response.ok) {
+                return await response.text();
+            }
+        } catch (e) {
+            console.error("WebScraping.AI failed:", e);
+        }
     } else {
-        console.warn("No Scraper key provided. Sync failed.");
+        if (!userScrapingKey) console.warn("No Premium Keys provided. Sync failed.");
     }
 
     return null; 
 };
 
-// ... (Rest of the file: fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks remains exactly the same, using fetchUrlWithFallback) ...
-// (I will include the full file content below for copy-pasting convenience)
-
+// ... (Keep fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks exactly as they were) ...
 // Scrape Live Data (Fallback for 1D chart)
 const fetchLivePriceData = async (symbol: string): Promise<{ time: number; price: number } | null> => {
     try {
