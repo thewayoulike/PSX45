@@ -555,61 +555,75 @@ const App: React.FC = () => {
       </div>
       
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <header className="flex flex-row justify-between items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
+        <header className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
           
-          <div className="flex flex-col gap-0.5">
-             <div className="scale-75 sm:scale-100 origin-top-left sm:origin-center">
-               <Logo />
+          {/* MOBILE HEADER: Logo + Theme Toggle */}
+          <div className="flex justify-between items-center w-full md:w-auto">
+             <div className="flex flex-col gap-0.5">
+                 <div className="scale-75 sm:scale-100 origin-left">
+                   <Logo />
+                 </div>
+                 <p className="hidden md:block text-sm font-bold tracking-wide mt-1 ml-1 whitespace-nowrap"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
              </div>
-             <p className="hidden md:block text-sm font-bold tracking-wide mt-1 ml-1 whitespace-nowrap"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
+             {/* Mobile Theme Toggle */}
+             <div className="md:hidden">
+                <ThemeToggle />
+             </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            
-            <ThemeToggle />
+          {/* CONTROL STACK */}
+          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+             
+             {/* ROW 1: USER INFO & SYNC (Full Width on Mobile) */}
+             {driveUser ? (
+                 <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full md:w-auto">
+                     <div className="flex items-center gap-2">
+                        {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
+                        
+                        {/* Name hidden on very small screens, visible on SM */}
+                        <div className="hidden sm:flex flex-col">
+                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
+                        </div>
+                     </div>
+                     
+                     <div className="flex items-center gap-3 pr-2">
+                         {isCloudSyncing ? ( <Loader2 size={18} className="text-emerald-500 animate-spin" /> ) : ( <Save size={18} className="text-emerald-500" /> )}
+                         <button onClick={handleManualLogout} className="text-slate-400 hover:text-rose-500 transition-colors" title="Sign Out"> <LogOut size={18} /> </button>
+                     </div>
+                 </div>
+             ) : (
+                <button onClick={handleLogin} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> Sign in</button>
+             )}
 
-            {driveUser ? (
-                <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 pr-2 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm h-10">
-                    
-                    {/* AVATAR ONLY ON MOBILE (HIDDEN SM AND UP) */}
-                    {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100 block sm:hidden" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold block sm:hidden">{driveUser.name?.[0]}</div> )}
+             {/* ROW 2: PORTFOLIO & ACTIONS (Full Width on Mobile) */}
+             <div className="flex items-center gap-2 w-full md:w-auto bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                 <div className="hidden md:block"><ThemeToggle /></div>
+                 
+                 {/* Portfolio Dropdown - Flexible Width */}
+                 <div className="relative group flex-1 min-w-0">
+                    <select 
+                        value={currentPortfolioId} 
+                        onChange={(e) => setCurrentPortfolioId(e.target.value)} 
+                        className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-slate-900 truncate"
+                    >
+                        {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
+                 </div>
 
-                    {/* NAME HIDDEN ON MOBILE (SHOWN SM AND UP) */}
-                    <div className="hidden sm:flex flex-col">
-                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
-                    </div>
-
-                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
-                    {/* ALWAYS VISIBLE SYNC ICON */}
-                    {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500" /> )}
-                    
-                    {/* PORTFOLIO SELECTOR (FLEXIBLE WIDTH ON MOBILE) */}
-                    <div className="relative group ml-1 flex-1 min-w-[3rem] max-w-[8rem] sm:max-w-none">
-                        <select 
-                            value={currentPortfolioId} 
-                            onChange={(e) => setCurrentPortfolioId(e.target.value)} 
-                            className="appearance-none bg-transparent border-none text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-4 sm:pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-slate-900 truncate"
-                        >
-                            {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
-                        </select>
-                        <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none hidden sm:block" />
-                    </div>
-
-                    {/* ACTION BUTTONS (SHRINK-0 SO THEY NEVER HIDE) */}
-                    <div className="flex items-center gap-1 ml-1 border-l border-slate-100 dark:border-slate-800 pl-1 shrink-0">
-                        <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={14} /> </button>
-                        <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={14} /> </button>
-                        <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={14} /> </button>
-                    </div>
-                </div>
-            ) : (
-                <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> <span className="hidden sm:inline">Sign in</span></button>
-            )}
+                 {/* Action Buttons - Fixed Width (Never Shrink) */}
+                 <div className="flex items-center gap-1 pl-2 border-l border-slate-100 dark:border-slate-800 shrink-0">
+                    <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={16} /> </button>
+                    <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={16} /> </button>
+                 </div>
+             </div>
           </div>
+
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+            {/* ... Rest of the Main Content (Tabs, Dashboard, etc.) ... */}
             <div className="flex justify-center mb-8 w-full">
                 <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto w-full sm:w-auto flex justify-start sm:justify-center no-scrollbar">
                     <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
