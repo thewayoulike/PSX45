@@ -243,10 +243,15 @@ const App: React.FC = () => {
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
+                  
+                  // --- FIX: FORCE CLOUD BROKERS TO OVERWRITE LOCAL ---
+                  // If we have brokers in the cloud, trust them as the latest version.
+                  // This fixes the issue where local defaults (e.g. annual fee = 0) were overwriting cloud data.
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
                       localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
                   }
+                  
                   if (cloudData.geminiApiKey) {
                       setUserApiKey(cloudData.geminiApiKey);
                       setGeminiApiKey(cloudData.geminiApiKey); 
@@ -580,10 +585,10 @@ const App: React.FC = () => {
                      <div className="flex items-center gap-2">
                         {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
                         
-                        {/* Name hidden on very small screens, visible on SM */}
-                        <div className="hidden sm:flex flex-col">
+                        {/* NAME NOW VISIBLE ON ALL SCREENS */}
+                        <div className="flex flex-col">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[120px] truncate">{driveUser.name}</span>
                         </div>
                      </div>
                      
