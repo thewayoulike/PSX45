@@ -570,8 +570,11 @@ const App: React.FC = () => {
 
             {driveUser ? (
                 <div className="flex items-center gap-2 bg-white dark:bg-slate-900 p-1 pr-2 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm h-10">
-                    {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
                     
+                    {/* AVATAR ONLY ON MOBILE (HIDDEN SM AND UP) */}
+                    {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100 block sm:hidden" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold block sm:hidden">{driveUser.name?.[0]}</div> )}
+
+                    {/* NAME HIDDEN ON MOBILE (SHOWN SM AND UP) */}
                     <div className="hidden sm:flex flex-col">
                         <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
                         <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
@@ -581,19 +584,19 @@ const App: React.FC = () => {
                     {/* ALWAYS VISIBLE SYNC ICON */}
                     {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin" /> ) : ( <Save size={16} className="text-emerald-500" /> )}
                     
-                    {/* COMPACT SELECTOR FOR MOBILE */}
-                    <div className="relative group ml-1">
+                    {/* PORTFOLIO SELECTOR (FLEXIBLE WIDTH ON MOBILE) */}
+                    <div className="relative group ml-1 flex-1 min-w-[3rem] max-w-[8rem] sm:max-w-none">
                         <select 
                             value={currentPortfolioId} 
                             onChange={(e) => setCurrentPortfolioId(e.target.value)} 
-                            className="appearance-none bg-transparent border-none text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-4 sm:pr-6 cursor-pointer focus:ring-0 outline-none w-16 sm:w-32 dark:bg-slate-900 truncate"
+                            className="appearance-none bg-transparent border-none text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-4 sm:pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-slate-900 truncate"
                         >
                             {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
                         </select>
                         <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none hidden sm:block" />
                     </div>
 
-                    {/* ACTION BUTTONS ALWAYS VISIBLE */}
+                    {/* ACTION BUTTONS (SHRINK-0 SO THEY NEVER HIDE) */}
                     <div className="flex items-center gap-1 ml-1 border-l border-slate-100 dark:border-slate-800 pl-1 shrink-0">
                         <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={14} /> </button>
                         <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={14} /> </button>
