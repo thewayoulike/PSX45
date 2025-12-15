@@ -124,6 +124,7 @@ export interface CommissionSlab {
 export interface Broker {
   id: string;
   name: string;
+  email?: string; // <--- NEW FIELD ADDED
   commissionType: CommissionType;
   rate1: number; 
   rate2?: number; 
