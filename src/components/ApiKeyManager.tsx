@@ -29,7 +29,6 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
   if (!isOpen) return null;
 
   return (
-    // MODAL CONTAINER: Top Aligned
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] flex items-start justify-center p-4 pt-20 md:pt-32">
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
@@ -52,19 +51,28 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
 
             <form onSubmit={handleSave} className="space-y-6">
                 <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2"> <Key size={14} /> Gemini AI Key </label>
+                    <div className="flex justify-between items-center">
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2"> <Key size={14} /> Gemini AI Key </label>
+                        <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline flex items-center gap-1">Get Key <ExternalLink size={10} /></a>
+                    </div>
                     <input type="password" value={inputGeminiKey} onChange={(e) => setInputGeminiKey(e.target.value)} placeholder="AIzaSy..." disabled={!isDriveConnected} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-slate-200 outline-none font-mono text-sm" />
                 </div>
                 
                 <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
 
                 <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2"> <Globe size={14} /> Scrape.do Token </label>
+                    <div className="flex justify-between items-center">
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2"> <Globe size={14} /> Scrape.do Token </label>
+                        <a href="https://scrape.do/" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline flex items-center gap-1">Get Token <ExternalLink size={10} /></a>
+                    </div>
                     <input type="password" value={inputScraperKey} onChange={(e) => setInputScraperKey(e.target.value)} placeholder="e.g. 54a1..." disabled={!isDriveConnected} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-slate-200 outline-none font-mono text-sm" />
                 </div>
 
                 <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2"> <Server size={14} /> WebScraping.AI Key </label>
+                    <div className="flex justify-between items-center">
+                        <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase flex items-center gap-2"> <Server size={14} /> WebScraping.AI Key </label>
+                        <a href="https://webscraping.ai/" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 hover:underline flex items-center gap-1">Get Key <ExternalLink size={10} /></a>
+                    </div>
                     <input type="password" value={inputWebScrapingAIKey} onChange={(e) => setInputWebScrapingAIKey(e.target.value)} placeholder="e.g. xx-xxxx-xxxx" disabled={!isDriveConnected} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-800 dark:text-slate-200 outline-none font-mono text-sm" />
                 </div>
 
