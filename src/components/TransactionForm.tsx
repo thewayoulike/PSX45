@@ -33,23 +33,6 @@ const normalizeDate = (input: any): string => {
     if (!isNaN(dateObj.getTime()) && str.length > 5 && !str.match(/[a-zA-Z]/)) {
         return dateObj.toISOString().split('T')[0];
     }
-    const dmyMatch = str.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
-    if (dmyMatch) {
-        const day = parseInt(dmyMatch[1]);
-        const month = parseInt(dmyMatch[2]);
-        const year = parseInt(dmyMatch[3]);
-        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-    const dMonYMatch = str.match(/^(\d{1,2})[-/]([A-Za-z]{3})[-/](\d{2,4})/);
-    if (dMonYMatch) {
-        const day = parseInt(dMonYMatch[1]);
-        const monthStr = dMonYMatch[2].toLowerCase();
-        let year = parseInt(dMonYMatch[3]);
-        if (year < 100) year += 2000; 
-        const months: Record<string, number> = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, oct:10, nov:11, dec:12 };
-        const month = months[monthStr];
-        if (month) return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
     return new Date().toISOString().split('T')[0]; 
 };
 
@@ -102,8 +85,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [selectedScanIndices, setSelectedScanIndices] = useState<Set<number>>(new Set());
 
   const [formError, setFormError] = useState<string | null>(null);
-  const [cgtProfit, setCgtProfit] = useState<number | ''>('');
-  const [cgtMonth, setCgtMonth] = useState(new Date().toISOString().substring(0, 7));
   const [histAmount, setHistAmount] = useState<number | ''>('');
   const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
   const [category, setCategory] = useState<'ADJUSTMENT' | 'OTHER_TAX'>('ADJUSTMENT');
@@ -211,7 +192,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(editingTransaction.type)) { setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'OTHER') { setCategory(editingTransaction.category || 'ADJUSTMENT'); setHistAmount(editingTransaction.price); }
         } else {
-            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(true); setDate(new Date().toISOString().split('T')[0]); setCgtMonth(new Date().toISOString().substring(0, 7)); setCgtProfit(''); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery(''); setEmailSender(''); if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
+            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(true); setDate(new Date().toISOString().split('T')[0]); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery(''); setEmailSender(''); if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
   }, [isOpen, editingTransaction, portfolioDefaultBrokerId]); 
@@ -231,7 +212,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
              setCdcCharges(fees.cdcCharges);
         }
     }
-  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, cgtProfit, cgtMonth, histAmount, histTaxType, category]);
+  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, histAmount, histTaxType, category]);
 
   const getHoldingQty = (ticker: string, brokerId: string) => { let qty = 0; const cleanTicker = ticker.toUpperCase(); const brokerObj = brokers.find(b => b.id === brokerId); const brokerName = brokerObj?.name; existingTransactions.forEach(t => { const isSameBroker = t.brokerId === brokerId || (t.broker && brokerName && t.broker === brokerName); if (t.ticker === cleanTicker && isSameBroker) { if (t.type === 'BUY') qty += t.quantity; if (t.type === 'SELL') qty -= t.quantity; } }); return Math.max(0, qty); };
   
@@ -257,7 +238,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   if (!isOpen) return null;
 
   // --- RENDER FORM CONTENT HELPER ---
-  // THIS FUNCTION ENSURES THE CORRECT FORM IS SHOWN
   const renderFormContent = () => {
     if (type === 'TAX') {
         return (
@@ -486,8 +466,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                              <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800`} rounded-2xl cursor-pointer hover:bg-white dark:hover:bg-slate-700 transition-all group flex flex-col items-center justify-center p-8`}> 
                                  <input ref={fileInputRef} type="file" accept={mode === 'OCR_SCAN' ? "image/*,.pdf" : "image/*,.pdf,.csv,.xlsx,.xls"} onChange={handleFileSelect} className="hidden" />
                                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? `${theme.text} bg-white dark:bg-slate-900` : 'bg-white dark:bg-slate-900 text-slate-400'}`}> {getFileIcon()} </div>
-                                 <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-1">Click to Upload</h3>
-                                 <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">{mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'}</p>
+                                 <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-1">{selectedFile ? selectedFile.name : 'Click to Upload'}</h3>
+                                 <p className="text-slate-400 text-sm font-medium text-center max-w-[200px]">
+                                     {selectedFile 
+                                        ? `${(selectedFile.size / 1024).toFixed(1)} KB - Ready` 
+                                        : mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'
+                                     }
+                                 </p>
                              </div>
                              
                              {mode === 'IMPORT' && !selectedFile && !scanError && ( <button onClick={handleDownloadTemplate} className="mt-4 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline mx-auto opacity-80 hover:opacity-100 transition-opacity" > <Download size={14} /> Download Import Template (CSV) </button> )}
