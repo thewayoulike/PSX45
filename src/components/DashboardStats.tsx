@@ -66,8 +66,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
   return (
     <div className="flex flex-col gap-3 mb-6 md:mb-10">
         
+        {/* ROW 1: Performance Metrics */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-           {/* MWRR */}
+           {/* 1. MWRR */}
            <Card>
                 <div className="flex items-start gap-2 mb-2 relative">
                     <div className={ICON_BOX_CLASS}>
@@ -92,7 +93,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* ROI */}
+            {/* 2. ROI */}
             <Card>
                 <div className="flex items-start gap-2 mb-2">
                     <div className={ICON_BOX_CLASS}>
@@ -123,44 +124,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Total Assets */}
-            <Card>
-                <div className="flex items-start gap-2 mb-2">
-                    <div className={ICON_BOX_CLASS}>
-                        <Briefcase size={16} />
-                    </div>
-                    <h3 className={LABEL_CLASS}>Assets</h3>
-                </div>
-                <div className={TOP_SECTION_CLASS}>
-                    <div className="w-full">
-                        <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
-                            Rs. {formatCurrency(totalNetWorth)}
-                        </div>
-                        {(isSevereLoss || isCapitalEroded) && (
-                            <div className="flex items-center gap-1 mt-1">
-                                <div className={`flex items-center gap-1 px-1 py-0.5 rounded text-[8px] font-bold border ${isSevereLoss ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800'}`}>
-                                    <TrendingDown size={8} />
-                                    <span>{isSevereLoss ? `Risk: -${erosionPercent.toFixed(1)}%` : 'Below Cap'}</span>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-                <div className={FOOTER_CLASS}>
-                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
-                        {!isCapitalEroded ? (
-                            <div className="h-full bg-emerald-500 w-full rounded-full"></div>
-                        ) : (
-                            <>
-                                <div className="h-full bg-emerald-500" style={{ width: `${100 - erosionPercent}%` }} />
-                                <div className="h-full bg-rose-500" style={{ width: `${erosionPercent}%` }} />
-                            </>
-                        )}
-                    </div>
-                </div>
-            </Card>
-
-            {/* Free Cash */}
+            {/* 3. Free Cash */}
             <Card>
                 <div className="flex items-start gap-2 mb-2">
                     <div className={ICON_BOX_CLASS}>
@@ -180,96 +144,42 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Net Invested */}
+            {/* 4. Today's P&L */}
             <Card>
                 <div className="flex items-start gap-2 mb-2">
                     <div className={ICON_BOX_CLASS}>
-                        <Scale size={16} />
+                        <Activity size={16} />
                     </div>
-                    <h3 className={LABEL_CLASS}>Net Invested</h3>
-                </div>
-                <div className={TOP_SECTION_CLASS}>
-                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
-                    Rs. {formatCurrency(stats.netPrincipal)}
-                    </div>
-                </div>
-                <div className={FOOTER_CLASS}>
-                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
+                    <div>
+                        <h3 className={LABEL_CLASS}>Today's P&L</h3>
+                        {lastUpdated && (
+                            <p className="text-[8px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
+                                {formatTime(lastUpdated)}
+                            </p>
+                        )}
                     </div>
                 </div>
-            </Card>
 
-            {/* Peak Capital */}
-            <Card>
-                <div className="flex items-start gap-2 mb-2">
-                    <div className={ICON_BOX_CLASS}>
-                        <History size={16} />
-                    </div>
-                    <h3 className={LABEL_CLASS}>Peak Capital</h3>
-                </div>
                 <div className={TOP_SECTION_CLASS}>
-                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
-                    Rs. {formatCurrency(stats.peakNetPrincipal)}
+                    <div className={`${VALUE_SIZE_CLASS} ${isDailyProfitable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                    {isDailyProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.dailyPL))}
                     </div>
-                </div>
-                <div className={FOOTER_CLASS}>
-                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-slate-400 dark:bg-slate-600 rounded-full" style={{ width: '100%' }}></div>
-                    </div>
-                </div>
-            </Card>
-        </div>
-
-        {/* ROW 2: Holdings, Profits & Breakdown */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-             {/* Current Stock Value */}
-             <Card>
-                <div className="flex items-start gap-2 mb-2">
-                    <div className={ICON_BOX_CLASS}>
-                        <BarChart3 size={16} />
-                    </div>
-                    <h3 className={LABEL_CLASS}>Stock Value</h3>
-                </div>
-                <div className={TOP_SECTION_CLASS}>
-                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
-                    Rs. {formatCurrency(stats.totalValue)}
-                    </div>
-                </div>
-                <div className={FOOTER_CLASS}>
-                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-teal-500 rounded-full" style={{ width: '100%' }}></div>
-                    </div>
-                </div>
-            </Card>
-
-            {/* Stock Assets (Cost) */}
-            <Card>
-                <div className="flex items-start gap-2 mb-2">
-                    <div className={ICON_BOX_CLASS}>
-                        <DollarSign size={16} />
-                    </div>
-                    <h3 className={LABEL_CLASS}>Cost Basis</h3>
-                </div>
-                <div className={TOP_SECTION_CLASS}>
-                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
-                        Rs. {formatCurrency(stats.totalCost)}
-                    </div>
-                    {stats.reinvestedProfits > 0 && (
-                        <div className="flex items-center gap-1 mt-1 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-800 w-fit">
-                             <RefreshCcw size={8} />
-                             <span>Reinvest: {formatCurrency(stats.reinvestedProfits)}</span>
+                    
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${isDailyProfitable ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'}`}>
+                            {isDailyProfitable ? '+' : ''}{stats.dailyPLPercent?.toFixed(2)}%
                         </div>
-                    )}
+                    </div>
                 </div>
+                
                 <div className={FOOTER_CLASS}>
-                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: '100%' }}></div>
+                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                        <div className={`h-full w-full ${isDailyProfitable ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
                     </div>
                 </div>
             </Card>
 
-            {/* Unrealized P&L */}
+            {/* 5. Unrealized P&L */}
             <Card>
                 <div className="flex items-start gap-2 mb-2">
                     <div className={ICON_BOX_CLASS}>
@@ -314,42 +224,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                 </div>
             </Card>
 
-            {/* Today's P&L */}
-            <Card>
-                <div className="flex items-start gap-2 mb-2">
-                    <div className={ICON_BOX_CLASS}>
-                        <Activity size={16} />
-                    </div>
-                    <div>
-                        <h3 className={LABEL_CLASS}>Today's P&L</h3>
-                        {lastUpdated && (
-                            <p className="text-[8px] text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">
-                                {formatTime(lastUpdated)}
-                            </p>
-                        )}
-                    </div>
-                </div>
-
-                <div className={TOP_SECTION_CLASS}>
-                    <div className={`${VALUE_SIZE_CLASS} ${isDailyProfitable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
-                    {isDailyProfitable ? '+' : ''}Rs. {formatCurrency(Math.abs(stats.dailyPL))}
-                    </div>
-                    
-                    <div className="flex items-center gap-2 mt-1">
-                        <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border ${isDailyProfitable ? 'bg-emerald-100 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'bg-rose-100 dark:bg-rose-900/30 border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300'}`}>
-                            {isDailyProfitable ? '+' : ''}{stats.dailyPLPercent?.toFixed(2)}%
-                        </div>
-                    </div>
-                </div>
-                
-                <div className={FOOTER_CLASS}>
-                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
-                        <div className={`h-full w-full ${isDailyProfitable ? 'bg-emerald-500' : 'bg-rose-500'}`}></div>
-                    </div>
-                </div>
-            </Card>
-
-            {/* Realized Gains (FIXED) */}
+            {/* 6. Realized Gains (Net) */}
             <Card>
                 <div className="flex items-start gap-2 mb-2">
                     <div className={ICON_BOX_CLASS}>
@@ -372,8 +247,134 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated }) => {
                     </div>
                 </div>
             </Card>
+        </div>
 
-            {/* Dividends (Net) */}
+        {/* ROW 2: Capital & Assets */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+             {/* 1. Cost Basis */}
+             <Card>
+                <div className="flex items-start gap-2 mb-2">
+                    <div className={ICON_BOX_CLASS}>
+                        <DollarSign size={16} />
+                    </div>
+                    <h3 className={LABEL_CLASS}>Cost Basis</h3>
+                </div>
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
+                        Rs. {formatCurrency(stats.totalCost)}
+                    </div>
+                    {stats.reinvestedProfits > 0 && (
+                        <div className="flex items-center gap-1 mt-1 text-[8px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-800 w-fit">
+                             <RefreshCcw size={8} />
+                             <span>Reinvest: {formatCurrency(stats.reinvestedProfits)}</span>
+                        </div>
+                    )}
+                </div>
+                <div className={FOOTER_CLASS}>
+                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-emerald-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+             {/* 2. Current Stock Value */}
+             <Card>
+                <div className="flex items-start gap-2 mb-2">
+                    <div className={ICON_BOX_CLASS}>
+                        <BarChart3 size={16} />
+                    </div>
+                    <h3 className={LABEL_CLASS}>Stock Value</h3>
+                </div>
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
+                    Rs. {formatCurrency(stats.totalValue)}
+                    </div>
+                </div>
+                <div className={FOOTER_CLASS}>
+                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-teal-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* 3. Total Assets */}
+            <Card>
+                <div className="flex items-start gap-2 mb-2">
+                    <div className={ICON_BOX_CLASS}>
+                        <Briefcase size={16} />
+                    </div>
+                    <h3 className={LABEL_CLASS}>Assets</h3>
+                </div>
+                <div className={TOP_SECTION_CLASS}>
+                    <div className="w-full">
+                        <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
+                            Rs. {formatCurrency(totalNetWorth)}
+                        </div>
+                        {(isSevereLoss || isCapitalEroded) && (
+                            <div className="flex items-center gap-1 mt-1">
+                                <div className={`flex items-center gap-1 px-1 py-0.5 rounded text-[8px] font-bold border ${isSevereLoss ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400 border-rose-200 dark:border-rose-800'}`}>
+                                    <TrendingDown size={8} />
+                                    <span>{isSevereLoss ? `Risk: -${erosionPercent.toFixed(1)}%` : 'Below Cap'}</span>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                <div className={FOOTER_CLASS}>
+                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden flex">
+                        {!isCapitalEroded ? (
+                            <div className="h-full bg-emerald-500 w-full rounded-full"></div>
+                        ) : (
+                            <>
+                                <div className="h-full bg-emerald-500" style={{ width: `${100 - erosionPercent}%` }} />
+                                <div className="h-full bg-rose-500" style={{ width: `${erosionPercent}%` }} />
+                            </>
+                        )}
+                    </div>
+                </div>
+            </Card>
+
+            {/* 4. Net Invested */}
+            <Card>
+                <div className="flex items-start gap-2 mb-2">
+                    <div className={ICON_BOX_CLASS}>
+                        <Scale size={16} />
+                    </div>
+                    <h3 className={LABEL_CLASS}>Net Invested</h3>
+                </div>
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
+                    Rs. {formatCurrency(stats.netPrincipal)}
+                    </div>
+                </div>
+                <div className={FOOTER_CLASS}>
+                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-indigo-500 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* 5. Peak Capital */}
+            <Card>
+                <div className="flex items-start gap-2 mb-2">
+                    <div className={ICON_BOX_CLASS}>
+                        <History size={16} />
+                    </div>
+                    <h3 className={LABEL_CLASS}>Peak Capital</h3>
+                </div>
+                <div className={TOP_SECTION_CLASS}>
+                    <div className={`${VALUE_SIZE_CLASS} text-slate-800 dark:text-slate-100`}>
+                    Rs. {formatCurrency(stats.peakNetPrincipal)}
+                    </div>
+                </div>
+                <div className={FOOTER_CLASS}>
+                    <div className="h-1 w-full bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full bg-slate-400 dark:bg-slate-600 rounded-full" style={{ width: '100%' }}></div>
+                    </div>
+                </div>
+            </Card>
+
+            {/* 6. Dividends (Net) */}
             <Card>
                 <div className="flex items-start gap-2 mb-2">
                     <div className={ICON_BOX_CLASS}>
