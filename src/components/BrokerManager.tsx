@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Broker, CommissionType, CDCType, CommissionSlab } from '../types';
-import { X, Plus, Pencil, Trash2, Save, Settings2, ArrowDown, Mail } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Save, Settings2, ArrowDown, Mail, AlertCircle } from 'lucide-react';
 
 interface BrokerManagerProps {
   isOpen: boolean;
@@ -16,18 +16,21 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   
+  // Commission State
   const [name, setName] = useState('');
-  const [email, setEmail] = useState(''); // <--- NEW STATE
+  const [email, setEmail] = useState(''); 
   const [commType, setCommType] = useState<CommissionType>('HIGHER_OF');
   const [rate1, setRate1] = useState<number | ''>(0.15);
   const [rate2, setRate2] = useState<number | ''>(0.05);
   const [sstRate, setSstRate] = useState<number | ''>(15);
 
+  // Slab State
   const [slabs, setSlabs] = useState<CommissionSlab[]>([
       { min: 0, max: 10, rate: 0.03, type: 'FIXED' },
       { min: 10.01, max: 999999, rate: 0.15, type: 'PERCENTAGE' }
   ]);
 
+  // CDC State
   const [cdcType, setCdcType] = useState<CDCType>('PER_SHARE');
   const [cdcRate, setCdcRate] = useState<number | ''>(0.005);
   const [cdcMin, setCdcMin] = useState<number | ''>('');
@@ -38,7 +41,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   const handleEdit = (b: Broker) => {
     setEditingId(b.id);
     setName(b.name);
-    setEmail(b.email || ''); // <--- LOAD EMAIL
+    setEmail(b.email || '');
     setCommType(b.commissionType);
     setRate1(b.rate1);
     setRate2(b.rate2 || '');
@@ -61,7 +64,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   const handleCancelEdit = () => {
     setEditingId(null);
     setName('');
-    setEmail(''); // <--- RESET EMAIL
+    setEmail('');
     setRate1(0.15);
     setRate2(0.05);
     setCommType('HIGHER_OF');
@@ -97,7 +100,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
 
     const brokerData: Omit<Broker, 'id'> = {
       name,
-      email: email.trim() || undefined, // <--- SAVE EMAIL
+      email: email.trim() || undefined,
       commissionType: commType,
       rate1: Number(rate1),
       rate2: Number(rate2),
@@ -122,8 +125,9 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-16 md:pt-24 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[90vh]">
+    // FIX: Top Aligned on Mobile (pt-24)
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-24 md:pt-24 overflow-y-auto">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[85vh]">
         
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
@@ -174,31 +178,18 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                         </select>
                       </div>
 
-                      {/* DYNAMIC SLAB UI */}
                       {commType === 'SLAB' ? (
                           <div className="space-y-3">
-                              {/* Comparison Rate Input */}
                               <div className="bg-indigo-50/60 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
                                   <div className="flex items-center justify-between mb-1">
-                                      <label className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">
-                                          Compare with % (Optional)
-                                      </label>
+                                      <label className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Compare with % (Optional)</label>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                      <input 
-                                          type="number" 
-                                          step="0.01" 
-                                          value={rate1} 
-                                          onChange={e => setRate1(Number(e.target.value))} 
-                                          className="w-full p-2 rounded border border-indigo-200 dark:border-indigo-700 text-xs font-bold text-indigo-700 dark:text-indigo-300 focus:border-indigo-500 outline-none bg-white dark:bg-slate-900"
-                                          placeholder="e.g. 0.15" 
-                                      />
+                                      <input type="number" step="0.01" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full p-2 rounded border border-indigo-200 dark:border-indigo-700 text-xs font-bold text-indigo-700 dark:text-indigo-300 focus:border-indigo-500 outline-none bg-white dark:bg-slate-900" placeholder="e.g. 0.15" />
                                       <span className="text-xs text-indigo-400 font-bold">%</span>
                                   </div>
                               </div>
-                              {/* ... Slabs UI (Abbreviated for space, assume same as before) ... */}
-                              {/* NOTE: You should include the full slab logic from previous response here if needed */}
-                               <div className="space-y-2">
+                              <div className="space-y-2">
                                   <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Price Ranges</label>
                                   {slabs.map((slab, idx) => (
                                       <div key={idx} className="flex gap-1 items-center">
@@ -217,9 +208,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                           <div className="grid grid-cols-2 gap-3">
                              <div>
                                  <input type="number" step="0.01" placeholder="Rate 1" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" />
-                                 <span className="text-[9px] text-slate-400">
-                                    {commType === 'HIGHER_OF' ? '%' : commType === 'FIXED' ? 'Rs' : commType === 'PER_SHARE' ? 'Rs' : '%'}
-                                 </span>
+                                 <span className="text-[9px] text-slate-400">{commType === 'HIGHER_OF' ? '%' : commType === 'FIXED' ? 'Rs' : commType === 'PER_SHARE' ? 'Rs' : '%'}</span>
                              </div>
                              {commType === 'HIGHER_OF' && (
                                  <div>
@@ -238,31 +227,27 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
 
                   <hr className="border-slate-200 dark:border-slate-700" />
 
-                  {/* CDC & Fee Sections (Same as before) */}
-                   <div className="space-y-3">
+                  <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span> CDC / Regulatory</div>
                       <div className="grid grid-cols-2 gap-3">
-                         <div><input type="number" step="0.001" placeholder="Rate" value={cdcRate} onChange={e => setCdcRate(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /></div>
-                         {cdcType === 'HIGHER_OF' && (<div><input type="number" step="0.01" placeholder="Min" value={cdcMin} onChange={e => setCdcMin(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /></div>)}
+                         <div><input type="number" step="0.001" placeholder="Rate" value={cdcRate} onChange={e => setCdcRate(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /><span className="text-[9px] text-slate-400">{cdcType === 'FIXED' ? 'Rs Fixed' : 'Rs / Share'}</span></div>
+                         {cdcType === 'HIGHER_OF' && (<div><input type="number" step="0.01" placeholder="Min" value={cdcMin} onChange={e => setCdcMin(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /><span className="text-[9px] text-slate-400">Minimum Rs</span></div>)}
                       </div>
                   </div>
+
+                  <hr className="border-slate-200 dark:border-slate-700" />
+
                   <div className="space-y-3">
                       <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300"><Settings2 size={12} className="text-purple-500" /> Annual Maintenance</div>
                       <div className="grid grid-cols-2 gap-3">
-                         <div><input type="date" value={feeStartDate} onChange={e => setFeeStartDate(e.target.value)} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none dark:color-scheme-dark" /></div>
-                         <div><input type="number" placeholder="e.g. 5000" value={annualFee} onChange={e => setAnnualFee(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /></div>
+                         <div><label className="text-[9px] text-slate-400 block mb-1">Start Date</label><input type="date" value={feeStartDate} onChange={e => setFeeStartDate(e.target.value)} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none dark:color-scheme-dark" /></div>
+                         <div><label className="text-[9px] text-slate-400 block mb-1">Amount (Rs)</label><input type="number" placeholder="e.g. 5000" value={annualFee} onChange={e => setAnnualFee(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /></div>
                       </div>
                   </div>
 
                   <div className="flex gap-2 pt-4">
-                    {editingId && (
-                      <button type="button" onClick={handleCancelEdit} className="flex-1 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
-                        Cancel
-                      </button>
-                    )}
-                    <button type="submit" className="flex-1 bg-emerald-600 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20">
-                       <Save size={16} /> {editingId ? 'Update' : 'Save Broker'}
-                    </button>
+                    {editingId && (<button type="button" onClick={handleCancelEdit} className="flex-1 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">Cancel</button>)}
+                    <button type="submit" className="flex-1 bg-emerald-600 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"><Save size={16} /> {editingId ? 'Update' : 'Save Broker'}</button>
                   </div>
                </form>
             </div>
@@ -284,7 +269,6 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                     <tr key={b.id} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors group">
                       <td className="px-4 py-3">
                           <div className="font-bold text-slate-800 dark:text-slate-200">{b.name}</div>
-                          {/* SHOW SAVED EMAIL */}
                           {b.email && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Mail size={10} /> {b.email}</div>}
                       </td>
                       <td className="px-4 py-3">
@@ -304,14 +288,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                       </td>
                     </tr>
                   ))}
-                  {brokers.length === 0 && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-10 text-center text-slate-400 flex flex-col items-center justify-center gap-2">
-                        <AlertCircle size={24} />
-                        <span>No brokers added yet. Add one to start.</span>
-                      </td>
-                    </tr>
-                  )}
+                  {brokers.length === 0 && (<tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><AlertCircle size={24} /><span>No brokers added yet. Add one to start.</span></td></tr>)}
                 </tbody>
               </table>
             </div>
