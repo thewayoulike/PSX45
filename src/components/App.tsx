@@ -243,14 +243,9 @@ const App: React.FC = () => {
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
-                  if (cloudData.brokers) {
-                      setBrokers(currentLocal => {
-                          const localIds = new Set(currentLocal.map(b => b.id));
-                          const missingLocally = (cloudData.brokers as Broker[]).filter(b => !localIds.has(b.id));
-                          const merged = [...currentLocal, ...missingLocally];
-                          localStorage.setItem('psx_brokers', JSON.stringify(merged));
-                          return merged;
-                      });
+                  if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
+                      setBrokers(cloudData.brokers);
+                      localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
                   }
                   if (cloudData.geminiApiKey) {
                       setUserApiKey(cloudData.geminiApiKey);
@@ -538,11 +533,8 @@ const App: React.FC = () => {
   useEffect(() => { const tempHoldings: Record<string, Holding> = {}; const tempRealized: RealizedTrade[] = []; const lotMap: Record<string, Lot[]> = {}; const sortedTx = [...portfolioTransactions].sort((a, b) => { const dateA = a.date || ''; const dateB = b.date || ''; return dateA.localeCompare(dateB); }); sortedTx.forEach(tx => { if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } const brokerKey = (tx.broker || 'Unknown'); const holdingKey = `${tx.ticker}|${brokerKey}`; if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } const h = tempHoldings[holdingKey]; const lots = lotMap[holdingKey]; if (tx.type === 'BUY') { const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const txTotalCost = (tx.quantity * tx.price) + txFees; const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); } else if (tx.type === 'SELL') { if (h.quantity > 0) { const qtyToSell = Math.min(h.quantity, tx.quantity); let costBasis = 0; let remainingToSell = qtyToSell; while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; } } }); const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
   const handleTickerClick = (ticker: string) => {
-      // 1. Save the selection to LocalStorage so the Stocks page reads it
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
-      
-      // 2. Switch the current view to the Stocks tab
       setCurrentView('STOCKS');
   };
 
@@ -565,7 +557,6 @@ const App: React.FC = () => {
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <header className="flex flex-row justify-between items-center gap-6 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
           
-          {/* LEFT: Logo Section (FIXED: Vertical Stacking for Desktop) */}
           <div className="flex flex-col gap-0.5">
              <div className="scale-75 sm:scale-100 origin-top-left sm:origin-center">
                <Logo />
@@ -573,7 +564,6 @@ const App: React.FC = () => {
              <p className="hidden md:block text-sm font-bold tracking-wide mt-1 ml-1 whitespace-nowrap"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
           </div>
           
-          {/* RIGHT: Controls Section (Compact Mobile Layout) */}
           <div className="flex items-center gap-2">
             
             <ThemeToggle />
@@ -589,25 +579,27 @@ const App: React.FC = () => {
                         <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[100px] truncate">{driveUser.name}</span>
                     </div>
 
-                    {/* Portfolio Selector - Grouped Here */}
-                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                    <div className="h-6 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1 hidden sm:block"></div>
+                    {isCloudSyncing ? ( <Loader2 size={16} className="text-emerald-500 animate-spin hidden sm:block" /> ) : ( <Save size={16} className="text-emerald-500 hidden sm:block" /> )}
+                    
+                    {/* Portfolio Selector - COMPACT ON MOBILE */}
                     <div className="relative group">
                         <select 
                             value={currentPortfolioId} 
                             onChange={(e) => setCurrentPortfolioId(e.target.value)} 
-                            className="appearance-none bg-transparent border-none text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-6 cursor-pointer focus:ring-0 outline-none w-20 sm:w-32 dark:bg-slate-900 truncate"
+                            className="appearance-none bg-transparent border-none text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-4 sm:pr-6 cursor-pointer focus:ring-0 outline-none w-16 sm:w-32 dark:bg-slate-900 truncate"
                         >
                             {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
                         </select>
-                        <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
+                        <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none hidden sm:block" />
                     </div>
 
-                    <div className="flex items-center gap-1 ml-1">
+                    {/* Edit/New/Delete - Always Visible, Compact */}
+                    <div className="flex items-center gap-1 ml-1 border-l border-slate-100 dark:border-slate-800 pl-1">
                         <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={14} /> </button>
-                        <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 rounded transition-colors" title="New"> <PlusCircle size={14} /> </button>
+                        <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={14} /> </button>
+                        <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors" title="Sign Out"> <LogOut size={14} /> </button>
                     </div>
-
-                    <button onClick={handleManualLogout} className="p-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/30 text-slate-400 hover:text-rose-500 rounded-lg transition-colors ml-1" title="Sign Out"> <LogOut size={16} /> </button>
                 </div>
             ) : (
                 <button onClick={handleLogin} className="flex items-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> <span className="hidden sm:inline">Sign in</span></button>
@@ -739,7 +731,6 @@ const App: React.FC = () => {
                                         onClick={() => {
                                             const newState = !isCombinedView;
                                             setIsCombinedView(newState);
-                                            if (newState) setShowFilterDropdown(true);
                                         }} 
                                         className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
                                     >
