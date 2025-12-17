@@ -164,12 +164,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const isDailyProfit = dailyChange >= 0;
 
                   // --- BREAK EVEN CALCULATION ---
-                  // Logic replicated from Stocks Page (TickerPerformanceList) for consistency:
-                  // Est. Sell Fee = AvgComm + (AvgComm * 0.15) + AvgCDC + AvgOther
                   const perShareComm = holding.quantity > 0 ? holding.totalCommission / holding.quantity : 0;
                   const perShareCDC = holding.quantity > 0 ? holding.totalCDC / holding.quantity : 0;
                   const perShareOther = holding.quantity > 0 ? holding.totalOtherFees / holding.quantity : 0;
                   
+                  // Estimate Sell Fees: Commission + SST(15%) + CDC + Other
                   const estSellFee = perShareComm + (perShareComm * 0.15) + perShareCDC + perShareOther;
                   const breakEvenPrice = holding.avgPrice + estSellFee;
 
@@ -180,7 +179,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{holding.quantity.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">{roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       
-                      {/* --- MODIFIED CURRENT PRICE COLUMN WITH BREAK EVEN --- */}
+                      {/* --- MODIFIED CURRENT PRICE COLUMN WITH PURPLE BE --- */}
                       <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> 
                         <div className="flex flex-col items-end"> 
                             <span className={isFailed ? "text-amber-600 font-bold" : ""}> 
@@ -210,7 +209,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         <td colSpan={showBroker ? 5 : 4} className="px-4 py-4 text-right text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">Grand Total</td>
                         <td className="px-4 py-4 text-right text-xs font-mono text-slate-700 dark:text-slate-300">{totals.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                         <td className="px-4 py-4 text-right text-xs font-mono text-slate-900 dark:text-slate-100">{totals.totalMarket.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-4 text-right"> <div className={`flex flex-col items-end ${totals.dailyPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> <span className="font-bold text-xs">{totals.dailyPL >= 0 ? '+' : ''}{totals.dailyPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> <span className="text-[10px] opacity-80 font-mono">({totalDailyPercent.toFixed(2)}%)</span> </div> </td>
+                        <td className="px-4 py-4 text-right"> <div className={`flex flex-col items-end ${totals.dailyPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> <span className="font-bold text-xs">{totals.dailyPL >= 0 ? '+' : ''}{totals.dailyPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> <span className="text-[10px] opacity-80 font-mono">({totalDailyPercent.toFixed(2)}%)</span> </div> </td>
                         <td className="px-4 py-4 text-right"> <div className={`flex flex-col items-end ${totals.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> <span className="font-bold text-sm">{totals.pnl >= 0 ? '+' : ''}{totals.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> <span className="text-[10px] opacity-80 font-mono">({totalPnlPercent.toFixed(2)}%)</span> </div> </td>
                     </tr>
                 </tfoot>
