@@ -112,7 +112,11 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                                         <div className="bg-indigo-50 dark:bg-indigo-900/30 h-12 w-16 rounded-lg flex items-center justify-center text-indigo-700 dark:text-indigo-300 font-bold text-sm shadow-sm border border-indigo-100 dark:border-indigo-800"> {div.ticker} </div>
                                         <div>
                                             <div className="flex items-center gap-2 mb-1"> <span className="text-slate-800 dark:text-slate-200 font-bold text-base">{div.type} Dividend</span> <span className="text-[10px] text-indigo-600 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/30 border border-indigo-100 dark:border-indigo-800 px-1.5 py-0.5 rounded font-bold uppercase flex items-center gap-1"> <Building2 size={10} /> {div.broker} </span> </div>
-                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400"> <span>DPS: <span className="font-medium text-slate-700 dark:text-slate-300">Rs. {div.amount}</span></span> <span>Qty: {div.eligibleQty}</span> </div>
+                                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400"> 
+                                                <span>DPS: <span className="font-medium text-slate-700 dark:text-slate-300">Rs. {div.amount}</span></span> 
+                                                <span>Qty: {div.eligibleQty}</span> 
+                                                <span className="flex items-center gap-1"> <Calendar size={10} /> {new Date(div.exDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} </span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="mt-4 flex justify-end gap-2">
