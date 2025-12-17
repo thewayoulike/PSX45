@@ -177,24 +177,17 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
 
 // --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - REWRITTEN TO USE API ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
-  // Use the secret endpoint found in the HTML source code
   const targetUrl = "https://www.scstrade.com/MarketStatistics/MS_xDates.aspx/chartact";
-  
-  // We use corsproxy.io because it supports POST requests with JSON bodies well
   const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
 
   try {
-    console.log(`Connecting to SCSTrade API via proxy...`);
-    
     const response = await fetch(proxyUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // These headers mimic a real browser request to avoid blocking
         "X-Requested-With": "XMLHttpRequest",
         "Accept": "application/json, text/javascript, */*; q=0.01"
       },
-      // The script in your HTML showed: postData:{ 'par': par} where par is usually empty
       body: JSON.stringify({ par: "" }) 
     });
 
@@ -203,58 +196,60 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     }
 
     const json = await response.json();
-    
-    // ASP.NET WebMethods wrap the result in a 'd' property
     const rawData = json.d || []; 
 
-    console.log(`SCSTrade API Success: ${rawData.length} records found`);
-
-    // Map the raw API data to our app's structure
-    // API Columns from source: company_code, company_name, bm_dividend, bm_bonus, bm_right_per, bm_bc_exp
     const payouts: CompanyPayout[] = rawData.map((item: any) => {
         let details = "";
         if (item.bm_dividend) details += `Div: ${item.bm_dividend} `;
         if (item.bm_bonus) details += `Bonus: ${item.bm_bonus} `;
         if (item.bm_right_per) details += `Right: ${item.bm_right_per}`;
         
-        // Parse date for filtering (e.g. "15 Dec 2025")
         let isUpcoming = true;
-        const dateStr = item.bm_bc_exp;
+        const dateStr = item.bm_bc_exp || "";
         
         try {
-            const cleanDate = dateStr.replace(/&nbsp;/g, '').trim();
-            const dateParts = cleanDate.split(' ');
+            // FIX: Robust Date Parsing
+            // 1. Remove HTML entities and extra spaces
+            // 2. Replace dashes/dots with spaces to standardize: "15-Dec-2024" -> "15 Dec 2024"
+            const cleanDate = dateStr.replace(/&nbsp;/g, '').replace(/[-./]/g, ' ').trim();
+            const dateParts = cleanDate.split(/\s+/); // Split by any whitespace
+
             if (dateParts.length >= 3) {
                 const day = parseInt(dateParts[0]);
                 const monthStr = dateParts[1];
-                const year = parseInt(dateParts[2]);
+                let year = parseInt(dateParts[2]);
+
+                // FIX: Handle 2-digit years (e.g. '25' -> 2025)
+                if (year < 100) year += 2000;
+
                 const monthMap: Record<string, number> = { 'JAN':0,'FEB':1,'MAR':2,'APR':3,'MAY':4,'JUN':5,'JUL':6,'AUG':7,'SEP':8,'OCT':9,'NOV':10,'DEC':11 };
                 const month = monthMap[monthStr.toUpperCase().substring(0,3)];
                 
-                if (!isNaN(day) && month !== undefined) {
+                if (!isNaN(day) && month !== undefined && !isNaN(year)) {
                     const xDate = new Date(year, month, day);
                     const today = new Date();
                     today.setHours(0,0,0,0);
-                    // Filter: Keep future dates AND recent past (last 7 days) just in case
+                    
+                    // Filter: Keep future dates AND recent past (last 14 days)
                     const cutoff = new Date(today);
-                    cutoff.setDate(cutoff.getDate() - 7);
+                    cutoff.setDate(cutoff.getDate() - 14);
                     
                     if (xDate < cutoff) isUpcoming = false;
                 }
             }
-        } catch (e) { /* ignore date parse error */ }
+        } catch (e) { /* ignore parse error */ }
 
         if (!isUpcoming) return null;
 
         return {
             ticker: item.company_code,
-            announceDate: item.company_name, // Using Name here as it's useful context
+            announceDate: item.company_name, 
             financialResult: '-',
             details: details.trim() || 'Book Closure',
             bookClosure: `Ex-Date: ${dateStr}`,
             isUpcoming: true
         };
-    }).filter((p: any) => p !== null); // Remove nulls (old dates)
+    }).filter((p: any) => p !== null);
 
     return payouts;
 
