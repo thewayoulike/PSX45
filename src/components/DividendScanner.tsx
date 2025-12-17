@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Transaction, FoundDividend } from '../types'; 
 import { fetchDividends } from '../services/gemini';
-import { Coins, Loader2, Calendar, Search, X, History, Sparkles, Building2, Clock, RefreshCw, AlertCircle } from 'lucide-react';
+import { Coins, Loader2, CheckCircle, Calendar, Search, X, History, Sparkles, Building2, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface DividendScannerProps {
   transactions: Transaction[];
@@ -72,7 +72,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                     Dividend Scanner
                 </h2>
                 <div className="flex items-center gap-2">
-                    {/* NEW: Force Rescan Button */}
+                    {/* Force Rescan Button */}
                     <button onClick={handleScan} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-all" title="Force Rescan">
                         <RefreshCw size={20} className={loading ? "animate-spin" : ""} />
                     </button>
@@ -112,7 +112,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                 {(scanned || foundDividends.length > 0) && !loading && (
                     <div className="space-y-6">
                         {foundDividends.length === 0 && !showDismissed ? (
-                            // NEW: Empty State Message
+                            // Empty State Message
                             <div className="text-center py-12 opacity-60">
                                 <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400">
                                     <CheckCircle size={32} />
