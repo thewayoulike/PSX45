@@ -34,7 +34,6 @@ const getProxies = (targetUrl: string) => [
 ];
 
 // --- 1. Fetch Company Fundamentals (PSX) ---
-// (Keep this function exactly as it was)
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   const proxies = getProxies(targetUrl);
@@ -126,7 +125,6 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
 };
 
 // --- 2. Fetch Specific Company Payouts (PSX) ---
-// (Keep this function exactly as it was)
 export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   const proxies = getProxies(targetUrl);
@@ -175,7 +173,7 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
   return [];
 };
 
-// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) - REWRITTEN TO USE API ---
+// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const targetUrl = "https://www.scstrade.com/MarketStatistics/MS_xDates.aspx/chartact";
   const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
@@ -208,18 +206,14 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         const dateStr = item.bm_bc_exp || "";
         
         try {
-            // FIX: Robust Date Parsing
-            // 1. Remove HTML entities and extra spaces
-            // 2. Replace dashes/dots with spaces to standardize: "15-Dec-2024" -> "15 Dec 2024"
             const cleanDate = dateStr.replace(/&nbsp;/g, '').replace(/[-./]/g, ' ').trim();
-            const dateParts = cleanDate.split(/\s+/); // Split by any whitespace
+            const dateParts = cleanDate.split(/\s+/); 
 
             if (dateParts.length >= 3) {
                 const day = parseInt(dateParts[0]);
                 const monthStr = dateParts[1];
                 let year = parseInt(dateParts[2]);
 
-                // FIX: Handle 2-digit years (e.g. '25' -> 2025)
                 if (year < 100) year += 2000;
 
                 const monthMap: Record<string, number> = { 'JAN':0,'FEB':1,'MAR':2,'APR':3,'MAY':4,'JUN':5,'JUL':6,'AUG':7,'SEP':8,'OCT':9,'NOV':10,'DEC':11 };
@@ -230,11 +224,13 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
                     const today = new Date();
                     today.setHours(0,0,0,0);
                     
-                    // Filter: Keep future dates AND recent past (last 14 days)
-                    const cutoff = new Date(today);
-                    cutoff.setDate(cutoff.getDate() - 14);
-                    
-                    if (xDate < cutoff) isUpcoming = false;
+                    // Filter: Must be strictly FUTURE or TODAY
+                    if (xDate < today) isUpcoming = false;
+
+                    // Sanity Check: Ignore dates > 6 months in future (likely bad data)
+                    const maxFuture = new Date(today);
+                    maxFuture.setMonth(maxFuture.getMonth() + 6);
+                    if (xDate > maxFuture) isUpcoming = false;
                 }
             }
         } catch (e) { /* ignore parse error */ }
