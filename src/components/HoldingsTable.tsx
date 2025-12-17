@@ -150,14 +150,51 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <tr> <td colSpan={showBroker ? 9 : 8} className="px-6 py-20 text-center text-slate-400 italic"> {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'} </td> </tr>
               ) : (
                 paginatedHoldings.map((holding, idx) => {
-                  const roundedAvg = Math.round(holding.avgPrice * 100) / 100; const costBasis = holding.quantity * roundedAvg; const marketValue = holding.quantity * holding.currentPrice; const pnl = marketValue - costBasis; const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0; const isProfit = pnl >= 0; const isFailed = failedTickers.has(holding.ticker); const updateTime = formatUpdateDate(holding.lastUpdated); const ldcp = ldcpMap[holding.ticker] || holding.currentPrice; const dailyChange = (holding.currentPrice - ldcp) * holding.quantity; const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0; const isDailyProfit = dailyChange >= 0;
+                  const roundedAvg = Math.round(holding.avgPrice * 100) / 100; 
+                  const costBasis = holding.quantity * roundedAvg; 
+                  const marketValue = holding.quantity * holding.currentPrice; 
+                  const pnl = marketValue - costBasis; 
+                  const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0; 
+                  const isProfit = pnl >= 0; 
+                  const isFailed = failedTickers.has(holding.ticker); 
+                  const updateTime = formatUpdateDate(holding.lastUpdated); 
+                  const ldcp = ldcpMap[holding.ticker] || holding.currentPrice; 
+                  const dailyChange = (holding.currentPrice - ldcp) * holding.quantity; 
+                  const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0; 
+                  const isDailyProfit = dailyChange >= 0;
+
+                  // --- BREAK EVEN CALCULATION ---
+                  // Logic replicated from Stocks Page (TickerPerformanceList) for consistency:
+                  // Est. Sell Fee = AvgComm + (AvgComm * 0.15) + AvgCDC + AvgOther
+                  const perShareComm = holding.quantity > 0 ? holding.totalCommission / holding.quantity : 0;
+                  const perShareCDC = holding.quantity > 0 ? holding.totalCDC / holding.quantity : 0;
+                  const perShareOther = holding.quantity > 0 ? holding.totalOtherFees / holding.quantity : 0;
+                  
+                  const estSellFee = perShareComm + (perShareComm * 0.15) + perShareCDC + perShareOther;
+                  const breakEvenPrice = holding.avgPrice + estSellFee;
+
                   return (
                     <tr key={`${holding.ticker}-${holding.broker || idx}`} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors group cursor-pointer" onClick={() => onTickerClick && onTickerClick(holding.ticker)}>
                       <td className="px-4 py-4"> <div className="flex items-center gap-3"> <div className="w-1 h-6 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> <div> <div className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2"> {holding.ticker} {isFailed && <AlertTriangle size={14} className="text-amber-500" title="Price update failed" />} </div> <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate max-w-[100px]">{holding.sector}</div> </div> </div> </td>
                       {showBroker && <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">{holding.broker}</td>}
                       <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{holding.quantity.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">{roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                      <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> <div className="flex flex-col items-end"> <span className={isFailed ? "text-amber-600 font-bold" : ""}> {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} </span> {updateTime && <span className="text-[9px] text-slate-300 dark:text-slate-600 font-sans mt-0.5 group-hover:text-slate-400 transition-colors">{updateTime}</span>} </div> </td>
+                      
+                      {/* --- MODIFIED CURRENT PRICE COLUMN WITH BREAK EVEN --- */}
+                      <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> 
+                        <div className="flex flex-col items-end"> 
+                            <span className={isFailed ? "text-amber-600 font-bold" : ""}> 
+                                {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} 
+                            </span> 
+                            {holding.quantity > 0 && (
+                                <span className="text-[9px] font-bold text-violet-600 dark:text-violet-400 font-mono mt-0.5" title={`Break-Even: Rs. ${breakEvenPrice.toFixed(2)} (Avg + Est. Sell Fees)`}>
+                                    BE: {breakEvenPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                            )}
+                            {updateTime && <span className="text-[9px] text-slate-300 dark:text-slate-600 font-sans mt-0.5 group-hover:text-slate-400 transition-colors">{updateTime}</span>} 
+                        </div> 
+                      </td>
+                      
                       <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs font-medium">{costBasis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-4 py-4 text-right text-slate-900 dark:text-slate-100 font-bold font-mono tracking-tight text-xs">{marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       <td className="px-4 py-4 text-right"> <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> <span className="font-bold text-xs">{isDailyProfit ? '+' : ''}{dailyChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> <span className="text-[9px] opacity-80 font-mono flex items-center gap-0.5">{isDailyProfit ? <TrendingUp size={8} /> : <TrendingDown size={8} />}{dailyPercent.toFixed(2)}%</span> </div> </td>
