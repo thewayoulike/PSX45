@@ -1,3 +1,7 @@
+{
+type: edited file
+fileName: src/types.ts
+fullContent:
 export interface Transaction {
   id: string;
   portfolioId: string;
@@ -13,7 +17,7 @@ export interface Transaction {
   cdcCharges: number;
   otherFees: number;
   notes?: string; 
-  category?: 'ADJUSTMENT' | 'OTHER_TAX'; 
+  category?: 'ADJUSTMENT' | 'OTHER_TAX' | 'CDC_CHARGE'; 
 }
 
 export interface Holding {
@@ -124,7 +128,7 @@ export interface CommissionSlab {
 export interface Broker {
   id: string;
   name: string;
-  email?: string; // <--- NEW FIELD ADDED
+  email?: string; 
   commissionType: CommissionType;
   rate1: number; 
   rate2?: number; 
@@ -145,4 +149,5 @@ export interface CompanyPayout {
     details: string; 
     bookClosure: string; 
     isUpcoming: boolean;
+}
 }
