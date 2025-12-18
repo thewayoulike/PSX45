@@ -1,7 +1,3 @@
-{
-type: edited file
-fileName: src/components/App.tsx
-fullContent:
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker, FoundDividend, EditableTrade } from '../types';
 import { Dashboard } from './DashboardStats';
