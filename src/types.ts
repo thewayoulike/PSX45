@@ -146,4 +146,3 @@ export interface CompanyPayout {
     bookClosure: string; 
     isUpcoming: boolean;
 }
-}
