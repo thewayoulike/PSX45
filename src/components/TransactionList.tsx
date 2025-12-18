@@ -1,3 +1,7 @@
+{
+type: edited file
+fileName: src/components/TransactionList.tsx
+fullContent:
 import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction } from '../types';
 import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -44,7 +48,10 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
       else if (tx.type === 'TAX') netAmount = -totalAmount;
       else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') netAmount = (tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') ? -Math.abs(totalAmount) : totalAmount;
-      else if (tx.type === 'OTHER') { if (tx.category === 'OTHER_TAX') netAmount = -Math.abs(totalAmount); else netAmount = totalAmount; }
+      else if (tx.type === 'OTHER') { 
+          if (tx.category === 'OTHER_TAX' || tx.category === 'CDC_CHARGE') netAmount = -Math.abs(totalAmount); 
+          else netAmount = totalAmount; 
+      }
       else { const totalFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); netAmount = tx.type === 'BUY' ? totalAmount + totalFees : totalAmount - totalFees; }
       return netAmount;
   };
@@ -89,7 +96,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           case 'DEPOSIT': return { style: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800', icon: <DepositIcon className="w-4 h-4" />, label: 'DEPOSIT' };
           case 'WITHDRAWAL': return { style: 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800', icon: <WithdrawIcon className="w-4 h-4" />, label: 'WITHDRAWAL' };
           case 'ANNUAL_FEE': return { style: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800', icon: <FeeIcon className="w-4 h-4" />, label: 'ANNUAL FEE' };
-          case 'OTHER': return { style: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700', icon: <Settings2 size={12} />, label: tx.category === 'OTHER_TAX' ? 'TAX/FEE' : 'ADJUST' };
+          case 'OTHER': return { style: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700', icon: <Settings2 size={12} />, label: tx.category === 'OTHER_TAX' ? 'TAX/FEE' : tx.category === 'CDC_CHARGE' ? 'CDC FEE' : 'ADJUST' };
           default: return { style: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200', icon: <ArrowUpRight size={10} />, label: tx.type };
       }
   };
@@ -135,7 +142,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
             {paginatedTransactions.length === 0 ? ( <tr> <td colSpan={13} className="px-6 py-10 text-center text-slate-400 dark:text-slate-500 italic"> {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'} </td> </tr> ) : (
                 paginatedTransactions.map((tx) => {
-                    const isDiv = tx.type === 'DIVIDEND'; const netAmount = getNetAmount(tx); const typeConfig = getTypeConfig(tx); const isNegativeFlow = ['TAX', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) || (tx.type === 'OTHER' && tx.category === 'OTHER_TAX') || (tx.type === 'OTHER' && tx.price < 0) || (tx.type === 'HISTORY' && netAmount < 0); const isSelected = selectedIds.has(tx.id);
+                    const isDiv = tx.type === 'DIVIDEND'; const netAmount = getNetAmount(tx); const typeConfig = getTypeConfig(tx); const isNegativeFlow = ['TAX', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) || (tx.type === 'OTHER' && (tx.category === 'OTHER_TAX' || tx.category === 'CDC_CHARGE')) || (tx.type === 'OTHER' && tx.price < 0) || (tx.type === 'HISTORY' && netAmount < 0); const isSelected = selectedIds.has(tx.id);
                     return (
                         <tr key={tx.id} className={`hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors ${isNegativeFlow ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''} ${isSelected ? 'bg-indigo-50/60 dark:bg-indigo-900/20' : ''}`}>
                         <td className="px-4 py-4 text-center"> <input type="checkbox" checked={isSelected} onChange={() => handleSelectOne(tx.id)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </td>
@@ -165,3 +172,4 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     </div>
   );
 };
+}
