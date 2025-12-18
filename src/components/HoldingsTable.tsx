@@ -163,18 +163,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0; 
                   const isDailyProfit = dailyChange >= 0;
 
-                  // --- BREAK EVEN CALCULATION ---
-                  const perShareComm = holding.quantity > 0 ? holding.totalCommission / holding.quantity : 0;
-                  const perShareCDC = holding.quantity > 0 ? holding.totalCDC / holding.quantity : 0;
-                  const perShareOther = holding.quantity > 0 ? holding.totalOtherFees / holding.quantity : 0;
-                  
-                  const estSellFee = perShareComm + (perShareComm * 0.15) + perShareCDC + perShareOther;
-                  const breakEvenPrice = holding.avgPrice + estSellFee;
+                  // --- BREAK EVEN CALCULATION (UPDATED) ---
+                  // Logic: Est Sell Fee = Total Buy Fees / Quantity. (Assumes Sell Fees ≈ Buy Fees per share)
+                  const totalBuyFees = holding.totalCommission + holding.totalTax + holding.totalCDC + holding.totalOtherFees;
+                  const buyFeesPerShare = holding.quantity > 0 ? totalBuyFees / holding.quantity : 0;
+                  const breakEvenPrice = holding.avgPrice + buyFeesPerShare;
 
                   // --- CONDITIONAL COLORING FOR BE ---
-                  let beColorClass = "text-orange-700 dark:text-orange-400"; // Default (Equal)
-                  if (holding.currentPrice < breakEvenPrice) beColorClass = "text-rose-600 dark:text-rose-400"; // Below BE (Loss)
-                  else if (holding.currentPrice > breakEvenPrice) beColorClass = "text-emerald-700 dark:text-emerald-400"; // Above BE (Profit)
+                  const diff = holding.currentPrice - breakEvenPrice;
+                  let beColorClass = "text-orange-600 dark:text-orange-400"; // Neutral
+                  if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400"; // Profit
+                  else if (diff < -0.001) beColorClass = "text-rose-600 dark:text-rose-400"; // Loss
 
                   return (
                     <tr key={`${holding.ticker}-${holding.broker || idx}`} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors group cursor-pointer" onClick={() => onTickerClick && onTickerClick(holding.ticker)}>
@@ -183,14 +182,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{holding.quantity.toLocaleString()}</td>
                       <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">{roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       
-                      {/* --- MODIFIED CURRENT PRICE COLUMN WITH COLORED BE --- */}
+                      {/* --- MODIFIED CURRENT PRICE COLUMN WITH BE --- */}
                       <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> 
                         <div className="flex flex-col items-end"> 
                             <span className={isFailed ? "text-amber-600 font-bold" : ""}> 
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} 
                             </span> 
                             {holding.quantity > 0 && (
-                                <span className={`text-[9px] font-bold font-mono mt-0.5 ${beColorClass}`} title={`Break-Even: Rs. ${breakEvenPrice.toFixed(2)} (Avg + Est. Sell Fees)`}>
+                                <span className={`text-[9px] font-bold font-mono mt-0.5 ${beColorClass}`} title={`Break-Even: Rs. ${breakEvenPrice.toFixed(2)}`}>
                                     BE: {breakEvenPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             )}
