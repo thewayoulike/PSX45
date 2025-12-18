@@ -1,7 +1,3 @@
-{
-type: edited file
-fileName: src/types.ts
-fullContent:
 export interface Transaction {
   id: string;
   portfolioId: string;
