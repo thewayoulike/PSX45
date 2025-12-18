@@ -1,3 +1,7 @@
+{
+type: edited file
+fileName: src/components/TransactionList.tsx
+fullContent:
 import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction } from '../types';
 import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -139,6 +143,15 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
             {paginatedTransactions.length === 0 ? ( <tr> <td colSpan={13} className="px-6 py-10 text-center text-slate-400 dark:text-slate-500 italic"> {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'} </td> </tr> ) : (
                 paginatedTransactions.map((tx) => {
                     const isDiv = tx.type === 'DIVIDEND'; const netAmount = getNetAmount(tx); const typeConfig = getTypeConfig(tx); const isNegativeFlow = ['TAX', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) || (tx.type === 'OTHER' && (tx.category === 'OTHER_TAX' || tx.category === 'CDC_CHARGE')) || (tx.type === 'OTHER' && tx.price < 0) || (tx.type === 'HISTORY' && netAmount < 0); const isSelected = selectedIds.has(tx.id);
+                    
+                    // Logic to display manual fees in correct columns
+                    const isCDCManual = tx.type === 'OTHER' && tx.category === 'CDC_CHARGE';
+                    const isOtherManual = tx.type === 'OTHER' && tx.category === 'OTHER_TAX';
+                    
+                    const displayPrice = (isCDCManual || isOtherManual) ? 0 : tx.price;
+                    const displayCDC = isCDCManual ? tx.price : (tx.cdcCharges || 0);
+                    const displayOther = isOtherManual ? tx.price : (tx.otherFees || 0);
+
                     return (
                         <tr key={tx.id} className={`hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors ${isNegativeFlow ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''} ${isSelected ? 'bg-indigo-50/60 dark:bg-indigo-900/20' : ''}`}>
                         <td className="px-4 py-4 text-center"> <input type="checkbox" checked={isSelected} onChange={() => handleSelectOne(tx.id)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </td>
@@ -147,11 +160,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <td className="px-4 py-4 font-bold text-slate-800 dark:text-slate-200"> {tx.ticker} {tx.notes && <div className="text-[9px] text-slate-400 font-normal mt-0.5 truncate max-w-[100px]" title={tx.notes}>{tx.notes}</div>} </td>
                         <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">{tx.broker || (tx.type === 'TAX' ? 'System' : '-')}</td>
                         <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium"> {tx.quantity.toLocaleString()} {isDiv && <div className="hidden group-hover:block absolute bg-slate-800 text-white text-[10px] p-2 rounded">Check History</div>} </td>
-                        <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> {tx.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> {displayPrice !== 0 ? displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} </td>
                         <td className="px-2 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs"> {(tx.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className="px-2 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs"> {(tx.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className="px-2 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs"> {(tx.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className="px-2 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs"> {(tx.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className={`px-2 py-4 text-right font-mono text-xs ${isCDCManual ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className={`px-2 py-4 text-right font-mono text-xs ${isOtherManual ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayOther.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className={`px-4 py-4 text-right font-bold font-mono text-xs ${netAmount < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}> {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className="px-4 py-4 text-center"> <div className="flex items-center justify-center gap-1"> <button onClick={(e) => { e.stopPropagation(); onEdit(tx); }} className="text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-lg transition-all" title="Edit"> <Pencil size={16} /> </button> <button onClick={(e) => {e.stopPropagation(); onDelete(tx.id);}} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 p-2 rounded-lg transition-all" title="Delete"> <Trash2 size={16} /> </button> </div> </td>
                         </tr>
@@ -168,3 +181,4 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     </div>
   );
 };
+}
