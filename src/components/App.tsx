@@ -1,3 +1,7 @@
+{
+type: edited file
+fileName: src/components/App.tsx
+fullContent:
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker, FoundDividend, EditableTrade } from '../types';
 import { Dashboard } from './DashboardStats';
@@ -354,8 +358,9 @@ const App: React.FC = () => {
             events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx });
         }
         else if (t.type === 'OTHER') {
-            if (t.category === 'OTHER_TAX') {
+            if (t.category === 'OTHER_TAX' || t.category === 'CDC_CHARGE') {
                 operationalExpenses += Math.abs(t.price);
+                if (t.category === 'CDC_CHARGE') totalCDC += Math.abs(t.price);
                 events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
             } else {
                 if (t.price >= 0) {
@@ -454,7 +459,7 @@ const App: React.FC = () => {
 
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
-        if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX')) {
+        if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX' && t.category !== 'CDC_CHARGE')) {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
@@ -957,3 +962,4 @@ const App: React.FC = () => {
 };
 
 export default App;
+}
