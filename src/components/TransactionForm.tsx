@@ -1,3 +1,7 @@
+{
+type: edited file
+fileName: src/components/TransactionForm.tsx
+fullContent:
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
 import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Search as SearchIcon } from 'lucide-react';
@@ -87,7 +91,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [formError, setFormError] = useState<string | null>(null);
   const [histAmount, setHistAmount] = useState<number | ''>('');
   const [histTaxType, setHistTaxType] = useState<'BEFORE_TAX' | 'AFTER_TAX'>('AFTER_TAX');
-  const [category, setCategory] = useState<'ADJUSTMENT' | 'OTHER_TAX'>('ADJUSTMENT');
+  const [category, setCategory] = useState<'ADJUSTMENT' | 'OTHER_TAX' | 'CDC_CHARGE'>('ADJUSTMENT');
   
   const [emailQuery, setEmailQuery] = useState('');
   const [emailSender, setEmailSender] = useState('');
@@ -96,7 +100,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [downloadingAttachment, setDownloadingAttachment] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null); // Ref for auto-scroll
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const updateScannedTrades = (trades: EditableTrade[]) => {
       if (onSaveScannedTrades) onSaveScannedTrades(trades);
@@ -220,7 +224,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
         else if (type === 'HISTORY' && typeof histAmount === 'number') { setQuantity(1); setTicker('PREV-PNL'); if (histTaxType === 'BEFORE_TAX') { if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0); } else setTax(0); setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0); }
         else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
-        else if (type === 'OTHER' && typeof histAmount === 'number') { setQuantity(1); setTicker(category === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'OTHER FEE'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
+        else if (type === 'OTHER' && typeof histAmount === 'number') { 
+            setQuantity(1); 
+            setTicker(category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE'); 
+            setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); 
+        }
         else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
              const fees = calculateFeesForTrade(type, quantity, price, selectedBrokerId);
              setCommission(fees.commission);
@@ -234,7 +242,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const handleDownloadTemplate = () => { const templateData = [ { Date: new Date().toISOString().split('T')[0], Type: 'BUY', Ticker: 'OGDC', Broker: brokers.length > 0 ? brokers[0].name : 'My Broker', Quantity: 500, Price: 120.50, Commission: 150, Tax: 20, 'CDC Charges': 5, 'Other Fees': 0, Notes: 'Sample Entry (Delete this row)' } ]; exportToCSV(templateData, 'PSX_Tracker_Import_Template'); };
   
-  const handleManualSubmit = (e: React.FormEvent) => { e.preventDefault(); setFormError(null); const cleanTicker = ticker.toUpperCase(); let brokerName = undefined; const b = brokers.find(b => b.id === selectedBrokerId); if (b) brokerName = b.name; const qtyNum = Number(quantity); if (type === 'SELL') { const heldQty = getHoldingQty(cleanTicker, selectedBrokerId); let adjustedQty = heldQty; if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) { adjustedQty += editingTransaction.quantity; } else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) { adjustedQty -= editingTransaction.quantity; } if (qtyNum > adjustedQty) { setFormError(`Insufficient holdings! You only have ${adjustedQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}.`); return; } } if (type === 'BUY' && !editingTransaction && freeCash !== undefined) { const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees); if (totalCost > freeCash) { setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`); return; } } const txData: any = { ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId, commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0, category: type === 'OTHER' ? category : undefined, notes: notes.trim() || undefined }; if (type === 'OTHER') { txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : 'OTHER FEE'; } if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData }); else onAddTransaction(txData); onClose(); };
+  const handleManualSubmit = (e: React.FormEvent) => { e.preventDefault(); setFormError(null); const cleanTicker = ticker.toUpperCase(); let brokerName = undefined; const b = brokers.find(b => b.id === selectedBrokerId); if (b) brokerName = b.name; const qtyNum = Number(quantity); if (type === 'SELL') { const heldQty = getHoldingQty(cleanTicker, selectedBrokerId); let adjustedQty = heldQty; if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) { adjustedQty += editingTransaction.quantity; } else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) { adjustedQty -= editingTransaction.quantity; } if (qtyNum > adjustedQty) { setFormError(`Insufficient holdings! You only have ${adjustedQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}.`); return; } } if (type === 'BUY' && !editingTransaction && freeCash !== undefined) { const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees); if (totalCost > freeCash) { setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`); return; } } const txData: any = { ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId, commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0, category: type === 'OTHER' ? category : undefined, notes: notes.trim() || undefined }; if (type === 'OTHER') { txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE'; } if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData }); else onAddTransaction(txData); onClose(); };
   
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); updateScannedTrades([]); } };
   
@@ -304,14 +312,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleAcceptSelected = () => { 
       setFormError(null); 
       const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i)); 
-      // ... (Validation logic omitted for brevity, same as previous) ...
+      
       const totalBuyCost = selectedTrades.reduce((acc, t) => { return t.type === 'BUY' ? acc + getTradeCost(t) : acc; }, 0); 
       if (freeCash !== undefined && totalBuyCost > freeCash) { 
           setFormError(`Insufficient Buying Power! Selected trades cost Rs. ${totalBuyCost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`); 
           scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
           return; 
       } 
-      // ... (Rest of logic)
+      
       selectedTrades.forEach(addSingleTrade); 
       updateScannedTrades(savedScannedTrades.filter((_, i) => !selectedScanIndices.has(i))); 
       setSelectedScanIndices(new Set()); 
@@ -324,10 +332,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   if (!isOpen) return null;
 
-  // --- RENDER FORM CONTENT HELPER ---
   const renderFormContent = () => {
-    // ... (This function remains exactly the same as the previous response) ...
-    // ... (It handles TAX, HISTORY, CASH, FEE, OTHER and DEFAULT inputs) ...
     if (type === 'TAX') {
         return (
             <>
@@ -337,9 +342,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             </>
         );
     }
-    // ... (Keep existing checks for HISTORY, DEPOSIT, ANNUAL_FEE, OTHER) ...
-    // ... (Keep existing Default Return) ...
-    // For brevity of response, reusing the logic I provided in the previous message.
+    
     if (type === 'HISTORY') {
         return (
           <>
@@ -376,15 +379,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         return (
           <>
               <div className="bg-slate-50/50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700 flex gap-3 items-start"> <Settings2 className="text-slate-500 dark:text-slate-400 shrink-0 mt-0.5" size={18} /> <div className="text-xs text-slate-700 dark:text-slate-300"> <p className="font-bold mb-0.5">Other Transactions</p> <p className="opacity-80">Record manual adjustments or miscellaneous fees.</p> </div> </div>
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-2"> <button type="button" onClick={() => setCategory('ADJUSTMENT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${category === 'ADJUSTMENT' ? 'bg-white dark:bg-slate-700 shadow text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <ArrowRightLeft size={14} /> Adjustment Entry </button> <button type="button" onClick={() => setCategory('OTHER_TAX')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${category === 'OTHER_TAX' ? 'bg-white dark:bg-slate-700 shadow text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <FileText size={14} /> Other Taxes/Fees </button> </div>
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-2 overflow-x-auto no-scrollbar"> 
+                  <button type="button" onClick={() => setCategory('ADJUSTMENT')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap px-2 ${category === 'ADJUSTMENT' ? 'bg-white dark:bg-slate-700 shadow text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <ArrowRightLeft size={14} /> Adjustment </button> 
+                  <button type="button" onClick={() => setCategory('OTHER_TAX')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap px-2 ${category === 'OTHER_TAX' ? 'bg-white dark:bg-slate-700 shadow text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <FileText size={14} /> Other Taxes </button>
+                  <button type="button" onClick={() => setCategory('CDC_CHARGE')} className={`flex-1 min-w-[80px] py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap px-2 ${category === 'CDC_CHARGE' ? 'bg-white dark:bg-slate-700 shadow text-orange-600 dark:text-orange-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <FileText size={14} /> Monthly CDC </button>
+              </div>
               <div className="grid grid-cols-2 gap-4"> <div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-3 top-3.5 text-slate-400" size={14} /></div></div> <div><label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm dark:text-slate-200 focus:ring-2 focus:ring-emerald-500/20 outline-none dark:color-scheme-dark"/></div> </div>
-              <div> <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Amount</label> <div className="relative"> <input required type="number" step="any" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${category === 'ADJUSTMENT' ? 'text-slate-800 dark:text-slate-200' : 'text-rose-600 dark:text-rose-400'}`} placeholder={category === 'ADJUSTMENT' ? "Positive (Credit) or Negative (Debit)" : "e.g. 500 (Deducted from Cash)"} /> <span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span> </div> {category === 'ADJUSTMENT' && <p className="text-[10px] text-slate-400 mt-1 ml-1">Positive adds to cash, Negative subtracts from cash.</p>} </div>
+              <div> <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1">Amount</label> <div className="relative"> <input required type="number" step="any" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none ${category === 'ADJUSTMENT' ? 'text-slate-800 dark:text-slate-200' : 'text-rose-600 dark:text-rose-400'}`} placeholder={category === 'ADJUSTMENT' ? "Positive (Credit) or Negative (Debit)" : category === 'CDC_CHARGE' ? "e.g. 50 (Monthly Charge)" : "e.g. 500 (Deducted from Cash)"} /> <span className="absolute right-3 top-3.5 text-xs text-slate-400">PKR</span> </div> {category === 'ADJUSTMENT' ? <p className="text-[10px] text-slate-400 mt-1 ml-1">Positive adds to cash, Negative subtracts from cash.</p> : <p className="text-[10px] text-slate-400 mt-1 ml-1">This amount will be deducted from your cash balance.</p>} </div>
               <div> <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 mb-1 flex items-center gap-1"> <AlignLeft size={12} /> Description (Optional) </label> <input type="text" value={notes} onChange={(e) => setNotes(e.target.value)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 text-sm dark:text-slate-200 focus:ring-2 focus:ring-emerald-500/20 outline-none placeholder-slate-400" placeholder="e.g. Monthly Savings, Ledger Correction" /> </div>
           </>
         );
     }
 
-    // DEFAULT: BUY / SELL / DIVIDEND
     return (
       <>
           <div className="grid grid-cols-2 gap-4"> 
@@ -458,11 +464,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                 </form>
             )}
 
-            {/* --- AI/Import/Scan Modes (Using dark mode classes) --- */}
             {(mode !== 'MANUAL') && (
                 <div className="flex flex-col min-h-[360px] relative">
                     
-                    {/* --- EMAIL IMPORT UI --- */}
                     {mode === 'EMAIL_IMPORT' && (
                         <div className="space-y-4">
                             <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 rounded-xl p-4">
@@ -501,7 +505,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 </button>
                             </div>
 
-                            {/* Results List */}
                             <div className="space-y-2">
                                 {emailMessages.length > 0 && (
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Recent Matches</p>
@@ -553,7 +556,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
                     {!isScanning && savedScannedTrades.length === 0 && mode !== 'EMAIL_IMPORT' && (
                         <>
-                             {/* ... File upload area ... */}
                              <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800`} rounded-2xl cursor-pointer hover:bg-white dark:hover:bg-slate-700 transition-all group flex flex-col items-center justify-center p-8`}> 
                                  <input ref={fileInputRef} type="file" accept={mode === 'OCR_SCAN' ? "image/*,.pdf" : "image/*,.pdf,.csv,.xlsx,.xls"} onChange={handleFileSelect} className="hidden" />
                                  <div className={`w-16 h-16 rounded-full flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm ${selectedFile ? `${theme.text} bg-white dark:bg-slate-900` : 'bg-white dark:bg-slate-900 text-slate-400'}`}> {getFileIcon()} </div>
@@ -610,3 +612,4 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     </div>
   );
 };
+}
