@@ -1,7 +1,3 @@
-{
-type: edited file
-fileName: src/components/TransactionList.tsx
-fullContent:
 import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction } from '../types';
 import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
