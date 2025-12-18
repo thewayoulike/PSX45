@@ -168,4 +168,3 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
     </div>
   );
 };
-}
