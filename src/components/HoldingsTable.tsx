@@ -150,8 +150,13 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <tr> <td colSpan={showBroker ? 9 : 8} className="px-6 py-20 text-center text-slate-400 italic"> {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'} </td> </tr>
               ) : (
                 paginatedHoldings.map((holding, idx) => {
-                  const roundedAvg = Math.round(holding.avgPrice * 100) / 100; 
-                  const costBasis = holding.quantity * roundedAvg; 
+                  const costBasis = holding.quantity * holding.avgPrice; // Total Cost (Price + Fees)
+                  
+                  // --- FIX: Derive Raw Avg (Execution Price) ---
+                  const totalFees = holding.totalCommission + holding.totalTax + holding.totalCDC + holding.totalOtherFees;
+                  const rawCost = costBasis - totalFees;
+                  const rawAvg = holding.quantity > 0 ? rawCost / holding.quantity : 0;
+                  
                   const marketValue = holding.quantity * holding.currentPrice; 
                   const pnl = marketValue - costBasis; 
                   const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0; 
@@ -163,11 +168,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0; 
                   const isDailyProfit = dailyChange >= 0;
 
-                  // --- BREAK EVEN CALCULATION (UPDATED) ---
-                  // Logic: Est Sell Fee = Total Buy Fees / Quantity. (Assumes Sell Fees ≈ Buy Fees per share)
-                  const totalBuyFees = holding.totalCommission + holding.totalTax + holding.totalCDC + holding.totalOtherFees;
-                  const buyFeesPerShare = holding.quantity > 0 ? totalBuyFees / holding.quantity : 0;
-                  const breakEvenPrice = holding.avgPrice + buyFeesPerShare;
+                  // --- BREAK EVEN CALCULATION (FIXED) ---
+                  // holding.avgPrice is ALREADY the break-even (Cost Basis per Share).
+                  const breakEvenPrice = holding.avgPrice; 
 
                   // --- CONDITIONAL COLORING FOR BE ---
                   const diff = holding.currentPrice - breakEvenPrice;
@@ -180,16 +183,20 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <td className="px-4 py-4"> <div className="flex items-center gap-3"> <div className="w-1 h-6 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> <div> <div className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2"> {holding.ticker} {isFailed && <AlertTriangle size={14} className="text-amber-500" title="Price update failed" />} </div> <div className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate max-w-[100px]">{holding.sector}</div> </div> </div> </td>
                       {showBroker && <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">{holding.broker}</td>}
                       <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{holding.quantity.toLocaleString()}</td>
-                      <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">{roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       
-                      {/* --- MODIFIED CURRENT PRICE COLUMN WITH BE --- */}
+                      {/* --- AVG PRICE (Raw) --- */}
+                      <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs" title={`Raw Avg: ${rawAvg.toFixed(4)}`}>
+                          {rawAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                      
+                      {/* --- CURRENT PRICE + BE --- */}
                       <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> 
                         <div className="flex flex-col items-end"> 
                             <span className={isFailed ? "text-amber-600 font-bold" : ""}> 
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} 
                             </span> 
                             {holding.quantity > 0 && (
-                                <span className={`text-[9px] font-bold font-mono mt-0.5 ${beColorClass}`} title={`Break-Even: Rs. ${breakEvenPrice.toFixed(2)}`}>
+                                <span className={`text-[9px] font-bold font-mono mt-0.5 ${beColorClass}`} title={`Break-Even (Cost Basis): Rs. ${breakEvenPrice.toFixed(4)}`}>
                                     BE: {breakEvenPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             )}
