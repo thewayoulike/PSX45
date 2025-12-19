@@ -150,13 +150,8 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 <tr> <td colSpan={showBroker ? 9 : 8} className="px-6 py-20 text-center text-slate-400 italic"> {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'} </td> </tr>
               ) : (
                 paginatedHoldings.map((holding, idx) => {
-                  const costBasis = holding.quantity * holding.avgPrice; // Total Cost (Price + Fees)
-                  
-                  // --- FIX: Derive Raw Avg (Execution Price) ---
-                  const totalFees = holding.totalCommission + holding.totalTax + holding.totalCDC + holding.totalOtherFees;
-                  const rawCost = costBasis - totalFees;
-                  const rawAvg = holding.quantity > 0 ? rawCost / holding.quantity : 0;
-                  
+                  const roundedAvg = Math.round(holding.avgPrice * 100) / 100; // This is Avg Buy Price (inc buy fees)
+                  const costBasis = holding.quantity * roundedAvg; 
                   const marketValue = holding.quantity * holding.currentPrice; 
                   const pnl = marketValue - costBasis; 
                   const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0; 
@@ -168,9 +163,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0; 
                   const isDailyProfit = dailyChange >= 0;
 
-                  // --- BREAK EVEN CALCULATION (FIXED) ---
-                  // holding.avgPrice is ALREADY the break-even (Cost Basis per Share).
-                  const breakEvenPrice = holding.avgPrice; 
+                  // --- BREAK EVEN CALCULATION ---
+                  // 1. Get total fees paid so far (Commission + Tax + CDC + Other) for these specific shares
+                  const totalBuyFees = holding.totalCommission + holding.totalTax + holding.totalCDC + holding.totalOtherFees;
+                  
+                  // 2. Estimate Sell Fees ≈ Buy Fees (Average fee per share)
+                  // Note: This assumes the sell commission rate is similar to buy commission rate
+                  const estimatedSellFees = totalBuyFees;
+                  const sellFeePerShare = holding.quantity > 0 ? estimatedSellFees / holding.quantity : 0;
+
+                  // 3. Break Even = Cost Basis Per Share (avgPrice) + Estimated Sell Fee Per Share
+                  const breakEvenPrice = holding.avgPrice + sellFeePerShare;
 
                   // --- CONDITIONAL COLORING FOR BE ---
                   const diff = holding.currentPrice - breakEvenPrice;
@@ -184,9 +187,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       {showBroker && <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">{holding.broker}</td>}
                       <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{holding.quantity.toLocaleString()}</td>
                       
-                      {/* --- AVG PRICE (Raw) --- */}
-                      <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs" title={`Raw Avg: ${rawAvg.toFixed(4)}`}>
-                          {rawAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      {/* --- AVG PRICE (Cost Basis) --- */}
+                      <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">
+                          {roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* --- CURRENT PRICE + BE --- */}
@@ -196,7 +199,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} 
                             </span> 
                             {holding.quantity > 0 && (
-                                <span className={`text-[9px] font-bold font-mono mt-0.5 ${beColorClass}`} title={`Break-Even (Cost Basis): Rs. ${breakEvenPrice.toFixed(4)}`}>
+                                <span className={`text-[9px] font-bold font-mono mt-0.5 ${beColorClass}`} title={`Break-Even: Rs. ${breakEvenPrice.toFixed(4)} (Cost + Est. Sell Fees)`}>
                                     BE: {breakEvenPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             )}
