@@ -323,6 +323,7 @@ const App: React.FC = () => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     let operationalExpenses = 0; 
     let dailyPL = 0;
+    let totalAdjustments = 0; 
 
     holdings.forEach(h => { 
         totalValue += h.quantity * h.currentPrice; 
@@ -359,12 +360,13 @@ const App: React.FC = () => {
                 if (t.category === 'CDC_CHARGE') totalCDC += Math.abs(t.price);
                 events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
             } else {
+                totalAdjustments += t.price; // Accumulate adjustment for Free Cash
                 if (t.price >= 0) {
-                    totalDeposits += t.price;
-                    events.push({ date: t.date, type: 'IN', amount: t.price, originalIndex: idx });
+                    // Treated as Profit (Internal Gain), NOT as Capital Injection
+                    events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
                 } else {
-                    totalWithdrawals += Math.abs(t.price);
-                    events.push({ date: t.date, type: 'OUT', amount: Math.abs(t.price), originalIndex: idx });
+                    // Treated as Loss (Internal Loss), NOT as Capital Withdrawal
+                    events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
                 }
             }
         }
@@ -443,9 +445,9 @@ const App: React.FC = () => {
     
     let cashIn = totalDeposits; 
     let cashOut = totalWithdrawals + totalCGT + operationalExpenses; 
-    const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL; 
+    const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL + totalAdjustments; 
     
-    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses;
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses + totalAdjustments;
     
     const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakPrincipal > 0 ? peakPrincipal : 1);
     const roi = (totalNetReturn / roiDenominator) * 100;
@@ -455,11 +457,13 @@ const App: React.FC = () => {
 
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
-        if (t.type === 'DEPOSIT' || (t.type === 'OTHER' && t.price >= 0 && t.category !== 'OTHER_TAX' && t.category !== 'CDC_CHARGE')) {
+        if (t.type === 'DEPOSIT') {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
         }
+        // NOTE: Adjustments (Type OTHER) are intentionally excluded from XIRR cash flows
+        // as they are treated as internal gains/losses, not external capital movements.
     });
     const currentTotalNetWorth = totalValue + freeCash;
     if (currentTotalNetWorth > 0) {
