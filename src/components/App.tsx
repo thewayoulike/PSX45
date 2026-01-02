@@ -530,42 +530,182 @@ const App: React.FC = () => {
   useEffect(() => { 
       const tempHoldings: Record<string, Holding> = {}; 
       const tempRealized: RealizedTrade[] = []; 
-      const lotMap: Record<string, Lot[]> = {}; 
       
-      // FIXED: SORTING LOGIC TO PRIORITIZE BUY BEFORE SELL ON SAME DATE
-      const sortedTx = [...portfolioTransactions].sort((a, b) => { 
-          const dateDiff = a.date.localeCompare(b.date);
-          if (dateDiff !== 0) return dateDiff;
-          if (a.type === 'BUY' && b.type === 'SELL') return -1;
-          if (a.type === 'SELL' && b.type === 'BUY') return 1;
-          return 0;
-      }); 
-      
-      sortedTx.forEach(tx => { 
+      // Helper to group transactions by holding key
+      const txsByKey: Record<string, Transaction[]> = {};
+
+      portfolioTransactions.forEach(tx => { 
           if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return; 
           if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return; 
-          if (tx.type === 'HISTORY') { tempRealized.push({ id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 }); return; } 
-          const brokerKey = (tx.broker || 'Unknown'); 
-          const holdingKey = `${tx.ticker}|${brokerKey}`; 
-          if (!tempHoldings[holdingKey]) { const sector = sectorOverrides[tx.ticker] || getSector(tx.ticker); tempHoldings[holdingKey] = { ticker: tx.ticker, sector: sector, broker: (tx.broker || 'Unknown'), quantity: 0, avgPrice: 0, currentPrice: 0, totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0, }; lotMap[holdingKey] = []; } 
-          const h = tempHoldings[holdingKey]; 
-          const lots = lotMap[holdingKey]; 
-          if (tx.type === 'BUY') { 
-              const txFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); 
-              const txTotalCost = (tx.quantity * tx.price) + txFees; 
-              const costPerShare = tx.quantity > 0 ? txTotalCost / tx.quantity : 0; 
-              lots.push({ quantity: tx.quantity, costPerShare: costPerShare, date: tx.date }); 
-              const currentHoldingValue = h.quantity * h.avgPrice; h.quantity += tx.quantity; h.avgPrice = h.quantity > 0 ? (currentHoldingValue + txTotalCost) / h.quantity : 0; h.totalCommission += (tx.commission || 0); h.totalTax += (tx.tax || 0); h.totalCDC += (tx.cdcCharges || 0); h.totalOtherFees += (tx.otherFees || 0); 
-          } else if (tx.type === 'SELL') { 
-              if (h.quantity > 0) { 
-                  const qtyToSell = Math.min(h.quantity, tx.quantity); 
-                  let costBasis = 0; let remainingToSell = qtyToSell; 
-                  while (remainingToSell > 0 && lots.length > 0) { const currentLot = lots[0]; if (currentLot.quantity > remainingToSell) { costBasis += remainingToSell * currentLot.costPerShare; currentLot.quantity -= remainingToSell; remainingToSell = 0; } else { costBasis += currentLot.quantity * currentLot.costPerShare; remainingToSell -= currentLot.quantity; lots.shift(); } } 
-                  const saleRevenue = qtyToSell * tx.price; const saleFees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0); const realizedProfit = saleRevenue - saleFees - costBasis; tempRealized.push({ id: tx.id, ticker: tx.ticker, broker: tx.broker, quantity: qtyToSell, buyAvg: qtyToSell > 0 ? costBasis / qtyToSell : 0, sellPrice: tx.price, date: tx.date, profit: realizedProfit, fees: saleFees, commission: tx.commission || 0, tax: tx.tax || 0, cdcCharges: tx.cdcCharges || 0, otherFees: tx.otherFees || 0 }); const prevTotalValue = h.quantity * h.avgPrice; h.quantity -= qtyToSell; if (h.quantity > 0) h.avgPrice = (prevTotalValue - costBasis) / h.quantity; else h.avgPrice = 0; const ratio = (h.quantity + qtyToSell) > 0 ? h.quantity / (h.quantity + qtyToSell) : 0; h.totalCommission = h.totalCommission * ratio; h.totalTax = h.totalTax * ratio; h.totalCDC = h.totalCDC * ratio; h.totalOtherFees = h.totalOtherFees * ratio; 
-              } 
+          if (tx.type === 'HISTORY') { 
+              tempRealized.push({ 
+                  id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1, 
+                  buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0, 
+                  commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0 
+              }); 
+              return; 
           } 
+          const brokerKey = (tx.broker || 'Unknown'); 
+          const key = `${tx.ticker}|${brokerKey}`; 
+          if (!txsByKey[key]) txsByKey[key] = [];
+          txsByKey[key].push(tx);
       }); 
-      const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { const current = manualPrices[h.ticker] || h.avgPrice; const lastUpdated = priceTimestamps[h.ticker]; return { ...h, currentPrice: current, lastUpdated }; }); setHoldings(finalHoldings); setRealizedTrades(tempRealized); 
+
+      // Process each ticker/broker group
+      Object.entries(txsByKey).forEach(([key, txs]) => {
+          const [ticker, brokerName] = key.split('|');
+          
+          interface Lot {
+              quantity: number;
+              costPerShare: number;
+              date: string;
+              commPerShare: number;
+              taxPerShare: number;
+              cdcPerShare: number;
+              otherPerShare: number;
+          }
+          const lots: Lot[] = [];
+
+          // Group trades by date to handle intraday netting
+          const txsByDate: Record<string, Transaction[]> = {};
+          txs.forEach(t => {
+              if (!txsByDate[t.date]) txsByDate[t.date] = [];
+              txsByDate[t.date].push(t);
+          });
+
+          // Sort dates chronologically
+          const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+          sortedDates.forEach(date => {
+              const dayTxs = txsByDate[date];
+              const dayBuys = dayTxs.filter(t => t.type === 'BUY');
+              const daySells = dayTxs.filter(t => t.type === 'SELL');
+
+              // Create temporary lots for today's buys (Intraday Pool)
+              const dayBuyLots = dayBuys.map(t => {
+                  const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+                  const costPerShare = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
+                  return {
+                      quantity: t.quantity,
+                      costPerShare,
+                      date: t.date,
+                      commPerShare: t.quantity > 0 ? (t.commission || 0) / t.quantity : 0,
+                      taxPerShare: t.quantity > 0 ? (t.tax || 0) / t.quantity : 0,
+                      cdcPerShare: t.quantity > 0 ? (t.cdcCharges || 0) / t.quantity : 0,
+                      otherPerShare: t.quantity > 0 ? (t.otherFees || 0) / t.quantity : 0
+                  };
+              });
+
+              // Process Sells: Priority 1 = Intraday, Priority 2 = FIFO
+              daySells.forEach(sellTx => {
+                  let qtyToSell = sellTx.quantity;
+                  const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
+                  const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
+
+                  // 1. Intraday Matching
+                  for (const buyLot of dayBuyLots) {
+                      if (qtyToSell <= 0.0001) break;
+                      if (buyLot.quantity > 0) {
+                          const matched = Math.min(qtyToSell, buyLot.quantity);
+                          const revenue = matched * sellTx.price;
+                          const cost = matched * buyLot.costPerShare;
+                          const matchedSellFees = matched * sellFeePerShare;
+                          const profit = revenue - cost - matchedSellFees;
+
+                          tempRealized.push({
+                              id: sellTx.id, // Using original ID for intraday might duplicate if matched multiple times, but typically fine for list view
+                              ticker,
+                              broker: brokerName,
+                              quantity: matched,
+                              buyAvg: buyLot.costPerShare,
+                              sellPrice: sellTx.price,
+                              date: sellTx.date,
+                              profit,
+                              fees: matchedSellFees,
+                              commission: (sellTx.commission || 0) * (matched/sellTx.quantity),
+                              tax: (sellTx.tax || 0) * (matched/sellTx.quantity),
+                              cdcCharges: (sellTx.cdcCharges || 0) * (matched/sellTx.quantity),
+                              otherFees: (sellTx.otherFees || 0) * (matched/sellTx.quantity)
+                          });
+
+                          buyLot.quantity -= matched;
+                          qtyToSell -= matched;
+                      }
+                  }
+
+                  // 2. FIFO Matching (Historical)
+                  while (qtyToSell > 0.0001 && lots.length > 0) {
+                      const fifoLot = lots[0];
+                      const matched = Math.min(qtyToSell, fifoLot.quantity);
+                      const revenue = matched * sellTx.price;
+                      const cost = matched * fifoLot.costPerShare;
+                      const matchedSellFees = matched * sellFeePerShare;
+                      const profit = revenue - cost - matchedSellFees;
+
+                      tempRealized.push({
+                          id: `${sellTx.id}-fifo-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+                          ticker,
+                          broker: brokerName,
+                          quantity: matched,
+                          buyAvg: fifoLot.costPerShare,
+                          sellPrice: sellTx.price,
+                          date: sellTx.date,
+                          profit,
+                          fees: matchedSellFees,
+                          commission: (sellTx.commission || 0) * (matched/sellTx.quantity),
+                          tax: (sellTx.tax || 0) * (matched/sellTx.quantity),
+                          cdcCharges: (sellTx.cdcCharges || 0) * (matched/sellTx.quantity),
+                          otherFees: (sellTx.otherFees || 0) * (matched/sellTx.quantity)
+                      });
+
+                      fifoLot.quantity -= matched;
+                      qtyToSell -= matched;
+                      
+                      if (fifoLot.quantity < 0.0001) lots.shift();
+                  }
+              });
+
+              // 3. Add remaining Day Buys to Main FIFO Queue
+              dayBuyLots.forEach(l => {
+                  if (l.quantity > 0.0001) lots.push(l);
+              });
+          });
+
+          // Construct final Holding object from remaining lots
+          if (lots.length > 0) {
+              const totalQty = lots.reduce((acc, l) => acc + l.quantity, 0);
+              const totalCost = lots.reduce((acc, l) => acc + (l.quantity * l.costPerShare), 0);
+              
+              const totalComm = lots.reduce((acc, l) => acc + (l.quantity * l.commPerShare), 0);
+              const totalTax = lots.reduce((acc, l) => acc + (l.quantity * l.taxPerShare), 0);
+              const totalCDC = lots.reduce((acc, l) => acc + (l.quantity * l.cdcPerShare), 0);
+              const totalOther = lots.reduce((acc, l) => acc + (l.quantity * l.otherPerShare), 0);
+
+              const sector = sectorOverrides[ticker] || getSector(ticker);
+              const avgPrice = totalCost / totalQty;
+
+              tempHoldings[key] = {
+                  ticker,
+                  sector,
+                  broker: brokerName,
+                  quantity: totalQty,
+                  avgPrice,
+                  currentPrice: 0, // Will be set in next map
+                  totalCommission: totalComm,
+                  totalTax: totalTax,
+                  totalCDC: totalCDC,
+                  totalOtherFees: totalOther
+              };
+          }
+      });
+
+      const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => { 
+          const current = manualPrices[h.ticker] || h.avgPrice; 
+          const lastUpdated = priceTimestamps[h.ticker]; 
+          return { ...h, currentPrice: current, lastUpdated }; 
+      }); 
+      setHoldings(finalHoldings); 
+      setRealizedTrades(tempRealized); 
   }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
   
   const handleTickerClick = (ticker: string) => {
