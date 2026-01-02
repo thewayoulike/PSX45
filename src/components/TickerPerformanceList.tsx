@@ -167,20 +167,14 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
   // --- REVISED LOGIC: Intraday Priority, then FIFO ---
   const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
-      // 1. Group transactions by Date
       const txsByDate: Record<string, Transaction[]> = {};
       txs.forEach(t => {
           if (!txsByDate[t.date]) txsByDate[t.date] = [];
           txsByDate[t.date].push(t);
       });
 
-      // Sort dates chronologically
       const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-
-      // Historical FIFO Queue
       const mainLots: { id: string, quantity: number, costPerShare: number }[] = [];
-      
-      // Results Maps
       const buyRemainingMap: Record<string, number> = {};
       const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE' }> = {};
 
@@ -189,22 +183,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const dayBuys = dayTxs.filter(t => t.type === 'BUY');
           const daySells = dayTxs.filter(t => t.type === 'SELL');
 
-          // A. Prepare Day Lots
           const dayBuyLots = dayBuys.map(t => {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
               const effRate = ((t.quantity * t.price) + fees) / t.quantity;
               return { id: t.id, quantity: t.quantity, costPerShare: effRate };
           });
 
-          // B. Process Day Sells
           daySells.forEach(sellTx => {
               const fees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
               const netProceeds = (sellTx.quantity * sellTx.price) - fees;
-              
               let qtyToFill = sellTx.quantity;
               let totalCostBasis = 0;
 
-              // 1. Intraday Match (Priority)
               if (dayBuyLots.length > 0) {
                   for (const buyLot of dayBuyLots) {
                       if (qtyToFill <= 0.0001) break;
@@ -213,12 +203,11 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                           totalCostBasis += matched * buyLot.costPerShare;
                           buyLot.quantity -= matched;
                           qtyToFill -= matched;
-                          buyRemainingMap[buyLot.id] = buyLot.quantity; // Update remaining immediately
+                          buyRemainingMap[buyLot.id] = buyLot.quantity; 
                       }
                   }
               }
 
-              // 2. FIFO Match (Historical)
               while (qtyToFill > 0.0001 && mainLots.length > 0) {
                   const historyLot = mainLots[0];
                   const matched = Math.min(qtyToFill, historyLot.quantity);
@@ -232,22 +221,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               const filledQty = sellTx.quantity - qtyToFill;
               const avgBuy = filledQty > 0 ? totalCostBasis / filledQty : 0;
               const gain = netProceeds - totalCostBasis;
-
               sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: filledQty > 0 ? 'REALIZED' : 'NONE' };
           });
 
-          // C. Move remaining Day Buys to Main Queue
           dayBuyLots.forEach(lot => {
               if (lot.quantity > 0.0001) {
                   mainLots.push({ id: lot.id, quantity: lot.quantity, costPerShare: lot.costPerShare });
                   buyRemainingMap[lot.id] = lot.quantity;
               } else if (buyRemainingMap[lot.id] === undefined) {
-                  buyRemainingMap[lot.id] = 0; // Fully consumed
+                  buyRemainingMap[lot.id] = 0; 
               }
           });
       });
 
-      // 3. Reconstruct Result Array
       return txs.map(t => {
           let avgBuyPrice = 0;
           let sellOrCurrentPrice = 0;
@@ -422,7 +408,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const switchToStockMode = () => { setAnalysisMode('STOCK'); localStorage.setItem('psx_analyzer_mode', 'STOCK'); const lastTicker = localStorage.getItem('psx_last_analyzed_ticker'); setSearchTerm(lastTicker || ''); setIsDropdownOpen(false); };
+  const switchToStockMode = (ticker?: string) => { 
+      setAnalysisMode('STOCK'); 
+      localStorage.setItem('psx_analyzer_mode', 'STOCK'); 
+      const targetTicker = ticker || localStorage.getItem('psx_last_analyzed_ticker') || '';
+      if (targetTicker) {
+          setSelectedTicker(targetTicker);
+          localStorage.setItem('psx_last_analyzed_ticker', targetTicker);
+      }
+      setSearchTerm(targetTicker); 
+      setIsDropdownOpen(false); 
+  };
+
   const switchToSectorMode = () => { setAnalysisMode('SECTOR'); localStorage.setItem('psx_analyzer_mode', 'SECTOR'); const lastSector = localStorage.getItem('psx_last_analyzed_sector'); setSearchTerm(lastSector || ''); setIsDropdownOpen(false); };
   const handleSelect = (val: string) => { if (analysisMode === 'STOCK') { setSelectedTicker(val); localStorage.setItem('psx_last_analyzed_ticker', val); } else { setSelectedSector(val); localStorage.setItem('psx_last_analyzed_sector', val); } setSearchTerm(val); setIsDropdownOpen(false); };
   const handleClearSelection = (e: React.MouseEvent) => { e.stopPropagation(); setSearchTerm(''); if (analysisMode === 'STOCK') { setSelectedTicker(null); localStorage.removeItem('psx_last_analyzed_ticker'); } else { setSelectedSector(null); localStorage.removeItem('psx_last_analyzed_sector'); } };
@@ -464,7 +461,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           </div>
 
           <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-6 shadow-inner border border-slate-200 dark:border-slate-700">
-              <button onClick={switchToStockMode} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'STOCK' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}> <LayoutList size={16} /> Stock </button>
+              <button onClick={() => switchToStockMode()} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'STOCK' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}> <LayoutList size={16} /> Stock </button>
               <button onClick={switchToSectorMode} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'SECTOR' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}> <Layers size={16} /> Sector </button>
           </div>
 
@@ -622,7 +619,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
             </div>
         )}
 
-        {/* --- SECTOR DASHBOARD (Restored!) --- */}
+        {/* --- SECTOR DASHBOARD --- */}
         {analysisMode === 'SECTOR' && selectedSectorStats && (
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
                 {/* 1. HEADER */}
@@ -730,34 +727,64 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </Card>
                 </div>
 
-                {/* 3. HOLDINGS LIST FOR SECTOR */}
+                {/* 3. HOLDINGS LIST FOR SECTOR (ENHANCED) */}
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl overflow-hidden shadow-sm">
                     <div className="p-6 border-b border-slate-100 dark:border-slate-700">
                         <h3 className="font-bold text-slate-800 dark:text-slate-200">Sector Holdings</h3>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm">
+                        <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-50 dark:bg-slate-700/50 text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider border-b border-slate-200 dark:border-slate-700">
                                 <tr>
                                     <th className="px-6 py-4">Ticker</th>
-                                    <th className="px-6 py-4 text-right">Owned Qty</th>
-                                    <th className="px-6 py-4 text-right">Avg Cost</th>
-                                    <th className="px-6 py-4 text-right">Current Price</th>
-                                    <th className="px-6 py-4 text-right">Total Return</th>
+                                    <th className="px-6 py-4 text-right">Qty</th>
+                                    <th className="px-6 py-4 text-right">Avg Price</th>
+                                    <th className="px-6 py-4 text-right">Current</th>
+                                    <th className="px-6 py-4 text-right">Total Cost</th>
+                                    <th className="px-6 py-4 text-right">Market Value</th>
+                                    <th className="px-6 py-4 text-right">% of Sector</th>
+                                    <th className="px-6 py-4 text-right">Total P&L</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
                                 {selectedSectorStats.tickers.map(ticker => {
                                     const stockStats = allTickerStats.find(s => s.ticker === ticker);
                                     if (!stockStats) return null;
+                                    
+                                    // Calculate % of Sector holding
+                                    const percentOfSector = selectedSectorStats.currentValue > 0 
+                                        ? (stockStats.currentValue / selectedSectorStats.currentValue) * 100 
+                                        : 0;
+
                                     return (
-                                        <tr key={ticker} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors" onClick={() => onTickerClick(ticker)}>
-                                            <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-200">{ticker}</td>
-                                            <td className="px-6 py-4 text-right text-slate-700 dark:text-slate-300">{stockStats.ownedQty.toLocaleString()}</td>
-                                            <td className="px-6 py-4 text-right font-mono text-xs text-slate-600 dark:text-slate-400">{formatDecimal(stockStats.currentAvgPrice)}</td>
+                                        <tr 
+                                            key={ticker} 
+                                            className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors group" 
+                                            onClick={() => switchToStockMode(ticker)}
+                                        >
+                                            <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                                                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500 dark:text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 dark:group-hover:bg-blue-900/30 transition-colors">
+                                                    {ticker.substring(0, 2)}
+                                                </div>
+                                                {ticker}
+                                            </td>
+                                            <td className="px-6 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{stockStats.ownedQty.toLocaleString()}</td>
+                                            <td className="px-6 py-4 text-right font-mono text-xs text-slate-500 dark:text-slate-400">{formatDecimal(stockStats.currentAvgPrice)}</td>
                                             <td className="px-6 py-4 text-right font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{formatDecimal(stockStats.currentPrice)}</td>
-                                            <td className={`px-6 py-4 text-right font-bold ${stockStats.totalNetReturn >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                                                {stockStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(stockStats.totalNetReturn)}
+                                            <td className="px-6 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">{formatCurrency(stockStats.totalCostBasis)}</td>
+                                            <td className="px-6 py-4 text-right font-bold text-slate-900 dark:text-slate-100 font-mono text-xs">{formatCurrency(stockStats.currentValue)}</td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{percentOfSector.toFixed(1)}%</span>
+                                                    <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                        <div className="h-full bg-blue-500" style={{ width: `${Math.min(percentOfSector, 100)}%` }}></div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td className="px-6 py-4 text-right">
+                                                <div className={`font-bold ${stockStats.totalNetReturn >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                    {stockStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(stockStats.totalNetReturn)}
+                                                </div>
                                             </td>
                                         </tr>
                                     );
