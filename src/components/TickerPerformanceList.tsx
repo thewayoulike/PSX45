@@ -165,87 +165,158 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
+  // --- CHANGED LOGIC: INTRADAY MATCHING FIRST, THEN FIFO ---
   const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
-      const currentPrice = currentPrices[ticker] || 0;
+      // 1. Group transactions by Date
+      const txsByDate: Record<string, Transaction[]> = {};
+      txs.forEach(t => {
+          if (!txsByDate[t.date]) txsByDate[t.date] = [];
+          txsByDate[t.date].push(t);
+      });
+
+      // Sort dates chronologically to maintain FIFO for inter-day trades
+      const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+      // Historical FIFO Queue (The "Main" Queue)
+      const mainLots: { id: string, quantity: number, costPerShare: number }[] = [];
       
-      const sortedTxs = [...txs].sort((a, b) => {
+      // Maps to store results
+      const buyRemainingMap: Record<string, number> = {};
+      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE' }> = {};
+
+      sortedDates.forEach(date => {
+          const dayTxs = txsByDate[date];
+          const dayBuys = dayTxs.filter(t => t.type === 'BUY');
+          const daySells = dayTxs.filter(t => t.type === 'SELL');
+
+          // A. Prepare "Day Lots" from Today's Buys
+          const dayBuyLots = dayBuys.map(t => {
+              const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+              const effRate = ((t.quantity * t.price) + fees) / t.quantity;
+              return {
+                  id: t.id,
+                  quantity: t.quantity, // Mutable
+                  costPerShare: effRate
+              };
+          });
+
+          // B. Process Today's Sells
+          // Priority 1: Match against Day Lots (Intraday Netting)
+          // Priority 2: Match against Main Lots (FIFO)
+          daySells.forEach(sellTx => {
+              const fees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
+              const netProceeds = (sellTx.quantity * sellTx.price) - fees;
+              
+              let qtyToFill = sellTx.quantity;
+              let totalCostBasis = 0;
+
+              // 1. Try Intraday Match
+              if (dayBuyLots.length > 0) {
+                  for (const buyLot of dayBuyLots) {
+                      if (qtyToFill <= 0.0001) break;
+                      if (buyLot.quantity > 0) {
+                          const matched = Math.min(qtyToFill, buyLot.quantity);
+                          totalCostBasis += matched * buyLot.costPerShare;
+                          buyLot.quantity -= matched;
+                          qtyToFill -= matched;
+                          
+                          // Mark consumed immediately
+                          buyRemainingMap[buyLot.id] = buyLot.quantity;
+                      }
+                  }
+              }
+
+              // 2. Try FIFO Match (Historical)
+              while (qtyToFill > 0.0001 && mainLots.length > 0) {
+                  const historyLot = mainLots[0];
+                  const matched = Math.min(qtyToFill, historyLot.quantity);
+                  
+                  totalCostBasis += matched * historyLot.costPerShare;
+                  historyLot.quantity -= matched;
+                  qtyToFill -= matched;
+                  
+                  buyRemainingMap[historyLot.id] = historyLot.quantity;
+                  
+                  if (historyLot.quantity < 0.0001) {
+                      mainLots.shift();
+                  }
+              }
+
+              const filledQty = sellTx.quantity - qtyToFill;
+              const avgBuy = filledQty > 0 ? totalCostBasis / filledQty : 0;
+              const gain = netProceeds - totalCostBasis;
+
+              sellAnalysisMap[sellTx.id] = {
+                  avgBuy,
+                  gain,
+                  gainType: filledQty > 0 ? 'REALIZED' : 'NONE'
+              };
+          });
+
+          // C. Move remaining Day Buy Lots to Main FIFO Queue
+          dayBuyLots.forEach(lot => {
+              if (lot.quantity > 0.0001) {
+                  mainLots.push({
+                      id: lot.id,
+                      quantity: lot.quantity,
+                      costPerShare: lot.costPerShare
+                  });
+                  buyRemainingMap[lot.id] = lot.quantity;
+              } else {
+                  // Ensure map records 0 if fully consumed intraday
+                  if (buyRemainingMap[lot.id] === undefined) buyRemainingMap[lot.id] = 0;
+              }
+          });
+      });
+
+      // 3. Reconstruct Result Array
+      return txs.map(t => {
+          let avgBuyPrice = 0;
+          let sellOrCurrentPrice = 0;
+          let gain = 0;
+          let gainType: 'REALIZED' | 'UNREALIZED' | 'NONE' = 'NONE';
+          let remainingQty = 0;
+          const currentPrice = currentPrices[ticker] || 0;
+
+          if (t.type === 'BUY') {
+              const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+              avgBuyPrice = ((t.quantity * t.price) + fees) / t.quantity;
+              sellOrCurrentPrice = currentPrice;
+              
+              // Use map value if available (meaning processed), else default to quantity (e.g. only buys)
+              remainingQty = buyRemainingMap[t.id] !== undefined ? buyRemainingMap[t.id] : t.quantity;
+              
+              if (remainingQty > 0.0001) {
+                  gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty;
+                  gainType = 'UNREALIZED';
+              }
+          } 
+          else if (t.type === 'SELL') {
+              const analysis = sellAnalysisMap[t.id];
+              if (analysis) {
+                  avgBuyPrice = analysis.avgBuy;
+                  const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+                  sellOrCurrentPrice = ((t.quantity * t.price) - fees) / t.quantity;
+                  gain = analysis.gain;
+                  gainType = analysis.gainType;
+              }
+          }
+          else if (t.type === 'DIVIDEND') {
+               sellOrCurrentPrice = t.price;
+               gain = (t.quantity * t.price) - (t.tax || 0);
+               gainType = 'NONE';
+          }
+
+          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
+      }).sort((a, b) => {
+          // Sort final output descending by date
           const timeA = new Date(a.date).getTime();
           const timeB = new Date(b.date).getTime();
-          if (timeA !== timeB) return timeA - timeB;
-          if (a.type === 'BUY' && b.type === 'SELL') return -1;
-          if (a.type === 'SELL' && b.type === 'BUY') return 1;
+          if (timeA !== timeB) return timeB - timeA;
+          // Secondary sort: Sells before Buys? 
+          // Actually, standard display usually puts latest on top.
           return 0;
       });
-      
-      const tempLots: { id: string, quantity: number, costPerShare: number }[] = [];
-      const buyRemainingMap: Record<string, number> = {};
-      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number }> = {};
-
-      sortedTxs.forEach(t => {
-          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-          const totalVal = t.quantity * t.price;
-          
-          if (t.type === 'BUY') {
-              const effRate = (totalVal + fees) / t.quantity;
-              tempLots.push({ id: t.id, quantity: t.quantity, costPerShare: effRate });
-              buyRemainingMap[t.id] = t.quantity;
-          } else if (t.type === 'SELL') {
-              const netProceeds = totalVal - fees;
-              let qtyToSell = t.quantity;
-              let costBasisForSale = 0;
-              
-              while (qtyToSell > 0 && tempLots.length > 0) {
-                  const currentLot = tempLots[0];
-                  const takeAmount = Math.min(qtyToSell, currentLot.quantity);
-                  costBasisForSale += takeAmount * currentLot.costPerShare;
-                  currentLot.quantity -= takeAmount;
-                  qtyToSell -= takeAmount;
-                  
-                  if (buyRemainingMap[currentLot.id] !== undefined) {
-                      buyRemainingMap[currentLot.id] -= takeAmount;
-                  }
-                  if (currentLot.quantity < 0.0001) tempLots.shift();
-              }
-              
-              const avgBuy = (t.quantity > 0) ? costBasisForSale / t.quantity : 0;
-              const gain = netProceeds - costBasisForSale;
-              sellAnalysisMap[t.id] = { avgBuy, gain };
-          }
-      });
-
-      return sortedTxs.map(t => {
-          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-          let avgBuyPrice = 0; 
-          let sellOrCurrentPrice = 0; 
-          let gain = 0; 
-          let gainType: 'REALIZED' | 'UNREALIZED' | 'NONE' = 'NONE'; 
-          let remainingQty = 0;
-
-          if (t.type === 'BUY') {
-              avgBuyPrice = ((t.quantity * t.price) + fees) / t.quantity; 
-              sellOrCurrentPrice = currentPrice; 
-              remainingQty = buyRemainingMap[t.id] ?? 0;
-              if (remainingQty < 0.001) remainingQty = 0;
-              if (remainingQty > 0) { 
-                  gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty; 
-                  gainType = 'UNREALIZED'; 
-              }
-          } else if (t.type === 'SELL') {
-              const analysis = sellAnalysisMap[t.id]; 
-              if (analysis) { 
-                  avgBuyPrice = analysis.avgBuy; 
-                  sellOrCurrentPrice = ((t.quantity * t.price) - fees) / t.quantity; 
-                  gain = analysis.gain; 
-                  gainType = 'REALIZED'; 
-              }
-          } else if (t.type === 'DIVIDEND') { 
-              avgBuyPrice = 0; 
-              sellOrCurrentPrice = t.price; 
-              gain = (t.quantity * t.price) - (t.tax || 0); 
-              gainType = 'NONE'; 
-          }
-          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
-      }).reverse();
   };
 
   const allTickerStats = useMemo(() => {
@@ -268,10 +339,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let totalComm = 0; let totalTradingTax = 0; let totalCDC = 0; let totalOther = 0;
           let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0;
           let totalCostBasis = 0; 
-          let totalHeldFees = 0; // NEW: Track fees specifically for held shares
+          let totalHeldFees = 0; 
 
           const activeBuys = enrichedRows.filter(r => r.type === 'BUY' && (r.remainingQty || 0) > 0);
-          const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null;
+          const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null; // Reverse sort, so last is oldest
           const holdingPeriod = oldestBuyDate ? getHoldingDuration(oldestBuyDate) : '-';
 
           enrichedRows.forEach(row => {
@@ -281,9 +352,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   
                   if ((row.remainingQty || 0) > 0) {
                       totalCostBasis += (row.remainingQty || 0) * row.avgBuyPrice;
-                      // Calculate fees for *only* the remaining shares in this lot
-                      // effective price = raw price + fees/qty
-                      // fees/qty = effective - raw
                       const feePerShare = row.avgBuyPrice - row.price;
                       totalHeldFees += (row.remainingQty || 0) * feePerShare;
                   }
@@ -315,7 +383,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
           const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
           
-          // --- UPDATED BREAK EVEN ---
           let breakEvenPrice = 0;
           if (ownedQty > 0) {
               const avgBuyFeePerShare = totalHeldFees / ownedQty;
@@ -412,7 +479,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return financialPeriod === 'Annual' ? fundamentals.annual : fundamentals.quarterly;
   }, [fundamentals, financialPeriod]);
 
-  // DETECT "NOT FOUND" STATE
   const isSelectionNotFound = (analysisMode === 'STOCK' && selectedTicker && !selectedStockStats) || 
                               (analysisMode === 'SECTOR' && selectedSector && !selectedSectorStats);
 
