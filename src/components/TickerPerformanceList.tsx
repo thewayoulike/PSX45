@@ -165,7 +165,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
-  // --- CHANGED LOGIC: INTRADAY MATCHING FIRST, THEN FIFO ---
+  // --- REVISED LOGIC: Intraday Priority, then FIFO ---
   const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
       // 1. Group transactions by Date
       const txsByDate: Record<string, Transaction[]> = {};
@@ -174,13 +174,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           txsByDate[t.date].push(t);
       });
 
-      // Sort dates chronologically to maintain FIFO for inter-day trades
+      // Sort dates chronologically
       const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
-      // Historical FIFO Queue (The "Main" Queue)
+      // Historical FIFO Queue
       const mainLots: { id: string, quantity: number, costPerShare: number }[] = [];
       
-      // Maps to store results
+      // Results Maps
       const buyRemainingMap: Record<string, number> = {};
       const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE' }> = {};
 
@@ -189,20 +189,14 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const dayBuys = dayTxs.filter(t => t.type === 'BUY');
           const daySells = dayTxs.filter(t => t.type === 'SELL');
 
-          // A. Prepare "Day Lots" from Today's Buys
+          // A. Prepare Day Lots
           const dayBuyLots = dayBuys.map(t => {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
               const effRate = ((t.quantity * t.price) + fees) / t.quantity;
-              return {
-                  id: t.id,
-                  quantity: t.quantity, // Mutable
-                  costPerShare: effRate
-              };
+              return { id: t.id, quantity: t.quantity, costPerShare: effRate };
           });
 
-          // B. Process Today's Sells
-          // Priority 1: Match against Day Lots (Intraday Netting)
-          // Priority 2: Match against Main Lots (FIFO)
+          // B. Process Day Sells
           daySells.forEach(sellTx => {
               const fees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
               const netProceeds = (sellTx.quantity * sellTx.price) - fees;
@@ -210,7 +204,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               let qtyToFill = sellTx.quantity;
               let totalCostBasis = 0;
 
-              // 1. Try Intraday Match
+              // 1. Intraday Match (Priority)
               if (dayBuyLots.length > 0) {
                   for (const buyLot of dayBuyLots) {
                       if (qtyToFill <= 0.0001) break;
@@ -219,52 +213,36 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                           totalCostBasis += matched * buyLot.costPerShare;
                           buyLot.quantity -= matched;
                           qtyToFill -= matched;
-                          
-                          // Mark consumed immediately
-                          buyRemainingMap[buyLot.id] = buyLot.quantity;
+                          buyRemainingMap[buyLot.id] = buyLot.quantity; // Update remaining immediately
                       }
                   }
               }
 
-              // 2. Try FIFO Match (Historical)
+              // 2. FIFO Match (Historical)
               while (qtyToFill > 0.0001 && mainLots.length > 0) {
                   const historyLot = mainLots[0];
                   const matched = Math.min(qtyToFill, historyLot.quantity);
-                  
                   totalCostBasis += matched * historyLot.costPerShare;
                   historyLot.quantity -= matched;
                   qtyToFill -= matched;
-                  
                   buyRemainingMap[historyLot.id] = historyLot.quantity;
-                  
-                  if (historyLot.quantity < 0.0001) {
-                      mainLots.shift();
-                  }
+                  if (historyLot.quantity < 0.0001) mainLots.shift();
               }
 
               const filledQty = sellTx.quantity - qtyToFill;
               const avgBuy = filledQty > 0 ? totalCostBasis / filledQty : 0;
               const gain = netProceeds - totalCostBasis;
 
-              sellAnalysisMap[sellTx.id] = {
-                  avgBuy,
-                  gain,
-                  gainType: filledQty > 0 ? 'REALIZED' : 'NONE'
-              };
+              sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: filledQty > 0 ? 'REALIZED' : 'NONE' };
           });
 
-          // C. Move remaining Day Buy Lots to Main FIFO Queue
+          // C. Move remaining Day Buys to Main Queue
           dayBuyLots.forEach(lot => {
               if (lot.quantity > 0.0001) {
-                  mainLots.push({
-                      id: lot.id,
-                      quantity: lot.quantity,
-                      costPerShare: lot.costPerShare
-                  });
+                  mainLots.push({ id: lot.id, quantity: lot.quantity, costPerShare: lot.costPerShare });
                   buyRemainingMap[lot.id] = lot.quantity;
-              } else {
-                  // Ensure map records 0 if fully consumed intraday
-                  if (buyRemainingMap[lot.id] === undefined) buyRemainingMap[lot.id] = 0;
+              } else if (buyRemainingMap[lot.id] === undefined) {
+                  buyRemainingMap[lot.id] = 0; // Fully consumed
               }
           });
       });
@@ -282,16 +260,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
               avgBuyPrice = ((t.quantity * t.price) + fees) / t.quantity;
               sellOrCurrentPrice = currentPrice;
-              
-              // Use map value if available (meaning processed), else default to quantity (e.g. only buys)
               remainingQty = buyRemainingMap[t.id] !== undefined ? buyRemainingMap[t.id] : t.quantity;
-              
               if (remainingQty > 0.0001) {
                   gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty;
                   gainType = 'UNREALIZED';
               }
-          } 
-          else if (t.type === 'SELL') {
+          } else if (t.type === 'SELL') {
               const analysis = sellAnalysisMap[t.id];
               if (analysis) {
                   avgBuyPrice = analysis.avgBuy;
@@ -300,23 +274,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   gain = analysis.gain;
                   gainType = analysis.gainType;
               }
-          }
-          else if (t.type === 'DIVIDEND') {
+          } else if (t.type === 'DIVIDEND') {
                sellOrCurrentPrice = t.price;
                gain = (t.quantity * t.price) - (t.tax || 0);
                gainType = 'NONE';
           }
-
           return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
-      }).sort((a, b) => {
-          // Sort final output descending by date
-          const timeA = new Date(a.date).getTime();
-          const timeB = new Date(b.date).getTime();
-          if (timeA !== timeB) return timeB - timeA;
-          // Secondary sort: Sells before Buys? 
-          // Actually, standard display usually puts latest on top.
-          return 0;
-      });
+      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   };
 
   const allTickerStats = useMemo(() => {
@@ -342,7 +306,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let totalHeldFees = 0; 
 
           const activeBuys = enrichedRows.filter(r => r.type === 'BUY' && (r.remainingQty || 0) > 0);
-          const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null; // Reverse sort, so last is oldest
+          const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null;
           const holdingPeriod = oldestBuyDate ? getHoldingDuration(oldestBuyDate) : '-';
 
           enrichedRows.forEach(row => {
@@ -655,52 +619,201 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     )}
                 </div>
+            </div>
+        )}
 
-                {/* ACTIVITY TABLE */}
+        {/* --- SECTOR DASHBOARD (Restored!) --- */}
+        {analysisMode === 'SECTOR' && selectedSectorStats && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+                {/* 1. HEADER */}
+                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                            <Layers size={32} />
+                        </div>
+                        <div>
+                            <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight">{selectedSectorStats.name}</h1>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200 dark:border-slate-600">
+                                    {selectedSectorStats.stockCount} Companies
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* 2. STATS GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Sector Overview */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg"><PieChart size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sector Overview</h3>
+                        </div>
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{selectedSectorStats.stockCount}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Active Stocks</div>
+                                </div>
+                                <div>
+                                    <div className="text-3xl font-bold text-slate-400 dark:text-slate-500">{selectedSectorStats.allocationPercent.toFixed(1)}%</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Portfolio Alloc.</div>
+                                </div>
+                            </div>
+                            <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Rs. {formatCurrency(selectedSectorStats.totalCostBasis)}</div>
+                                    <div className="text-[10px] text-slate-400">Total Invested</div>
+                                </div>
+                                <div>
+                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Rs. {formatCurrency(selectedSectorStats.currentValue)}</div>
+                                    <div className="text-[10px] text-slate-400">Current Value</div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Sector Performance */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg"><TrendingUp size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Performance</h3>
+                        </div>
+                        <div className="space-y-6">
+                            <div>
+                                <div className={`text-3xl font-bold ${selectedSectorStats.lifetimeNet >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                    {selectedSectorStats.lifetimeNet >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.lifetimeNet)}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase">Lifetime Net Return</div>
+                            </div>
+                            <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                                <div>
+                                    <div className={`text-sm font-bold ${selectedSectorStats.realizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                        {selectedSectorStats.realizedPL >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.realizedPL)}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Realized</div>
+                                </div>
+                                <div>
+                                    <div className={`text-sm font-bold ${selectedSectorStats.unrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                        {selectedSectorStats.unrealizedPL >= 0 ? '+' : ''}{formatCurrency(selectedSectorStats.unrealizedPL)}
+                                    </div>
+                                    <div className="text-[10px] text-slate-400 uppercase">Unrealized</div>
+                                </div>
+                            </div>
+                        </div>
+                    </Card>
+
+                    {/* Sector Income */}
+                    <Card className="md:col-span-1">
+                        <div className="flex items-center gap-2 mb-6">
+                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg"><Coins size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Income & Fees</h3>
+                        </div>
+                        <div className="space-y-6">
+                            <div>
+                                <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">+{formatCurrency(selectedSectorStats.netDividends)}</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends</div>
+                            </div>
+                            <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
+                            <div>
+                                <div className="text-xl font-bold text-rose-500 dark:text-rose-400">-{formatCurrency(selectedSectorStats.feesPaid)}</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase">Total Fees Paid</div>
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
+                                <span>Yield on Cost:</span>
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400">{selectedSectorStats.dividendYieldOnCost.toFixed(2)}%</span>
+                            </div>
+                        </div>
+                    </Card>
+                </div>
+
+                {/* 3. HOLDINGS LIST FOR SECTOR */}
                 <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-700/30">
-                        <div className="flex items-center gap-2"> <History size={20} className="text-slate-500 dark:text-slate-400" /> <h3 className="font-bold text-slate-800 dark:text-slate-200">All Time Activity</h3> </div>
-                        <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"> <Download size={14} /> Export CSV </button>
+                    <div className="p-6 border-b border-slate-100 dark:border-slate-700">
+                        <h3 className="font-bold text-slate-800 dark:text-slate-200">Sector Holdings</h3>
                     </div>
                     <div className="overflow-x-auto">
-                        <table className="w-full text-left text-sm whitespace-nowrap">
+                        <table className="w-full text-left text-sm">
                             <thead className="bg-slate-50 dark:bg-slate-700/50 text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider border-b border-slate-200 dark:border-slate-700">
-                                <tr> <th className="px-6 py-4">Date</th> <th className="px-4 py-4">Ticker</th> <th className="px-4 py-4">Type</th> <th className="px-4 py-4 text-right">Qty</th> <th className="px-4 py-4 text-right text-slate-700 dark:text-slate-300" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th> <th className="px-4 py-4 text-right text-slate-700 dark:text-slate-300" title="Effective Sell Rate or Current Market Price">Sell / Current</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Comm</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Tax</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">CDC</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Other</th> <th className="px-6 py-4 text-right">Net Amount</th> <th className="px-6 py-4 text-right text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10">Realized Gain</th> <th className="px-6 py-4 text-right text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">Unrealized Gain</th> </tr>
+                                <tr>
+                                    <th className="px-6 py-4">Ticker</th>
+                                    <th className="px-6 py-4 text-right">Owned Qty</th>
+                                    <th className="px-6 py-4 text-right">Avg Cost</th>
+                                    <th className="px-6 py-4 text-right">Current Price</th>
+                                    <th className="px-6 py-4 text-right">Total Return</th>
+                                </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                {paginatedActivity.map((t, i) => {
-                                    const net = t.type === 'BUY' ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : t.type === 'SELL' ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : (t.quantity * t.price) - (t.tax||0); 
+                                {selectedSectorStats.tickers.map(ticker => {
+                                    const stockStats = allTickerStats.find(s => s.ticker === ticker);
+                                    if (!stockStats) return null;
                                     return (
-                                        <tr key={`${t.id}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                                            <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{t.date}</td>
-                                            <td className="px-4 py-4 font-bold text-slate-800 dark:text-slate-200">{t.ticker}</td>
-                                            <td className="px-4 py-4"> <span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800' : t.type === 'SELL' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800' : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800'}`}>{t.type}</span> </td>
-                                            <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300">{t.quantity.toLocaleString()}</td>
-                                            <td className="px-4 py-4 text-right font-mono text-xs text-slate-600 dark:text-slate-400">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
-                                            <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600 dark:text-emerald-400' : t.type === 'BUY' ? 'text-rose-500 dark:text-rose-400' : 'text-indigo-600 dark:text-indigo-400'}`}>{formatDecimal(t.sellOrCurrentPrice)}</td>
-                                            <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
-                                            <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
-                                            <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.cdcCharges || 0).toLocaleString()}</td>
-                                            <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.otherFees || 0).toLocaleString()}</td>
-                                            <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> {formatCurrency(net)} </td>
-                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-emerald-50/30 dark:bg-emerald-900/10 ${t.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{t.gainType === 'REALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} </> ) : '-'}</td>
-                                            <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 dark:bg-blue-900/10 ${t.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{t.gainType === 'UNREALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} {t.remainingQty && t.remainingQty < t.quantity && ( <span className="block text-[8px] opacity-60 font-sans font-normal text-slate-500 dark:text-slate-400 mt-0.5"> (On {t.remainingQty.toLocaleString()}) </span> )} </> ) : '-'}</td>
+                                        <tr key={ticker} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors" onClick={() => onTickerClick(ticker)}>
+                                            <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-200">{ticker}</td>
+                                            <td className="px-6 py-4 text-right text-slate-700 dark:text-slate-300">{stockStats.ownedQty.toLocaleString()}</td>
+                                            <td className="px-6 py-4 text-right font-mono text-xs text-slate-600 dark:text-slate-400">{formatDecimal(stockStats.currentAvgPrice)}</td>
+                                            <td className="px-6 py-4 text-right font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{formatDecimal(stockStats.currentPrice)}</td>
+                                            <td className={`px-6 py-4 text-right font-bold ${stockStats.totalNetReturn >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                                                {stockStats.totalNetReturn >= 0 ? '+' : ''}{formatCurrency(stockStats.totalNetReturn)}
+                                            </td>
                                         </tr>
                                     );
                                 })}
                             </tbody>
-                            <tfoot className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-700">
-                                <tr> <td colSpan={10} className="px-6 py-3 text-right uppercase tracking-wider text-slate-500 dark:text-slate-400">Grand Total (Visible)</td> <td className={`px-6 py-3 text-right font-mono ${activityTotals.netAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {activityTotals.netAmount >= 0 ? '+' : ''}{formatCurrency(activityTotals.netAmount)} </td> <td className={`px-6 py-3 text-right font-mono ${activityTotals.realized >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {activityTotals.realized >= 0 ? '+' : ''}{formatCurrency(activityTotals.realized)} </td> <td className={`px-6 py-3 text-right font-mono ${activityTotals.unrealized >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {activityTotals.unrealized >= 0 ? '+' : ''}{formatCurrency(activityTotals.unrealized)} </td> </tr>
-                            </tfoot>
                         </table>
                     </div>
-                    {paginatedActivity.length > 0 && (
-                        <div className="p-4 border-t border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-800/40 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-2"> <span className="text-xs text-slate-500 dark:text-slate-400">Rows per page:</span> <select value={activityRowsPerPage} onChange={(e) => { setActivityRowsPerPage(Number(e.target.value)); setActivityPage(1); }} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer text-slate-700 dark:text-slate-300"> <option value={25}>25</option> <option value={50}>50</option> <option value={100}>100</option> </select> </div>
-                            <div className="flex items-center gap-4"> <span className="text-xs text-slate-500 dark:text-slate-400"> {(activityPage - 1) * activityRowsPerPage + 1}-{Math.min(activityPage * activityRowsPerPage, currentRows.length)} of {currentRows.length} </span> <div className="flex gap-1"> <button onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage === 1} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-600 dark:text-slate-400"><ChevronLeft size={16} /></button> <button onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))} disabled={activityPage === totalActivityPages || totalActivityPages === 0} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-600 dark:text-slate-400"><ChevronRight size={16} /></button> </div> </div>
-                        </div>
-                    )}
                 </div>
+            </div>
+        )}
+
+        {/* --- ACTIVITY TABLE (Shared for both Stock & Sector) --- */}
+        {(selectedTicker || selectedSector) && !isSelectionNotFound && (
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl overflow-hidden shadow-sm mt-6">
+                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-700/30">
+                    <div className="flex items-center gap-2"> <History size={20} className="text-slate-500 dark:text-slate-400" /> <h3 className="font-bold text-slate-800 dark:text-slate-200">Activity Log</h3> </div>
+                    <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"> <Download size={14} /> Export CSV </button>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="w-full text-left text-sm whitespace-nowrap">
+                        <thead className="bg-slate-50 dark:bg-slate-700/50 text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider border-b border-slate-200 dark:border-slate-700">
+                            <tr> <th className="px-6 py-4">Date</th> <th className="px-4 py-4">Ticker</th> <th className="px-4 py-4">Type</th> <th className="px-4 py-4 text-right">Qty</th> <th className="px-4 py-4 text-right text-slate-700 dark:text-slate-300" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th> <th className="px-4 py-4 text-right text-slate-700 dark:text-slate-300" title="Effective Sell Rate or Current Market Price">Sell / Current</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Comm</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Tax</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">CDC</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Other</th> <th className="px-6 py-4 text-right">Net Amount</th> <th className="px-6 py-4 text-right text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10">Realized Gain</th> <th className="px-6 py-4 text-right text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">Unrealized Gain</th> </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                            {paginatedActivity.map((t, i) => {
+                                const net = t.type === 'BUY' ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : t.type === 'SELL' ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : (t.quantity * t.price) - (t.tax||0); 
+                                return (
+                                    <tr key={`${t.id}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
+                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{t.date}</td>
+                                        <td className="px-4 py-4 font-bold text-slate-800 dark:text-slate-200">{t.ticker}</td>
+                                        <td className="px-4 py-4"> <span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800' : t.type === 'SELL' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800' : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800'}`}>{t.type}</span> </td>
+                                        <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300">{t.quantity.toLocaleString()}</td>
+                                        <td className="px-4 py-4 text-right font-mono text-xs text-slate-600 dark:text-slate-400">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
+                                        <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600 dark:text-emerald-400' : t.type === 'BUY' ? 'text-rose-500 dark:text-rose-400' : 'text-indigo-600 dark:text-indigo-400'}`}>{formatDecimal(t.sellOrCurrentPrice)}</td>
+                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
+                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
+                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.cdcCharges || 0).toLocaleString()}</td>
+                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.otherFees || 0).toLocaleString()}</td>
+                                        <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> {formatCurrency(net)} </td>
+                                        <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-emerald-50/30 dark:bg-emerald-900/10 ${t.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{t.gainType === 'REALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} </> ) : '-'}</td>
+                                        <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 dark:bg-blue-900/10 ${t.gain >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{t.gainType === 'UNREALIZED' ? ( <> {t.gain >= 0 ? '+' : ''}{formatCurrency(t.gain)} {t.remainingQty && t.remainingQty < t.quantity && ( <span className="block text-[8px] opacity-60 font-sans font-normal text-slate-500 dark:text-slate-400 mt-0.5"> (On {t.remainingQty.toLocaleString()}) </span> )} </> ) : '-'}</td>
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                        <tfoot className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-700">
+                            <tr> <td colSpan={10} className="px-6 py-3 text-right uppercase tracking-wider text-slate-500 dark:text-slate-400">Grand Total (Visible)</td> <td className={`px-6 py-3 text-right font-mono ${activityTotals.netAmount >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {activityTotals.netAmount >= 0 ? '+' : ''}{formatCurrency(activityTotals.netAmount)} </td> <td className={`px-6 py-3 text-right font-mono ${activityTotals.realized >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {activityTotals.realized >= 0 ? '+' : ''}{formatCurrency(activityTotals.realized)} </td> <td className={`px-6 py-3 text-right font-mono ${activityTotals.unrealized >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {activityTotals.unrealized >= 0 ? '+' : ''}{formatCurrency(activityTotals.unrealized)} </td> </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                {paginatedActivity.length > 0 && (
+                    <div className="p-4 border-t border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-800/40 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-2"> <span className="text-xs text-slate-500 dark:text-slate-400">Rows per page:</span> <select value={activityRowsPerPage} onChange={(e) => { setActivityRowsPerPage(Number(e.target.value)); setActivityPage(1); }} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer text-slate-700 dark:text-slate-300"> <option value={25}>25</option> <option value={50}>50</option> <option value={100}>100</option> </select> </div>
+                        <div className="flex items-center gap-4"> <span className="text-xs text-slate-500 dark:text-slate-400"> {(activityPage - 1) * activityRowsPerPage + 1}-{Math.min(activityPage * activityRowsPerPage, currentRows.length)} of {currentRows.length} </span> <div className="flex gap-1"> <button onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage === 1} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-600 dark:text-slate-400"><ChevronLeft size={16} /></button> <button onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))} disabled={activityPage === totalActivityPages || totalActivityPages === 0} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-600 dark:text-slate-400"><ChevronRight size={16} /></button> </div> </div>
+                    </div>
+                )}
             </div>
         )}
 
