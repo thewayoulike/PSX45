@@ -7,26 +7,26 @@ interface AllocationChartProps {
   holdings: Holding[];
 }
 
-// Vibrant palette matching the reference style
+// Adjusted Palette to match the reference image specifically
 const COLORS = [
-  '#0284c7', // Blue
-  '#84cc16', // Lime Green
-  '#f59e0b', // Amber/Orange
-  '#f43f5e', // Pink/Red
-  '#8b5cf6', // Violet
-  '#06b6d4', // Cyan
-  '#10b981', // Emerald
-  '#e11d48', // Rose
-  '#6366f1', // Indigo
-  '#d946ef', // Fuchsia
-  '#f97316', // Orange
-  '#14b8a6', // Teal
+  '#0088FE', // Blue (Largest)
+  '#82ca9d', // Light Green
+  '#FFBB28', // Orange (Engineering)
+  '#F43F5E', // Red/Pink (Refinery)
+  '#8884d8', // Purple
+  '#00C49F', // Cyan
+  '#00E676', // Bright Green
+  '#D32F2F', // Dark Red
+  '#536DFE', // Indigo
+  '#E040FB', // Magenta
+  '#FF6F00', // Deep Orange
+  '#26C6DA', // Teal
 ];
 
 const RADIAN = Math.PI / 180;
 
 export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) => {
-  const [chartMode, setChartMode] = useState<'asset' | 'sector'>('sector'); // Default to sector to match image
+  const [chartMode, setChartMode] = useState<'asset' | 'sector'>('sector');
 
   const { data: displayData, totalValue } = useMemo(() => {
     let rawData: { name: string; value: number }[] = [];
@@ -59,26 +59,25 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     return { data: rawData, totalValue: total };
   }, [holdings, chartMode]);
 
-  // Custom Label for the connecting lines
+  // Render Label Line & Text
   const renderCustomizedLabel = (props: any) => {
-    const { cx, cy, midAngle, outerRadius, percent, value } = props;
-    // Only show label if slice is significant enough to avoid clutter
-    if (percent < 0.01) return null; 
+    const { cx, cy, midAngle, outerRadius, percent, name } = props;
+    if (percent < 0.03) return null; // Hide labels for very small slices
 
     const sin = Math.sin(-midAngle * RADIAN);
     const cos = Math.cos(-midAngle * RADIAN);
     const sx = cx + (outerRadius + 5) * cos;
     const sy = cy + (outerRadius + 5) * sin;
-    const mx = cx + (outerRadius + 20) * cos;
-    const my = cy + (outerRadius + 20) * sin;
-    const ex = mx + (cos >= 0 ? 1 : -1) * 15;
+    const mx = cx + (outerRadius + 25) * cos;
+    const my = cy + (outerRadius + 25) * sin;
+    const ex = mx + (cos >= 0 ? 1 : -1) * 30; // Longer line
     const ey = my;
     const textAnchor = cos >= 0 ? 'start' : 'end';
 
     return (
       <g>
         <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke="#94a3b8" fill="none" strokeWidth={1} />
-        <text x={ex + (cos >= 0 ? 5 : -5)} y={ey} dy={4} textAnchor={textAnchor} fill="#475569" fontSize={10} fontWeight="bold">
+        <text x={ex + (cos >= 0 ? 5 : -5)} y={ey} dy={4} textAnchor={textAnchor} fill="#475569" fontSize={11} fontWeight="bold">
           {`${(percent * 100).toFixed(2)} %`}
         </text>
       </g>
@@ -91,7 +90,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
       const percent = (data.value / totalValue) * 100;
       return (
         <div className="bg-[#84cc16] text-white text-xs font-bold px-3 py-2 rounded shadow-lg border border-[#65a30d]">
-          {data.name}: {percent.toFixed(2)} % ({Math.round(data.value).toLocaleString()})
+          {data.name}: {percent.toFixed(2)} %
         </div>
       );
     }
@@ -99,12 +98,12 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
   };
 
   return (
-    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-3xl p-6 shadow-xl shadow-slate-200/50 dark:shadow-black/40 flex flex-col w-full h-full min-h-[500px]">
+    <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none flex flex-col w-full h-full min-h-[550px]">
       
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mb-2">
           <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
-            <Layers size={20} className="text-emerald-500" />
+            <Layers size={24} className="text-emerald-500" />
             Allocation Analysis
           </h2>
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
@@ -123,52 +122,46 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
           </div>
       </div>
 
-      {/* Main Content Area */}
+      {/* Main Content */}
       <div className="flex flex-col lg:flex-row items-center gap-8 flex-1">
           
-          {/* Left: Chart */}
+          {/* Chart Section */}
           <div className="w-full lg:w-3/5 h-[400px] relative">
             {displayData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  {/* 3D-like Filter Definitions */}
                   <defs>
-                    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
-                      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
-                      <feOffset in="blur" dx="3" dy="5" result="offsetBlur" />
-                      <feComponentTransfer>
-                        <feFuncA type="linear" slope="0.3" /> 
-                      </feComponentTransfer>
+                    {/* Enhanced 3D Shadow Filter */}
+                    <filter id="pie-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur"/>
+                      <feOffset in="blur" dx="2" dy="4" result="offsetBlur"/>
+                      <feFlood floodColor="#000000" floodOpacity="0.2" result="offsetColor"/>
+                      <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
                       <feMerge>
-                        <feMergeNode in="offsetBlur" />
-                        <feMergeNode in="SourceGraphic" />
+                        <feMergeNode/>
+                        <feMergeNode in="SourceGraphic"/>
                       </feMerge>
                     </filter>
-                    
-                    {/* Inner Gloss Gradient */}
-                    <radialGradient id="gloss" cx="50%" cy="50%" r="50%" fx="40%" fy="40%">
-                        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.3"/>
-                        <stop offset="100%" stopColor="#ffffff" stopOpacity="0"/>
-                    </radialGradient>
                   </defs>
 
                   <Pie
                     data={displayData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={80}  
-                    outerRadius={130} 
-                    paddingAngle={2}
+                    innerRadius={90}  
+                    outerRadius={135} 
+                    paddingAngle={3}
                     dataKey="value"
                     label={renderCustomizedLabel}
-                    labelLine={false} // We draw custom path in renderCustomizedLabel
-                    filter="url(#shadow)"
+                    labelLine={false}
+                    filter="url(#pie-shadow)" // Apply 3D effect
                     stroke="none"
                   >
                     {displayData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={COLORS[index % COLORS.length]} 
+                        className="transition-all duration-300 hover:opacity-90"
                       />
                     ))}
                   </Pie>
@@ -182,39 +175,41 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
               </div>
             )}
             
-            {/* Center Donut Text */}
+            {/* Donut Center Info */}
             {displayData.length > 0 && (
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                   <div className="w-32 h-32 rounded-full border-4 border-slate-50 dark:border-slate-800 shadow-inner flex flex-col items-center justify-center bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm">
-                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-wider mb-1">Total {chartMode}s</span>
-                       <span className="text-slate-800 dark:text-slate-100 font-black text-2xl tracking-tighter">{displayData.length}</span>
+                   <div className="flex flex-col items-center justify-center">
+                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-1">TOTAL {chartMode === 'sector' ? 'SECTORS' : 'ASSETS'}</span>
+                       <span className="text-slate-800 dark:text-slate-100 font-black text-4xl tracking-tighter">{displayData.length}</span>
                    </div>
                </div>
             )}
           </div>
           
-          {/* Right: Legend List */}
-          <div className="w-full lg:w-2/5 flex flex-col justify-center h-[400px] overflow-y-auto custom-scrollbar pr-2">
-              <div className="space-y-1">
+          {/* List Section - Fixed Scrolling Issue */}
+          <div className="w-full lg:w-2/5 flex flex-col h-[400px] overflow-y-auto custom-scrollbar pr-2">
+              <div className="space-y-3 pt-2">
                   {displayData.map((item, idx) => {
                       const percent = (item.value / totalValue) * 100;
                       const color = COLORS[idx % COLORS.length];
                       return (
-                        <div key={item.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
-                            <div 
-                                className="w-3 h-3 rounded-sm shadow-sm shrink-0 transition-transform group-hover:scale-125" 
-                                style={{ backgroundColor: color }}
-                            ></div>
-                            
-                            <div className="flex-1 flex justify-between items-center min-w-0">
-                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate pr-2" title={item.name}>
+                        <div key={item.name} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors group">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                                <div 
+                                    className="w-3.5 h-3.5 rounded shadow-sm shrink-0" 
+                                    style={{ backgroundColor: color }}
+                                ></div>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate" title={item.name}>
                                     {item.name}
                                 </span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono hidden sm:block">
-                                        Rs. {(item.value / 1000).toFixed(0)}k
-                                    </span>
-                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 min-w-[50px] text-right">
+                            </div>
+                            
+                            <div className="flex items-center gap-4 shrink-0">
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium hidden sm:block">
+                                    Rs. {(item.value / 1000).toFixed(0)}k
+                                </span>
+                                <div className="w-16 flex justify-end">
+                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 min-w-[50px] text-center shadow-sm">
                                         {percent.toFixed(2)} %
                                     </span>
                                 </div>
