@@ -74,7 +74,6 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     
     const total = rawData.reduce((acc, item) => acc + item.value, 0);
     
-    // Assign colors to data directly so tooltip can access them
     return { 
         data: rawData.map((item, index) => ({
             ...item,
@@ -84,23 +83,20 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     };
   }, [holdings, chartMode]);
 
-  // Custom Label for the connecting lines
+  // Render Label Line & Text
   const renderCustomizedLabel = (props: any) => {
     const { cx, cy, midAngle, outerRadius, percent, fill } = props;
     
-    // Mobile optimization: Hide small slices to prevent overlap text
     const threshold = isMobile ? 0.05 : 0.02; 
     if (percent < threshold) return null; 
 
     const sin = Math.sin(-midAngle * RADIAN);
     const cos = Math.cos(-midAngle * RADIAN);
     
-    // Adjust start points based on screen size
-    const sx = cx + (outerRadius + 5) * cos;
-    const sy = cy + (outerRadius + 5) * sin;
+    const sx = cx + (outerRadius + 2) * cos;
+    const sy = cy + (outerRadius + 2) * sin;
     
-    // Make connector lines shorter on mobile
-    const mxRadius = isMobile ? outerRadius + 15 : outerRadius + 30;
+    const mxRadius = isMobile ? outerRadius + 15 : outerRadius + 25;
     const mx = cx + mxRadius * cos;
     const my = cy + mxRadius * sin;
     
@@ -133,11 +129,11 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
       const data = payload[0].payload; 
       const percent = (data.value / totalValue) * 100;
       
-      // Use the slice's specific color for the background
       return (
+        // z-index added here to ensure it stays on top
         <div 
-            className="text-white text-xs rounded-lg shadow-xl border border-white/20 p-3 min-w-[160px] backdrop-blur-sm z-50"
-            style={{ backgroundColor: data.fill }} // Dynamic color
+            className="relative z-50 text-white text-xs rounded-xl shadow-2xl border border-white/20 p-3 min-w-[160px] backdrop-blur-md"
+            style={{ backgroundColor: data.fill, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}
         >
           <div className="font-bold text-sm mb-1 pb-1 border-b border-white/20">{data.name}</div>
           
@@ -152,7 +148,6 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                   <span className="font-mono font-bold">Rs. {Math.round(data.value).toLocaleString()}</span>
               </div>
               
-              {/* Show Total Shares in Brackets (Text removed as requested) */}
               <div className="text-right opacity-70 text-[10px] font-mono">
                   ({data.quantity.toLocaleString()})
               </div>
@@ -192,33 +187,24 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
       <div className="flex flex-col lg:flex-row items-center gap-8 flex-1">
           
           {/* Left: Chart */}
-          <div className="w-full lg:w-3/5 h-[350px] md:h-[400px] relative">
+          <div className="w-full lg:w-3/5 h-[350px] md:h-[400px] relative z-0">
             {displayData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  {/* 3D-like Filter Definitions */}
                   <defs>
-                    {/* Shadow Filter */}
-                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-                      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
-                      <feOffset in="blur" dx="4" dy="6" result="offsetBlur" />
-                      <feComponentTransfer>
-                        <feFuncA type="linear" slope="0.3" /> 
-                      </feComponentTransfer>
+                    {/* Realistic Shadow Filter (Replaced the cartoonish plastic look) */}
+                    <filter id="realistic-shadow" x="-50%" y="-50%" width="200%" height="200%">
+                      {/* Deep Drop Shadow for floating effect */}
+                      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur" />
+                      <feOffset in="blur" dx="2" dy="4" result="offsetBlur" />
+                      <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor"/>
+                      <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
+                      
+                      {/* Combine */}
                       <feMerge>
-                        <feMergeNode in="offsetBlur" />
-                        <feMergeNode in="SourceGraphic" />
+                        <feMergeNode in="offsetBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
                       </feMerge>
-                    </filter>
-
-                    {/* Specular Light (Gloss/3D Bevel Effect) */}
-                    <filter id="3d-light">
-                      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
-                      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.8" specularExponent="25" lightingColor="#ffffff" result="specOut">
-                        <fePointLight x="-5000" y="-10000" z="20000"/>
-                      </feSpecularLighting>
-                      <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut"/>
-                      <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="litPaint"/>
                     </filter>
                   </defs>
 
@@ -226,23 +212,20 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                     data={displayData}
                     cx="50%"
                     cy="50%"
-                    // Mobile: shrink radius to give space for labels
-                    innerRadius={isMobile ? 65 : 90}  
-                    outerRadius={isMobile ? 90 : 130} 
-                    paddingAngle={3}
+                    innerRadius={isMobile ? 65 : 95}  
+                    outerRadius={isMobile ? 90 : 135} 
+                    paddingAngle={2}
                     dataKey="value"
                     label={renderCustomizedLabel}
                     labelLine={false} 
-                    filter="url(#shadow)" // Apply shadow first
+                    filter="url(#realistic-shadow)" 
                     stroke="none"
                   >
                     {displayData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={entry.fill}
-                        className="outline-none" 
-                        // Apply the lighting filter to the cell via style if SVG prop isn't available
-                        style={{ filter: 'url(#3d-light)' }}
+                        className="outline-none transition-all duration-300 hover:opacity-90"
                       />
                     ))}
                   </Pie>
@@ -268,7 +251,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
           </div>
           
           {/* Right: Legend List */}
-          <div className="w-full lg:w-2/5 flex flex-col h-[400px] overflow-y-auto custom-scrollbar pr-2">
+          <div className="w-full lg:w-2/5 flex flex-col h-[400px] overflow-y-auto custom-scrollbar pr-2 relative z-10">
               <div className="space-y-3 pt-2">
                   {displayData.map((item, idx) => {
                       const percent = (item.value / totalValue) * 100;
