@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Holding } from '../types';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { PieChart as PieChartIcon, Layers } from 'lucide-react';
@@ -7,78 +7,122 @@ interface AllocationChartProps {
   holdings: Holding[];
 }
 
-// Adjusted Palette to match the reference image specifically
+// Vibrant palette matching the reference style
 const COLORS = [
-  '#0088FE', // Blue (Largest)
-  '#82ca9d', // Light Green
-  '#FFBB28', // Orange (Engineering)
-  '#F43F5E', // Red/Pink (Refinery)
+  '#0088FE', // Blue
+  '#00C49F', // Teal
+  '#FFBB28', // Yellow/Orange
+  '#FF8042', // Orange
+  '#F43F5E', // Red/Pink
   '#8884d8', // Purple
-  '#00C49F', // Cyan
-  '#00E676', // Bright Green
-  '#D32F2F', // Dark Red
-  '#536DFE', // Indigo
-  '#E040FB', // Magenta
-  '#FF6F00', // Deep Orange
-  '#26C6DA', // Teal
+  '#82ca9d', // Light Green
+  '#a4de6c', // Lime
+  '#d0ed57', // Yellow-Green
+  '#ffc658', // Light Orange
+  '#8dd1e1', // Light Blue
+  '#26C6DA', // Cyan
 ];
 
 const RADIAN = Math.PI / 180;
 
 export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) => {
   const [chartMode, setChartMode] = useState<'asset' | 'sector'>('sector');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => {
+        setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const { data: displayData, totalValue } = useMemo(() => {
-    let rawData: { name: string; value: number }[] = [];
+    let rawData: { name: string; value: number; quantity: number }[] = [];
 
     if (chartMode === 'asset') {
-        const assetMap = new Map<string, number>();
+        const assetMap = new Map<string, { value: number; quantity: number }>();
         holdings.forEach(h => {
             const val = h.currentPrice * h.quantity;
-            assetMap.set(h.ticker, (assetMap.get(h.ticker) || 0) + val);
+            const existing = assetMap.get(h.ticker) || { value: 0, quantity: 0 };
+            assetMap.set(h.ticker, { 
+                value: existing.value + val, 
+                quantity: existing.quantity + h.quantity 
+            });
         });
         rawData = Array.from(assetMap.entries())
-            .map(([name, value]) => ({ name, value }))
+            .map(([name, data]) => ({ name, value: data.value, quantity: data.quantity }))
             .filter(item => item.value > 0);
     } else {
-        const sectorMap = new Map<string, number>();
+        const sectorMap = new Map<string, { value: number; quantity: number }>();
         holdings.forEach(h => {
             const val = h.currentPrice * h.quantity;
             if (val > 0) {
-                sectorMap.set(h.sector, (sectorMap.get(h.sector) || 0) + val);
+                const existing = sectorMap.get(h.sector) || { value: 0, quantity: 0 };
+                sectorMap.set(h.sector, { 
+                    value: existing.value + val, 
+                    quantity: existing.quantity + h.quantity 
+                });
             }
         });
         rawData = Array.from(sectorMap.entries())
-            .map(([name, value]) => ({ name, value }));
+            .map(([name, data]) => ({ name, value: data.value, quantity: data.quantity }));
     }
 
     // Sort by Value Descending
     rawData.sort((a, b) => b.value - a.value);
     
     const total = rawData.reduce((acc, item) => acc + item.value, 0);
-    return { data: rawData, totalValue: total };
+    
+    // Assign colors to data directly so tooltip can access them
+    return { 
+        data: rawData.map((item, index) => ({
+            ...item,
+            fill: COLORS[index % COLORS.length]
+        })), 
+        totalValue: total 
+    };
   }, [holdings, chartMode]);
 
-  // Render Label Line & Text
+  // Custom Label for the connecting lines
   const renderCustomizedLabel = (props: any) => {
-    const { cx, cy, midAngle, outerRadius, percent, name } = props;
-    if (percent < 0.03) return null; // Hide labels for very small slices
+    const { cx, cy, midAngle, outerRadius, percent, fill } = props;
+    
+    // Mobile optimization: Hide small slices to prevent overlap text
+    const threshold = isMobile ? 0.05 : 0.02; 
+    if (percent < threshold) return null; 
 
     const sin = Math.sin(-midAngle * RADIAN);
     const cos = Math.cos(-midAngle * RADIAN);
+    
+    // Adjust start points based on screen size
     const sx = cx + (outerRadius + 5) * cos;
     const sy = cy + (outerRadius + 5) * sin;
-    const mx = cx + (outerRadius + 25) * cos;
-    const my = cy + (outerRadius + 25) * sin;
-    const ex = mx + (cos >= 0 ? 1 : -1) * 30; // Longer line
+    
+    // Make connector lines shorter on mobile
+    const mxRadius = isMobile ? outerRadius + 15 : outerRadius + 30;
+    const mx = cx + mxRadius * cos;
+    const my = cy + mxRadius * sin;
+    
+    const exLen = isMobile ? 10 : 20;
+    const ex = mx + (cos >= 0 ? 1 : -1) * exLen;
     const ey = my;
+    
     const textAnchor = cos >= 0 ? 'start' : 'end';
 
     return (
       <g>
-        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke="#94a3b8" fill="none" strokeWidth={1} />
-        <text x={ex + (cos >= 0 ? 5 : -5)} y={ey} dy={4} textAnchor={textAnchor} fill="#475569" fontSize={11} fontWeight="bold">
-          {`${(percent * 100).toFixed(2)} %`}
+        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={1.5} opacity={0.6} />
+        <text 
+            x={ex + (cos >= 0 ? 5 : -5)} 
+            y={ey} 
+            dy={4} 
+            textAnchor={textAnchor} 
+            fill="#64748b" 
+            fontSize={isMobile ? 10 : 11} 
+            fontWeight="bold"
+        >
+          {`${(percent * 100).toFixed(1)}%`}
         </text>
       </g>
     );
@@ -86,11 +130,33 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
 
   const CustomTooltip = ({ active, payload }: any) => {
     if (active && payload && payload.length) {
-      const data = payload[0].payload;
+      const data = payload[0].payload; 
       const percent = (data.value / totalValue) * 100;
+      
+      // Use the slice's specific color for the background
       return (
-        <div className="bg-[#84cc16] text-white text-xs font-bold px-3 py-2 rounded shadow-lg border border-[#65a30d]">
-          {data.name}: {percent.toFixed(2)} %
+        <div 
+            className="text-white text-xs rounded-lg shadow-xl border border-white/20 p-3 min-w-[160px] backdrop-blur-sm z-50"
+            style={{ backgroundColor: data.fill }} // Dynamic color
+        >
+          <div className="font-bold text-sm mb-1 pb-1 border-b border-white/20">{data.name}</div>
+          
+          <div className="flex justify-between items-center gap-4 mt-1.5">
+              <span className="opacity-80">Share:</span>
+              <span className="font-mono font-bold">{percent.toFixed(2)}%</span>
+          </div>
+          
+          <div className="flex flex-col gap-1 mt-1.5">
+              <div className="flex justify-between items-center gap-4">
+                  <span className="opacity-80">Value:</span>
+                  <span className="font-mono font-bold">Rs. {Math.round(data.value).toLocaleString()}</span>
+              </div>
+              
+              {/* Show Total Shares in Brackets (Text removed as requested) */}
+              <div className="text-right opacity-70 text-[10px] font-mono">
+                  ({data.quantity.toLocaleString()})
+              </div>
+          </div>
         </div>
       );
     }
@@ -98,12 +164,12 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
   };
 
   return (
-    <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-3xl p-6 shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-none flex flex-col w-full h-full min-h-[550px]">
+    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-3xl p-6 shadow-xl shadow-slate-200/50 dark:shadow-black/40 flex flex-col w-full h-full min-h-[550px]">
       
       {/* Header */}
-      <div className="flex justify-between items-center mb-2">
+      <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
-            <Layers size={24} className="text-emerald-500" />
+            <Layers size={20} className="text-emerald-500" />
             Allocation Analysis
           </h2>
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
@@ -122,25 +188,37 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
           </div>
       </div>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <div className="flex flex-col lg:flex-row items-center gap-8 flex-1">
           
-          {/* Chart Section */}
-          <div className="w-full lg:w-3/5 h-[400px] relative">
+          {/* Left: Chart */}
+          <div className="w-full lg:w-3/5 h-[350px] md:h-[400px] relative">
             {displayData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  {/* 3D-like Filter Definitions */}
                   <defs>
-                    {/* Enhanced 3D Shadow Filter */}
-                    <filter id="pie-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur"/>
-                      <feOffset in="blur" dx="2" dy="4" result="offsetBlur"/>
-                      <feFlood floodColor="#000000" floodOpacity="0.2" result="offsetColor"/>
-                      <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
+                    {/* Shadow Filter */}
+                    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
+                      <feOffset in="blur" dx="4" dy="6" result="offsetBlur" />
+                      <feComponentTransfer>
+                        <feFuncA type="linear" slope="0.3" /> 
+                      </feComponentTransfer>
                       <feMerge>
-                        <feMergeNode/>
-                        <feMergeNode in="SourceGraphic"/>
+                        <feMergeNode in="offsetBlur" />
+                        <feMergeNode in="SourceGraphic" />
                       </feMerge>
+                    </filter>
+
+                    {/* Specular Light (Gloss/3D Bevel Effect) */}
+                    <filter id="3d-light">
+                      <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur"/>
+                      <feSpecularLighting in="blur" surfaceScale="3" specularConstant="0.8" specularExponent="25" lightingColor="#ffffff" result="specOut">
+                        <fePointLight x="-5000" y="-10000" z="20000"/>
+                      </feSpecularLighting>
+                      <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut"/>
+                      <feComposite in="SourceGraphic" in2="specOut" operator="arithmetic" k1="0" k2="1" k3="1" k4="0" result="litPaint"/>
                     </filter>
                   </defs>
 
@@ -148,20 +226,23 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                     data={displayData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={90}  
-                    outerRadius={135} 
+                    // Mobile: shrink radius to give space for labels
+                    innerRadius={isMobile ? 65 : 90}  
+                    outerRadius={isMobile ? 90 : 130} 
                     paddingAngle={3}
                     dataKey="value"
                     label={renderCustomizedLabel}
-                    labelLine={false}
-                    filter="url(#pie-shadow)" // Apply 3D effect
+                    labelLine={false} 
+                    filter="url(#shadow)" // Apply shadow first
                     stroke="none"
                   >
                     {displayData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
-                        fill={COLORS[index % COLORS.length]} 
-                        className="transition-all duration-300 hover:opacity-90"
+                        fill={entry.fill}
+                        className="outline-none" 
+                        // Apply the lighting filter to the cell via style if SVG prop isn't available
+                        style={{ filter: 'url(#3d-light)' }}
                       />
                     ))}
                   </Pie>
@@ -175,43 +256,42 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
               </div>
             )}
             
-            {/* Donut Center Info */}
+            {/* Center Donut Text */}
             {displayData.length > 0 && (
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                    <div className="flex flex-col items-center justify-center">
-                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-1">TOTAL {chartMode === 'sector' ? 'SECTORS' : 'ASSETS'}</span>
-                       <span className="text-slate-800 dark:text-slate-100 font-black text-4xl tracking-tighter">{displayData.length}</span>
+                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[9px] md:text-[10px] uppercase tracking-widest mb-1">TOTAL {chartMode === 'sector' ? 'SECTORS' : 'ASSETS'}</span>
+                       <span className="text-slate-800 dark:text-slate-100 font-black text-3xl md:text-4xl tracking-tighter">{displayData.length}</span>
                    </div>
                </div>
             )}
           </div>
           
-          {/* List Section - Fixed Scrolling Issue */}
+          {/* Right: Legend List */}
           <div className="w-full lg:w-2/5 flex flex-col h-[400px] overflow-y-auto custom-scrollbar pr-2">
               <div className="space-y-3 pt-2">
                   {displayData.map((item, idx) => {
                       const percent = (item.value / totalValue) * 100;
-                      const color = COLORS[idx % COLORS.length];
                       return (
-                        <div key={item.name} className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800/50 rounded-lg transition-colors group">
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <div 
-                                    className="w-3.5 h-3.5 rounded shadow-sm shrink-0" 
-                                    style={{ backgroundColor: color }}
-                                ></div>
-                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate" title={item.name}>
+                        <div key={item.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                            <div 
+                                className="w-3 h-3 rounded-sm shadow-sm shrink-0 transition-transform group-hover:scale-125" 
+                                style={{ backgroundColor: item.fill }}
+                            ></div>
+                            
+                            <div className="flex-1 flex justify-between items-center min-w-0">
+                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate pr-2" title={item.name}>
                                     {item.name}
                                 </span>
-                            </div>
-                            
-                            <div className="flex items-center gap-4 shrink-0">
-                                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium hidden sm:block">
-                                    Rs. {(item.value / 1000).toFixed(0)}k
-                                </span>
-                                <div className="w-16 flex justify-end">
-                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md border border-slate-200 dark:border-slate-700 min-w-[50px] text-center shadow-sm">
-                                        {percent.toFixed(2)} %
+                                <div className="flex items-center gap-3">
+                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono hidden sm:block">
+                                        Rs. {(item.value / 1000).toFixed(0)}k
                                     </span>
+                                    <div className="w-16 flex justify-end">
+                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 min-w-[45px] text-center shadow-sm">
+                                            {percent.toFixed(2)}%
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
