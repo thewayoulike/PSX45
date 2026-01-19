@@ -74,6 +74,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     
     const total = rawData.reduce((acc, item) => acc + item.value, 0);
     
+    // Assign colors to data directly so tooltip can access them
     return { 
         data: rawData.map((item, index) => ({
             ...item,
@@ -83,10 +84,11 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     };
   }, [holdings, chartMode]);
 
-  // Render Label Line & Text
+  // Custom Label for the connecting lines
   const renderCustomizedLabel = (props: any) => {
     const { cx, cy, midAngle, outerRadius, percent, fill } = props;
     
+    // Mobile optimization: Hide small slices to prevent overlap text
     const threshold = isMobile ? 0.05 : 0.02; 
     if (percent < threshold) return null; 
 
@@ -130,7 +132,6 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
       const percent = (data.value / totalValue) * 100;
       
       return (
-        // z-index added here to ensure it stays on top
         <div 
             className="relative z-50 text-white text-xs rounded-xl shadow-2xl border border-white/20 p-3 min-w-[160px] backdrop-blur-md"
             style={{ backgroundColor: data.fill, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}
@@ -186,68 +187,81 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
       {/* Main Content Area */}
       <div className="flex flex-col lg:flex-row items-center gap-8 flex-1">
           
-          {/* Left: Chart */}
-          <div className="w-full lg:w-3/5 h-[350px] md:h-[400px] relative z-0">
-            {displayData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <defs>
-                    {/* Realistic Shadow Filter (Replaced the cartoonish plastic look) */}
-                    <filter id="realistic-shadow" x="-50%" y="-50%" width="200%" height="200%">
-                      {/* Deep Drop Shadow for floating effect */}
-                      <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur" />
-                      <feOffset in="blur" dx="2" dy="4" result="offsetBlur" />
-                      <feFlood floodColor="#000000" floodOpacity="0.25" result="offsetColor"/>
-                      <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
-                      
-                      {/* Combine */}
-                      <feMerge>
-                        <feMergeNode in="offsetBlur"/>
-                        <feMergeNode in="SourceGraphic"/>
-                      </feMerge>
-                    </filter>
-                  </defs>
-
-                  <Pie
-                    data={displayData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={isMobile ? 65 : 95}  
-                    outerRadius={isMobile ? 90 : 135} 
-                    paddingAngle={2}
-                    dataKey="value"
-                    label={renderCustomizedLabel}
-                    labelLine={false} 
-                    filter="url(#realistic-shadow)" 
-                    stroke="none"
-                  >
-                    {displayData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={entry.fill}
-                        className="outline-none transition-all duration-300 hover:opacity-90"
-                      />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<CustomTooltip />} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="absolute inset-0 flex items-center justify-center flex-col text-slate-400">
-                <PieChartIcon size={48} className="mb-2 opacity-20" />
-                <span className="text-sm font-bold opacity-50">No Data Available</span>
-              </div>
-            )}
+          {/* Left: Chart Container */}
+          <div className="w-full lg:w-3/5 h-[350px] md:h-[400px] relative">
             
-            {/* Center Donut Text */}
+            {/* 1. Center Donut Text (Layer 0 - Background) */}
+            {/* MOVED BEFORE CHART to ensure z-index correctness: Chart will render ON TOP of this text */}
             {displayData.length > 0 && (
-               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
                    <div className="flex flex-col items-center justify-center">
                        <span className="text-slate-400 dark:text-slate-500 font-bold text-[9px] md:text-[10px] uppercase tracking-widest mb-1">TOTAL {chartMode === 'sector' ? 'SECTORS' : 'ASSETS'}</span>
                        <span className="text-slate-800 dark:text-slate-100 font-black text-3xl md:text-4xl tracking-tighter">{displayData.length}</span>
                    </div>
                </div>
             )}
+
+            {/* 2. Chart (Layer 1 - Foreground) */}
+            <div className="relative z-10 w-full h-full">
+                {displayData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <defs>
+                        {/* Professional 3D Bevel & Shadow Filter */}
+                        <filter id="realistic-3d" x="-20%" y="-20%" width="140%" height="140%">
+                          {/* 1. Drop Shadow for Depth */}
+                          <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
+                          <feOffset in="blur" dx="3" dy="5" result="offsetBlur" />
+                          <feFlood floodColor="#000000" floodOpacity="0.2" result="offsetColor"/>
+                          <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
+                          
+                          {/* 2. Soft Bevel Light (Top Left) */}
+                          <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur2"/>
+                          <feSpecularLighting in="blur2" surfaceScale="3" specularConstant="0.6" specularExponent="15" lightingColor="#ffffff" result="specOut">
+                            <fePointLight x="-5000" y="-10000" z="20000"/>
+                          </feSpecularLighting>
+                          <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut"/>
+                          
+                          {/* 3. Merge All */}
+                          <feMerge>
+                            <feMergeNode in="offsetBlur"/> {/* Shadow Bottom */}
+                            <feMergeNode in="SourceGraphic"/> {/* Color Middle */}
+                            <feMergeNode in="specOut"/> {/* Shine Top */}
+                          </feMerge>
+                        </filter>
+                      </defs>
+
+                      <Pie
+                        data={displayData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={isMobile ? 65 : 95}  
+                        outerRadius={isMobile ? 90 : 135} 
+                        paddingAngle={2}
+                        dataKey="value"
+                        label={renderCustomizedLabel}
+                        labelLine={false} 
+                        filter="url(#realistic-3d)" // Apply the new filter
+                        stroke="none"
+                      >
+                        {displayData.map((entry, index) => (
+                          <Cell 
+                            key={`cell-${index}`} 
+                            fill={entry.fill}
+                            className="outline-none transition-all duration-300 hover:opacity-90"
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<CustomTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="absolute inset-0 flex items-center justify-center flex-col text-slate-400">
+                    <PieChartIcon size={48} className="mb-2 opacity-20" />
+                    <span className="text-sm font-bold opacity-50">No Data Available</span>
+                  </div>
+                )}
+            </div>
           </div>
           
           {/* Right: Legend List */}
