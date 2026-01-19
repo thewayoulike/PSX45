@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Holding } from '../types';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Sector } from 'recharts';
 import { PieChart as PieChartIcon, Layers } from 'lucide-react';
 
 interface AllocationChartProps {
@@ -28,6 +28,7 @@ const RADIAN = Math.PI / 180;
 export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) => {
   const [chartMode, setChartMode] = useState<'asset' | 'sector'>('sector');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [activeIndex, setActiveIndex] = useState<number>(-1); // Track clicked slice
 
   useEffect(() => {
     const handleResize = () => {
@@ -69,12 +70,9 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
             .map(([name, data]) => ({ name, value: data.value, quantity: data.quantity }));
     }
 
-    // Sort by Value Descending
     rawData.sort((a, b) => b.value - a.value);
-    
     const total = rawData.reduce((acc, item) => acc + item.value, 0);
     
-    // Assign colors to data directly so tooltip can access them
     return { 
         data: rawData.map((item, index) => ({
             ...item,
@@ -84,35 +82,72 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     };
   }, [holdings, chartMode]);
 
-  // Custom Label for the connecting lines
-  const renderCustomizedLabel = (props: any) => {
-    const { cx, cy, midAngle, outerRadius, percent, fill } = props;
+  const onPieClick = (_: any, index: number) => {
+    setActiveIndex(index === activeIndex ? -1 : index); // Toggle open/close
+  };
+
+  // --- RENDER ACTIVE SHAPE (The Split Slice) ---
+  const renderActiveShape = (props: any) => {
+    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
     
-    // Mobile optimization: Hide small slices to prevent overlap text
+    // Calculate the "Split" offset based on angle
+    const midAngle = (startAngle + endAngle) / 2;
+    const splitDistance = 15; // How far it splits from the circle
+    const sx = cx + (splitDistance * Math.cos(-midAngle * RADIAN));
+    const sy = cy + (splitDistance * Math.sin(-midAngle * RADIAN));
+
+    return (
+      <g>
+        <Sector
+          cx={sx}
+          cy={sy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+          filter="url(#realistic-3d)" // Ensure 3D effect stays on the moved slice
+          stroke="none"
+        />
+      </g>
+    );
+  };
+
+  // --- CUSTOM LABELS (Connectors) ---
+  const renderCustomizedLabel = (props: any) => {
+    const { cx, cy, midAngle, outerRadius, percent, fill, index } = props;
+    
     const threshold = isMobile ? 0.05 : 0.02; 
     if (percent < threshold) return null; 
 
-    const sin = Math.sin(-midAngle * RADIAN);
-    const cos = Math.cos(-midAngle * RADIAN);
+    // Determine center coordinates (Shifted if active, Normal if not)
+    const isActive = index === activeIndex;
+    const splitDistance = isActive ? 15 : 0;
     
-    const sx = cx + (outerRadius + 2) * cos;
-    const sy = cy + (outerRadius + 2) * sin;
+    const cosMid = Math.cos(-midAngle * RADIAN);
+    const sinMid = Math.sin(-midAngle * RADIAN);
+
+    const currentCx = cx + (splitDistance * cosMid);
+    const currentCy = cy + (splitDistance * sinMid);
+
+    const sx = currentCx + (outerRadius + 2) * cosMid;
+    const sy = currentCy + (outerRadius + 2) * sinMid;
     
     const mxRadius = isMobile ? outerRadius + 15 : outerRadius + 25;
-    const mx = cx + mxRadius * cos;
-    const my = cy + mxRadius * sin;
+    const mx = currentCx + mxRadius * cosMid;
+    const my = currentCy + mxRadius * sinMid;
     
     const exLen = isMobile ? 10 : 20;
-    const ex = mx + (cos >= 0 ? 1 : -1) * exLen;
+    const ex = mx + (cosMid >= 0 ? 1 : -1) * exLen;
     const ey = my;
     
-    const textAnchor = cos >= 0 ? 'start' : 'end';
+    const textAnchor = cosMid >= 0 ? 'start' : 'end';
 
     return (
       <g>
         <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={1.5} opacity={0.6} />
         <text 
-            x={ex + (cos >= 0 ? 5 : -5)} 
+            x={ex + (cosMid >= 0 ? 5 : -5)} 
             y={ey} 
             dy={4} 
             textAnchor={textAnchor} 
@@ -148,7 +183,6 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                   <span className="opacity-80">Value:</span>
                   <span className="font-mono font-bold">Rs. {Math.round(data.value).toLocaleString()}</span>
               </div>
-              
               <div className="text-right opacity-70 text-[10px] font-mono">
                   ({data.quantity.toLocaleString()})
               </div>
@@ -170,13 +204,13 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
           </h2>
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
               <button 
-                onClick={() => setChartMode('sector')} 
+                onClick={() => { setChartMode('sector'); setActiveIndex(-1); }} 
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${chartMode === 'sector' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                   <Layers size={14} /> Sector
               </button>
               <button 
-                onClick={() => setChartMode('asset')} 
+                onClick={() => { setChartMode('asset'); setActiveIndex(-1); }} 
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${chartMode === 'asset' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                   <PieChartIcon size={14} /> Asset
@@ -190,8 +224,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
           {/* Left: Chart Container */}
           <div className="w-full lg:w-3/5 h-[350px] md:h-[400px] relative">
             
-            {/* 1. Center Donut Text (Layer 0 - Background) */}
-            {/* MOVED BEFORE CHART to ensure z-index correctness: Chart will render ON TOP of this text */}
+            {/* Center Donut Text (Layer 0 - Background) */}
             {displayData.length > 0 && (
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
                    <div className="flex flex-col items-center justify-center">
@@ -201,32 +234,27 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                </div>
             )}
 
-            {/* 2. Chart (Layer 1 - Foreground) */}
+            {/* Chart (Layer 1 - Foreground) */}
             <div className="relative z-10 w-full h-full">
                 {displayData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <defs>
-                        {/* Professional 3D Bevel & Shadow Filter */}
+                        {/* Realistic 3D Filter */}
                         <filter id="realistic-3d" x="-20%" y="-20%" width="140%" height="140%">
-                          {/* 1. Drop Shadow for Depth */}
                           <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
                           <feOffset in="blur" dx="3" dy="5" result="offsetBlur" />
                           <feFlood floodColor="#000000" floodOpacity="0.2" result="offsetColor"/>
                           <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
-                          
-                          {/* 2. Soft Bevel Light (Top Left) */}
                           <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur2"/>
                           <feSpecularLighting in="blur2" surfaceScale="3" specularConstant="0.6" specularExponent="15" lightingColor="#ffffff" result="specOut">
                             <fePointLight x="-5000" y="-10000" z="20000"/>
                           </feSpecularLighting>
                           <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut"/>
-                          
-                          {/* 3. Merge All */}
                           <feMerge>
-                            <feMergeNode in="offsetBlur"/> {/* Shadow Bottom */}
-                            <feMergeNode in="SourceGraphic"/> {/* Color Middle */}
-                            <feMergeNode in="specOut"/> {/* Shine Top */}
+                            <feMergeNode in="offsetBlur"/>
+                            <feMergeNode in="SourceGraphic"/>
+                            <feMergeNode in="specOut"/>
                           </feMerge>
                         </filter>
                       </defs>
@@ -241,8 +269,12 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                         dataKey="value"
                         label={renderCustomizedLabel}
                         labelLine={false} 
-                        filter="url(#realistic-3d)" // Apply the new filter
+                        filter="url(#realistic-3d)"
                         stroke="none"
+                        activeIndex={activeIndex}
+                        activeShape={renderActiveShape} // Renders the split slice
+                        onClick={onPieClick} // Handles the click event
+                        cursor="pointer"
                       >
                         {displayData.map((entry, index) => (
                           <Cell 
@@ -270,14 +302,18 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                   {displayData.map((item, idx) => {
                       const percent = (item.value / totalValue) * 100;
                       return (
-                        <div key={item.name} className="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors group">
+                        <div 
+                            key={item.name} 
+                            onClick={() => setActiveIndex(idx === activeIndex ? -1 : idx)}
+                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 group ${activeIndex === idx ? 'bg-slate-100 dark:bg-slate-800 scale-[1.02] shadow-sm' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                        >
                             <div 
                                 className="w-3 h-3 rounded-sm shadow-sm shrink-0 transition-transform group-hover:scale-125" 
                                 style={{ backgroundColor: item.fill }}
                             ></div>
                             
                             <div className="flex-1 flex justify-between items-center min-w-0">
-                                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate pr-2" title={item.name}>
+                                <span className={`text-xs font-bold truncate pr-2 ${activeIndex === idx ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`} title={item.name}>
                                     {item.name}
                                 </span>
                                 <div className="flex items-center gap-3">
@@ -285,7 +321,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                                         Rs. {(item.value / 1000).toFixed(0)}k
                                     </span>
                                     <div className="w-16 flex justify-end">
-                                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 min-w-[45px] text-center shadow-sm">
+                                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded border min-w-[45px] text-center shadow-sm ${activeIndex === idx ? 'bg-white dark:bg-slate-700 text-emerald-600 border-emerald-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
                                             {percent.toFixed(2)}%
                                         </span>
                                     </div>
