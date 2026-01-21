@@ -304,7 +304,7 @@ const App: React.FC = () => {
   const openEditPortfolioModal = () => { const current = portfolios.find(p => p.id === currentPortfolioId); if (current) { setEditingPortfolioId(current.id); setPortfolioNameInput(current.name); setPortfolioBrokerIdInput(current.defaultBrokerId); setIsPortfolioModalOpen(true); } };
 
   const handleSavePortfolio = (e: React.FormEvent) => { e.preventDefault(); if (!portfolioNameInput.trim()) { alert("Portfolio Name is required"); return; } if (!portfolioBrokerIdInput) { alert("A Default Broker is required for every portfolio."); return; } if (editingPortfolioId) { setPortfolios(prev => prev.map(p => p.id === editingPortfolioId ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } : p)); } else { const newId = Date.now().toString(); setPortfolios(prev => [...prev, { id: newId, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput }]); setCurrentPortfolioId(newId); } setPortfolioNameInput(''); setPortfolioBrokerIdInput(''); setEditingPortfolioId(null); setIsPortfolioModalOpen(false); };
-  const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); } };
+  const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); setIsPortfolioModalOpen(false); } };
   
   const handleTogglePortfolioSelection = (id: string) => { const newSet = new Set(combinedPortfolioIds); if (newSet.has(id)) { if (newSet.size > 1) newSet.delete(id); } else { newSet.add(id); } setCombinedPortfolioIds(newSet); };
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
@@ -1034,9 +1034,25 @@ const App: React.FC = () => {
                           <Briefcase size={16} className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" />
                       </div>
 
-                      <button type="submit" disabled={!portfolioNameInput.trim()} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all">
-                          {editingPortfolioId ? 'Save Changes' : 'Create Portfolio'}
-                      </button>
+                      <div className="flex gap-2">
+                          {editingPortfolioId && (
+                              <button 
+                                  type="button" 
+                                  onClick={handleDeletePortfolio} 
+                                  className="px-4 py-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800 rounded-xl font-bold transition-all"
+                                  title="Delete Portfolio"
+                              >
+                                  <Trash2 size={20} />
+                              </button>
+                          )}
+                          <button 
+                              type="submit" 
+                              disabled={!portfolioNameInput.trim()} 
+                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-600/20"
+                          >
+                              {editingPortfolioId ? 'Save Changes' : 'Create Portfolio'}
+                          </button>
+                      </div>
                   </form>
               </div>
           </div>
