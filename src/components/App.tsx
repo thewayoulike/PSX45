@@ -333,7 +333,7 @@ const App: React.FC = () => {
         dailyPL += (h.currentPrice - ldcp) * h.quantity;
     });
     
-    // CHANGED: Use 'let' to allow modification
+    // Accumulate Realized P&L properly (includes History)
     let realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number }[] = [];
@@ -384,7 +384,7 @@ const App: React.FC = () => {
         else if (t.type === 'HISTORY') { 
             totalCGT += (t.tax || 0); 
             historyPnL += t.price; 
-            // FIX: DO NOT double count here. 'realizedTrades' reduce already includes HISTORY items.
+            // FIXED: Removed the extra addition to realizedPL to prevent double counting
             
             if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
@@ -394,6 +394,7 @@ const App: React.FC = () => {
         }
     });
     
+    // Add trades to event stream for graphs
     realizedTrades.forEach((t) => {
         const originalIdx = txIndexMap.get(t.id) ?? 999999; 
         if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
@@ -409,6 +410,8 @@ const App: React.FC = () => {
     const netRealizedPL = realizedPL - totalCGT; 
 
     // --- REVISED NET INVESTED LOGIC (Simple Cash Flow) ---
+    // Pure Capital Invested = Sum(Deposits) - Sum(Withdrawals)
+    // Ignores P&L to correctly reflect user's pocket impact
     let currentInvested = 0;
     let peakInvested = 0;
 
@@ -426,12 +429,14 @@ const App: React.FC = () => {
     const netPrincipal = Math.max(0, currentInvested); 
     const peakNetPrincipal = peakInvested; 
 
+    // --- Free Cash Calculation ---
     let tradingCashFlow = 0; 
     portfolioTransactions.forEach(t => { 
         const val = t.price * t.quantity; 
         const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); 
         if (t.type === 'BUY') tradingCashFlow -= (val + fees); 
         else if (t.type === 'SELL') tradingCashFlow += (val - fees); 
+        // Dividends are NOT added here (kept separate as per requirements)
     });
     
     let cashIn = totalDeposits; 
@@ -446,6 +451,7 @@ const App: React.FC = () => {
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
 
+    // XIRR Calculation
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
         if (t.type === 'DEPOSIT') {
