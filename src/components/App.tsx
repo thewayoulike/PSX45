@@ -333,7 +333,8 @@ const App: React.FC = () => {
         dailyPL += (h.currentPrice - ldcp) * h.quantity;
     });
     
-    const realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
+    // CHANGED: Use let to allow accumulation
+    let realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number }[] = [];
     const txIndexMap = new Map<string, number>();
@@ -383,6 +384,9 @@ const App: React.FC = () => {
         else if (t.type === 'HISTORY') { 
             totalCGT += (t.tax || 0); 
             historyPnL += t.price; 
+            // CHANGED: Add Historical P&L to Realized P&L
+            realizedPL += t.price; 
+            
             if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
         }
