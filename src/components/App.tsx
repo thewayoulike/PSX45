@@ -333,6 +333,7 @@ const App: React.FC = () => {
         dailyPL += (h.currentPrice - ldcp) * h.quantity;
     });
     
+    // CHANGED: Use 'let' to allow modification
     let realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number }[] = [];
@@ -383,7 +384,7 @@ const App: React.FC = () => {
         else if (t.type === 'HISTORY') { 
             totalCGT += (t.tax || 0); 
             historyPnL += t.price; 
-            // NOTE: Do not add to realizedPL here; it's already included via the `realizedTrades` reduction above
+            // FIX: DO NOT double count here. 'realizedTrades' reduce already includes HISTORY items.
             
             if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
@@ -407,35 +408,23 @@ const App: React.FC = () => {
 
     const netRealizedPL = realizedPL - totalCGT; 
 
-    let currentPrincipal = 0;
-    let peakPrincipal = 0;
-    let profitBuffer = 0; 
+    // --- REVISED NET INVESTED LOGIC (Simple Cash Flow) ---
+    let currentInvested = 0;
+    let peakInvested = 0;
 
     events.forEach(e => {
         if (e.type === 'IN') { 
-            currentPrincipal += e.amount;
-            if (currentPrincipal > peakPrincipal) peakPrincipal = currentPrincipal;
+            currentInvested += e.amount;
+            if (currentInvested > peakInvested) peakInvested = currentInvested;
         }
         else if (e.type === 'OUT') { 
-            const amount = e.amount;
-            if (profitBuffer >= amount) {
-                profitBuffer -= amount;
-            } else {
-                const remainder = amount - profitBuffer;
-                profitBuffer = 0;
-                currentPrincipal -= remainder;
-            }
+            currentInvested -= e.amount;
         }
-        else if (e.type === 'LOSS') { 
-            profitBuffer -= e.amount;
-        }
-        else if (e.type === 'PROFIT') { 
-            profitBuffer += e.amount;
-        }
+        // Profit/Loss intentionally ignored for Net Invested calculation
     });
 
-    const netPrincipal = Math.max(0, currentPrincipal); 
-    const peakNetPrincipal = peakPrincipal; 
+    const netPrincipal = Math.max(0, currentInvested); 
+    const peakNetPrincipal = peakInvested; 
 
     let tradingCashFlow = 0; 
     portfolioTransactions.forEach(t => { 
