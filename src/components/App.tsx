@@ -333,7 +333,6 @@ const App: React.FC = () => {
         dailyPL += (h.currentPrice - ldcp) * h.quantity;
     });
     
-    // CHANGED: Use let to allow accumulation
     let realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number }[] = [];
@@ -384,8 +383,7 @@ const App: React.FC = () => {
         else if (t.type === 'HISTORY') { 
             totalCGT += (t.tax || 0); 
             historyPnL += t.price; 
-            // CHANGED: Add Historical P&L to Realized P&L
-            realizedPL += t.price; 
+            // NOTE: Do not add to realizedPL here; it's already included via the `realizedTrades` reduction above
             
             if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
@@ -466,8 +464,6 @@ const App: React.FC = () => {
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
         }
-        // NOTE: Adjustments (Type OTHER) are intentionally excluded from XIRR cash flows
-        // as they are treated as internal gains/losses, not external capital movements.
     });
     const currentTotalNetWorth = totalValue + freeCash;
     if (currentTotalNetWorth > 0) {
