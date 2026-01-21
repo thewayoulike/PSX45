@@ -445,7 +445,7 @@ const App: React.FC = () => {
     
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses + totalAdjustments;
     
-    const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakPrincipal > 0 ? peakPrincipal : 1);
+    const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakNetPrincipal > 0 ? peakNetPrincipal : 1);
     const roi = (totalNetReturn / roiDenominator) * 100;
     
     const unrealizedPL = totalValue - totalCost;
