@@ -39,8 +39,9 @@ export const TransferModal: React.FC<TransferModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    // CHANGED: items-center -> items-start, added pt-20 md:pt-24
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-20 md:pt-24">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-top-10 fade-in duration-300">
         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
           <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
             <ArrowRightLeft className="text-blue-600 dark:text-blue-400" size={20} />
