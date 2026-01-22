@@ -16,10 +16,11 @@ import { Logo } from './ui/Logo';
 import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
+import { TransferModal } from './TransferModal';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock } from 'lucide-react'; 
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 import { ThemeToggle } from './ui/ThemeToggle'; 
 import * as Popover from '@radix-ui/react-popover'; 
@@ -104,6 +105,7 @@ const App: React.FC = () => {
   });
 
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
+  const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
@@ -292,6 +294,48 @@ const App: React.FC = () => {
       setTransactions(prev => [...prev, newTx]); 
   };
 
+  const handleTransferStock = (ticker: string, quantity: number, destPortfolioId: string, date: string) => {
+      const sourcePortfolio = portfolios.find(p => p.id === currentPortfolioId);
+      const destPortfolio = portfolios.find(p => p.id === destPortfolioId);
+      const holding = holdings.find(h => h.ticker === ticker);
+      
+      if (!sourcePortfolio || !destPortfolio || !holding) return;
+
+      // Transfer at Cost Basis (Avg Price)
+      const transferPrice = holding.avgPrice;
+      const transferId = Date.now().toString();
+
+      const transferOut: Transaction = {
+          id: `tx-out-${transferId}`,
+          portfolioId: currentPortfolioId,
+          type: 'TRANSFER_OUT',
+          ticker,
+          quantity,
+          price: transferPrice,
+          date,
+          broker: sourcePortfolio.defaultBrokerId ? (brokers.find(b => b.id === sourcePortfolio.defaultBrokerId)?.name) : 'Transfer',
+          brokerId: sourcePortfolio.defaultBrokerId,
+          commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+          notes: `Transfer to ${destPortfolio.name}`
+      };
+
+      const transferIn: Transaction = {
+          id: `tx-in-${transferId}`,
+          portfolioId: destPortfolioId,
+          type: 'TRANSFER_IN',
+          ticker,
+          quantity,
+          price: transferPrice,
+          date,
+          broker: destPortfolio.defaultBrokerId ? (brokers.find(b => b.id === destPortfolio.defaultBrokerId)?.name) : 'Transfer',
+          brokerId: destPortfolio.defaultBrokerId,
+          commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+          notes: `Transfer from ${sourcePortfolio.name}`
+      };
+
+      setTransactions(prev => [...prev, transferOut, transferIn]);
+  };
+
   const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleDeleteTransactions = (ids: string[]) => { if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) { setTransactions(prev => prev.filter(t => !ids.includes(t.id))); } };
@@ -384,10 +428,17 @@ const App: React.FC = () => {
         else if (t.type === 'HISTORY') { 
             totalCGT += (t.tax || 0); 
             historyPnL += t.price; 
-            // FIXED: Removed the extra addition to realizedPL to prevent double counting
             
             if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
+        }
+        else if (t.type === 'TRANSFER_IN') {
+            // Treat as Asset Deposit (Increases Net Invested for this portfolio)
+            events.push({ date: t.date, type: 'IN', amount: t.price * t.quantity, originalIndex: idx });
+        }
+        else if (t.type === 'TRANSFER_OUT') {
+            // Treat as Asset Withdrawal (Decreases Net Invested for this portfolio)
+            events.push({ date: t.date, type: 'OUT', amount: t.price * t.quantity, originalIndex: idx });
         }
         else { 
             totalSalesTax += (t.tax || 0); 
@@ -436,7 +487,7 @@ const App: React.FC = () => {
         const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); 
         if (t.type === 'BUY') tradingCashFlow -= (val + fees); 
         else if (t.type === 'SELL') tradingCashFlow += (val - fees); 
-        // Dividends are NOT added here (kept separate as per requirements)
+        // Dividends and TRANSFERS are NOT added here
     });
     
     let cashIn = totalDeposits; 
@@ -458,6 +509,10 @@ const App: React.FC = () => {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
+        } else if (t.type === 'TRANSFER_IN') {
+             cashFlowsForXIRR.push({ amount: -Math.abs(t.price * t.quantity), date: new Date(t.date) });
+        } else if (t.type === 'TRANSFER_OUT') {
+             cashFlowsForXIRR.push({ amount: Math.abs(t.price * t.quantity), date: new Date(t.date) });
         }
     });
     const currentTotalNetWorth = totalValue + freeCash;
@@ -573,8 +628,8 @@ const App: React.FC = () => {
 
           sortedDates.forEach(date => {
               const dayTxs = txsByDate[date];
-              const dayBuys = dayTxs.filter(t => t.type === 'BUY');
-              const daySells = dayTxs.filter(t => t.type === 'SELL');
+              const dayBuys = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN');
+              const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
 
               // Create temporary lots for today's buys (Intraday Pool)
               const dayBuyLots = dayBuys.map(t => {
@@ -608,7 +663,7 @@ const App: React.FC = () => {
                           const profit = revenue - cost - matchedSellFees;
 
                           tempRealized.push({
-                              id: sellTx.id, // Using original ID for intraday might duplicate if matched multiple times, but typically fine for list view
+                              id: sellTx.id, 
                               ticker,
                               broker: brokerName,
                               quantity: matched,
@@ -685,7 +740,7 @@ const App: React.FC = () => {
                   broker: brokerName,
                   quantity: totalQty,
                   avgPrice,
-                  currentPrice: 0, // Will be set in next map
+                  currentPrice: 0, 
                   totalCommission: totalComm,
                   totalTax: totalTax,
                   totalCDC: totalCDC,
@@ -829,6 +884,12 @@ const App: React.FC = () => {
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm dark:shadow-emerald-900/50"
                             > 
                                 <Plus size={16} /> Add Transaction 
+                            </button>
+                            <button 
+                                onClick={() => setShowTransferModal(true)} 
+                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                            > 
+                                <ArrowRightLeft size={16} /> Transfer 
                             </button>
                             <button 
                                 onClick={() => setShowBrokerManager(true)} 
@@ -1096,6 +1157,15 @@ const App: React.FC = () => {
           isOpen={showUpcomingScanner} 
           onClose={() => setShowUpcomingScanner(false)} 
           holdings={holdings}
+      />
+
+      <TransferModal 
+          isOpen={showTransferModal} 
+          onClose={() => setShowTransferModal(false)} 
+          currentPortfolioId={currentPortfolioId}
+          portfolios={portfolios}
+          holdings={holdings}
+          onTransfer={handleTransferStock}
       />
 
       {viewTicker && (
