@@ -1,7 +1,7 @@
 export interface Transaction {
   id: string;
   portfolioId: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'; 
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER' | 'TRANSFER_IN' | 'TRANSFER_OUT'; 
   ticker: string;
   quantity: number;
   price: number;
