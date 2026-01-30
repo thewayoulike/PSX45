@@ -176,7 +176,7 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
 // --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const targetUrl = "https://www.scstrade.com/MarketStatistics/MS_xDates.aspx/chartact";
-  const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+  const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
 
   try {
     const response = await fetch(proxyUrl, {
