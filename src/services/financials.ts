@@ -1,6 +1,7 @@
 import { CompanyPayout, CompanyFinancials, CompanyRatios, FundamentalsData } from '../types';
+import { getValidToken } from './driveStorage'; // Leveraging existing auth
 
-// --- Interfaces & Helpers (Keep existing) ---
+// --- Interfaces ---
 export interface CompanyFinancials {
   year: string;
   sales: string;
@@ -33,7 +34,7 @@ const getProxies = (targetUrl: string) => [
     `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
 ];
 
-// --- 1. Fetch Company Fundamentals (PSX) ---
+// --- 1. Fetch Company Fundamentals (Keep existing logic) ---
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   const proxies = getProxies(targetUrl);
@@ -124,133 +125,44 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
   return null;
 };
 
-// --- 2. Fetch Specific Company Payouts (PSX) ---
-export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
-  const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
-  const proxies = getProxies(targetUrl);
-
-  for (const proxyUrl of proxies) {
-    try {
-      const response = await fetch(proxyUrl);
-      if (!response.ok) continue;
-      let html = '';
-      if (proxyUrl.includes('allorigins')) { const data = await response.json(); html = data.contents; } else { html = await response.text(); }
-
-      if (html && html.length > 500) {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-        const tables = Array.from(doc.querySelectorAll('table'));
-        const payoutTable = tables.find(t => t.querySelector('th')?.textContent?.includes('Financial Results') && t.querySelector('th')?.textContent?.includes('Book Closure'));
-
-        if (!payoutTable) return [];
-        const payouts: CompanyPayout[] = [];
-        const rows = Array.from(payoutTable.querySelectorAll('tr')).slice(1); 
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-
-        rows.forEach(row => {
-            const cols = row.querySelectorAll('td');
-            if (cols.length >= 4) {
-                const announceDate = cols[0].textContent?.trim() || '-';
-                const financialResult = cols[1].textContent?.trim() || '-';
-                const details = cols[2].textContent?.trim() || '-';
-                const bookClosure = cols[3].textContent?.trim() || '-';
-                let isUpcoming = false;
-                if (bookClosure.includes('-')) {
-                    const [startStr] = bookClosure.split('-');
-                    const parts = startStr.trim().split('/');
-                    if (parts.length === 3) {
-                        const bookStart = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                        if (bookStart >= today) isUpcoming = true;
-                    }
-                }
-                payouts.push({ ticker: ticker.toUpperCase(), announceDate, financialResult, details, bookClosure, isUpcoming });
-            }
-        });
-        return payouts;
-      }
-    } catch (e) { console.warn(`Proxy ${proxyUrl} failed for payouts`, e); }
-  }
-  return [];
-};
-
-// --- 3. FETCH MARKET WIDE DIVIDENDS (SCSTRADE) ---
+// --- 2. NEW: Fetch Market Wide Dividends from Google Sheet ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
-  const targetUrl = "https://www.scstrade.com/MarketStatistics/MS_xDates.aspx/chartact";
-  const proxyUrl = `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`;
+  const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
+  const RANGE = "Sheet1!A2:E"; // Assumes headers are in row 1
 
   try {
-    const response = await fetch(proxyUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Requested-With": "XMLHttpRequest",
-        "Accept": "application/json, text/javascript, */*; q=0.01"
-      },
-      body: JSON.stringify({ par: "" }) 
+    const token = await getValidToken(); // Get auth token from Drive service
+    if (!token) throw new Error("Authentication required to access Google Sheets");
+
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` }
     });
 
     if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
+        throw new Error(`Google Sheets API Error: ${response.status}`);
     }
 
     const json = await response.json();
-    const rawData = json.d || []; 
+    const rows = json.values || []; 
 
-    const payouts: CompanyPayout[] = rawData.map((item: any) => {
-        let details = "";
-        if (item.bm_dividend) details += `Div: ${item.bm_dividend} `;
-        if (item.bm_bonus) details += `Bonus: ${item.bm_bonus} `;
-        if (item.bm_right_per) details += `Right: ${item.bm_right_per}`;
-        
-        let isUpcoming = true;
-        const dateStr = item.bm_bc_exp || "";
-        
-        try {
-            const cleanDate = dateStr.replace(/&nbsp;/g, '').replace(/[-./]/g, ' ').trim();
-            const dateParts = cleanDate.split(/\s+/); 
-
-            if (dateParts.length >= 3) {
-                const day = parseInt(dateParts[0]);
-                const monthStr = dateParts[1];
-                let year = parseInt(dateParts[2]);
-
-                if (year < 100) year += 2000;
-
-                const monthMap: Record<string, number> = { 'JAN':0,'FEB':1,'MAR':2,'APR':3,'MAY':4,'JUN':5,'JUL':6,'AUG':7,'SEP':8,'OCT':9,'NOV':10,'DEC':11 };
-                const month = monthMap[monthStr.toUpperCase().substring(0,3)];
-                
-                if (!isNaN(day) && month !== undefined && !isNaN(year)) {
-                    const xDate = new Date(year, month, day);
-                    const today = new Date();
-                    today.setHours(0,0,0,0);
-                    
-                    // Filter: Must be strictly FUTURE or TODAY
-                    if (xDate < today) isUpcoming = false;
-
-                    // Sanity Check: Ignore dates > 6 months in future (likely bad data)
-                    const maxFuture = new Date(today);
-                    maxFuture.setMonth(maxFuture.getMonth() + 6);
-                    if (xDate > maxFuture) isUpcoming = false;
-                }
-            }
-        } catch (e) { /* ignore parse error */ }
-
-        if (!isUpcoming) return null;
-
-        return {
-            ticker: item.company_code,
-            announceDate: item.company_name, 
-            financialResult: '-',
-            details: details.trim() || 'Book Closure',
-            bookClosure: `Ex-Date: ${dateStr}`,
-            isUpcoming: true
-        };
-    }).filter((p: any) => p !== null);
-
-    return payouts;
+    return rows.map((row: any[]) => ({
+        ticker: row[0] || 'Unknown',        // Column A
+        announceDate: row[1] || '-',        // Column B
+        financialResult: '-',
+        details: row[2] || 'Dividend',      // Column C
+        bookClosure: `Ex-Date: ${row[3]}`,  // Column D
+        isUpcoming: true
+    }));
 
   } catch (e) {
-    console.error("SCSTrade API Fetch Failed:", e);
+    console.error("Google Sheet Fetch Failed:", e);
     return [];
   }
+};
+
+// --- 3. Keep Company Payouts as a Fallback (Optional) ---
+export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
+    // ... existing implementation if you want to keep per-company PSX scraping ...
+    return [];
 };
