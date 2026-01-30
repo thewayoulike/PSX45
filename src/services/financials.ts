@@ -1,5 +1,6 @@
+// src/services/financials.ts
 import { CompanyPayout, CompanyFinancials, CompanyRatios, FundamentalsData } from '../types';
-import { getValidToken } from './driveStorage'; // Leveraging existing auth
+import { getValidToken } from './driveStorage'; // Now correctly exported
 
 // --- Interfaces ---
 export interface CompanyFinancials {
@@ -34,7 +35,7 @@ const getProxies = (targetUrl: string) => [
     `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
 ];
 
-// --- 1. Fetch Company Fundamentals (Keep existing logic) ---
+// --- 1. Fetch Company Fundamentals (PSX Scraping) ---
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   const proxies = getProxies(targetUrl);
@@ -120,7 +121,7 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
 
         return { annual: { financials: annualFinancials, ratios: annualRatios }, quarterly: { financials: quarterlyFinancials, ratios: quarterlyRatios } };
       }
-    } catch (e) { console.warn(`Proxy ${proxyUrl} failed`, e); }
+    } catch (e) { console.warn(`Proxy failed`, e); }
   }
   return null;
 };
@@ -128,11 +129,11 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
 // --- 2. NEW: Fetch Market Wide Dividends from Google Sheet ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
-  const RANGE = "Sheet1!A2:E"; // Assumes headers are in row 1
+  const RANGE = "Sheet1!A2:E"; 
 
   try {
-    const token = await getValidToken(); // Get auth token from Drive service
-    if (!token) throw new Error("Authentication required to access Google Sheets");
+    const token = await getValidToken(); 
+    if (!token) throw new Error("Authentication required for Google Sheets");
 
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}`;
     const response = await fetch(url, {
@@ -161,8 +162,51 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   }
 };
 
-// --- 3. Keep Company Payouts as a Fallback (Optional) ---
+// --- 3. Per-Company Payouts (Fallback) ---
 export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
-    // ... existing implementation if you want to keep per-company PSX scraping ...
-    return [];
+  const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
+  const proxies = getProxies(targetUrl);
+
+  for (const proxyUrl of proxies) {
+    try {
+      const response = await fetch(proxyUrl);
+      if (!response.ok) continue;
+      let html = '';
+      if (proxyUrl.includes('allorigins')) { const data = await response.json(); html = data.contents; } else { html = await response.text(); }
+
+      if (html && html.length > 500) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+        const tables = Array.from(doc.querySelectorAll('table'));
+        const payoutTable = tables.find(t => t.querySelector('th')?.textContent?.includes('Financial Results') && t.querySelector('th')?.textContent?.includes('Book Closure'));
+
+        if (!payoutTable) return [];
+        const payouts: CompanyPayout[] = [];
+        const rows = Array.from(payoutTable.querySelectorAll('tr')).slice(1); 
+        const today = new Date(); today.setHours(0, 0, 0, 0);
+
+        rows.forEach(row => {
+            const cols = row.querySelectorAll('td');
+            if (cols.length >= 4) {
+                const announceDate = cols[0].textContent?.trim() || '-';
+                const financialResult = cols[1].textContent?.trim() || '-';
+                const details = cols[2].textContent?.trim() || '-';
+                const bookClosure = cols[3].textContent?.trim() || '-';
+                let isUpcoming = false;
+                if (bookClosure.includes('-')) {
+                    const [startStr] = bookClosure.split('-');
+                    const parts = startStr.trim().split('/');
+                    if (parts.length === 3) {
+                        const bookStart = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+                        if (bookStart >= today) isUpcoming = true;
+                    }
+                }
+                payouts.push({ ticker: ticker.toUpperCase(), announceDate, financialResult, details, bookClosure, isUpcoming });
+            }
+        });
+        return payouts;
+      }
+    } catch (e) { console.warn(`Proxy failed for payouts`, e); }
+  }
+  return [];
 };
