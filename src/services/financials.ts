@@ -1,8 +1,7 @@
-// src/services/financials.ts
 import { CompanyPayout, CompanyFinancials, CompanyRatios, FundamentalsData } from '../types';
 import { getValidToken } from './driveStorage'; // Now correctly exported
 
-// --- Interfaces ---
+// --- Interfaces & Helpers ---
 export interface CompanyFinancials {
   year: string;
   sales: string;
@@ -126,13 +125,17 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
   return null;
 };
 
-// --- 2. NEW: Fetch Market Wide Dividends from Google Sheet ---
+/**
+ * FIXED: Fetches Market Wide Dividends from Google Sheet.
+ * Maps Ex-Date to Column F (Index 5) to fix 'undefined'.
+ * Converts Percent to PKR based on 10 Rs Face Value.
+ */
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
-  const RANGE = "Sheet1!A2:E"; 
+  const RANGE = "Sheet1!A3:F"; 
 
   try {
-    const token = await getValidToken(); 
+    const token = await getValidToken();
     if (!token) throw new Error("Authentication required for Google Sheets");
 
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}`;
@@ -140,21 +143,30 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
       headers: { Authorization: `Bearer ${token}` }
     });
 
-    if (!response.ok) {
-        throw new Error(`Google Sheets API Error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Google Sheets API Error: ${response.status}`);
 
     const json = await response.json();
     const rows = json.values || []; 
 
-    return rows.map((row: any[]) => ({
-        ticker: row[0] || 'Unknown',        // Column A
-        announceDate: row[1] || '-',        // Column B
-        financialResult: '-',
-        details: row[2] || 'Dividend',      // Column C
-        bookClosure: `Ex-Date: ${row[3]}`,  // Column D
-        isUpcoming: true
-    }));
+    return rows.map((row: any[]) => {
+        // 1. Extract raw percentage (e.g., "150%")
+        const rawDiv = row[2] || '0';
+        const cleanPercent = parseFloat(rawDiv.replace('%', ''));
+        
+        // 2. Convert to PKR (Percentage of 10 Rs Face Value)
+        const pkrAmount = cleanPercent / 10;
+
+        return {
+            ticker: row[0] || 'Unknown',        // Column A: CODE
+            announceDate: row[1] || '-',        // Column B: Name
+            financialResult: '-',
+            // 3. Converted details
+            details: isNaN(pkrAmount) ? 'Dividend' : `Div: Rs. ${pkrAmount.toFixed(2)}`, 
+            // 4. Map to Column F (Index 5) to fix 'undefined'
+            bookClosure: `Ex-Date: ${row[5] || 'TBA'}`,
+            isUpcoming: true
+        };
+    });
 
   } catch (e) {
     console.error("Google Sheet Fetch Failed:", e);
@@ -162,7 +174,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   }
 };
 
-// --- 3. Per-Company Payouts (Fallback) ---
+// --- 3. Per-Company Payouts (Fallback PSX Logic) ---
 export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   const proxies = getProxies(targetUrl);
