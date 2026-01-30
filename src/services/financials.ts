@@ -1,7 +1,6 @@
 import { CompanyPayout, CompanyFinancials, CompanyRatios, FundamentalsData } from '../types';
-import { getValidToken } from './driveStorage'; // Now correctly exported
+import { getValidToken } from './driveStorage';
 
-// --- Interfaces & Helpers ---
 export interface CompanyFinancials {
   year: string;
   sales: string;
@@ -125,11 +124,7 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
   return null;
 };
 
-/**
- * FIXED: Fetches Market Wide Dividends from Google Sheet.
- * Maps Ex-Date to Column F (Index 5) to fix 'undefined'.
- * Converts Percent to PKR based on 10 Rs Face Value.
- */
+// --- 2. Fetch Market Wide Dividends from Google Sheet ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
   const RANGE = "Sheet1!A3:F"; 
@@ -148,24 +143,43 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     const json = await response.json();
     const rows = json.values || []; 
 
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
     return rows.map((row: any[]) => {
-        // 1. Extract raw percentage (e.g., "150%")
+        // Percentage to PKR Conversion (Face Value 10 Rs)
         const rawDiv = row[2] || '0';
         const cleanPercent = parseFloat(rawDiv.replace('%', ''));
-        
-        // 2. Convert to PKR (Percentage of 10 Rs Face Value)
         const pkrAmount = cleanPercent / 10;
 
+        // Parse Date (Column F / Index 5)
+        const dateStr = row[5] || '';
+        const xDate = new Date(dateStr);
+        xDate.setHours(0, 0, 0, 0);
+
+        // Filter: Remove entries before today
+        if (isNaN(xDate.getTime()) || xDate < today) {
+            return null; 
+        }
+
+        // Today Check for Highlight
+        const isDueToday = xDate.getTime() === today.getTime();
+
         return {
-            ticker: row[0] || 'Unknown',        // Column A: CODE
-            announceDate: row[1] || '-',        // Column B: Name
+            ticker: row[0] || 'Unknown',
+            announceDate: row[1] || '-',
             financialResult: '-',
-            // 3. Converted details
             details: isNaN(pkrAmount) ? 'Dividend' : `Div: Rs. ${pkrAmount.toFixed(2)}`, 
-            // 4. Map to Column F (Index 5) to fix 'undefined'
-            bookClosure: `Ex-Date: ${row[5] || 'TBA'}`,
-            isUpcoming: true
+            bookClosure: `Ex-Date: ${dateStr}`,
+            isUpcoming: true,
+            isDueToday: isDueToday 
         };
+    })
+    .filter((p): p is CompanyPayout & { isDueToday: boolean } => p !== null)
+    .sort((a, b) => {
+        const dateA = new Date(a.bookClosure.replace('Ex-Date: ', ''));
+        const dateB = new Date(b.bookClosure.replace('Ex-Date: ', ''));
+        return dateA.getTime() - dateB.getTime();
     });
 
   } catch (e) {
