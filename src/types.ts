@@ -80,7 +80,7 @@ export interface PortfolioStats {
   totalOtherFees: number;
   totalCGT: number;
   
-  freeCash: number;       
+  freeCash: number;        
   cashInvestment: number; 
   totalDeposits: number;  
   netPrincipal: number;
@@ -96,6 +96,9 @@ export interface Portfolio {
   name: string;
   defaultBrokerId: string;
 }
+
+// Added for navigation and Trading Simulator view
+export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'CALCULATOR';
 
 export interface DividendAnnouncement {
     ticker: string;
