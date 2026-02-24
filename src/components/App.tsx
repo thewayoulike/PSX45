@@ -1071,6 +1071,7 @@ const App: React.FC = () => {
                         holdings={holdings} 
                         brokers={brokers} 
                         defaultBrokerId={currentPortfolio?.defaultBrokerId || brokers[0]?.id || ''} 
+                        transactions={portfolioTransactions}
                     />
                 </div>
             )}
