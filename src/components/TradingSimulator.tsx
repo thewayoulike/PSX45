@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Holding, Broker } from '../types';
 import { Card } from './ui/Card';
-import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Info, Activity } from 'lucide-react';
+import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Info, Activity, Calculator } from 'lucide-react';
 
 interface TradingSimulatorProps {
   holdings: Holding[];
@@ -28,26 +28,31 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
   const [sellPositions, setSellPositions] = useState<SimSell[]>([]);
 
   const activeHolding = holdings.find(h => h.ticker === selectedTicker);
-  const broker = brokers.find(b => b.id === defaultBrokerId) || brokers[0];
+  // Safely fallback to the first available broker, or a mock object if none exist
+  const broker = brokers.find(b => b.id === defaultBrokerId) || brokers[0] || {} as Broker;
 
   const calculateFees = (price: number, qty: number) => {
-    if (!price || !qty) return { total: 0 };
+    // Defensive checks to prevent any math/undefined errors
+    if (!price || !qty || !broker || !broker.commissionType) return { total: 0 };
+    
     const amount = price * qty;
     let commission = 0;
     
-    // Safety check for commission type since it might be stored as 'PERCENT' instead of 'PERCENTAGE'
-    if (broker.commissionType === 'PERCENTAGE' || (broker.commissionType as any) === 'PERCENT') {
-      commission = amount * ((broker.rate1 || 0.15) / 100);
-    } else if (broker.commissionType === 'PER_SHARE') {
-      commission = qty * broker.rate1;
-    } else if (broker.commissionType === 'FIXED') {
-      commission = broker.rate1;
-    } else if (broker.commissionType === 'SLAB') {
-      // Fallback rough estimate for slabs
-      commission = amount * ((broker.rate1 || 0.15) / 100); 
+    const cType = broker.commissionType || 'PERCENTAGE';
+    const r1 = broker.rate1 || 0.15;
+    const r2 = broker.rate2 || 0.05;
+    
+    if (cType === 'PERCENTAGE' || (cType as any) === 'PERCENT') {
+      commission = amount * (r1 / 100);
+    } else if (cType === 'PER_SHARE') {
+      commission = qty * r1;
+    } else if (cType === 'FIXED') {
+      commission = r1;
+    } else if (cType === 'SLAB') {
+      commission = amount * (r1 / 100); 
     } else {
-      const perShare = qty * (broker.rate2 || 0.05);
-      const percentage = amount * ((broker.rate1 || 0.15) / 100);
+      const perShare = qty * r2;
+      const percentage = amount * (r1 / 100);
       commission = Math.max(perShare, percentage);
     }
     
@@ -94,7 +99,6 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
     const historicalCost = activeHolding?.avgPrice || 0;
 
     const rows = sellPositions.map(p => {
-        // As per requirements: Intraday sales carry zero exit fees
         const fees = p.isIntraday ? { total: 0 } : calculateFees(p.price, p.quantity);
         const netRevenue = (p.quantity * p.price) - fees.total;
         
@@ -102,7 +106,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
         let costBasis = 0;
 
         if (p.isIntraday) {
-            // Intraday Priority: Consume simulated today's buys first
+            // Intraday Priority
             for (const lot of intradayLots) {
                 if (qtyToFill <= 0) break;
                 const match = Math.min(qtyToFill, lot.qty);
@@ -110,7 +114,6 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                 lot.qty -= match;
                 qtyToFill -= match;
             }
-            // If still short, consume historical
             if (qtyToFill > 0 && historicalQty > 0) {
                 const match = Math.min(qtyToFill, historicalQty);
                 costBasis += match * historicalCost;
@@ -118,14 +121,13 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                 qtyToFill -= match;
             }
         } else {
-            // Standard FIFO Priority: Consume historical holds first
+            // FIFO Priority
             if (qtyToFill > 0 && historicalQty > 0) {
                 const match = Math.min(qtyToFill, historicalQty);
                 costBasis += match * historicalCost;
                 historicalQty -= match;
                 qtyToFill -= match;
             }
-            // If still short, consume today's buys
             for (const lot of intradayLots) {
                 if (qtyToFill <= 0) break;
                 const match = Math.min(qtyToFill, lot.qty);
@@ -147,20 +149,20 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
 
   const addBuyRow = () => {
     if (buyPositions.length < 10) {
-      setBuyPositions([...buyPositions, { id: Date.now().toString(), quantity: 0, price: activeHolding?.currentPrice || 0 }]);
+      // Math.random ensures absolute unique keys to prevent React crashes
+      setBuyPositions([...buyPositions, { id: Math.random().toString(36).substring(2, 10), quantity: 0, price: activeHolding?.currentPrice || 0 }]);
     }
   };
 
   const addSellRow = () => {
     if (sellPositions.length < 10) {
-      setSellPositions([...sellPositions, { id: Date.now().toString(), quantity: 0, price: activeHolding?.currentPrice || 0, isIntraday: false }]);
+      setSellPositions([...sellPositions, { id: Math.random().toString(36).substring(2, 10), quantity: 0, price: activeHolding?.currentPrice || 0, isIntraday: false }]);
     }
   };
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
       
-      {/* 1. HOLDING SELECTOR */}
       <Card className="p-6">
         <div className="flex flex-col md:flex-row gap-6 items-center">
           <div className="w-full md:w-1/3">
@@ -187,15 +189,15 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Current Avg</p>
-                <p className="font-black text-slate-800 dark:text-slate-200 font-mono">Rs. {activeHolding.avgPrice.toFixed(2)}</p>
+                <p className="font-black text-slate-800 dark:text-slate-200 font-mono">Rs. {(activeHolding.avgPrice || 0).toFixed(2)}</p>
               </div>
               <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
                 <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Market Price</p>
-                <p className="font-black text-emerald-600 dark:text-emerald-400 font-mono">Rs. {activeHolding.currentPrice.toFixed(2)}</p>
+                <p className="font-black text-emerald-600 dark:text-emerald-400 font-mono">Rs. {(activeHolding.currentPrice || 0).toFixed(2)}</p>
               </div>
               <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800">
                 <p className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Exit Break-even</p>
-                <p className="font-black text-emerald-700 dark:text-emerald-300 font-mono">Rs. {(activeHolding.avgPrice * 1.005).toFixed(2)}</p>
+                <p className="font-black text-emerald-700 dark:text-emerald-300 font-mono">Rs. {((activeHolding.avgPrice || 0) * 1.005).toFixed(2)}</p>
               </div>
             </div>
           ) : (
@@ -208,9 +210,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         
-        {/* ======================= */}
-        {/* BUY SECTION (Averaging) */}
-        {/* ======================= */}
+        {/* BUY SECTION */}
         <div className="space-y-4">
           <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm">
@@ -234,7 +234,6 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                       onChange={(e) => {
                           const amt = parseFloat(e.target.value) || 0;
                           if (amt > 0 && pos.price > 0) {
-                              // Rough calculation deducting estimated 0.5% fees
                               const qty = Math.floor(amt / (pos.price * 1.005)); 
                               const newPos = [...buyPositions];
                               newPos[idx].quantity = qty;
@@ -293,20 +292,18 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                 <div className="relative z-10">
                     <div className="flex justify-between items-end mb-2 border-b border-emerald-400/30 pb-3">
                         <span className="text-sm font-bold uppercase tracking-wider text-emerald-100">New Overall Avg</span>
-                        <span className="text-3xl font-black tracking-tight">Rs. {buyAnalysis.overallAvg.toFixed(2)}</span>
+                        <span className="text-3xl font-black tracking-tight">Rs. {(buyAnalysis.overallAvg || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-xs font-medium text-emerald-50 pt-1">
-                        <span>Total Shares: {buyAnalysis.overallQty.toLocaleString()}</span>
-                        <span>Extra Cost: Rs. {buyAnalysis.totalCostWithFees.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>Total Shares: {(buyAnalysis.overallQty || 0).toLocaleString()}</span>
+                        <span>Extra Cost: Rs. {(buyAnalysis.totalCostWithFees || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
                 </div>
             </div>
           )}
         </div>
 
-        {/* ======================= */}
-        {/* SELL SECTION (Exit)     */}
-        {/* ======================= */}
+        {/* SELL SECTION */}
         <div className="space-y-4">
           <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400 text-sm">
@@ -368,7 +365,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                     <div className="flex flex-col text-right">
                         <span className="text-[9px] text-slate-400 uppercase font-bold">Est. Profit</span>
                         <span className={`text-xs font-bold font-mono ${pos.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                        {pos.profit >= 0 ? '+' : ''}{pos.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        {pos.profit >= 0 ? '+' : ''}{(pos.profit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </span>
                     </div>
                     <button onClick={() => setSellPositions(sellPositions.filter(p => p.id !== pos.id))} className="p-2 bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-colors">
@@ -386,11 +383,11 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                     <div className="flex justify-between items-end mb-2 border-b border-slate-700 pb-3">
                         <span className="text-sm font-bold uppercase tracking-wider text-slate-400">Total Net Profit</span>
                         <span className={`text-3xl font-black tracking-tight ${sellAnalysis.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {sellAnalysis.totalProfit >= 0 ? '+' : ''}Rs. {sellAnalysis.totalProfit.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                            {sellAnalysis.totalProfit >= 0 ? '+' : ''}Rs. {(sellAnalysis.totalProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </span>
                     </div>
                     <div className="flex justify-between text-xs font-medium text-slate-500 pt-1">
-                        <span>Exit Fees: Rs. {sellAnalysis.totalSellFees.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>Exit Fees: Rs. {(sellAnalysis.totalSellFees || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                         <span>(FIFO Execution Used)</span>
                     </div>
                 </div>
@@ -399,9 +396,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
         </div>
       </div>
 
-      {/* ======================= */}
-      {/* DETAILED LOG TABLE      */}
-      {/* ======================= */}
+      {/* DETAILED LOG TABLE */}
       {(buyPositions.length > 0 || sellPositions.length > 0) && (
         <Card className="mt-8 p-0 overflow-hidden border border-slate-200 dark:border-slate-700">
           <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
@@ -428,12 +423,12 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                            BUY 
                         </span>
                       </td>
-                      <td className="p-4 text-right font-medium text-slate-700 dark:text-slate-300">{r.quantity.toLocaleString()}</td>
-                      <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-400">{r.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                      <td className="p-4 text-right font-mono text-xs text-slate-400">{r.fees.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                      <td className="p-4 text-right font-medium text-slate-700 dark:text-slate-300">{(r.quantity || 0).toLocaleString()}</td>
+                      <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-400">{(r.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                      <td className="p-4 text-right font-mono text-xs text-slate-400">{(r.fees || 0).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
                       <td className="p-4 text-right">
                           <span className="font-mono text-xs font-bold text-emerald-600 dark:text-emerald-400">
-                              Avg: {r.avgBuy.toLocaleString(undefined, {minimumFractionDigits: 2})}
+                              Avg: {(r.avgBuy || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}
                           </span>
                       </td>
                     </tr>
@@ -447,14 +442,14 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                         {r.isIntraday && <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold text-[9px] uppercase">Intraday</span>}
                       </td>
                       <td className="p-4 text-right font-medium text-slate-700 dark:text-slate-300">
-                          {r.quantity.toLocaleString()} 
+                          {(r.quantity || 0).toLocaleString()} 
                           {r.unfilled > 0 && <span className="block text-rose-500 text-[9px] font-bold mt-0.5" title="Short sale (insufficient holdings)">Unfilled: {r.unfilled}</span>}
                       </td>
-                      <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-400">{r.price.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                      <td className="p-4 text-right font-mono text-xs text-slate-400">{r.fees.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                      <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-400">{(r.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                      <td className="p-4 text-right font-mono text-xs text-slate-400">{(r.fees || 0).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
                       <td className="p-4 text-right">
                           <span className={`font-mono text-xs font-bold ${r.profit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                              P&L: {r.profit > 0 ? '+' : ''}{r.profit.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                              P&L: {r.profit > 0 ? '+' : ''}{(r.profit || 0).toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </span>
                       </td>
                     </tr>
@@ -469,7 +464,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
       <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl flex items-start gap-3 text-xs text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800/50">
           <Info size={18} className="shrink-0 mt-0.5 opacity-80" />
           <div className="space-y-1 opacity-90 leading-relaxed">
-             <p>This simulator accurately applies the <strong>{broker.name}</strong> fee structure.</p>
+             <p>This simulator accurately applies the <strong>{broker?.name || 'Default'}</strong> fee structure.</p>
              <p>Sales are calculated using strict <strong>FIFO</strong> (First-In, First-Out) logic against your current average cost. <em>Intraday</em> sales bypass exit fees and automatically match against the simulated buys added above.</p>
           </div>
       </div>
