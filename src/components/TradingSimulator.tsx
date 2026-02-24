@@ -2,7 +2,7 @@
 import React, { useState, useMemo } from 'react';
 import { Holding, Broker } from '../types';
 import { Card } from './ui/Card';
-import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Info, Activity, Calculator, PieChart } from 'lucide-react';
+import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Info, Activity, Calculator, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface TradingSimulatorProps {
   holdings: Holding[];
@@ -168,7 +168,6 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
     const finalUnrealizedPL = finalRemainingQty > 0 ? (currentPrice - finalRemainingAvg) * finalRemainingQty : 0;
     const currentUnrealizedPL = currentQty > 0 ? (currentPrice - currentAvg) * currentQty : 0;
     
-    // Overall Buy Stats (ignoring sells, just for the buy box summary)
     const overallQtyAfterBuys = currentQty + totalBuyQty;
     const overallAvgAfterBuys = overallQtyAfterBuys > 0 ? ((currentQty * currentAvg) + totalBuyCostWithFees) / overallQtyAfterBuys : 0;
 
@@ -203,69 +202,93 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
       
-      {/* 1. HOLDING SELECTOR & PORTFOLIO STATE */}
-      <Card className="p-6">
-        <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
-          <div className="w-full lg:w-1/4">
-            <label className="block text-sm font-bold text-slate-500 mb-2">Select Stock</label>
-            <select 
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              value={selectedTicker}
-              onChange={(e) => {
-                  setSelectedTicker(e.target.value);
-                  setBuyPositions([]);
-                  setSellPositions([]);
-              }}
-            >
-              <option value="">Choose a stock...</option>
-              {holdings.map(h => <option key={h.ticker} value={h.ticker}>{h.ticker}</option>)}
-            </select>
+      {/* 1. HOLDING SELECTOR & TABLE (Stocks Page Style) */}
+      <Card className="p-0 overflow-hidden border-slate-200 dark:border-slate-700 shadow-xl">
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+          <div className="flex items-center gap-4 w-full">
+            <div className="w-full sm:w-1/3 min-w-[250px]">
+              <select 
+                className="w-full p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                value={selectedTicker}
+                onChange={(e) => {
+                    setSelectedTicker(e.target.value);
+                    setBuyPositions([]);
+                    setSellPositions([]);
+                }}
+              >
+                <option value="">Select holding to simulate...</option>
+                {holdings.map(h => <option key={h.ticker} value={h.ticker}>{h.ticker} ({h.quantity} shares)</option>)}
+              </select>
+            </div>
           </div>
-          
-          {activeHolding ? (
-            <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Current State */}
-                <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
-                   <div className="absolute right-0 top-0 opacity-5 p-2"><PieChart size={64} /></div>
-                   <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-3 tracking-wider">Current Position</h4>
-                   <div className="flex justify-between items-end relative z-10">
-                      <div>
-                          <div className="text-2xl font-black text-slate-800 dark:text-slate-100 leading-none">{activeHolding.quantity.toLocaleString()} <span className="text-xs font-medium text-slate-500">shares</span></div>
-                          <div className="text-sm text-slate-500 font-mono mt-1">Avg: Rs. {(activeHolding.avgPrice || 0).toFixed(2)}</div>
-                      </div>
-                      <div className="text-right">
-                          <div className={`text-xl font-bold font-mono ${analysis.currentUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                              {analysis.currentUnrealizedPL >= 0 ? '+' : ''}{(analysis.currentUnrealizedPL || 0).toLocaleString(undefined, {maximumFractionDigits:0})}
-                          </div>
-                          <div className="text-[10px] text-slate-400 uppercase mt-0.5">Unrealized P&L</div>
-                      </div>
-                   </div>
-                </div>
-                
-                {/* Projected State */}
-                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800 shadow-sm relative overflow-hidden">
-                   <div className="absolute right-0 top-0 opacity-5 text-indigo-500 p-2"><Activity size={64} /></div>
-                   <h4 className="text-[10px] uppercase font-bold text-indigo-500 dark:text-indigo-400 mb-3 tracking-wider">Projected Remaining</h4>
-                   <div className="flex justify-between items-end relative z-10">
-                      <div>
-                          <div className="text-2xl font-black text-indigo-700 dark:text-indigo-300 leading-none">{analysis.finalRemainingQty.toLocaleString()} <span className="text-xs font-medium text-indigo-400">shares</span></div>
-                          <div className="text-sm text-indigo-500 font-mono mt-1">Avg: Rs. {(analysis.finalRemainingAvg || 0).toFixed(2)}</div>
-                      </div>
-                      <div className="text-right">
-                          <div className={`text-xl font-bold font-mono ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                              {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{(analysis.finalUnrealizedPL || 0).toLocaleString(undefined, {maximumFractionDigits:0})}
-                          </div>
-                          <div className="text-[10px] text-indigo-400 uppercase mt-0.5">Unrealized P&L</div>
-                      </div>
-                   </div>
-                </div>
-            </div>
-          ) : (
-            <div className="flex-1 w-full flex items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-slate-400">
-               Select an existing holding to start simulation.
-            </div>
-          )}
         </div>
+
+        {activeHolding ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/30">
+                  <th className="px-4 py-3 font-semibold">State</th>
+                  <th className="px-4 py-3 font-semibold text-right">Qty</th>
+                  <th className="px-4 py-3 font-semibold text-right">Avg Price</th>
+                  <th className="px-4 py-3 font-semibold text-right">Current Price</th>
+                  <th className="px-4 py-3 font-semibold text-right">Total Cost</th>
+                  <th className="px-4 py-3 font-semibold text-right">Market Value</th>
+                  <th className="px-4 py-3 font-semibold text-right">Unrealized P&L</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+                
+                {/* CURRENT HOLDING */}
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                  <td className="px-4 py-4 font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-slate-400"></div> Current Holding
+                  </td>
+                  <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{activeHolding.quantity.toLocaleString()}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs text-slate-500 dark:text-slate-400">{activeHolding.avgPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{activeHolding.currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs text-slate-500 dark:text-slate-400">{(activeHolding.quantity * activeHolding.avgPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs text-slate-900 dark:text-slate-100 font-bold">{(activeHolding.quantity * activeHolding.currentPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right">
+                     <div className={`flex flex-col items-end ${analysis.currentUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                        <span className="font-bold text-sm">{analysis.currentUnrealizedPL >= 0 ? '+' : ''}{analysis.currentUnrealizedPL.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                        <span className="text-[10px] opacity-80 font-mono flex items-center gap-0.5">
+                            {analysis.currentUnrealizedPL >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            {((activeHolding.quantity * activeHolding.avgPrice) > 0 ? ((analysis.currentUnrealizedPL / (activeHolding.quantity * activeHolding.avgPrice)) * 100) : 0).toFixed(2)}%
+                        </span>
+                     </div>
+                  </td>
+                </tr>
+
+                {/* PROJECTED REMAINING */}
+                <tr className="bg-indigo-50/40 dark:bg-indigo-900/20 hover:bg-indigo-50/80 dark:hover:bg-indigo-900/40 transition-colors">
+                  <td className="px-4 py-4 font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]"></div> Projected Remaining
+                  </td>
+                  <td className="px-4 py-4 text-right text-indigo-700 dark:text-indigo-300 font-medium">{analysis.finalRemainingQty.toLocaleString()}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs text-indigo-600 dark:text-indigo-400">{analysis.finalRemainingAvg.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{activeHolding.currentPrice.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs text-indigo-500 dark:text-indigo-400">{(analysis.finalRemainingQty * analysis.finalRemainingAvg).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right font-mono text-xs text-indigo-900 dark:text-indigo-100 font-bold">{(analysis.finalRemainingQty * activeHolding.currentPrice).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                  <td className="px-4 py-4 text-right">
+                     <div className={`flex flex-col items-end ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                        <span className="font-bold text-sm">{analysis.finalUnrealizedPL >= 0 ? '+' : ''}{analysis.finalUnrealizedPL.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: 0})}</span>
+                        <span className="text-[10px] opacity-80 font-mono flex items-center gap-0.5">
+                            {analysis.finalUnrealizedPL >= 0 ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                            {((analysis.finalRemainingQty * analysis.finalRemainingAvg) > 0 ? ((analysis.finalUnrealizedPL / (analysis.finalRemainingQty * analysis.finalRemainingAvg)) * 100) : 0).toFixed(2)}%
+                        </span>
+                     </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="p-10 text-center text-slate-400 flex flex-col items-center justify-center bg-white dark:bg-slate-900">
+             <Activity size={48} className="opacity-20 mb-4" />
+             <p>Select a stock from your holdings to view current status and begin simulation.</p>
+          </div>
+        )}
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -274,7 +297,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
         <div className="space-y-4">
           <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm">
-              <ArrowUpCircle size={18} /> Buy Simulator
+              <ArrowUpCircle size={18} /> Add Buy Positions
             </h3>
             <button onClick={addBuyRow} disabled={!activeHolding} className="p-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 transition-colors disabled:opacity-50">
               <Plus size={16} />
@@ -336,7 +359,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                 <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-700">
                     <div className="flex flex-col text-right">
                         <span className="text-[9px] text-slate-400 uppercase font-bold">Avg w/ Fees</span>
-                        <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">Rs {pos.avgBuy.toFixed(2)}</span>
+                        <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">Rs {(pos.avgBuy || 0).toFixed(2)}</span>
                     </div>
                     <button onClick={() => setBuyPositions(buyPositions.filter(p => p.id !== pos.id))} className="p-2 bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-colors">
                       <Trash2 size={14} />
@@ -367,7 +390,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
         <div className="space-y-4">
           <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
             <h3 className="font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400 text-sm">
-              <ArrowDownCircle size={18} /> Sell Simulator
+              <ArrowDownCircle size={18} /> Add Sell Positions
             </h3>
             <button onClick={addSellRow} disabled={!activeHolding} className="p-1.5 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-lg hover:bg-rose-200 transition-colors disabled:opacity-50">
               <Plus size={16} />
