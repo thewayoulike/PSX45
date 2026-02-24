@@ -1,7 +1,8 @@
+// src/components/TradingSimulator.tsx
 import React, { useState, useMemo } from 'react';
 import { Holding, Broker } from '../types';
 import { Card } from './ui/Card';
-import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Info, Activity, Calculator } from 'lucide-react';
+import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Info, Activity, Calculator, PieChart } from 'lucide-react';
 
 interface TradingSimulatorProps {
   holdings: Holding[];
@@ -28,11 +29,9 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
   const [sellPositions, setSellPositions] = useState<SimSell[]>([]);
 
   const activeHolding = holdings.find(h => h.ticker === selectedTicker);
-  // Safely fallback to the first available broker, or a mock object if none exist
   const broker = brokers.find(b => b.id === defaultBrokerId) || brokers[0] || {} as Broker;
 
   const calculateFees = (price: number, qty: number) => {
-    // Defensive checks to prevent any math/undefined errors
     if (!price || !qty || !broker || !broker.commissionType) return { total: 0 };
     
     const amount = price * qty;
@@ -67,89 +66,130 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
     return { total: commission + sst + cdc };
   };
 
-  const buyAnalysis = useMemo(() => {
-    let totalQty = 0;
-    let totalCostWithFees = 0;
+  const analysis = useMemo(() => {
+    let totalBuyQty = 0;
+    let totalBuyCostWithFees = 0;
     
-    const rows = buyPositions.map(p => {
+    // Process Buys
+    const processedBuys = buyPositions.map(p => {
         const fees = calculateFees(p.price, p.quantity);
         const cost = (p.price * p.quantity) + fees.total;
         const avgBuy = p.quantity > 0 ? cost / p.quantity : 0;
-        totalQty += p.quantity;
-        totalCostWithFees += cost;
+        totalBuyQty += p.quantity;
+        totalBuyCostWithFees += cost;
         return { ...p, fees: fees.total, totalCost: cost, avgBuy };
     });
 
     const currentQty = activeHolding?.quantity || 0;
-    const currentCost = currentQty * (activeHolding?.avgPrice || 0);
-    const overallQty = currentQty + totalQty;
-    const overallAvg = overallQty > 0 ? (currentCost + totalCostWithFees) / overallQty : 0;
+    const currentAvg = activeHolding?.avgPrice || 0;
+    const currentPrice = activeHolding?.currentPrice || 0;
+    
+    let historicalQty = currentQty;
+    const historicalCost = currentAvg;
 
-    return { rows, totalQty, totalCostWithFees, overallQty, overallAvg };
-  }, [buyPositions, activeHolding, broker]);
+    // Create a pool of simulated buys for intraday matching
+    const newBuyLots = processedBuys.map(r => ({ id: r.id, qty: r.quantity, cost: r.avgBuy }));
 
-  const sellAnalysis = useMemo(() => {
     let totalProfit = 0;
     let totalSellFees = 0;
 
-    // Deep copy intraday lots from the buy simulation
-    const intradayLots = buyAnalysis.rows.map(r => ({ id: r.id, qty: r.quantity, cost: r.avgBuy })).filter(r => r.qty > 0);
-    
-    let historicalQty = activeHolding?.quantity || 0;
-    const historicalCost = activeHolding?.avgPrice || 0;
-
-    const rows = sellPositions.map(p => {
-        const fees = p.isIntraday ? { total: 0 } : calculateFees(p.price, p.quantity);
-        const netRevenue = (p.quantity * p.price) - fees.total;
-        
+    // Process Sells (FIFO / Intraday Logic)
+    const processedSells = sellPositions.map(p => {
         let qtyToFill = p.quantity;
         let costBasis = 0;
+        
+        let filledIntraday = 0;
+        let filledStandard = 0;
 
         if (p.isIntraday) {
-            // Intraday Priority
-            for (const lot of intradayLots) {
+            // 1. Consume Simulated Buys First (Intraday -> 0 Fees)
+            for (const lot of newBuyLots) {
                 if (qtyToFill <= 0) break;
                 const match = Math.min(qtyToFill, lot.qty);
                 costBasis += match * lot.cost;
                 lot.qty -= match;
                 qtyToFill -= match;
+                filledIntraday += match;
             }
+            // 2. If short, consume from historical holds (FIFO -> Standard Fees)
             if (qtyToFill > 0 && historicalQty > 0) {
                 const match = Math.min(qtyToFill, historicalQty);
                 costBasis += match * historicalCost;
                 historicalQty -= match;
                 qtyToFill -= match;
+                filledStandard += match;
             }
         } else {
-            // FIFO Priority
+            // 1. Standard FIFO: Consume Historical Holds First (Standard Fees)
             if (qtyToFill > 0 && historicalQty > 0) {
                 const match = Math.min(qtyToFill, historicalQty);
                 costBasis += match * historicalCost;
                 historicalQty -= match;
                 qtyToFill -= match;
+                filledStandard += match;
             }
-            for (const lot of intradayLots) {
+            // 2. Then consume Simulated Buys (Still Standard Fees because not intraday)
+            for (const lot of newBuyLots) {
                 if (qtyToFill <= 0) break;
                 const match = Math.min(qtyToFill, lot.qty);
                 costBasis += match * lot.cost;
                 lot.qty -= match;
                 qtyToFill -= match;
+                filledStandard += match;
             }
         }
 
-        const profit = netRevenue - costBasis; 
+        // Apply selling fees ONLY to the Standard Filled portion
+        const standardFees = calculateFees(p.price, filledStandard).total;
+        const sellFees = standardFees;
+        
+        const netRevenue = (p.quantity * p.price) - sellFees;
+        const profit = netRevenue - costBasis;
+        
         totalProfit += profit;
-        totalSellFees += fees.total;
+        totalSellFees += sellFees;
 
-        return { ...p, fees: fees.total, netRevenue, costBasis, profit, unfilled: qtyToFill };
+        return { ...p, fees: sellFees, netRevenue, costBasis, profit, unfilled: qtyToFill, filledIntraday, filledStandard };
     });
 
-    return { rows, totalProfit, totalSellFees };
-  }, [sellPositions, buyAnalysis, activeHolding, broker]);
+    // Calculate Final Remaining State
+    const remainingHistoricalQty = historicalQty;
+    const remainingNewBuyLots = newBuyLots.filter(l => l.qty > 0);
+    
+    let finalRemainingQty = remainingHistoricalQty;
+    let finalRemainingCost = remainingHistoricalQty * historicalCost;
+    
+    remainingNewBuyLots.forEach(l => {
+        finalRemainingQty += l.qty;
+        finalRemainingCost += (l.qty * l.cost);
+    });
+
+    const finalRemainingAvg = finalRemainingQty > 0 ? finalRemainingCost / finalRemainingQty : 0;
+    const finalUnrealizedPL = finalRemainingQty > 0 ? (currentPrice - finalRemainingAvg) * finalRemainingQty : 0;
+    const currentUnrealizedPL = currentQty > 0 ? (currentPrice - currentAvg) * currentQty : 0;
+    
+    // Overall Buy Stats (ignoring sells, just for the buy box summary)
+    const overallQtyAfterBuys = currentQty + totalBuyQty;
+    const overallAvgAfterBuys = overallQtyAfterBuys > 0 ? ((currentQty * currentAvg) + totalBuyCostWithFees) / overallQtyAfterBuys : 0;
+
+    return { 
+        buys: processedBuys, 
+        sells: processedSells, 
+        totalBuyQty, 
+        totalBuyCostWithFees, 
+        overallQtyAfterBuys, 
+        overallAvgAfterBuys,
+        totalProfit, 
+        totalSellFees,
+        finalRemainingQty,
+        finalRemainingAvg,
+        finalUnrealizedPL,
+        currentUnrealizedPL
+    };
+  }, [buyPositions, sellPositions, activeHolding, broker]);
 
   const addBuyRow = () => {
     if (buyPositions.length < 10) {
-      // Math.random ensures absolute unique keys to prevent React crashes
       setBuyPositions([...buyPositions, { id: Math.random().toString(36).substring(2, 10), quantity: 0, price: activeHolding?.currentPrice || 0 }]);
     }
   };
@@ -163,9 +203,10 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
   return (
     <div className="space-y-6 max-w-6xl mx-auto p-4 animate-in fade-in slide-in-from-bottom-5 duration-700">
       
+      {/* 1. HOLDING SELECTOR & PORTFOLIO STATE */}
       <Card className="p-6">
-        <div className="flex flex-col md:flex-row gap-6 items-center">
-          <div className="w-full md:w-1/3">
+        <div className="flex flex-col lg:flex-row gap-6 items-start lg:items-center">
+          <div className="w-full lg:w-1/4">
             <label className="block text-sm font-bold text-slate-500 mb-2">Select Stock</label>
             <select 
               className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
@@ -182,23 +223,42 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
           </div>
           
           {activeHolding ? (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1 w-full">
-              <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Current Qty</p>
-                <p className="font-black text-slate-800 dark:text-slate-200">{activeHolding.quantity.toLocaleString()}</p>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Current Avg</p>
-                <p className="font-black text-slate-800 dark:text-slate-200 font-mono">Rs. {(activeHolding.avgPrice || 0).toFixed(2)}</p>
-              </div>
-              <div className="p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
-                <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Market Price</p>
-                <p className="font-black text-emerald-600 dark:text-emerald-400 font-mono">Rs. {(activeHolding.currentPrice || 0).toFixed(2)}</p>
-              </div>
-              <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800">
-                <p className="text-[10px] uppercase font-bold text-emerald-600 mb-1">Exit Break-even</p>
-                <p className="font-black text-emerald-700 dark:text-emerald-300 font-mono">Rs. {((activeHolding.avgPrice || 0) * 1.005).toFixed(2)}</p>
-              </div>
+            <div className="flex-1 w-full grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Current State */}
+                <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden">
+                   <div className="absolute right-0 top-0 opacity-5 p-2"><PieChart size={64} /></div>
+                   <h4 className="text-[10px] uppercase font-bold text-slate-400 mb-3 tracking-wider">Current Position</h4>
+                   <div className="flex justify-between items-end relative z-10">
+                      <div>
+                          <div className="text-2xl font-black text-slate-800 dark:text-slate-100 leading-none">{activeHolding.quantity.toLocaleString()} <span className="text-xs font-medium text-slate-500">shares</span></div>
+                          <div className="text-sm text-slate-500 font-mono mt-1">Avg: Rs. {(activeHolding.avgPrice || 0).toFixed(2)}</div>
+                      </div>
+                      <div className="text-right">
+                          <div className={`text-xl font-bold font-mono ${analysis.currentUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                              {analysis.currentUnrealizedPL >= 0 ? '+' : ''}{(analysis.currentUnrealizedPL || 0).toLocaleString(undefined, {maximumFractionDigits:0})}
+                          </div>
+                          <div className="text-[10px] text-slate-400 uppercase mt-0.5">Unrealized P&L</div>
+                      </div>
+                   </div>
+                </div>
+                
+                {/* Projected State */}
+                <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800 shadow-sm relative overflow-hidden">
+                   <div className="absolute right-0 top-0 opacity-5 text-indigo-500 p-2"><Activity size={64} /></div>
+                   <h4 className="text-[10px] uppercase font-bold text-indigo-500 dark:text-indigo-400 mb-3 tracking-wider">Projected Remaining</h4>
+                   <div className="flex justify-between items-end relative z-10">
+                      <div>
+                          <div className="text-2xl font-black text-indigo-700 dark:text-indigo-300 leading-none">{analysis.finalRemainingQty.toLocaleString()} <span className="text-xs font-medium text-indigo-400">shares</span></div>
+                          <div className="text-sm text-indigo-500 font-mono mt-1">Avg: Rs. {(analysis.finalRemainingAvg || 0).toFixed(2)}</div>
+                      </div>
+                      <div className="text-right">
+                          <div className={`text-xl font-bold font-mono ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                              {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{(analysis.finalUnrealizedPL || 0).toLocaleString(undefined, {maximumFractionDigits:0})}
+                          </div>
+                          <div className="text-[10px] text-indigo-400 uppercase mt-0.5">Unrealized P&L</div>
+                      </div>
+                   </div>
+                </div>
             </div>
           ) : (
             <div className="flex-1 w-full flex items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-xl text-slate-400">
@@ -222,7 +282,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
           </div>
           
           <div className="space-y-2">
-            {buyAnalysis.rows.map((pos, idx) => (
+            {analysis.buys.map((pos, idx) => (
               <div key={pos.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-l-4 border-l-emerald-500 shadow-sm">
                 
                 <div className="flex flex-col gap-1 w-full sm:flex-1">
@@ -291,12 +351,12 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                 <div className="absolute -right-4 -top-4 opacity-10"><Calculator size={100} /></div>
                 <div className="relative z-10">
                     <div className="flex justify-between items-end mb-2 border-b border-emerald-400/30 pb-3">
-                        <span className="text-sm font-bold uppercase tracking-wider text-emerald-100">New Overall Avg</span>
-                        <span className="text-3xl font-black tracking-tight">Rs. {(buyAnalysis.overallAvg || 0).toFixed(2)}</span>
+                        <span className="text-sm font-bold uppercase tracking-wider text-emerald-100">Avg After Buys</span>
+                        <span className="text-3xl font-black tracking-tight">Rs. {(analysis.overallAvgAfterBuys || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between text-xs font-medium text-emerald-50 pt-1">
-                        <span>Total Shares: {(buyAnalysis.overallQty || 0).toLocaleString()}</span>
-                        <span>Extra Cost: Rs. {(buyAnalysis.totalCostWithFees || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>Total Shares: {(analysis.overallQtyAfterBuys || 0).toLocaleString()}</span>
+                        <span>Extra Cost: Rs. {(analysis.totalBuyCostWithFees || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                     </div>
                 </div>
             </div>
@@ -315,7 +375,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
           </div>
 
           <div className="space-y-2">
-            {sellAnalysis.rows.map((pos, idx) => (
+            {analysis.sells.map((pos, idx) => (
               <div key={pos.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-l-4 border-l-rose-500 shadow-sm">
                 
                 <div className="flex items-end gap-2 w-full sm:flex-1">
@@ -382,12 +442,12 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                 <div className="relative z-10">
                     <div className="flex justify-between items-end mb-2 border-b border-slate-700 pb-3">
                         <span className="text-sm font-bold uppercase tracking-wider text-slate-400">Total Net Profit</span>
-                        <span className={`text-3xl font-black tracking-tight ${sellAnalysis.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                            {sellAnalysis.totalProfit >= 0 ? '+' : ''}Rs. {(sellAnalysis.totalProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        <span className={`text-3xl font-black tracking-tight ${analysis.totalProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {analysis.totalProfit >= 0 ? '+' : ''}Rs. {(analysis.totalProfit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                         </span>
                     </div>
                     <div className="flex justify-between text-xs font-medium text-slate-500 pt-1">
-                        <span>Exit Fees: Rs. {(sellAnalysis.totalSellFees || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>Exit Fees: Rs. {(analysis.totalSellFees || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
                         <span>(FIFO Execution Used)</span>
                     </div>
                 </div>
@@ -416,7 +476,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {buyAnalysis.rows.map((r, i) => (
+                {analysis.buys.map((r, i) => (
                     <tr key={`buy-${r.id}-${i}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="p-4">
                         <span className="bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 font-black px-2 py-1 rounded text-[10px] border border-emerald-100 dark:border-emerald-800">
@@ -433,17 +493,18 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                       </td>
                     </tr>
                 ))}
-                {sellAnalysis.rows.map((r, i) => (
+                {analysis.sells.map((r, i) => (
                     <tr key={`sell-${r.id}-${i}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                       <td className="p-4 flex items-center gap-2">
                         <span className="bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400 font-black px-2 py-1 rounded text-[10px] border border-rose-100 dark:border-rose-800">
                            SELL
                         </span>
-                        {r.isIntraday && <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold text-[9px] uppercase">Intraday</span>}
+                        {r.isIntraday && r.filledIntraday > 0 && <span className="bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-400 px-1.5 py-0.5 rounded font-bold text-[9px] uppercase">Intraday</span>}
                       </td>
                       <td className="p-4 text-right font-medium text-slate-700 dark:text-slate-300">
                           {(r.quantity || 0).toLocaleString()} 
                           {r.unfilled > 0 && <span className="block text-rose-500 text-[9px] font-bold mt-0.5" title="Short sale (insufficient holdings)">Unfilled: {r.unfilled}</span>}
+                          {r.isIntraday && r.filledStandard > 0 && <span className="block text-orange-500 text-[9px] font-bold mt-0.5" title="Standard fees applied to this portion">FIFO Used: {r.filledStandard}</span>}
                       </td>
                       <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-400">{(r.price || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
                       <td className="p-4 text-right font-mono text-xs text-slate-400">{(r.fees || 0).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
@@ -465,7 +526,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
           <Info size={18} className="shrink-0 mt-0.5 opacity-80" />
           <div className="space-y-1 opacity-90 leading-relaxed">
              <p>This simulator accurately applies the <strong>{broker?.name || 'Default'}</strong> fee structure.</p>
-             <p>Sales are calculated using strict <strong>FIFO</strong> (First-In, First-Out) logic against your current average cost. <em>Intraday</em> sales bypass exit fees and automatically match against the simulated buys added above.</p>
+             <p>Sales are calculated using strict <strong>FIFO</strong> (First-In, First-Out) logic. <em>Intraday</em> sales bypass exit fees ONLY for the portion that matches the simulated buys added above. If the sell quantity exceeds the new buys, the remainder draws from existing holdings and incurs standard exit fees.</p>
           </div>
       </div>
     </div>
