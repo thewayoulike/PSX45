@@ -1,14 +1,28 @@
 // src/components/TradingSimulator.tsx
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Holding, Broker, Transaction } from '../types';
 import { Card } from './ui/Card';
-import { Plus, Trash2, ArrowUpCircle, ArrowDownCircle, Info, Activity, Calculator, TrendingUp, TrendingDown, Crosshair, PieChart, LineChart } from 'lucide-react';
+import { 
+  Plus, 
+  Trash2, 
+  ArrowUpCircle, 
+  ArrowDownCircle, 
+  Info, 
+  Activity, 
+  Calculator, 
+  TrendingUp, 
+  TrendingDown, 
+  Crosshair, 
+  PieChart, 
+  LineChart,
+  CheckSquare // <-- Added missing import here
+} from 'lucide-react';
 
 interface TradingSimulatorProps {
   holdings: Holding[];
   brokers: Broker[];
   defaultBrokerId: string;
-  transactions?: Transaction[]; // Passed from App.tsx to calculate lots
+  transactions?: Transaction[]; 
 }
 
 interface SimBuy {
@@ -33,7 +47,6 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
   const activeHolding = holdings.find(h => h.ticker === selectedTicker);
   const broker = brokers.find(b => b.id === defaultBrokerId) || brokers[0] || {} as Broker;
 
-  // The active target price used for evaluating remaining unrealized P&L
   const targetPrice = customTargetPrice !== '' ? Number(customTargetPrice) : (activeHolding?.currentPrice || 0);
 
   const calculateFees = (price: number, qty: number) => {
@@ -62,7 +75,6 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
     return { total: commission + sst + cdc };
   };
 
-  // Reconstruct Open Lots using strict FIFO
   const openLots = useMemo(() => {
     if (!selectedTicker) return [];
     if (!transactions || transactions.length === 0) {
