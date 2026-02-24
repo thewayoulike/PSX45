@@ -15,7 +15,8 @@ import {
   Crosshair, 
   PieChart, 
   LineChart,
-  CheckSquare // <-- Added missing import here
+  CheckSquare,
+  History
 } from 'lucide-react';
 
 interface TradingSimulatorProps {
@@ -75,11 +76,15 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
     return { total: commission + sst + cdc };
   };
 
-  const openLots = useMemo(() => {
-    if (!selectedTicker) return [];
+  const historicalState = useMemo(() => {
+    if (!selectedTicker) return { openLots: [], historicalRealizedPL: 0 };
+    
     if (!transactions || transactions.length === 0) {
-        if (activeHolding) return [{ id: 'base', date: 'Aggregate', quantity: activeHolding.quantity, price: activeHolding.avgPrice, costPerShare: activeHolding.avgPrice }];
-        return [];
+        if (activeHolding) return {
+            openLots: [{ id: 'base', date: 'Aggregate', quantity: activeHolding.quantity, price: activeHolding.avgPrice, costPerShare: activeHolding.avgPrice }],
+            historicalRealizedPL: 0
+        };
+        return { openLots: [], historicalRealizedPL: 0 };
     }
 
     const txs = transactions.filter(t => t.ticker === selectedTicker).sort((a,b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -88,6 +93,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
 
     const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
     const lots: { id: string, date: string, quantity: number, price: number, costPerShare: number }[] = [];
+    let histRealized = 0;
 
     sortedDates.forEach(date => {
         const dayTxs = txsByDate[date];
@@ -101,22 +107,39 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
 
         daySells.forEach(sellTx => {
             let qtyToSell = sellTx.quantity;
+            const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
+            const netProceeds = (sellTx.quantity * sellTx.price) - sellFees;
+            let costBasis = 0;
+
             for (const buyLot of dayBuyLots) {
                 if (qtyToSell <= 0.0001) break;
-                if (buyLot.quantity > 0) { const match = Math.min(qtyToSell, buyLot.quantity); buyLot.quantity -= match; qtyToSell -= match; }
+                if (buyLot.quantity > 0) { 
+                    const match = Math.min(qtyToSell, buyLot.quantity); 
+                    costBasis += match * buyLot.costPerShare;
+                    buyLot.quantity -= match; 
+                    qtyToSell -= match; 
+                }
             }
             while (qtyToSell > 0.0001 && lots.length > 0) {
                 const fifoLot = lots[0];
                 const match = Math.min(qtyToSell, fifoLot.quantity);
-                fifoLot.quantity -= match; qtyToSell -= match;
+                costBasis += match * fifoLot.costPerShare;
+                fifoLot.quantity -= match; 
+                qtyToSell -= match;
                 if (fifoLot.quantity < 0.0001) lots.shift();
             }
+
+            histRealized += (netProceeds - costBasis);
         });
+
+        // Include any manual PnL adjustments or CGT taxes stored in history
+        dayTxs.filter(t => t.type === 'HISTORY').forEach(t => histRealized += t.price);
+        dayTxs.filter(t => t.type === 'TAX').forEach(t => histRealized -= t.price);
 
         dayBuyLots.forEach(l => { if (l.quantity > 0.0001) lots.push(l); });
     });
 
-    return lots;
+    return { openLots: lots, historicalRealizedPL: histRealized };
   }, [selectedTicker, transactions, activeHolding]);
 
   const analysis = useMemo(() => {
@@ -131,7 +154,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
         return { ...p, fees: fees.total, totalCost: cost, avgBuy };
     });
 
-    let pool = openLots.map(l => ({ ...l }));
+    let pool = historicalState.openLots.map(l => ({ ...l }));
     const newBuyLots = processedBuys.map(r => ({ id: r.id, qty: r.quantity, cost: r.avgBuy }));
     
     let totalProfit = 0;
@@ -182,14 +205,23 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
     });
 
     const finalRemainingAvg = finalRemainingQty > 0 ? finalRemainingCost / finalRemainingQty : 0;
-    const finalUnrealizedPL = finalRemainingQty > 0 ? (targetPrice - finalRemainingAvg) * finalRemainingQty : 0;
-    const currentUnrealizedPL = (activeHolding?.quantity || 0) > 0 ? (targetPrice - (activeHolding?.avgPrice || 0)) * (activeHolding?.quantity || 0) : 0;
     
+    // Projected Unrealized P&L (WITH EXIT FEES DEDUCTED)
+    const finalExitFees = calculateFees(targetPrice, finalRemainingQty).total;
+    const finalUnrealizedPL = finalRemainingQty > 0 ? (finalRemainingQty * targetPrice) - finalRemainingCost - finalExitFees : 0;
+    
+    const currentExitFees = calculateFees(targetPrice, activeHolding?.quantity || 0).total;
+    const currentUnrealizedPL = (activeHolding?.quantity || 0) > 0 ? ((activeHolding?.quantity || 0) * targetPrice) - ((activeHolding?.quantity || 0) * (activeHolding?.avgPrice || 0)) - currentExitFees : 0;
+    
+    // Absolute Lifetime Net
+    const totalLifetimeNet = historicalState.historicalRealizedPL + totalProfit + finalUnrealizedPL;
+
     return { 
         buys: processedBuys, sells: processedSells, totalBuyQty, totalBuyCostWithFees, 
-        totalProfit, totalSellFees, finalRemainingQty, finalRemainingAvg, finalUnrealizedPL, currentUnrealizedPL
+        totalProfit, totalSellFees, finalRemainingQty, finalRemainingAvg, finalUnrealizedPL, currentUnrealizedPL,
+        finalExitFees, currentExitFees, totalLifetimeNet
     };
-  }, [buyPositions, sellPositions, activeHolding, broker, openLots, targetPrice]);
+  }, [buyPositions, sellPositions, activeHolding, broker, historicalState, targetPrice]);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-5 duration-700">
@@ -234,7 +266,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
       </Card>
 
       {/* OPEN LOTS BREAKDOWN */}
-      {activeHolding && openLots.length > 0 && (
+      {activeHolding && historicalState.openLots.length > 0 && (
           <Card className="p-0 overflow-hidden border-slate-200 dark:border-slate-700">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
                   <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-sm">
@@ -249,15 +281,16 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                               <th className="p-4 font-semibold text-right">Quantity</th>
                               <th className="p-4 font-semibold text-right">Avg Cost</th>
                               <th className="p-4 font-semibold text-right">Total Cost</th>
-                              <th className="p-4 font-semibold text-right">Market Value (@ Target)</th>
-                              <th className="p-4 font-semibold text-right">Unrealized P&L</th>
+                              <th className="p-4 font-semibold text-right">Value (@ Target)</th>
+                              <th className="p-4 font-semibold text-right">Net P&L (After Exit Fees)</th>
                           </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-                          {openLots.map((lot, idx) => {
+                          {historicalState.openLots.map((lot, idx) => {
                               const cost = lot.quantity * lot.costPerShare;
                               const value = lot.quantity * targetPrice;
-                              const pnl = value - cost;
+                              const exitFees = calculateFees(targetPrice, lot.quantity).total;
+                              const pnl = value - cost - exitFees;
                               return (
                                   <tr key={lot.id + idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                                       <td className="p-4 text-slate-600 dark:text-slate-400 font-mono text-xs">{lot.date}</td>
@@ -379,50 +412,48 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
         </div>
       </div>
 
-      {/* OVERALL SUMMARY CARD */}
-      {(buyPositions.length > 0 || sellPositions.length > 0) && (
+      {/* OVERALL ABSOLUTE SUMMARY CARD */}
+      {activeHolding && (
           <Card className="p-0 overflow-hidden border-indigo-200 dark:border-indigo-800/50 shadow-xl bg-gradient-to-br from-white to-indigo-50/30 dark:from-slate-900 dark:to-indigo-950/20">
               <div className="p-4 bg-indigo-600 dark:bg-indigo-900/50 border-b border-indigo-500 dark:border-indigo-800 flex items-center gap-2 text-white">
                   <LineChart size={20} />
-                  <h3 className="font-bold text-sm tracking-wide uppercase">Overall Portfolio Effect After Simulation</h3>
+                  <h3 className="font-bold text-sm tracking-wide uppercase">Total Lifetime Net Profit/Loss (If Closed at Target)</h3>
               </div>
               
-              <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-6">
+              <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-6 relative">
                   <div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1">Target Price Used</p>
-                      <p className="text-xl font-bold font-mono text-slate-800 dark:text-slate-200">Rs. {targetPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</p>
-                  </div>
-                  <div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><CheckSquare size={10}/> Realized Profit/Loss</p>
-                      <p className={`text-2xl font-black font-mono tracking-tight ${analysis.totalProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {analysis.totalProfit >= 0 ? '+' : ''}{analysis.totalProfit.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><History size={10}/> Past Realized (History)</p>
+                      <p className={`text-2xl font-black font-mono tracking-tight ${historicalState.historicalRealizedPL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {historicalState.historicalRealizedPL >= 0 ? '+' : ''}{historicalState.historicalRealizedPL.toLocaleString(undefined, {maximumFractionDigits: 0})}
                       </p>
                   </div>
                   <div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><PieChart size={10}/> Remaining Position</p>
-                      <p className="text-2xl font-black font-mono tracking-tight text-slate-800 dark:text-slate-200">{analysis.finalRemainingQty.toLocaleString()} <span className="text-xs text-slate-500 font-sans font-medium">shares</span></p>
-                      <p className="text-[10px] text-slate-500 font-mono mt-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded w-fit">Avg: Rs. {analysis.finalRemainingAvg.toLocaleString(undefined, {minimumFractionDigits:2})}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><CheckSquare size={10}/> Simulated Realized</p>
+                      <p className={`text-2xl font-black font-mono tracking-tight ${analysis.totalProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {analysis.totalProfit >= 0 ? '+' : ''}{analysis.totalProfit.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                      </p>
+                      {analysis.totalSellFees > 0 && <p className="text-[9px] text-slate-400 mt-1">Paid {analysis.totalSellFees.toLocaleString(undefined, {maximumFractionDigits:0})} in fees</p>}
                   </div>
                   <div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><Activity size={10}/> Remaining Unrealized</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><Activity size={10}/> Projected Unrealized</p>
                       <p className={`text-2xl font-black font-mono tracking-tight ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
                           {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{analysis.finalUnrealizedPL.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                      </p>
+                      {analysis.finalRemainingQty > 0 && <p className="text-[9px] text-slate-400 mt-1">Net of {analysis.finalExitFees.toLocaleString(undefined, {maximumFractionDigits:0})} estimated exit fees</p>}
+                  </div>
+
+                  <div className="absolute right-1/4 top-4 bottom-4 w-px bg-indigo-100 dark:bg-indigo-800/50 hidden md:block"></div>
+
+                  <div className="md:pl-4">
+                      <p className="text-[10px] text-indigo-500 dark:text-indigo-400 uppercase font-bold mb-1 flex items-center gap-1">Absolute Total P&L</p>
+                      <p className={`text-4xl font-black font-mono tracking-tighter ${analysis.totalLifetimeNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {analysis.totalLifetimeNet >= 0 ? '+' : ''}{analysis.totalLifetimeNet.toLocaleString(undefined, {maximumFractionDigits: 0})}
                       </p>
                   </div>
               </div>
 
-              {/* Total Net Change Footer */}
-              <div className="p-4 bg-indigo-50 dark:bg-indigo-900/30 border-t border-indigo-100 dark:border-indigo-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2">
-                  <div className="text-xs text-indigo-700 dark:text-indigo-300 font-medium">
-                      Net Value Change = Realized Profit + Change in Unrealized Value
-                  </div>
-                  <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-widest">Total Net Effect</span>
-                      <span className={`text-2xl font-black px-3 py-1 rounded-lg ${analysis.totalProfit + (analysis.finalUnrealizedPL - analysis.currentUnrealizedPL) >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400' : 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'}`}>
-                          {analysis.totalProfit + (analysis.finalUnrealizedPL - analysis.currentUnrealizedPL) >= 0 ? '+' : ''}
-                          {(analysis.totalProfit + (analysis.finalUnrealizedPL - analysis.currentUnrealizedPL)).toLocaleString(undefined, {maximumFractionDigits: 0})}
-                      </span>
-                  </div>
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 border-t border-indigo-100 dark:border-indigo-800 text-xs text-indigo-700 dark:text-indigo-300 font-medium text-center flex flex-col sm:flex-row justify-center items-center gap-2">
+                  <span>Absolute Total P&L = (Past Realized) + (Simulated Realized) + (Projected Unrealized)</span>
               </div>
           </Card>
       )}
