@@ -213,11 +213,15 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
     const currentExitFees = calculateFees(targetPrice, activeHolding?.quantity || 0).total;
     const currentUnrealizedPL = (activeHolding?.quantity || 0) > 0 ? ((activeHolding?.quantity || 0) * targetPrice) - ((activeHolding?.quantity || 0) * (activeHolding?.avgPrice || 0)) - currentExitFees : 0;
     
+    const overallQtyAfterBuys = (activeHolding?.quantity || 0) + totalBuyQty;
+    const overallAvgAfterBuys = overallQtyAfterBuys > 0 ? (((activeHolding?.quantity || 0) * (activeHolding?.avgPrice || 0)) + totalBuyCostWithFees) / overallQtyAfterBuys : 0;
+
     // Absolute Lifetime Net
     const totalLifetimeNet = historicalState.historicalRealizedPL + totalProfit + finalUnrealizedPL;
 
     return { 
         buys: processedBuys, sells: processedSells, totalBuyQty, totalBuyCostWithFees, 
+        overallQtyAfterBuys, overallAvgAfterBuys,
         totalProfit, totalSellFees, finalRemainingQty, finalRemainingAvg, finalUnrealizedPL, currentUnrealizedPL,
         finalExitFees, currentExitFees, totalLifetimeNet
     };
@@ -414,46 +418,79 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
 
       {/* OVERALL ABSOLUTE SUMMARY CARD */}
       {activeHolding && (
-          <Card className="p-0 overflow-hidden border-indigo-200 dark:border-indigo-800/50 shadow-xl bg-gradient-to-br from-white to-indigo-50/30 dark:from-slate-900 dark:to-indigo-950/20">
+          <Card className="p-0 overflow-hidden border-indigo-200 dark:border-indigo-800/50 shadow-xl bg-gradient-to-br from-white to-indigo-50/30 dark:from-slate-900 dark:to-indigo-950/20 mt-8">
               <div className="p-4 bg-indigo-600 dark:bg-indigo-900/50 border-b border-indigo-500 dark:border-indigo-800 flex items-center gap-2 text-white">
                   <LineChart size={20} />
-                  <h3 className="font-bold text-sm tracking-wide uppercase">Total Lifetime Net Profit/Loss (If Closed at Target)</h3>
+                  <h3 className="font-bold text-sm tracking-wide uppercase">Simulation Results & Lifetime Outcome</h3>
               </div>
               
-              <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-6 relative">
-                  <div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><History size={10}/> Past Realized (History)</p>
-                      <p className={`text-2xl font-black font-mono tracking-tight ${historicalState.historicalRealizedPL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {historicalState.historicalRealizedPL >= 0 ? '+' : ''}{historicalState.historicalRealizedPL.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                      </p>
-                  </div>
-                  <div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><CheckSquare size={10}/> Simulated Realized</p>
-                      <p className={`text-2xl font-black font-mono tracking-tight ${analysis.totalProfit >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {analysis.totalProfit >= 0 ? '+' : ''}{analysis.totalProfit.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                      </p>
-                      {analysis.totalSellFees > 0 && <p className="text-[9px] text-slate-400 mt-1">Paid {analysis.totalSellFees.toLocaleString(undefined, {maximumFractionDigits:0})} in fees</p>}
-                  </div>
-                  <div>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold mb-1 flex items-center gap-1"><Activity size={10}/> Projected Unrealized</p>
-                      <p className={`text-2xl font-black font-mono tracking-tight ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{analysis.finalUnrealizedPL.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                      </p>
-                      {analysis.finalRemainingQty > 0 && <p className="text-[9px] text-slate-400 mt-1">Net of {analysis.finalExitFees.toLocaleString(undefined, {maximumFractionDigits:0})} estimated exit fees</p>}
+              <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+                  
+                  {/* COLUMN 1: INTERMEDIATE STATE (AFTER BUYS) */}
+                  <div className="bg-white/50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-3 flex items-center gap-1"><ArrowUpCircle size={14}/> State After Simulated Buys</h4>
+                      <div className="flex justify-between items-end mb-2">
+                          <span className="text-xs text-slate-500">Total Shares</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{analysis.overallQtyAfterBuys.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-end">
+                          <span className="text-xs text-slate-500">New Average Price</span>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">Rs. {analysis.overallAvgAfterBuys.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                      </div>
                   </div>
 
-                  <div className="absolute right-1/4 top-4 bottom-4 w-px bg-indigo-100 dark:bg-indigo-800/50 hidden md:block"></div>
-
-                  <div className="md:pl-4">
-                      <p className="text-[10px] text-indigo-500 dark:text-indigo-400 uppercase font-bold mb-1 flex items-center gap-1">Absolute Total P&L</p>
-                      <p className={`text-4xl font-black font-mono tracking-tighter ${analysis.totalLifetimeNet >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {analysis.totalLifetimeNet >= 0 ? '+' : ''}{analysis.totalLifetimeNet.toLocaleString(undefined, {maximumFractionDigits: 0})}
-                      </p>
+                  {/* COLUMN 2: FINAL STATE (AFTER SELLS) */}
+                  <div className="bg-white/50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-3 flex items-center gap-1"><ArrowDownCircle size={14}/> Final Remaining State</h4>
+                      <div className="flex justify-between items-end mb-2">
+                          <span className="text-xs text-slate-500">Remaining Shares</span>
+                          <span className="font-bold text-slate-800 dark:text-slate-200">{analysis.finalRemainingQty.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between items-end mb-2">
+                          <span className="text-xs text-slate-500">Remaining Avg Price</span>
+                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">Rs. {analysis.finalRemainingAvg.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                      </div>
+                      <div className="flex justify-between items-end pt-2 border-t border-slate-200 dark:border-slate-700">
+                          <span className="text-[10px] text-slate-500 leading-tight">Projected Unrealized<br/>(At Target Price)</span>
+                          <span className={`font-mono font-bold ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                              {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{analysis.finalUnrealizedPL.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                          </span>
+                      </div>
                   </div>
-              </div>
 
-              <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 border-t border-indigo-100 dark:border-indigo-800 text-xs text-indigo-700 dark:text-indigo-300 font-medium text-center flex flex-col sm:flex-row justify-center items-center gap-2">
-                  <span>Absolute Total P&L = (Past Realized) + (Simulated Realized) + (Projected Unrealized)</span>
+                  {/* COLUMN 3: LIFETIME P&L */}
+                  <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800 relative">
+                      <h4 className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-1"><Calculator size={14}/> Total Absolute P&L</h4>
+                      
+                      <div className="space-y-1 mb-3 text-xs">
+                          <div className="flex justify-between">
+                              <span className="text-slate-500">Past Realized</span>
+                              <span className={`font-mono ${historicalState.historicalRealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {historicalState.historicalRealizedPL >= 0 ? '+' : ''}{historicalState.historicalRealizedPL.toLocaleString(undefined, {maximumFractionDigits:0})}
+                              </span>
+                          </div>
+                          <div className="flex justify-between">
+                              <span className="text-slate-500">Simulated Realized</span>
+                              <span className={`font-mono ${analysis.totalProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {analysis.totalProfit >= 0 ? '+' : ''}{analysis.totalProfit.toLocaleString(undefined, {maximumFractionDigits:0})}
+                              </span>
+                          </div>
+                          <div className="flex justify-between">
+                              <span className="text-slate-500">Projected Unrealized</span>
+                              <span className={`font-mono ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                  {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{analysis.finalUnrealizedPL.toLocaleString(undefined, {maximumFractionDigits:0})}
+                              </span>
+                          </div>
+                      </div>
+
+                      <div className="border-t border-indigo-200 dark:border-indigo-800/50 pt-2 flex justify-between items-center">
+                          <span className="text-[10px] font-bold text-indigo-800 dark:text-indigo-200 uppercase">Overall Net</span>
+                          <span className={`text-xl font-black font-mono tracking-tighter ${analysis.totalLifetimeNet >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                              {analysis.totalLifetimeNet >= 0 ? '+' : ''}{analysis.totalLifetimeNet.toLocaleString(undefined, {maximumFractionDigits: 0})}
+                          </span>
+                      </div>
+                  </div>
+
               </div>
           </Card>
       )}
