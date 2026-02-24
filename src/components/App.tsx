@@ -17,10 +17,11 @@ import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
 import { TransferModal } from './TransferModal';
+import { TradingSimulator } from './TradingSimulator';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft } from 'lucide-react'; 
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft, Calculator } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 import { ThemeToggle } from './ui/ThemeToggle'; 
 import * as Popover from '@radix-ui/react-popover'; 
@@ -42,7 +43,7 @@ const DEFAULT_BROKER: Broker = {
 
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS';
+type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'CALCULATOR';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -860,6 +861,11 @@ const App: React.FC = () => {
                         <ChartCandlestick size={16} className="sm:w-[18px] sm:h-[18px]" /> Stocks 
                     </button>
 
+                    {/* NEW CALCULATOR TAB HERE */}
+                    <button onClick={() => setCurrentView('CALCULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'CALCULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
+                        <Calculator size={16} className="sm:w-[18px] sm:h-[18px]" /> Simulator
+                    </button>
+
                     <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <CheckCircle2 size={16} className="sm:w-[18px] sm:h-[18px]" /> Realized Gains 
                     </button>
@@ -1054,6 +1060,17 @@ const App: React.FC = () => {
                         onDeleteMultiple={handleDeleteTransactions}
                         onEdit={handleEditClick} 
                         googleSheetId={googleSheetId}
+                    />
+                </div>
+            )}
+
+            {/* NEW CALCULATOR RENDER BLOCK HERE */}
+            {currentView === 'CALCULATOR' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <TradingSimulator 
+                        holdings={holdings} 
+                        brokers={brokers} 
+                        defaultBrokerId={currentPortfolio?.defaultBrokerId || brokers[0]?.id || ''} 
                     />
                 </div>
             )}
