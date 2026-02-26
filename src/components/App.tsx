@@ -18,10 +18,11 @@ import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker'; 
 import { TransferModal } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
+import { FairValueCalculator } from './FairValueCalculator';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft, Calculator } from 'lucide-react'; 
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft, Calculator, TrendingUp } from 'lucide-react'; 
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 import { ThemeToggle } from './ui/ThemeToggle'; 
 import * as Popover from '@radix-ui/react-popover'; 
@@ -43,7 +44,7 @@ const DEFAULT_BROKER: Broker = {
 
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'CALCULATOR';
+type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -302,7 +303,6 @@ const App: React.FC = () => {
       
       if (!sourcePortfolio || !destPortfolio || !holding) return;
 
-      // Transfer at Cost Basis (Avg Price)
       const transferPrice = holding.avgPrice;
       const transferId = Date.now().toString();
 
@@ -378,7 +378,6 @@ const App: React.FC = () => {
         dailyPL += (h.currentPrice - ldcp) * h.quantity;
     });
     
-    // Accumulate Realized P&L properly (includes History)
     let realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
     
     const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number }[] = [];
@@ -406,12 +405,10 @@ const App: React.FC = () => {
                 if (t.category === 'CDC_CHARGE') totalCDC += Math.abs(t.price);
                 events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
             } else {
-                totalAdjustments += t.price; // Accumulate adjustment for Free Cash
+                totalAdjustments += t.price; 
                 if (t.price >= 0) {
-                    // Treated as Profit (Internal Gain), NOT as Capital Injection
                     events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
                 } else {
-                    // Treated as Loss (Internal Loss), NOT as Capital Withdrawal
                     events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
                 }
             }
@@ -434,11 +431,9 @@ const App: React.FC = () => {
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
         }
         else if (t.type === 'TRANSFER_IN') {
-            // Treat as Asset Deposit (Increases Net Invested for this portfolio)
             events.push({ date: t.date, type: 'IN', amount: t.price * t.quantity, originalIndex: idx });
         }
         else if (t.type === 'TRANSFER_OUT') {
-            // Treat as Asset Withdrawal (Decreases Net Invested for this portfolio)
             events.push({ date: t.date, type: 'OUT', amount: t.price * t.quantity, originalIndex: idx });
         }
         else { 
@@ -446,7 +441,6 @@ const App: React.FC = () => {
         }
     });
     
-    // Add trades to event stream for graphs
     realizedTrades.forEach((t) => {
         const originalIdx = txIndexMap.get(t.id) ?? 999999; 
         if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
@@ -461,9 +455,6 @@ const App: React.FC = () => {
 
     const netRealizedPL = realizedPL - totalCGT; 
 
-    // --- REVISED NET INVESTED LOGIC (Simple Cash Flow) ---
-    // Pure Capital Invested = Sum(Deposits) - Sum(Withdrawals)
-    // Ignores P&L to correctly reflect user's pocket impact
     let currentInvested = 0;
     let peakInvested = 0;
 
@@ -475,20 +466,17 @@ const App: React.FC = () => {
         else if (e.type === 'OUT') { 
             currentInvested -= e.amount;
         }
-        // Profit/Loss intentionally ignored for Net Invested calculation
     });
 
     const netPrincipal = Math.max(0, currentInvested); 
     const peakNetPrincipal = peakInvested; 
 
-    // --- Free Cash Calculation ---
     let tradingCashFlow = 0; 
     portfolioTransactions.forEach(t => { 
         const val = t.price * t.quantity; 
         const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0); 
         if (t.type === 'BUY') tradingCashFlow -= (val + fees); 
         else if (t.type === 'SELL') tradingCashFlow += (val - fees); 
-        // Dividends and TRANSFERS are NOT added here
     });
     
     let cashIn = totalDeposits; 
@@ -503,7 +491,6 @@ const App: React.FC = () => {
     const unrealizedPL = totalValue - totalCost;
     const unrealizedPLPercent = totalCost > 0 ? (unrealizedPL / totalCost) * 100 : 0;
 
-    // XIRR Calculation
     const cashFlowsForXIRR: { amount: number, date: Date }[] = [];
     portfolioTransactions.forEach(t => {
         if (t.type === 'DEPOSIT') {
@@ -582,7 +569,6 @@ const App: React.FC = () => {
       const tempHoldings: Record<string, Holding> = {}; 
       const tempRealized: RealizedTrade[] = []; 
       
-      // Helper to group transactions by holding key
       const txsByKey: Record<string, Transaction[]> = {};
 
       portfolioTransactions.forEach(tx => { 
@@ -602,7 +588,6 @@ const App: React.FC = () => {
           txsByKey[key].push(tx);
       }); 
 
-      // Process each ticker/broker group
       Object.entries(txsByKey).forEach(([key, txs]) => {
           const [ticker, brokerName] = key.split('|');
           
@@ -617,14 +602,12 @@ const App: React.FC = () => {
           }
           const lots: Lot[] = [];
 
-          // Group trades by date to handle intraday netting
           const txsByDate: Record<string, Transaction[]> = {};
           txs.forEach(t => {
               if (!txsByDate[t.date]) txsByDate[t.date] = [];
               txsByDate[t.date].push(t);
           });
 
-          // Sort dates chronologically
           const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
 
           sortedDates.forEach(date => {
@@ -632,7 +615,6 @@ const App: React.FC = () => {
               const dayBuys = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN');
               const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
 
-              // Create temporary lots for today's buys (Intraday Pool)
               const dayBuyLots = dayBuys.map(t => {
                   const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
                   const costPerShare = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
@@ -647,13 +629,11 @@ const App: React.FC = () => {
                   };
               });
 
-              // Process Sells: Priority 1 = Intraday, Priority 2 = FIFO
               daySells.forEach(sellTx => {
                   let qtyToSell = sellTx.quantity;
                   const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
                   const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
 
-                  // 1. Intraday Matching
                   for (const buyLot of dayBuyLots) {
                       if (qtyToSell <= 0.0001) break;
                       if (buyLot.quantity > 0) {
@@ -684,7 +664,6 @@ const App: React.FC = () => {
                       }
                   }
 
-                  // 2. FIFO Matching (Historical)
                   while (qtyToSell > 0.0001 && lots.length > 0) {
                       const fifoLot = lots[0];
                       const matched = Math.min(qtyToSell, fifoLot.quantity);
@@ -716,13 +695,11 @@ const App: React.FC = () => {
                   }
               });
 
-              // 3. Add remaining Day Buys to Main FIFO Queue
               dayBuyLots.forEach(l => {
                   if (l.quantity > 0.0001) lots.push(l);
               });
           });
 
-          // Construct final Holding object from remaining lots
           if (lots.length > 0) {
               const totalQty = lots.reduce((acc, l) => acc + l.quantity, 0);
               const totalCost = lots.reduce((acc, l) => acc + (l.quantity * l.costPerShare), 0);
@@ -784,7 +761,6 @@ const App: React.FC = () => {
       <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <header className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
           
-          {/* MOBILE HEADER: Logo + Theme Toggle */}
           <div className="flex justify-between items-center w-full md:w-auto">
              <div className="flex flex-col gap-0.5">
                  <div className="scale-75 sm:scale-100 origin-left">
@@ -792,22 +768,18 @@ const App: React.FC = () => {
                  </div>
                  <p className="hidden md:block text-sm font-bold tracking-wide mt-1 ml-1 whitespace-nowrap"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
              </div>
-             {/* Mobile Theme Toggle */}
              <div className="md:hidden">
                 <ThemeToggle />
              </div>
           </div>
           
-          {/* CONTROL STACK */}
           <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
              
-             {/* ROW 1: USER INFO & SYNC (Full Width on Mobile) */}
              {driveUser ? (
                  <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full md:w-auto">
                      <div className="flex items-center gap-2">
                         {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
                         
-                        {/* NAME NOW VISIBLE ON ALL SCREENS */}
                         <div className="flex flex-col">
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
                             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[120px] truncate">{driveUser.name}</span>
@@ -823,11 +795,9 @@ const App: React.FC = () => {
                 <button onClick={handleLogin} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> Sign in</button>
              )}
 
-             {/* ROW 2: PORTFOLIO & ACTIONS (Full Width on Mobile) */}
              <div className="flex items-center gap-2 w-full md:w-auto bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                  <div className="hidden md:block"><ThemeToggle /></div>
                  
-                 {/* Portfolio Dropdown - Flexible Width */}
                  <div className="relative group flex-1 min-w-0">
                     <select 
                         value={currentPortfolioId} 
@@ -839,7 +809,6 @@ const App: React.FC = () => {
                     <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
                  </div>
 
-                 {/* Action Buttons - Fixed Width (Never Shrink) */}
                  <div className="flex items-center gap-1 pl-2 border-l border-slate-100 dark:border-slate-800 shrink-0">
                     <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={16} /> </button>
                     <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={16} /> </button>
@@ -850,7 +819,6 @@ const App: React.FC = () => {
         </header>
 
         <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-            {/* ... Rest of the Main Content (Tabs, Dashboard, etc.) ... */}
             <div className="flex justify-center mb-8 w-full">
                 <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto w-full sm:w-auto flex justify-start sm:justify-center no-scrollbar">
                     <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
@@ -861,9 +829,14 @@ const App: React.FC = () => {
                         <ChartCandlestick size={16} className="sm:w-[18px] sm:h-[18px]" /> Stocks 
                     </button>
 
-                    {/* NEW CALCULATOR TAB HERE */}
+                    {/* NEW: FAIR VALUE CALCULATOR TAB */}
                     <button onClick={() => setCurrentView('CALCULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'CALCULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
-                        <Calculator size={16} className="sm:w-[18px] sm:h-[18px]" /> Simulator
+                        <Calculator size={16} className="sm:w-[18px] sm:h-[18px]" /> Fair Value
+                    </button>
+
+                    {/* EXISTING: TRADING SIMULATOR TAB */}
+                    <button onClick={() => setCurrentView('SIMULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'SIMULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
+                        <TrendingUp size={16} className="sm:w-[18px] sm:h-[18px]" /> Simulator
                     </button>
 
                     <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
@@ -877,13 +850,10 @@ const App: React.FC = () => {
 
             <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-white/60 dark:border-slate-700/60 backdrop-blur-md shadow-sm">
                 
-                {/* 1. UNIFIED BUTTON CONTAINER FOR RESPONSIVENESS */}
                 <div className="w-full overflow-x-auto pb-2">
                     
-                    {/* Inner Flex: Use min-w-max to force width and enable scroll when tight */}
                     <div className="flex items-center justify-between min-w-max gap-6">
                         
-                        {/* LEFT GROUP: Actions */}
                         <div className="flex items-center gap-3">
                             <button 
                                 onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} 
@@ -929,7 +899,6 @@ const App: React.FC = () => {
                             </button>
                         </div>
 
-                        {/* RIGHT GROUP: Settings & Sync */}
                         <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
                                 {isCombinedView && (
@@ -1064,8 +1033,15 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* NEW CALCULATOR RENDER BLOCK HERE */}
+            {/* NEW RENDER BLOCK FOR FAIR VALUE CALCULATOR */}
             {currentView === 'CALCULATOR' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <FairValueCalculator />
+                </div>
+            )}
+
+            {/* EXISTING RENDER BLOCK FOR TRADING SIMULATOR */}
+            {currentView === 'SIMULATOR' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <TradingSimulator 
                         holdings={holdings} 
