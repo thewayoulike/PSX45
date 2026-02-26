@@ -1,4 +1,4 @@
-import { CompanyPayout, CompanyFinancials, CompanyRatios, FundamentalsData } from '../types';
+import { CompanyPayout } from '../types';
 import { getValidToken } from './driveStorage';
 
 export interface CompanyFinancials {
@@ -7,6 +7,14 @@ export interface CompanyFinancials {
   totalIncome: string;
   profitAfterTax: string;
   eps: string;
+  // NEW FIELDS ADDED FOR AUTO-FILL
+  bookValue?: string;
+  totalLiabilities?: string;
+  totalEquity?: string;
+  currentAssets?: string;
+  currentLiabilities?: string;
+  inventory?: string;
+  fcf?: string;
 }
 
 export interface CompanyRatios {
@@ -62,22 +70,47 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
             if (rows.length === 0) return data;
             const headerCells = Array.from(rows[0].querySelectorAll('th, td'));
             const periods = headerCells.slice(1).map(c => c.textContent?.trim() || '');
+            
             const getRowData = (keywords: string[]) => {
                 const row = rows.find(r => {
                     const firstCell = r.querySelector('td, th');
-                    const text = firstCell?.textContent?.trim() || '';
-                    return keywords.some(k => text.includes(k));
+                    const text = firstCell?.textContent?.trim().toLowerCase() || '';
+                    return keywords.some(k => text.includes(k.toLowerCase()));
                 });
                 if (!row) return [];
                 return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
             };
-            const sales = getRowData(['Sales']);
+
+            const sales = getRowData(['Sales', 'Revenue']);
             const income = getRowData(['Total Income']);
-            const profit = getRowData(['Profit after Taxation', 'Profit After Tax']);
-            const eps = getRowData(['EPS']);
+            const profit = getRowData(['Profit after Taxation', 'Profit After Tax', 'Net Profit']);
+            const eps = getRowData(['EPS', 'Earnings per share']);
+            
+            // NEW BALANCE SHEET EXTRACTIONS
+            const bookValue = getRowData(['Break-up value', 'Book Value', 'Net Asset Value']);
+            const totalLiabilities = getRowData(['Total Liabilities']);
+            const totalEquity = getRowData(['Total Equity', 'Shareholders Equity']);
+            const currentAssets = getRowData(['Current Assets']);
+            const currentLiabilities = getRowData(['Current Liabilities']);
+            const inventory = getRowData(['Inventory', 'Stock in trade', 'Stock-in-trade']);
+            const fcf = getRowData(['Free Cash Flow', 'Cash from Operating', 'Net Cash Flow']);
+
             periods.forEach((period, i) => {
                 if (period) {
-                    data.push({ year: period, sales: sales[i] || '-', totalIncome: income[i] || '-', profitAfterTax: profit[i] || '-', eps: eps[i] || '-' });
+                    data.push({ 
+                        year: period, 
+                        sales: sales[i] || '-', 
+                        totalIncome: income[i] || '-', 
+                        profitAfterTax: profit[i] || '-', 
+                        eps: eps[i] || '-',
+                        bookValue: bookValue[i] || '-',
+                        totalLiabilities: totalLiabilities[i] || '-',
+                        totalEquity: totalEquity[i] || '-',
+                        currentAssets: currentAssets[i] || '-',
+                        currentLiabilities: currentLiabilities[i] || '-',
+                        inventory: inventory[i] || '-',
+                        fcf: fcf[i] || '-'
+                    });
                 }
             });
             return data;
@@ -92,8 +125,8 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
             const getRowData = (keywords: string[]) => {
                 const row = rows.find(r => {
                     const firstCell = r.querySelector('td, th');
-                    const text = firstCell?.textContent?.trim() || '';
-                    return keywords.some(k => text.includes(k));
+                    const text = firstCell?.textContent?.trim().toLowerCase() || '';
+                    return keywords.some(k => text.includes(k.toLowerCase()));
                 });
                 if (!row) return [];
                 return Array.from(row.querySelectorAll('td')).slice(1).map(c => c.textContent?.trim() || '-');
@@ -147,22 +180,15 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     today.setHours(0, 0, 0, 0);
 
     return rows.map((row: any[]) => {
-        // Percentage to PKR Conversion (Face Value 10 Rs)
         const rawDiv = row[2] || '0';
         const cleanPercent = parseFloat(rawDiv.replace('%', ''));
         const pkrAmount = cleanPercent / 10;
-
-        // Parse Date (Column F / Index 5)
         const dateStr = row[5] || '';
         const xDate = new Date(dateStr);
         xDate.setHours(0, 0, 0, 0);
 
-        // Filter: Remove entries before today
-        if (isNaN(xDate.getTime()) || xDate < today) {
-            return null; 
-        }
+        if (isNaN(xDate.getTime()) || xDate < today) return null; 
 
-        // Today Check for Highlight
         const isDueToday = xDate.getTime() === today.getTime();
 
         return {
