@@ -1,9 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Card } from './ui/Card';
-import { Calculator, Shield, Activity, TrendingUp, Info, AlertTriangle, CheckCircle2, DollarSign, BookOpen } from 'lucide-react';
+import { Calculator, Shield, Activity, BookOpen } from 'lucide-react';
 
 export const FairValueCalculator: React.FC = () => {
-  // Initial state matching the exact FFC example from the spreadsheet
   const [inputs, setInputs] = useState({
     ticker: 'FFC',
     price: 81.84,
@@ -16,11 +15,9 @@ export const FairValueCalculator: React.FC = () => {
     fcf: 95,
     liabilities: 314588131,
     equity: 256014337,
-    // Added fields needed for the Survival Ratios
     currentAssets: 1300000, 
     currentLiabilities: 1000000, 
     inventory: 300000,
-    // Method 4 Inputs
     method4TargetYield: 12,
     method4Eps: 70
   });
@@ -34,24 +31,19 @@ export const FairValueCalculator: React.FC = () => {
   };
 
   const results = useMemo(() => {
-    // A: IMPORTANT CHECKS
     const peRatio = inputs.eps > 0 ? inputs.price / inputs.eps : 0;
     const divYield = inputs.price > 0 ? (inputs.expectedDiv / inputs.price) * 100 : 0;
     const debtToEquity = inputs.equity > 0 ? inputs.liabilities / inputs.equity : 0;
     
-    // Growth Reality Check (PEG Ratio = PE / CAGR)
     const growthReality = inputs.cagr > 0 ? peRatio / inputs.cagr : 0;
     
-    // Forward P/E = Price / (EPS * (1 + CAGR/100))
     const forwardEPS = inputs.eps * (1 + (inputs.cagr / 100));
     const forwardPE = forwardEPS > 0 ? inputs.price / forwardEPS : 0;
 
-    // Survival Ratios
     const currentRatio = inputs.currentLiabilities > 0 ? inputs.currentAssets / inputs.currentLiabilities : 0;
     const quickRatio = inputs.currentLiabilities > 0 ? (inputs.currentAssets - inputs.inventory) / inputs.currentLiabilities : 0;
     const stockStatus = inputs.currentLiabilities > 0 ? inputs.inventory / inputs.currentLiabilities : 0;
 
-    // B: EVALUATION METHODS
     const peFairValue = inputs.eps * inputs.fairPE;
     
     const requiredReturnDecimal = inputs.requiredReturn / 100;
@@ -61,7 +53,6 @@ export const FairValueCalculator: React.FC = () => {
     
     const method4Value = (inputs.method4TargetYield / 100) > 0 ? inputs.method4Eps / (inputs.method4TargetYield / 100) : 0;
 
-    // Status logic
     const getValuationStatus = (fairValue: number, currentPrice: number) => {
         if (fairValue <= 0) return { text: 'N/A', diff: 0, isUnder: false };
         const diff = ((fairValue - currentPrice) / currentPrice) * 100;
@@ -86,7 +77,7 @@ export const FairValueCalculator: React.FC = () => {
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto p-4 animate-in fade-in slide-in-from-bottom-4">
       
-      {/* HEADER CONCEPTS */}
+      {/* HEADER CONCEPTS MOVED TO TOP */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
               <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1"><BookOpen size={14}/> Face Value</h4>
@@ -287,69 +278,69 @@ export const FairValueCalculator: React.FC = () => {
              </div>
           </Card>
 
-          {/* SECTION B: EVALUATIONS METHODS */}
-          <Card title="B: Evaluation Methods" icon={<Activity size={18} className="text-indigo-500" />}>
+          {/* SECTION B: EVALUATIONS METHODS (Redesigned) */}
+          <Card title="B: EVALUATION METHODS" icon={<Activity size={18} className="text-indigo-500" />}>
              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 
                 {/* Method 1: P/E */}
-                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-4 bg-white dark:bg-slate-800 flex flex-col justify-between">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-5 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
                     <div>
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Method 1: P/E Fair Value</h4>
-                        <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-2">Rs. {results.peFairValue.toFixed(1)}</div>
-                        <div className={`text-xs font-bold px-2 py-1 rounded w-fit ${results.peStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
+                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">METHOD 1: P/E FAIR VALUE</h4>
+                        <div className="text-3xl font-black text-slate-800 dark:text-slate-100 my-3 tracking-tight">Rs. {results.peFairValue.toFixed(1)}</div>
+                        <div className={`text-xs font-bold px-3 py-1.5 rounded-lg w-fit ${results.peStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                             {results.peStatus.text}
                         </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-4 leading-relaxed border-t border-slate-100 dark:border-slate-700 pt-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-6 leading-relaxed">
                         <strong>Best For:</strong> Almost every stock, but especially useful for comparing two companies in the same sector (e.g., comparing Lucky Cement vs. DG Khan Cement).
                     </p>
                 </div>
 
                 {/* Method 2: DDM */}
-                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-4 bg-white dark:bg-slate-800 flex flex-col justify-between">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-5 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
                     <div>
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Method 2: DDM Value</h4>
-                        <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-2">Rs. {results.ddmValue.toFixed(1)}</div>
-                        <div className={`text-xs font-bold px-2 py-1 rounded w-fit ${results.ddmStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
+                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">METHOD 2: DDM VALUE</h4>
+                        <div className="text-3xl font-black text-slate-800 dark:text-slate-100 my-3 tracking-tight">Rs. {results.ddmValue.toFixed(1)}</div>
+                        <div className={`text-xs font-bold px-3 py-1.5 rounded-lg w-fit ${results.ddmStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                             {results.ddmStatus.text}
                         </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-4 leading-relaxed border-t border-slate-100 dark:border-slate-700 pt-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-6 leading-relaxed">
                         <strong>Best For:</strong> Companies that pay regular dividends (Fertilizers, Power, Banks). <em>Dividend Discount Model.</em>
                     </p>
                 </div>
 
                 {/* Method 3: Graham */}
-                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-4 bg-white dark:bg-slate-800 flex flex-col justify-between">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-5 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
                     <div>
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Method 3: Graham Number</h4>
-                        <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-2">Rs. {results.grahamNumber.toFixed(1)}</div>
-                        <div className={`text-xs font-bold px-2 py-1 rounded w-fit ${results.grahamStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
+                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">METHOD 3: GRAHAM NUMBER</h4>
+                        <div className="text-3xl font-black text-slate-800 dark:text-slate-100 my-3 tracking-tight">Rs. {results.grahamNumber.toFixed(1)}</div>
+                        <div className={`text-xs font-bold px-3 py-1.5 rounded-lg w-fit ${results.grahamStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
                             {results.grahamStatus.text}
                         </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-4 leading-relaxed border-t border-slate-100 dark:border-slate-700 pt-3">
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-6 leading-relaxed">
                         <strong>Best For:</strong> Finding "Safe" stocks during a market crash (it will almost always tell you "Don't Buy" because it is too strict).
                     </p>
                 </div>
 
                 {/* Method 4: Custom Yield */}
-                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-4 bg-slate-50 dark:bg-slate-900 flex flex-col justify-between">
+                <div className="border border-slate-200 dark:border-slate-700 rounded-2xl p-5 bg-slate-50 dark:bg-slate-900 shadow-sm flex flex-col justify-between">
                     <div>
-                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Method 4: Fair Price (Respect to %)</h4>
+                        <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2">METHOD 4: FAIR PRICE (RESPECT TO %)</h4>
                         
-                        <div className="grid grid-cols-2 gap-2 mt-3 mb-2">
+                        <div className="grid grid-cols-2 gap-4 mt-4 mb-4">
                             <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase">Desired %</label>
-                                <input type="number" name="method4TargetYield" value={inputs.method4TargetYield} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold outline-none" />
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">DESIRED %</label>
+                                <input type="number" name="method4TargetYield" value={inputs.method4TargetYield} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20" />
                             </div>
                             <div>
-                                <label className="text-[9px] font-bold text-slate-400 uppercase">Future EPS</label>
-                                <input type="number" name="method4Eps" value={inputs.method4Eps} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold outline-none" />
+                                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">FUTURE EPS</label>
+                                <input type="number" name="method4Eps" value={inputs.method4Eps} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm font-bold outline-none focus:ring-2 focus:ring-indigo-500/20" />
                             </div>
                         </div>
 
-                        <div className="text-2xl font-black text-indigo-600 dark:text-indigo-400 my-2 border-t border-slate-200 dark:border-slate-700 pt-2">Rs. {results.method4Value.toFixed(2)}</div>
+                        <div className="text-3xl font-black text-indigo-600 dark:text-indigo-400 my-3 tracking-tight">Rs. {results.method4Value.toFixed(2)}</div>
                     </div>
                 </div>
 
