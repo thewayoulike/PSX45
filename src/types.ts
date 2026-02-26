@@ -97,8 +97,8 @@ export interface Portfolio {
   defaultBrokerId: string;
 }
 
-// Added for navigation and Trading Simulator view
-export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'CALCULATOR';
+// Added both SIMULATOR and CALCULATOR for the distinct views
+export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR';
 
 export interface DividendAnnouncement {
     ticker: string;
