@@ -34,6 +34,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   const handleFetchAndCalculate = async () => {
     setLoading(true);
     setErrorMsg(null);
+    console.log("Starting 30-Day calculation...");
     
     try {
       const allTickers = Array.from(new Set(
@@ -43,7 +44,9 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       const tickersToFetch = ['KSE100', ...allTickers];
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
-      // Using fast Promise.all because your new Vercel API can handle it easily!
+      console.log("Fetching history for:", tickersToFetch);
+
+      // Using fast Promise.all because your new Vercel API handles it seamlessly
       await Promise.all(tickersToFetch.map(async (ticker) => {
         try {
           const data = await fetchStockHistory(ticker, '1M');
@@ -61,9 +64,11 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         }
       }));
 
+      console.log("Raw History Data Fetched:", historyData);
+
       const kseData = historyData['KSE100'] || [];
       if (kseData.length < 2) {
-          throw new Error("Unable to fetch KSE100 data.");
+          throw new Error("Unable to fetch KSE100 data. The proxy might be warming up, try again in 10 seconds.");
       }
 
       const newChartData = [];
@@ -105,11 +110,12 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         });
       }
 
+      console.log("Final Calculated Chart Data:", newChartData);
       setChartData(newChartData);
       onSaveData(newChartData); 
 
     } catch (error: any) {
-      console.error(error);
+      console.error("Chart Calculation Error:", error);
       setErrorMsg(error.message || "Failed to calculate performance history.");
     } finally {
       setLoading(false);
@@ -117,8 +123,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   };
 
   return (
-    <Card className="w-full h-[450px] flex flex-col">
-      <div className="flex justify-between items-center mb-4">
+    <Card className="w-full flex flex-col">
+      <div className="flex justify-between items-center mb-6">
         <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wider">
           <TrendingUp className="text-emerald-500" size={18} />
           30-Day Daily Return % (Portfolio Avg vs KSE-100)
@@ -129,7 +135,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           className="flex items-center gap-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          {loading ? "Fetching Data..." : (chartData.length > 0 ? 'Refresh & Save' : 'Generate & Save')}
+          {loading ? "Fetching Data..." : (chartData.length > 0 ? 'Refresh Data' : 'Generate Chart')}
         </button>
       </div>
 
@@ -140,7 +146,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         </div>
       )}
 
-      <div className="flex-1 w-full min-h-0">
+      {/* FIX: Removed flex-1 and min-h-0. Assigned a strict 400px height so Recharts cannot collapse to 0 */}
+      <div className="w-full" style={{ height: '400px' }}>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
@@ -184,7 +191,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+          <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
              <Save size={32} className="mb-2 opacity-50" />
              <p className="text-sm font-medium">Click Generate to calculate your 30-day historical returns</p>
           </div>
