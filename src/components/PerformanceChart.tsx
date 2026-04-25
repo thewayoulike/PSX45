@@ -192,7 +192,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 dataKey="Portfolio" 
                 stroke="#10b981" 
                 strokeWidth={2.5} 
-                dot={false}
+                // Changed dot to true with custom styling
+                dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }}
                 activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }}
               />
               <Line 
@@ -201,7 +202,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 dataKey="KSE100" 
                 stroke="#6366f1" 
                 strokeWidth={2.5} 
-                dot={false} 
+                // Changed dot to true with custom styling
+                dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} 
                 activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
               />
             </LineChart>
