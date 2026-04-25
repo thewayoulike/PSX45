@@ -136,10 +136,15 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
             const rawData = JSON.parse(htmlOrJson);
             if (rawData && rawData.data && Array.isArray(rawData.data)) {
                 return rawData.data
-                    .map((point: any[]) => ({
-                        time: point[0] * 1000, 
-                        price: Number(point[4])
-                    }))
+                    .map((point: any[]) => {
+                        // CRITICAL FIX: PSX EOD endpoint returns [timestamp, price, volume]
+                        // If it's a short array, price is at index 1. If it's full OHLC, price is at index 4.
+                        const priceIndex = point.length >= 5 ? 4 : 1;
+                        return {
+                            time: point[0] * 1000, 
+                            price: Number(point[priceIndex])
+                        };
+                    })
                     .sort((a: any, b: any) => a.time - b.time);
             }
         } catch (e) { /* ignore */ }
