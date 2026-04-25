@@ -180,11 +180,15 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 tickLine={false} 
               />
               <YAxis 
-                tickFormatter={(val) => `${val}%`} 
-                tick={{ fontSize: 10, fill: '#94a3b8' }} 
-                axisLine={false} 
-                tickLine={false} 
-              />
+  // FIXED SCALE: Set to -10% to +10%
+  domain={[-10, 10]}
+  // Explicitly define the markers on the side
+  ticks={[-10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10]}
+  tickFormatter={(val) => `${val}%`} 
+  tick={{ fontSize: 10, fill: '#94a3b8' }} 
+  axisLine={false} 
+  tickLine={false} 
+/>
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                 formatter={(value: number, name: string) => [`${value}%`, name === 'Portfolio' ? 'Portfolio Avg' : 'KSE-100']}
