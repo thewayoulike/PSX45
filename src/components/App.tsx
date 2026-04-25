@@ -107,13 +107,18 @@ const App: React.FC = () => {
       return [];
   });
 
-  // NEW: Performance History State
-  const [performanceHistory, setPerformanceHistory] = useState<any[]>(() => {
+  // NEW: Performance History State (Now structured by Portfolio ID)
+  const [performanceHistory, setPerformanceHistory] = useState<Record<string, any[]>>(() => {
       try {
           const saved = localStorage.getItem('psx_performance_history');
-          if (saved) return JSON.parse(saved);
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              // Handle old arrays gracefully so the app doesn't crash on update
+              if (Array.isArray(parsed)) return { [currentPortfolioId]: parsed };
+              return parsed;
+          }
       } catch (e) {}
-      return [];
+      return {};
   });
 
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
@@ -1006,9 +1011,10 @@ const App: React.FC = () => {
                         
                         {/* PERFORMANCE CHART RENDERED HERE */}
                         <PerformanceChart 
+                           key={isCombinedView ? 'combined' : currentPortfolioId}
                            transactions={portfolioTransactions} 
-                           savedData={performanceHistory} 
-                           onSaveData={setPerformanceHistory} 
+                           savedData={performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || []} 
+                           onSaveData={(data) => setPerformanceHistory(prev => ({...prev, [isCombinedView ? 'combined' : currentPortfolioId]: data}))} 
                         />
 
                         <AllocationChart holdings={holdings} />
