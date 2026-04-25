@@ -47,10 +47,22 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
-// The core logic: Free -> Scrape.do -> WebScraping.AI
+// The core logic: Your Vercel Proxy -> Free Proxies -> Scrape.do -> WebScraping.AI
 const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> => {
     
-    // 1. TRY FREE PROXIES FIRST
+    // 1. THE ULTIMATE FIX: Try your own Vercel Serverless Proxy first
+    try {
+        const vercelProxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+        const response = await fetchWithTimeout(vercelProxyUrl, {}, 10000);
+        if (response.ok) {
+            const text = await response.text();
+            if (text && text.length > 500) return text;
+        }
+    } catch (e) {
+        console.log("Vercel proxy failed, falling back to public proxies...");
+    }
+
+    // 2. FALLBACK: Free Public Proxies
     const freeList = getShuffledFreeProxies();
     for (const proxyGen of freeList) {
         try {
@@ -71,37 +83,22 @@ const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> =
         } catch (e) { /* Try next */ }
     }
 
-    // 2. FALLBACK: Scrape.do
+    // 3. FALLBACK: Scrape.do
     if (userScrapingKey) {
         try {
-            console.log("Free proxies failed. Switching to Scrape.do...");
             const premiumUrl = `http://api.scrape.do?token=${userScrapingKey}&url=${encodeURIComponent(targetUrl)}`;
             const response = await fetchWithTimeout(premiumUrl, {}, 25000);
-            
-            if (response.ok) {
-                return await response.text();
-            }
-        } catch (e) {
-            console.error("Scrape.do failed:", e);
-        }
+            if (response.ok) return await response.text();
+        } catch (e) {}
     }
 
-    // 3. FALLBACK: WebScraping.AI
+    // 4. FALLBACK: WebScraping.AI
     if (userWebScrapingAIKey) {
         try {
-            console.log("Scrape.do failed/empty. Switching to WebScraping.AI...");
-            // WebScraping.AI uses 'api_key' parameter
             const wsUrl = `https://api.webscraping.ai/html?api_key=${userWebScrapingAIKey}&url=${encodeURIComponent(targetUrl)}`;
             const response = await fetchWithTimeout(wsUrl, {}, 25000);
-            
-            if (response.ok) {
-                return await response.text();
-            }
-        } catch (e) {
-            console.error("WebScraping.AI failed:", e);
-        }
-    } else {
-        if (!userScrapingKey) console.warn("No Premium Keys provided. Sync failed.");
+            if (response.ok) return await response.text();
+        } catch (e) {}
     }
 
     return null; 
