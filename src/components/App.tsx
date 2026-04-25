@@ -3,6 +3,7 @@ import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker,
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
 import { AllocationChart } from './AllocationChart';
+import { PerformanceChart } from './PerformanceChart';
 import { RealizedTable } from './RealizedTable';
 import { TransactionList } from './TransactionList';
 import { TransactionForm } from './TransactionForm';
@@ -106,6 +107,15 @@ const App: React.FC = () => {
       return [];
   });
 
+  // NEW: Performance History State
+  const [performanceHistory, setPerformanceHistory] = useState<any[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_performance_history');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return [];
+  });
+
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
@@ -188,7 +198,7 @@ const App: React.FC = () => {
 
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
-      setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]);
+      setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory([]);
       setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
       setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
       setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
@@ -237,6 +247,7 @@ const App: React.FC = () => {
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
                   if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
+                  if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
                   
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
@@ -278,7 +289,7 @@ const App: React.FC = () => {
       if (driveUser) {
           saveToDrive({ 
               transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, 
-              sectorOverrides, scannerState, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
+              sectorOverrides, scannerState, performanceHistory, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
           }); 
       }
   };
@@ -536,6 +547,7 @@ const App: React.FC = () => {
           localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides)); 
           localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); 
           localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
+          localStorage.setItem('psx_performance_history', JSON.stringify(performanceHistory)); 
       } 
       
       if (driveUser && isReadyToSave.current) { 
@@ -551,6 +563,7 @@ const App: React.FC = () => {
                   brokers, 
                   sectorOverrides, 
                   scannerState, 
+                  performanceHistory,
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
                   webScrapingAIKey: userWebScrapingAIKey 
@@ -563,7 +576,7 @@ const App: React.FC = () => {
           }, 3000); 
           return () => clearTimeout(timer); 
       } 
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
 
   useEffect(() => { 
       const tempHoldings: Record<string, Holding> = {}; 
@@ -829,12 +842,10 @@ const App: React.FC = () => {
                         <ChartCandlestick size={16} className="sm:w-[18px] sm:h-[18px]" /> Stocks 
                     </button>
 
-                    {/* NEW: FAIR VALUE CALCULATOR TAB */}
                     <button onClick={() => setCurrentView('CALCULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'CALCULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <Calculator size={16} className="sm:w-[18px] sm:h-[18px]" /> Fair Value
                     </button>
 
-                    {/* EXISTING: TRADING SIMULATOR TAB */}
                     <button onClick={() => setCurrentView('SIMULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'SIMULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <TrendingUp size={16} className="sm:w-[18px] sm:h-[18px]" /> Simulator
                     </button>
@@ -991,7 +1002,15 @@ const App: React.FC = () => {
             {currentView === 'DASHBOARD' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
-                    <div className="flex flex-col gap-6">
+                    <div className="flex flex-col gap-6 mt-6">
+                        
+                        {/* PERFORMANCE CHART RENDERED HERE */}
+                        <PerformanceChart 
+                           transactions={portfolioTransactions} 
+                           savedData={performanceHistory} 
+                           onSaveData={setPerformanceHistory} 
+                        />
+
                         <AllocationChart holdings={holdings} />
                         <HoldingsTable 
                             holdings={holdings} 
@@ -1033,14 +1052,12 @@ const App: React.FC = () => {
                 </div>
             )}
 
-            {/* NEW RENDER BLOCK FOR FAIR VALUE CALCULATOR */}
             {currentView === 'CALCULATOR' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <FairValueCalculator />
                 </div>
             )}
 
-            {/* EXISTING RENDER BLOCK FOR TRADING SIMULATOR */}
             {currentView === 'SIMULATOR' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                     <TradingSimulator 
