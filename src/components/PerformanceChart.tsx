@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
@@ -7,15 +7,15 @@ import { Card } from './ui/Card';
 
 interface PerformanceChartProps {
   transactions: Transaction[];
-  savedData: any[]; // The data loaded from Drive
-  onSaveData: (data: any[]) => void; // Callback to trigger Drive save
+  savedData: any[]; 
+  onSaveData: (data: any[]) => void; 
 }
 
 export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions, savedData, onSaveData }) => {
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState(''); // Added to show loading progress
   const [chartData, setChartData] = useState<any[]>(savedData || []);
 
-  // Helper: Find which stocks were owned on a specific date
   const getHeldTickersOnDate = (dateStr: string) => {
     const holdings: Record<string, number> = {};
     const txsToDate = transactions.filter(t => t.date <= dateStr);
@@ -28,14 +28,13 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       }
     });
 
-    // Return only tickers where quantity > 0
     return Object.keys(holdings).filter(ticker => holdings[ticker] > 0);
   };
 
   const handleFetchAndCalculate = async () => {
     setLoading(true);
+    setProgress('Initializing...');
     try {
-      // 1. Get all unique stocks ever bought
       const allTickers = Array.from(new Set(
           transactions.filter(t => t.type === 'BUY').map(t => t.ticker)
       ));
@@ -43,36 +42,42 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       const tickersToFetch = ['KSE100', ...allTickers];
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
-      // 2. Fetch 1M (30 days) data for KSE100 and all owned stocks
-      await Promise.all(tickersToFetch.map(async (ticker) => {
+      // FIX: Replaced Promise.all with sequential fetching to prevent proxy rate-limits
+      for (let i = 0; i < tickersToFetch.length; i++) {
+        const ticker = tickersToFetch[i];
+        setProgress(`Fetching ${ticker} (${i + 1}/${tickersToFetch.length})...`);
+        
         try {
           const data = await fetchStockHistory(ticker, '1M');
           historyData[ticker] = data.map(d => ({
             ...d,
             dateStr: new Date(d.time).toISOString().split('T')[0]
           }));
+          
+          // Wait 800ms between requests so free proxies don't block us
+          if (i < tickersToFetch.length - 1) {
+              await new Promise(resolve => setTimeout(resolve, 800)); 
+          }
         } catch (e) {
           console.warn(`Failed to fetch 1M history for ${ticker}`);
           historyData[ticker] = [];
         }
-      }));
+      }
 
+      setProgress('Calculating returns...');
       const kseData = historyData['KSE100'] || [];
-      if (kseData.length < 2) throw new Error("Not enough KSE100 data");
+      if (kseData.length < 2) throw new Error("Not enough KSE100 data. The proxies might be temporarily blocked.");
 
       const newChartData = [];
 
-      // 3. Calculate Daily Returns (Starting from day 1, since day 0 has no previous close)
       for (let i = 1; i < kseData.length; i++) {
         const todayKse = kseData[i];
         const prevKse = kseData[i - 1];
         const dateStr = todayKse.dateStr;
         const displayDate = new Date(todayKse.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-        // KSE-100 % Change
         const kseChange = ((todayKse.price - prevKse.price) / prevKse.price) * 100;
 
-        // Portfolio % Change
         const heldTickers = getHeldTickersOnDate(dateStr);
         let portfolioDailySum = 0;
         let validStockCount = 0;
@@ -81,7 +86,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
             const stockHist = historyData[ticker];
             if (stockHist) {
                 const todayIdx = stockHist.findIndex(d => d.dateStr === dateStr);
-                // Find the previous trading day for this specific stock
                 if (todayIdx > 0) {
                     const todayPrice = stockHist[todayIdx].price;
                     const prevPrice = stockHist[todayIdx - 1].price;
@@ -104,11 +108,13 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       }
 
       setChartData(newChartData);
-      onSaveData(newChartData); // Send to App.tsx to save to Drive
+      onSaveData(newChartData); 
+      setProgress('');
 
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
-      alert("Failed to calculate performance history.");
+      alert(error.message || "Failed to calculate performance history.");
+      setProgress('');
     } finally {
       setLoading(false);
     }
@@ -127,7 +133,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           className="flex items-center gap-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          {chartData.length > 0 ? 'Refresh & Save' : 'Generate & Save'}
+          {loading ? progress : (chartData.length > 0 ? 'Refresh & Save' : 'Generate & Save')}
         </button>
       </div>
 
@@ -149,7 +155,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 tickLine={false} 
               />
               <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                 formatter={(value: number, name: string) => [`${value}%`, name === 'Portfolio' ? 'Portfolio Avg' : 'KSE-100']}
                 labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
               />
