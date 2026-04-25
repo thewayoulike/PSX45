@@ -16,7 +16,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   const [chartData, setChartData] = useState<any[]>(savedData || []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const getHeldTickersOnDate = (dateStr: string) => {
+  // CHANGED: Now returns the exact quantities held on a specific date, not just the names
+  const getHeldBalancesOnDate = (dateStr: string) => {
     const holdings: Record<string, number> = {};
     const txsToDate = transactions.filter(t => t.date <= dateStr);
     
@@ -28,13 +29,19 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       }
     });
 
-    return Object.keys(holdings).filter(ticker => holdings[ticker] > 0);
+    const validHoldings: Record<string, number> = {};
+    Object.keys(holdings).forEach(ticker => {
+        if (holdings[ticker] > 0) {
+            validHoldings[ticker] = holdings[ticker];
+        }
+    });
+    
+    return validHoldings;
   };
 
   const handleFetchAndCalculate = async () => {
     setLoading(true);
     setErrorMsg(null);
-    console.log("Starting 30-Day calculation...");
     
     try {
       const allTickers = Array.from(new Set(
@@ -67,14 +74,11 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       }
 
       const newChartData = [];
-      
-      // Calculate the exact timestamp for 30 days ago from right now
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
       for (let i = 1; i < kseData.length; i++) {
         const todayKse = kseData[i];
         
-        // CRITICAL FIX: Skip dates that are older than exactly 30 days ago
         if (todayKse.time < thirtyDaysAgo) {
             continue;
         }
@@ -85,25 +89,33 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
         const kseChange = prevKse.price > 0 ? ((todayKse.price - prevKse.price) / prevKse.price) * 100 : 0;
 
-        const heldTickers = getHeldTickersOnDate(dateStr);
-        let portfolioDailySum = 0;
+        // CRITICAL FIX: Weighted Portfolio Calculation
+        const heldBalances = getHeldBalancesOnDate(dateStr);
+        let yesterdayTotalValue = 0;
+        let todayTotalValue = 0;
         let validStockCount = 0;
 
-        heldTickers.forEach(ticker => {
+        Object.entries(heldBalances).forEach(([ticker, qty]) => {
             const stockHist = historyData[ticker];
             if (stockHist && stockHist.length > 0) {
                 const todayIdx = stockHist.findIndex(d => d.dateStr === dateStr);
                 if (todayIdx > 0) {
                     const todayPrice = stockHist[todayIdx].price;
                     const prevPrice = stockHist[todayIdx - 1].price;
-                    const change = prevPrice > 0 ? ((todayPrice - prevPrice) / prevPrice) * 100 : 0;
-                    portfolioDailySum += change;
+                    
+                    // Multiply exact historical shares by historical prices
+                    yesterdayTotalValue += (prevPrice * qty);
+                    todayTotalValue += (todayPrice * qty);
                     validStockCount++;
                 }
             }
         });
 
-        const portfolioChange = validStockCount > 0 ? (portfolioDailySum / validStockCount) : 0;
+        // Exact weighted percentage change (Matches Dashboard math)
+        let portfolioChange = 0;
+        if (yesterdayTotalValue > 0) {
+            portfolioChange = ((todayTotalValue - yesterdayTotalValue) / yesterdayTotalValue) * 100;
+        }
 
         if (!isNaN(kseChange) && !isNaN(portfolioChange)) {
             newChartData.push({
@@ -116,7 +128,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         }
       }
 
-      console.log("Final Calculated Chart Data (30 Calendar Days):", newChartData);
       setChartData(newChartData);
       onSaveData(newChartData); 
 
