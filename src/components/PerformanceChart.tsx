@@ -16,6 +16,11 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   const [chartData, setChartData] = useState<any[]>(savedData || []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // ADD THIS: Sync internal state when switching portfolios
+  React.useEffect(() => {
+    setChartData(savedData);
+  }, [savedData]);
+
   // CHANGED: Now returns the exact quantities held on a specific date, not just the names
   const getHeldBalancesOnDate = (dateStr: string) => {
     const holdings: Record<string, number> = {};
