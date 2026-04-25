@@ -44,9 +44,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       const tickersToFetch = ['KSE100', ...allTickers];
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
-      console.log("Fetching history for:", tickersToFetch);
-
-      // Using fast Promise.all because your new Vercel API handles it seamlessly
       await Promise.all(tickersToFetch.map(async (ticker) => {
         try {
           const data = await fetchStockHistory(ticker, '1M');
@@ -64,22 +61,29 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         }
       }));
 
-      console.log("Raw History Data Fetched:", historyData);
-
       const kseData = historyData['KSE100'] || [];
       if (kseData.length < 2) {
           throw new Error("Unable to fetch KSE100 data. The proxy might be warming up, try again in 10 seconds.");
       }
 
       const newChartData = [];
+      
+      // Calculate the exact timestamp for 30 days ago from right now
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
       for (let i = 1; i < kseData.length; i++) {
         const todayKse = kseData[i];
+        
+        // CRITICAL FIX: Skip dates that are older than exactly 30 days ago
+        if (todayKse.time < thirtyDaysAgo) {
+            continue;
+        }
+
         const prevKse = kseData[i - 1];
         const dateStr = todayKse.dateStr;
         const displayDate = new Date(todayKse.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-        const kseChange = ((todayKse.price - prevKse.price) / prevKse.price) * 100;
+        const kseChange = prevKse.price > 0 ? ((todayKse.price - prevKse.price) / prevKse.price) * 100 : 0;
 
         const heldTickers = getHeldTickersOnDate(dateStr);
         let portfolioDailySum = 0;
@@ -92,7 +96,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 if (todayIdx > 0) {
                     const todayPrice = stockHist[todayIdx].price;
                     const prevPrice = stockHist[todayIdx - 1].price;
-                    const change = ((todayPrice - prevPrice) / prevPrice) * 100;
+                    const change = prevPrice > 0 ? ((todayPrice - prevPrice) / prevPrice) * 100 : 0;
                     portfolioDailySum += change;
                     validStockCount++;
                 }
@@ -101,16 +105,18 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
         const portfolioChange = validStockCount > 0 ? (portfolioDailySum / validStockCount) : 0;
 
-        newChartData.push({
-            date: displayDate,
-            rawDate: dateStr,
-            KSE100: parseFloat(kseChange.toFixed(2)),
-            Portfolio: parseFloat(portfolioChange.toFixed(2)),
-            heldCount: validStockCount
-        });
+        if (!isNaN(kseChange) && !isNaN(portfolioChange)) {
+            newChartData.push({
+                date: displayDate,
+                rawDate: dateStr,
+                KSE100: parseFloat(kseChange.toFixed(2)),
+                Portfolio: parseFloat(portfolioChange.toFixed(2)),
+                heldCount: validStockCount
+            });
+        }
       }
 
-      console.log("Final Calculated Chart Data:", newChartData);
+      console.log("Final Calculated Chart Data (30 Calendar Days):", newChartData);
       setChartData(newChartData);
       onSaveData(newChartData); 
 
@@ -146,7 +152,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         </div>
       )}
 
-      {/* FIX: Removed flex-1 and min-h-0. Assigned a strict 400px height so Recharts cannot collapse to 0 */}
       <div className="w-full" style={{ height: '400px' }}>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
