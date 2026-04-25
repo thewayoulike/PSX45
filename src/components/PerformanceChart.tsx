@@ -1,5 +1,15 @@
-import React, { useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
+import React, { useState, useEffect } from 'react';
+import { 
+  LineChart, 
+  Line, 
+  XAxis, 
+  YAxis, 
+  Tooltip, 
+  ResponsiveContainer, 
+  CartesianGrid, 
+  Legend, 
+  ReferenceLine 
+} from 'recharts';
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle } from 'lucide-react';
@@ -16,12 +26,12 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   const [chartData, setChartData] = useState<any[]>(savedData || []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // ADD THIS: Sync internal state when switching portfolios
-  React.useEffect(() => {
+  // Sync internal state when switching portfolios or loading from Drive
+  useEffect(() => {
     setChartData(savedData);
   }, [savedData]);
 
-  // CHANGED: Now returns the exact quantities held on a specific date, not just the names
+  // Helper to calculate exact quantities held on a specific historical date
   const getHeldBalancesOnDate = (dateStr: string) => {
     const holdings: Record<string, number> = {};
     const txsToDate = transactions.filter(t => t.date <= dateStr);
@@ -36,7 +46,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
     const validHoldings: Record<string, number> = {};
     Object.keys(holdings).forEach(ticker => {
-        if (holdings[ticker] > 0) {
+        if (holdings[ticker] > 0.0001) {
             validHoldings[ticker] = holdings[ticker];
         }
     });
@@ -56,6 +66,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       const tickersToFetch = ['KSE100', ...allTickers];
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
+      // Fetch all required histories via proxy
       await Promise.all(tickersToFetch.map(async (ticker) => {
         try {
           const data = await fetchStockHistory(ticker, '1M');
@@ -68,25 +79,25 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
             historyData[ticker] = [];
           }
         } catch (e) {
-          console.warn(`Failed to fetch 1M history for ${ticker}`);
+          console.warn(`Failed to fetch history for ${ticker}`);
           historyData[ticker] = [];
         }
       }));
 
       const kseData = historyData['KSE100'] || [];
       if (kseData.length < 2) {
-          throw new Error("Unable to fetch KSE100 data. The proxy might be warming up, try again in 10 seconds.");
+          throw new Error("Unable to fetch KSE100 data. Please try again in a few moments.");
       }
 
       const newChartData = [];
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
+      // Process day-by-day calculations
       for (let i = 1; i < kseData.length; i++) {
         const todayKse = kseData[i];
         
-        if (todayKse.time < thirtyDaysAgo) {
-            continue;
-        }
+        // Filter for exactly last 30 calendar days
+        if (todayKse.time < thirtyDaysAgo) continue;
 
         const prevKse = kseData[i - 1];
         const dateStr = todayKse.dateStr;
@@ -94,7 +105,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
         const kseChange = prevKse.price > 0 ? ((todayKse.price - prevKse.price) / prevKse.price) * 100 : 0;
 
-        // CRITICAL FIX: Weighted Portfolio Calculation
+        // Weighted Portfolio Calculation logic
         const heldBalances = getHeldBalancesOnDate(dateStr);
         let yesterdayTotalValue = 0;
         let todayTotalValue = 0;
@@ -108,7 +119,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                     const todayPrice = stockHist[todayIdx].price;
                     const prevPrice = stockHist[todayIdx - 1].price;
                     
-                    // Multiply exact historical shares by historical prices
                     yesterdayTotalValue += (prevPrice * qty);
                     todayTotalValue += (todayPrice * qty);
                     validStockCount++;
@@ -116,7 +126,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
             }
         });
 
-        // Exact weighted percentage change (Matches Dashboard math)
         let portfolioChange = 0;
         if (yesterdayTotalValue > 0) {
             portfolioChange = ((todayTotalValue - yesterdayTotalValue) / yesterdayTotalValue) * 100;
@@ -137,7 +146,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       onSaveData(newChartData); 
 
     } catch (error: any) {
-      console.error("Chart Calculation Error:", error);
+      console.error("Performance Calculation Error:", error);
       setErrorMsg(error.message || "Failed to calculate performance history.");
     } finally {
       setLoading(false);
@@ -173,6 +182,10 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
+              
+              {/* Red Reference line at 0% */}
+              <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" />
+
               <XAxis 
                 dataKey="date" 
                 tick={{ fontSize: 10, fill: '#94a3b8' }} 
@@ -180,28 +193,26 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 tickLine={false} 
               />
               <YAxis 
-  // FIXED SCALE: Set to -10% to +10%
-  domain={[-10, 10]}
-  // Explicitly define the markers on the side
-  ticks={[-10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10]}
-  tickFormatter={(val) => `${val}%`} 
-  tick={{ fontSize: 10, fill: '#94a3b8' }} 
-  axisLine={false} 
-  tickLine={false} 
-/>
+                domain={[-10, 10]}
+                ticks={[-10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10]}
+                tickFormatter={(val) => `${val}%`} 
+                tick={{ fontSize: 10, fill: '#94a3b8' }} 
+                axisLine={false} 
+                tickLine={false} 
+              />
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                 formatter={(value: number, name: string) => [`${value}%`, name === 'Portfolio' ? 'Portfolio Avg' : 'KSE-100']}
                 labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
               />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold' }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '10px' }} />
+              
               <Line 
                 type="monotone" 
                 name="Portfolio" 
                 dataKey="Portfolio" 
                 stroke="#10b981" 
                 strokeWidth={2.5} 
-                // Changed dot to true with custom styling
                 dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }}
                 activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }}
               />
@@ -211,7 +222,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 dataKey="KSE100" 
                 stroke="#6366f1" 
                 strokeWidth={2.5} 
-                // Changed dot to true with custom styling
                 dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} 
                 activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
               />
