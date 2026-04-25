@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
-import { Loader2, TrendingUp, RefreshCw, Save } from 'lucide-react';
+import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle } from 'lucide-react';
 import { Card } from './ui/Card';
 
 interface PerformanceChartProps {
@@ -13,8 +13,8 @@ interface PerformanceChartProps {
 
 export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions, savedData, onSaveData }) => {
   const [loading, setLoading] = useState(false);
-  const [progress, setProgress] = useState(''); // Added to show loading progress
   const [chartData, setChartData] = useState<any[]>(savedData || []);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const getHeldTickersOnDate = (dateStr: string) => {
     const holdings: Record<string, number> = {};
@@ -33,7 +33,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
   const handleFetchAndCalculate = async () => {
     setLoading(true);
-    setProgress('Initializing...');
+    setErrorMsg(null);
+    
     try {
       const allTickers = Array.from(new Set(
           transactions.filter(t => t.type === 'BUY').map(t => t.ticker)
@@ -42,31 +43,28 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       const tickersToFetch = ['KSE100', ...allTickers];
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
-      // FIX: Replaced Promise.all with sequential fetching to prevent proxy rate-limits
-      for (let i = 0; i < tickersToFetch.length; i++) {
-        const ticker = tickersToFetch[i];
-        setProgress(`Fetching ${ticker} (${i + 1}/${tickersToFetch.length})...`);
-        
+      // Using fast Promise.all because your new Vercel API can handle it easily!
+      await Promise.all(tickersToFetch.map(async (ticker) => {
         try {
           const data = await fetchStockHistory(ticker, '1M');
-          historyData[ticker] = data.map(d => ({
-            ...d,
-            dateStr: new Date(d.time).toISOString().split('T')[0]
-          }));
-          
-          // Wait 800ms between requests so free proxies don't block us
-          if (i < tickersToFetch.length - 1) {
-              await new Promise(resolve => setTimeout(resolve, 800)); 
+          if (data && data.length > 1) {
+            historyData[ticker] = data.map(d => ({
+                ...d,
+                dateStr: new Date(d.time).toISOString().split('T')[0]
+            }));
+          } else {
+            historyData[ticker] = [];
           }
         } catch (e) {
           console.warn(`Failed to fetch 1M history for ${ticker}`);
           historyData[ticker] = [];
         }
-      }
+      }));
 
-      setProgress('Calculating returns...');
       const kseData = historyData['KSE100'] || [];
-      if (kseData.length < 2) throw new Error("Not enough KSE100 data. The proxies might be temporarily blocked.");
+      if (kseData.length < 2) {
+          throw new Error("Unable to fetch KSE100 data.");
+      }
 
       const newChartData = [];
 
@@ -84,7 +82,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
         heldTickers.forEach(ticker => {
             const stockHist = historyData[ticker];
-            if (stockHist) {
+            if (stockHist && stockHist.length > 0) {
                 const todayIdx = stockHist.findIndex(d => d.dateStr === dateStr);
                 if (todayIdx > 0) {
                     const todayPrice = stockHist[todayIdx].price;
@@ -109,12 +107,10 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
       setChartData(newChartData);
       onSaveData(newChartData); 
-      setProgress('');
 
     } catch (error: any) {
       console.error(error);
-      alert(error.message || "Failed to calculate performance history.");
-      setProgress('');
+      setErrorMsg(error.message || "Failed to calculate performance history.");
     } finally {
       setLoading(false);
     }
@@ -133,9 +129,16 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           className="flex items-center gap-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
         >
           {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          {loading ? progress : (chartData.length > 0 ? 'Refresh & Save' : 'Generate & Save')}
+          {loading ? "Fetching Data..." : (chartData.length > 0 ? 'Refresh & Save' : 'Generate & Save')}
         </button>
       </div>
+
+      {errorMsg && (
+        <div className="mb-4 bg-rose-50 text-rose-600 p-3 rounded-lg flex items-center gap-2 text-xs font-bold border border-rose-200">
+            <AlertCircle size={16} />
+            {errorMsg}
+        </div>
+      )}
 
       <div className="flex-1 w-full min-h-0">
         {chartData.length > 0 ? (
