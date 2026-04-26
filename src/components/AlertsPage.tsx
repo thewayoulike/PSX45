@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Bell, Loader2, CheckCircle2, AlertCircle, Target, TrendingUp, Search, Trash2, ArrowUpRight, ArrowDownRight, Plus, X, Pencil } from 'lucide-react';
 import { Holding } from '../types';
 import { Card } from './ui/Card';
@@ -76,6 +76,17 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
         .catch(console.error);
     }
   }, [fetchMyAlerts]);
+
+  // Group alerts by ticker so they appear on one line
+  const groupedAlerts = useMemo(() => {
+    const map: Record<string, { tps: any[], sls: any[] }> = {};
+    activeAlerts.forEach(alert => {
+        if (!map[alert.ticker]) map[alert.ticker] = { tps: [], sls: [] };
+        if (alert.direction === 'ABOVE') map[alert.ticker].tps.push(alert);
+        else map[alert.ticker].sls.push(alert);
+    });
+    return map;
+  }, [activeAlerts]);
 
   // Handle changing ticker
   const handleTickerChange = (newTicker: string) => {
@@ -161,17 +172,22 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
       }
   };
 
-  const handleEditAlert = (alert: any) => {
-      setTicker(alert.ticker);
-      if (alert.direction === 'ABOVE') {
-          setTps([alert.targetPrice.toString()]);
-          setSls([]);
-      } else {
-          setSls([alert.targetPrice.toString()]);
-          setTps([]);
-      }
-      handleDeleteAlert(alert.id);
+  const handleEditTicker = (editTicker: string, data: any) => {
+      setTicker(editTicker);
+      // Load them into the form arrays
+      setTps(data.tps.length > 0 ? data.tps.map((a: any) => a.targetPrice.toString()) : ['']);
+      setSls(data.sls.length > 0 ? data.sls.map((a: any) => a.targetPrice.toString()) : []);
+      
+      // Delete the old ones from the DB since we are pulling them into the editor
+      data.tps.forEach((a: any) => handleDeleteAlert(a.id));
+      data.sls.forEach((a: any) => handleDeleteAlert(a.id));
+      
       window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteTickerGroup = (data: any) => {
+      data.tps.forEach((a: any) => handleDeleteAlert(a.id));
+      data.sls.forEach((a: any) => handleDeleteAlert(a.id));
   };
 
   return (
@@ -286,47 +302,73 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
         </div>
       </Card>
       
-      {/* ACTIVE ALERTS LIST */}
+      {/* ACTIVE ALERTS LIST (GROUPED BY TICKER) */}
       <Card title="My Active Alerts" icon={<Bell size={18} className="text-emerald-500" />}>
         <div className="mt-4">
             {loadingAlerts ? (
                 <div className="flex justify-center py-8 text-slate-400"><Loader2 size={24} className="animate-spin" /></div>
-            ) : activeAlerts.length === 0 ? (
+            ) : Object.keys(groupedAlerts).length === 0 ? (
                 <div className="text-center py-8 text-slate-400 text-sm font-medium">You have no active alerts.</div>
             ) : (
-                <div className="space-y-3">
-                    {activeAlerts.map(alert => {
-                        const isTP = alert.direction === 'ABOVE';
-                        return (
-                            <div key={alert.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <div className="flex items-center gap-4">
-                                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold ${isTP ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-100 text-rose-600 dark:bg-rose-900/30'}`}>
-                                        {isTP ? <ArrowUpRight size={18} /> : <ArrowDownRight size={18} />}
-                                    </div>
-                                    <div>
-                                        <div className="font-bold text-slate-800 dark:text-slate-100">{alert.ticker}</div>
-                                        <div className={`text-[10px] uppercase tracking-wider font-bold ${isTP ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                            {isTP ? 'Target Price (TP)' : 'Stop Loss (SL)'}
-                                        </div>
-                                    </div>
+                <div className="space-y-4">
+                    {Object.entries(groupedAlerts).map(([alertTicker, data]) => (
+                        <div key={alertTicker} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 gap-4 transition-all hover:border-indigo-300 dark:hover:border-indigo-700">
+                            
+                            {/* Left Side: Ticker Name */}
+                            <div className="flex items-center gap-4 min-w-[120px]">
+                                <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30">
+                                    {alertTicker.substring(0, 2)}
                                 </div>
-                                <div className="flex items-center gap-2 sm:gap-6">
-                                    <div className="text-right">
-                                        <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Trigger At</div>
-                                        <div className="font-mono font-bold text-slate-800 dark:text-slate-200">Rs. {alert.targetPrice.toFixed(2)}</div>
-                                    </div>
-                                    <div className="flex items-center border-l border-slate-200 dark:border-slate-700 pl-2 sm:pl-4">
-                                        <button onClick={() => handleEditAlert(alert)} className="text-slate-400 hover:text-blue-500 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit Alert (Deletes & pulls back into form)">
-                                            <Pencil size={16} />
-                                        </button>
-                                        <button onClick={() => handleDeleteAlert(alert.id)} className="text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors" title="Delete Alert">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
+                                <div className="font-bold text-slate-800 dark:text-slate-100 text-lg">{alertTicker}</div>
+                            </div>
+
+                            {/* Middle: Badges for TP and SL */}
+                            <div className="flex-1 flex flex-col sm:flex-row gap-4 border-l-0 sm:border-l border-slate-200 dark:border-slate-700 pt-3 sm:pt-0 pl-0 sm:pl-4">
+                                {/* TPs */}
+                                <div className="flex-1">
+                                   <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold flex items-center gap-1">
+                                      <ArrowUpRight size={12} className="text-emerald-500"/> Target Prices
+                                   </div>
+                                   <div className="flex flex-wrap gap-2">
+                                       {data.tps.length === 0 && <span className="text-xs text-slate-400 italic">-</span>}
+                                       {data.tps.map(tp => (
+                                           <span key={tp.id} className="inline-flex items-center bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 text-xs font-bold font-mono px-2 py-1 rounded-md border border-emerald-200 dark:border-emerald-800">
+                                               {tp.targetPrice.toFixed(2)}
+                                               <button onClick={() => handleDeleteAlert(tp.id)} className="ml-1.5 hover:text-rose-500 transition-colors"><X size={14}/></button>
+                                           </span>
+                                       ))}
+                                   </div>
+                                </div>
+
+                                {/* SLs */}
+                                <div className="flex-1">
+                                   <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold flex items-center gap-1">
+                                      <ArrowDownRight size={12} className="text-rose-500"/> Stop Losses
+                                   </div>
+                                   <div className="flex flex-wrap gap-2">
+                                       {data.sls.length === 0 && <span className="text-xs text-slate-400 italic">-</span>}
+                                       {data.sls.map(sl => (
+                                           <span key={sl.id} className="inline-flex items-center bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 text-xs font-bold font-mono px-2 py-1 rounded-md border border-rose-200 dark:border-rose-800">
+                                               {sl.targetPrice.toFixed(2)}
+                                               <button onClick={() => handleDeleteAlert(sl.id)} className="ml-1.5 hover:text-rose-900 dark:hover:text-rose-200 transition-colors"><X size={14}/></button>
+                                           </span>
+                                       ))}
+                                   </div>
                                 </div>
                             </div>
-                        )
-                    })}
+
+                            {/* Right Side: Edit/Delete All Buttons */}
+                            <div className="flex items-center justify-end gap-2 border-t sm:border-t-0 border-slate-200 dark:border-slate-700 pt-3 sm:pt-0">
+                                <button onClick={() => handleEditTicker(alertTicker, data)} className="flex items-center gap-1 text-slate-400 hover:text-blue-500 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit All">
+                                    <Pencil size={16} /> <span className="text-xs font-bold sm:hidden">Edit</span>
+                                </button>
+                                <button onClick={() => handleDeleteTickerGroup(data)} className="flex items-center gap-1 text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors" title="Delete All">
+                                    <Trash2 size={16} /> <span className="text-xs font-bold sm:hidden">Delete</span>
+                                </button>
+                            </div>
+
+                        </div>
+                    ))}
                 </div>
             )}
         </div>
