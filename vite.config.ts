@@ -6,11 +6,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // --- THESE 3 LINES ARE THE CRITICAL FIX ---
       strategies: 'injectManifest',
-      srcDir: 'public',
+      srcDir: 'src', // <--- CHANGE THIS TO 'src'
       filename: 'sw.js',
-      // ------------------------------------------
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
@@ -47,10 +45,6 @@ export default defineConfig({
       }
     })
   ],
-
-  // 1. REMOVED optimizeDeps.exclude
-  // 2. REMOVED build.rollupOptions.external
-
   build: {
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
