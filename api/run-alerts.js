@@ -25,17 +25,42 @@ export default async function handler(req, res) {
     const response = await fetch('https://dps.psx.com.pk/market-watch');
     const html = await response.text();
     
-    // Quick Regex parsing to extract prices
     const livePrices = {};
-    uniqueTickers.forEach(ticker => {
-      const regex = new RegExp(`${ticker}.*?<td[^>]*>.*?</td>.*?<td[^>]*>([\\d,.]+)</td>`, 'is');
-      const match = html.match(regex);
-      if (match && match[1]) {
-        livePrices[ticker] = parseFloat(match[1].replace(/,/g, ''));
+    
+    // 3. Safer HTML Table Parsing (Mimics frontend Sync logic)
+    const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
+    let rowMatch;
+    
+    while ((rowMatch = rowRegex.exec(html)) !== null) {
+      const rowHtml = rowMatch[1];
+      const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      const cells = [];
+      let cellMatch;
+      
+      while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
+        // Strip out <a> tags and spaces
+        const text = cellMatch[1].replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().toUpperCase();
+        cells.push(text);
       }
-    });
+      
+      // Ensure we have enough columns (PSX table usually has 8 columns)
+      if (cells.length >= 6) {
+        const symbolText = cells[0];
+        // Index 5 is 'CURRENT PRICE'
+        const price = parseFloat(cells[5].replace(/,/g, '')); 
+        
+        uniqueTickers.forEach(ticker => {
+          // Exact match or match with suffix (e.g., "OGDC XD", "NPL EX")
+          if (symbolText === ticker || symbolText.startsWith(ticker + ' ')) {
+            if (!isNaN(price) && price > 0) {
+              livePrices[ticker] = price;
+            }
+          }
+        });
+      }
+    }
 
-    // 3. Check conditions & send pushes (Optimized for speed)
+    // 4. Check conditions & send pushes (Optimized for speed)
     let pushesSent = 0;
     
     // Process all alerts concurrently
@@ -77,11 +102,12 @@ export default async function handler(req, res) {
     // Filter out the ones we want to keep
     const alertsToKeep = results.filter(res => res.keep).map(res => res.alert);
 
-    // 4. Update database
+    // 5. Update database
     await kv.set('psx_alerts', alertsToKeep);
 
     return res.status(200).json({ success: true, pushesSent, alertsRemaining: alertsToKeep.length });
   } catch (error) {
+    console.error("Run Alerts Error:", error);
     return res.status(500).json({ error: error.message });
   }
 }
