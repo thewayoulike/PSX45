@@ -1,5 +1,6 @@
 import { CompanyPayout } from '../types';
 import { getValidToken } from './driveStorage';
+import { fetchUrlWithFallback } from './psxData'; // <-- Added this import
 
 export interface CompanyFinancials {
   year: string;
@@ -7,7 +8,6 @@ export interface CompanyFinancials {
   totalIncome: string;
   profitAfterTax: string;
   eps: string;
-  // NEW FIELDS ADDED FOR AUTO-FILL
   bookValue?: string;
   totalLiabilities?: string;
   totalEquity?: string;
@@ -86,7 +86,6 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
             const profit = getRowData(['Profit after Taxation', 'Profit After Tax', 'Net Profit']);
             const eps = getRowData(['EPS', 'Earnings per share']);
             
-            // NEW BALANCE SHEET EXTRACTIONS
             const bookValue = getRowData(['Break-up value', 'Book Value', 'Net Asset Value']);
             const totalLiabilities = getRowData(['Total Liabilities']);
             const totalEquity = getRowData(['Total Equity', 'Shareholders Equity']);
@@ -261,4 +260,34 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
     } catch (e) { console.warn(`Proxy failed for payouts`, e); }
   }
   return [];
+};
+
+
+// --- 4. NEW: Fetch Advanced Stats from StockAnalysis.com ---
+export const fetchStockAnalysisStats = async (ticker: string) => {
+  const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/statistics/`;
+  
+  // Use our existing fallback logic to bypass Cloudflare
+  const html = await fetchUrlWithFallback(targetUrl);
+
+  if (!html) return null;
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  
+  const stats: Record<string, string> = {};
+
+  const rows = doc.querySelectorAll('table tbody tr');
+  rows.forEach(row => {
+      const cols = row.querySelectorAll('td');
+      if (cols.length >= 2) {
+          const key = cols[0].textContent?.trim() || '';
+          const value = cols[1].textContent?.trim() || '';
+          if (key && value) {
+              stats[key] = value;
+          }
+      }
+  });
+
+  return stats;
 };
