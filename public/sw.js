@@ -1,3 +1,7 @@
+// This placeholder is required by vite-plugin-pwa to inject the caching manifest
+// without this, the Vercel build will fail!
+const precacheManifest = self.__WB_MANIFEST;
+
 self.addEventListener('push', function(event) {
   if (event.data) {
     const data = event.data.json();
