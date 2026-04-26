@@ -443,7 +443,11 @@ const App: React.FC = () => {
       }, 5 * 60 * 1000);
 
       return () => clearInterval(interval);
-  }, [driveUser]);
+      
+      // We add holdings.length here. It won't cause a loop because 
+      // the length doesn't change when prices update, but it allows 
+      // the sync to fire as soon as your portfolio initially loads.
+  }, [driveUser, holdings.length]);
 
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
