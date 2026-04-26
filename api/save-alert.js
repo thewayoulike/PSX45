@@ -1,40 +1,41 @@
 import { kv } from '@vercel/kv';
 
 export default async function handler(req, res) {
-  // Allow CORS if necessary
   res.setHeader('Access-Control-Allow-Credentials', true);
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+  if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
-    // 1. Safely parse the body (handles both string and object formats)
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
     
-    // Safety check to ensure we have the data we need
-    if (!body || !body.ticker) {
-      return res.status(400).json({ error: 'Missing ticker or invalid body' });
+    if (!body || !body.ticker || !body.subscription || !body.subscription.endpoint) {
+      return res.status(400).json({ error: 'Missing required data' });
     }
 
     const { subscription, ticker, targetPrice, direction } = body;
-    
-    // 2. Fetch existing alerts
     let existingAlerts = await kv.get('psx_alerts');
-    
-    // 3. Safely ensure it is an array. If it got corrupted, reset it.
-    if (!Array.isArray(existingAlerts)) {
-      existingAlerts = [];
+    if (!Array.isArray(existingAlerts)) existingAlerts = [];
+
+    // --- NEW: ENFORCE 3 TP / 3 SL LIMIT ---
+    const userAlertsForThisStock = existingAlerts.filter(a => 
+        a.subscription.endpoint === subscription.endpoint && 
+        a.ticker === ticker.toUpperCase() &&
+        a.direction === direction
+    );
+
+    if (userAlertsForThisStock.length >= 3) {
+        const alertType = direction === 'ABOVE' ? 'Target Price (TP)' : 'Stop Loss (SL)';
+        return res.status(400).json({ 
+            error: `Limit reached: Max 3 ${alertType} alerts allowed for ${ticker.toUpperCase()}.` 
+        });
     }
-    
+    // ---------------------------------------
+
     const newAlert = {
-      id: Date.now().toString(),
+      id: Date.now().toString() + Math.random().toString(36).substring(2, 6),
       subscription,
       ticker: ticker.toUpperCase(),
       targetPrice: Number(targetPrice),
@@ -43,13 +44,10 @@ export default async function handler(req, res) {
     };
 
     existingAlerts.push(newAlert);
-    
-    // 4. Save back to KV Database
     await kv.set('psx_alerts', existingAlerts);
 
     return res.status(200).json({ success: true, message: 'Alert saved' });
   } catch (error) {
-    console.error("Save Alert Error:", error);
     return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 }
