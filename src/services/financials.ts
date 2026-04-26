@@ -39,7 +39,7 @@ export interface FundamentalsData {
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   
-  // Replaced old proxies with our rock-solid fallback system
+  // Uses your Vercel Proxy instead of flaky free proxies
   const html = await fetchUrlWithFallback(targetUrl);
 
   if (html && html.length > 500) {
@@ -242,7 +242,6 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
   return [];
 };
 
-
 // --- 4. Fetch Advanced Stats from StockAnalysis.com ---
 export const fetchStockAnalysisStats = async (ticker: string) => {
   const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/statistics/`;
@@ -271,6 +270,7 @@ export const fetchStockAnalysisStats = async (ticker: string) => {
       return null;
   }
 };
+
 // --- 5. Fetch Balance Sheet from StockAnalysis.com ---
 export const fetchStockAnalysisBalanceSheet = async (ticker: string) => {
   const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/financials/balance-sheet/`;
@@ -288,7 +288,6 @@ export const fetchStockAnalysisBalanceSheet = async (ticker: string) => {
           const cols = row.querySelectorAll('td');
           if (cols.length >= 2) {
               const key = cols[0].textContent?.trim() || '';
-              // The second column contains the most recent trailing/annual data
               const value = cols[1].textContent?.trim() || '';
               if (key && value) {
                   stats[key] = value;
