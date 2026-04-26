@@ -20,10 +20,11 @@ import { MarketTicker } from './MarketTicker';
 import { TransferModal } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
+import { AlertsPage } from './AlertsPage'; // <-- IMPORTED NEW ALERTS PAGE
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft, Calculator, TrendingUp } from 'lucide-react'; 
+import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft, Calculator, TrendingUp, Bell } from 'lucide-react'; // <-- ADDED Bell
 import { useIdleTimer } from '../hooks/useIdleTimer'; 
 import { ThemeToggle } from './ui/ThemeToggle'; 
 import * as Popover from '@radix-ui/react-popover'; 
@@ -45,7 +46,8 @@ const DEFAULT_BROKER: Broker = {
 
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR';
+// --> UPDATED: Added 'ALERTS' to the AppView type
+type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -370,7 +372,6 @@ const App: React.FC = () => {
   const handleTogglePortfolioSelection = (id: string) => { const newSet = new Set(combinedPortfolioIds); if (newSet.has(id)) { if (newSet.size > 1) newSet.delete(id); } else { newSet.add(id); } setCombinedPortfolioIds(newSet); };
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
-  // 1. Refactored Sync Function into a useCallback hook
   const handleSyncPrices = useCallback(async () => { 
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker))); 
       if (uniqueTickers.length === 0) return; 
@@ -424,23 +425,17 @@ const App: React.FC = () => {
       } 
   }, [holdings]);
 
-  // 2. Added Auto-Sync useEffect
   useEffect(() => {
-      // Only execute auto-sync if user is logged in and has stocks to track
       if (!driveUser || holdings.length === 0) return;
 
-      // Sync immediately upon login / data load
       handleSyncPrices();
 
-      // Set up the recurring sync every 5 minutes (300,000 milliseconds)
       const interval = setInterval(() => {
           handleSyncPrices();
       }, 5 * 60 * 1000);
 
-      // Clean up the interval when dependencies change or on unmount
       return () => clearInterval(interval);
   }, [driveUser, holdings.length > 0, handleSyncPrices]);
-
 
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
@@ -917,6 +912,11 @@ const App: React.FC = () => {
                         <ChartCandlestick size={16} className="sm:w-[18px] sm:h-[18px]" /> Stocks 
                     </button>
 
+                    {/* NEW ALERTS TAB BUTTON */}
+                    <button onClick={() => setCurrentView('ALERTS')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'ALERTS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
+                        <Bell size={16} className="sm:w-[18px] sm:h-[18px]" /> Alerts 
+                    </button>
+
                     <button onClick={() => setCurrentView('CALCULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'CALCULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}> 
                         <Calculator size={16} className="sm:w-[18px] sm:h-[18px]" /> Fair Value
                     </button>
@@ -1079,7 +1079,6 @@ const App: React.FC = () => {
                     <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
                     <div className="flex flex-col gap-6 mt-6">
                         
-                        {/* PERFORMANCE CHART RENDERED HERE */}
                         <PerformanceChart 
                            key={isCombinedView ? 'combined' : currentPortfolioId}
                            transactions={portfolioTransactions} 
@@ -1146,6 +1145,16 @@ const App: React.FC = () => {
                         brokers={brokers} 
                         defaultBrokerId={currentPortfolio?.defaultBrokerId || brokers[0]?.id || ''} 
                         transactions={portfolioTransactions}
+                    />
+                </div>
+            )}
+
+            {/* NEW ALERTS VIEW RENDER */}
+            {currentView === 'ALERTS' && (
+                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <AlertsPage 
+                        holdings={holdings} 
+                        currentPrices={manualPrices} 
                     />
                 </div>
             )}
