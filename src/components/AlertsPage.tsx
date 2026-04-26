@@ -23,8 +23,6 @@ interface AlertsPageProps {
 
 export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices }) => {
   const [ticker, setTicker] = useState<string>('');
-  
-  // Arrays to hold up to 3 TPs and 3 SLs
   const [tps, setTps] = useState<string[]>(['']);
   const [sls, setSls] = useState<string[]>([]);
   
@@ -37,8 +35,37 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
   const uniqueHoldings = Array.from(new Set(holdings.map(h => h.ticker)));
   const currentPrice = currentPrices[ticker] || 0;
 
+  // 1. SAFELY HANDLE iOS SAFARI PERMISSIONS
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) {
+      throw new Error("Notifications are not supported on this device. (iOS requires iOS 16.4+ and 'Add to Home Screen')");
+    }
+    
+    let permission = Notification.permission;
+    if (permission !== 'granted' && permission !== 'denied') {
+      // Safely handle both Promise and Callback versions (Safari quirk)
+      permission = await new Promise((resolve) => {
+        try {
+          const promise = Notification.requestPermission(resolve);
+          if (promise && typeof promise.then === 'function') {
+            promise.then(resolve).catch(() => resolve('denied'));
+          }
+        } catch (e) {
+          resolve('denied');
+        }
+      });
+    }
+    return permission;
+  };
+
+  // 2. SAFELY HANDLE iOS SERVICE WORKER
   const getPushSubscription = async () => {
-    const registration = await navigator.serviceWorker.ready;
+    if (!('serviceWorker' in navigator)) throw new Error("Service Workers are not supported by this browser.");
+    if (!('PushManager' in window)) throw new Error("Push API is not supported. Ensure you are on iOS 16.4+ and using the Home Screen app.");
+
+    // Directly register to avoid .ready hanging
+    const registration = await navigator.serviceWorker.register('/sw.js');
+    
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription && VAPID_PUBLIC_KEY) {
       subscription = await registration.pushManager.subscribe({
@@ -77,7 +104,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
     }
   }, [fetchMyAlerts]);
 
-  // Group alerts by ticker so they appear on one line
   const groupedAlerts = useMemo(() => {
     const map: Record<string, { tps: any[], sls: any[] }> = {};
     activeAlerts.forEach(alert => {
@@ -88,20 +114,16 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
     return map;
   }, [activeAlerts]);
 
-  // Handle changing ticker
   const handleTickerChange = (newTicker: string) => {
       setTicker(newTicker.toUpperCase());
-      setStatus('idle');
-      setMessage('');
+      setStatus('idle'); setMessage('');
   };
 
-  // Handle Input Changes
   const updateArr = (arr: string[], setArr: any, index: number, val: string) => {
       const copy = [...arr];
       copy[index] = val;
       setArr(copy);
-      setStatus('idle');
-      setMessage('');
+      setStatus('idle'); setMessage('');
   };
   const removeArr = (arr: string[], setArr: any, index: number) => {
       setArr(arr.filter((_, i) => i !== index));
@@ -110,7 +132,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
   const handleSetAlert = async () => {
     if (!ticker) return;
     
-    // Gather all valid inputs
     const validTps = tps.filter(val => val !== '').map(price => ({ price: Number(price), direction: 'ABOVE' }));
     const validSls = sls.filter(val => val !== '').map(price => ({ price: Number(price), direction: 'BELOW' }));
     const allAlerts = [...validTps, ...validSls];
@@ -127,9 +148,9 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
     setMessage('Requesting permission & saving...');
 
     try {
-      const permission = await Notification.requestPermission();
+      const permission = await requestNotificationPermission();
       if (permission !== 'granted') {
-        setStatus('error'); setMessage('Notification permission denied.'); return;
+        setStatus('error'); setMessage('Notification permission denied by user or device.'); return;
       }
 
       const subscription = await getPushSubscription();
@@ -146,7 +167,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
       if (res.ok) {
         setStatus('success');
         setMessage(data.message || 'Alerts activated successfully!');
-        setTps(['']); // Reset form
+        setTps(['']); 
         setSls([]);
         fetchMyAlerts(); 
       } else {
@@ -174,14 +195,10 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
 
   const handleEditTicker = (editTicker: string, data: any) => {
       setTicker(editTicker);
-      // Load them into the form arrays
       setTps(data.tps.length > 0 ? data.tps.map((a: any) => a.targetPrice.toString()) : ['']);
       setSls(data.sls.length > 0 ? data.sls.map((a: any) => a.targetPrice.toString()) : []);
-      
-      // Delete the old ones from the DB since we are pulling them into the editor
       data.tps.forEach((a: any) => handleDeleteAlert(a.id));
       data.sls.forEach((a: any) => handleDeleteAlert(a.id));
-      
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -302,7 +319,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
         </div>
       </Card>
       
-      {/* ACTIVE ALERTS LIST (GROUPED BY TICKER) */}
       <Card title="My Active Alerts" icon={<Bell size={18} className="text-emerald-500" />}>
         <div className="mt-4">
             {loadingAlerts ? (
@@ -314,7 +330,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
                     {Object.entries(groupedAlerts).map(([alertTicker, data]) => (
                         <div key={alertTicker} className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 gap-4 transition-all hover:border-indigo-300 dark:hover:border-indigo-700">
                             
-                            {/* Left Side: Ticker Name */}
                             <div className="flex items-center gap-4 min-w-[120px]">
                                 <div className="w-10 h-10 rounded-xl flex items-center justify-center font-black bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30">
                                     {alertTicker.substring(0, 2)}
@@ -322,9 +337,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
                                 <div className="font-bold text-slate-800 dark:text-slate-100 text-lg">{alertTicker}</div>
                             </div>
 
-                            {/* Middle: Badges for TP and SL */}
                             <div className="flex-1 flex flex-col sm:flex-row gap-4 border-l-0 sm:border-l border-slate-200 dark:border-slate-700 pt-3 sm:pt-0 pl-0 sm:pl-4">
-                                {/* TPs */}
                                 <div className="flex-1">
                                    <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold flex items-center gap-1">
                                       <ArrowUpRight size={12} className="text-emerald-500"/> Target Prices
@@ -340,7 +353,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
                                    </div>
                                 </div>
 
-                                {/* SLs */}
                                 <div className="flex-1">
                                    <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-1.5 font-bold flex items-center gap-1">
                                       <ArrowDownRight size={12} className="text-rose-500"/> Stop Losses
@@ -357,7 +369,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
                                 </div>
                             </div>
 
-                            {/* Right Side: Edit/Delete All Buttons */}
                             <div className="flex items-center justify-end gap-2 border-t sm:border-t-0 border-slate-200 dark:border-slate-700 pt-3 sm:pt-0">
                                 <button onClick={() => handleEditTicker(alertTicker, data)} className="flex items-center gap-1 text-slate-400 hover:text-blue-500 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit All">
                                     <Pencil size={16} /> <span className="text-xs font-bold sm:hidden">Edit</span>
