@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card } from './ui/Card';
 import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2 } from 'lucide-react';
 import { fetchBatchPSXPrices } from '../services/psxData';
-import { fetchCompanyFundamentals, fetchStockAnalysisStats } from '../services/financials';
+import { fetchCompanyFundamentals, fetchStockAnalysisStats, fetchStockAnalysisBalanceSheet } from '../services/financials';
 
 export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
@@ -36,87 +36,91 @@ export const FairValueCalculator: React.FC = () => {
   const handleAutoFill = async () => {
       if (!inputs.ticker) return;
       setIsFetching(true);
-      
-      // Reset all fields
-      setInputs(prev => ({
-          ticker: prev.ticker,
-          price: 0, eps: 0, bookValue: 0, liabilities: 0, equity: 0,
-          currentAssets: 0, currentLiabilities: 0, inventory: 0, fcf: 0,
-          fairPE: 0, expectedDiv: 0, requiredReturn: 15, cagr: 0,
-          method4TargetYield: 0, method4Eps: 0
-      }));
 
       try {
-          // 1. Fetch Current Market Price
+          // 1. Fetch Current Market Price (Live from PSX)
           const priceData = await fetchBatchPSXPrices([inputs.ticker]);
-          let newPrice = 0;
+          let newPrice = inputs.price;
           if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
               newPrice = priceData[inputs.ticker].price;
           }
 
-          // 2. Fetch Fundamentals from PSX
+          // 2. Fetch PSX Fundamentals (As a fallback, and for FCF/Book Value per share)
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
-          let baseData = {};
-          
+          let baseData: any = {};
           if (fundamentals && fundamentals.annual.financials.length > 0) {
-              const parseNum = (val: string | undefined) => {
-                  if (!val || val === '-') return null;
-                  const isNegative = val.includes('(') && val.includes(')');
-                  const num = parseFloat(val.replace(/[(),]/g, ''));
-                  return isNaN(num) ? null : (isNegative ? -num : num);
-              };
-
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
               if (validData.length > 0) {
                   const latest = validData[validData.length - 1];
+                  const parseNum = (val: string | undefined) => {
+                      if (!val || val === '-') return null;
+                      const isNegative = val.includes('(') && val.includes(')');
+                      return parseFloat(val.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
+                  };
                   baseData = {
-                      eps: parseNum(latest.eps) ?? 0,
-                      bookValue: parseNum(latest.bookValue) ?? 0,
-                      liabilities: parseNum(latest.totalLiabilities) ?? 0,
-                      equity: parseNum(latest.totalEquity) ?? 0,
-                      currentAssets: parseNum(latest.currentAssets) ?? 0,
-                      currentLiabilities: parseNum(latest.currentLiabilities) ?? 0,
-                      inventory: parseNum(latest.inventory) ?? 0,
-                      fcf: parseNum(latest.fcf) ?? 0
+                      bookValue: parseNum(latest.bookValue) ?? inputs.bookValue,
+                      fcf: parseNum(latest.fcf) ?? inputs.fcf,
+                      liabilities: parseNum(latest.totalLiabilities) ?? inputs.liabilities,
+                      equity: parseNum(latest.totalEquity) ?? inputs.equity,
+                      currentAssets: parseNum(latest.currentAssets) ?? inputs.currentAssets,
+                      currentLiabilities: parseNum(latest.currentLiabilities) ?? inputs.currentLiabilities,
+                      inventory: parseNum(latest.inventory) ?? inputs.inventory,
                   };
               }
           }
 
-          // 3. Fetch Advanced/Missing Stats from StockAnalysis.com
+          // 3. Fetch StockAnalysis Statistics (For EPS, PE, Div)
           const advancedStats = await fetchStockAnalysisStats(inputs.ticker);
-          let extraData = {};
+          
+          // 4. Fetch StockAnalysis Balance Sheet (For Liabilities, Assets, Inventory)
+          const bsStats = await fetchStockAnalysisBalanceSheet(inputs.ticker);
 
-          if (advancedStats) {
-              // Helper to safely parse strings ending in B, M, or K
-              const parseStat = (keyMatches: string[]) => {
-                  for (const key of keyMatches) {
-                      const exactMatch = Object.keys(advancedStats).find(k => k.toLowerCase().includes(key.toLowerCase()));
-                      if (exactMatch) {
-                          let valStr = advancedStats[exactMatch].replace(/[%$,]/g, '').trim();
-                          let multiplier = 1;
-                          if (valStr.toUpperCase().endsWith('B')) { multiplier = 1000000000; valStr = valStr.slice(0, -1); }
-                          else if (valStr.toUpperCase().endsWith('M')) { multiplier = 1000000; valStr = valStr.slice(0, -1); }
-                          else if (valStr.toUpperCase().endsWith('K')) { multiplier = 1000; valStr = valStr.slice(0, -1); }
-                          const val = parseFloat(valStr);
-                          if (!isNaN(val)) return val * multiplier;
-                      }
+          let newEps = inputs.eps;
+          let extraData: any = {};
+
+          // Helper to safely parse strings with 'M', 'B', 'K' suffixes
+          const parseStat = (obj: any, keyMatches: string[]) => {
+              if (!obj) return null;
+              for (const key of keyMatches) {
+                  const exactMatch = Object.keys(obj).find(k => k.toLowerCase().includes(key.toLowerCase()));
+                  if (exactMatch) {
+                      let valStr = obj[exactMatch].replace(/[%$,]/g, '').trim();
+                      let multiplier = 1;
+                      if (valStr.toUpperCase().endsWith('B')) { multiplier = 1000000000; valStr = valStr.slice(0, -1); }
+                      else if (valStr.toUpperCase().endsWith('M')) { multiplier = 1000000; valStr = valStr.slice(0, -1); }
+                      else if (valStr.toUpperCase().endsWith('K')) { multiplier = 1000; valStr = valStr.slice(0, -1); }
+                      const val = parseFloat(valStr);
+                      if (!isNaN(val)) return val * multiplier;
                   }
-                  return null;
-              };
+              }
+              return null;
+          };
 
-              extraData = {
-                  fairPE: parseStat(['PE Ratio', 'P/E Ratio', 'Forward PE']) ?? 0,
-                  expectedDiv: parseStat(['Dividend Per Share', 'Dividend (TTM)', 'Forward Dividend']) ?? 0,
-                  cagr: parseStat(['EPS Growth', 'Revenue Growth (YoY)']) ?? 0,
-                  // If PSX didn't have FCF, try getting it from here
-                  fcf: parseStat(['Free Cash Flow']) ?? baseData['fcf' as keyof typeof baseData] ?? 0
-              };
+          // Extract from Statistics Page
+          if (advancedStats) {
+              const epsKey = Object.keys(advancedStats).find(k => k.toLowerCase().includes('eps'));
+              if (epsKey) {
+                  const epsVal = parseFloat(advancedStats[epsKey].replace(/,/g, ''));
+                  if (!isNaN(epsVal)) newEps = epsVal;
+              }
+              extraData.fairPE = parseStat(advancedStats, ['PE Ratio', 'P/E Ratio']) ?? inputs.fairPE;
+              extraData.expectedDiv = parseStat(advancedStats, ['Dividend Per Share']) ?? inputs.expectedDiv;
           }
 
-          // Apply all merged data
+          // Extract from Balance Sheet Page (Overrides the PSX fallback data)
+          if (bsStats) {
+              extraData.liabilities = parseStat(bsStats, ['Total Liabilities']) ?? baseData.liabilities ?? inputs.liabilities;
+              extraData.inventory = parseStat(bsStats, ['Inventory']) ?? baseData.inventory ?? inputs.inventory;
+              extraData.currentAssets = parseStat(bsStats, ['Total Current Assets', 'Current Assets']) ?? baseData.currentAssets ?? inputs.currentAssets;
+              extraData.currentLiabilities = parseStat(bsStats, ['Total Current Liabilities', 'Current Liabilities']) ?? baseData.currentLiabilities ?? inputs.currentLiabilities;
+              extraData.equity = parseStat(bsStats, ['Total Equity', "Shareholders' Equity"]) ?? baseData.equity ?? inputs.equity;
+          }
+
+          // Update Form with everything merged!
           setInputs(prev => ({
               ...prev,
               price: newPrice,
+              eps: newEps,
               ...baseData,
               ...extraData
           }));
