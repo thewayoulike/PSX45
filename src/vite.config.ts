@@ -6,6 +6,11 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      // --- THESE 3 LINES ARE THE CRITICAL FIX ---
+      strategies: 'injectManifest',
+      srcDir: 'public',
+      filename: 'sw.js',
+      // ------------------------------------------
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       manifest: {
