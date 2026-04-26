@@ -35,16 +35,15 @@ export default async function handler(req, res) {
       }
     });
 
-    // 3. Check conditions & send pushes
-    let alertsToKeep = [];
+    // 3. Check conditions & send pushes (Optimized for speed)
     let pushesSent = 0;
-
-    for (const alert of alerts) {
+    
+    // Process all alerts concurrently
+    const processingPromises = alerts.map(async (alert) => {
       const currentPrice = livePrices[alert.ticker];
-      if (!currentPrice) {
-        alertsToKeep.push(alert); // Price not found, keep alert for next check
-        continue;
-      }
+      
+      // Keep if price not found
+      if (!currentPrice) return { keep: true, alert }; 
 
       const hitAbove = alert.direction === 'ABOVE' && currentPrice >= alert.targetPrice;
       const hitBelow = alert.direction === 'BELOW' && currentPrice <= alert.targetPrice;
@@ -58,19 +57,25 @@ export default async function handler(req, res) {
         try {
           await webpush.sendNotification(alert.subscription, payload);
           pushesSent++;
-          // Do NOT push it back to alertsToKeep (it deletes itself after triggering)
+          return { keep: false }; // Successfully sent, delete it
         } catch (e) {
           if (e.statusCode === 410 || e.statusCode === 404) {
-            // User unsubscribed, do nothing (deletes alert)
+            return { keep: false }; // User unsubscribed, delete it
           } else {
-            alertsToKeep.push(alert); // Temporary error, try again next time
+            return { keep: true, alert }; // Temporary server error, keep it to try again
           }
         }
-      } else {
-        // Condition not met yet, keep it in database
-        alertsToKeep.push(alert);
-      }
-    }
+      } 
+      
+      // Condition not met, keep it
+      return { keep: true, alert }; 
+    });
+
+    // Wait for all promises to finish at the same time
+    const results = await Promise.all(processingPromises);
+    
+    // Filter out the ones we want to keep
+    const alertsToKeep = results.filter(res => res.keep).map(res => res.alert);
 
     // 4. Update database
     await kv.set('psx_alerts', alertsToKeep);
