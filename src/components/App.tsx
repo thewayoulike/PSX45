@@ -187,6 +187,7 @@ const App: React.FC = () => {
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
   const isReadyToSave = useRef(false);
+  const initialSyncDone = useRef(false);
 
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
@@ -210,6 +211,7 @@ const App: React.FC = () => {
       setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
       setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
       isReadyToSave.current = false;
+      initialSyncDone.current = false;
   }, []);
 
   useIdleTimer(1800000, () => {
@@ -426,16 +428,22 @@ const App: React.FC = () => {
   }, [holdings]);
 
   useEffect(() => {
+      // Only run if user is logged in and there are stocks to sync
       if (!driveUser || holdings.length === 0) return;
 
-      handleSyncPrices();
+      // Execute initial sync only once per session/login
+      if (!initialSyncDone.current) {
+          handleSyncPrices();
+          initialSyncDone.current = true;
+      }
 
+      // Set up the 5-minute recurring interval
       const interval = setInterval(() => {
           handleSyncPrices();
       }, 5 * 60 * 1000);
 
       return () => clearInterval(interval);
-  }, [driveUser, holdings.length > 0, handleSyncPrices]);
+  }, [driveUser]);
 
   useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]); 
   useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
