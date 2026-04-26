@@ -1,6 +1,6 @@
 import { CompanyPayout } from '../types';
 import { getValidToken } from './driveStorage';
-import { fetchUrlWithFallback } from './psxData'; // <-- Added this import
+import { fetchUrlWithFallback } from './psxData'; 
 
 export interface CompanyFinancials {
   year: string;
@@ -35,31 +35,15 @@ export interface FundamentalsData {
     };
 }
 
-const getProxies = (targetUrl: string) => [
-    `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`,
-    `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`,
-    `https://thingproxy.freeboard.io/fetch/${targetUrl}`,
-];
-
 // --- 1. Fetch Company Fundamentals (PSX Scraping) ---
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
-  const proxies = getProxies(targetUrl);
+  
+  // Replaced old proxies with our rock-solid fallback system
+  const html = await fetchUrlWithFallback(targetUrl);
 
-  for (const proxyUrl of proxies) {
+  if (html && html.length > 500) {
     try {
-      const response = await fetch(proxyUrl);
-      if (!response.ok) continue;
-
-      let html = '';
-      if (proxyUrl.includes('allorigins')) {
-        const data = await response.json();
-        html = data.contents;
-      } else {
-        html = await response.text();
-      }
-
-      if (html && html.length > 500) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         const tables = Array.from(doc.querySelectorAll('table'));
@@ -150,8 +134,9 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
         const quarterlyRatios = ratioTables.length > 1 ? parseRatiosTable(ratioTables[1]) : [];
 
         return { annual: { financials: annualFinancials, ratios: annualRatios }, quarterly: { financials: quarterlyFinancials, ratios: quarterlyRatios } };
-      }
-    } catch (e) { console.warn(`Proxy failed`, e); }
+    } catch (e) {
+        console.warn(`Failed to parse HTML for ${ticker}`, e);
+    }
   }
   return null;
 };
@@ -216,16 +201,10 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 // --- 3. Per-Company Payouts (Fallback PSX Logic) ---
 export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
-  const proxies = getProxies(targetUrl);
+  const html = await fetchUrlWithFallback(targetUrl);
 
-  for (const proxyUrl of proxies) {
+  if (html && html.length > 500) {
     try {
-      const response = await fetch(proxyUrl);
-      if (!response.ok) continue;
-      let html = '';
-      if (proxyUrl.includes('allorigins')) { const data = await response.json(); html = data.contents; } else { html = await response.text(); }
-
-      if (html && html.length > 500) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
         const tables = Array.from(doc.querySelectorAll('table'));
@@ -256,38 +235,39 @@ export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout
             }
         });
         return payouts;
-      }
-    } catch (e) { console.warn(`Proxy failed for payouts`, e); }
+    } catch (e) {
+        console.warn(`Failed to parse HTML for ${ticker} payouts`, e);
+    }
   }
   return [];
 };
 
 
-// --- 4. NEW: Fetch Advanced Stats from StockAnalysis.com ---
+// --- 4. Fetch Advanced Stats from StockAnalysis.com ---
 export const fetchStockAnalysisStats = async (ticker: string) => {
   const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/statistics/`;
-  
-  // Use our existing fallback logic to bypass Cloudflare
   const html = await fetchUrlWithFallback(targetUrl);
 
   if (!html) return null;
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-  
-  const stats: Record<string, string> = {};
-
-  const rows = doc.querySelectorAll('table tbody tr');
-  rows.forEach(row => {
-      const cols = row.querySelectorAll('td');
-      if (cols.length >= 2) {
-          const key = cols[0].textContent?.trim() || '';
-          const value = cols[1].textContent?.trim() || '';
-          if (key && value) {
-              stats[key] = value;
+  try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const stats: Record<string, string> = {};
+      const rows = doc.querySelectorAll('table tbody tr');
+      
+      rows.forEach(row => {
+          const cols = row.querySelectorAll('td');
+          if (cols.length >= 2) {
+              const key = cols[0].textContent?.trim() || '';
+              const value = cols[1].textContent?.trim() || '';
+              if (key && value) {
+                  stats[key] = value;
+              }
           }
-      }
-  });
-
-  return stats;
+      });
+      return stats;
+  } catch (e) {
+      return null;
+  }
 };
