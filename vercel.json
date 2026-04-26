@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/run-alerts?secret=YOUR_CHOSEN_SECRET_PASSWORD",
+      "schedule": "*/5 4-11 * * 1-5"
+    }
+  ]
+}
