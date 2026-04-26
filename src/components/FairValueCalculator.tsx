@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { Card } from './ui/Card';
 import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2 } from 'lucide-react';
 import { fetchBatchPSXPrices } from '../services/psxData';
-import { fetchCompanyFundamentals } from '../services/financials';
+import { fetchCompanyFundamentals, fetchStockAnalysisStats } from '../services/financials';
 
 export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
@@ -37,37 +37,26 @@ export const FairValueCalculator: React.FC = () => {
       if (!inputs.ticker) return;
       setIsFetching(true);
       
-      // 1. Reset all fields before fetching (clears old data)
+      // Reset all fields
       setInputs(prev => ({
           ticker: prev.ticker,
-          price: 0,
-          eps: 0,
-          bookValue: 0,
-          liabilities: 0,
-          equity: 0,
-          currentAssets: 0,
-          currentLiabilities: 0,
-          inventory: 0,
-          fcf: 0,
-          // Clear out manual fields so user knows they need to input them
-          fairPE: 0,
-          expectedDiv: 0,
-          requiredReturn: 0,
-          cagr: 0,
-          method4TargetYield: 0,
-          method4Eps: 0
+          price: 0, eps: 0, bookValue: 0, liabilities: 0, equity: 0,
+          currentAssets: 0, currentLiabilities: 0, inventory: 0, fcf: 0,
+          fairPE: 0, expectedDiv: 0, requiredReturn: 15, cagr: 0,
+          method4TargetYield: 0, method4Eps: 0
       }));
 
       try {
-          // 2. Fetch Current Market Price
+          // 1. Fetch Current Market Price
           const priceData = await fetchBatchPSXPrices([inputs.ticker]);
           let newPrice = 0;
           if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
               newPrice = priceData[inputs.ticker].price;
           }
 
-          // 3. Fetch Fundamentals
+          // 2. Fetch Fundamentals from PSX
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
+          let baseData = {};
           
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const parseNum = (val: string | undefined) => {
@@ -80,10 +69,7 @@ export const FairValueCalculator: React.FC = () => {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
               if (validData.length > 0) {
                   const latest = validData[validData.length - 1];
-                  
-                  setInputs(prev => ({
-                      ...prev,
-                      price: newPrice,
+                  baseData = {
                       eps: parseNum(latest.eps) ?? 0,
                       bookValue: parseNum(latest.bookValue) ?? 0,
                       liabilities: parseNum(latest.totalLiabilities) ?? 0,
@@ -92,17 +78,52 @@ export const FairValueCalculator: React.FC = () => {
                       currentLiabilities: parseNum(latest.currentLiabilities) ?? 0,
                       inventory: parseNum(latest.inventory) ?? 0,
                       fcf: parseNum(latest.fcf) ?? 0
-                  }));
-                  return; 
+                  };
               }
           }
-          
-          // If fundamentals failed, at least update the price
-          setInputs(prev => ({ ...prev, price: newPrice }));
+
+          // 3. Fetch Advanced/Missing Stats from StockAnalysis.com
+          const advancedStats = await fetchStockAnalysisStats(inputs.ticker);
+          let extraData = {};
+
+          if (advancedStats) {
+              // Helper to safely parse strings ending in B, M, or K
+              const parseStat = (keyMatches: string[]) => {
+                  for (const key of keyMatches) {
+                      const exactMatch = Object.keys(advancedStats).find(k => k.toLowerCase().includes(key.toLowerCase()));
+                      if (exactMatch) {
+                          let valStr = advancedStats[exactMatch].replace(/[%$,]/g, '').trim();
+                          let multiplier = 1;
+                          if (valStr.toUpperCase().endsWith('B')) { multiplier = 1000000000; valStr = valStr.slice(0, -1); }
+                          else if (valStr.toUpperCase().endsWith('M')) { multiplier = 1000000; valStr = valStr.slice(0, -1); }
+                          else if (valStr.toUpperCase().endsWith('K')) { multiplier = 1000; valStr = valStr.slice(0, -1); }
+                          const val = parseFloat(valStr);
+                          if (!isNaN(val)) return val * multiplier;
+                      }
+                  }
+                  return null;
+              };
+
+              extraData = {
+                  fairPE: parseStat(['PE Ratio', 'P/E Ratio', 'Forward PE']) ?? 0,
+                  expectedDiv: parseStat(['Dividend Per Share', 'Dividend (TTM)', 'Forward Dividend']) ?? 0,
+                  cagr: parseStat(['EPS Growth', 'Revenue Growth (YoY)']) ?? 0,
+                  // If PSX didn't have FCF, try getting it from here
+                  fcf: parseStat(['Free Cash Flow']) ?? baseData['fcf' as keyof typeof baseData] ?? 0
+              };
+          }
+
+          // Apply all merged data
+          setInputs(prev => ({
+              ...prev,
+              price: newPrice,
+              ...baseData,
+              ...extraData
+          }));
 
       } catch (error) {
           console.error("Failed to auto-fill data:", error);
-          alert("Failed to fetch some PSX data.");
+          alert("Failed to fetch some data.");
       } finally {
           setIsFetching(false);
       }
@@ -271,7 +292,7 @@ export const FairValueCalculator: React.FC = () => {
                         <button 
                             onClick={handleAutoFill}
                             disabled={isFetching}
-                            title="Auto-fill Data from PSX"
+                            title="Auto-fill Data from PSX & StockAnalysis"
                             className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-800/50 dark:text-emerald-400 p-2.5 rounded-lg transition-colors flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800"
                         >
                             {isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
@@ -294,10 +315,10 @@ export const FairValueCalculator: React.FC = () => {
 
                 <div className="h-px w-full bg-slate-100 dark:bg-slate-800"></div>
 
-                {/* Valuation Inputs (These require manual entry) */}
+                {/* Valuation Inputs (Now Auto-filled by StockAnalysis) */}
                 <div className="grid grid-cols-2 gap-3 relative">
                   <div className="col-span-2 flex items-center justify-between">
-                      <span className="text-[10px] font-bold text-amber-500 uppercase">Manual Inputs Required</span>
+                      <span className="text-[10px] font-bold text-amber-500 uppercase">Subjective / External Inputs</span>
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fair P/E Multiple</label>
