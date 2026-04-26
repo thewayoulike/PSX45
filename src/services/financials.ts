@@ -271,3 +271,32 @@ export const fetchStockAnalysisStats = async (ticker: string) => {
       return null;
   }
 };
+// --- 5. Fetch Balance Sheet from StockAnalysis.com ---
+export const fetchStockAnalysisBalanceSheet = async (ticker: string) => {
+  const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/financials/balance-sheet/`;
+  const html = await fetchUrlWithFallback(targetUrl);
+
+  if (!html) return null;
+
+  try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const stats: Record<string, string> = {};
+      const rows = doc.querySelectorAll('table tbody tr');
+      
+      rows.forEach(row => {
+          const cols = row.querySelectorAll('td');
+          if (cols.length >= 2) {
+              const key = cols[0].textContent?.trim() || '';
+              // The second column contains the most recent trailing/annual data
+              const value = cols[1].textContent?.trim() || '';
+              if (key && value) {
+                  stats[key] = value;
+              }
+          }
+      });
+      return stats;
+  } catch (e) {
+      return null;
+  }
+};
