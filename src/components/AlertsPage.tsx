@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Bell, Loader2, CheckCircle2, AlertCircle, Target, TrendingUp, Search, Trash2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { Bell, Loader2, CheckCircle2, AlertCircle, Target, TrendingUp, Search, Trash2, ArrowUpRight, ArrowDownRight, Plus, X, Pencil } from 'lucide-react';
 import { Holding } from '../types';
 import { Card } from './ui/Card';
 
@@ -23,7 +23,11 @@ interface AlertsPageProps {
 
 export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices }) => {
   const [ticker, setTicker] = useState<string>('');
-  const [target, setTarget] = useState<number | ''>('');
+  
+  // Arrays to hold up to 3 TPs and 3 SLs
+  const [tps, setTps] = useState<string[]>(['']);
+  const [sls, setSls] = useState<string[]>([]);
+  
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   
@@ -33,7 +37,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
   const uniqueHoldings = Array.from(new Set(holdings.map(h => h.ticker)));
   const currentPrice = currentPrices[ticker] || 0;
 
-  // Helper to get Push Subscription
   const getPushSubscription = async () => {
     const registration = await navigator.serviceWorker.ready;
     let subscription = await registration.pushManager.getSubscription();
@@ -46,7 +49,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
     return subscription;
   };
 
-  // Fetch active alerts for this user
   const fetchMyAlerts = useCallback(async () => {
     try {
       setLoadingAlerts(true);
@@ -75,14 +77,43 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
     }
   }, [fetchMyAlerts]);
 
+  // Handle changing ticker
+  const handleTickerChange = (newTicker: string) => {
+      setTicker(newTicker.toUpperCase());
+      setStatus('idle');
+      setMessage('');
+  };
+
+  // Handle Input Changes
+  const updateArr = (arr: string[], setArr: any, index: number, val: string) => {
+      const copy = [...arr];
+      copy[index] = val;
+      setArr(copy);
+      setStatus('idle');
+      setMessage('');
+  };
+  const removeArr = (arr: string[], setArr: any, index: number) => {
+      setArr(arr.filter((_, i) => i !== index));
+  };
+
   const handleSetAlert = async () => {
-    if (!target || !ticker) return;
+    if (!ticker) return;
+    
+    // Gather all valid inputs
+    const validTps = tps.filter(val => val !== '').map(price => ({ price: Number(price), direction: 'ABOVE' }));
+    const validSls = sls.filter(val => val !== '').map(price => ({ price: Number(price), direction: 'BELOW' }));
+    const allAlerts = [...validTps, ...validSls];
+
+    if (allAlerts.length === 0) {
+        setStatus('error'); setMessage('Please enter at least one Target Price or Stop Loss.'); return;
+    }
+
     if (!VAPID_PUBLIC_KEY) {
       setStatus('error'); setMessage('VAPID Public Key missing.'); return;
     }
 
     setStatus('loading');
-    setMessage('Requesting permission...');
+    setMessage('Requesting permission & saving...');
 
     try {
       const permission = await Notification.requestPermission();
@@ -93,26 +124,23 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
       const subscription = await getPushSubscription();
       if (!subscription) throw new Error("Could not create push subscription.");
 
-      setMessage('Saving alert...');
-      // Determine if this is a TP (Target Price - ABOVE) or SL (Stop Loss - BELOW)
-      const direction = (currentPrice > 0 && Number(target) > currentPrice) ? 'ABOVE' : 'BELOW';
-
       const res = await fetch('/api/save-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ subscription, ticker: ticker.toUpperCase(), targetPrice: Number(target), direction })
+        body: JSON.stringify({ subscription, ticker, alerts: allAlerts })
       });
 
       const data = await res.json();
 
       if (res.ok) {
         setStatus('success');
-        setMessage(`Alert set! We'll notify you when ${ticker} hits Rs. ${target}.`);
-        setTarget('');
-        fetchMyAlerts(); // Refresh the list!
+        setMessage(data.message || 'Alerts activated successfully!');
+        setTps(['']); // Reset form
+        setSls([]);
+        fetchMyAlerts(); 
       } else {
         setStatus('error');
-        setMessage(data.error || 'Failed to save alert.');
+        setMessage(data.error || 'Failed to save alerts.');
       }
     } catch (e: any) {
       setStatus('error');
@@ -122,15 +150,28 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
 
   const handleDeleteAlert = async (id: string) => {
       try {
-          setActiveAlerts(prev => prev.filter(a => a.id !== id)); // Optimistic UI update
+          setActiveAlerts(prev => prev.filter(a => a.id !== id)); 
           await fetch('/api/delete-alert', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id })
           });
       } catch (e) {
-          fetchMyAlerts(); // Revert if failed
+          fetchMyAlerts();
       }
+  };
+
+  const handleEditAlert = (alert: any) => {
+      setTicker(alert.ticker);
+      if (alert.direction === 'ABOVE') {
+          setTps([alert.targetPrice.toString()]);
+          setSls([]);
+      } else {
+          setSls([alert.targetPrice.toString()]);
+          setTps([]);
+      }
+      handleDeleteAlert(alert.id);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   return (
@@ -144,7 +185,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">Get notified on your phone or desktop when a stock hits your target price.</p>
       </div>
 
-      <Card title="Create New Alert" icon={<Target size={18} className="text-indigo-500" />}>
+      <Card title="Create Alert Batch (Max 3 TP / 3 SL)" icon={<Target size={18} className="text-indigo-500" />}>
         <div className="mt-4 space-y-6">
           
           {uniqueHoldings.length > 0 && (
@@ -152,7 +193,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
               <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Quick Select from Portfolio</label>
               <div className="flex flex-wrap gap-2">
                 {uniqueHoldings.map(h => (
-                  <button key={h} onClick={() => { setTicker(h); setStatus('idle'); setMessage(''); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${ ticker === h ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300' }`}>
+                  <button key={h} onClick={() => handleTickerChange(h)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${ ticker === h ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm' : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:border-indigo-300' }`}>
                     {h}
                   </button>
                 ))}
@@ -160,42 +201,84 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="relative">
-                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Stock Ticker</label>
-                  <div className="relative">
-                      <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-                      <input type="text" value={ticker} onChange={(e) => { setTicker(e.target.value.toUpperCase()); setStatus('idle'); setMessage(''); }} placeholder="e.g. OGDC" className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 font-bold dark:text-slate-200 uppercase" />
-                  </div>
+          <div className="relative">
+              <div className="flex justify-between items-center mb-2">
+                  <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stock Ticker</label>
+                  {currentPrice > 0 && (
+                      <span className="text-xs text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1 bg-indigo-50 dark:bg-indigo-900/20 px-2 py-0.5 rounded border border-indigo-100 dark:border-indigo-800">
+                          <TrendingUp size={12} /> Current: Rs. {currentPrice.toFixed(2)}
+                      </span>
+                  )}
               </div>
-
               <div className="relative">
-                  <div className="flex justify-between items-center mb-2">
-                      <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Target Price</label>
-                      {currentPrice > 0 && (
-                          <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1">
-                              <TrendingUp size={10} /> Current: Rs. {currentPrice.toFixed(2)}
-                          </span>
-                      )}
-                  </div>
-                  <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">Rs.</span>
-                      <input type="number" value={target} onChange={(e) => { setTarget(Number(e.target.value)); setStatus('idle'); setMessage(''); }} placeholder={currentPrice ? (currentPrice * 1.05).toFixed(2) : "150"} className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 font-mono font-bold dark:text-slate-200" />
-                  </div>
+                  <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+                  <input type="text" value={ticker} onChange={(e) => handleTickerChange(e.target.value)} placeholder="e.g. OGDC" className="w-full pl-9 pr-3 py-2.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-500 font-bold dark:text-slate-200 uppercase" />
               </div>
           </div>
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-2 border-t border-slate-100 dark:border-slate-800">
+              
+              {/* TARGET PRICE COLUMN */}
+              <div>
+                  <div className="flex items-center justify-between mb-3">
+                      <label className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1">
+                          <ArrowUpRight size={14} /> Target Prices (TP)
+                      </label>
+                      <span className="text-[10px] font-bold text-slate-400">{tps.length}/3</span>
+                  </div>
+                  <div className="space-y-2">
+                      {tps.map((val, idx) => (
+                          <div key={idx} className="relative flex items-center gap-2">
+                              <span className="absolute left-3 text-xs font-bold text-slate-400">Rs.</span>
+                              <input type="number" step="0.01" value={val} onChange={e => updateArr(tps, setTps, idx, e.target.value)} placeholder={currentPrice ? (currentPrice * 1.05).toFixed(2) : "150"} className="w-full pl-9 pr-3 py-2 text-sm bg-emerald-50/30 dark:bg-emerald-900/10 border border-emerald-200 dark:border-emerald-800/50 rounded-lg outline-none focus:border-emerald-500 font-mono font-bold dark:text-slate-200" />
+                              <button onClick={() => removeArr(tps, setTps, idx)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg"><X size={16}/></button>
+                          </div>
+                      ))}
+                      {tps.length < 3 && (
+                          <button onClick={() => {setTps([...tps, '']); setStatus('idle'); setMessage('');}} className="w-full py-2 border border-dashed border-emerald-300 dark:border-emerald-700 text-emerald-600 dark:text-emerald-400 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
+                              <Plus size={14}/> Add TP
+                          </button>
+                      )}
+                  </div>
+              </div>
+
+              {/* STOP LOSS COLUMN */}
+              <div>
+                  <div className="flex items-center justify-between mb-3">
+                      <label className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                          <ArrowDownRight size={14} /> Stop Losses (SL)
+                      </label>
+                      <span className="text-[10px] font-bold text-slate-400">{sls.length}/3</span>
+                  </div>
+                  <div className="space-y-2">
+                      {sls.map((val, idx) => (
+                          <div key={idx} className="relative flex items-center gap-2">
+                              <span className="absolute left-3 text-xs font-bold text-slate-400">Rs.</span>
+                              <input type="number" step="0.01" value={val} onChange={e => updateArr(sls, setSls, idx, e.target.value)} placeholder={currentPrice ? (currentPrice * 0.95).toFixed(2) : "100"} className="w-full pl-9 pr-3 py-2 text-sm bg-rose-50/30 dark:bg-rose-900/10 border border-rose-200 dark:border-rose-800/50 rounded-lg outline-none focus:border-rose-500 font-mono font-bold dark:text-slate-200" />
+                              <button onClick={() => removeArr(sls, setSls, idx)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 rounded-lg"><X size={16}/></button>
+                          </div>
+                      ))}
+                      {sls.length < 3 && (
+                          <button onClick={() => {setSls([...sls, '']); setStatus('idle'); setMessage('');}} className="w-full py-2 border border-dashed border-rose-300 dark:border-rose-700 text-rose-600 dark:text-rose-400 rounded-lg text-xs font-bold flex items-center justify-center gap-1 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                              <Plus size={14}/> Add SL
+                          </button>
+                      )}
+                  </div>
+              </div>
+
+          </div>
+
           <div className="pt-2">
-              <button onClick={handleSetAlert} disabled={status === 'loading' || !target || !ticker} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
+              <button onClick={handleSetAlert} disabled={status === 'loading' || !ticker || (tps.filter(t=>t).length === 0 && sls.filter(s=>s).length === 0)} className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20">
                   {status === 'loading' ? <Loader2 size={18} className="animate-spin" /> : <Bell size={18} />}
-                  {status === 'loading' ? 'Processing...' : 'Activate Alert'}
+                  {status === 'loading' ? 'Saving Alerts...' : 'Activate Alerts'}
               </button>
 
               {message && (
                   <div className={`mt-4 flex items-center justify-center gap-1.5 text-sm font-bold p-3 rounded-xl border ${ status === 'success' ? 'bg-emerald-50 text-emerald-600 border-emerald-200' : status === 'error' ? 'bg-rose-50 text-rose-500 border-rose-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200' }`}>
-                      {status === 'success' && <CheckCircle2 size={16} />}
-                      {status === 'error' && <AlertCircle size={16} />}
-                      {status === 'loading' && <Loader2 size={16} className="animate-spin" />}
+                      {status === 'success' && <CheckCircle2 size={16} className="shrink-0" />}
+                      {status === 'error' && <AlertCircle size={16} className="shrink-0" />}
+                      {status === 'loading' && <Loader2 size={16} className="animate-spin shrink-0" />}
                       {message}
                   </div>
               )}
@@ -222,19 +305,24 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
                                     </div>
                                     <div>
                                         <div className="font-bold text-slate-800 dark:text-slate-100">{alert.ticker}</div>
-                                        <div className="text-[10px] text-slate-500 uppercase tracking-wider">
+                                        <div className={`text-[10px] uppercase tracking-wider font-bold ${isTP ? 'text-emerald-500' : 'text-rose-500'}`}>
                                             {isTP ? 'Target Price (TP)' : 'Stop Loss (SL)'}
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-6">
+                                <div className="flex items-center gap-2 sm:gap-6">
                                     <div className="text-right">
                                         <div className="text-[10px] text-slate-400 uppercase tracking-wider mb-0.5">Trigger At</div>
                                         <div className="font-mono font-bold text-slate-800 dark:text-slate-200">Rs. {alert.targetPrice.toFixed(2)}</div>
                                     </div>
-                                    <button onClick={() => handleDeleteAlert(alert.id)} className="text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors" title="Delete Alert">
-                                        <Trash2 size={18} />
-                                    </button>
+                                    <div className="flex items-center border-l border-slate-200 dark:border-slate-700 pl-2 sm:pl-4">
+                                        <button onClick={() => handleEditAlert(alert)} className="text-slate-400 hover:text-blue-500 p-2 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors" title="Edit Alert (Deletes & pulls back into form)">
+                                            <Pencil size={16} />
+                                        </button>
+                                        <button onClick={() => handleDeleteAlert(alert.id)} className="text-slate-400 hover:text-rose-500 p-2 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors" title="Delete Alert">
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         )
@@ -244,9 +332,6 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
         </div>
       </Card>
 
-      <div className="bg-blue-50/50 dark:bg-blue-900/20 p-4 rounded-2xl border border-blue-100 dark:border-blue-800 text-xs text-blue-700 dark:text-blue-300">
-          <strong>How it works:</strong> When the live market price hits your target, your browser will receive a push notification even if this tab is closed. 
-      </div>
     </div>
   );
 };
