@@ -27,31 +27,54 @@ export default async function handler(req, res) {
     const alerts = (await kv.get('psx_alerts')) || [];
     if (alerts.length === 0) return res.status(200).json({ message: 'No active alerts' });
 
-    // 4. Fetch live prices
+    // 4. Fetch live prices (WITH HEADERS TO PREVENT PSX BLOCKING)
     const uniqueTickers = [...new Set(alerts.map(a => a.ticker))];
-    const response = await fetch('https://dps.psx.com.pk/market-watch');
+    const response = await fetch('https://dps.psx.com.pk/market-watch', {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+      }
+    });
     const html = await response.text();
     
     const livePrices = {};
     const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
     let rowMatch;
     
+    // Default column fallback just in case
+    let colMap = { SYMBOL: 0, PRICE: 5 }; 
+    let foundHeaders = false;
+    
     while ((rowMatch = rowRegex.exec(html)) !== null) {
       const rowHtml = rowMatch[1];
-      const cellRegex = /<td[^>]*>([\s\S]*?)<\/td>/gi;
+      // Look for td OR th to catch header rows
+      const cellRegex = /<(td|th)[^>]*>([\s\S]*?)<\/\1>/gi;
       const cells = [];
       let cellMatch;
       
       while ((cellMatch = cellRegex.exec(rowHtml)) !== null) {
-        const text = cellMatch[1].replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().toUpperCase();
-        cells.push(text);
+        // Fix for "OBOY<br>OILBOY": replace <br> with spaces before stripping HTML
+        let content = cellMatch[2].replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().toUpperCase();
+        cells.push(content);
+      }
+
+      // DYNAMIC HEADER DETECTION: Find which column is the Price column
+      if (!foundHeaders && cells.some(c => c === 'SYMBOL' || c === 'SCRIP' || c === 'CURRENT')) {
+        cells.forEach((txt, idx) => {
+          if (txt === 'SYMBOL' || txt === 'SCRIP') colMap.SYMBOL = idx;
+          if (txt === 'CURRENT' || txt === 'PRICE' || txt === 'RATE') colMap.PRICE = idx;
+        });
+        foundHeaders = true;
+        continue; 
       }
       
-      if (cells.length >= 6) {
-        const symbolText = cells[0];
-        const price = parseFloat(cells[5].replace(/,/g, '')); 
+      // DATA EXTRACTION: Use the dynamically found columns
+      if (cells.length > Math.max(colMap.SYMBOL, colMap.PRICE)) {
+        // Split by space and take the first word (Fixes the OBOY issue)
+        const symbolText = cells[colMap.SYMBOL].split(/\s/)[0]; 
+        const price = parseFloat(cells[colMap.PRICE].replace(/,/g, '')); 
+        
         uniqueTickers.forEach(ticker => {
-          if (symbolText === ticker || symbolText.startsWith(ticker + ' ')) {
+          if (symbolText === ticker) {
             if (!isNaN(price) && price > 0) {
               livePrices[ticker] = price;
             }
