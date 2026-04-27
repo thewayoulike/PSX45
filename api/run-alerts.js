@@ -8,33 +8,38 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Check for missing variables FIRST
-    if (!process.env.VITE_VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY) {
+    // 1. Fetch and clean keys (removes invisible trailing spaces!)
+    const pubKey = (process.env.VITE_VAPID_PUBLIC_KEY || '').trim();
+    const privKey = (process.env.VAPID_PRIVATE_KEY || '').trim();
+
+    if (!pubKey || !privKey) {
+      return res.status(500).json({ error: 'CRITICAL ERROR: VAPID keys are missing.' });
+    }
+
+    // 2. Safely configure Web Push
+    try {
+      webpush.setVapidDetails(
+        'mailto:itruth2011@gmail.com',
+        pubKey,
+        privKey
+      );
+    } catch (vapidError) {
+      // IF THE KEYS ARE BAD, IT WILL PRINT THE EXACT REASON HERE!
       return res.status(500).json({ 
-        error: 'CRITICAL ERROR: VAPID keys are missing from Vercel Environment Variables! Make sure they are applied to the Production environment.' 
+        error: "INVALID VAPID KEYS: " + vapidError.message + " (Check Vercel variables for quotes or typos)" 
       });
     }
 
-    // 2. Configure Web Push safely inside the try/catch block
-    webpush.setVapidDetails(
-      'mailto:itruth2011@gmail.com',
-      process.env.VITE_VAPID_PUBLIC_KEY,
-      process.env.VAPID_PRIVATE_KEY
-    );
-
+    // 3. Check for alerts in Database
     const alerts = (await kv.get('psx_alerts')) || [];
     if (alerts.length === 0) return res.status(200).json({ message: 'No active alerts' });
 
-    // 3. Find which tickers we actually need to fetch
+    // 4. Fetch live prices
     const uniqueTickers = [...new Set(alerts.map(a => a.ticker))];
-    
-    // 4. Fetch live prices (Bypasses CORS since it runs on the server)
     const response = await fetch('https://dps.psx.com.pk/market-watch');
     const html = await response.text();
     
     const livePrices = {};
-    
-    // 5. Safer HTML Table Parsing (Mimics frontend Sync logic)
     const rowRegex = /<tr[^>]*>([\s\S]*?)<\/tr>/gi;
     let rowMatch;
     
@@ -52,7 +57,6 @@ export default async function handler(req, res) {
       if (cells.length >= 6) {
         const symbolText = cells[0];
         const price = parseFloat(cells[5].replace(/,/g, '')); 
-        
         uniqueTickers.forEach(ticker => {
           if (symbolText === ticker || symbolText.startsWith(ticker + ' ')) {
             if (!isNaN(price) && price > 0) {
@@ -63,12 +67,11 @@ export default async function handler(req, res) {
       }
     }
 
-    // 6. Check conditions & send pushes
+    // 5. Send pushes
     let pushesSent = 0;
     
     const processingPromises = alerts.map(async (alert) => {
       const currentPrice = livePrices[alert.ticker];
-      
       if (!currentPrice) return { keep: true, alert }; 
 
       const hitAbove = alert.direction === 'ABOVE' && currentPrice >= alert.targetPrice;
@@ -92,21 +95,19 @@ export default async function handler(req, res) {
           }
         }
       } 
-      
       return { keep: true, alert }; 
     });
 
     const results = await Promise.all(processingPromises);
     const alertsToKeep = results.filter(res => res.keep).map(res => res.alert);
 
-    // 7. Update database
+    // 6. Update database
     await kv.set('psx_alerts', alertsToKeep);
 
     return res.status(200).json({ success: true, pushesSent, alertsRemaining: alertsToKeep.length });
     
   } catch (error) {
-    // If anything fails now, it will print the exact reason to the browser!
     console.error("Run Alerts Error:", error);
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: "GENERAL ERROR: " + error.message });
   }
 }
