@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/run-alerts?secret=psx_cron_123",
-      "schedule": "*/5 4-12 * * 1-5"
+      "schedule": "*/5 4-11 * * 1-5"
     }
   ]
 }
