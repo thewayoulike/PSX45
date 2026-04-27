@@ -2,7 +2,12 @@ import React, { useState, useMemo } from 'react';
 import { Card } from './ui/Card';
 import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2 } from 'lucide-react';
 import { fetchBatchPSXPrices } from '../services/psxData';
-import { fetchCompanyFundamentals, fetchStockAnalysisStats, fetchStockAnalysisBalanceSheet } from '../services/financials';
+import { 
+  fetchCompanyFundamentals, 
+  fetchStockAnalysisStats, 
+  fetchStockAnalysisBalanceSheet,
+  fetchSCSFundamentals 
+} from '../services/financials';
 
 export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
@@ -20,9 +25,7 @@ export const FairValueCalculator: React.FC = () => {
     equity: 256014337,
     currentAssets: 1300000, 
     currentLiabilities: 1000000, 
-    inventory: 300000,
-    method4TargetYield: 12,
-    method4Eps: 70
+    inventory: 300000
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -38,16 +41,29 @@ export const FairValueCalculator: React.FC = () => {
       setIsFetching(true);
 
       try {
+          let newPrice = inputs.price;
+          let newEps = inputs.eps;
+          let baseData: any = {};
+          let extraData: any = {};
+
           // 1. Fetch Current Market Price (Live from PSX)
           const priceData = await fetchBatchPSXPrices([inputs.ticker]);
-          let newPrice = inputs.price;
           if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
               newPrice = priceData[inputs.ticker].price;
           }
 
-          // 2. Fetch PSX Fundamentals (As a fallback, and for FCF/Book Value per share)
+          // 2. Fetch SCS Trade Fundamentals (Highly Accurate for PSX)
+          const scsData = await fetchSCSFundamentals(inputs.ticker);
+          if (scsData) {
+              if (scsData.price) newPrice = scsData.price; // SCS price overrides
+              if (scsData.eps) newEps = scsData.eps;
+              if (scsData.bookValue) baseData.bookValue = scsData.bookValue;
+              if (scsData.dividend) extraData.expectedDiv = scsData.dividend;
+              if (scsData.currentPE) extraData.fairPE = scsData.currentPE; // Auto-fill Fair PE with current PE as a baseline
+          }
+
+          // 3. Fetch PSX Fundamentals (As a fallback for FCF)
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
-          let baseData: any = {};
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
               if (validData.length > 0) {
@@ -57,28 +73,19 @@ export const FairValueCalculator: React.FC = () => {
                       const isNegative = val.includes('(') && val.includes(')');
                       return parseFloat(val.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
                   };
-                  baseData = {
-                      bookValue: parseNum(latest.bookValue) ?? inputs.bookValue,
-                      fcf: parseNum(latest.fcf) ?? inputs.fcf,
-                      liabilities: parseNum(latest.totalLiabilities) ?? inputs.liabilities,
-                      equity: parseNum(latest.totalEquity) ?? inputs.equity,
-                      currentAssets: parseNum(latest.currentAssets) ?? inputs.currentAssets,
-                      currentLiabilities: parseNum(latest.currentLiabilities) ?? inputs.currentLiabilities,
-                      inventory: parseNum(latest.inventory) ?? inputs.inventory,
-                  };
+                  baseData.fcf = parseNum(latest.fcf) ?? inputs.fcf;
+                  // Only fallback to these if SCS didn't find them
+                  baseData.bookValue = baseData.bookValue ?? parseNum(latest.bookValue) ?? inputs.bookValue;
+                  baseData.liabilities = parseNum(latest.totalLiabilities) ?? inputs.liabilities;
+                  baseData.equity = parseNum(latest.totalEquity) ?? inputs.equity;
+                  baseData.currentAssets = parseNum(latest.currentAssets) ?? inputs.currentAssets;
+                  baseData.currentLiabilities = parseNum(latest.currentLiabilities) ?? inputs.currentLiabilities;
+                  baseData.inventory = parseNum(latest.inventory) ?? inputs.inventory;
               }
           }
-
-          // 3. Fetch StockAnalysis Statistics (For EPS, PE, Div)
-          const advancedStats = await fetchStockAnalysisStats(inputs.ticker);
           
-          // 4. Fetch StockAnalysis Balance Sheet (For Liabilities, Assets, Inventory)
+          // 4. Fetch StockAnalysis Balance Sheet (Best source for Absolute Liabilities/Assets)
           const bsStats = await fetchStockAnalysisBalanceSheet(inputs.ticker);
-
-          let newEps = inputs.eps;
-          let extraData: any = {};
-
-          // Helper to safely parse strings with 'M', 'B', 'K' suffixes
           const parseStat = (obj: any, keyMatches: string[]) => {
               if (!obj) return null;
               for (const key of keyMatches) {
@@ -96,18 +103,6 @@ export const FairValueCalculator: React.FC = () => {
               return null;
           };
 
-          // Extract from Statistics Page
-          if (advancedStats) {
-              const epsKey = Object.keys(advancedStats).find(k => k.toLowerCase().includes('eps'));
-              if (epsKey) {
-                  const epsVal = parseFloat(advancedStats[epsKey].replace(/,/g, ''));
-                  if (!isNaN(epsVal)) newEps = epsVal;
-              }
-              extraData.fairPE = parseStat(advancedStats, ['PE Ratio', 'P/E Ratio']) ?? inputs.fairPE;
-              extraData.expectedDiv = parseStat(advancedStats, ['Dividend Per Share']) ?? inputs.expectedDiv;
-          }
-
-          // Extract from Balance Sheet Page (Overrides the PSX fallback data)
           if (bsStats) {
               extraData.liabilities = parseStat(bsStats, ['Total Liabilities']) ?? baseData.liabilities ?? inputs.liabilities;
               extraData.inventory = parseStat(bsStats, ['Inventory']) ?? baseData.inventory ?? inputs.inventory;
@@ -153,8 +148,6 @@ export const FairValueCalculator: React.FC = () => {
     const ddmValue = requiredReturnDecimal > 0 ? inputs.expectedDiv / requiredReturnDecimal : 0;
     
     const grahamNumber = (inputs.eps > 0 && inputs.bookValue > 0) ? Math.sqrt(22.5 * inputs.eps * inputs.bookValue) : 0;
-    
-    const method4Value = (inputs.method4TargetYield / 100) > 0 ? inputs.method4Eps / (inputs.method4TargetYield / 100) : 0;
 
     const getValuationStatus = (fairValue: number, currentPrice: number) => {
         if (fairValue <= 0 || currentPrice <= 0) return { text: 'N/A', diff: 0, isUnder: false };
@@ -169,11 +162,10 @@ export const FairValueCalculator: React.FC = () => {
     return {
       peRatio, divYield, debtToEquity, growthReality, forwardPE,
       currentRatio, quickRatio, stockStatus,
-      peFairValue, ddmValue, grahamNumber, method4Value,
+      peFairValue, ddmValue, grahamNumber,
       peStatus: getValuationStatus(peFairValue, inputs.price),
       ddmStatus: getValuationStatus(ddmValue, inputs.price),
-      grahamStatus: getValuationStatus(grahamNumber, inputs.price),
-      m4Status: getValuationStatus(method4Value, inputs.price)
+      grahamStatus: getValuationStatus(grahamNumber, inputs.price)
     };
   }, [inputs]);
 
@@ -184,7 +176,7 @@ export const FairValueCalculator: React.FC = () => {
       {/* SECTION B: EVALUATIONS METHODS (COMPACT DESIGN) */}
       {/* -------------------------------------------------------- */}
       <Card title="B: EVALUATION METHODS" icon={<Activity size={18} className="text-indigo-500" />}>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mt-3">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-3">
             
             {/* Method 1: P/E */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
@@ -238,26 +230,6 @@ export const FairValueCalculator: React.FC = () => {
                 <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-tight">
                     <strong>Best For:</strong> Finding "Safe" stocks during a market crash.
                 </p>
-            </div>
-
-            {/* Method 4: Custom Yield */}
-            <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-slate-50 dark:bg-slate-900 shadow-sm flex flex-col justify-between">
-                <div>
-                    <div className="flex justify-between items-center mb-1">
-                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">METHOD 4: FAIR PRICE (RESPECT TO %)</h4>
-                        <div className="text-xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">Rs. {results.method4Value.toFixed(2)}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div>
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 block">DESIRED %</label>
-                            <input type="number" name="method4TargetYield" placeholder="Manual" value={inputs.method4TargetYield || ''} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold outline-none focus:ring-1 focus:ring-indigo-500/20" />
-                        </div>
-                        <div>
-                            <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 block">FUTURE EPS</label>
-                            <input type="number" name="method4Eps" placeholder="Manual" value={inputs.method4Eps || ''} onChange={handleInputChange} className="w-full bg-white dark:bg-slate-800 p-1.5 rounded border border-slate-200 dark:border-slate-700 text-xs font-bold outline-none focus:ring-1 focus:ring-indigo-500/20" />
-                        </div>
-                    </div>
-                </div>
             </div>
 
           </div>
@@ -319,7 +291,7 @@ export const FairValueCalculator: React.FC = () => {
 
                 <div className="h-px w-full bg-slate-100 dark:bg-slate-800"></div>
 
-                {/* Valuation Inputs (Now Auto-filled by StockAnalysis) */}
+                {/* Valuation Inputs */}
                 <div className="grid grid-cols-2 gap-3 relative">
                   <div className="col-span-2 flex items-center justify-between">
                       <span className="text-[10px] font-bold text-amber-500 uppercase">Subjective / External Inputs</span>
