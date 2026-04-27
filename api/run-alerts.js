@@ -4,7 +4,7 @@ import webpush from 'web-push';
 // Configure Web Push
 webpush.setVapidDetails(
   'mailto:itruth2011@gmail.com', // <-- CHANGE THIS TO YOUR EMAIL
-  process.env.VAPID_PUBLIC_KEY,
+  process.env.VITE_VAPID_PUBLIC_KEY,
   process.env.VAPID_PRIVATE_KEY
 );
 
