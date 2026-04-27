@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Vercel Serverless Function fetching the data directly from PSX
+    // Aftab Vercel Serverless Function fetching the data directly from PSX
     // This bypasses browser CORS entirely.
     const response = await fetch(decodeURIComponent(url), {
       headers: {
