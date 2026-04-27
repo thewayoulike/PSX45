@@ -8,7 +8,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Fetch and clean keys (removes invisible trailing spaces!)
+    // 1. Fetch keys inside the function (uses VITE_VAPID_PUBLIC_KEY to match your Vercel settings)
     const pubKey = (process.env.VITE_VAPID_PUBLIC_KEY || '').trim();
     const privKey = (process.env.VAPID_PRIVATE_KEY || '').trim();
 
@@ -16,19 +16,12 @@ export default async function handler(req, res) {
       return res.status(500).json({ error: 'CRITICAL ERROR: VAPID keys are missing.' });
     }
 
-    // 2. Safely configure Web Push
-    try {
-      webpush.setVapidDetails(
-        'mailto:itruth2011@gmail.com',
-        pubKey,
-        privKey
-      );
-    } catch (vapidError) {
-      // IF THE KEYS ARE BAD, IT WILL PRINT THE EXACT REASON HERE!
-      return res.status(500).json({ 
-        error: "INVALID VAPID KEYS: " + vapidError.message + " (Check Vercel variables for quotes or typos)" 
-      });
-    }
+    // 2. Configure Web Push safely
+    webpush.setVapidDetails(
+      'mailto:itruth2011@gmail.com',
+      pubKey,
+      privKey
+    );
 
     // 3. Check for alerts in Database
     const alerts = (await kv.get('psx_alerts')) || [];
