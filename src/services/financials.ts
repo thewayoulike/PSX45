@@ -299,3 +299,45 @@ export const fetchStockAnalysisBalanceSheet = async (ticker: string) => {
       return null;
   }
 };
+// --- 6. Fetch Fundamentals from SCS Trade ---
+export const fetchSCSFundamentals = async (ticker: string) => {
+  const targetUrl = `https://www.scstrade.com/stockscreening/SS_CompanySnapShot.aspx?symbol=${ticker.toLowerCase()}`;
+  
+  // Use your existing Vercel Proxy to bypass CORS
+  const html = await fetchUrlWithFallback(targetUrl);
+
+  if (!html) return null;
+
+  try {
+    // Helper to find numbers based on the preceding label (Regex approach)
+    const getMetric = (label: string) => {
+      const regex = new RegExp(label + '[\\s\\S]{1,250}?(?:Rs\\.|:|>)\\s*([-?\\d,.]+(?:\\s*[x%])?)', 'i');
+      const match = regex.exec(html);
+      if (match && match[1]) {
+        let val = match[1].trim();
+        if (val.endsWith('.')) val = val.slice(0, -1);
+        const parsed = parseFloat(val.replace(/,/g, ''));
+        return isNaN(parsed) ? null : parsed;
+      }
+      return null;
+    };
+
+    // Specifically extract the Current Price from the known HTML ID
+    let currentPrice = null;
+    const priceMatch = html.match(/id="ContentPlaceHolder1_lbl_price"[^>]*>(?:Rs\.)?\s*([\d,.]+)/i);
+    if (priceMatch && priceMatch[1]) {
+        currentPrice = parseFloat(priceMatch[1].replace(/,/g, ''));
+    }
+
+    return {
+      price: currentPrice,
+      eps: getMetric("Last Annual EPS"),
+      currentPE: getMetric("Price To Earning P/E"),
+      bookValue: getMetric("Book Value Per Share"),
+      dividend: getMetric("Last Annual Dividend")
+    };
+  } catch (e) {
+    console.error(`Failed to parse SCS Trade HTML for ${ticker}`, e);
+    return null;
+  }
+};
