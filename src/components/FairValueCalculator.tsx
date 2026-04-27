@@ -11,6 +11,8 @@ import {
 
 export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
+  
+  // NOTE: method4TargetYield and method4Eps have been completely removed
   const [inputs, setInputs] = useState({
     ticker: 'FFC',
     price: 81.84,
@@ -173,10 +175,10 @@ export const FairValueCalculator: React.FC = () => {
     <div className="space-y-6 max-w-[1600px] mx-auto p-4 animate-in fade-in slide-in-from-bottom-4">
       
       {/* -------------------------------------------------------- */}
-      {/* SECTION B: EVALUATIONS METHODS (COMPACT DESIGN) */}
+      {/* SECTION B AFTAB: EVALUATIONS METHODS (COMPACT DESIGN) */}
       {/* -------------------------------------------------------- */}
       <Card title="B: EVALUATION METHODS" icon={<Activity size={18} className="text-indigo-500" />}>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mt-3">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
             
             {/* Method 1: P/E */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
