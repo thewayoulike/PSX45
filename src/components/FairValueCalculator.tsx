@@ -4,15 +4,13 @@ import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2 } from 'luci
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { 
   fetchCompanyFundamentals, 
-  fetchStockAnalysisStats, 
-  fetchStockAnalysisBalanceSheet,
-  fetchSCSFundamentals 
+  fetchSCSFundamentals,
+  fetchSCSBalanceSheet 
 } from '../services/financials';
 
 export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   
-  // NOTE: method4TargetYield and method4Eps have been completely removed
   const [inputs, setInputs] = useState({
     ticker: 'FFC',
     price: 81.84,
@@ -64,20 +62,24 @@ export const FairValueCalculator: React.FC = () => {
               if (scsData.currentPE) extraData.fairPE = scsData.currentPE; // Auto-fill Fair PE with current PE as a baseline
           }
 
-          // 3. Fetch PSX Fundamentals (As a fallback for FCF)
+          // 3. Fetch PSX Fundamentals (As a fallback for FCF and Balance Sheet)
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
               if (validData.length > 0) {
                   const latest = validData[validData.length - 1];
-                  const parseNum = (val: string | undefined) => {
+                  
+                  // Multiply massive Balance Sheet numbers by 1000 because PSX lists them in "Thousands"
+                  const parseNum = (val: string | undefined, isPerShare: boolean = false) => {
                       if (!val || val === '-') return null;
                       const isNegative = val.includes('(') && val.includes(')');
-                      return parseFloat(val.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
+                      const rawNum = parseFloat(val.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
+                      return isPerShare ? rawNum : rawNum * 1000;
                   };
+
                   baseData.fcf = parseNum(latest.fcf) ?? inputs.fcf;
                   // Only fallback to these if SCS didn't find them
-                  baseData.bookValue = baseData.bookValue ?? parseNum(latest.bookValue) ?? inputs.bookValue;
+                  baseData.bookValue = baseData.bookValue ?? parseNum(latest.bookValue, true) ?? inputs.bookValue;
                   baseData.liabilities = parseNum(latest.totalLiabilities) ?? inputs.liabilities;
                   baseData.equity = parseNum(latest.totalEquity) ?? inputs.equity;
                   baseData.currentAssets = parseNum(latest.currentAssets) ?? inputs.currentAssets;
@@ -86,31 +88,14 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
           
-          // 4. Fetch StockAnalysis Balance Sheet (Best source for Absolute Liabilities/Assets)
-          const bsStats = await fetchStockAnalysisBalanceSheet(inputs.ticker);
-          const parseStat = (obj: any, keyMatches: string[]) => {
-              if (!obj) return null;
-              for (const key of keyMatches) {
-                  const exactMatch = Object.keys(obj).find(k => k.toLowerCase().includes(key.toLowerCase()));
-                  if (exactMatch) {
-                      let valStr = obj[exactMatch].replace(/[%$,]/g, '').trim();
-                      let multiplier = 1;
-                      if (valStr.toUpperCase().endsWith('B')) { multiplier = 1000000000; valStr = valStr.slice(0, -1); }
-                      else if (valStr.toUpperCase().endsWith('M')) { multiplier = 1000000; valStr = valStr.slice(0, -1); }
-                      else if (valStr.toUpperCase().endsWith('K')) { multiplier = 1000; valStr = valStr.slice(0, -1); }
-                      const val = parseFloat(valStr);
-                      if (!isNaN(val)) return val * multiplier;
-                  }
-              }
-              return null;
-          };
-
-          if (bsStats) {
-              extraData.liabilities = parseStat(bsStats, ['Total Liabilities']) ?? baseData.liabilities ?? inputs.liabilities;
-              extraData.inventory = parseStat(bsStats, ['Inventory']) ?? baseData.inventory ?? inputs.inventory;
-              extraData.currentAssets = parseStat(bsStats, ['Total Current Assets', 'Current Assets']) ?? baseData.currentAssets ?? inputs.currentAssets;
-              extraData.currentLiabilities = parseStat(bsStats, ['Total Current Liabilities', 'Current Liabilities']) ?? baseData.currentLiabilities ?? inputs.currentLiabilities;
-              extraData.equity = parseStat(bsStats, ['Total Equity', "Shareholders' Equity"]) ?? baseData.equity ?? inputs.equity;
+          // 4. Fetch SCS Balance Sheet (chart3 API) - OVERRIDES PSX fallbacks!
+          const scsBalanceSheet = await fetchSCSBalanceSheet(inputs.ticker);
+          if (scsBalanceSheet) {
+              if (scsBalanceSheet.liabilities) baseData.liabilities = scsBalanceSheet.liabilities;
+              if (scsBalanceSheet.equity) baseData.equity = scsBalanceSheet.equity;
+              if (scsBalanceSheet.currentAssets) baseData.currentAssets = scsBalanceSheet.currentAssets;
+              if (scsBalanceSheet.currentLiabilities) baseData.currentLiabilities = scsBalanceSheet.currentLiabilities;
+              if (scsBalanceSheet.inventory) baseData.inventory = scsBalanceSheet.inventory;
           }
 
           // Update Form with everything merged!
@@ -175,7 +160,7 @@ export const FairValueCalculator: React.FC = () => {
     <div className="space-y-6 max-w-[1600px] mx-auto p-4 animate-in fade-in slide-in-from-bottom-4">
       
       {/* -------------------------------------------------------- */}
-      {/* SECTION B AFTAB: EVALUATIONS METHODS (COMPACT DESIGN) */}
+      {/* SECTION B: EVALUATIONS METHODS (COMPACT DESIGN) */}
       {/* -------------------------------------------------------- */}
       <Card title="B: EVALUATION METHODS" icon={<Activity size={18} className="text-indigo-500" />}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
