@@ -340,10 +340,8 @@ export const fetchSCSBalanceSheet = async (ticker: string) => {
   try {
     const response = await fetch(proxyUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ sym: ticker.toLowerCase() }) // Exact payload from your script
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sym: ticker.toLowerCase() }) 
     });
 
     if (!response.ok) return null;
@@ -351,21 +349,26 @@ export const fetchSCSBalanceSheet = async (ticker: string) => {
     const text = await response.text();
     const result = JSON.parse(text);
     
-    // Failsafe in case the data is double-stringified
+    // Safely parse the 'd' array
     const data = typeof result.d === 'string' ? JSON.parse(result.d) : result.d;
-
     if (!data || !Array.isArray(data) || data.length === 0) return null;
 
-    // 👇 CRITICAL FIX: Grab the LATEST year (the last item in the array), not the oldest!
-    const latest = data[data.length - 1]; 
+    // Search array BACKWARDS to find the absolute newest year that actually contains data
+    let bestItem = data[data.length - 1]; 
+    for (let i = data.length - 1; i >= 0; i--) {
+        const keys = Object.keys(data[i]).map(k => k.toLowerCase().replace(/[^a-z]/g, ''));
+        if (keys.some(k => k.includes('liabilit'))) {
+            bestItem = data[i];
+            break;
+        }
+    }
 
-    // Helper to find the exact columns, ignoring spaces and case sensitivity
+    // Aggressively match keys by ignoring ALL spaces, symbols, and casing
     const getVal = (keywords: string[]) => {
-      for (const key of Object.keys(latest)) {
-        // Strip spaces to ensure 'Total Liabilities' matches 'TotalLiabilities' perfectly
-        const cleanKey = key.toLowerCase().replace(/\s/g, '');
-        if (keywords.some(k => cleanKey.includes(k.toLowerCase().replace(/\s/g, '')))) {
-          const raw = String(latest[key]).replace(/[$,()]/g, '').trim();
+      for (const key of Object.keys(bestItem)) {
+        const cleanKey = key.toLowerCase().replace(/[^a-z]/g, '');
+        if (keywords.some(k => cleanKey.includes(k))) {
+          const raw = String(bestItem[key]).replace(/[$,()]/g, '').trim();
           const val = parseFloat(raw);
           return isNaN(val) ? null : val;
         }
@@ -374,11 +377,11 @@ export const fetchSCSBalanceSheet = async (ticker: string) => {
     };
 
     return {
-      liabilities: getVal(['Total Liabilities', 'Liability']),
-      equity: getVal(['Total Equity', 'Shareholders Equity', 'Equity']),
-      currentAssets: getVal(['Current Assets']),
-      currentLiabilities: getVal(['Current Liabilities']),
-      inventory: getVal(['Stock in Trade', 'Inventory', 'Stock'])
+      liabilities: getVal(['totalliabilit', 'liabilit']),
+      equity: getVal(['totalequit', 'shareholderequit', 'equit']),
+      currentAssets: getVal(['currentasset']),
+      currentLiabilities: getVal(['currentliabilit']),
+      inventory: getVal(['stock', 'inventor'])
     };
 
   } catch (e) {
