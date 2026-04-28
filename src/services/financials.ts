@@ -271,70 +271,38 @@ export const fetchStockAnalysisStats = async (ticker: string) => {
   }
 };
 
-// --- 5. Fetch Balance Sheet from StockAnalysis.com ---
-export const fetchStockAnalysisBalanceSheet = async (ticker: string) => {
-  const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/financials/balance-sheet/`;
-  const html = await fetchUrlWithFallback(targetUrl);
-
-  if (!html) return null;
-
-  try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const stats: Record<string, string> = {};
-      const rows = doc.querySelectorAll('table tbody tr');
-      
-      rows.forEach(row => {
-          const cols = row.querySelectorAll('td');
-          if (cols.length >= 2) {
-              const key = cols[0].textContent?.trim() || '';
-              const value = cols[1].textContent?.trim() || '';
-              if (key && value) {
-                  stats[key] = value;
-              }
-          }
-      });
-      return stats;
-  } catch (e) {
-      return null;
-  }
-};
 // --- 6. Fetch Fundamentals from SCS Trade ---
 export const fetchSCSFundamentals = async (ticker: string) => {
   const targetUrl = `https://www.scstrade.com/stockscreening/SS_CompanySnapShot.aspx?symbol=${ticker.toLowerCase()}`;
   
-  // Use your existing Vercel Proxy to bypass CORS
+  // Uses your Vercel Proxy to bypass CORS
   const html = await fetchUrlWithFallback(targetUrl);
 
   if (!html) return null;
 
   try {
-    // Helper to find numbers based on the preceding label (Regex approach)
-    const getMetric = (label: string) => {
-      const regex = new RegExp(label + '[\\s\\S]{1,250}?(?:Rs\\.|:|>)\\s*([-?\\d,.]+(?:\\s*[x%])?)', 'i');
+    // ---------------------------------------------------------
+    // EXACT LOGIC FROM YOUR APPS SCRIPT
+    // Extracts text exactly between the ID and the closing tag
+    // ---------------------------------------------------------
+    const getValueById = (id: string) => {
+      const regex = new RegExp(`id="${id}"[^>]*>([^<]*)<`, 'i');
       const match = regex.exec(html);
       if (match && match[1]) {
-        let val = match[1].trim();
-        if (val.endsWith('.')) val = val.slice(0, -1);
-        const parsed = parseFloat(val.replace(/,/g, ''));
+        // Clean up "Rs.", commas, and extra spaces just like in your script
+        const cleanStr = match[1].replace(/Rs\.?/gi, '').replace(/,/g, '').trim();
+        const parsed = parseFloat(cleanStr);
         return isNaN(parsed) ? null : parsed;
       }
       return null;
     };
 
-    // Specifically extract the Current Price from the known HTML ID
-    let currentPrice = null;
-    const priceMatch = html.match(/id="ContentPlaceHolder1_lbl_price"[^>]*>(?:Rs\.)?\s*([\d,.]+)/i);
-    if (priceMatch && priceMatch[1]) {
-        currentPrice = parseFloat(priceMatch[1].replace(/,/g, ''));
-    }
-
     return {
-      price: currentPrice,
-      eps: getMetric("Last Annual EPS"),
-      currentPE: getMetric("Price To Earning P/E"),
-      bookValue: getMetric("Book Value Per Share"),
-      dividend: getMetric("Last Annual Dividend")
+      price: getValueById("ContentPlaceHolder1_lbl_price"),
+      eps: getValueById("ContentPlaceHolder1_lbl_laeps"),
+      currentPE: getValueById("ContentPlaceHolder1_lbl_pe"),
+      bookValue: getValueById("ContentPlaceHolder1_lblBookValue"),
+      dividend: getValueById("ContentPlaceHolder1_lbl_d")
     };
   } catch (e) {
     console.error(`Failed to parse SCS Trade HTML for ${ticker}`, e);
