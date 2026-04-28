@@ -1,38 +1,63 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card } from './ui/Card';
 import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2 } from 'lucide-react';
 import { fetchBatchPSXPrices } from '../services/psxData';
-import { 
-  fetchCompanyFundamentals, 
-  syncWithGoogleSheet
-} from '../services/financials';
+import { fetchCompanyFundamentals, syncWithGoogleSheet } from '../services/financials';
+import { loadFromDrive, saveToDrive } from '../services/driveStorage';
 
 export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
+  const [cache, setCache] = useState<Record<string, any>>({});
   
-  const [inputs, setInputs] = useState({
-    ticker: 'FFC',
-    price: 81.84,
-    eps: 14.66,
-    bookValue: 139.56,
-    fairPE: 10,
-    expectedDiv: 4,
-    requiredReturn: 10.51,
-    cagr: 10,
-    fcf: 95,
-    liabilities: 314588131,
-    equity: 256014337,
-    currentAssets: 1300000, 
-    currentLiabilities: 1000000, 
-    inventory: 300000
+  // Load saved data from Google Drive when the page opens
+  useEffect(() => {
+      const initCache = async () => {
+          const driveData = await loadFromDrive();
+          if (driveData && driveData.fairValueCache) {
+              setCache(driveData.fairValueCache);
+          }
+      };
+      initCache();
+  }, []);
+
+  // Initialize with completely empty fields
+  const [inputs, setInputs] = useState<any>({
+    ticker: '',
+    price: '',
+    eps: '',
+    bookValue: '',
+    fairPE: '',
+    expectedDiv: '',
+    requiredReturn: 10.51, // Default baseline
+    cagr: 10,              // Default baseline
+    fcf: '',
+    liabilities: '',
+    equity: '',
+    currentAssets: '', 
+    currentLiabilities: '', 
+    inventory: ''
   });
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setInputs(prev => ({
-      ...prev,
-      [name]: name === 'ticker' ? value.toUpperCase() : Number(value)
-    }));
+    
+    if (name === 'ticker') {
+        const upperTicker = value.toUpperCase();
+        // Auto-load from Drive Cache if we have it!
+        if (cache[upperTicker]) {
+            setInputs({ ticker: upperTicker, ...cache[upperTicker] });
+        } else {
+            // If it's a new ticker, clear out the old data so it's fresh
+            setInputs({
+                ticker: upperTicker,
+                price: '', eps: '', bookValue: '', fairPE: '', expectedDiv: '',
+                requiredReturn: 10.51, cagr: 10, fcf: '', liabilities: '',
+                equity: '', currentAssets: '', currentLiabilities: '', inventory: ''
+            });
+        }
+    } else {
+        setInputs((prev: any) => ({ ...prev, [name]: value === '' ? '' : Number(value) }));
+    }
   };
 
   const handleAutoFill = async () => {
@@ -45,17 +70,16 @@ export const FairValueCalculator: React.FC = () => {
           let baseData: any = {};
           let extraData: any = {};
 
-          // 1. Fetch Current Market Price (Live from PSX)
+          // 1. Fetch Current Market Price
           const priceData = await fetchBatchPSXPrices([inputs.ticker]);
           if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
               newPrice = priceData[inputs.ticker].price;
           }
 
-          // 2. 🚀 SYNC WITH GOOGLE SHEET (Updates A1, builds tabs, and returns data!)
+          // 2. 🚀 SYNC WITH GOOGLE SHEET
           const sheetData = await syncWithGoogleSheet(inputs.ticker);
           
           if (sheetData) {
-              // Extract Fundamentals
               if (sheetData.fundamentals) {
                   if (sheetData.fundamentals.price) newPrice = sheetData.fundamentals.price;
                   if (sheetData.fundamentals.eps) newEps = sheetData.fundamentals.eps;
@@ -64,50 +88,16 @@ export const FairValueCalculator: React.FC = () => {
                   if (sheetData.fundamentals.currentPE) extraData.fairPE = sheetData.fundamentals.currentPE;
               }
               
-              // Extract Balance Sheet Data from the raw arrays it generated
-              if (sheetData.balanceSheetRaw && sheetData.balanceSheetRaw.length > 0) {
-                  const bsArray = sheetData.balanceSheetRaw;
-                  
-                  // Search backwards for the newest year with liabilities
-                  let latest = bsArray[bsArray.length - 1];
-                  for (let i = bsArray.length - 1; i >= 0; i--) {
-                      const keys = Object.keys(bsArray[i]).map(k => k.toLowerCase().replace(/[^a-z]/g, ''));
-                      if (keys.some(k => k.includes('liabilit'))) {
-                          latest = bsArray[i];
-                          break;
-                      }
-                  }
-
-                  const getVal = (keywords: string[]) => {
-                      for (const key of Object.keys(latest)) {
-                          const cleanKey = key.toLowerCase().replace(/[^a-z]/g, '');
-                          if (keywords.some(k => cleanKey.includes(k))) {
-                              const raw = String(latest[key]).replace(/[$,()]/g, '').trim();
-                              const val = parseFloat(raw);
-                              return isNaN(val) ? null : val;
-                          }
-                      }
-                      return null;
-                  };
-
-                  const liab = getVal(['totalliabilit', 'liabilit']);
-                  if (liab != null) baseData.liabilities = liab;
-                  
-                  const eq = getVal(['totalequit', 'shareholderequit', 'equit']);
-                  if (eq != null) baseData.equity = eq;
-                  
-                  const ca = getVal(['currentasset']);
-                  if (ca != null) baseData.currentAssets = ca;
-                  
-                  const cl = getVal(['currentliabilit']);
-                  if (cl != null) baseData.currentLiabilities = cl;
-                  
-                  const inv = getVal(['stock', 'inventor']);
-                  if (inv != null) baseData.inventory = inv;
+              if (sheetData.balanceSheet) {
+                  if (sheetData.balanceSheet.liabilities != null) baseData.liabilities = sheetData.balanceSheet.liabilities;
+                  if (sheetData.balanceSheet.equity != null) baseData.equity = sheetData.balanceSheet.equity;
+                  if (sheetData.balanceSheet.currentAssets != null) baseData.currentAssets = sheetData.balanceSheet.currentAssets;
+                  if (sheetData.balanceSheet.currentLiabilities != null) baseData.currentLiabilities = sheetData.balanceSheet.currentLiabilities;
+                  if (sheetData.balanceSheet.inventory != null) baseData.inventory = sheetData.balanceSheet.inventory;
               }
           }
 
-          // 3. Fallback for FCF (Free Cash Flow) from PSX since SCS doesn't provide it
+          // 3. Fallback for FCF from PSX
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
@@ -122,14 +112,43 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
 
-          // Update Form!
-          setInputs(prev => ({
+          // Combine all the fetched data
+          const finalData = {
+              price: newPrice !== '' ? newPrice : inputs.price,
+              eps: newEps !== '' ? newEps : inputs.eps,
+              bookValue: baseData.bookValue ?? inputs.bookValue,
+              fairPE: extraData.fairPE ?? inputs.fairPE,
+              expectedDiv: extraData.expectedDiv ?? inputs.expectedDiv,
+              requiredReturn: inputs.requiredReturn || 10.51,
+              cagr: inputs.cagr || 10,
+              fcf: baseData.fcf ?? inputs.fcf,
+              liabilities: baseData.liabilities ?? inputs.liabilities,
+              equity: baseData.equity ?? inputs.equity,
+              currentAssets: baseData.currentAssets ?? inputs.currentAssets,
+              currentLiabilities: baseData.currentLiabilities ?? inputs.currentLiabilities,
+              inventory: baseData.inventory ?? inputs.inventory,
+          };
+
+          setInputs((prev: any) => ({
               ...prev,
-              price: newPrice,
-              eps: newEps,
-              ...baseData,
-              ...extraData
+              ...finalData
           }));
+
+          // 💾 SAVE TO GOOGLE DRIVE CACHE IN THE BACKGROUND
+          try {
+              let driveData = await loadFromDrive();
+              if (!driveData) driveData = {};
+              
+              const newCache = {
+                  ...(driveData.fairValueCache || {}),
+                  [inputs.ticker]: finalData
+              };
+              driveData.fairValueCache = newCache;
+              await saveToDrive(driveData);
+              setCache(newCache);
+          } catch (e) {
+              console.error("Failed to save cache to drive", e);
+          }
 
       } catch (error) {
           console.error("Failed to auto-fill data:", error);
@@ -140,25 +159,39 @@ export const FairValueCalculator: React.FC = () => {
   };
 
   const results = useMemo(() => {
-    const peRatio = inputs.eps > 0 ? inputs.price / inputs.eps : 0;
-    const divYield = inputs.price > 0 ? (inputs.expectedDiv / inputs.price) * 100 : 0;
-    const debtToEquity = inputs.equity > 0 ? inputs.liabilities / inputs.equity : 0;
-    
-    const growthReality = inputs.cagr > 0 ? peRatio / inputs.cagr : 0;
-    
-    const forwardEPS = inputs.eps * (1 + (inputs.cagr / 100));
-    const forwardPE = forwardEPS > 0 ? inputs.price / forwardEPS : 0;
+    // Safely parse empty strings to 0 for calculations
+    const price = Number(inputs.price) || 0;
+    const eps = Number(inputs.eps) || 0;
+    const expectedDiv = Number(inputs.expectedDiv) || 0;
+    const equity = Number(inputs.equity) || 0;
+    const liabilities = Number(inputs.liabilities) || 0;
+    const cagr = Number(inputs.cagr) || 0;
+    const currentLiabilities = Number(inputs.currentLiabilities) || 0;
+    const currentAssets = Number(inputs.currentAssets) || 0;
+    const inventory = Number(inputs.inventory) || 0;
+    const fairPE = Number(inputs.fairPE) || 0;
+    const requiredReturn = Number(inputs.requiredReturn) || 0;
+    const bookValue = Number(inputs.bookValue) || 0;
 
-    const currentRatio = inputs.currentLiabilities > 0 ? inputs.currentAssets / inputs.currentLiabilities : 0;
-    const quickRatio = inputs.currentLiabilities > 0 ? (inputs.currentAssets - inputs.inventory) / inputs.currentLiabilities : 0;
-    const stockStatus = inputs.currentLiabilities > 0 ? inputs.inventory / inputs.currentLiabilities : 0;
+    const peRatio = eps > 0 ? price / eps : 0;
+    const divYield = price > 0 ? (expectedDiv / price) * 100 : 0;
+    const debtToEquity = equity > 0 ? liabilities / equity : 0;
+    
+    const growthReality = cagr > 0 ? peRatio / cagr : 0;
+    
+    const forwardEPS = eps * (1 + (cagr / 100));
+    const forwardPE = forwardEPS > 0 ? price / forwardEPS : 0;
 
-    const peFairValue = inputs.eps * inputs.fairPE;
+    const currentRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;
+    const quickRatio = currentLiabilities > 0 ? (currentAssets - inventory) / currentLiabilities : 0;
+    const stockStatus = currentLiabilities > 0 ? inventory / currentLiabilities : 0;
+
+    const peFairValue = eps * fairPE;
     
-    const requiredReturnDecimal = inputs.requiredReturn / 100;
-    const ddmValue = requiredReturnDecimal > 0 ? inputs.expectedDiv / requiredReturnDecimal : 0;
+    const requiredReturnDecimal = requiredReturn / 100;
+    const ddmValue = requiredReturnDecimal > 0 ? expectedDiv / requiredReturnDecimal : 0;
     
-    const grahamNumber = (inputs.eps > 0 && inputs.bookValue > 0) ? Math.sqrt(22.5 * inputs.eps * inputs.bookValue) : 0;
+    const grahamNumber = (eps > 0 && bookValue > 0) ? Math.sqrt(22.5 * eps * bookValue) : 0;
 
     const getValuationStatus = (fairValue: number, currentPrice: number) => {
         if (fairValue <= 0 || currentPrice <= 0) return { text: 'N/A', diff: 0, isUnder: false };
@@ -174,9 +207,9 @@ export const FairValueCalculator: React.FC = () => {
       peRatio, divYield, debtToEquity, growthReality, forwardPE,
       currentRatio, quickRatio, stockStatus,
       peFairValue, ddmValue, grahamNumber,
-      peStatus: getValuationStatus(peFairValue, inputs.price),
-      ddmStatus: getValuationStatus(ddmValue, inputs.price),
-      grahamStatus: getValuationStatus(grahamNumber, inputs.price)
+      peStatus: getValuationStatus(peFairValue, price),
+      ddmStatus: getValuationStatus(ddmValue, price),
+      grahamStatus: getValuationStatus(grahamNumber, price)
     };
   }, [inputs]);
 
@@ -275,7 +308,7 @@ export const FairValueCalculator: React.FC = () => {
                   <div className="relative col-span-2 sm:col-span-1">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Ticker</label>
                     <div className="flex gap-2">
-                        <input type="text" name="ticker" value={inputs.ticker} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500 uppercase" />
+                        <input type="text" name="ticker" value={inputs.ticker} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500 uppercase" placeholder="e.g. FFC" />
                         <button 
                             onClick={handleAutoFill}
                             disabled={isFetching}
@@ -288,15 +321,15 @@ export const FairValueCalculator: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Current Price</label>
-                    <input type="number" step="any" name="price" value={inputs.price || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="price" value={inputs.price} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">EPS (TTM)</label>
-                    <input type="number" step="any" name="eps" value={inputs.eps || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="eps" value={inputs.eps} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Book Value / Share</label>
-                    <input type="number" step="any" name="bookValue" value={inputs.bookValue || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="bookValue" value={inputs.bookValue} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm outline-none focus:border-blue-500" />
                   </div>
                 </div>
 
@@ -309,26 +342,26 @@ export const FairValueCalculator: React.FC = () => {
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fair P/E Multiple</label>
-                    <input type="number" step="any" name="fairPE" placeholder="e.g. 10" value={inputs.fairPE || ''} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                    <input type="number" step="any" name="fairPE" placeholder="e.g. 10" value={inputs.fairPE} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
                     <p className="text-[9px] text-slate-400 mt-1 leading-tight">Usually 100/Interest Rate. Sector averages: Banks (2-5), Fertilizer/Power (7-9), Cement (5-7), Tech (18-25).</p>
                   </div>
                   
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Expected Div.</label>
-                    <input type="number" step="any" name="expectedDiv" placeholder="e.g. 4" value={inputs.expectedDiv || ''} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                    <input type="number" step="any" name="expectedDiv" placeholder="e.g. 4" value={inputs.expectedDiv} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Req. Return %</label>
-                    <input type="number" step="any" name="requiredReturn" placeholder="e.g. 10.5" value={inputs.requiredReturn || ''} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                    <input type="number" step="any" name="requiredReturn" placeholder="e.g. 10.5" value={inputs.requiredReturn} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
                   </div>
                   
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CAGR (%)</label>
-                    <input type="number" step="any" name="cagr" placeholder="e.g. 10" value={inputs.cagr || ''} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                    <input type="number" step="any" name="cagr" placeholder="e.g. 10" value={inputs.cagr} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Free Cash Flow</label>
-                    <input type="number" step="any" name="fcf" placeholder="e.g. 95" value={inputs.fcf || ''} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                    <input type="number" step="any" name="fcf" placeholder="e.g. 95" value={inputs.fcf} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
                   </div>
                 </div>
 
@@ -339,23 +372,23 @@ export const FairValueCalculator: React.FC = () => {
                   <div className="col-span-2 text-xs font-bold text-slate-700 dark:text-slate-300">Balance Sheet (For Ratios)</div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Total Liabilities</label>
-                    <input type="number" step="any" name="liabilities" value={inputs.liabilities || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="liabilities" value={inputs.liabilities} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Total Equity</label>
-                    <input type="number" step="any" name="equity" value={inputs.equity || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="equity" value={inputs.equity} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Current Assets</label>
-                    <input type="number" step="any" name="currentAssets" value={inputs.currentAssets || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="currentAssets" value={inputs.currentAssets} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Current Liab.</label>
-                    <input type="number" step="any" name="currentLiabilities" value={inputs.currentLiabilities || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="currentLiabilities" value={inputs.currentLiabilities} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Inventory</label>
-                    <input type="number" step="any" name="inventory" value={inputs.inventory || ''} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
+                    <input type="number" step="any" name="inventory" value={inputs.inventory} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                 </div>
 
