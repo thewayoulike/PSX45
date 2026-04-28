@@ -7,15 +7,21 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Aftab Vercel Serverless Function fetching the data directly from PSX
-    // This bypasses browser CORS entirely.
-    const response = await fetch(decodeURIComponent(url), {
+    const fetchOptions = {
+      method: req.method || 'GET',
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/json,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
+        'Accept': 'application/json, text/plain, */*',
       }
-    });
+    };
+
+    // If it's a POST request (like the chart3 API), attach the body
+    if (req.method === 'POST') {
+      fetchOptions.headers['Content-Type'] = 'application/json';
+      fetchOptions.body = JSON.stringify(req.body);
+    }
+
+    const response = await fetch(decodeURIComponent(url), fetchOptions);
 
     if (!response.ok) {
       throw new Error(`Status: ${response.status}`);
@@ -23,9 +29,7 @@ export default async function handler(req, res) {
 
     const data = await response.text();
 
-    // Allow your frontend to read it
     res.setHeader('Access-Control-Allow-Origin', '*');
-    // Cache the response for 60 seconds to make it lightning fast
     res.setHeader('Cache-Control', 's-maxage=60'); 
     
     return res.status(200).send(data);
