@@ -4,8 +4,7 @@ import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2 } from 'luci
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { 
   fetchCompanyFundamentals, 
-  fetchSCSFundamentals,
-  fetchSCSBalanceSheet 
+  syncWithGoogleSheet
 } from '../services/financials';
 
 export const FairValueCalculator: React.FC = () => {
@@ -52,58 +51,78 @@ export const FairValueCalculator: React.FC = () => {
               newPrice = priceData[inputs.ticker].price;
           }
 
-          // 2. Fetch SCS Trade Fundamentals (Highly Accurate for PSX)
-          const scsData = await fetchSCSFundamentals(inputs.ticker);
-          if (scsData) {
-              if (scsData.price) newPrice = scsData.price; // SCS price overrides
-              if (scsData.eps) newEps = scsData.eps;
-              if (scsData.bookValue) baseData.bookValue = scsData.bookValue;
-              if (scsData.dividend) extraData.expectedDiv = scsData.dividend;
-              if (scsData.currentPE) extraData.fairPE = scsData.currentPE; // Auto-fill Fair PE with current PE as a baseline
+          // 2. 🚀 SYNC WITH GOOGLE SHEET (Updates A1, builds tabs, and returns data!)
+          const sheetData = await syncWithGoogleSheet(inputs.ticker);
+          
+          if (sheetData) {
+              // Extract Fundamentals
+              if (sheetData.fundamentals) {
+                  if (sheetData.fundamentals.price) newPrice = sheetData.fundamentals.price;
+                  if (sheetData.fundamentals.eps) newEps = sheetData.fundamentals.eps;
+                  if (sheetData.fundamentals.bookValue) baseData.bookValue = sheetData.fundamentals.bookValue;
+                  if (sheetData.fundamentals.dividend) extraData.expectedDiv = sheetData.fundamentals.dividend;
+                  if (sheetData.fundamentals.currentPE) extraData.fairPE = sheetData.fundamentals.currentPE;
+              }
+              
+              // Extract Balance Sheet Data from the raw arrays it generated
+              if (sheetData.balanceSheetRaw && sheetData.balanceSheetRaw.length > 0) {
+                  const bsArray = sheetData.balanceSheetRaw;
+                  
+                  // Search backwards for the newest year with liabilities
+                  let latest = bsArray[bsArray.length - 1];
+                  for (let i = bsArray.length - 1; i >= 0; i--) {
+                      const keys = Object.keys(bsArray[i]).map(k => k.toLowerCase().replace(/[^a-z]/g, ''));
+                      if (keys.some(k => k.includes('liabilit'))) {
+                          latest = bsArray[i];
+                          break;
+                      }
+                  }
+
+                  const getVal = (keywords: string[]) => {
+                      for (const key of Object.keys(latest)) {
+                          const cleanKey = key.toLowerCase().replace(/[^a-z]/g, '');
+                          if (keywords.some(k => cleanKey.includes(k))) {
+                              const raw = String(latest[key]).replace(/[$,()]/g, '').trim();
+                              const val = parseFloat(raw);
+                              return isNaN(val) ? null : val;
+                          }
+                      }
+                      return null;
+                  };
+
+                  const liab = getVal(['totalliabilit', 'liabilit']);
+                  if (liab != null) baseData.liabilities = liab;
+                  
+                  const eq = getVal(['totalequit', 'shareholderequit', 'equit']);
+                  if (eq != null) baseData.equity = eq;
+                  
+                  const ca = getVal(['currentasset']);
+                  if (ca != null) baseData.currentAssets = ca;
+                  
+                  const cl = getVal(['currentliabilit']);
+                  if (cl != null) baseData.currentLiabilities = cl;
+                  
+                  const inv = getVal(['stock', 'inventor']);
+                  if (inv != null) baseData.inventory = inv;
+              }
           }
 
-          // 3. Fetch PSX Fundamentals (As a fallback for FCF and Balance Sheet)
+          // 3. Fallback for FCF (Free Cash Flow) from PSX since SCS doesn't provide it
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
               if (validData.length > 0) {
                   const latest = validData[validData.length - 1];
-                  
-                  // 👇 BULLETPROOF PARSER: Blocks "NaN" crashes and multiplies by 1000
-                  const parseNum = (val: string | undefined, isPerShare: boolean = false) => {
-                      if (!val) return null;
-                      const cleanVal = val.replace(/[^0-9.()-]/g, ''); // Strips out all garbage text
-                      if (!cleanVal || cleanVal === '-') return null;
-                      
-                      const isNegative = cleanVal.includes('(') && cleanVal.includes(')');
-                      const rawNum = parseFloat(cleanVal.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
-                      
-                      if (isNaN(rawNum)) return null; // Prevents the blank input box bug!
-                      return isPerShare ? rawNum : rawNum * 1000;
-                  };
-
-                  baseData.fcf = parseNum(latest.fcf) ?? inputs.fcf;
-                  baseData.bookValue = baseData.bookValue ?? parseNum(latest.bookValue, true) ?? inputs.bookValue;
-                  baseData.liabilities = parseNum(latest.totalLiabilities) ?? inputs.liabilities;
-                  baseData.equity = parseNum(latest.totalEquity) ?? inputs.equity;
-                  baseData.currentAssets = parseNum(latest.currentAssets) ?? inputs.currentAssets;
-                  baseData.currentLiabilities = parseNum(latest.currentLiabilities) ?? inputs.currentLiabilities;
-                  baseData.inventory = parseNum(latest.inventory) ?? inputs.inventory;
+                  const rawFCF = latest.fcf?.replace(/[^0-9.()-]/g, '');
+                  if (rawFCF && rawFCF !== '-') {
+                      const isNegative = rawFCF.includes('(') && rawFCF.includes(')');
+                      const fcfNum = parseFloat(rawFCF.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
+                      if (!isNaN(fcfNum)) baseData.fcf = fcfNum * 1000;
+                  }
               }
           }
-          
-          // 4. Fetch SCS Balance Sheet (chart3 API) - OVERRIDES PSX fallbacks!
-          const scsBalanceSheet = await fetchSCSBalanceSheet(inputs.ticker);
-          if (scsBalanceSheet) {
-              // Using != null to ensure 0 is accepted but null is rejected
-              if (scsBalanceSheet.liabilities != null) baseData.liabilities = scsBalanceSheet.liabilities;
-              if (scsBalanceSheet.equity != null) baseData.equity = scsBalanceSheet.equity;
-              if (scsBalanceSheet.currentAssets != null) baseData.currentAssets = scsBalanceSheet.currentAssets;
-              if (scsBalanceSheet.currentLiabilities != null) baseData.currentLiabilities = scsBalanceSheet.currentLiabilities;
-              if (scsBalanceSheet.inventory != null) baseData.inventory = scsBalanceSheet.inventory;
-          }
 
-          // Update Form with everything merged!
+          // Update Form!
           setInputs(prev => ({
               ...prev,
               price: newPrice,
@@ -114,7 +133,7 @@ export const FairValueCalculator: React.FC = () => {
 
       } catch (error) {
           console.error("Failed to auto-fill data:", error);
-          alert("Failed to fetch some data.");
+          alert("Failed to fetch data from Google Sheet.");
       } finally {
           setIsFetching(false);
       }
