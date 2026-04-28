@@ -9,7 +9,7 @@ export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [cache, setCache] = useState<Record<string, any>>({});
   
-  // 1. Load your research from Google Drive when you open the page
+  // Load saved data from Google Drive when the page opens
   useEffect(() => {
       const initCache = async () => {
           const driveData = await loadFromDrive();
@@ -20,7 +20,7 @@ export const FairValueCalculator: React.FC = () => {
       initCache();
   }, []);
 
-  // 2. Initialize with completely empty fields as requested
+  // Initialize with completely empty fields
   const [inputs, setInputs] = useState<any>({
     ticker: '',
     price: '',
@@ -28,8 +28,8 @@ export const FairValueCalculator: React.FC = () => {
     bookValue: '',
     fairPE: '',
     expectedDiv: '',
-    requiredReturn: 10.51, 
-    cagr: 10,              
+    requiredReturn: 10.51, // Default baseline
+    cagr: 10,              // Default baseline
     fcf: '',
     liabilities: '',
     equity: '',
@@ -43,11 +43,11 @@ export const FairValueCalculator: React.FC = () => {
     
     if (name === 'ticker') {
         const upperTicker = value.toUpperCase();
-        // 3. AUTO-LOAD: If we have this stock saved in Drive, show it immediately!
+        // Auto-load from Drive Cache if we have it!
         if (cache[upperTicker]) {
             setInputs({ ticker: upperTicker, ...cache[upperTicker] });
         } else {
-            // Otherwise, keep the fields empty for the new ticker
+            // If it's a new ticker, clear out the old data so it's fresh
             setInputs({
                 ticker: upperTicker,
                 price: '', eps: '', bookValue: '', fairPE: '', expectedDiv: '',
@@ -70,7 +70,7 @@ export const FairValueCalculator: React.FC = () => {
           let baseData: any = {};
           let extraData: any = {};
 
-          // 1. Fetch Price
+          // 1. Fetch Current Market Price
           const priceData = await fetchBatchPSXPrices([inputs.ticker]);
           if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
               newPrice = priceData[inputs.ticker].price;
@@ -80,7 +80,6 @@ export const FairValueCalculator: React.FC = () => {
           const sheetData = await syncWithGoogleSheet(inputs.ticker);
           
           if (sheetData) {
-              // Fundamentals
               if (sheetData.fundamentals) {
                   if (sheetData.fundamentals.price) newPrice = sheetData.fundamentals.price;
                   if (sheetData.fundamentals.eps) newEps = sheetData.fundamentals.eps;
@@ -89,7 +88,6 @@ export const FairValueCalculator: React.FC = () => {
                   if (sheetData.fundamentals.currentPE) extraData.fairPE = sheetData.fundamentals.currentPE;
               }
               
-              // 👇 THE CRITICAL FIX: Directly grab the clean 'balanceSheet' object sent by Google
               if (sheetData.balanceSheet) {
                   if (sheetData.balanceSheet.liabilities != null) baseData.liabilities = sheetData.balanceSheet.liabilities;
                   if (sheetData.balanceSheet.equity != null) baseData.equity = sheetData.balanceSheet.equity;
@@ -99,7 +97,7 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
 
-          // 3. Fallback for FCF
+          // 3. Fallback for FCF from PSX
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
@@ -114,7 +112,8 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
 
-          const finalFetchedData = {
+          // Combine all the fetched data
+          const finalData = {
               price: newPrice !== '' ? newPrice : inputs.price,
               eps: newEps !== '' ? newEps : inputs.eps,
               bookValue: baseData.bookValue ?? inputs.bookValue,
@@ -130,21 +129,29 @@ export const FairValueCalculator: React.FC = () => {
               inventory: baseData.inventory ?? inputs.inventory,
           };
 
-          // Update the form immediately
-          setInputs((prev: any) => ({ ...prev, ...finalFetchedData }));
+          setInputs((prev: any) => ({
+              ...prev,
+              ...finalData
+          }));
 
-          // 4. 💾 PERMANENT STORAGE: Save this result to Google Drive automatically
+          // 💾 SAVE TO GOOGLE DRIVE CACHE IN THE BACKGROUND
           try {
               let driveData = await loadFromDrive();
               if (!driveData) driveData = {};
-              const updatedCache = { ...(driveData.fairValueCache || {}), [inputs.ticker]: finalFetchedData };
-              driveData.fairValueCache = updatedCache;
+              
+              const newCache = {
+                  ...(driveData.fairValueCache || {}),
+                  [inputs.ticker]: finalData
+              };
+              driveData.fairValueCache = newCache;
               await saveToDrive(driveData);
-              setCache(updatedCache);
-          } catch (e) { console.error("Drive save failed", e); }
+              setCache(newCache);
+          } catch (e) {
+              console.error("Failed to save cache to drive", e);
+          }
 
       } catch (error) {
-          console.error("Auto-fill failed:", error);
+          console.error("Failed to auto-fill data:", error);
           alert("Failed to fetch data from Google Sheet.");
       } finally {
           setIsFetching(false);
@@ -152,169 +159,344 @@ export const FairValueCalculator: React.FC = () => {
   };
 
   const results = useMemo(() => {
-    // Treat empty as 0 for math
+    // Safely parse empty strings to 0 for calculations
     const price = Number(inputs.price) || 0;
     const eps = Number(inputs.eps) || 0;
     const expectedDiv = Number(inputs.expectedDiv) || 0;
     const equity = Number(inputs.equity) || 0;
     const liabilities = Number(inputs.liabilities) || 0;
     const cagr = Number(inputs.cagr) || 0;
-    const cl = Number(inputs.currentLiabilities) || 0;
-    const ca = Number(inputs.currentAssets) || 0;
-    const inv = Number(inputs.inventory) || 0;
+    const currentLiabilities = Number(inputs.currentLiabilities) || 0;
+    const currentAssets = Number(inputs.currentAssets) || 0;
+    const inventory = Number(inputs.inventory) || 0;
     const fairPE = Number(inputs.fairPE) || 0;
-    const reqReturn = Number(inputs.requiredReturn) || 0;
-    const bv = Number(inputs.bookValue) || 0;
+    const requiredReturn = Number(inputs.requiredReturn) || 0;
+    const bookValue = Number(inputs.bookValue) || 0;
 
     const peRatio = eps > 0 ? price / eps : 0;
     const divYield = price > 0 ? (expectedDiv / price) * 100 : 0;
     const debtToEquity = equity > 0 ? liabilities / equity : 0;
+    
+    const growthReality = cagr > 0 ? peRatio / cagr : 0;
+    
     const forwardEPS = eps * (1 + (cagr / 100));
     const forwardPE = forwardEPS > 0 ? price / forwardEPS : 0;
-    const peFairValue = eps * fairPE;
-    const ddmValue = (reqReturn / 100) > 0 ? expectedDiv / (reqReturn / 100) : 0;
-    const grahamNumber = (eps > 0 && bv > 0) ? Math.sqrt(22.5 * eps * bv) : 0;
 
-    const getValStatus = (fairValue: number, currentPrice: number) => {
+    const currentRatio = currentLiabilities > 0 ? currentAssets / currentLiabilities : 0;
+    const quickRatio = currentLiabilities > 0 ? (currentAssets - inventory) / currentLiabilities : 0;
+    const stockStatus = currentLiabilities > 0 ? inventory / currentLiabilities : 0;
+
+    const peFairValue = eps * fairPE;
+    
+    const requiredReturnDecimal = requiredReturn / 100;
+    const ddmValue = requiredReturnDecimal > 0 ? expectedDiv / requiredReturnDecimal : 0;
+    
+    const grahamNumber = (eps > 0 && bookValue > 0) ? Math.sqrt(22.5 * eps * bookValue) : 0;
+
+    const getValuationStatus = (fairValue: number, currentPrice: number) => {
         if (fairValue <= 0 || currentPrice <= 0) return { text: 'N/A', diff: 0, isUnder: false };
         const diff = ((fairValue - currentPrice) / currentPrice) * 100;
         return { 
             text: diff > 0 ? `Undervalued by ${diff.toFixed(1)}%` : `Overvalued by ${Math.abs(diff).toFixed(1)}%`, 
-            diff, isUnder: diff > 0 
+            diff, 
+            isUnder: diff > 0 
         };
     };
 
     return {
-      peRatio, divYield, debtToEquity, forwardPE, peFairValue, ddmValue, grahamNumber,
-      peStatus: getValStatus(peFairValue, price),
-      ddmStatus: getValStatus(ddmValue, price),
-      grahamStatus: getValStatus(grahamNumber, price),
-      currentRatio: cl > 0 ? ca / cl : 0,
-      quickRatio: cl > 0 ? (ca - inv) / cl : 0
+      peRatio, divYield, debtToEquity, growthReality, forwardPE,
+      currentRatio, quickRatio, stockStatus,
+      peFairValue, ddmValue, grahamNumber,
+      peStatus: getValuationStatus(peFairValue, price),
+      ddmStatus: getValuationStatus(ddmValue, price),
+      grahamStatus: getValuationStatus(grahamNumber, price)
     };
   }, [inputs]);
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto p-4 animate-in fade-in slide-in-from-bottom-4">
-      <Card title="EVALUATION METHODS" icon={<Activity size={18} className="text-indigo-500" />}>
+      
+      {/* -------------------------------------------------------- */}
+      {/* SECTION B: EVALUATIONS METHODS (COMPACT DESIGN) */}
+      {/* -------------------------------------------------------- */}
+      <Card title="B: EVALUATION METHODS" icon={<Activity size={18} className="text-indigo-500" />}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+            
             {/* Method 1: P/E */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">METHOD 1: P/E FAIR VALUE</h4>
-                <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1">Rs. {results.peFairValue.toFixed(1)}</div>
-                {results.peStatus.text !== 'N/A' && (
-                    <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.peStatus.isUnder ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        {results.peStatus.text}
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">METHOD 1: P/E FAIR VALUE</h4>
+                        <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1 tracking-tight">Rs. {results.peFairValue.toFixed(1)}</div>
                     </div>
-                )}
+                    {results.peStatus.text !== 'N/A' && (
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.peStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                            {results.peStatus.text}
+                        </div>
+                    )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-tight">
+                    <strong>Best For:</strong> Almost every stock, but especially useful for comparing two companies in the same sector.
+                </p>
             </div>
 
             {/* Method 2: DDM */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">METHOD 2: DDM VALUE</h4>
-                <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1">Rs. {results.ddmValue.toFixed(1)}</div>
-                {results.ddmStatus.text !== 'N/A' && (
-                    <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.ddmStatus.isUnder ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        {results.ddmStatus.text}
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">METHOD 2: DDM VALUE</h4>
+                        <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1 tracking-tight">Rs. {results.ddmValue.toFixed(1)}</div>
                     </div>
-                )}
+                    {results.ddmStatus.text !== 'N/A' && (
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.ddmStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                            {results.ddmStatus.text}
+                        </div>
+                    )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-tight">
+                    <strong>Best For:</strong> Companies that pay regular dividends (Fertilizers, Power, Banks).
+                </p>
             </div>
 
             {/* Method 3: Graham */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
-                <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">METHOD 3: GRAHAM NUMBER</h4>
-                <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1">Rs. {results.grahamNumber.toFixed(1)}</div>
-                {results.grahamStatus.text !== 'N/A' && (
-                    <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.grahamStatus.isUnder ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                        {results.grahamStatus.text}
+                <div className="flex justify-between items-start">
+                    <div>
+                        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1">METHOD 3: GRAHAM NUMBER</h4>
+                        <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1 tracking-tight">Rs. {results.grahamNumber.toFixed(1)}</div>
                     </div>
-                )}
+                    {results.grahamStatus.text !== 'N/A' && (
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.grahamStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                            {results.grahamStatus.text}
+                        </div>
+                    )}
+                </div>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-tight">
+                    <strong>Best For:</strong> Finding "Safe" stocks during a market crash.
+                </p>
             </div>
+
           </div>
       </Card>
 
+
+      {/* CONCEPTS BAR */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 flex items-center gap-1"><BookOpen size={12}/> Face Value</h4>
+              <p className="text-xs font-medium text-slate-700 dark:text-slate-300">The "Legal" price. Used only for calculating dividends and accounting (Usually Rs. 10).</p>
+          </div>
+          <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 flex items-center gap-1"><BookOpen size={12}/> Book Value</h4>
+              <p className="text-xs font-medium text-slate-700 dark:text-slate-300">The "Asset" price. What you really own in factories, cash, and land.</p>
+          </div>
+          <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+              <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 flex items-center gap-1"><BookOpen size={12}/> Market Value</h4>
+              <p className="text-xs font-medium text-slate-700 dark:text-slate-300">The "Trading" price. What you pay to buy the stock today.</p>
+          </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
+        
+        {/* --- LEFT COLUMN: INPUT DATA --- */}
         <div className="xl:col-span-4 space-y-6">
           <Card title="1. Input Data" icon={<Calculator size={18} className="text-blue-500" />}>
             <div className="space-y-4 mt-4">
+                
+                {/* Core Metrics */}
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="relative col-span-2">
+                  <div className="relative col-span-2 sm:col-span-1">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Ticker</label>
                     <div className="flex gap-2">
-                        <input type="text" name="ticker" value={inputs.ticker} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold outline-none focus:border-blue-500 uppercase" placeholder="e.g. ENGRO" />
-                        <button onClick={handleAutoFill} disabled={isFetching} className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 p-2.5 rounded-lg border border-emerald-200 dark:border-emerald-800 shrink-0">
+                        <input type="text" name="ticker" value={inputs.ticker} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500 uppercase" placeholder="e.g. FFC" />
+                        <button 
+                            onClick={handleAutoFill}
+                            disabled={isFetching}
+                            title="Auto-fill Data from PSX & StockAnalysis"
+                            className="bg-emerald-100 hover:bg-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:hover:bg-emerald-800/50 dark:text-emerald-400 p-2.5 rounded-lg transition-colors flex items-center justify-center shrink-0 border border-emerald-200 dark:border-emerald-800"
+                        >
                             {isFetching ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
                         </button>
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Price</label>
-                    <input type="number" name="price" value={inputs.price} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-500" />
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Current Price</label>
+                    <input type="number" step="any" name="price" value={inputs.price} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">EPS</label>
-                    <input type="number" name="eps" value={inputs.eps} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 text-sm outline-none focus:border-blue-500" />
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">EPS (TTM)</label>
+                    <input type="number" step="any" name="eps" value={inputs.eps} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Book Value / Share</label>
+                    <input type="number" step="any" name="bookValue" value={inputs.bookValue} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm outline-none focus:border-blue-500" />
                   </div>
                 </div>
 
                 <div className="h-px w-full bg-slate-100 dark:bg-slate-800"></div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="col-span-2 text-xs font-bold text-slate-700 dark:text-slate-300">Balance Sheet</div>
+                {/* Valuation Inputs */}
+                <div className="grid grid-cols-2 gap-3 relative">
+                  <div className="col-span-2 flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-amber-500 uppercase">Subjective / External Inputs</span>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Fair P/E Multiple</label>
+                    <input type="number" step="any" name="fairPE" placeholder="e.g. 10" value={inputs.fairPE} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                    <p className="text-[9px] text-slate-400 mt-1 leading-tight">Usually 100/Interest Rate. Sector averages: Banks (2-5), Fertilizer/Power (7-9), Cement (5-7), Tech (18-25).</p>
+                  </div>
+                  
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Liabilities</label>
-                    <input type="number" name="liabilities" value={inputs.liabilities} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 text-xs" />
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Expected Div.</label>
+                    <input type="number" step="any" name="expectedDiv" placeholder="e.g. 4" value={inputs.expectedDiv} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Equity</label>
-                    <input type="number" name="equity" value={inputs.equity} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 text-xs" />
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Req. Return %</label>
+                    <input type="number" step="any" name="requiredReturn" placeholder="e.g. 10.5" value={inputs.requiredReturn} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                  </div>
+                  
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">CAGR (%)</label>
+                    <input type="number" step="any" name="cagr" placeholder="e.g. 10" value={inputs.cagr} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Free Cash Flow</label>
+                    <input type="number" step="any" name="fcf" placeholder="e.g. 95" value={inputs.fcf} onChange={handleInputChange} className="w-full bg-amber-50/50 dark:bg-amber-900/10 p-2.5 rounded-lg border border-amber-200 dark:border-amber-800/50 text-sm outline-none focus:border-amber-400" />
+                  </div>
+                </div>
+
+                <div className="h-px w-full bg-slate-100 dark:bg-slate-800"></div>
+
+                {/* Balance Sheet Inputs */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="col-span-2 text-xs font-bold text-slate-700 dark:text-slate-300">Balance Sheet (For Ratios)</div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Total Liabilities</label>
+                    <input type="number" step="any" name="liabilities" value={inputs.liabilities} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Total Equity</label>
+                    <input type="number" step="any" name="equity" value={inputs.equity} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Current Assets</label>
-                    <input type="number" name="currentAssets" value={inputs.currentAssets} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 text-xs" />
+                    <input type="number" step="any" name="currentAssets" value={inputs.currentAssets} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Current Liab.</label>
-                    <input type="number" name="currentLiabilities" value={inputs.currentLiabilities} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border border-slate-200 text-xs" />
+                    <input type="number" step="any" name="currentLiabilities" value={inputs.currentLiabilities} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Inventory</label>
+                    <input type="number" step="any" name="inventory" value={inputs.inventory} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs outline-none focus:border-blue-500" />
                   </div>
                 </div>
+
             </div>
           </Card>
         </div>
 
+        {/* --- RIGHT COLUMN: CHECKS --- */}
         <div className="xl:col-span-8 space-y-6">
-          <Card title="Analysis & Checks" icon={<Shield size={18} className="text-emerald-500" />}>
+          
+          {/* SECTION A: IMPORTANT CHECKS */}
+          <Card title="A: Important Checks" icon={<Shield size={18} className="text-emerald-500" />}>
              <div className="overflow-x-auto mt-4">
-                 <table className="w-full text-left">
-                    <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] uppercase text-slate-500">
+                 <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-800/50 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                         <tr>
-                            <th className="p-3">Metric</th>
-                            <th className="p-3 text-center">Value</th>
-                            <th className="p-3">Status</th>
+                            <th className="p-3 font-semibold w-1/3">Metric</th>
+                            <th className="p-3 font-semibold text-center w-24">Value</th>
+                            <th className="p-3 font-semibold">Status / Applied Rule</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-sm">
-                        <tr>
-                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">P/E Ratio</td>
-                            <td className="p-3 text-center font-black">{results.peRatio.toFixed(2)}</td>
-                            <td className="p-3 text-xs font-bold">{results.peRatio < Number(inputs.fairPE) ? 'Good Value' : 'Expensive'}</td>
+                        
+                        {/* P/E Ratio */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Stock's P/E Ratio</td>
+                            <td className={`p-3 text-center font-black ${inputs.fairPE && results.peRatio < inputs.fairPE ? 'text-emerald-600' : 'text-rose-600'}`}>{results.peRatio > 0 ? results.peRatio.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-xs">
+                                <span className="font-bold">{!inputs.fairPE ? 'Requires Fair P/E input' : results.peRatio < inputs.fairPE ? 'Good Value' : 'Expensive'}</span>
+                            </td>
                         </tr>
-                        <tr>
-                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">D/E Ratio</td>
-                            <td className="p-3 text-center font-black">{results.debtToEquity.toFixed(2)}</td>
-                            <td className="p-3 text-xs font-bold">{results.debtToEquity < 1 ? 'Safe' : 'Risky'}</td>
+
+                        {/* Dividend Yield */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-emerald-50/30 dark:bg-emerald-900/10">
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Dividend Yield %</td>
+                            <td className="p-3 text-center font-black text-emerald-600">{results.divYield > 0 ? `${results.divYield.toFixed(2)}%` : '-'}</td>
+                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">{results.divYield > 10 ? 'High Yield' : 'Low Yield'}</span>
+                                15% is standard here.
+                            </td>
                         </tr>
-                        <tr>
+
+                        {/* Bankruptcy Check */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Bankruptcy Check <br/><span className="text-[10px] font-normal text-slate-400">(Debt-to-Equity Ratio)</span></td>
+                            <td className={`p-3 text-center font-black ${results.debtToEquity < 1 ? 'text-emerald-600' : results.debtToEquity > 5 ? 'text-rose-600' : 'text-amber-500'}`}>{results.debtToEquity > 0 ? results.debtToEquity.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">{results.debtToEquity === 0 ? '-' : results.debtToEquity < 1 ? 'Safe' : results.debtToEquity > 5 ? 'Dangerous Risk' : 'Moderate Risk'}</span>
+                                Verdict Rule: &lt; 1.0 (Safe) | &gt; 2.0 (Risky) | &gt; 5.0 (Dangerous/Avoid)
+                            </td>
+                        </tr>
+
+                        {/* Growth Reality Check */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-amber-50/30 dark:bg-amber-900/10">
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Growth Reality Check <br/><span className="text-[10px] font-normal text-slate-400">(PEG Ratio)</span></td>
+                            <td className={`p-3 text-center font-black ${results.growthReality < 1 ? 'text-emerald-600' : results.growthReality > 1.5 ? 'text-rose-600' : 'text-amber-500'}`}>{results.growthReality > 0 ? results.growthReality.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">{results.growthReality === 0 ? '-' : results.growthReality < 1 ? 'Undervalued (Growth is Cheap)' : 'Fair/Expensive'}</span>
+                                Verdict Rule: &lt; 1.0 (Undervalued). Around 1.0 (Fair). &gt; 1.5 (Expensive, price running faster than growth).
+                            </td>
+                        </tr>
+
+                        {/* Forward P/E */}
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Forward P/E Formula</td>
+                            <td className="p-3 text-center font-black text-blue-600">{results.forwardPE > 0 ? results.forwardPE.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-xs">
+                                <span className="font-bold text-slate-600 dark:text-slate-300">{results.forwardPE === 0 ? '-' : results.forwardPE < inputs.fairPE ? 'Cheap (Growth makes it attractive)' : 'Normal'}</span>
+                            </td>
+                        </tr>
+
+                        {/* Survival Ratios */}
+                        <tr className="bg-slate-100/50 dark:bg-slate-800">
+                            <td colSpan={3} className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">Survival Ratios</td>
+                        </tr>
+
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Current Ratio</td>
-                            <td className="p-3 text-center font-black">{results.currentRatio.toFixed(2)}</td>
-                            <td className="p-3 text-xs font-bold">{results.currentRatio > 1 ? 'Safe' : 'Poor'}</td>
+                            <td className="p-3 text-center font-black text-emerald-600">{results.currentRatio > 0 ? results.currentRatio.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">{results.currentRatio === 0 ? '-' : results.currentRatio > 1 ? 'Safe / Good' : 'Poor'}</span>
+                                Checks if you can pay bills if business is normal (using Cash + selling Inventory). Formula: Curr Assets / Curr Liabilities
+                            </td>
                         </tr>
+
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Quick Ratio</td>
+                            <td className="p-3 text-center font-black text-emerald-600">{results.quickRatio > 0 ? results.quickRatio.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
+                                <span className="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">{results.quickRatio === 0 ? '-' : results.quickRatio >= 1 ? 'Excellent Liquidity' : 'Standard'}</span>
+                                Checks if you can pay bills in an emergency (using only Cash, without selling a single product). Formula: (Curr Assets - Inventory) / Curr Liab
+                            </td>
+                        </tr>
+
+                        <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Stock Status</td>
+                            <td className="p-3 text-center font-black text-slate-600 dark:text-slate-300">{results.stockStatus > 0 ? results.stockStatus.toFixed(2) : '-'}</td>
+                            <td className="p-3 text-xs text-slate-600 dark:text-slate-400 font-bold">Efficient Inventory</td>
+                        </tr>
+
                     </tbody>
                  </table>
              </div>
           </Card>
+
         </div>
       </div>
+
     </div>
   );
 };
