@@ -332,3 +332,52 @@ export const fetchSCSFundamentals = async (ticker: string) => {
     return null;
   }
 };
+// --- 7. Fetch Balance Sheet from SCS Trade Backend (Chart3) ---
+export const fetchSCSBalanceSheet = async (ticker: string) => {
+  const targetUrl = 'https://www.scstrade.com/stockscreening/SS_CompanySnapShotYF.aspx/chart3';
+  const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+
+  try {
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ sym: ticker.toLowerCase() }) // Exact payload from your script
+    });
+
+    if (!response.ok) return null;
+
+    const text = await response.text();
+    const result = JSON.parse(text);
+    const data = result.d;
+
+    if (!data || data.length === 0) return null;
+
+    // The first item in the array is the most recent financial year
+    const latest = data[0]; 
+
+    // Helper to safely extract exact raw numbers without *1000 guesswork
+    const getVal = (keywords: string[]) => {
+      for (const key of Object.keys(latest)) {
+        if (keywords.some(k => key.toLowerCase().includes(k.toLowerCase()))) {
+          const val = parseFloat(String(latest[key]).replace(/,/g, ''));
+          return isNaN(val) ? null : val;
+        }
+      }
+      return null;
+    };
+
+    return {
+      liabilities: getVal(['Total Liabilities', 'TotalLiabilities']),
+      equity: getVal(['Total Equity', 'TotalEquity', 'Shareholders Equity']),
+      currentAssets: getVal(['Current Assets', 'CurrentAssets']),
+      currentLiabilities: getVal(['Current Liabilities', 'CurrentLiabilities']),
+      inventory: getVal(['Stock in Trade', 'Inventory', 'StockInTrade'])
+    };
+
+  } catch (e) {
+    console.error(`Failed to fetch SCS Chart3 for ${ticker}`, e);
+    return null;
+  }
+};
