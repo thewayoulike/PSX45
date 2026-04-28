@@ -9,7 +9,7 @@ export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [cache, setCache] = useState<Record<string, any>>({});
   
-  // 1. Load saved data from Google Drive when the page opens
+  // 1. Load saved research from Google Drive when the page opens
   useEffect(() => {
       const initCache = async () => {
           const driveData = await loadFromDrive();
@@ -20,7 +20,7 @@ export const FairValueCalculator: React.FC = () => {
       initCache();
   }, []);
 
-  // 2. Initialize with completely empty fields
+  // 2. Initialize with completely empty fields (Baseline)
   const [inputs, setInputs] = useState<any>({
     ticker: '',
     price: '',
@@ -28,8 +28,8 @@ export const FairValueCalculator: React.FC = () => {
     bookValue: '',
     fairPE: '',
     expectedDiv: '',
-    requiredReturn: 10.51, // Default baseline
-    cagr: 10,              // Default baseline
+    requiredReturn: 10.51, // Default fallback
+    cagr: 10,              // Default fallback
     fcf: '',
     liabilities: '',
     equity: '',
@@ -43,11 +43,11 @@ export const FairValueCalculator: React.FC = () => {
     
     if (name === 'ticker') {
         const upperTicker = value.toUpperCase();
-        // Auto-load from Drive Cache if we have it!
+        // 3. DRIVE MEMORY: Auto-load data if we've synced this ticker before
         if (cache[upperTicker]) {
             setInputs({ ticker: upperTicker, ...cache[upperTicker] });
         } else {
-            // If it's a new ticker, clear out the old data so it starts fresh
+            // New ticker: Start with empty fields but keep essential default rates
             setInputs({
                 ticker: upperTicker,
                 price: '', eps: '', bookValue: '', fairPE: '', expectedDiv: '',
@@ -56,27 +56,32 @@ export const FairValueCalculator: React.FC = () => {
             });
         }
     } else {
-        setInputs((prev: any) => ({ ...prev, [name]: value === '' ? '' : Number(value) }));
+        // Handle empty strings gracefully to avoid NaN math errors
+        setInputs((prev: any) => ({ 
+            ...prev, 
+            [name]: value === '' ? '' : Number(value) 
+        }));
     }
   };
 
   const handleAutoFill = async () => {
       if (!inputs.ticker) return;
       setIsFetching(true);
+      const upperTicker = inputs.ticker.toUpperCase();
 
       try {
           let newPrice = inputs.price;
           let newEps = inputs.eps;
           let baseData: any = {};
 
-          // A. Fetch Current Market Price
-          const priceData = await fetchBatchPSXPrices([inputs.ticker]);
-          if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
-              newPrice = priceData[inputs.ticker].price;
+          // A. Fetch Live Price from PSX
+          const priceData = await fetchBatchPSXPrices([upperTicker]);
+          if (priceData[upperTicker] && priceData[upperTicker].price > 0) {
+              newPrice = priceData[upperTicker].price;
           }
 
-          // B. 🚀 SYNC WITH GOOGLE SHEET
-          const sheetData = await syncWithGoogleSheet(inputs.ticker);
+          // B. 🚀 SYNC WITH GOOGLE SHEET (Bridge to SCS Trade)
+          const sheetData = await syncWithGoogleSheet(upperTicker);
           
           if (sheetData) {
               // Extract Fundamentals
@@ -88,7 +93,7 @@ export const FairValueCalculator: React.FC = () => {
                   if (sheetData.fundamentals.currentPE) baseData.fairPE = sheetData.fundamentals.currentPE;
               }
               
-              // Extract Balance Sheet (using the clean object sent by Google Sheets)
+              // THE FIX: Directly grab the clean 'balanceSheet' object sent by Google
               if (sheetData.balanceSheet) {
                   if (sheetData.balanceSheet.liabilities != null) baseData.liabilities = sheetData.balanceSheet.liabilities;
                   if (sheetData.balanceSheet.equity != null) baseData.equity = sheetData.balanceSheet.equity;
@@ -99,7 +104,7 @@ export const FairValueCalculator: React.FC = () => {
           }
 
           // C. Fallback for FCF from PSX
-          const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
+          const fundamentals = await fetchCompanyFundamentals(upperTicker);
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
               if (validData.length > 0) {
@@ -113,8 +118,8 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
 
-          // Combine all the fetched data
-          const finalData = {
+          // D. Combine all data
+          const finalFetchedData = {
               price: newPrice !== '' ? newPrice : inputs.price,
               eps: newEps !== '' ? newEps : inputs.eps,
               bookValue: baseData.bookValue ?? inputs.bookValue,
@@ -130,30 +135,26 @@ export const FairValueCalculator: React.FC = () => {
               inventory: baseData.inventory ?? inputs.inventory,
           };
 
-          // Update Form immediately
-          setInputs((prev: any) => ({
-              ...prev,
-              ...finalData
-          }));
+          // Update Form instantly
+          setInputs((prev: any) => ({ ...prev, ...finalFetchedData }));
 
-          // D. 💾 SAVE TO GOOGLE DRIVE CACHE IN THE BACKGROUND
+          // E. 💾 PERMANENT STORAGE: Save research to Google Drive automatically
           try {
               let driveData = await loadFromDrive();
               if (!driveData) driveData = {};
-              
-              const newCache = {
-                  ...(driveData.fairValueCache || {}),
-                  [inputs.ticker]: finalData
+              const updatedCache = { 
+                  ...(driveData.fairValueCache || {}), 
+                  [upperTicker]: finalFetchedData 
               };
-              driveData.fairValueCache = newCache;
+              driveData.fairValueCache = updatedCache;
               await saveToDrive(driveData);
-              setCache(newCache);
+              setCache(updatedCache);
           } catch (e) {
-              console.error("Failed to save cache to drive", e);
+              console.error("Drive save failed", e);
           }
 
       } catch (error) {
-          console.error("Failed to auto-fill data:", error);
+          console.error("Auto-fill failed:", error);
           alert("Failed to fetch data from Google Sheet.");
       } finally {
           setIsFetching(false);
@@ -161,7 +162,7 @@ export const FairValueCalculator: React.FC = () => {
   };
 
   const results = useMemo(() => {
-    // Safely parse empty strings to 0 for calculations
+    // Treat blank strings as 0 for calculations
     const price = Number(inputs.price) || 0;
     const eps = Number(inputs.eps) || 0;
     const expectedDiv = Number(inputs.expectedDiv) || 0;
@@ -180,7 +181,6 @@ export const FairValueCalculator: React.FC = () => {
     const debtToEquity = equity > 0 ? liabilities / equity : 0;
     
     const growthReality = cagr > 0 ? peRatio / cagr : 0;
-    
     const forwardEPS = eps * (1 + (cagr / 100));
     const forwardPE = forwardEPS > 0 ? price / forwardEPS : 0;
 
@@ -189,10 +189,7 @@ export const FairValueCalculator: React.FC = () => {
     const stockStatus = currentLiabilities > 0 ? inventory / currentLiabilities : 0;
 
     const peFairValue = eps * fairPE;
-    
-    const requiredReturnDecimal = requiredReturn / 100;
-    const ddmValue = requiredReturnDecimal > 0 ? expectedDiv / requiredReturnDecimal : 0;
-    
+    const ddmValue = (requiredReturn / 100) > 0 ? expectedDiv / (requiredReturn / 100) : 0;
     const grahamNumber = (eps > 0 && bookValue > 0) ? Math.sqrt(22.5 * eps * bookValue) : 0;
 
     const getValuationStatus = (fairValue: number, currentPrice: number) => {
@@ -232,7 +229,7 @@ export const FairValueCalculator: React.FC = () => {
                         <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1 tracking-tight">Rs. {results.peFairValue.toFixed(1)}</div>
                     </div>
                     {results.peStatus.text !== 'N/A' && (
-                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.peStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.peStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
                             {results.peStatus.text}
                         </div>
                     )}
@@ -250,7 +247,7 @@ export const FairValueCalculator: React.FC = () => {
                         <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1 tracking-tight">Rs. {results.ddmValue.toFixed(1)}</div>
                     </div>
                     {results.ddmStatus.text !== 'N/A' && (
-                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.ddmStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.ddmStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
                             {results.ddmStatus.text}
                         </div>
                     )}
@@ -268,7 +265,7 @@ export const FairValueCalculator: React.FC = () => {
                         <div className="text-2xl font-black text-slate-800 dark:text-slate-100 my-1 tracking-tight">Rs. {results.grahamNumber.toFixed(1)}</div>
                     </div>
                     {results.grahamStatus.text !== 'N/A' && (
-                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.grahamStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'}`}>
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded-md w-fit ${results.grahamStatus.isUnder ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30' : 'bg-rose-50 text-rose-600 dark:bg-rose-900/30'}`}>
                             {results.grahamStatus.text}
                         </div>
                     )}
@@ -310,7 +307,7 @@ export const FairValueCalculator: React.FC = () => {
                   <div className="relative col-span-2 sm:col-span-1">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Ticker</label>
                     <div className="flex gap-2">
-                        <input type="text" name="ticker" value={inputs.ticker} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500 uppercase" placeholder="e.g. FFC" />
+                        <input type="text" name="ticker" value={inputs.ticker} onChange={handleInputChange} className="w-full bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 font-bold text-sm outline-none focus:border-blue-500 uppercase" placeholder="e.g. ENGRO" />
                         <button 
                             onClick={handleAutoFill}
                             disabled={isFetching}
@@ -417,9 +414,9 @@ export const FairValueCalculator: React.FC = () => {
                         {/* P/E Ratio */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Stock's P/E Ratio</td>
-                            <td className={`p-3 text-center font-black ${inputs.fairPE && results.peRatio < inputs.fairPE ? 'text-emerald-600' : 'text-rose-600'}`}>{results.peRatio > 0 ? results.peRatio.toFixed(2) : '-'}</td>
+                            <td className={`p-3 text-center font-black ${inputs.fairPE && results.peRatio < Number(inputs.fairPE) ? 'text-emerald-600' : 'text-rose-600'}`}>{results.peRatio > 0 ? results.peRatio.toFixed(2) : '-'}</td>
                             <td className="p-3 text-xs">
-                                <span className="font-bold">{!inputs.fairPE ? 'Requires Fair P/E input' : results.peRatio < inputs.fairPE ? 'Good Value' : 'Expensive'}</span>
+                                <span className="font-bold">{!inputs.fairPE ? 'Requires Fair P/E input' : results.peRatio < Number(inputs.fairPE) ? 'Good Value' : 'Expensive'}</span>
                             </td>
                         </tr>
 
@@ -458,7 +455,7 @@ export const FairValueCalculator: React.FC = () => {
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Forward P/E Formula</td>
                             <td className="p-3 text-center font-black text-blue-600">{results.forwardPE > 0 ? results.forwardPE.toFixed(2) : '-'}</td>
                             <td className="p-3 text-xs">
-                                <span className="font-bold text-slate-600 dark:text-slate-300">{results.forwardPE === 0 ? '-' : results.forwardPE < inputs.fairPE ? 'Cheap (Growth makes it attractive)' : 'Normal'}</span>
+                                <span className="font-bold text-slate-600 dark:text-slate-300">{results.forwardPE === 0 ? '-' : results.forwardPE < Number(inputs.fairPE) ? 'Cheap (Growth makes it attractive)' : 'Normal'}</span>
                             </td>
                         </tr>
 
