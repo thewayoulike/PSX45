@@ -68,26 +68,27 @@ export const FairValueCalculator: React.FC = () => {
           let newPrice = inputs.price;
           let newEps = inputs.eps;
           let baseData: any = {};
-          let extraData: any = {};
 
-          // 1. Fetch Current Market Price
+          // 1. Live PSX Price
           const priceData = await fetchBatchPSXPrices([inputs.ticker]);
           if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
               newPrice = priceData[inputs.ticker].price;
           }
 
-          // 2. 🚀 SYNC WITH GOOGLE SHEET
+          // 2. 🚀 SYNC WITH GOOGLE SHEET (Bridge to SCS Trade)
           const sheetData = await syncWithGoogleSheet(inputs.ticker);
           
           if (sheetData) {
+              // Get Fundamentals
               if (sheetData.fundamentals) {
                   if (sheetData.fundamentals.price) newPrice = sheetData.fundamentals.price;
                   if (sheetData.fundamentals.eps) newEps = sheetData.fundamentals.eps;
                   if (sheetData.fundamentals.bookValue) baseData.bookValue = sheetData.fundamentals.bookValue;
-                  if (sheetData.fundamentals.dividend) extraData.expectedDiv = sheetData.fundamentals.dividend;
-                  if (sheetData.fundamentals.currentPE) extraData.fairPE = sheetData.fundamentals.currentPE;
+                  if (sheetData.fundamentals.dividend) baseData.expectedDiv = sheetData.fundamentals.dividend;
+                  if (sheetData.fundamentals.currentPE) baseData.fairPE = sheetData.fundamentals.currentPE;
               }
               
+              // 👇 THE FIX: Grab the clean 'balanceSheet' object instead of 'balanceSheetRaw'
               if (sheetData.balanceSheet) {
                   if (sheetData.balanceSheet.liabilities != null) baseData.liabilities = sheetData.balanceSheet.liabilities;
                   if (sheetData.balanceSheet.equity != null) baseData.equity = sheetData.balanceSheet.equity;
@@ -112,13 +113,13 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
 
-          // Combine all the fetched data
+          // Combine all the data
           const finalData = {
               price: newPrice !== '' ? newPrice : inputs.price,
               eps: newEps !== '' ? newEps : inputs.eps,
               bookValue: baseData.bookValue ?? inputs.bookValue,
-              fairPE: extraData.fairPE ?? inputs.fairPE,
-              expectedDiv: extraData.expectedDiv ?? inputs.expectedDiv,
+              fairPE: baseData.fairPE ?? inputs.fairPE,
+              expectedDiv: baseData.expectedDiv ?? inputs.expectedDiv,
               requiredReturn: inputs.requiredReturn || 10.51,
               cagr: inputs.cagr || 10,
               fcf: baseData.fcf ?? inputs.fcf,
@@ -129,29 +130,22 @@ export const FairValueCalculator: React.FC = () => {
               inventory: baseData.inventory ?? inputs.inventory,
           };
 
-          setInputs((prev: any) => ({
-              ...prev,
-              ...finalData
-          }));
+          setInputs((prev: any) => ({ ...prev, ...finalData }));
 
-          // 💾 SAVE TO GOOGLE DRIVE CACHE IN THE BACKGROUND
+          // 4. 💾 PERMANENT STORAGE: Save this research to Google Drive automatically
           try {
               let driveData = await loadFromDrive();
               if (!driveData) driveData = {};
-              
-              const newCache = {
-                  ...(driveData.fairValueCache || {}),
-                  [inputs.ticker]: finalData
-              };
-              driveData.fairValueCache = newCache;
+              const updatedCache = { ...(driveData.fairValueCache || {}), [inputs.ticker]: finalData };
+              driveData.fairValueCache = updatedCache;
               await saveToDrive(driveData);
-              setCache(newCache);
+              setCache(updatedCache);
           } catch (e) {
-              console.error("Failed to save cache to drive", e);
+              console.error("Drive save failed", e);
           }
 
       } catch (error) {
-          console.error("Failed to auto-fill data:", error);
+          console.error("Auto-fill failed:", error);
           alert("Failed to fetch data from Google Sheet.");
       } finally {
           setIsFetching(false);
