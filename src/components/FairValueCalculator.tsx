@@ -9,7 +9,7 @@ export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [cache, setCache] = useState<Record<string, any>>({});
   
-  // Load saved data from Google Drive when the page opens
+  // 1. Load saved data from Google Drive when the page opens
   useEffect(() => {
       const initCache = async () => {
           const driveData = await loadFromDrive();
@@ -20,7 +20,7 @@ export const FairValueCalculator: React.FC = () => {
       initCache();
   }, []);
 
-  // Initialize with completely empty fields
+  // 2. Initialize with completely empty fields
   const [inputs, setInputs] = useState<any>({
     ticker: '',
     price: '',
@@ -47,7 +47,7 @@ export const FairValueCalculator: React.FC = () => {
         if (cache[upperTicker]) {
             setInputs({ ticker: upperTicker, ...cache[upperTicker] });
         } else {
-            // If it's a new ticker, clear out the old data so it's fresh
+            // If it's a new ticker, clear out the old data so it starts fresh
             setInputs({
                 ticker: upperTicker,
                 price: '', eps: '', bookValue: '', fairPE: '', expectedDiv: '',
@@ -69,17 +69,17 @@ export const FairValueCalculator: React.FC = () => {
           let newEps = inputs.eps;
           let baseData: any = {};
 
-          // 1. Live PSX Price
+          // A. Fetch Current Market Price
           const priceData = await fetchBatchPSXPrices([inputs.ticker]);
           if (priceData[inputs.ticker] && priceData[inputs.ticker].price > 0) {
               newPrice = priceData[inputs.ticker].price;
           }
 
-          // 2. 🚀 SYNC WITH GOOGLE SHEET (Bridge to SCS Trade)
+          // B. 🚀 SYNC WITH GOOGLE SHEET
           const sheetData = await syncWithGoogleSheet(inputs.ticker);
           
           if (sheetData) {
-              // Get Fundamentals
+              // Extract Fundamentals
               if (sheetData.fundamentals) {
                   if (sheetData.fundamentals.price) newPrice = sheetData.fundamentals.price;
                   if (sheetData.fundamentals.eps) newEps = sheetData.fundamentals.eps;
@@ -88,7 +88,7 @@ export const FairValueCalculator: React.FC = () => {
                   if (sheetData.fundamentals.currentPE) baseData.fairPE = sheetData.fundamentals.currentPE;
               }
               
-              // 👇 THE FIX: Grab the clean 'balanceSheet' object instead of 'balanceSheetRaw'
+              // Extract Balance Sheet (using the clean object sent by Google Sheets)
               if (sheetData.balanceSheet) {
                   if (sheetData.balanceSheet.liabilities != null) baseData.liabilities = sheetData.balanceSheet.liabilities;
                   if (sheetData.balanceSheet.equity != null) baseData.equity = sheetData.balanceSheet.equity;
@@ -98,7 +98,7 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
 
-          // 3. Fallback for FCF from PSX
+          // C. Fallback for FCF from PSX
           const fundamentals = await fetchCompanyFundamentals(inputs.ticker);
           if (fundamentals && fundamentals.annual.financials.length > 0) {
               const validData = fundamentals.annual.financials.filter(f => f.year !== '-');
@@ -113,7 +113,7 @@ export const FairValueCalculator: React.FC = () => {
               }
           }
 
-          // Combine all the data
+          // Combine all the fetched data
           const finalData = {
               price: newPrice !== '' ? newPrice : inputs.price,
               eps: newEps !== '' ? newEps : inputs.eps,
@@ -130,22 +130,30 @@ export const FairValueCalculator: React.FC = () => {
               inventory: baseData.inventory ?? inputs.inventory,
           };
 
-          setInputs((prev: any) => ({ ...prev, ...finalData }));
+          // Update Form immediately
+          setInputs((prev: any) => ({
+              ...prev,
+              ...finalData
+          }));
 
-          // 4. 💾 PERMANENT STORAGE: Save this research to Google Drive automatically
+          // D. 💾 SAVE TO GOOGLE DRIVE CACHE IN THE BACKGROUND
           try {
               let driveData = await loadFromDrive();
               if (!driveData) driveData = {};
-              const updatedCache = { ...(driveData.fairValueCache || {}), [inputs.ticker]: finalData };
-              driveData.fairValueCache = updatedCache;
+              
+              const newCache = {
+                  ...(driveData.fairValueCache || {}),
+                  [inputs.ticker]: finalData
+              };
+              driveData.fairValueCache = newCache;
               await saveToDrive(driveData);
-              setCache(updatedCache);
+              setCache(newCache);
           } catch (e) {
-              console.error("Drive save failed", e);
+              console.error("Failed to save cache to drive", e);
           }
 
       } catch (error) {
-          console.error("Auto-fill failed:", error);
+          console.error("Failed to auto-fill data:", error);
           alert("Failed to fetch data from Google Sheet.");
       } finally {
           setIsFetching(false);
