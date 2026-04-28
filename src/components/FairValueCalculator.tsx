@@ -93,7 +93,7 @@ export const FairValueCalculator: React.FC = () => {
                   if (sheetData.fundamentals.currentPE) baseData.fairPE = sheetData.fundamentals.currentPE;
               }
               
-              // THE FIX: Directly grab the clean 'balanceSheet' object sent by Google
+              // Extract Balance Sheet (using the clean object sent by Google Sheets)
               if (sheetData.balanceSheet) {
                   if (sheetData.balanceSheet.liabilities != null) baseData.liabilities = sheetData.balanceSheet.liabilities;
                   if (sheetData.balanceSheet.equity != null) baseData.equity = sheetData.balanceSheet.equity;
@@ -443,7 +443,7 @@ export const FairValueCalculator: React.FC = () => {
                         {/* Growth Reality Check */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-amber-50/30 dark:bg-amber-900/10">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Growth Reality Check <br/><span className="text-[10px] font-normal text-slate-400">(PEG Ratio)</span></td>
-                            <td className={`p-3 text-center font-black ${results.growthReality < 1 ? 'text-emerald-600' : results.growthReality > 1.5 ? 'text-rose-600' : 'text-amber-500'}`}>{results.growthReality > 0 ? results.growthReality.toFixed(2) : '-'}</td>
+                            <td className={`p-3 text-center font-black ${results.growthReality < 1 ? 'text-emerald-600' : 'text-rose-600'}`}>{results.growthReality > 0 ? results.growthReality.toFixed(2) : '-'}</td>
                             <td className="p-3 text-xs text-slate-600 dark:text-slate-400">
                                 <span className="font-bold text-slate-800 dark:text-slate-200 block mb-0.5">{results.growthReality === 0 ? '-' : results.growthReality < 1 ? 'Undervalued (Growth is Cheap)' : 'Fair/Expensive'}</span>
                                 Verdict Rule: &lt; 1.0 (Undervalued). Around 1.0 (Fair). &gt; 1.5 (Expensive, price running faster than growth).
