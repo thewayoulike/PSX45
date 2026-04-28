@@ -9,7 +9,7 @@ export const FairValueCalculator: React.FC = () => {
   const [isFetching, setIsFetching] = useState(false);
   const [cache, setCache] = useState<Record<string, any>>({});
   
-  // 1. Load saved research from Google Drive when the page opens
+  // Load saved research from Google Drive when the page opens
   useEffect(() => {
       const initCache = async () => {
           const driveData = await loadFromDrive();
@@ -20,7 +20,7 @@ export const FairValueCalculator: React.FC = () => {
       initCache();
   }, []);
 
-  // 2. Initialize with completely empty fields (Baseline)
+  // Initialize with empty fields
   const [inputs, setInputs] = useState<any>({
     ticker: '',
     price: '',
@@ -28,8 +28,8 @@ export const FairValueCalculator: React.FC = () => {
     bookValue: '',
     fairPE: '',
     expectedDiv: '',
-    requiredReturn: 10.51, // Default fallback
-    cagr: 10,              // Default fallback
+    requiredReturn: 10.51,
+    cagr: 10,
     fcf: '',
     liabilities: '',
     equity: '',
@@ -43,11 +43,9 @@ export const FairValueCalculator: React.FC = () => {
     
     if (name === 'ticker') {
         const upperTicker = value.toUpperCase();
-        // 3. DRIVE MEMORY: Auto-load data if we've synced this ticker before
         if (cache[upperTicker]) {
             setInputs({ ticker: upperTicker, ...cache[upperTicker] });
         } else {
-            // New ticker: Start with empty fields but keep essential default rates
             setInputs({
                 ticker: upperTicker,
                 price: '', eps: '', bookValue: '', fairPE: '', expectedDiv: '',
@@ -56,7 +54,6 @@ export const FairValueCalculator: React.FC = () => {
             });
         }
     } else {
-        // Handle empty strings gracefully to avoid NaN math errors
         setInputs((prev: any) => ({ 
             ...prev, 
             [name]: value === '' ? '' : Number(value) 
@@ -80,7 +77,7 @@ export const FairValueCalculator: React.FC = () => {
               newPrice = priceData[upperTicker].price;
           }
 
-          // B. 🚀 SYNC WITH GOOGLE SHEET (Bridge to SCS Trade)
+          // B. 🚀 SYNC WITH GOOGLE SHEET
           const sheetData = await syncWithGoogleSheet(upperTicker);
           
           if (sheetData) {
@@ -93,7 +90,7 @@ export const FairValueCalculator: React.FC = () => {
                   if (sheetData.fundamentals.currentPE) baseData.fairPE = sheetData.fundamentals.currentPE;
               }
               
-              // Extract Balance Sheet (using the clean object sent by Google Sheets)
+              // Extract Balance Sheet
               if (sheetData.balanceSheet) {
                   if (sheetData.balanceSheet.liabilities != null) baseData.liabilities = sheetData.balanceSheet.liabilities;
                   if (sheetData.balanceSheet.equity != null) baseData.equity = sheetData.balanceSheet.equity;
@@ -138,7 +135,7 @@ export const FairValueCalculator: React.FC = () => {
           // Update Form instantly
           setInputs((prev: any) => ({ ...prev, ...finalFetchedData }));
 
-          // E. 💾 PERMANENT STORAGE: Save research to Google Drive automatically
+          // E. 💾 Save to Google Drive
           try {
               let driveData = await loadFromDrive();
               if (!driveData) driveData = {};
@@ -162,7 +159,6 @@ export const FairValueCalculator: React.FC = () => {
   };
 
   const results = useMemo(() => {
-    // Treat blank strings as 0 for calculations
     const price = Number(inputs.price) || 0;
     const eps = Number(inputs.eps) || 0;
     const expectedDiv = Number(inputs.expectedDiv) || 0;
@@ -215,13 +211,9 @@ export const FairValueCalculator: React.FC = () => {
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto p-4 animate-in fade-in slide-in-from-bottom-4">
       
-      {/* -------------------------------------------------------- */}
-      {/* SECTION B: EVALUATIONS METHODS (COMPACT DESIGN) */}
-      {/* -------------------------------------------------------- */}
       <Card title="B: EVALUATION METHODS" icon={<Activity size={18} className="text-indigo-500" />}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
             
-            {/* Method 1: P/E */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
@@ -239,7 +231,6 @@ export const FairValueCalculator: React.FC = () => {
                 </p>
             </div>
 
-            {/* Method 2: DDM */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
@@ -257,7 +248,6 @@ export const FairValueCalculator: React.FC = () => {
                 </p>
             </div>
 
-            {/* Method 3: Graham */}
             <div className="border border-slate-200 dark:border-slate-700 rounded-xl p-4 bg-white dark:bg-slate-800 shadow-sm flex flex-col justify-between">
                 <div className="flex justify-between items-start">
                     <div>
@@ -278,8 +268,6 @@ export const FairValueCalculator: React.FC = () => {
           </div>
       </Card>
 
-
-      {/* CONCEPTS BAR */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div className="bg-slate-100 dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
               <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5 flex items-center gap-1"><BookOpen size={12}/> Face Value</h4>
@@ -297,12 +285,10 @@ export const FairValueCalculator: React.FC = () => {
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6">
         
-        {/* --- LEFT COLUMN: INPUT DATA --- */}
         <div className="xl:col-span-4 space-y-6">
           <Card title="1. Input Data" icon={<Calculator size={18} className="text-blue-500" />}>
             <div className="space-y-4 mt-4">
                 
-                {/* Core Metrics */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="relative col-span-2 sm:col-span-1">
                     <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Ticker</label>
@@ -334,7 +320,6 @@ export const FairValueCalculator: React.FC = () => {
 
                 <div className="h-px w-full bg-slate-100 dark:bg-slate-800"></div>
 
-                {/* Valuation Inputs */}
                 <div className="grid grid-cols-2 gap-3 relative">
                   <div className="col-span-2 flex items-center justify-between">
                       <span className="text-[10px] font-bold text-amber-500 uppercase">Subjective / External Inputs</span>
@@ -366,7 +351,6 @@ export const FairValueCalculator: React.FC = () => {
 
                 <div className="h-px w-full bg-slate-100 dark:bg-slate-800"></div>
 
-                {/* Balance Sheet Inputs */}
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 text-xs font-bold text-slate-700 dark:text-slate-300">Balance Sheet (For Ratios)</div>
                   <div>
@@ -395,10 +379,7 @@ export const FairValueCalculator: React.FC = () => {
           </Card>
         </div>
 
-        {/* --- RIGHT COLUMN: CHECKS --- */}
         <div className="xl:col-span-8 space-y-6">
-          
-          {/* SECTION A: IMPORTANT CHECKS */}
           <Card title="A: Important Checks" icon={<Shield size={18} className="text-emerald-500" />}>
              <div className="overflow-x-auto mt-4">
                  <table className="w-full text-left border-collapse">
@@ -411,7 +392,6 @@ export const FairValueCalculator: React.FC = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50 text-sm">
                         
-                        {/* P/E Ratio */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Stock's P/E Ratio</td>
                             <td className={`p-3 text-center font-black ${inputs.fairPE && results.peRatio < Number(inputs.fairPE) ? 'text-emerald-600' : 'text-rose-600'}`}>{results.peRatio > 0 ? results.peRatio.toFixed(2) : '-'}</td>
@@ -420,7 +400,6 @@ export const FairValueCalculator: React.FC = () => {
                             </td>
                         </tr>
 
-                        {/* Dividend Yield */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-emerald-50/30 dark:bg-emerald-900/10">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Dividend Yield %</td>
                             <td className="p-3 text-center font-black text-emerald-600">{results.divYield > 0 ? `${results.divYield.toFixed(2)}%` : '-'}</td>
@@ -430,7 +409,6 @@ export const FairValueCalculator: React.FC = () => {
                             </td>
                         </tr>
 
-                        {/* Bankruptcy Check */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Bankruptcy Check <br/><span className="text-[10px] font-normal text-slate-400">(Debt-to-Equity Ratio)</span></td>
                             <td className={`p-3 text-center font-black ${results.debtToEquity < 1 ? 'text-emerald-600' : results.debtToEquity > 5 ? 'text-rose-600' : 'text-amber-500'}`}>{results.debtToEquity > 0 ? results.debtToEquity.toFixed(2) : '-'}</td>
@@ -440,7 +418,6 @@ export const FairValueCalculator: React.FC = () => {
                             </td>
                         </tr>
 
-                        {/* Growth Reality Check */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors bg-amber-50/30 dark:bg-amber-900/10">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Growth Reality Check <br/><span className="text-[10px] font-normal text-slate-400">(PEG Ratio)</span></td>
                             <td className={`p-3 text-center font-black ${results.growthReality < 1 ? 'text-emerald-600' : 'text-rose-600'}`}>{results.growthReality > 0 ? results.growthReality.toFixed(2) : '-'}</td>
@@ -450,7 +427,6 @@ export const FairValueCalculator: React.FC = () => {
                             </td>
                         </tr>
 
-                        {/* Forward P/E */}
                         <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                             <td className="p-3 font-bold text-slate-700 dark:text-slate-300">Forward P/E Formula</td>
                             <td className="p-3 text-center font-black text-blue-600">{results.forwardPE > 0 ? results.forwardPE.toFixed(2) : '-'}</td>
@@ -459,7 +435,6 @@ export const FairValueCalculator: React.FC = () => {
                             </td>
                         </tr>
 
-                        {/* Survival Ratios */}
                         <tr className="bg-slate-100/50 dark:bg-slate-800">
                             <td colSpan={3} className="p-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest text-center">Survival Ratios</td>
                         </tr>
