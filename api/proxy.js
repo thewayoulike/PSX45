@@ -1,4 +1,3 @@
-// api/proxy.js
 export default async function handler(req, res) {
   const { url } = req.query;
 
@@ -10,15 +9,15 @@ export default async function handler(req, res) {
     const fetchOptions = {
       method: req.method || 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Accept': 'application/json, text/plain, */*',
       }
     };
 
-    // If it's a POST request (like the chart3 API), attach the body
     if (req.method === 'POST') {
       fetchOptions.headers['Content-Type'] = 'application/json';
-      fetchOptions.body = JSON.stringify(req.body);
+      // Prevent double-stringifying the JSON payload
+      fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
     }
 
     const response = await fetch(decodeURIComponent(url), fetchOptions);
