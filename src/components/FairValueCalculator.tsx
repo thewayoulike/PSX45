@@ -69,16 +69,20 @@ export const FairValueCalculator: React.FC = () => {
               if (validData.length > 0) {
                   const latest = validData[validData.length - 1];
                   
-                  // Multiply massive Balance Sheet numbers by 1000 because PSX lists them in "Thousands"
+                  // 👇 BULLETPROOF PARSER: Blocks "NaN" crashes and multiplies by 1000
                   const parseNum = (val: string | undefined, isPerShare: boolean = false) => {
-                      if (!val || val === '-') return null;
-                      const isNegative = val.includes('(') && val.includes(')');
-                      const rawNum = parseFloat(val.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
+                      if (!val) return null;
+                      const cleanVal = val.replace(/[^0-9.()-]/g, ''); // Strips out all garbage text
+                      if (!cleanVal || cleanVal === '-') return null;
+                      
+                      const isNegative = cleanVal.includes('(') && cleanVal.includes(')');
+                      const rawNum = parseFloat(cleanVal.replace(/[(),]/g, '')) * (isNegative ? -1 : 1);
+                      
+                      if (isNaN(rawNum)) return null; // Prevents the blank input box bug!
                       return isPerShare ? rawNum : rawNum * 1000;
                   };
 
                   baseData.fcf = parseNum(latest.fcf) ?? inputs.fcf;
-                  // Only fallback to these if SCS didn't find them
                   baseData.bookValue = baseData.bookValue ?? parseNum(latest.bookValue, true) ?? inputs.bookValue;
                   baseData.liabilities = parseNum(latest.totalLiabilities) ?? inputs.liabilities;
                   baseData.equity = parseNum(latest.totalEquity) ?? inputs.equity;
@@ -91,11 +95,12 @@ export const FairValueCalculator: React.FC = () => {
           // 4. Fetch SCS Balance Sheet (chart3 API) - OVERRIDES PSX fallbacks!
           const scsBalanceSheet = await fetchSCSBalanceSheet(inputs.ticker);
           if (scsBalanceSheet) {
-              if (scsBalanceSheet.liabilities) baseData.liabilities = scsBalanceSheet.liabilities;
-              if (scsBalanceSheet.equity) baseData.equity = scsBalanceSheet.equity;
-              if (scsBalanceSheet.currentAssets) baseData.currentAssets = scsBalanceSheet.currentAssets;
-              if (scsBalanceSheet.currentLiabilities) baseData.currentLiabilities = scsBalanceSheet.currentLiabilities;
-              if (scsBalanceSheet.inventory) baseData.inventory = scsBalanceSheet.inventory;
+              // Using != null to ensure 0 is accepted but null is rejected
+              if (scsBalanceSheet.liabilities != null) baseData.liabilities = scsBalanceSheet.liabilities;
+              if (scsBalanceSheet.equity != null) baseData.equity = scsBalanceSheet.equity;
+              if (scsBalanceSheet.currentAssets != null) baseData.currentAssets = scsBalanceSheet.currentAssets;
+              if (scsBalanceSheet.currentLiabilities != null) baseData.currentLiabilities = scsBalanceSheet.currentLiabilities;
+              if (scsBalanceSheet.inventory != null) baseData.inventory = scsBalanceSheet.inventory;
           }
 
           // Update Form with everything merged!
