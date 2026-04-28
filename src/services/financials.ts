@@ -39,7 +39,6 @@ export interface FundamentalsData {
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
   
-  // Uses your Vercel Proxy instead of flaky free proxies
   const html = await fetchUrlWithFallback(targetUrl);
 
   if (html && html.length > 500) {
@@ -198,194 +197,18 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   }
 };
 
-// --- 3. Per-Company Payouts (Fallback PSX Logic) ---
-export const fetchCompanyPayouts = async (ticker: string): Promise<CompanyPayout[]> => {
-  const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
-  const html = await fetchUrlWithFallback(targetUrl);
-
-  if (html && html.length > 500) {
-    try {
-        const parser = new DOMParser();
-        const doc = parser.parseFromString(html, "text/html");
-        const tables = Array.from(doc.querySelectorAll('table'));
-        const payoutTable = tables.find(t => t.querySelector('th')?.textContent?.includes('Financial Results') && t.querySelector('th')?.textContent?.includes('Book Closure'));
-
-        if (!payoutTable) return [];
-        const payouts: CompanyPayout[] = [];
-        const rows = Array.from(payoutTable.querySelectorAll('tr')).slice(1); 
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-
-        rows.forEach(row => {
-            const cols = row.querySelectorAll('td');
-            if (cols.length >= 4) {
-                const announceDate = cols[0].textContent?.trim() || '-';
-                const financialResult = cols[1].textContent?.trim() || '-';
-                const details = cols[2].textContent?.trim() || '-';
-                const bookClosure = cols[3].textContent?.trim() || '-';
-                let isUpcoming = false;
-                if (bookClosure.includes('-')) {
-                    const [startStr] = bookClosure.split('-');
-                    const parts = startStr.trim().split('/');
-                    if (parts.length === 3) {
-                        const bookStart = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
-                        if (bookStart >= today) isUpcoming = true;
-                    }
-                }
-                payouts.push({ ticker: ticker.toUpperCase(), announceDate, financialResult, details, bookClosure, isUpcoming });
-            }
-        });
-        return payouts;
-    } catch (e) {
-        console.warn(`Failed to parse HTML for ${ticker} payouts`, e);
-    }
-  }
-  return [];
-};
-
-// --- 4. Fetch Advanced Stats from StockAnalysis.com ---
-export const fetchStockAnalysisStats = async (ticker: string) => {
-  const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/statistics/`;
-  const html = await fetchUrlWithFallback(targetUrl);
-
-  if (!html) return null;
-
-  try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const stats: Record<string, string> = {};
-      const rows = doc.querySelectorAll('table tbody tr');
-      
-      rows.forEach(row => {
-          const cols = row.querySelectorAll('td');
-          if (cols.length >= 2) {
-              const key = cols[0].textContent?.trim() || '';
-              const value = cols[1].textContent?.trim() || '';
-              if (key && value) {
-                  stats[key] = value;
-              }
-          }
-      });
-      return stats;
-  } catch (e) {
-      return null;
-  }
-};
-
-// --- 5. Fetch Balance Sheet from StockAnalysis.com ---
-export const fetchStockAnalysisBalanceSheet = async (ticker: string) => {
-  const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/financials/balance-sheet/`;
-  const html = await fetchUrlWithFallback(targetUrl);
-
-  if (!html) return null;
-
-  try {
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
-      const stats: Record<string, string> = {};
-      const rows = doc.querySelectorAll('table tbody tr');
-      
-      rows.forEach(row => {
-          const cols = row.querySelectorAll('td');
-          if (cols.length >= 2) {
-              const key = cols[0].textContent?.trim() || '';
-              const value = cols[1].textContent?.trim() || '';
-              if (key && value) {
-                  stats[key] = value;
-              }
-          }
-      });
-      return stats;
-  } catch (e) {
-      return null;
-  }
-};
-
-// --- 6. Fetch Fundamentals from SCS Trade ---
-export const fetchSCSFundamentals = async (ticker: string) => {
-  const targetUrl = `https://www.scstrade.com/stockscreening/SS_CompanySnapShot.aspx?symbol=${ticker.toLowerCase()}`;
+// --- 3. Connect to Google Sheets Bridge (For Fair Value Calculator) ---
+export const syncWithGoogleSheet = async (ticker: string) => {
+  // ⚠️ IMPORTANT: PASTE YOUR GOOGLE WEB APP URL HERE:
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/YOUR_URL_HERE/exec"; 
   
-  const html = await fetchUrlWithFallback(targetUrl);
-
-  if (!html) return null;
-
   try {
-    const getValueById = (id: string) => {
-      const regex = new RegExp(`id="${id}"[^>]*>([^<]*)<`, 'i');
-      const match = regex.exec(html);
-      if (match && match[1]) {
-        const cleanStr = match[1].replace(/Rs\.?/gi, '').replace(/,/g, '').trim();
-        const parsed = parseFloat(cleanStr);
-        return isNaN(parsed) ? null : parsed;
-      }
-      return null;
-    };
-
-    return {
-      price: getValueById("ContentPlaceHolder1_lbl_price"),
-      eps: getValueById("ContentPlaceHolder1_lbl_laeps"),
-      currentPE: getValueById("ContentPlaceHolder1_lbl_pe"),
-      bookValue: getValueById("ContentPlaceHolder1_lblBookValue"),
-      dividend: getValueById("ContentPlaceHolder1_lbl_d")
-    };
-  } catch (e) {
-    console.error(`Failed to parse SCS Trade HTML for ${ticker}`, e);
-    return null;
-  }
-};
-// --- 7. Fetch Balance Sheet from SCS Trade Backend (Chart3) ---
-export const fetchSCSBalanceSheet = async (ticker: string) => {
-  const targetUrl = 'https://www.scstrade.com/stockscreening/SS_CompanySnapShotYF.aspx/chart3';
-  const proxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-
-  try {
-    const response = await fetch(proxyUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sym: ticker.toLowerCase() }) 
-    });
-
+    const response = await fetch(`${GOOGLE_SCRIPT_URL}?ticker=${ticker.toLowerCase()}`);
     if (!response.ok) return null;
-
-    const text = await response.text();
-    const result = JSON.parse(text);
     
-    // Safely parse the 'd' array
-    const data = typeof result.d === 'string' ? JSON.parse(result.d) : result.d;
-    if (!data || !Array.isArray(data) || data.length === 0) return null;
-
-    // Search array BACKWARDS to find the absolute newest year that actually contains data
-    let bestItem = data[data.length - 1]; 
-    for (let i = data.length - 1; i >= 0; i--) {
-        const keys = Object.keys(data[i]).map(k => k.toLowerCase().replace(/[^a-z]/g, ''));
-        if (keys.some(k => k.includes('liabilit'))) {
-            bestItem = data[i];
-            break;
-        }
-    }
-
-    // Aggressively match keys by ignoring ALL spaces, symbols, and casing
-    const getVal = (keywords: string[]) => {
-      for (const key of Object.keys(bestItem)) {
-        const cleanKey = key.toLowerCase().replace(/[^a-z]/g, '');
-        if (keywords.some(k => cleanKey.includes(k))) {
-          const raw = String(bestItem[key]).replace(/[$,()]/g, '').trim();
-          const val = parseFloat(raw);
-          return isNaN(val) ? null : val;
-        }
-      }
-      return null;
-    };
-
-    return {
-      liabilities: getVal(['totalliabilit', 'liabilit']),
-      equity: getVal(['totalequit', 'shareholderequit', 'equit']),
-      currentAssets: getVal(['currentasset']),
-      currentLiabilities: getVal(['currentliabilit']),
-      inventory: getVal(['stock', 'inventor'])
-    };
-
+    return await response.json();
   } catch (e) {
-    console.error(`Failed to fetch SCS Chart3 for ${ticker}`, e);
+    console.error("Google Sheet Sync Failed:", e);
     return null;
   }
 };
