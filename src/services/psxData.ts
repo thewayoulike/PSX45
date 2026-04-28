@@ -47,8 +47,8 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
-// The core logic: Your Vercel Proxy -> Free Proxies -> Scrape.do -> WebScraping.AI
-const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> => {
+// --- FIXED: ADDED 'export' HERE ---
+export const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> => {
     
     // 1. THE ULTIMATE FIX: Try your own Vercel Serverless Proxy first
     try {
@@ -137,8 +137,6 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
             if (rawData && rawData.data && Array.isArray(rawData.data)) {
                 return rawData.data
                     .map((point: any[]) => {
-                        // CRITICAL FIX: PSX EOD endpoint returns [timestamp, price, volume]
-                        // If it's a short array, price is at index 1. If it's full OHLC, price is at index 4.
                         const priceIndex = point.length >= 5 ? 4 : 1;
                         return {
                             time: point[0] * 1000, 
@@ -188,7 +186,6 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
             const rows = table.querySelectorAll("tr");
             if (rows.length < 2) return;
             
-            // --- DYNAMIC HEADER DETECTION ---
             const headerCells = rows[0].querySelectorAll("th, td");
             const colMap = { SYMBOL: -1, PRICE: -1, CHANGE: -1, VOLUME: -1 };
 
@@ -200,10 +197,7 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
                 if (txt.includes('VOL') || txt === 'VOLUME') colMap.VOLUME = idx;
             });
 
-            // Fallback indices if header detection fails
             if (colMap.SYMBOL === -1 || colMap.PRICE === -1) {
-                // Verified Layout as of Late 2024: 
-                // [0] SCRIP, [1] LDCP, [2] OPEN, [3] HIGH, [4] LOW, [5] CURRENT, [6] CHANGE, [7] VOLUME
                 colMap.SYMBOL = 0;
                 colMap.PRICE = 5;
                 colMap.CHANGE = 6;
@@ -211,25 +205,20 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
             }
 
             rows.forEach((row, rIdx) => {
-                if (rIdx === 0) return; // Skip Header
+                if (rIdx === 0) return; 
 
                 const cols = row.querySelectorAll("td");
-                // Ensure we have enough columns for the max index we need
                 const maxIndex = Math.max(colMap.SYMBOL, colMap.PRICE, colMap.CHANGE, colMap.VOLUME);
                 if (cols.length <= maxIndex) return; 
 
-                // SYMBOL EXTRACTION
                 let symbol = "";
                 const symCell = cols[colMap.SYMBOL];
-                
-                // Try getting text from anchor tag first (usually just ticker)
                 const anchor = symCell.querySelector('a');
                 if (anchor) {
                     symbol = anchor.textContent?.trim().toUpperCase() || "";
                 } else {
-                    // Fallback to text splitting if mixed (e.g., "OGDC Oil & Gas...")
                     const rawText = symCell.textContent?.trim().toUpperCase() || "";
-                    symbol = rawText.split(/[\s-]/)[0]; // Split by space or dash
+                    symbol = rawText.split(/[\s-]/)[0]; 
                 }
 
                 if (!symbol || TICKER_BLACKLIST.includes(symbol) || symbol.length > 8 || !isNaN(Number(symbol))) return;
@@ -283,7 +272,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
             });
 
             if (colMap.SYMBOL === -1) { 
-                colMap.SYMBOL = 0; colMap.SECTOR = 1; colMap.LDCP = 1; // LDCP often index 1 now
+                colMap.SYMBOL = 0; colMap.SECTOR = 1; colMap.LDCP = 1; 
                 colMap.HIGH = 3; colMap.LOW = 4; 
                 colMap.PRICE = 5; colMap.VOLUME = 7; 
             }
