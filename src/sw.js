@@ -1,4 +1,4 @@
-// We put this in a console.log so the build engine doesn't delete it as "dead code asdasda sdasdas dasdas"!
+// We put this in a console.log so the build engine doesn't delete it as "dead sdasdas dasdas"!
 console.log("PWA Manifest injected:", self.__WB_MANIFEST);
 
 // --- CRITICAL FIX FOR ANDROID INSTALLATION ---
