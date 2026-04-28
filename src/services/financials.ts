@@ -350,18 +350,23 @@ export const fetchSCSBalanceSheet = async (ticker: string) => {
 
     const text = await response.text();
     const result = JSON.parse(text);
-    const data = result.d;
+    
+    // Failsafe in case the data is double-stringified
+    const data = typeof result.d === 'string' ? JSON.parse(result.d) : result.d;
 
-    if (!data || data.length === 0) return null;
+    if (!data || !Array.isArray(data) || data.length === 0) return null;
 
-    // The first item in the array is the most recent financial year
-    const latest = data[0]; 
+    // 👇 CRITICAL FIX: Grab the LATEST year (the last item in the array), not the oldest!
+    const latest = data[data.length - 1]; 
 
-    // Helper to safely extract exact raw numbers without *1000 guesswork
+    // Helper to find the exact columns, ignoring spaces and case sensitivity
     const getVal = (keywords: string[]) => {
       for (const key of Object.keys(latest)) {
-        if (keywords.some(k => key.toLowerCase().includes(k.toLowerCase()))) {
-          const val = parseFloat(String(latest[key]).replace(/,/g, ''));
+        // Strip spaces to ensure 'Total Liabilities' matches 'TotalLiabilities' perfectly
+        const cleanKey = key.toLowerCase().replace(/\s/g, '');
+        if (keywords.some(k => cleanKey.includes(k.toLowerCase().replace(/\s/g, '')))) {
+          const raw = String(latest[key]).replace(/[$,()]/g, '').trim();
+          const val = parseFloat(raw);
           return isNaN(val) ? null : val;
         }
       }
@@ -369,11 +374,11 @@ export const fetchSCSBalanceSheet = async (ticker: string) => {
     };
 
     return {
-      liabilities: getVal(['Total Liabilities', 'TotalLiabilities']),
-      equity: getVal(['Total Equity', 'TotalEquity', 'Shareholders Equity']),
-      currentAssets: getVal(['Current Assets', 'CurrentAssets']),
-      currentLiabilities: getVal(['Current Liabilities', 'CurrentLiabilities']),
-      inventory: getVal(['Stock in Trade', 'Inventory', 'StockInTrade'])
+      liabilities: getVal(['Total Liabilities', 'Liability']),
+      equity: getVal(['Total Equity', 'Shareholders Equity', 'Equity']),
+      currentAssets: getVal(['Current Assets']),
+      currentLiabilities: getVal(['Current Liabilities']),
+      inventory: getVal(['Stock in Trade', 'Inventory', 'Stock'])
     };
 
   } catch (e) {
