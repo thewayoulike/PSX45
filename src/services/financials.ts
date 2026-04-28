@@ -271,25 +271,48 @@ export const fetchStockAnalysisStats = async (ticker: string) => {
   }
 };
 
-// --- 6. Fetch Fundamentals from SCS Trade ---
-export const fetchSCSFundamentals = async (ticker: string) => {
-  const targetUrl = `https://www.scstrade.com/stockscreening/SS_CompanySnapShot.aspx?symbol=${ticker.toLowerCase()}`;
-  
-  // Uses your Vercel Proxy to bypass CORS
+// --- 5. Fetch Balance Sheet from StockAnalysis.com ---
+export const fetchStockAnalysisBalanceSheet = async (ticker: string) => {
+  const targetUrl = `https://stockanalysis.com/quote/psx/${ticker.toLowerCase()}/financials/balance-sheet/`;
   const html = await fetchUrlWithFallback(targetUrl);
 
   if (!html) return null;
 
   try {
-    // ---------------------------------------------------------
-    // EXACT LOGIC FROM YOUR APPS SCRIPT
-    // Extracts text exactly between the ID and the closing tag
-    // ---------------------------------------------------------
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const stats: Record<string, string> = {};
+      const rows = doc.querySelectorAll('table tbody tr');
+      
+      rows.forEach(row => {
+          const cols = row.querySelectorAll('td');
+          if (cols.length >= 2) {
+              const key = cols[0].textContent?.trim() || '';
+              const value = cols[1].textContent?.trim() || '';
+              if (key && value) {
+                  stats[key] = value;
+              }
+          }
+      });
+      return stats;
+  } catch (e) {
+      return null;
+  }
+};
+
+// --- 6. Fetch Fundamentals from SCS Trade ---
+export const fetchSCSFundamentals = async (ticker: string) => {
+  const targetUrl = `https://www.scstrade.com/stockscreening/SS_CompanySnapShot.aspx?symbol=${ticker.toLowerCase()}`;
+  
+  const html = await fetchUrlWithFallback(targetUrl);
+
+  if (!html) return null;
+
+  try {
     const getValueById = (id: string) => {
       const regex = new RegExp(`id="${id}"[^>]*>([^<]*)<`, 'i');
       const match = regex.exec(html);
       if (match && match[1]) {
-        // Clean up "Rs.", commas, and extra spaces just like in your script
         const cleanStr = match[1].replace(/Rs\.?/gi, '').replace(/,/g, '').trim();
         const parsed = parseFloat(cleanStr);
         return isNaN(parsed) ? null : parsed;
