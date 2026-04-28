@@ -199,11 +199,13 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
 // --- 3. Connect to Google Sheets Bridge (For Fair Value Calculator) ---
 export const syncWithGoogleSheet = async (ticker: string) => {
-  // ⚠️ IMPORTANT: PASTE YOUR GOOGLE WEB APP URL HERE:
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwpFPGzdR0C8j-xaoxdYem5g1z1mskJ8C5NgHcoRpUJvHP-N9H6vDrCFvP_cPSRozgPtw/exec"; 
+  // ⚠️ PASTE YOUR BRAND NEW GOOGLE WEB APP URL HERE:
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/library/d/1ybU3sShsIiwvlHyCT6VZcpq7krUAgsbUnaBqLe2Ly_oBkf2tRZZQOPuF/1"; 
   
   try {
-    const response = await fetch(`${GOOGLE_SCRIPT_URL}?ticker=${ticker.toLowerCase()}`);
+    const response = await fetch(`${GOOGLE_SCRIPT_URL}?ticker=${ticker.toLowerCase()}`, {
+        redirect: 'follow'
+    });
     if (!response.ok) return null;
     
     return await response.json();
