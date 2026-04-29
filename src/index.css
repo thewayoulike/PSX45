@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #ffffff 100%);
+  background-attachment: fixed;
+  color: #0f172a;
+  transition: background 0.3s ease, color 0.3s ease;
+  -webkit-tap-highlight-color: transparent;
+  transform: translateZ(0);
+  will-change: background;
+}
+
+html.dark body {
+  background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%) !important;
+  color: #f8fafc;
+}
+
+@media (max-width: 768px) {
+  .backdrop-blur-xl {
+     backdrop-filter: blur(12px) !important;
+     -webkit-backdrop-filter: blur(12px) !important;
+  }
+  .backdrop-blur-md {
+     backdrop-filter: blur(8px) !important;
+     -webkit-backdrop-filter: blur(8px) !important;
+  }
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+
+.glass-input {
+  background-color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(203, 213, 225, 0.6);
+  color: #0f172a;
+}
+.dark .glass-input {
+  background-color: rgba(30, 41, 59, 0.7);
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  color: #f8fafc;
+}
