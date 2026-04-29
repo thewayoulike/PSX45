@@ -123,6 +123,15 @@ const App: React.FC = () => {
       return {};
   });
 
+  // ✨ NEW: Fair Value Cache lifted up!
+  const [fairValueCache, setFairValueCache] = useState<Record<string, any>>(() => {
+      try {
+          const saved = localStorage.getItem('psx_fair_value_cache');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return {};
+  });
+
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null); 
@@ -207,6 +216,7 @@ const App: React.FC = () => {
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
       setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory([]);
+      setFairValueCache({}); // <--- CLEARED ON LOGOUT
       setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
       setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
       setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
@@ -257,6 +267,7 @@ const App: React.FC = () => {
                   if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState); 
                   if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
+                  if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache); // <--- RESTORED FROM DRIVE
                   
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
@@ -298,7 +309,7 @@ const App: React.FC = () => {
       if (driveUser) {
           saveToDrive({ 
               transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, 
-              sectorOverrides, scannerState, performanceHistory, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
+              sectorOverrides, scannerState, performanceHistory, fairValueCache, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
           }); 
       }
   };
@@ -617,6 +628,7 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]); 
 
+  // ✨ SAVING STATE UPDATED to include fairValueCache
   useEffect(() => { 
       if (driveUser || transactions.length > 0) { 
           localStorage.setItem('psx_transactions', JSON.stringify(transactions)); 
@@ -630,6 +642,7 @@ const App: React.FC = () => {
           localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState)); 
           localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
           localStorage.setItem('psx_performance_history', JSON.stringify(performanceHistory)); 
+          localStorage.setItem('psx_fair_value_cache', JSON.stringify(fairValueCache)); // <--- UPDATED
       } 
       
       if (driveUser && isReadyToSave.current) { 
@@ -646,6 +659,7 @@ const App: React.FC = () => {
                   sectorOverrides, 
                   scannerState, 
                   performanceHistory,
+                  fairValueCache, // <--- UPDATED
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
                   webScrapingAIKey: userWebScrapingAIKey 
@@ -658,7 +672,8 @@ const App: React.FC = () => {
           }, 3000); 
           return () => clearTimeout(timer); 
       } 
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  // IMPORTANT: fairValueCache added to dependency array below
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
 
   useEffect(() => { 
       const tempHoldings: Record<string, Holding> = {}; 
@@ -1146,7 +1161,10 @@ const App: React.FC = () => {
 
             {currentView === 'CALCULATOR' && (
                 <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <FairValueCalculator />
+                    <FairValueCalculator 
+                        cache={fairValueCache} 
+                        onSaveCache={setFairValueCache} 
+                    />
                 </div>
             )}
 
