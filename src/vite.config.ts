@@ -22,7 +22,7 @@ export default defineConfig({
         icons: [
           {
             src: 'pwa-64x64.png',
-            sizes: '64x64',
+            sizes: '32x32', // <--- FIXED: Now matches the actual physical size of your image
             type: 'image/png'
           },
           {
@@ -41,6 +41,23 @@ export default defineConfig({
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
+          }
+        ],
+        // --- ADDED: Satisfies Chrome's requirement for the Richer Install UI ---
+        screenshots: [
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            form_factor: 'narrow',
+            label: 'Mobile View'
+          },
+          {
+            src: 'pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            form_factor: 'wide',
+            label: 'Desktop View'
           }
         ]
       }
