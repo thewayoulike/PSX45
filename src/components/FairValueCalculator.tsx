@@ -1,26 +1,18 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card } from './ui/Card';
 import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2 } from 'lucide-react';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { fetchCompanyFundamentals, syncWithGoogleSheet } from '../services/financials';
-import { loadFromDrive, saveToDrive } from '../services/driveStorage';
 
-export const FairValueCalculator: React.FC = () => {
+interface FairValueCalculatorProps {
+  cache: Record<string, any>;
+  onSaveCache: (newCache: Record<string, any>) => void;
+}
+
+export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache, onSaveCache }) => {
   const [isFetching, setIsFetching] = useState(false);
-  const [cache, setCache] = useState<Record<string, any>>({});
   
-  // 1. Load saved research from Google Drive when the page opens
-  useEffect(() => {
-      const initCache = async () => {
-          const driveData = await loadFromDrive();
-          if (driveData && driveData.fairValueCache) {
-              setCache(driveData.fairValueCache);
-          }
-      };
-      initCache();
-  }, []);
-
-  // 2. Initialize with completely empty fields (Baseline)
+  // Initialize with completely empty fields (Baseline)
   const [inputs, setInputs] = useState<any>({
     ticker: '',
     price: '',
@@ -138,20 +130,12 @@ export const FairValueCalculator: React.FC = () => {
           // Update Form instantly
           setInputs((prev: any) => ({ ...prev, ...finalFetchedData }));
 
-          // E. 💾 PERMANENT STORAGE: Save research to Google Drive automatically
-          try {
-              let driveData = await loadFromDrive();
-              if (!driveData) driveData = {};
-              const updatedCache = { 
-                  ...(driveData.fairValueCache || {}), 
-                  [upperTicker]: finalFetchedData 
-              };
-              driveData.fairValueCache = updatedCache;
-              await saveToDrive(driveData);
-              setCache(updatedCache);
-          } catch (e) {
-              console.error("Drive save failed", e);
-          }
+          // E. 💾 PERMANENT STORAGE: Save research to App state (which saves to Drive)
+          const updatedCache = { 
+              ...cache, 
+              [upperTicker]: finalFetchedData 
+          };
+          onSaveCache(updatedCache);
 
       } catch (error) {
           console.error("Auto-fill failed:", error);
