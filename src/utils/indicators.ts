@@ -1,5 +1,5 @@
 // src/utils/indicators.ts
-// Pure technical-analysis helpers + a combined buy/sell rating.
+// Pure technical-analysis helpers + a combined buy/sell rating + a trade plan.
 // These are mechanical indicators on historical prices — NOT investment advice.
 
 export type Signal = 'BUY' | 'SELL' | 'NEUTRAL';
@@ -20,6 +20,16 @@ export interface SignalSummary {
   indicators: IndicatorRow[];
   lastPrice: number;
   enoughData: boolean;
+}
+
+export interface TradePlan {
+  entryLow: number;
+  entryHigh: number;
+  stop: number;
+  targets: number[];    // [TP1, TP2, TP3]
+  riskPct: number;      // (price - stop) / price * 100
+  rewardPct: number[];  // per target, relative to price
+  atr: number;
 }
 
 const smaLast = (v: number[], p: number): number => {
@@ -137,4 +147,42 @@ export const computeSignal = (rawCloses: number[]): SignalSummary => {
     'STRONG SELL';
 
   return { verdict, score, buys, sells, neutrals, indicators: rows, lastPrice, enoughData };
+};
+
+// Auto trade plan: buy range, stop loss, and 1R/2R/3R take-profit targets.
+// Volatility uses a close-to-close ATR proxy (PSX EOD data has no intraday H/L).
+export const computeTradePlan = (rawCloses: number[], refPrice?: number): TradePlan | null => {
+  const closes = rawCloses.filter((n) => Number.isFinite(n) && n > 0);
+  if (closes.length < 20) return null;
+
+  const price = refPrice && refPrice > 0 ? refPrice : closes[closes.length - 1];
+
+  // Close-to-close ATR proxy over the last 14 sessions.
+  const period = 14;
+  let sum = 0;
+  let count = 0;
+  for (let i = Math.max(1, closes.length - period); i < closes.length; i++) {
+    sum += Math.abs(closes[i] - closes[i - 1]);
+    count++;
+  }
+  const atr = count > 0 ? sum / count : price * 0.02;
+
+  // Recent 10-day support.
+  const recentLow = Math.min(...closes.slice(-10));
+
+  // Buy (accumulation) zone: a slight dip up to the current price.
+  const entryLow = price - 0.5 * atr;
+  const entryHigh = price;
+
+  // Stop below structure / volatility.
+  let stop = Math.min(recentLow, price - 1.5 * atr);
+  if (stop >= entryLow) stop = entryLow - atr;
+  if (stop <= 0) stop = price * 0.9;
+
+  const risk = price - stop; // 1R
+  const targets = [price + risk, price + 2 * risk, price + 3 * risk];
+  const riskPct = (risk / price) * 100;
+  const rewardPct = targets.map((t) => ((t - price) / price) * 100);
+
+  return { entryLow, entryHigh, stop, targets, riskPct, rewardPct, atr };
 };
