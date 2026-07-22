@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { sidFor, getRecord, putRecord } from '../lib/alertsStore.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -10,55 +10,47 @@ export default async function handler(req, res) {
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    
     // Expecting: { subscription, ticker, alerts: [{ price, direction }, ...] }
     const { subscription, ticker, alerts } = body;
-    
-    if (!subscription || !ticker || !Array.isArray(alerts) || alerts.length === 0) {
+
+    if (!subscription?.endpoint || !ticker || !Array.isArray(alerts) || alerts.length === 0) {
       return res.status(400).json({ error: 'Missing required data or empty alerts array' });
     }
 
-    let existingAlerts = await kv.get('psx_alerts');
-    if (!Array.isArray(existingAlerts)) existingAlerts = [];
+    const sid = sidFor(subscription.endpoint);
+    const record = (await getRecord(sid)) || { subscription, alerts: [] };
+    record.subscription = subscription; // refresh in case push keys rotated
 
-    // Find alerts for this specific user and stock
-    const userStockAlerts = existingAlerts.filter(a => 
-        a.subscription.endpoint === subscription.endpoint && 
-        a.ticker === ticker.toUpperCase()
-    );
+    const T = ticker.toUpperCase();
+    const existing = record.alerts.filter((a) => a.ticker === T);
+    let tpCount = existing.filter((a) => a.direction === 'ABOVE').length;
+    let slCount = existing.filter((a) => a.direction === 'BELOW').length;
 
-    let currentTpCount = userStockAlerts.filter(a => a.direction === 'ABOVE').length;
-    let currentSlCount = userStockAlerts.filter(a => a.direction === 'BELOW').length;
-
-    const newAlertsToSave = [];
-
-    // Validate limits before saving anything
+    const toAdd = [];
     for (const a of alerts) {
-        if (a.direction === 'ABOVE') {
-            if (currentTpCount >= 3) return res.status(400).json({ error: `Max 3 Target Price (TP) alerts allowed for ${ticker.toUpperCase()}. Please delete an old one first.` });
-            currentTpCount++;
-        } else {
-            if (currentSlCount >= 3) return res.status(400).json({ error: `Max 3 Stop Loss (SL) alerts allowed for ${ticker.toUpperCase()}. Please delete an old one first.` });
-            currentSlCount++;
-        }
-        
-        newAlertsToSave.push({
-            id: Date.now().toString() + Math.random().toString(36).substring(2, 8),
-            subscription,
-            ticker: ticker.toUpperCase(),
-            targetPrice: Number(a.price),
-            direction: a.direction,
-            createdAt: new Date().toISOString()
-        });
+      const direction = a.direction === 'ABOVE' ? 'ABOVE' : 'BELOW';
+      if (direction === 'ABOVE') {
+        if (tpCount >= 3) return res.status(400).json({ error: `Max 3 Target Price (TP) alerts allowed for ${T}. Please delete an old one first.` });
+        tpCount++;
+      } else {
+        if (slCount >= 3) return res.status(400).json({ error: `Max 3 Stop Loss (SL) alerts allowed for ${T}. Please delete an old one first.` });
+        slCount++;
+      }
+      toAdd.push({
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
+        ticker: T,
+        targetPrice: Number(a.price),
+        direction,
+        createdAt: new Date().toISOString()
+      });
     }
 
-    // Save all valid alerts
-    existingAlerts.push(...newAlertsToSave);
-    await kv.set('psx_alerts', existingAlerts);
+    record.alerts.push(...toAdd);
+    await putRecord(sid, record);
 
-    return res.status(200).json({ success: true, message: `Successfully saved ${alerts.length} alert(s)` });
+    return res.status(200).json({ success: true, message: `Successfully saved ${toAdd.length} alert(s)` });
   } catch (error) {
-    console.error("Save Alert Error:", error);
+    console.error('Save Alert Error:', error);
     return res.status(500).json({ error: error.message || 'Internal Server Error' });
   }
 }
