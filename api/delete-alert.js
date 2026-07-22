@@ -1,6 +1,11 @@
-import { kv } from '@vercel/kv';
+import { sidFor, getRecord, putRecord, deleteRecord } from '../lib/alertsStore.js';
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   try {
@@ -9,11 +14,16 @@ export default async function handler(req, res) {
 
     if (!id || !endpoint) return res.status(400).json({ error: 'Missing alert ID or endpoint' });
 
-    let allAlerts = (await kv.get('psx_alerts')) || [];
-    // Only remove if the alert belongs to this subscription.
-    allAlerts = allAlerts.filter(a => !(a.id === id && a.subscription?.endpoint === endpoint));
+    const sid = sidFor(endpoint);
+    const record = await getRecord(sid);
+    if (!record) return res.status(200).json({ success: true });
 
-    await kv.set('psx_alerts', allAlerts);
+    // Auth: a caller can only delete alerts that live under their own subscription.
+    record.alerts = record.alerts.filter((a) => a.id !== id);
+
+    if (record.alerts.length === 0) await deleteRecord(sid);
+    else await putRecord(sid, record);
+
     return res.status(200).json({ success: true });
   } catch (error) {
     return res.status(500).json({ error: error.message });
