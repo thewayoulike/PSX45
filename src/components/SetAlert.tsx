@@ -8,9 +8,7 @@ function urlBase64ToUint8Array(base64String: string) {
   const base64 = (base64String + padding).replace(/\-/g, '+').replace(/_/g, '/');
   const rawData = window.atob(base64);
   const outputArray = new Uint8Array(rawData.length);
-  for (let i = 0; i < rawData.length; ++i) {
-    outputArray[i] = rawData.charCodeAt(i);
-  }
+  for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
   return outputArray;
 }
 
@@ -46,7 +44,7 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
 
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
-      
+
       if (!subscription) {
         subscription = await registration.pushManager.subscribe({
           userVisibleOnly: true,
@@ -57,16 +55,18 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
       setMessage('Saving alert...');
       const direction = Number(target) > currentPrice ? 'ABOVE' : 'BELOW';
 
+      // FIX: API expects an `alerts` array of { price, direction }
       const res = await fetch('/api/save-alert', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subscription,
           ticker,
-          targetPrice: Number(target),
-          direction
+          alerts: [{ price: Number(target), direction }]
         })
       });
+
+      const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
         setStatus('success');
@@ -74,7 +74,7 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
         setTarget('');
       } else {
         setStatus('error');
-        setMessage('Failed to save alert to database.');
+        setMessage(data.error || 'Failed to save alert to database.');
       }
     } catch (e: any) {
       setStatus('error');
@@ -90,18 +90,18 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">Rs.</span>
-          <input 
-            type="number" 
-            value={target} 
+          <input
+            type="number"
+            value={target}
             onChange={(e) => {
-                setTarget(Number(e.target.value));
-                if(status !== 'idle') { setStatus('idle'); setMessage(''); }
-            }} 
+                setTarget(e.target.value === '' ? '' : Number(e.target.value));
+                if (status !== 'idle') { setStatus('idle'); setMessage(''); }
+            }}
             placeholder={`${currentPrice ? (currentPrice * 1.05).toFixed(2) : '150'}`}
             className="w-full pl-10 pr-3 py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-indigo-500 font-mono font-bold dark:text-slate-200 shadow-sm"
           />
         </div>
-        <button 
+        <button
           onClick={handleSetAlert}
           disabled={status === 'loading' || !target}
           className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
@@ -109,7 +109,7 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
           {status === 'loading' ? <Loader2 size={16} className="animate-spin" /> : 'Create Alert'}
         </button>
       </div>
-      
+
       {message && (
         <div className={`mt-3 flex items-center gap-1.5 text-xs font-bold ${
           status === 'success' ? 'text-emerald-600' : status === 'error' ? 'text-rose-500' : 'text-indigo-500'
