@@ -1,13 +1,13 @@
 import React, { useState, useCallback } from 'react';
 import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity } from 'lucide-react';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
-import { computeSignal, SignalSummary, Signal, Verdict } from '../utils/indicators';
+import { computeSignal, computeTradePlan, SignalSummary, TradePlan, Signal, Verdict } from '../utils/indicators';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'INDEX', 'KSE'];
 const CONCURRENCY = 6;
 
 interface Candidate { symbol: string; current: number; ldcp: number; changePct: number; volume: number; }
-interface Result extends Candidate { summary: SignalSummary; }
+interface Result extends Candidate { summary: SignalSummary; plan: TradePlan | null; }
 
 const numv = (s?: string | null) => {
   const v = parseFloat((s || '').replace(/,/g, '').trim());
@@ -85,7 +85,7 @@ const chip = (s: Signal) =>
 
 // A single detailed signal card (mirrors the per-stock layout).
 const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = ({ result, onClick }) => {
-  const { symbol, current, changePct, summary } = result;
+  const { symbol, current, changePct, summary, plan } = result;
   const style = VERDICT_STYLE[summary.verdict];
   const markerPct = ((summary.score + 1) / 2) * 100;
   const up = changePct >= 0;
@@ -146,6 +146,33 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
           </div>
         </div>
 
+        {/* Trade plan: buy range, stop loss, targets */}
+        {plan && (
+          <div className="mb-4">
+            <div className="grid grid-cols-2 gap-2 mb-2">
+              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800 p-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">Buy Range</div>
+                <div className="font-mono font-bold text-sm text-slate-800 dark:text-slate-100">{fmt(plan.entryLow)} – {fmt(plan.entryHigh)}</div>
+              </div>
+              <div className="rounded-xl bg-rose-50 dark:bg-rose-900/20 border border-rose-100 dark:border-rose-800 p-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400">Stop Loss</div>
+                <div className="font-mono font-bold text-sm text-slate-800 dark:text-slate-100">
+                  {fmt(plan.stop)} <span className="text-[11px] font-normal text-rose-500 dark:text-rose-400">(−{fmt(plan.riskPct)}%)</span>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {plan.targets.map((t, i) => (
+                <div key={i} className="rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700 p-2.5 text-center">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Target {i + 1}</div>
+                  <div className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400">{fmt(t)}</div>
+                  <div className="text-[10px] text-slate-400">+{fmt(plan.rewardPct[i])}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Indicator breakdown */}
         <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
           <table className="w-full text-sm">
@@ -204,7 +231,8 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
         const closes = history.map((h) => h.price);
         if (closes.length < 35) return;
         const summary = computeSignal(closes);
-        collected.push({ ...c, summary });
+        const plan = computeTradePlan(closes, c.current);
+        collected.push({ ...c, summary, plan });
       }, (done) => setProgress((p) => ({ ...p, done })));
 
       collected.sort((a, b) => b.summary.score - a.summary.score || b.volume - a.volume);
@@ -222,10 +250,14 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
   );
 
   const copyAll = async () => {
-    const header = 'SYMBOL\tPRICE\tCHANGE %\tSIGNAL\tBUY\tSELL';
-    const body = shown.map((r) =>
-      `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${r.summary.verdict}\t${r.summary.buys}\t${r.summary.sells}`
-    ).join('\n');
+    const header = 'SYMBOL\tPRICE\tCHANGE %\tSIGNAL\tBUY RANGE\tSTOP\tTP1\tTP2\tTP3';
+    const body = shown.map((r) => {
+      const p = r.plan;
+      const range = p ? `${fmt(p.entryLow)}-${fmt(p.entryHigh)}` : '';
+      const stop = p ? fmt(p.stop) : '';
+      const tps = p ? p.targets.map((t) => fmt(t)).join('\t') : '\t\t';
+      return `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${r.summary.verdict}\t${range}\t${stop}\t${tps}`;
+    }).join('\n');
     await navigator.clipboard.writeText(`${header}\n${body}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
@@ -305,7 +337,7 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
           <div className="flex flex-col items-center justify-center py-12 text-center px-4 border-t border-slate-100 dark:border-slate-800">
             <TrendingUp size={34} className="text-slate-300 dark:text-slate-600 mb-3" />
             <p className="text-slate-500 dark:text-slate-400 font-medium">Hit “Scan Market” to find stocks flashing a buy signal.</p>
-            <p className="text-xs text-slate-400 mt-1 max-w-md">It pulls a year of prices for the most active stocks and runs moving averages, RSI, MACD and momentum on each. Takes ~15–40 seconds.</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-md">It pulls a year of prices for the most active stocks and runs moving averages, RSI, MACD and momentum on each, then builds a buy range, stop loss and targets. Takes ~15–40 seconds.</p>
           </div>
         )}
       </div>
@@ -330,8 +362,9 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
         <div className="flex items-start gap-2 text-[11px] text-slate-400 leading-relaxed px-1">
           <Info size={13} className="mt-0.5 shrink-0" />
           <span>
-            Mechanical technical signals for educational purposes only — not investment advice. Based on past price action across the
-            most-active stocks (not the whole market), and can be wrong. Always do your own research.
+            Mechanical technical signals and auto-calculated levels for educational purposes only — not investment advice. The buy
+            range, stop loss and targets are derived from recent volatility and a fixed risk/reward formula; they are estimates and can
+            be wrong. Always do your own research and manage your own risk.
           </span>
         </div>
       )}
