@@ -99,7 +99,7 @@ export interface Portfolio {
 
 // Added both SIMULATOR and CALCULATOR for the distinct views
 // Replace this line in src/types.ts
-export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS';
+export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS';
 
 export interface DividendAnnouncement {
     ticker: string;
