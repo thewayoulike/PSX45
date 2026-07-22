@@ -2,28 +2,29 @@ import React, { useMemo } from 'react';
 import { Transaction, Holding } from '../types';
 import { ArrowLeft, TrendingUp, Wallet, Briefcase, PieChart, History, Coins, BarChart3 } from 'lucide-react';
 
-import PSXChart from './PSXChart'; 
+import PSXChart from './PSXChart';
 import { SetAlert } from './SetAlert'; // <-- IMPORT ADDED HERE
+import { TradeSignal } from './TradeSignal'; // <-- BUY/SELL SIGNAL
 
 interface TickerProfileProps {
   ticker: string;
   currentPrice: number;
   sector: string;
   transactions: Transaction[];
-  holding?: Holding; 
+  holding?: Holding;
   onClose: () => void;
 }
 
-export const TickerProfile: React.FC<TickerProfileProps> = ({ 
-  ticker, currentPrice, sector, transactions, holding, onClose 
+export const TickerProfile: React.FC<TickerProfileProps> = ({
+  ticker, currentPrice, sector, transactions, holding, onClose
 }) => {
-  
+
   const { stats } = useMemo(() => {
     let totalDividends = 0;
     let dividendTax = 0;
     let totalFees = 0;
-    let totalCashIn = 0; 
-    let totalCashOut = 0; 
+    let totalCashIn = 0;
+    let totalCashOut = 0;
 
     const sortedTxs = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -61,7 +62,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   const quantity = holding?.quantity || 0;
   const avgPrice = holding?.avgPrice || 0;
   const marketValue = quantity * currentPrice;
-  
+
   const isLifetimeProfit = stats.lifetimeNet >= 0;
   const unrealizedPL = marketValue - (quantity * avgPrice);
   const unrealizedPLPercent = (quantity * avgPrice) > 0 ? (unrealizedPL / (quantity * avgPrice)) * 100 : 0;
@@ -69,7 +70,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 overflow-y-auto animate-in slide-in-from-right duration-300">
-      
+
       {/* HEADER */}
       <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between shadow-sm">
          <div className="flex items-center gap-4">
@@ -104,7 +105,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
       </div>
 
       <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-8">
-          
+
           <div className="bg-white dark:bg-slate-900 p-1 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
               <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
                   <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
@@ -120,6 +121,9 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
           {/* NEW ALERT WIDGET ADDED HERE */}
           <SetAlert ticker={ticker} currentPrice={currentPrice} />
 
+          {/* BUY / SELL TECHNICAL SIGNAL */}
+          <TradeSignal ticker={ticker} />
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
                   <div className="absolute top-0 right-0 p-4 opacity-5"><Wallet size={100} /></div>
@@ -128,7 +132,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
                           <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg"><Briefcase size={18} /></div>
                           <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Current Holding</h3>
                       </div>
-                      
+
                       {quantity > 0 ? (
                           <div className="space-y-1">
                               <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{quantity.toLocaleString()} <span className="text-base font-medium text-slate-400">Shares</span></div>
