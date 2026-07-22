@@ -225,7 +225,12 @@ const App: React.FC = () => {
   }, []);
 
   useIdleTimer(1800000, () => {
-      if (transactions.length > 0 || driveUser) { performLogout(); alert("Session timed out due to inactivity. Data cleared for security."); }
+      // Only auto-clear when a cloud (Drive) backup exists.
+      // Wiping a guest's un-synced data on idle = permanent data loss.
+      if (driveUser) {
+          performLogout();
+          alert("Session timed out due to inactivity. Data cleared for security.");
+      }
   });
 
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
