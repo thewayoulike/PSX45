@@ -182,11 +182,12 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
 
   const handleDeleteAlert = async (id: string) => {
       try {
-          setActiveAlerts(prev => prev.filter(a => a.id !== id)); 
+          setActiveAlerts(prev => prev.filter(a => a.id !== id));
+          const sub = await getPushSubscription();
           await fetch('/api/delete-alert', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id })
+              body: JSON.stringify({ id, endpoint: sub?.endpoint })
           });
       } catch (e) {
           fetchMyAlerts();
