@@ -4,7 +4,6 @@ import { ArrowLeft, TrendingUp, Wallet, Briefcase, PieChart, History, Coins, Bar
 
 import PSXChart from './PSXChart';
 import { SetAlert } from './SetAlert'; // <-- IMPORT ADDED HERE
-import { TradeSignal } from './TradeSignal'; // <-- BUY/SELL SIGNAL
 
 interface TickerProfileProps {
   ticker: string;
@@ -120,9 +119,6 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
 
           {/* NEW ALERT WIDGET ADDED HERE */}
           <SetAlert ticker={ticker} currentPrice={currentPrice} />
-
-          {/* BUY / SELL TECHNICAL SIGNAL */}
-          <TradeSignal ticker={ticker} />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
