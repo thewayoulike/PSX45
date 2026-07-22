@@ -215,7 +215,7 @@ const App: React.FC = () => {
 
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]); 
-      setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory([]);
+      setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory({});
       setFairValueCache({}); // <--- CLEARED ON LOGOUT
       setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
       setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
