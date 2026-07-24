@@ -20,6 +20,10 @@ export interface SignalSummary {
   indicators: IndicatorRow[];
   lastPrice: number;
   enoughData: boolean;
+  // Raw numeric values (handy for compact table views)
+  sma20: number;
+  sma50: number;
+  rsi: number;
 }
 
 export interface TradePlan {
@@ -30,6 +34,8 @@ export interface TradePlan {
   riskPct: number;      // (price - stop) / price * 100
   rewardPct: number[];  // per target, relative to price
   atr: number;
+  support: number;      // recent 10-day low
+  resistance: number;   // recent 20-day high (or price + 2*ATR)
 }
 
 const smaLast = (v: number[], p: number): number => {
@@ -91,6 +97,7 @@ const macdCalc = (v: number[]): { macd: number; signal: number; hist: number } |
 };
 
 const f = (n: number, d = 2) => n.toFixed(d);
+const safe = (n: number) => (Number.isNaN(n) || !Number.isFinite(n) ? 0 : n);
 
 export const computeSignal = (rawCloses: number[]): SignalSummary => {
   const closes = rawCloses.filter((n) => Number.isFinite(n) && n > 0);
@@ -98,9 +105,13 @@ export const computeSignal = (rawCloses: number[]): SignalSummary => {
   const rows: IndicatorRow[] = [];
   const add = (name: string, value: string, signal: Signal) => rows.push({ name, value, signal });
 
+  const sma20n = smaLast(closes, 20);
+  const sma50n = smaLast(closes, 50);
+  const rsiN = rsi(closes, 14);
+
   const enoughData = closes.length >= 35;
   if (!enoughData) {
-    return { verdict: 'NEUTRAL', score: 0, buys: 0, sells: 0, neutrals: 0, indicators: rows, lastPrice, enoughData };
+    return { verdict: 'NEUTRAL', score: 0, buys: 0, sells: 0, neutrals: 0, indicators: rows, lastPrice, enoughData, sma20: safe(sma20n), sma50: safe(sma50n), rsi: safe(rsiN) };
   }
 
   // 1) Price vs moving averages (classic: above MA = bullish)
@@ -120,8 +131,7 @@ export const computeSignal = (rawCloses: number[]): SignalSummary => {
   }
 
   // 3) RSI (14)
-  const r = rsi(closes, 14);
-  if (!Number.isNaN(r)) add('RSI (14)', f(r, 1), r < 30 ? 'BUY' : r > 70 ? 'SELL' : 'NEUTRAL');
+  if (!Number.isNaN(rsiN)) add('RSI (14)', f(rsiN, 1), rsiN < 30 ? 'BUY' : rsiN > 70 ? 'SELL' : 'NEUTRAL');
 
   // 4) MACD (12, 26, 9)
   const macd = macdCalc(closes);
@@ -146,10 +156,10 @@ export const computeSignal = (rawCloses: number[]): SignalSummary => {
     score > -0.5 ? 'SELL' :
     'STRONG SELL';
 
-  return { verdict, score, buys, sells, neutrals, indicators: rows, lastPrice, enoughData };
+  return { verdict, score, buys, sells, neutrals, indicators: rows, lastPrice, enoughData, sma20: safe(sma20n), sma50: safe(sma50n), rsi: safe(rsiN) };
 };
 
-// Auto trade plan: buy range, stop loss, and 1R/2R/3R take-profit targets.
+// Auto trade plan: buy range, stop loss, 1R/2R/3R targets, plus support/resistance.
 // Volatility uses a close-to-close ATR proxy (PSX EOD data has no intraday H/L).
 export const computeTradePlan = (rawCloses: number[], refPrice?: number): TradePlan | null => {
   const closes = rawCloses.filter((n) => Number.isFinite(n) && n > 0);
@@ -167,15 +177,17 @@ export const computeTradePlan = (rawCloses: number[], refPrice?: number): TradeP
   }
   const atr = count > 0 ? sum / count : price * 0.02;
 
-  // Recent 10-day support.
-  const recentLow = Math.min(...closes.slice(-10));
+  // Support / resistance from recent structure.
+  const support = Math.min(...closes.slice(-10));
+  const recentHigh = Math.max(...closes.slice(-20));
+  const resistance = recentHigh > price ? recentHigh : price + 2 * atr;
 
   // Buy (accumulation) zone: a slight dip up to the current price.
   const entryLow = price - 0.5 * atr;
   const entryHigh = price;
 
   // Stop below structure / volatility.
-  let stop = Math.min(recentLow, price - 1.5 * atr);
+  let stop = Math.min(support, price - 1.5 * atr);
   if (stop >= entryLow) stop = entryLow - atr;
   if (stop <= 0) stop = price * 0.9;
 
@@ -184,5 +196,5 @@ export const computeTradePlan = (rawCloses: number[], refPrice?: number): TradeP
   const riskPct = (risk / price) * 100;
   const rewardPct = targets.map((t) => ((t - price) / price) * 100);
 
-  return { entryLow, entryHigh, stop, targets, riskPct, rewardPct, atr };
+  return { entryLow, entryHigh, stop, targets, riskPct, rewardPct, atr, support, resistance };
 };
