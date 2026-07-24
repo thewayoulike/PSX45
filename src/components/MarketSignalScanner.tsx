@@ -13,7 +13,10 @@ const numv = (s?: string | null) => {
   const v = parseFloat((s || '').replace(/,/g, '').trim());
   return isNaN(v) ? 0 : v;
 };
-const fmt = (n: number, d = 2) => n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmt = (n?: number | null, d = 2) =>
+  (n == null || Number.isNaN(n) || !Number.isFinite(n))
+    ? '—'
+    : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
 const fmtVol = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : `${n}`);
 
 // Parse market-watch snapshot into liquidity-ranked candidates.
