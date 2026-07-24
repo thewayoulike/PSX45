@@ -1,10 +1,10 @@
 import React, { useState, useCallback } from 'react';
-import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity } from 'lucide-react';
+import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon } from 'lucide-react';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
 import { computeSignal, computeTradePlan, SignalSummary, TradePlan, Signal, Verdict } from '../utils/indicators';
+import { KSE100_SET, KMI30_SET } from '../services/indices';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'INDEX', 'KSE'];
-const CONCURRENCY = 6;
 
 interface Candidate { symbol: string; current: number; ldcp: number; changePct: number; volume: number; }
 interface Result extends Candidate { summary: SignalSummary; plan: TradePlan | null; }
@@ -54,6 +54,15 @@ const parseCandidates = (html: string): Candidate[] => {
   return Array.from(best.values()).sort((a, b) => b.volume - a.volume);
 };
 
+// Pick the scan universe from parsed candidates.
+const buildUniverse = (candidates: Candidate[], u: string): Candidate[] => {
+  if (u === 'KSE100') return candidates.filter((c) => KSE100_SET.has(c.symbol));
+  if (u === 'KMI30') return candidates.filter((c) => KMI30_SET.has(c.symbol));
+  if (u === 'ALL') return candidates;
+  const n = Number(u) || 40;
+  return candidates.slice(0, n);
+};
+
 // Run an async fn over items with limited concurrency.
 async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>, onProgress: (done: number) => void): Promise<R[]> {
   const results: R[] = new Array(items.length);
@@ -83,7 +92,7 @@ const chip = (s: Signal) =>
   : s === 'SELL' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-300'
   : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
 
-// A single detailed signal card (mirrors the per-stock layout).
+// ---------- Detailed card ----------
 const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = ({ result, onClick }) => {
   const { symbol, current, changePct, summary, plan } = result;
   const style = VERDICT_STYLE[summary.verdict];
@@ -92,7 +101,6 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
 
   return (
     <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-hidden">
-      {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex items-center gap-2">
           <div className="p-2 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl">
@@ -114,7 +122,6 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
       </div>
 
       <div className="p-4">
-        {/* Verdict + counts */}
         <div className="flex flex-col items-center text-center mb-4">
           <div className={`px-5 py-2 rounded-xl text-lg font-extrabold tracking-wide ${style.bg} ${style.text}`}>
             {summary.verdict}
@@ -126,7 +133,6 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
           </div>
         </div>
 
-        {/* Meter */}
         <div className="relative mb-5 px-1">
           <div className="h-2.5 rounded-full overflow-hidden flex">
             <div className="flex-1 bg-rose-500/80" />
@@ -135,18 +141,12 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
             <div className="flex-1 bg-emerald-300/70" />
             <div className="flex-1 bg-emerald-500/80" />
           </div>
-          <div
-            className="absolute -top-1 w-1.5 h-[18px] bg-slate-900 dark:bg-white rounded-full shadow -translate-x-1/2"
-            style={{ left: `${markerPct}%` }}
-          />
+          <div className="absolute -top-1 w-1.5 h-[18px] bg-slate-900 dark:bg-white rounded-full shadow -translate-x-1/2" style={{ left: `${markerPct}%` }} />
           <div className="flex justify-between text-[10px] text-slate-400 mt-1.5 font-bold uppercase tracking-wide">
-            <span>Strong Sell</span>
-            <span>Neutral</span>
-            <span>Strong Buy</span>
+            <span>Strong Sell</span><span>Neutral</span><span>Strong Buy</span>
           </div>
         </div>
 
-        {/* Trade plan: buy range, stop loss, targets */}
         {plan && (
           <div className="mb-4">
             <div className="grid grid-cols-2 gap-2 mb-2">
@@ -173,7 +173,6 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
           </div>
         )}
 
-        {/* Indicator breakdown */}
         <div className="rounded-xl border border-slate-100 dark:border-slate-800 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 dark:bg-slate-800/50 text-left">
@@ -201,13 +200,64 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
   );
 };
 
+// ---------- Compact table (screener style) ----------
+const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void }> = ({ rows, onClick }) => {
+  const Th = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
+    <th className={`px-3 py-2.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 ${className}`}>{children}</th>
+  );
+  return (
+    <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm overflow-x-auto">
+      <table className="w-full text-sm min-w-[860px]">
+        <thead className="bg-slate-50 dark:bg-slate-800/50 text-left sticky top-0">
+          <tr>
+            <Th>Symbol</Th>
+            <Th className="text-right">Price</Th>
+            <Th className="text-right">Chg %</Th>
+            <Th className="text-right">SMA 20</Th>
+            <Th className="text-right">SMA 50</Th>
+            <Th className="text-right">RSI 14</Th>
+            <Th className="text-right">Buy zone</Th>
+            <Th className="text-right">Sell zone</Th>
+            <Th className="text-center">Signal</Th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+          {rows.map((r) => {
+            const up = r.changePct >= 0;
+            const vs = VERDICT_STYLE[r.summary.verdict];
+            const rsiColor = r.summary.rsi < 30 ? 'text-amber-600 dark:text-amber-400' : r.summary.rsi > 70 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400';
+            return (
+              <tr key={r.symbol} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
+                <td className="px-3 py-2">
+                  <button onClick={() => onClick?.(r.symbol)} className="font-bold text-slate-900 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">{r.symbol}</button>
+                </td>
+                <td className="px-3 py-2 text-right font-mono font-bold text-slate-900 dark:text-slate-100">{fmt(r.current)}</td>
+                <td className={`px-3 py-2 text-right font-mono font-bold ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>{up ? '+' : '−'}{fmt(Math.abs(r.changePct))}%</td>
+                <td className="px-3 py-2 text-right font-mono text-slate-500 dark:text-slate-400">{fmt(r.summary.sma20)}</td>
+                <td className="px-3 py-2 text-right font-mono text-slate-500 dark:text-slate-400">{fmt(r.summary.sma50)}</td>
+                <td className={`px-3 py-2 text-right font-mono font-bold ${rsiColor}`}>{fmt(r.summary.rsi, 1)}</td>
+                <td className="px-3 py-2 text-right font-mono text-emerald-600 dark:text-emerald-400">{r.plan ? fmt(r.plan.support) : '—'}</td>
+                <td className="px-3 py-2 text-right font-mono text-rose-500 dark:text-rose-400">{r.plan ? fmt(r.plan.resistance) : '—'}</td>
+                <td className="px-3 py-2 text-center">
+                  <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-bold ${vs.bg} ${vs.text}`}>{r.summary.verdict}</span>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void }> = ({ onSymbolClick }) => {
   const [status, setStatus] = useState<'idle' | 'scanning' | 'done'>('idle');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState('');
-  const [universe, setUniverse] = useState(40);
+  const [universe, setUniverse] = useState<string>('40');
   const [buyOnly, setBuyOnly] = useState(true);
+  const [view, setView] = useState<'cards' | 'table'>('cards');
   const [copied, setCopied] = useState(false);
   const [scannedAt, setScannedAt] = useState<Date | null>(null);
 
@@ -220,13 +270,17 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
       const html = await fetchUrlWithFallback('https://dps.psx.com.pk/market-watch');
       if (!html || html.length < 500) throw new Error('Could not fetch the market snapshot. Try again in a moment.');
 
-      const candidates = parseCandidates(html).slice(0, universe);
-      if (candidates.length === 0) throw new Error('No tradable stocks found in the snapshot.');
+      const candidates = buildUniverse(parseCandidates(html), universe);
+      if (candidates.length === 0) throw new Error('No matching stocks found. If you scanned an index, check the constituent list in indices.ts.');
+
+      // Bigger scans get more concurrency; auto-switch to the compact table.
+      const concurrency = candidates.length > 80 ? 8 : 6;
+      if (candidates.length > 40) setView('table');
 
       setProgress({ done: 0, total: candidates.length });
 
       const collected: Result[] = [];
-      await mapPool(candidates, CONCURRENCY, async (c) => {
+      await mapPool(candidates, concurrency, async (c) => {
         const history = await fetchStockHistory(c.symbol, '1Y');
         const closes = history.map((h) => h.price);
         if (closes.length < 35) return;
@@ -250,20 +304,17 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
   );
 
   const copyAll = async () => {
-    const header = 'SYMBOL\tPRICE\tCHANGE %\tSIGNAL\tBUY RANGE\tSTOP\tTP1\tTP2\tTP3';
-    const body = shown.map((r) => {
-      const p = r.plan;
-      const range = p ? `${fmt(p.entryLow)}-${fmt(p.entryHigh)}` : '';
-      const stop = p ? fmt(p.stop) : '';
-      const tps = p ? p.targets.map((t) => fmt(t)).join('\t') : '\t\t';
-      return `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${r.summary.verdict}\t${range}\t${stop}\t${tps}`;
-    }).join('\n');
+    const header = 'SYMBOL\tPRICE\tCHG %\tSMA20\tSMA50\tRSI14\tBUY ZONE\tSELL ZONE\tSIGNAL';
+    const body = shown.map((r) =>
+      `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.sma20)}\t${fmt(r.summary.sma50)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.summary.verdict}`
+    ).join('\n');
     await navigator.clipboard.writeText(`${header}\n${body}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
 
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
+  const isAll = universe === 'ALL';
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-4">
@@ -277,21 +328,34 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
             <div>
               <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Buy Signal Scanner</h2>
               <p className="text-xs text-slate-400">
-                {scannedAt ? `Scanned ${scannedAt.toLocaleString()} · ${shown.length} signals` : 'Scans the most active stocks for technical buy signals'}
+                {scannedAt ? `Scanned ${scannedAt.toLocaleString()} · ${shown.length} signals` : 'Scans stocks for technical buy signals'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* View toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5">
+              <button onClick={() => setView('cards')} title="Card view" className={`p-1.5 rounded-md transition-colors ${view === 'cards' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400'}`}>
+                <LayoutGrid size={14} />
+              </button>
+              <button onClick={() => setView('table')} title="Table view" className={`p-1.5 rounded-md transition-colors ${view === 'table' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400'}`}>
+                <TableIcon size={14} />
+              </button>
+            </div>
             <select
               value={universe}
-              onChange={(e) => setUniverse(Number(e.target.value))}
+              onChange={(e) => setUniverse(e.target.value)}
               disabled={status === 'scanning'}
               className="text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-2 outline-none dark:text-slate-200"
             >
-              <option value={20}>Top 20 by volume</option>
-              <option value={40}>Top 40 by volume</option>
-              <option value={60}>Top 60 by volume</option>
+              <option value="KSE100">KSE-100 index</option>
+              <option value="KMI30">KMI-30 index</option>
+              <option value="20">Top 20 by volume</option>
+              <option value="40">Top 40 by volume</option>
+              <option value="60">Top 60 by volume</option>
+              <option value="100">Top 100 by volume</option>
+              <option value="ALL">All market (slow)</option>
             </select>
             <label className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
               <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} className="accent-emerald-600" />
@@ -313,7 +377,12 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
           </div>
         </div>
 
-        {/* Progress */}
+        {isAll && status !== 'scanning' && (
+          <div className="mx-4 mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg text-xs text-amber-700 dark:text-amber-400">
+            Full-market scan downloads a year of prices for every listed stock — it can take a few minutes and some thin stocks will be skipped.
+          </div>
+        )}
+
         {status === 'scanning' && (
           <div className="px-4 sm:px-5 pb-4">
             <div className="flex justify-between text-xs font-bold text-slate-500 mb-2">
@@ -332,18 +401,20 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
           </div>
         )}
 
-        {/* Idle empty state */}
         {status === 'idle' && results.length === 0 && !error && (
           <div className="flex flex-col items-center justify-center py-12 text-center px-4 border-t border-slate-100 dark:border-slate-800">
             <TrendingUp size={34} className="text-slate-300 dark:text-slate-600 mb-3" />
             <p className="text-slate-500 dark:text-slate-400 font-medium">Hit “Scan Market” to find stocks flashing a buy signal.</p>
-            <p className="text-xs text-slate-400 mt-1 max-w-md">It pulls a year of prices for the most active stocks and runs moving averages, RSI, MACD and momentum on each, then builds a buy range, stop loss and targets. Takes ~15–40 seconds.</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-md">Pick a universe — KSE-100, KMI-30, top movers, or the whole market — then it runs moving averages, RSI, MACD and momentum on each and builds a buy range, stop and targets.</p>
           </div>
         )}
       </div>
 
-      {/* Results as detailed cards */}
-      {shown.length > 0 && (
+      {/* Results */}
+      {shown.length > 0 && view === 'table' && (
+        <ScreenerTable rows={shown} onClick={onSymbolClick} />
+      )}
+      {shown.length > 0 && view === 'cards' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {shown.map((r) => (
             <SignalCard key={r.symbol} result={r} onClick={onSymbolClick} />
@@ -362,9 +433,9 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
         <div className="flex items-start gap-2 text-[11px] text-slate-400 leading-relaxed px-1">
           <Info size={13} className="mt-0.5 shrink-0" />
           <span>
-            Mechanical technical signals and auto-calculated levels for educational purposes only — not investment advice. The buy
-            range, stop loss and targets are derived from recent volatility and a fixed risk/reward formula; they are estimates and can
-            be wrong. Always do your own research and manage your own risk.
+            Mechanical technical signals and auto-calculated levels for educational purposes only — not investment advice. Buy/sell
+            zones, stop and targets come from recent volatility and simple SMA/RSI heuristics; they are estimates and can be wrong.
+            Data is unofficial and delayed. Always do your own research.
           </span>
         </div>
       )}
