@@ -860,7 +860,6 @@ const App: React.FC = () => {
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
 
-  // Reusable Sidebar Nav Items array
   const navItems = [
       { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
       { id: 'HOLDINGS', label: 'Holdings', icon: FolderOpen },
@@ -873,7 +872,6 @@ const App: React.FC = () => {
       { id: 'HISTORY', label: 'History', icon: History },
   ] as const;
 
-  // Reusable Settings Nav Items Array (Triggers Modals)
   const settingsItems = [
       { id: 'BROKERS', label: 'Broker Setup', icon: Briefcase, onClick: () => setShowBrokerManager(true), alert: false },
       { id: 'API_KEYS', label: 'API Keys', icon: Key, onClick: () => setShowApiKeyManager(true), alert: (!userApiKey || !userScraperKey) },
@@ -892,7 +890,7 @@ const App: React.FC = () => {
               <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 dark:bg-blue-600/5 rounded-full blur-[100px]"></div>
           </div>
 
-          {/* ================= SIDEBAR ================= */}
+          {/* SIDEBAR */}
           <div className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a0a0a] transition-all duration-300 z-30 ${isSidebarCollapsed ? 'w-28' : 'w-64'}`}>
               
               <div className="flex flex-col items-center justify-center p-4 mb-2 border-b border-slate-100 dark:border-slate-800/50 min-h-[100px]">
@@ -909,10 +907,8 @@ const App: React.FC = () => {
                   )}
               </div>
 
-              {/* Navigation Links */}
               <nav className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar pb-6">
                   
-                  {/* MAIN MENU */}
                   <div className={`px-3 mb-2 mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${isSidebarCollapsed ? 'text-center' : ''}`}>
                       {!isSidebarCollapsed && 'Menu'}
                   </div>
@@ -937,7 +933,6 @@ const App: React.FC = () => {
                       );
                   })}
 
-                  {/* EXPANDABLE SETTINGS MENU */}
                   <div className={`mt-6 border-t border-slate-100 dark:border-slate-800 pt-4`}>
                       <button
                           onClick={() => {
@@ -955,7 +950,6 @@ const App: React.FC = () => {
                           )}
                       </button>
 
-                      {/* Expanding Accordion Content */}
                       <div 
                           className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${isSettingsExpanded ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
                       >
@@ -985,7 +979,6 @@ const App: React.FC = () => {
 
               </nav>
 
-              {/* User Profile & Collapse Area */}
               <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-4 bg-slate-50 dark:bg-[#0f0f0f]">
                   {driveUser ? (
                       <div className="flex flex-col gap-3">
@@ -1031,11 +1024,10 @@ const App: React.FC = () => {
               </div>
           </div>
 
-          {/* ================= MAIN CONTENT AREA ================= */}
+          {/* MAIN CONTENT AREA */}
           <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
               <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-20">
                   
-                  {/* Header: Portfolio Selector & Theme Toggle */}
                   <header className="flex justify-between items-center gap-4 mb-6 animate-in fade-in slide-in-from-top-5 duration-500">
                       
                       <div className="flex items-center gap-2 w-full md:w-auto bg-white dark:bg-slate-900/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm backdrop-blur">
@@ -1178,11 +1170,13 @@ const App: React.FC = () => {
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               {(() => {
-                                  // 1. Grab the correct history (Combined or Individual Portfolio)
                                   const historyData = performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [];
                                   
-                                  // 2. Extract the actual portfolio values for the sparklines
-                                  const trendLine = historyData.map((d: any) => d.totalValue || d.value || 0);
+                                  // Flexible mapping to extract values regardless of stored property name
+                                  const trendLine = historyData.map((d: any) => {
+                                      if (typeof d === 'number') return d;
+                                      return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
+                                  }).filter((v: number) => !isNaN(v));
 
                                   return (
                                       <Dashboard 
@@ -1190,7 +1184,7 @@ const App: React.FC = () => {
                                           lastUpdated={lastPriceUpdate} 
                                           userName={driveUser?.name?.split(' ')[0]} 
                                           onRefresh={handleSyncPrices}
-                                          trend={trendLine.length > 1 ? trendLine : undefined}
+                                          trend={trendLine}
                                           holdings={holdings}
                                       />
                                   );
