@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import { Holding, PortfolioStats } from '../types';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
@@ -21,11 +21,8 @@ const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionD
 const spct = (n: number) => `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(2)}%`;
 const clamp = (n: number, a = 0, b = 100) => Math.max(a, Math.min(b, n));
 
-// --- Interactive Edge-to-Edge Sparkline with Hover ---
-const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = ({ data, color, isPercent = false }) => {
-  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
-  const svgRef = useRef<SVGSVGElement>(null);
-
+// --- Clean, Static Edge-to-Edge Sparkline ---
+const Spark: React.FC<{ data: number[]; color: string }> = ({ data, color }) => {
   if (!data || data.length < 2) return <div className="h-full w-full" />;
   
   const w = 300;
@@ -41,103 +38,29 @@ const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = 
   const points = data.map((v, i) => {
     const x = (i / (data.length - 1)) * w;
     const y = paddingY + drawH - (((v - min) / range) * drawH);
-    return { x, y, value: v };
+    return `${x},${y}`;
   });
 
-  const ptsString = points.map(p => `${p.x},${p.y}`).join(' ');
+  const ptsString = points.join(' ');
   const gradientId = `spark-grad-${color.replace('#', '')}`;
 
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const mouseX = ((e.clientX - rect.left) / rect.width) * w;
-    
-    let closestIdx = 0;
-    let minDiff = Infinity;
-    points.forEach((p, i) => {
-      const diff = Math.abs(p.x - mouseX);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closestIdx = i;
-      }
-    });
-    setHoverIndex(closestIdx);
-  };
-
   return (
-    <div className="relative w-full h-full">
-      <svg 
-        ref={svgRef}
-        viewBox={`0 0 ${w} ${h}`} 
-        className="w-full h-full drop-shadow-sm overflow-visible cursor-crosshair" 
-        preserveAspectRatio="none" 
-        aria-hidden="true"
-        onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverIndex(null)}
-        onTouchMove={(e) => {
-          if (!svgRef.current) return;
-          const rect = svgRef.current.getBoundingClientRect();
-          const touchX = ((e.touches[0].clientX - rect.left) / rect.width) * w;
-          let closestIdx = 0;
-          let minDiff = Infinity;
-          points.forEach((p, i) => {
-            const diff = Math.abs(p.x - touchX);
-            if (diff < minDiff) { minDiff = diff; closestIdx = i; }
-          });
-          setHoverIndex(closestIdx);
-        }}
-        onTouchEnd={() => setHoverIndex(null)}
-      >
-        <defs>
-          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.0" />
-          </linearGradient>
-        </defs>
-        
-        <polygon points={`0,${h} ${ptsString} ${w},${h}`} fill={`url(#${gradientId})`} />
-        <polyline points={ptsString} fill="none" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-        
-        {hoverIndex !== null && (
-          <>
-            <line 
-              x1={points[hoverIndex].x} 
-              y1={0} 
-              x2={points[hoverIndex].x} 
-              y2={h} 
-              stroke={color} 
-              strokeWidth="1.5" 
-              strokeDasharray="3,3" 
-              opacity="0.5" 
-            />
-            <circle 
-              cx={points[hoverIndex].x} 
-              cy={points[hoverIndex].y} 
-              r="4.5" 
-              fill="#ffffff" 
-              stroke={color} 
-              strokeWidth="2.5" 
-              className="drop-shadow-md"
-            />
-          </>
-        )}
-      </svg>
+    <svg 
+      viewBox={`0 0 ${w} ${h}`} 
+      className="w-full h-full drop-shadow-sm pointer-events-none" 
+      preserveAspectRatio="none" 
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.25" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+        </linearGradient>
+      </defs>
       
-      {hoverIndex !== null && (
-        <div 
-          className="absolute pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-bold font-mono px-2 py-1 rounded-lg shadow-xl transition-all duration-75 ease-out whitespace-nowrap z-50"
-          style={{
-            left: `${(points[hoverIndex].x / w) * 100}%`,
-            top: `${(points[hoverIndex].y / h) * 100}%`
-          }}
-        >
-          {isPercent 
-            ? `${points[hoverIndex].value >= 0 ? '+' : ''}${points[hoverIndex].value.toFixed(2)}%`
-            : `Rs. ${points[hoverIndex].value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          }
-        </div>
-      )}
-    </div>
+      <polygon points={`0,${h} ${ptsString} ${w},${h}`} fill={`url(#${gradientId})`} />
+      <polyline points={ptsString} fill="none" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+    </svg>
   );
 };
 
@@ -253,8 +176,8 @@ const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: Reac
 
 const HeroCard: React.FC<{
   label: string; value: React.ReactNode; sub?: React.ReactNode; 
-  colorClass: string; icon: React.ReactNode; iconWrap: string; trend: number[]; sparkColor: string; isPercentGraph?: boolean;
-}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor, isPercentGraph = false }) => {
+  colorClass: string; icon: React.ReactNode; iconWrap: string; trend: number[]; sparkColor: string;
+}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor }) => {
   return (
     <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
       <div className="relative z-10 flex items-start justify-between pointer-events-none">
@@ -270,9 +193,9 @@ const HeroCard: React.FC<{
         {sub && <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{sub}</span>}
       </div>
       
-      {/* Absolute Bottom Interactive Sparkline Container */}
+      {/* Absolute Bottom Sparkline Container */}
       <div className="absolute bottom-0 left-0 right-0 h-24 z-20 group-hover:z-30 opacity-90 group-hover:opacity-100 transition-all duration-300">
-        <Spark data={trend} color={sparkColor} isPercent={isPercentGraph} />
+        <Spark data={trend} color={sparkColor} />
       </div>
     </div>
   );
@@ -391,7 +314,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           iconWrap={isTotalReturnPositive ? 'bg-emerald-50 dark:bg-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/20'}
           trend={returnTrend} 
           sparkColor={isTotalReturnPositive ? '#10b981' : '#f43f5e'}
-          isPercentGraph={true}
         />
         <HeroCard
           label="Today's P&L"
