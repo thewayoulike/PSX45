@@ -62,7 +62,7 @@ const App: React.FC = () => {
   
   // Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false); // <-- NEW STATE FOR EXPAND/COLLAPSE SETTINGS
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 
   const [viewTicker, setViewTicker] = useState<string | null>(null);
 
@@ -941,7 +941,6 @@ const App: React.FC = () => {
                   <div className={`mt-6 border-t border-slate-100 dark:border-slate-800 pt-4`}>
                       <button
                           onClick={() => {
-                              if (isSidebarCollapsed) setIsSidebarCollapsed(false); 
                               setIsSettingsExpanded(!isSettingsExpanded);
                           }}
                           className={`w-full flex items-center px-3 mb-2 text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 uppercase tracking-wider transition-colors outline-none ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
