@@ -12,7 +12,6 @@ import {
 } from 'recharts';
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
-import { KMI30 } from '../services/indices';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
 
@@ -27,7 +26,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   const [chartData, setChartData] = useState<any[]>(savedData || []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   
-  // NEW STATES: For Last Updated and Line Toggles
+  // States for Last Updated and Line Toggles
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [showKSE100, setShowKSE100] = useState<boolean>(true);
   const [showKMI30, setShowKMI30] = useState<boolean>(true);
@@ -36,13 +35,10 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   useEffect(() => {
     setChartData(savedData);
     if (savedData && savedData.length > 0) {
-        // If we load saved data initially, we can show a general "Loaded from save" message, 
-        // or just leave it blank until they hit refresh. 
         setLastUpdated(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
     }
   }, [savedData]);
 
-  // Helper to calculate exact quantities held on a specific historical date
   const getHeldBalancesOnDate = (dateStr: string) => {
     const holdings: Record<string, number> = {};
     const txsToDate = transactions.filter(t => t.date <= dateStr);
@@ -74,7 +70,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           transactions.filter(t => t.type === 'BUY').map(t => t.ticker)
       ));
       
-      const tickersToFetch = Array.from(new Set(['KSE100', ...KMI30, ...userTickers]));
+      // Fetch both KSE100 and KMI30 official indices, plus portfolio stocks
+      const tickersToFetch = Array.from(new Set(['KSE100', 'KMI30', ...userTickers]));
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
       await Promise.all(tickersToFetch.map(async (ticker) => {
@@ -95,6 +92,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       }));
 
       const kseData = historyData['KSE100'] || [];
+      const kmiData = historyData['KMI30'] || []; 
+
       if (kseData.length < 2) {
           throw new Error("Unable to fetch KSE100 data. Please try again in a few moments.");
       }
@@ -102,6 +101,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       const newChartData = [];
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
+      // Process day-by-day calculations
       for (let i = 1; i < kseData.length; i++) {
         const todayKse = kseData[i];
         
@@ -113,24 +113,16 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
         const kseChange = prevKse.price > 0 ? ((todayKse.price - prevKse.price) / prevKse.price) * 100 : 0;
 
-        let kmiTotalChange = 0;
-        let kmiStockCount = 0;
-
-        KMI30.forEach(ticker => {
-          const stockHist = historyData[ticker];
-          if (stockHist && stockHist.length > 0) {
-            const todayIdx = stockHist.findIndex(d => d.dateStr === dateStr);
-            if (todayIdx > 0) {
-              const todayPrice = stockHist[todayIdx].price;
-              const prevPrice = stockHist[todayIdx - 1].price;
-              if (prevPrice > 0) {
-                kmiTotalChange += ((todayPrice - prevPrice) / prevPrice) * 100;
-                kmiStockCount++;
-              }
+        // Calculate KMI-30 change using the official API index values
+        let kmiChange = 0;
+        if (kmiData.length > 0) {
+            const todayKmi = kmiData.find(d => d.dateStr === dateStr);
+            const prevKmi = kmiData.find(d => d.dateStr === prevKse.dateStr);
+            
+            if (todayKmi && prevKmi && prevKmi.price > 0) {
+                kmiChange = ((todayKmi.price - prevKmi.price) / prevKmi.price) * 100;
             }
-          }
-        });
-        const kmiChange = kmiStockCount > 0 ? kmiTotalChange / kmiStockCount : 0;
+        }
 
         const heldBalances = getHeldBalancesOnDate(dateStr);
         let yesterdayTotalValue = 0;
@@ -171,8 +163,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
       setChartData(newChartData);
       onSaveData(newChartData); 
-      
-      // Update Timestamp on successful fetch
       setLastUpdated(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
 
     } catch (error: any) {
@@ -186,8 +176,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   return (
     <Card className="w-full flex flex-col">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        
-        {/* Title & Last Updated Area */}
         <div>
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wider">
             <TrendingUp className="text-emerald-500" size={18} />
@@ -201,10 +189,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           )}
         </div>
 
-        {/* Toggles & Refresh Button Area */}
         <div className="flex flex-wrap items-center gap-4">
-          
-          {/* Index Toggles */}
           <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
             <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
               <input 
@@ -250,21 +235,10 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-              
               <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" />
-
-              <XAxis 
-                dataKey="date" 
-                tick={{ fontSize: 10, fill: '#94a3b8' }} 
-                axisLine={false} 
-                tickLine={false} 
-              />
-              <YAxis 
-                tickFormatter={(val) => `${val}%`} 
-                tick={{ fontSize: 10, fill: '#94a3b8' }} 
-                axisLine={false} 
-                tickLine={false} 
-              />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                 formatter={(value: number, name: string) => [
@@ -275,40 +249,14 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '10px' }} />
               
-              <Line 
-                type="monotone" 
-                name="Portfolio" 
-                dataKey="Portfolio" 
-                stroke="#10b981" 
-                strokeWidth={2.5} 
-                dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }}
-                activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }}
-              />
+              <Line type="monotone" name="Portfolio" dataKey="Portfolio" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />
               
-              {/* Conditionally Render KSE-100 */}
               {showKSE100 && (
-                <Line 
-                  type="monotone" 
-                  name="KSE100" 
-                  dataKey="KSE100" 
-                  stroke="#6366f1" 
-                  strokeWidth={2.5} 
-                  dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} 
-                  activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
-                />
+                <Line type="monotone" name="KSE100" dataKey="KSE100" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }} />
               )}
               
-              {/* Conditionally Render KMI-30 */}
               {showKMI30 && (
-                <Line 
-                  type="monotone" 
-                  name="KMI30" 
-                  dataKey="KMI30" 
-                  stroke="#f59e0b" 
-                  strokeWidth={2.5} 
-                  dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} 
-                  activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }}
-                />
+                <Line type="monotone" name="KMI30" dataKey="KMI30" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }} />
               )}
             </LineChart>
           </ResponsiveContainer>
