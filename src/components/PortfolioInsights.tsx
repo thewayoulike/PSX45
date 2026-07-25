@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Holding, PortfolioStats, RealizedTrade } from '../types';
 import {
   TrendingUp, TrendingDown, PieChart, Activity, Coins, Layers,
-  Wallet, Receipt, Target, Trophy, AlertTriangle, Percent
+  Wallet, Receipt, Target, Trophy, AlertTriangle, Percent, CalendarDays
 } from 'lucide-react';
 
 interface PortfolioInsightsProps {
@@ -36,7 +36,12 @@ interface Insight {
   node: React.ReactNode;
 }
 
-const VISIBLE = 4; // how many to show before "Show more"
+const VISIBLE = 5; // how many to show before "Show more"
+
+// Small pill badge (status / "This month")
+const Badge: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700 whitespace-nowrap">{children}</span>
+);
 
 export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, realizedTrades, stats, onViewReport }) => {
   const [expanded, setExpanded] = useState(false);
@@ -47,38 +52,52 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
 
     const realTrades = realizedTrades.filter((t) => t.ticker && t.ticker !== 'PREV-PNL');
 
-    // ---- Per-ticker aggregation (active + sold) for best / worst ----
-    const tickerStats: Record<string, { profit: number; cost: number; isHolding: boolean; isRealized: boolean }> = {};
+    // Current month, e.g. "2026-07"
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const monthName = now.toLocaleString(undefined, { month: 'long' });
+
+    type Agg = { profit: number; cost: number; isHolding: boolean; isRealized: boolean };
+    const bestWorst = (stats: Record<string, Agg>) => {
+      let best: { ticker: string; ret: number; profit: number; status: string } | null = null;
+      let worst: { ticker: string; ret: number; profit: number } | null = null;
+      Object.entries(stats).forEach(([ticker, d]) => {
+        if (d.cost < MIN_COST) return;
+        const ret = (d.profit / d.cost) * 100;
+        const status = d.isHolding && d.isRealized ? 'Active & Sold' : d.isHolding ? 'Active' : 'Sold';
+        if (!best || ret > best.ret) best = { ticker, ret, profit: d.profit, status };
+        if (!worst || ret < worst.ret) worst = { ticker, ret, profit: d.profit };
+      });
+      return { best, worst };
+    };
+
+    // ---- Overall (active + sold) ----
+    const overall: Record<string, Agg> = {};
     realTrades.forEach((t) => {
-      const s = (tickerStats[t.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
-      s.profit += t.profit;
-      s.cost += t.buyAvg * t.quantity;
-      s.isRealized = true;
+      const s = (overall[t.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
+      s.profit += t.profit; s.cost += t.buyAvg * t.quantity; s.isRealized = true;
     });
     holdings.forEach((h) => {
-      const s = (tickerStats[h.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
-      s.profit += (h.currentPrice - h.avgPrice) * h.quantity;
-      s.cost += h.avgPrice * h.quantity;
-      s.isHolding = true;
+      const s = (overall[h.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
+      s.profit += (h.currentPrice - h.avgPrice) * h.quantity; s.cost += h.avgPrice * h.quantity; s.isHolding = true;
     });
+    const { best, worst } = bestWorst(overall);
 
-    let best: { ticker: string; ret: number; profit: number; status: string } | null = null;
-    let worst: { ticker: string; ret: number; profit: number } | null = null;
-    Object.entries(tickerStats).forEach(([ticker, d]) => {
-      if (d.cost < MIN_COST) return;
-      const ret = (d.profit / d.cost) * 100;
-      const status = d.isHolding && d.isRealized ? 'Active & Sold' : d.isHolding ? 'Active' : 'Sold';
-      if (!best || ret > best.ret) best = { ticker, ret, profit: d.profit, status };
-      if (!worst || ret < worst.ret) worst = { ticker, ret, profit: d.profit };
+    // ---- This month (realized trades closed this month) ----
+    const monthAgg: Record<string, Agg> = {};
+    realTrades.filter((t) => (t.date || '').startsWith(monthKey)).forEach((t) => {
+      const s = (monthAgg[t.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: true });
+      s.profit += t.profit; s.cost += t.buyAvg * t.quantity;
     });
+    const { best: bestM, worst: worstM } = bestWorst(monthAgg);
 
+    // 1) Best performer overall — pinned to top
     if (best) {
       out.push({
-        key: 'best', tone: 'good', Icon: TrendingUp, score: 25 + Math.min(50, Math.max(0, best.ret)),
+        key: 'best', tone: 'good', Icon: TrendingUp, score: 1000,
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            {strong(best.ticker)} is your best performer{' '}
-            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700">{best.status}</span>
+            {strong(best.ticker)} is your best performer <Badge>{best.status}</Badge>
             <span className={`block mt-0.5 font-bold ${best.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
               {best.profit >= 0 ? '+' : ''}{money(best.profit)} ({pct(best.ret)})
             </span>
@@ -87,9 +106,23 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       });
     }
 
+    // 2) Best performer this month
+    if (bestM && bestM.profit > 0) {
+      out.push({
+        key: 'bestMonth', tone: 'good', Icon: CalendarDays, score: 950,
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            {strong(bestM.ticker)} is your top performer this month <Badge>{monthName}</Badge>
+            <span className="block mt-0.5 font-bold text-emerald-600 dark:text-emerald-400">+{money(bestM.profit)} ({pct(bestM.ret)})</span>
+          </p>
+        ),
+      });
+    }
+
+    // 3) Biggest drag overall
     if (worst && (!best || worst.ticker !== best.ticker) && worst.ret < 0) {
       out.push({
-        key: 'worst', tone: 'rose', Icon: TrendingDown, score: 24 + Math.min(50, Math.abs(worst.ret)),
+        key: 'worst', tone: 'rose', Icon: TrendingDown, score: 900,
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
             {strong(worst.ticker)} is your biggest drag
@@ -99,21 +132,35 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       });
     }
 
-    // ---- Concentration (top 3 share of active value) ----
+    // 4) Biggest drag this month
+    if (worstM && worstM.ret < 0 && (!bestM || worstM.ticker !== bestM.ticker)) {
+      out.push({
+        key: 'worstMonth', tone: 'rose', Icon: CalendarDays, score: 850,
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            {strong(worstM.ticker)} is your biggest drag this month <Badge>{monthName}</Badge>
+            <span className="block mt-0.5 font-bold text-rose-500">{money(worstM.profit)} ({pct(worstM.ret)})</span>
+          </p>
+        ),
+      });
+    }
+
+    // ---- Concentration (names the top holdings) ----
     const valued = holdings
       .map((h) => ({ ticker: h.ticker, val: h.currentPrice * h.quantity }))
       .sort((a, b) => b.val - a.val);
     if (valued.length && stats.totalValue > 0) {
       const top1 = valued[0];
       const top1Pct = (top1.val / stats.totalValue) * 100;
-      const top3Pct = (valued.slice(0, 3).reduce((s, x) => s + x.val, 0) / stats.totalValue) * 100;
+      const top3 = valued.slice(0, 3);
+      const top3Pct = (top3.reduce((s, x) => s + x.val, 0) / stats.totalValue) * 100;
       const heavy = top3Pct >= 60;
       out.push({
         key: 'conc', tone: heavy ? 'warn' : 'info', Icon: heavy ? AlertTriangle : PieChart,
         score: 30 + top3Pct,
         node: valued.length >= 3 ? (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            Your top 3 holdings are {strong(pct(top3Pct))} of the portfolio{heavy ? ' — heavily concentrated' : ''}
+            Your top 3 — {strong(top3.map((x) => x.ticker).join(', '))} — are {strong(pct(top3Pct))} of the portfolio{heavy ? ' (heavily concentrated)' : ''}
           </p>
         ) : (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
@@ -125,10 +172,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
 
     // ---- Sector exposure ----
     const sectorMap: Record<string, number> = {};
-    holdings.forEach((h) => {
-      const s = h.sector || 'Other';
-      sectorMap[s] = (sectorMap[s] || 0) + h.currentPrice * h.quantity;
-    });
+    holdings.forEach((h) => { const s = h.sector || 'Other'; sectorMap[s] = (sectorMap[s] || 0) + h.currentPrice * h.quantity; });
     const sectors = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]);
     if (sectors.length && stats.totalValue > 0) {
       const [name, val] = sectors[0];
@@ -136,11 +180,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       if (sPct >= 20) {
         out.push({
           key: 'sector', tone: sPct >= 45 ? 'warn' : 'info', Icon: Layers, score: 14 + sPct / 2,
-          node: (
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-              {strong(name)} is your largest sector at {strong(pct(sPct))} of holdings
-            </p>
-          ),
+          node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(name)} is your largest sector at {strong(pct(sPct))} of holdings</p>,
         });
       }
     }
@@ -152,26 +192,18 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
         const underPct = (under / holdings.length) * 100;
         out.push({
           key: 'under', tone: underPct >= 50 ? 'warn' : 'info', Icon: Activity, score: 18 + underPct / 3,
-          node: (
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-              {strong(`${under} of ${holdings.length}`)} holdings are currently in the red
-            </p>
-          ),
+          node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(`${under} of ${holdings.length}`)} holdings are currently in the red</p>,
         });
       }
     }
 
-    // ---- Win rate + biggest win/loss ----
+    // ---- Win rate + biggest single trades ----
     if (realTrades.length >= 3) {
       const wins = realTrades.filter((t) => t.profit > 0).length;
       const wr = (wins / realTrades.length) * 100;
       out.push({
         key: 'winrate', tone: wr >= 50 ? 'good' : 'warn', Icon: Target, score: 22,
-        node: (
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            You've closed {strong(String(realTrades.length))} trades with a {strong(pct(wr))} win rate
-          </p>
-        ),
+        node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">You've closed {strong(String(realTrades.length))} trades with a {strong(pct(wr))} win rate</p>,
       });
 
       const bestTrade = realTrades.reduce((a, b) => (b.profit > a.profit ? b : a));
@@ -195,12 +227,10 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const grossGains = stats.netRealizedPL + stats.totalDividends + Math.max(0, stats.unrealizedPL) + totalCosts;
       const feePct = grossGains > 0 ? (totalCosts / grossGains) * 100 : null;
       out.push({
-        key: 'fees', tone: feePct != null && feePct >= 15 ? 'warn' : 'info', Icon: Receipt,
-        score: 26 + (feePct || 0),
+        key: 'fees', tone: feePct != null && feePct >= 15 ? 'warn' : 'info', Icon: Receipt, score: 26 + (feePct || 0),
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            Fees and taxes have cost {strong(`Rs ${money0(totalCosts)}`)}
-            {feePct != null && <> — about {strong(pct(feePct))} of your gross gains</>}
+            Fees and taxes have cost {strong(`Rs ${money0(totalCosts)}`)}{feePct != null && <> — about {strong(pct(feePct))} of your gross gains</>}
           </p>
         ),
       });
@@ -213,26 +243,18 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       if (cashPct >= 10) {
         out.push({
           key: 'cash', tone: cashPct >= 30 ? 'warn' : 'info', Icon: Wallet, score: 8 + cashPct / 2,
-          node: (
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-              {strong(`Rs ${money0(stats.freeCash)}`)} ({pct(cashPct)} of net worth) is sitting in cash
-            </p>
-          ),
+          node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(`Rs ${money0(stats.freeCash)}`)} ({pct(cashPct)} of net worth) is sitting in cash</p>,
         });
       }
     }
 
-    // ---- Realized vs paper split ----
+    // ---- Realized vs paper ----
     const totalGain = stats.netRealizedPL + stats.unrealizedPL;
     if (totalGain > 0 && stats.unrealizedPL > 0) {
       const paperPct = (stats.unrealizedPL / totalGain) * 100;
       out.push({
         key: 'paper', tone: 'info', Icon: Percent, score: 9,
-        node: (
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            {strong(pct(paperPct))} of your gains are still unrealized (on paper)
-          </p>
-        ),
+        node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(pct(paperPct))} of your gains are still unrealized (on paper)</p>,
       });
     }
 
@@ -242,22 +264,14 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const divPct = totalReturn > 0 ? (stats.totalDividends / totalReturn) * 100 : 0;
       out.push({
         key: 'div', tone: 'purple', Icon: Coins, score: 12,
-        node: (
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            Dividends are {strong(pct(divPct))} of your total returns
-          </p>
-        ),
+        node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">Dividends are {strong(pct(divPct))} of your total returns</p>,
       });
     }
 
     // ---- Today's move (low priority) ----
     out.push({
       key: 'daily', tone: stats.dailyPL >= 0 ? 'good' : 'rose', Icon: Activity, score: 5,
-      node: (
-        <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-          Your portfolio {stats.dailyPL >= 0 ? 'gained' : 'lost'} {strong(pct(Math.abs(stats.dailyPLPercent)))} today
-        </p>
-      ),
+      node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">Your portfolio {stats.dailyPL >= 0 ? 'gained' : 'lost'} {strong(pct(Math.abs(stats.dailyPLPercent)))} today</p>,
     });
 
     return out.sort((a, b) => b.score - a.score);
