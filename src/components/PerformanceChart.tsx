@@ -63,7 +63,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           transactions.filter(t => t.type === 'BUY').map(t => t.ticker)
       ));
       
-      const tickersToFetch = ['KSE100', ...allTickers];
+      // ADDED: KMI30 to the fetch list
+      const tickersToFetch = ['KSE100', 'KMI30', ...allTickers];
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
       // Fetch all required histories via proxy
@@ -85,6 +86,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       }));
 
       const kseData = historyData['KSE100'] || [];
+      const kmiData = historyData['KMI30'] || []; // Extract KMI30 data
+      
       if (kseData.length < 2) {
           throw new Error("Unable to fetch KSE100 data. Please try again in a few moments.");
       }
@@ -104,6 +107,17 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         const displayDate = new Date(todayKse.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
         const kseChange = prevKse.price > 0 ? ((todayKse.price - prevKse.price) / prevKse.price) * 100 : 0;
+
+        // Calculate KMI30 daily change dynamically based on matching dates
+        let kmiChange = 0;
+        if (kmiData.length > 0) {
+            const todayKmi = kmiData.find(d => d.dateStr === dateStr);
+            const prevKmi = kmiData.find(d => d.dateStr === prevKse.dateStr);
+            
+            if (todayKmi && prevKmi && prevKmi.price > 0) {
+                kmiChange = ((todayKmi.price - prevKmi.price) / prevKmi.price) * 100;
+            }
+        }
 
         // Weighted Portfolio Calculation logic
         const heldBalances = getHeldBalancesOnDate(dateStr);
@@ -136,6 +150,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 date: displayDate,
                 rawDate: dateStr,
                 KSE100: parseFloat(kseChange.toFixed(2)),
+                KMI30: parseFloat(kmiChange.toFixed(2)), // ADDED: KMI30 metric
                 Portfolio: parseFloat(portfolioChange.toFixed(2)),
                 heldCount: validStockCount
             });
@@ -158,7 +173,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wider">
           <TrendingUp className="text-emerald-500" size={18} />
-          30-Day Daily Return % (Portfolio Avg vs KSE-100)
+          30-Day Daily Return % (Portfolio Avg vs KSE-100 vs KMI-30)
         </h2>
         <button 
           onClick={handleFetchAndCalculate} 
@@ -192,17 +207,21 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 axisLine={false} 
                 tickLine={false} 
               />
+              
+              {/* Removed strict domain so bounds scale automatically based on data volatility */}
               <YAxis 
-                domain={[-10, 10]}
-                ticks={[-10, -7.5, -5, -2.5, 0, 2.5, 5, 7.5, 10]}
                 tickFormatter={(val) => `${val}%`} 
                 tick={{ fontSize: 10, fill: '#94a3b8' }} 
                 axisLine={false} 
                 tickLine={false} 
               />
+              
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
-                formatter={(value: number, name: string) => [`${value}%`, name === 'Portfolio' ? 'Portfolio Avg' : 'KSE-100']}
+                formatter={(value: number, name: string) => [
+                  `${value}%`, 
+                  name === 'Portfolio' ? 'Portfolio Avg' : name === 'KSE100' ? 'KSE-100' : 'KMI-30'
+                ]}
                 labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '10px' }} />
@@ -224,6 +243,16 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 strokeWidth={2.5} 
                 dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} 
                 activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
+              />
+              {/* NEW KMI-30 Line */}
+              <Line 
+                type="monotone" 
+                name="KMI30" 
+                dataKey="KMI30" 
+                stroke="#f59e0b" // Amber color to contrast with green and indigo
+                strokeWidth={2.5} 
+                dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} 
+                activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }}
               />
             </LineChart>
           </ResponsiveContainer>
