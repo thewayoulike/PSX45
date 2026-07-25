@@ -22,6 +22,7 @@ import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
+import { PortfolioInsights } from './PortfolioInsights'; // <-- NEW IMPORT
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
@@ -1143,19 +1144,27 @@ const App: React.FC = () => {
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
-                              <div className="flex flex-col gap-6 mt-6">
-                                  <PerformanceChart
-                                     key={isCombinedView ? 'combined' : currentPortfolioId}
-                                     transactions={portfolioTransactions}
-                                     savedData={performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || []}
-                                     onSaveData={(data) => {
-                                         setPerformanceHistory(prev => ({
-                                             ...prev,
-                                             [isCombinedView ? 'combined' : currentPortfolioId]: data
-                                         }));
-                                     }}
-                                  />
-                                  <AllocationChart holdings={holdings} />
+                              
+                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                                  <div className="lg:col-span-3">
+                                      <PerformanceChart
+                                         key={isCombinedView ? 'combined' : currentPortfolioId}
+                                         transactions={portfolioTransactions}
+                                         savedData={performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || []}
+                                         onSaveData={(data) => {
+                                             setPerformanceHistory(prev => ({
+                                                 ...prev,
+                                                 [isCombinedView ? 'combined' : currentPortfolioId]: data
+                                             }));
+                                         }}
+                                      />
+                                  </div>
+                                  <div className="lg:col-span-2">
+                                      <AllocationChart holdings={holdings} />
+                                  </div>
+                                  <div className="lg:col-span-1">
+                                      <PortfolioInsights holdings={holdings} stats={stats} />
+                                  </div>
                               </div>
                           </div>
                       )}
