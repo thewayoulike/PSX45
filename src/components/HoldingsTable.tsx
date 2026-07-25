@@ -200,7 +200,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400"; 
 
                   return (
-                    {/* ADDED ZEBRA STRIPING HERE: even:bg-slate-50/70 dark:even:bg-slate-800/30 */}
                     <tr 
                       key={`${holding.ticker}-${holding.broker || idx}`} 
                       className="even:bg-slate-50/70 dark:even:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer" 
