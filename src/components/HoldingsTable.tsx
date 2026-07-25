@@ -110,7 +110,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   );
 
   return (
-    // Premium Outer Card
     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden flex flex-col h-full animate-fade-in-up">
         
         {/* Header Section */}
@@ -201,9 +200,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400"; 
 
                   return (
+                    {/* ADDED ZEBRA STRIPING HERE: even:bg-slate-50/70 dark:even:bg-slate-800/30 */}
                     <tr 
                       key={`${holding.ticker}-${holding.broker || idx}`} 
-                      className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors group cursor-pointer" 
+                      className="even:bg-slate-50/70 dark:even:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer" 
                       onClick={() => onTickerClick && onTickerClick(holding.ticker)}
                     >
                       {/* Asset Column */}
