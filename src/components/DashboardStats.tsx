@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Holding, PortfolioStats } from '../types';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
@@ -21,26 +21,133 @@ const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionD
 const spct = (n: number) => `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(2)}%`;
 const clamp = (n: number, a = 0, b = 100) => Math.max(a, Math.min(b, n));
 
-// --- Edge-to-Edge Sparkline with Gradient Fill ---
-const Spark: React.FC<{ data: number[]; color: string }> = ({ data, color }) => {
-  const w = 300, h = 60;
-  const min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`);
+// --- Interactive Edge-to-Edge Sparkline with Hover ---
+const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = ({ data, color, isPercent = false }) => {
+  const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  if (!data || data.length < 2) return <div className="h-full w-full" />;
   
-  // Use a unique ID for the gradient to prevent clashing
+  const w = 300;
+  const h = 80;
+  const paddingY = 15; // Padding to prevent dots from clipping
+  const drawH = h - paddingY * 2;
+  
+  const min = Math.min(...data);
+  const max = Math.max(...data);
+  const range = max - min || 1;
+  
+  // Map data to x,y coordinates
+  const points = data.map((v, i) => {
+    const x = (i / (data.length - 1)) * w;
+    const y = paddingY + drawH - ((v - min) / range) * drawH;
+    return { x, y, value: v };
+  });
+
+  const ptsString = points.map(p => `${p.x},${p.y}`).join(' ');
   const gradientId = `spark-grad-${color.replace('#', '')}`;
 
+  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    if (!svgRef.current) return;
+    const rect = svgRef.current.getBoundingClientRect();
+    // Get mouse X relative to the internal 300px viewBox
+    const mouseX = ((e.clientX - rect.left) / rect.width) * w;
+    
+    // Find nearest data point
+    let closestIdx = 0;
+    let minDiff = Infinity;
+    points.forEach((p, i) => {
+      const diff = Math.abs(p.x - mouseX);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    });
+    setHoverIndex(closestIdx);
+  };
+
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full drop-shadow-sm" preserveAspectRatio="none" aria-hidden="true">
-      <defs>
-        <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.15" />
-          <stop offset="100%" stopColor={color} stopOpacity="0.0" />
-        </linearGradient>
-      </defs>
-      <polygon points={`0,${h} ${pts.join(' ')} ${w},${h}`} fill={`url(#${gradientId})`} />
-      <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <div className="relative w-full h-full">
+      <svg 
+        ref={svgRef}
+        viewBox={`0 0 ${w} ${h}`} 
+        className="w-full h-full drop-shadow-sm overflow-visible cursor-crosshair" 
+        preserveAspectRatio="none" 
+        aria-hidden="true"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIndex(null)}
+        onTouchMove={(e) => {
+          // Add touch support for mobile
+          if (!svgRef.current) return;
+          const rect = svgRef.current.getBoundingClientRect();
+          const touchX = ((e.touches[0].clientX - rect.left) / rect.width) * w;
+          let closestIdx = 0;
+          let minDiff = Infinity;
+          points.forEach((p, i) => {
+            const diff = Math.abs(p.x - touchX);
+            if (diff < minDiff) { minDiff = diff; closestIdx = i; }
+          });
+          setHoverIndex(closestIdx);
+        }}
+        onTouchEnd={() => setHoverIndex(null)}
+      >
+        <defs>
+          <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="100%" stopColor={color} stopOpacity="0.0" />
+          </linearGradient>
+        </defs>
+        
+        {/* Fill Gradient */}
+        <polygon points={`0,${h} ${ptsString} ${w},${h}`} fill={`url(#${gradientId})`} />
+        
+        {/* Main Line */}
+        <polyline points={ptsString} fill="none" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+        
+        {/* Interactive Hover Indicators */}
+        {hoverIndex !== null && (
+          <>
+            {/* Vertical Tracker Line */}
+            <line 
+              x1={points[hoverIndex].x} 
+              y1={0} 
+              x2={points[hoverIndex].x} 
+              y2={h} 
+              stroke={color} 
+              strokeWidth="1.5" 
+              strokeDasharray="3,3" 
+              opacity="0.4" 
+            />
+            {/* Tracker Dot */}
+            <circle 
+              cx={points[hoverIndex].x} 
+              cy={points[hoverIndex].y} 
+              r="4.5" 
+              fill="#ffffff" 
+              stroke={color} 
+              strokeWidth="2.5" 
+              className="drop-shadow-md"
+            />
+          </>
+        )}
+      </svg>
+      
+      {/* HTML Tooltip (Renders on top of SVG) */}
+      {hoverIndex !== null && (
+        <div 
+          className="absolute pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-bold font-mono px-2 py-1 rounded-lg shadow-xl transition-all duration-75 ease-out whitespace-nowrap z-50"
+          style={{
+            left: `${(points[hoverIndex].x / w) * 100}%`,
+            top: `${(points[hoverIndex].y / h) * 100}%`
+          }}
+        >
+          {isPercent 
+            ? `${points[hoverIndex].value >= 0 ? '+' : ''}${points[hoverIndex].value.toFixed(2)}%`
+            : `Rs. ${points[hoverIndex].value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          }
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -124,7 +231,7 @@ const pillarBar = (s: number) => (s >= 60 ? 'bg-emerald-500' : s <= 40 ? 'bg-ros
 const pillarText = (s: number) => (s >= 60 ? 'text-emerald-600 dark:text-emerald-400' : s <= 40 ? 'text-rose-500' : 'text-amber-600 dark:text-amber-400');
 
 const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: React.ReactNode }> = ({ pillars, score, children }) => (
-  <span className="relative group inline-flex cursor-help" tabIndex={0}>
+  <span className="relative group inline-flex cursor-help z-30" tabIndex={0}>
     {children}
     <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible transition-all duration-200 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-card dark:shadow-card-dark p-4 text-left normal-case tracking-normal transform scale-95 group-hover:scale-100 origin-bottom">
       <div className="flex items-center justify-between mb-3">
@@ -157,11 +264,10 @@ const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: Reac
 // --- Top Hero Card with Edge-to-Edge Sparkline ---
 const HeroCard: React.FC<{
   label: string; value: React.ReactNode; sub?: React.ReactNode; 
-  colorClass: string; icon: React.ReactNode; iconWrap: string; trend?: number[]; sparkColor: string;
-}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor }) => {
+  colorClass: string; icon: React.ReactNode; iconWrap: string; trend?: number[]; sparkColor: string; isPercentGraph?: boolean;
+}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor, isPercentGraph = false }) => {
   
-  // If no historical trend data is available yet, generate a visually pleasing 7-day dummy line 
-  // that matches the direction of the P&L (up or down) so the UI never looks broken.
+  // Fallback 7-day dummy line so the UI never looks broken on new accounts
   const isPositive = sparkColor === '#10b981' || sparkColor === '#3b82f6';
   const fallbackTrend = isPositive 
     ? [30, 35, 32, 45, 40, 55, 60] 
@@ -170,22 +276,23 @@ const HeroCard: React.FC<{
   const activeTrend = trend && trend.length > 1 ? trend : fallbackTrend;
 
   return (
-    <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-20 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
-      <div className="relative z-10 flex items-start justify-between">
+    <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
+      <div className="relative z-10 flex items-start justify-between pointer-events-none">
         <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</span>
         <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${iconWrap}`}>
           {icon}
         </div>
       </div>
-      <div className={`relative z-10 text-3xl md:text-4xl font-display font-black mt-3 tracking-tight tabular-nums ${colorClass}`}>
+      <div className={`relative z-10 text-3xl md:text-4xl font-display font-black mt-3 tracking-tight tabular-nums pointer-events-none ${colorClass}`}>
         {value}
       </div>
-      <div className="relative z-10 mt-1.5 flex items-center gap-2">
+      <div className="relative z-10 mt-1.5 flex items-center gap-2 pointer-events-none">
         {sub && <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{sub}</span>}
       </div>
-      {/* Absolute Bottom Sparkline */}
-      <div className="absolute bottom-0 left-0 right-0 h-16 pointer-events-none opacity-80 group-hover:opacity-100 transition-opacity">
-        <Spark data={activeTrend} color={sparkColor} />
+      
+      {/* Absolute Bottom Interactive Sparkline Container */}
+      <div className="absolute bottom-0 left-0 right-0 h-24 z-20 group-hover:z-30 opacity-90 group-hover:opacity-100 transition-all duration-300">
+        <Spark data={activeTrend} color={sparkColor} isPercent={isPercentGraph} />
       </div>
     </div>
   );
@@ -230,6 +337,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
 
   const posNeg = (v: number) => v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400';
 
+  // Generate percent trends for the middle and right cards if we only have absolute numbers
+  const returnTrend = trend ? trend.map(t => stats.netPrincipal > 0 ? ((t - stats.netPrincipal) / stats.netPrincipal) * 100 : 0) : undefined;
+  
+  // Simulate daily PL trend by finding the delta between days
+  const dailyPLTrend = trend ? trend.map((t, i) => i === 0 ? 0 : t - trend[i-1]) : undefined;
+
   return (
     <div className="space-y-6 mb-8">
       {/* Greeting - Animated */}
@@ -269,8 +382,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           sub={<span className={posNeg(totalReturnRs)}>{isTotalReturnPositive ? '+' : '-'}{rs(Math.abs(totalReturnRs))}</span>}
           icon={<TrendingUp size={16} className={isTotalReturnPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'} />}
           iconWrap={isTotalReturnPositive ? 'bg-emerald-50 dark:bg-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/20'}
-          trend={trend} 
+          trend={returnTrend} 
           sparkColor={isTotalReturnPositive ? '#10b981' : '#f43f5e'}
+          isPercentGraph={true}
         />
         <HeroCard
           label="Today's P&L"
@@ -279,7 +393,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           sub={`${spct(stats.dailyPLPercent || 0)}`}
           icon={<Activity size={16} className={isDailyProfitable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'} />}
           iconWrap={isDailyProfitable ? 'bg-emerald-50 dark:bg-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/20'}
-          trend={trend} 
+          trend={dailyPLTrend} 
           sparkColor={isDailyProfitable ? '#10b981' : '#f43f5e'}
         />
       </div>
