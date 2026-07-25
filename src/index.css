@@ -1,26 +1,109 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ---------------------------------------------------------------
+   Theme tokens — change the accent or surfaces in ONE place.
+   Values are space-separated RGB so they work with /opacity too:
+   e.g. rgb(var(--accent) / 0.2)
+--------------------------------------------------------------- */
+:root {
+  --accent: 16 185 129;        /* emerald-500 */
+  --accent-strong: 5 150 105;  /* emerald-600 */
+
+  --page: 248 250 252;         /* slate-50 */
+  --text: 15 23 42;            /* slate-900 */
+  --muted: 100 116 139;        /* slate-500 */
+
+  --surface: 255 255 255;      /* card bg */
+  --surface-border: 226 232 240; /* slate-200 */
+}
+
+html.dark {
+  --page: 2 6 23;              /* slate-950 */
+  --text: 248 250 252;
+  --muted: 148 163 184;        /* slate-400 */
+
+  --surface: 15 23 42;         /* slate-900 */
+  --surface-border: 30 41 59;  /* slate-800 */
+}
+
 @layer base {
   body {
     font-family: 'Inter', sans-serif;
-    /* Smoother, premium mesh-like gradient */
     background: radial-gradient(circle at top left, #f0fdf4 0%, #f8fafc 40%, #ffffff 100%);
     background-attachment: fixed;
-    color: #0f172a;
-    transition: background 0.4s ease, color 0.4s ease;
+    color: rgb(var(--text));
+    transition: color 0.3s ease;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  html.dark body {
+    background: radial-gradient(circle at top right, #0f172a 0%, #020617 60%, #000000 100%) !important;
+    color: rgb(var(--text));
   }
 
-  html.dark body {
-    /* Deep, rich dark mode background */
-    background: radial-gradient(circle at top right, #0f172a 0%, #020617 60%, #000000 100%) !important;
-    color: #f8fafc;
+  /* Numbers align in columns — essential for money tables */
+  .tabular, table td, .font-display {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  /* Consistent keyboard focus everywhere */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.35);
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: rgb(var(--accent) / 0.25);
+    color: rgb(var(--text));
+  }
+
+  /* Respect users who prefer less motion */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+}
+
+@layer components {
+  /* One card style, used everywhere -> consistency */
+  .card {
+    background: rgb(var(--surface));
+    border: 1px solid rgb(var(--surface-border));
+    border-radius: 1rem; /* 16px */
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.05);
+  }
+  .dark .card {
+    box-shadow: 0 10px 40px -10px rgba(0, 0, 0, 0.35);
+  }
+
+  /* Primary button token */
+  .btn-accent {
+    background: rgb(var(--accent-strong));
+    color: #fff;
+    transition: background-color 0.15s ease, transform 0.1s ease;
+  }
+  .btn-accent:hover { background: rgb(var(--accent)); }
+  .btn-accent:active { transform: scale(0.98); }
+
+  /* Skeleton loader — use while prices/data are syncing */
+  .skeleton {
+    background: linear-gradient(90deg,
+      rgb(var(--surface-border) / 0.4) 25%,
+      rgb(var(--surface-border) / 0.7) 37%,
+      rgb(var(--surface-border) / 0.4) 63%);
+    background-size: 400% 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 8px;
   }
 }
 
@@ -32,58 +115,40 @@
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid rgba(255, 255, 255, 0.8);
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
-    color: #0f172a;
-    transition: all 0.2s ease;
+    color: rgb(var(--text));
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
-  
   .glass-input:focus {
     background: rgba(255, 255, 255, 0.9);
-    border-color: #10b981; /* Emerald border on focus */
+    border-color: rgb(var(--accent));
     outline: none;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.2);
   }
-
   .dark .glass-input {
     background: rgba(30, 41, 59, 0.5);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
-    color: #f8fafc;
+    color: rgb(var(--text));
   }
-
   .dark .glass-input:focus {
     background: rgba(30, 41, 59, 0.8);
-    border-color: #10b981;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.2);
+    border-color: rgb(var(--accent));
+    box-shadow: 0 0 0 3px rgb(var(--accent) / 0.2);
   }
 
-  /* Custom Scrollbar - Modern & Clean */
-  ::-webkit-scrollbar { 
-    width: 6px; 
-    height: 6px; 
-  }
-  ::-webkit-scrollbar-track { 
-    background: transparent; 
-  }
-  ::-webkit-scrollbar-thumb { 
-    background: #cbd5e1; 
-    border-radius: 10px; 
-  }
-  ::-webkit-scrollbar-thumb:hover { 
-    background: #94a3b8; 
-  }
-  .dark ::-webkit-scrollbar-thumb { 
-    background: #334155; 
-  }
-  .dark ::-webkit-scrollbar-thumb:hover { 
-    background: #475569; 
-  }
+  /* Scrollbars */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .dark ::-webkit-scrollbar-thumb { background: #334155; }
+  .dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
 
-  /* Utility to hide scrollbar but keep functionality */
-  .no-scrollbar::-webkit-scrollbar {
-    display: none;
-  }
-  .no-scrollbar {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
 }
