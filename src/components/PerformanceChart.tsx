@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
+import { KMI30 } from '../services/indices';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle } from 'lucide-react';
 import { Card } from './ui/Card';
 
@@ -59,15 +60,14 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
     setErrorMsg(null);
     
     try {
-      const allTickers = Array.from(new Set(
+      const userTickers = Array.from(new Set(
           transactions.filter(t => t.type === 'BUY').map(t => t.ticker)
       ));
       
-      // ADDED: KMI30 to the fetch list
-      const tickersToFetch = ['KSE100', 'KMI30', ...allTickers];
+      // Fetch KSE100, all KMI-30 constituent stocks, and user portfolio stocks
+      const tickersToFetch = Array.from(new Set(['KSE100', ...KMI30, ...userTickers]));
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
-      // Fetch all required histories via proxy
       await Promise.all(tickersToFetch.map(async (ticker) => {
         try {
           const data = await fetchStockHistory(ticker, '1M');
@@ -86,8 +86,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       }));
 
       const kseData = historyData['KSE100'] || [];
-      const kmiData = historyData['KMI30'] || []; // Extract KMI30 data
-      
       if (kseData.length < 2) {
           throw new Error("Unable to fetch KSE100 data. Please try again in a few moments.");
       }
@@ -108,16 +106,25 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
         const kseChange = prevKse.price > 0 ? ((todayKse.price - prevKse.price) / prevKse.price) * 100 : 0;
 
-        // Calculate KMI30 daily change dynamically based on matching dates
-        let kmiChange = 0;
-        if (kmiData.length > 0) {
-            const todayKmi = kmiData.find(d => d.dateStr === dateStr);
-            const prevKmi = kmiData.find(d => d.dateStr === prevKse.dateStr);
-            
-            if (todayKmi && prevKmi && prevKmi.price > 0) {
-                kmiChange = ((todayKmi.price - prevKmi.price) / prevKmi.price) * 100;
+        // Calculate KMI-30 index return by averaging its constituent stocks
+        let kmiTotalChange = 0;
+        let kmiStockCount = 0;
+
+        KMI30.forEach(ticker => {
+          const stockHist = historyData[ticker];
+          if (stockHist && stockHist.length > 0) {
+            const todayIdx = stockHist.findIndex(d => d.dateStr === dateStr);
+            if (todayIdx > 0) {
+              const todayPrice = stockHist[todayIdx].price;
+              const prevPrice = stockHist[todayIdx - 1].price;
+              if (prevPrice > 0) {
+                kmiTotalChange += ((todayPrice - prevPrice) / prevPrice) * 100;
+                kmiStockCount++;
+              }
             }
-        }
+          }
+        });
+        const kmiChange = kmiStockCount > 0 ? kmiTotalChange / kmiStockCount : 0;
 
         // Weighted Portfolio Calculation logic
         const heldBalances = getHeldBalancesOnDate(dateStr);
@@ -150,7 +157,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 date: displayDate,
                 rawDate: dateStr,
                 KSE100: parseFloat(kseChange.toFixed(2)),
-                KMI30: parseFloat(kmiChange.toFixed(2)), // ADDED: KMI30 metric
+                KMI30: parseFloat(kmiChange.toFixed(2)),
                 Portfolio: parseFloat(portfolioChange.toFixed(2)),
                 heldCount: validStockCount
             });
@@ -198,7 +205,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
               
-              {/* Red Reference line at 0% */}
               <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" />
 
               <XAxis 
@@ -207,15 +213,12 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 axisLine={false} 
                 tickLine={false} 
               />
-              
-              {/* Removed strict domain so bounds scale automatically based on data volatility */}
               <YAxis 
                 tickFormatter={(val) => `${val}%`} 
                 tick={{ fontSize: 10, fill: '#94a3b8' }} 
                 axisLine={false} 
                 tickLine={false} 
               />
-              
               <Tooltip 
                 contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                 formatter={(value: number, name: string) => [
@@ -244,12 +247,11 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} 
                 activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
               />
-              {/* NEW KMI-30 Line */}
               <Line 
                 type="monotone" 
                 name="KMI30" 
                 dataKey="KMI30" 
-                stroke="#f59e0b" // Amber color to contrast with green and indigo
+                stroke="#f59e0b" 
                 strokeWidth={2.5} 
                 dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} 
                 activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }}
