@@ -1,56 +1,272 @@
-import React, { useMemo } from 'react';
-import { Holding, PortfolioStats } from '../types';
-import { TrendingUp, PieChart, Activity, Coins } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Holding, PortfolioStats, RealizedTrade } from '../types';
+import {
+  TrendingUp, TrendingDown, PieChart, Activity, Coins, Layers,
+  Wallet, Receipt, Target, Trophy, AlertTriangle, Percent
+} from 'lucide-react';
 
 interface PortfolioInsightsProps {
   holdings: Holding[];
+  realizedTrades: RealizedTrade[];
   stats: PortfolioStats;
+  onViewReport?: () => void;
 }
 
-export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, stats }) => {
-  const insights = useMemo(() => {
-    if (!holdings || holdings.length === 0) return null;
+type Tone = 'good' | 'warn' | 'info' | 'purple' | 'rose';
 
-    // 1. Best Performer
-    const bestHolding = [...holdings].sort((a, b) => {
-      const aReturn = a.avgPrice > 0 ? (a.currentPrice - a.avgPrice) / a.avgPrice : 0;
-      const bReturn = b.avgPrice > 0 ? (b.currentPrice - b.avgPrice) / b.avgPrice : 0;
-      return bReturn - aReturn;
-    })[0];
-    
-    const bestReturnPct = bestHolding && bestHolding.avgPrice > 0 
-        ? ((bestHolding.currentPrice - bestHolding.avgPrice) / bestHolding.avgPrice) * 100 
-        : 0;
-    const bestReturnAbs = bestHolding ? (bestHolding.currentPrice - bestHolding.avgPrice) * bestHolding.quantity : 0;
+const TONE: Record<Tone, { bg: string; fg: string }> = {
+  good:   { bg: 'bg-emerald-100 dark:bg-emerald-900/40', fg: 'text-emerald-600 dark:text-emerald-400' },
+  warn:   { bg: 'bg-amber-100 dark:bg-amber-900/40',     fg: 'text-amber-600 dark:text-amber-400' },
+  info:   { bg: 'bg-blue-100 dark:bg-blue-900/40',       fg: 'text-blue-600 dark:text-blue-400' },
+  purple: { bg: 'bg-purple-100 dark:bg-purple-900/40',   fg: 'text-purple-600 dark:text-purple-400' },
+  rose:   { bg: 'bg-rose-100 dark:bg-rose-900/40',       fg: 'text-rose-600 dark:text-rose-400' },
+};
 
-    // 2. Highest Allocation
-    const topAllocation = [...holdings].sort((a, b) => {
-      return (b.currentPrice * b.quantity) - (a.currentPrice * a.quantity);
-    })[0];
-    
-    const allocationPct = topAllocation && stats.totalValue > 0 
-        ? ((topAllocation.currentPrice * topAllocation.quantity) / stats.totalValue) * 100 
-        : 0;
+const MIN_COST = 500; // ignore tiny positions when ranking % return
 
-    // 3. Dividend Contribution
-    // Calculate total absolute return (Unrealized + Realized + Dividends)
-    const totalAbsoluteReturn = stats.unrealizedPL + stats.netRealizedPL + stats.totalDividends;
-    const divContributionPct = totalAbsoluteReturn > 0 
-        ? (stats.totalDividends / totalAbsoluteReturn) * 100 
-        : 0;
+const money = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money0 = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+const pct = (n: number) => `${n.toFixed(2)}%`;
 
-    return {
-      bestHolding,
-      bestReturnPct,
-      bestReturnAbs,
-      topAllocation,
-      allocationPct,
-      divContributionPct,
-      totalAbsoluteReturn
-    };
-  }, [holdings, stats]);
+interface Insight {
+  key: string;
+  tone: Tone;
+  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  score: number;
+  node: React.ReactNode;
+}
 
-  if (!insights) return null; // Hide if no data
+const VISIBLE = 4; // how many to show before "Show more"
+
+export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, realizedTrades, stats, onViewReport }) => {
+  const [expanded, setExpanded] = useState(false);
+
+  const list = useMemo<Insight[]>(() => {
+    const out: Insight[] = [];
+    const strong = (t: string) => <span className="font-bold text-slate-800 dark:text-slate-100">{t}</span>;
+
+    const realTrades = realizedTrades.filter((t) => t.ticker && t.ticker !== 'PREV-PNL');
+
+    // ---- Per-ticker aggregation (active + sold) for best / worst ----
+    const tickerStats: Record<string, { profit: number; cost: number; isHolding: boolean; isRealized: boolean }> = {};
+    realTrades.forEach((t) => {
+      const s = (tickerStats[t.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
+      s.profit += t.profit;
+      s.cost += t.buyAvg * t.quantity;
+      s.isRealized = true;
+    });
+    holdings.forEach((h) => {
+      const s = (tickerStats[h.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
+      s.profit += (h.currentPrice - h.avgPrice) * h.quantity;
+      s.cost += h.avgPrice * h.quantity;
+      s.isHolding = true;
+    });
+
+    let best: { ticker: string; ret: number; profit: number; status: string } | null = null;
+    let worst: { ticker: string; ret: number; profit: number } | null = null;
+    Object.entries(tickerStats).forEach(([ticker, d]) => {
+      if (d.cost < MIN_COST) return;
+      const ret = (d.profit / d.cost) * 100;
+      const status = d.isHolding && d.isRealized ? 'Active & Sold' : d.isHolding ? 'Active' : 'Sold';
+      if (!best || ret > best.ret) best = { ticker, ret, profit: d.profit, status };
+      if (!worst || ret < worst.ret) worst = { ticker, ret, profit: d.profit };
+    });
+
+    if (best) {
+      out.push({
+        key: 'best', tone: 'good', Icon: TrendingUp, score: 25 + Math.min(50, Math.max(0, best.ret)),
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            {strong(best.ticker)} is your best performer{' '}
+            <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700">{best.status}</span>
+            <span className={`block mt-0.5 font-bold ${best.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
+              {best.profit >= 0 ? '+' : ''}{money(best.profit)} ({pct(best.ret)})
+            </span>
+          </p>
+        ),
+      });
+    }
+
+    if (worst && (!best || worst.ticker !== best.ticker) && worst.ret < 0) {
+      out.push({
+        key: 'worst', tone: 'rose', Icon: TrendingDown, score: 24 + Math.min(50, Math.abs(worst.ret)),
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            {strong(worst.ticker)} is your biggest drag
+            <span className="block mt-0.5 font-bold text-rose-500">{money(worst.profit)} ({pct(worst.ret)})</span>
+          </p>
+        ),
+      });
+    }
+
+    // ---- Concentration (top 3 share of active value) ----
+    const valued = holdings
+      .map((h) => ({ ticker: h.ticker, val: h.currentPrice * h.quantity }))
+      .sort((a, b) => b.val - a.val);
+    if (valued.length && stats.totalValue > 0) {
+      const top1 = valued[0];
+      const top1Pct = (top1.val / stats.totalValue) * 100;
+      const top3Pct = (valued.slice(0, 3).reduce((s, x) => s + x.val, 0) / stats.totalValue) * 100;
+      const heavy = top3Pct >= 60;
+      out.push({
+        key: 'conc', tone: heavy ? 'warn' : 'info', Icon: heavy ? AlertTriangle : PieChart,
+        score: 30 + top3Pct,
+        node: valued.length >= 3 ? (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            Your top 3 holdings are {strong(pct(top3Pct))} of the portfolio{heavy ? ' — heavily concentrated' : ''}
+          </p>
+        ) : (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            {strong(top1.ticker)} is {strong(pct(top1Pct))} of your active portfolio value
+          </p>
+        ),
+      });
+    }
+
+    // ---- Sector exposure ----
+    const sectorMap: Record<string, number> = {};
+    holdings.forEach((h) => {
+      const s = h.sector || 'Other';
+      sectorMap[s] = (sectorMap[s] || 0) + h.currentPrice * h.quantity;
+    });
+    const sectors = Object.entries(sectorMap).sort((a, b) => b[1] - a[1]);
+    if (sectors.length && stats.totalValue > 0) {
+      const [name, val] = sectors[0];
+      const sPct = (val / stats.totalValue) * 100;
+      if (sPct >= 20) {
+        out.push({
+          key: 'sector', tone: sPct >= 45 ? 'warn' : 'info', Icon: Layers, score: 14 + sPct / 2,
+          node: (
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+              {strong(name)} is your largest sector at {strong(pct(sPct))} of holdings
+            </p>
+          ),
+        });
+      }
+    }
+
+    // ---- Underwater positions ----
+    if (holdings.length) {
+      const under = holdings.filter((h) => h.currentPrice > 0 && h.currentPrice < h.avgPrice).length;
+      if (under > 0) {
+        const underPct = (under / holdings.length) * 100;
+        out.push({
+          key: 'under', tone: underPct >= 50 ? 'warn' : 'info', Icon: Activity, score: 18 + underPct / 3,
+          node: (
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+              {strong(`${under} of ${holdings.length}`)} holdings are currently in the red
+            </p>
+          ),
+        });
+      }
+    }
+
+    // ---- Win rate + biggest win/loss ----
+    if (realTrades.length >= 3) {
+      const wins = realTrades.filter((t) => t.profit > 0).length;
+      const wr = (wins / realTrades.length) * 100;
+      out.push({
+        key: 'winrate', tone: wr >= 50 ? 'good' : 'warn', Icon: Target, score: 22,
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            You've closed {strong(String(realTrades.length))} trades with a {strong(pct(wr))} win rate
+          </p>
+        ),
+      });
+
+      const bestTrade = realTrades.reduce((a, b) => (b.profit > a.profit ? b : a));
+      const worstTrade = realTrades.reduce((a, b) => (b.profit < a.profit ? b : a));
+      if (bestTrade.profit > 0 || worstTrade.profit < 0) {
+        out.push({
+          key: 'extremes', tone: 'info', Icon: Trophy, score: 16,
+          node: (
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+              Best exit {strong(bestTrade.ticker)} <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{money0(bestTrade.profit)}</span>
+              {worstTrade.profit < 0 && <> · worst {strong(worstTrade.ticker)} <span className="text-rose-500 font-bold">{money0(worstTrade.profit)}</span></>}
+            </p>
+          ),
+        });
+      }
+    }
+
+    // ---- Fee & tax drag ----
+    const totalCosts = stats.totalCommission + stats.totalSalesTax + stats.totalCDC + stats.totalOtherFees + stats.totalCGT;
+    if (totalCosts > 0) {
+      const grossGains = stats.netRealizedPL + stats.totalDividends + Math.max(0, stats.unrealizedPL) + totalCosts;
+      const feePct = grossGains > 0 ? (totalCosts / grossGains) * 100 : null;
+      out.push({
+        key: 'fees', tone: feePct != null && feePct >= 15 ? 'warn' : 'info', Icon: Receipt,
+        score: 26 + (feePct || 0),
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            Fees and taxes have cost {strong(`Rs ${money0(totalCosts)}`)}
+            {feePct != null && <> — about {strong(pct(feePct))} of your gross gains</>}
+          </p>
+        ),
+      });
+    }
+
+    // ---- Cash drag ----
+    const netWorth = stats.totalValue + stats.freeCash;
+    if (stats.freeCash > 0 && netWorth > 0) {
+      const cashPct = (stats.freeCash / netWorth) * 100;
+      if (cashPct >= 10) {
+        out.push({
+          key: 'cash', tone: cashPct >= 30 ? 'warn' : 'info', Icon: Wallet, score: 8 + cashPct / 2,
+          node: (
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+              {strong(`Rs ${money0(stats.freeCash)}`)} ({pct(cashPct)} of net worth) is sitting in cash
+            </p>
+          ),
+        });
+      }
+    }
+
+    // ---- Realized vs paper split ----
+    const totalGain = stats.netRealizedPL + stats.unrealizedPL;
+    if (totalGain > 0 && stats.unrealizedPL > 0) {
+      const paperPct = (stats.unrealizedPL / totalGain) * 100;
+      out.push({
+        key: 'paper', tone: 'info', Icon: Percent, score: 9,
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            {strong(pct(paperPct))} of your gains are still unrealized (on paper)
+          </p>
+        ),
+      });
+    }
+
+    // ---- Dividend contribution ----
+    if (stats.totalDividends > 0) {
+      const totalReturn = stats.unrealizedPL + stats.netRealizedPL + stats.totalDividends;
+      const divPct = totalReturn > 0 ? (stats.totalDividends / totalReturn) * 100 : 0;
+      out.push({
+        key: 'div', tone: 'purple', Icon: Coins, score: 12,
+        node: (
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+            Dividends are {strong(pct(divPct))} of your total returns
+          </p>
+        ),
+      });
+    }
+
+    // ---- Today's move (low priority) ----
+    out.push({
+      key: 'daily', tone: stats.dailyPL >= 0 ? 'good' : 'rose', Icon: Activity, score: 5,
+      node: (
+        <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
+          Your portfolio {stats.dailyPL >= 0 ? 'gained' : 'lost'} {strong(pct(Math.abs(stats.dailyPLPercent)))} today
+        </p>
+      ),
+    });
+
+    return out.sort((a, b) => b.score - a.score);
+  }, [holdings, realizedTrades, stats]);
+
+  if (list.length === 0) return null;
+
+  const visible = expanded ? list : list.slice(0, VISIBLE);
+  const hidden = list.length - VISIBLE;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
@@ -59,71 +275,38 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Insights</h3>
       </div>
 
-      <div className="flex flex-col space-y-4">
-        
-        {/* Insight 1: Best Performer */}
-        {insights.bestHolding && (
-          <div className="flex items-start gap-4 pb-4 border-b border-slate-100 dark:border-slate-800/60">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400" />
+      <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60">
+        {visible.map((ins) => {
+          const t = TONE[ins.tone];
+          const Icon = ins.Icon;
+          return (
+            <div key={ins.key} className="flex items-start gap-4 py-3.5 first:pt-0">
+              <div className={`w-8 h-8 rounded-full ${t.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                <Icon size={16} className={t.fg} />
+              </div>
+              <div className="min-w-0">{ins.node}</div>
             </div>
-            <div>
-              <p className="text-sm text-slate-600 dark:text-slate-300">
-                <span className="font-bold text-slate-800 dark:text-slate-100">{insights.bestHolding.ticker}</span> is your best performer this month
-              </p>
-              <p className={`text-sm font-bold mt-0.5 ${insights.bestReturnAbs >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
-                {insights.bestReturnAbs >= 0 ? '+' : ''}{insights.bestReturnAbs.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
-                <span className="font-medium ml-1">({insights.bestReturnPct.toFixed(2)}%)</span>
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Insight 2: Allocation */}
-        {insights.topAllocation && (
-          <div className="flex items-start gap-4 pb-4 border-b border-slate-100 dark:border-slate-800/60">
-            <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <PieChart size={16} className="text-amber-600 dark:text-amber-400" />
-            </div>
-            <div>
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-                <span className="font-bold text-amber-600 dark:text-amber-500">{insights.topAllocation.ticker}</span> contributes <span className="font-bold text-slate-800 dark:text-slate-100">{insights.allocationPct.toFixed(2)}%</span> of your portfolio value
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Insight 3: Daily Movement */}
-        <div className="flex items-start gap-4 pb-4 border-b border-slate-100 dark:border-slate-800/60">
-          <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-            <Activity size={16} className="text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-              Your portfolio {stats.dailyPL >= 0 ? 'gained' : 'lost'} <span className="font-bold text-slate-800 dark:text-slate-100">{Math.abs(stats.dailyPLPercent).toFixed(2)}%</span> today
-            </p>
-          </div>
-        </div>
-
-        {/* Insight 4: Dividends */}
-        {stats.totalDividends > 0 && (
-          <div className="flex items-start gap-4 pb-2">
-            <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-              <Coins size={16} className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <div>
-              <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-                Dividend income represents <span className="font-bold text-slate-800 dark:text-slate-100">{insights.divContributionPct.toFixed(2)}%</span> of your total returns
-              </p>
-            </div>
-          </div>
-        )}
-
+          );
+        })}
       </div>
 
-      <button className="w-full mt-6 py-2.5 border border-emerald-600 dark:border-emerald-500 text-emerald-600 dark:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 font-bold rounded-xl transition-colors text-sm">
-        View Full Report
-      </button>
+      {hidden > 0 && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="w-full mt-3 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+        >
+          {expanded ? 'Show less' : `Show ${hidden} more insight${hidden > 1 ? 's' : ''}`}
+        </button>
+      )}
+
+      {onViewReport && (
+        <button
+          onClick={onViewReport}
+          className="w-full mt-3 py-2.5 border border-emerald-600 dark:border-emerald-500 text-emerald-600 dark:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 font-bold rounded-xl transition-colors text-sm"
+        >
+          View Full Report
+        </button>
+      )}
     </div>
   );
 };
