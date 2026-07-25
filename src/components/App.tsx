@@ -1163,7 +1163,11 @@ const App: React.FC = () => {
                                       <AllocationChart holdings={holdings} />
                                   </div>
                                   <div className="lg:col-span-1">
-                                      <PortfolioInsights holdings={holdings} stats={stats} />
+                                      <PortfolioInsights 
+    holdings={holdings} 
+    realizedTrades={realizedTrades} 
+    stats={stats} 
+/>
                                   </div>
                               </div>
                           </div>
