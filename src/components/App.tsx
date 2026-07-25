@@ -20,17 +20,23 @@ import { MarketTicker } from './MarketTicker';
 import { TransferModal } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
-import { AlertsPage } from './AlertsPage'; // <-- IMPORTED NEW ALERTS PAGE
-import { MarketSignalScanner } from './MarketSignalScanner'; // <-- BUY SIGNAL SCANNER
+import { AlertsPage } from './AlertsPage';
+import { MarketSignalScanner } from './MarketSignalScanner';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, ArrowRightLeft, Calculator, TrendingUp, Bell, Radar } from 'lucide-react'; // <-- ADDED Bell, Radar
+import { 
+    Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, 
+    LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, 
+    Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, 
+    ArrowRightLeft, Calculator, TrendingUp, Bell, Radar, ChevronsLeft, ChevronsRight 
+} from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
 import { calculateXIRR } from '../utils/finance';
+
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_BROKER: Broker = {
     id: 'default_01',
@@ -42,8 +48,9 @@ const DEFAULT_BROKER: Broker = {
     isDefault: true
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
-// --> UPDATED: Added 'ALERTS' and 'SIGNALS' to the AppView type
+
 type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS';
+
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [googleSheetId, setGoogleSheetId] = useState<string | null>(null);
@@ -51,6 +58,9 @@ const App: React.FC = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+  
+  // Sidebar State
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   const [viewTicker, setViewTicker] = useState<string | null>(null);
 
@@ -98,20 +108,17 @@ const App: React.FC = () => {
       } catch (e) {}
       return [];
   });
-  // Persistent state for all portfolios
   const [performanceHistory, setPerformanceHistory] = useState<Record<string, any[]>>(() => {
       try {
           const saved = localStorage.getItem('psx_performance_history');
           if (saved) {
               const parsed = JSON.parse(saved);
-              // Migration: If it's an old array format, wrap it in an object for the current portfolio
               if (Array.isArray(parsed)) return { [currentPortfolioId]: parsed };
               return parsed;
           }
       } catch (e) {}
       return {};
   });
-  // ✨ NEW: Fair Value Cache lifted up!
   const [fairValueCache, setFairValueCache] = useState<Record<string, any>>(() => {
       try {
           const saved = localStorage.getItem('psx_fair_value_cache');
@@ -119,6 +126,7 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
+  
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
@@ -154,7 +162,7 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
-  // API KEYS
+  
   const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || '');
   const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || '');
   const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || '');
@@ -174,13 +182,16 @@ const App: React.FC = () => {
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
+  
   const isReadyToSave = useRef(false);
   const initialSyncDone = useRef(false);
+  
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
       if (times.length === 0) return null;
       return times.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
   }, [priceTimestamps]);
+  
   const sectorMap = useMemo(() => {
       const map: Record<string, string> = {};
       const allTickers = new Set(transactions.map(t => t.ticker));
@@ -189,36 +200,40 @@ const App: React.FC = () => {
       });
       return map;
   }, [transactions, sectorOverrides]);
+  
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]);
       setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory({});
-      setFairValueCache({}); // <--- CLEARED ON LOGOUT
+      setFairValueCache({});
       setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
       setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
       setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
       isReadyToSave.current = false;
       initialSyncDone.current = false;
   }, []);
+  
   useIdleTimer(1800000, () => {
-      // Only auto-clear when a cloud (Drive) backup exists.
-      // Wiping a guest's un-synced data on idle = permanent data loss.
       if (driveUser) {
           performLogout();
           alert("Session timed out due to inactivity. Data cleared for security.");
       }
   });
+  
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
+  
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
       if (userScraperKey) setScrapingApiKey(userScraperKey);
       if (userWebScrapingAIKey) setWebScrapingAIKey(userWebScrapingAIKey);
   }, [userApiKey, userScraperKey, userWebScrapingAIKey]);
+  
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
+  
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -242,7 +257,7 @@ const App: React.FC = () => {
                   if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState);
                   if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
-                  if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache); // <--- RESTORED FROM DRIVE
+                  if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
 
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
@@ -274,6 +289,7 @@ const App: React.FC = () => {
       });
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
+  
   const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => {
       setUserApiKey(geminiKey); setUserScraperKey(scraperKey); setUserWebScrapingAIKey(webAIKey);
       setGeminiApiKey(geminiKey); setScrapingApiKey(scraperKey); setWebScrapingAIKey(webAIKey);
@@ -300,6 +316,7 @@ const App: React.FC = () => {
       const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId, brokerId: currentPortfolio.defaultBrokerId, broker: brokerToUse?.name || 'Unknown' };
       setTransactions(prev => [...prev, newTx]);
   };
+  
   const handleTransferStock = (ticker: string, quantity: number, destPortfolioId: string, date: string) => {
       const sourcePortfolio = portfolios.find(p => p.id === currentPortfolioId);
       const destPortfolio = portfolios.find(p => p.id === destPortfolioId);
@@ -336,6 +353,7 @@ const App: React.FC = () => {
       };
       setTransactions(prev => [...prev, transferOut, transferIn]);
   };
+  
   const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleDeleteTransactions = (ids: string[]) => { if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) { setTransactions(prev => prev.filter(t => !ids.includes(t.id))); } };
@@ -345,11 +363,39 @@ const App: React.FC = () => {
   const handleUpdateTradeScanResults = (results: EditableTrade[]) => { setTradeScanResults(results); };
   const openCreatePortfolioModal = () => { setEditingPortfolioId(null); setPortfolioNameInput(''); setPortfolioBrokerIdInput(''); setIsPortfolioModalOpen(true); };
   const openEditPortfolioModal = () => { const current = portfolios.find(p => p.id === currentPortfolioId); if (current) { setEditingPortfolioId(current.id); setPortfolioNameInput(current.name); setPortfolioBrokerIdInput(current.defaultBrokerId); setIsPortfolioModalOpen(true); } };
-  const handleSavePortfolio = (e: React.FormEvent) => { e.preventDefault(); if (!portfolioNameInput.trim()) { alert("Portfolio Name is required"); return; } if (!portfolioBrokerIdInput) { alert("A Default Broker is required for every portfolio."); return; } if (editingPortfolioId) { setPortfolios(prev => prev.map(p => p.id === editingPortfolioId ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } : p)); } else { const newId = Date.now().toString(); setPortfolios(prev => [...prev, { id: newId, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput }]); setCurrentPortfolioId(newId); } setPortfolioNameInput(''); setPortfolioBrokerIdInput(''); setEditingPortfolioId(null); setIsPortfolioModalOpen(false); };
-  const handleDeletePortfolio = () => { if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { const idToDelete = currentPortfolioId; setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); setIsPortfolioModalOpen(false); } };
+  
+  const handleSavePortfolio = (e: React.FormEvent) => { 
+      e.preventDefault(); 
+      if (!portfolioNameInput.trim()) { alert("Portfolio Name is required"); return; } 
+      if (!portfolioBrokerIdInput) { alert("A Default Broker is required for every portfolio."); return; } 
+      if (editingPortfolioId) { 
+          setPortfolios(prev => prev.map(p => p.id === editingPortfolioId ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } : p)); 
+      } else { 
+          const newId = Date.now().toString(); 
+          setPortfolios(prev => [...prev, { id: newId, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput }]); 
+          setCurrentPortfolioId(newId); 
+      } 
+      setPortfolioNameInput(''); 
+      setPortfolioBrokerIdInput(''); 
+      setEditingPortfolioId(null); 
+      setIsPortfolioModalOpen(false); 
+  };
+  
+  const handleDeletePortfolio = () => { 
+      if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); 
+      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { 
+          const idToDelete = currentPortfolioId; 
+          setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); 
+          setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); 
+          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); 
+          setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); 
+          setIsPortfolioModalOpen(false); 
+      } 
+  };
 
   const handleTogglePortfolioSelection = (id: string) => { const newSet = new Set(combinedPortfolioIds); if (newSet.has(id)) { if (newSet.size > 1) newSet.delete(id); } else { newSet.add(id); } setCombinedPortfolioIds(newSet); };
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
+  
   const handleSyncPrices = useCallback(async () => {
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
       if (uniqueTickers.length === 0) return;
@@ -402,31 +448,58 @@ const App: React.FC = () => {
           setIsSyncing(false);
       }
   }, [holdings]);
+  
   useEffect(() => {
-      // Only run if user is logged in and there are stocks to sync
       if (!driveUser || holdings.length === 0) return;
-      // Execute initial sync only once per session/login
       if (!initialSyncDone.current) {
           handleSyncPrices();
           initialSyncDone.current = true;
       }
-      // Set up the 5-minute recurring interval
       const interval = setInterval(() => {
           handleSyncPrices();
       }, 5 * 60 * 1000);
       return () => clearInterval(interval);
-
-      // We add holdings.length here. It won't cause a loop because
-      // the length doesn't change when prices update, but it allows
-      // the sync to fire as soon as your portfolio initially loads.
   }, [driveUser, holdings.length]);
-  useEffect(() => { if (brokers.length === 0) return; const generateFees = () => { let newTransactions: Transaction[] = []; brokers.forEach(broker => { if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; let nextDueDate = new Date(broker.feeStartDate); nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); const today = new Date(); while (nextDueDate <= today) { const feeYear = nextDueDate.getFullYear(); const txId = `auto-fee-${broker.id}-${feeYear}`; const exists = transactions.some(t => t.id === txId); if (!exists) { const feeDateStr = nextDueDate.toISOString().split('T')[0]; const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; newTransactions.push(newTx); } nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); } }); if (newTransactions.length > 0) { setTransactions(prev => [...prev, ...newTransactions]); } }; generateFees(); }, [brokers, currentPortfolioId]);
-  useEffect(() => { if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { setCurrentPortfolioId(portfolios[0].id); } }, [portfolios, currentPortfolioId]);
+  
+  useEffect(() => { 
+      if (brokers.length === 0) return; 
+      const generateFees = () => { 
+          let newTransactions: Transaction[] = []; 
+          brokers.forEach(broker => { 
+              if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; 
+              let nextDueDate = new Date(broker.feeStartDate); 
+              nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); 
+              const today = new Date(); 
+              while (nextDueDate <= today) { 
+                  const feeYear = nextDueDate.getFullYear(); 
+                  const txId = `auto-fee-${broker.id}-${feeYear}`; 
+                  const exists = transactions.some(t => t.id === txId); 
+                  if (!exists) { 
+                      const feeDateStr = nextDueDate.toISOString().split('T')[0]; 
+                      const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; 
+                      newTransactions.push(newTx); 
+                  } 
+                  nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); 
+              } 
+          }); 
+          if (newTransactions.length > 0) { 
+              setTransactions(prev => [...prev, ...newTransactions]); 
+          } 
+      }; 
+      generateFees(); 
+  }, [brokers, currentPortfolioId]);
+  
+  useEffect(() => { 
+      if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { 
+          setCurrentPortfolioId(portfolios[0].id); 
+      } 
+  }, [portfolios, currentPortfolioId]);
 
   const portfolioTransactions = useMemo(() => {
       if (isCombinedView) return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       return transactions.filter(t => t.portfolioId === currentPortfolioId);
   }, [transactions, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
+  
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     let operationalExpenses = 0;
@@ -575,7 +648,7 @@ const App: React.FC = () => {
         netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]);
-  // ✨ SAVING STATE UPDATED to include fairValueCache
+  
   useEffect(() => {
       if (driveUser || transactions.length > 0) {
           localStorage.setItem('psx_transactions', JSON.stringify(transactions));
@@ -589,7 +662,7 @@ const App: React.FC = () => {
           localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState));
           localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
           localStorage.setItem('psx_performance_history', JSON.stringify(performanceHistory));
-          localStorage.setItem('psx_fair_value_cache', JSON.stringify(fairValueCache)); // <--- UPDATED
+          localStorage.setItem('psx_fair_value_cache', JSON.stringify(fairValueCache));
       }
 
       if (driveUser && isReadyToSave.current) {
@@ -606,7 +679,7 @@ const App: React.FC = () => {
                   sectorOverrides,
                   scannerState,
                   performanceHistory,
-                  fairValueCache, // <--- UPDATED
+                  fairValueCache,
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
                   webScrapingAIKey: userWebScrapingAIKey
@@ -619,8 +692,8 @@ const App: React.FC = () => {
           }, 3000);
           return () => clearTimeout(timer);
       }
-  // IMPORTANT: fairValueCache added to dependency array below
   }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
       const tempRealized: RealizedTrade[] = [];
@@ -779,348 +852,393 @@ const App: React.FC = () => {
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
       setCurrentView('STOCKS');
   };
+  
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
   if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
+
+  // Reusable Sidebar Nav Items array
+  const navItems = [
+      { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
+      { id: 'STOCKS', label: 'Stocks', icon: ChartCandlestick },
+      { id: 'ALERTS', label: 'Alerts', icon: Bell },
+      { id: 'SIGNALS', label: 'Buy Signals', icon: Radar },
+      { id: 'CALCULATOR', label: 'Fair Value', icon: Calculator },
+      { id: 'SIMULATOR', label: 'Simulator', icon: TrendingUp },
+      { id: 'REALIZED', label: 'Realized Gains', icon: CheckCircle2 },
+      { id: 'HISTORY', label: 'History', icon: History },
+  ] as const;
+
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 pb-20 relative overflow-x-hidden font-sans selection:bg-emerald-200 dark:bg-slate-950 dark:text-slate-100 dark:selection:bg-emerald-900">
-
+    // 1. Updated wrapper to Flex and fixed height
+    <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
+      
+      {/* Ticker bar stays at the absolute top */}
       <MarketTicker />
-      <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 dark:bg-emerald-600/10 rounded-full blur-[120px]"></div>
-          <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 dark:bg-teal-600/10 rounded-full blur-[120px]"></div>
-          <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 dark:bg-blue-600/5 rounded-full blur-[100px]"></div>
-      </div>
-
-      <div className="relative z-10 max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 pt-8">
-        <header className="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500 px-2 sm:px-0">
-
-          <div className="flex justify-between items-center w-full md:w-auto">
-             <div className="flex flex-col gap-0.5">
-                 <div className="scale-75 sm:scale-100 origin-left">
-                   <Logo />
-                 </div>
-                 <p className="hidden md:block text-sm font-bold tracking-wide mt-1 ml-1 whitespace-nowrap"><span className="text-slate-700 dark:text-slate-300">KNOW MORE.</span> <span className="text-cyan-500">EARN MORE.</span></p>
-             </div>
-             <div className="md:hidden">
-                <ThemeToggle />
-             </div>
+      
+      {/* 2. Main Flex Container for Sidebar + Content */}
+      <div className="flex flex-1 overflow-hidden relative">
+          
+          {/* Background effects (moved here to stay behind main content) */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+              <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 dark:bg-emerald-600/10 rounded-full blur-[120px]"></div>
+              <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 dark:bg-teal-600/10 rounded-full blur-[120px]"></div>
+              <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 dark:bg-blue-600/5 rounded-full blur-[100px]"></div>
           </div>
 
-          <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+          {/* ================= SIDEBAR ================= */}
+          <div className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a0a0a] transition-all duration-300 z-30 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+              
+              {/* Logo Area */}
+              <div className="flex items-center gap-3 p-5 mb-4 border-b border-slate-100 dark:border-slate-800/50">
+                  <div className="scale-90 origin-left flex-shrink-0">
+                      <Logo />
+                  </div>
+                  {!isSidebarCollapsed && (
+                      <span className="font-bold text-lg tracking-wide whitespace-nowrap text-slate-800 dark:text-slate-200">AlphaGen</span>
+                  )}
+              </div>
 
-             {driveUser ? (
-                 <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm w-full md:w-auto">
-                     <div className="flex items-center gap-2">
-                        {driveUser.picture ? ( <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-100" /> ) : ( <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center text-emerald-700 font-bold">{driveUser.name?.[0]}</div> )}
+              {/* Navigation Links */}
+              <nav className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+                  {navItems.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = currentView === item.id;
+                      
+                      return (
+                          <button
+                              key={item.id}
+                              onClick={() => setCurrentView(item.id)}
+                              title={isSidebarCollapsed ? item.label : undefined}
+                              className={`w-full flex items-center gap-4 px-3 py-3 rounded-lg transition-colors ${
+                                  isActive 
+                                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50 font-bold' 
+                                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
+                              }`}
+                          >
+                              <Icon size={20} className="flex-shrink-0" />
+                              {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                          </button>
+                      );
+                  })}
+              </nav>
 
-                        <div className="flex flex-col">
-                            <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Synced</span>
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 max-w-[120px] truncate">{driveUser.name}</span>
-                        </div>
-                     </div>
+              {/* User Profile & Collapse Area */}
+              <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-4 bg-slate-50 dark:bg-[#0f0f0f]">
+                  {driveUser ? (
+                      <div className="flex flex-col gap-3">
+                          <div className="flex items-center gap-3">
+                              {driveUser.picture ? ( 
+                                  <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-200 dark:border-emerald-900 flex-shrink-0" /> 
+                              ) : ( 
+                                  <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold flex-shrink-0">
+                                      {driveUser.name?.[0]}
+                                  </div> 
+                              )}
+                              
+                              {!isSidebarCollapsed && (
+                                  <div className="flex flex-col min-w-0">
+                                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
+                                          {isCloudSyncing ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Synced
+                                      </span>
+                                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{driveUser.name}</span>
+                                  </div>
+                              )}
+                          </div>
+                          {!isSidebarCollapsed && (
+                              <button onClick={handleManualLogout} className="flex items-center gap-2 text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-bold transition-colors w-full px-1">
+                                  <LogOut size={14} /> Sign Out
+                              </button>
+                          )}
+                      </div>
+                  ) : (
+                      <button onClick={handleLogin} className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all ${isSidebarCollapsed ? 'px-2' : 'px-4 w-full'}`}>
+                          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 flex-shrink-0" alt="Google" /> 
+                          {!isSidebarCollapsed && <span>Sign in</span>}
+                      </button>
+                  )}
 
-                     <div className="flex items-center gap-3 pr-2">
-                         {isCloudSyncing ? ( <Loader2 size={18} className="text-emerald-500 animate-spin" /> ) : ( <Save size={18} className="text-emerald-500" /> )}
-                         <button onClick={handleManualLogout} className="text-slate-400 hover:text-rose-500 transition-colors" title="Sign Out"> <LogOut size={18} /> </button>
-                     </div>
-                 </div>
-             ) : (
-                <button onClick={handleLogin} className="w-full md:w-auto flex items-center justify-center gap-2 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-xl font-bold shadow-sm border border-slate-200 transition-all"><img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> Sign in</button>
-             )}
-             <div className="flex items-center gap-2 w-full md:w-auto bg-white dark:bg-slate-900 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                 <div className="hidden md:block"><ThemeToggle /></div>
-
-                 <div className="relative group flex-1 min-w-0">
-                    <select
-                        value={currentPortfolioId}
-                        onChange={(e) => setCurrentPortfolioId(e.target.value)}
-                        className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-slate-900 truncate"
-                    >
-                        {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
-                 </div>
-                 <div className="flex items-center gap-1 pl-2 border-l border-slate-100 dark:border-slate-800 shrink-0">
-                    <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={16} /> </button>
-                    <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={16} /> </button>
-                 </div>
-             </div>
+                  <button 
+                      onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+                      className="w-full flex items-center gap-3 px-2 py-2 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                      title="Toggle Sidebar"
+                  >
+                      {isSidebarCollapsed ? <ChevronsRight size={18} className="mx-auto" /> : <ChevronsLeft size={18} className="flex-shrink-0" />}
+                      {!isSidebarCollapsed && <span className="font-medium whitespace-nowrap">Collapse</span>}
+                  </button>
+              </div>
           </div>
-        </header>
-        <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-            <div className="flex justify-center mb-8 w-full">
-                <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur border border-slate-200 dark:border-slate-800 p-1.5 rounded-2xl flex gap-1 shadow-sm overflow-x-auto w-full sm:w-auto flex justify-start sm:justify-center no-scrollbar">
-                    <button onClick={() => setCurrentView('DASHBOARD')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'DASHBOARD' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <LayoutDashboard size={16} className="sm:w-[18px] sm:h-[18px]" /> Dashboard
-                    </button>
 
-                    <button onClick={() => setCurrentView('STOCKS')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'STOCKS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <ChartCandlestick size={16} className="sm:w-[18px] sm:h-[18px]" /> Stocks
-                    </button>
-                    {/* NEW ALERTS TAB BUTTON */}
-                    <button onClick={() => setCurrentView('ALERTS')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'ALERTS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <Bell size={16} className="sm:w-[18px] sm:h-[18px]" /> Alerts
-                    </button>
-                    {/* NEW BUY SIGNALS TAB BUTTON */}
-                    <button onClick={() => setCurrentView('SIGNALS')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'SIGNALS' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <Radar size={16} className="sm:w-[18px] sm:h-[18px]" /> Buy Signals
-                    </button>
-                    <button onClick={() => setCurrentView('CALCULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'CALCULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <Calculator size={16} className="sm:w-[18px] sm:h-[18px]" /> Fair Value
-                    </button>
-                    <button onClick={() => setCurrentView('SIMULATOR')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'SIMULATOR' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <TrendingUp size={16} className="sm:w-[18px] sm:h-[18px]" /> Simulator
-                    </button>
-                    <button onClick={() => setCurrentView('REALIZED')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'REALIZED' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <CheckCircle2 size={16} className="sm:w-[18px] sm:h-[18px]" /> Realized Gains
-                    </button>
-                    <button onClick={() => setCurrentView('HISTORY')} className={`flex items-center gap-2 px-3 sm:px-6 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${currentView === 'HISTORY' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
-                        <History size={16} className="sm:w-[18px] sm:h-[18px]" /> History
-                    </button>
-                </div>
-            </div>
-            <div className="relative z-20 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-white/60 dark:border-slate-700/60 backdrop-blur-md shadow-sm">
+          {/* ================= MAIN CONTENT AREA ================= */}
+          <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
+              <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-20">
+                  
+                  {/* Header: Portfolio Selector & Theme Toggle */}
+                  <header className="flex justify-between items-center gap-4 mb-6 animate-in fade-in slide-in-from-top-5 duration-500">
+                      
+                      <div className="flex items-center gap-2 w-full md:w-auto bg-white dark:bg-slate-900/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm backdrop-blur">
+                          <ThemeToggle />
+                          <div className="relative group flex-1 min-w-0">
+                              <select
+                                  value={currentPortfolioId}
+                                  onChange={(e) => setCurrentPortfolioId(e.target.value)}
+                                  className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
+                              >
+                                  {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
+                              </select>
+                              <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
+                          </div>
+                          <div className="flex items-center gap-1 pl-2 border-l border-slate-100 dark:border-slate-800 shrink-0">
+                              <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={16} /> </button>
+                              <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={16} /> </button>
+                          </div>
+                      </div>
+                  </header>
 
-                <div className="w-full overflow-x-auto pb-2">
+                  <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+                      
+                      {/* Action Bar */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-white/60 dark:border-slate-700/60 backdrop-blur-md shadow-sm">
+                          <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
+                              <div className="flex items-center justify-between min-w-max gap-6">
+                                  <div className="flex items-center gap-3">
+                                      <button
+                                          onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm dark:shadow-emerald-900/50"
+                                      >
+                                          <Plus size={16} /> Add Transaction
+                                      </button>
+                                      <button
+                                          onClick={() => setShowTransferModal(true)}
+                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                      >
+                                          <ArrowRightLeft size={16} /> Transfer
+                                      </button>
+                                      <button
+                                          onClick={() => setShowBrokerManager(true)}
+                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                      >
+                                          <Briefcase size={16} /> Brokers
+                                      </button>
+                                      <button
+                                          onClick={() => setShowDividendScanner(true)}
+                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                      >
+                                          <Coins size={16} /> Scan Dividends
+                                      </button>
+                                      <button
+                                          onClick={() => setShowUpcomingScanner(true)}
+                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                      >
+                                          <CalendarClock size={16} /> Future X-Dates
+                                      </button>
+                                      <button
+                                          onClick={() => setShowApiKeyManager(true)}
+                                          className={`border px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm ${
+                                              (!userApiKey || !userScraperKey)
+                                                  ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 animate-pulse'
+                                                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200'
+                                          }`}
+                                          title={(!userApiKey || !userScraperKey) ? "Action Required: Save API Keys" : "AI Settings"}
+                                      >
+                                          <Key size={16} className={(!userApiKey || !userScraperKey) ? "text-rose-500 dark:text-rose-400" : "text-emerald-500 dark:text-emerald-400"} />
+                                          <span>{(!userApiKey || !userScraperKey) ? "Save API Key" : "API Key"}</span>
+                                      </button>
+                                  </div>
+                                  <div className="flex items-center gap-4">
+                                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+                                          {isCombinedView && (
+                                              <Popover.Root>
+                                                  <Popover.Trigger asChild>
+                                                      <button
+                                                          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap outline-none"
+                                                      >
+                                                          <Layers size={14} />
+                                                          <span>Portfolios ({combinedPortfolioIds.size})</span>
+                                                          <ChevronDown size={14} />
+                                                      </button>
+                                                  </Popover.Trigger>
+                                                  <Popover.Portal>
+                                                      <Popover.Content
+                                                          className="w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2"
+                                                          sideOffset={5}
+                                                          align="end"
+                                                      >
+                                                          <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 dark:border-slate-700 mb-1">
+                                                              <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Included Portfolios</span>
+                                                              <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline">Select All</button>
+                                                          </div>
+                                                          <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
+                                                              {portfolios.map(p => {
+                                                                  const isSelected = combinedPortfolioIds.has(p.id);
+                                                                  return (
+                                                                      <div
+                                                                          key={p.id}
+                                                                          onClick={() => handleTogglePortfolioSelection(p.id)}
+                                                                          className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                                                      >
+                                                                          {isSelected ?
+                                                                              <CheckSquare size={16} className="text-emerald-600 dark:text-emerald-400" /> :
+                                                                              <Square size={16} className="text-slate-300 dark:text-slate-500" />
+                                                                          }
+                                                                          <span className={`text-sm font-medium ${isSelected ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>{p.name}</span>
+                                                                      </div>
+                                                                  );
+                                                              })}
+                                                          </div>
+                                                          <Popover.Arrow className="fill-white dark:fill-slate-800" />
+                                                      </Popover.Content>
+                                                  </Popover.Portal>
+                                              </Popover.Root>
+                                          )}
+                                          <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
+                                          <div className="flex items-center gap-2">
+                                              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Combined</span>
+                                              <button
+                                                  onClick={() => {
+                                                      const newState = !isCombinedView;
+                                                      setIsCombinedView(newState);
+                                                  }}
+                                                  className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                              >
+                                                  <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
+                                              </button>
+                                          </div>
+                                      </div>
+                                      {currentView === 'DASHBOARD' && (
+                                          <>
+                                              <button
+                                                  onClick={() => setShowPriceEditor(true)}
+                                                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+                                              >
+                                                  <Edit3 size={18} /> <span>Manual Prices</span>
+                                              </button>
+                                               <div className="flex items-center gap-2 shrink-0">
+                                                  <button
+                                                      onClick={handleSyncPrices}
+                                                      disabled={isSyncing}
+                                                      className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                                  >
+                                                      {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span>Sync PSX</span>
+                                                  </button>
+                                                  {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
+                                              </div>
+                                          </>
+                                      )}
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
 
-                    <div className="flex items-center justify-between min-w-max gap-6">
-
-                        <div className="flex items-center gap-3">
-                            <button
-                                onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm dark:shadow-emerald-900/50"
-                            >
-                                <Plus size={16} /> Add Transaction
-                            </button>
-                            <button
-                                onClick={() => setShowTransferModal(true)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            >
-                                <ArrowRightLeft size={16} /> Transfer
-                            </button>
-                            <button
-                                onClick={() => setShowBrokerManager(true)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            >
-                                <Briefcase size={16} /> Brokers
-                            </button>
-                            <button
-                                onClick={() => setShowDividendScanner(true)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            >
-                                <Coins size={16} /> Scan Dividends
-                            </button>
-                            <button
-                                onClick={() => setShowUpcomingScanner(true)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                            >
-                                <CalendarClock size={16} /> Future X-Dates
-                            </button>
-                            <button
-                                onClick={() => setShowApiKeyManager(true)}
-                                className={`border px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm ${
-                                    (!userApiKey || !userScraperKey)
-                                        ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 animate-pulse'
-                                        : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200'
-                                }`}
-                                title={(!userApiKey || !userScraperKey) ? "Action Required: Save API Keys" : "AI Settings"}
-                            >
-                                <Key size={16} className={(!userApiKey || !userScraperKey) ? "text-rose-500 dark:text-rose-400" : "text-emerald-500 dark:text-emerald-400"} />
-                                <span>{(!userApiKey || !userScraperKey) ? "Save API Key" : "API Key"}</span>
-                            </button>
-                        </div>
-                        <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
-                                {isCombinedView && (
-                                    <Popover.Root>
-                                        <Popover.Trigger asChild>
-                                            <button
-                                                className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap outline-none"
-                                            >
-                                                <Layers size={14} />
-                                                <span>Portfolios ({combinedPortfolioIds.size})</span>
-                                                <ChevronDown size={14} />
-                                            </button>
-                                        </Popover.Trigger>
-                                        <Popover.Portal>
-                                            <Popover.Content
-                                                className="w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2"
-                                                sideOffset={5}
-                                                align="end"
-                                            >
-                                                <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 dark:border-slate-700 mb-1">
-                                                    <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Included Portfolios</span>
-                                                    <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline">Select All</button>
-                                                </div>
-                                                <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                                                    {portfolios.map(p => {
-                                                        const isSelected = combinedPortfolioIds.has(p.id);
-                                                        return (
-                                                            <div
-                                                                key={p.id}
-                                                                onClick={() => handleTogglePortfolioSelection(p.id)}
-                                                                className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}
-                                                            >
-                                                                {isSelected ?
-                                                                    <CheckSquare size={16} className="text-emerald-600 dark:text-emerald-400" /> :
-                                                                    <Square size={16} className="text-slate-300 dark:text-slate-500" />
-                                                                }
-                                                                <span className={`text-sm font-medium ${isSelected ? 'text-slate-800 dark:text-slate-200' : 'text-slate-500 dark:text-slate-400'}`}>{p.name}</span>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                                <Popover.Arrow className="fill-white dark:fill-slate-800" />
-                                            </Popover.Content>
-                                        </Popover.Portal>
-                                    </Popover.Root>
-                                )}
-                                <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Combined</span>
-                                    <button
-                                        onClick={() => {
-                                            const newState = !isCombinedView;
-                                            setIsCombinedView(newState);
-                                        }}
-                                        className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
-                                    >
-                                        <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
-                                    </button>
-                                </div>
-                            </div>
-                            {currentView === 'DASHBOARD' && (
-                                <>
-                                    <button
-                                        onClick={() => setShowPriceEditor(true)}
-                                        className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
-                                    >
-                                        <Edit3 size={18} /> <span>Manual Prices</span>
-                                    </button>
-                                     <div className="flex items-center gap-2 shrink-0">
-                                        <button
-                                            onClick={handleSyncPrices}
-                                            disabled={isSyncing}
-                                            className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                                        >
-                                            {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span>Sync PSX</span>
-                                        </button>
-                                        {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-            {currentView === 'DASHBOARD' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
-                    <div className="flex flex-col gap-6 mt-6">
-
-                        <PerformanceChart
-                           key={isCombinedView ? 'combined' : currentPortfolioId}
-                           transactions={portfolioTransactions}
-                           savedData={performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || []}
-                           onSaveData={(data) => {
-                               setPerformanceHistory(prev => ({
-                                   ...prev,
-                                   [isCombinedView ? 'combined' : currentPortfolioId]: data
-                               }));
-                           }}
-                        />
-                        <AllocationChart holdings={holdings} />
-                        <HoldingsTable
-                            holdings={holdings}
-                            showBroker={true}
-                            failedTickers={failedTickers}
-                            ldcpMap={ldcpMap}
-                            onTickerClick={handleTickerClick}
-                        />
-                    </div>
-                </div>
-            )}
-            {currentView === 'STOCKS' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <TickerPerformanceList
-                        transactions={portfolioTransactions}
-                        currentPrices={manualPrices}
-                        sectors={sectorMap}
-                        onTickerClick={(t) => setViewTicker(t)}
-                    />
-                </div>
-            )}
-            {/* NEW BUY SIGNALS VIEW RENDER */}
-            {currentView === 'SIGNALS' && (
-                <MarketSignalScanner onSymbolClick={(t) => setViewTicker(t)} />
-            )}
-            {currentView === 'REALIZED' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <RealizedTable trades={realizedTrades} showBroker={true} />
-                </div>
-            )}
-            {currentView === 'HISTORY' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <TransactionList
-                        transactions={portfolioTransactions}
-                        onDelete={handleDeleteTransaction}
-                        onDeleteMultiple={handleDeleteTransactions}
-                        onEdit={handleEditClick}
-                        googleSheetId={googleSheetId}
-                    />
-                </div>
-            )}
-            {currentView === 'CALCULATOR' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <FairValueCalculator
-                        cache={fairValueCache}
-                        onSaveCache={setFairValueCache}
-                    />
-                </div>
-            )}
-            {currentView === 'SIMULATOR' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <TradingSimulator
-                        holdings={holdings}
-                        brokers={brokers}
-                        defaultBrokerId={currentPortfolio?.defaultBrokerId || brokers[0]?.id || ''}
-                        transactions={portfolioTransactions}
-                    />
-                </div>
-            )}
-            {/* NEW ALERTS VIEW RENDER */}
-            {currentView === 'ALERTS' && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <AlertsPage
-                        holdings={holdings}
-                        currentPrices={manualPrices}
-                    />
-                </div>
-            )}
-        </main>
+                      {/* View Routing */}
+                      {currentView === 'DASHBOARD' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
+                              <div className="flex flex-col gap-6 mt-6">
+                                  <PerformanceChart
+                                     key={isCombinedView ? 'combined' : currentPortfolioId}
+                                     transactions={portfolioTransactions}
+                                     savedData={performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || []}
+                                     onSaveData={(data) => {
+                                         setPerformanceHistory(prev => ({
+                                             ...prev,
+                                             [isCombinedView ? 'combined' : currentPortfolioId]: data
+                                         }));
+                                     }}
+                                  />
+                                  <AllocationChart holdings={holdings} />
+                                  <HoldingsTable
+                                      holdings={holdings}
+                                      showBroker={true}
+                                      failedTickers={failedTickers}
+                                      ldcpMap={ldcpMap}
+                                      onTickerClick={handleTickerClick}
+                                  />
+                              </div>
+                          </div>
+                      )}
+                      {currentView === 'STOCKS' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <TickerPerformanceList
+                                  transactions={portfolioTransactions}
+                                  currentPrices={manualPrices}
+                                  sectors={sectorMap}
+                                  onTickerClick={(t) => setViewTicker(t)}
+                              />
+                          </div>
+                      )}
+                      {currentView === 'SIGNALS' && (
+                          <MarketSignalScanner onSymbolClick={(t) => setViewTicker(t)} />
+                      )}
+                      {currentView === 'REALIZED' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <RealizedTable trades={realizedTrades} showBroker={true} />
+                          </div>
+                      )}
+                      {currentView === 'HISTORY' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <TransactionList
+                                  transactions={portfolioTransactions}
+                                  onDelete={handleDeleteTransaction}
+                                  onDeleteMultiple={handleDeleteTransactions}
+                                  onEdit={handleEditClick}
+                                  googleSheetId={googleSheetId}
+                              />
+                          </div>
+                      )}
+                      {currentView === 'CALCULATOR' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <FairValueCalculator
+                                  cache={fairValueCache}
+                                  onSaveCache={setFairValueCache}
+                              />
+                          </div>
+                      )}
+                      {currentView === 'SIMULATOR' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <TradingSimulator
+                                  holdings={holdings}
+                                  brokers={brokers}
+                                  defaultBrokerId={currentPortfolio?.defaultBrokerId || brokers[0]?.id || ''}
+                                  transactions={portfolioTransactions}
+                              />
+                          </div>
+                      )}
+                      {currentView === 'ALERTS' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <AlertsPage
+                                  holdings={holdings}
+                                  currentPrices={manualPrices}
+                              />
+                          </div>
+                      )}
+                  </main>
+              </div>
+          </div>
       </div>
+
+      {/* Modals outside of the flex container */}
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white border border-slate-200 rounded-2xl shadow-2xl w-full max-w-sm p-6">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6">
                   <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-bold text-slate-800">
+                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                           {editingPortfolioId ? 'Edit Portfolio' : 'Create Portfolio'}
                       </h3>
-                      <button onClick={() => setIsPortfolioModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+                      <button onClick={() => setIsPortfolioModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={20} /></button>
                   </div>
                   <form onSubmit={handleSavePortfolio}>
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Portfolio Name <span className="text-rose-500">*</span></label>
-                      <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Portfolio Name <span className="text-rose-500">*</span></label>
+                      <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-slate-100 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
 
-                      <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Default Broker <span className="text-rose-500">*</span></label>
+                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Default Broker <span className="text-rose-500">*</span></label>
                       <div className="relative mb-6">
                           <select
                               required
                               value={portfolioBrokerIdInput}
                               onChange={(e) => setPortfolioBrokerIdInput(e.target.value)}
-                              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-700 outline-none appearance-none focus:ring-2 focus:ring-emerald-500"
+                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-700 dark:text-slate-100 outline-none appearance-none focus:ring-2 focus:ring-emerald-500"
                           >
                               <option value="">Select a Broker</option>
                               {brokers.map(b => (
