@@ -202,7 +202,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   return (
                     <tr 
                       key={`${holding.ticker}-${holding.broker || idx}`} 
-                      className="even:bg-slate-50/70 dark:even:bg-slate-800/30 hover:bg-slate-100 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer" 
+                      className="even:bg-slate-100/60 dark:even:bg-slate-800/50 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer" 
                       onClick={() => onTickerClick && onTickerClick(holding.ticker)}
                     >
                       {/* Asset Column */}
