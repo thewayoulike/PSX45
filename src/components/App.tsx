@@ -62,6 +62,7 @@ const App: React.FC = () => {
   
   // Sidebar State
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false); // <-- NEW STATE FOR EXPAND/COLLAPSE SETTINGS
 
   const [viewTicker, setViewTicker] = useState<string | null>(null);
 
@@ -936,35 +937,53 @@ const App: React.FC = () => {
                       );
                   })}
 
-                  {/* SETTINGS MENU */}
-                  <div className={`px-3 mb-2 mt-6 border-t border-slate-100 dark:border-slate-800 pt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${isSidebarCollapsed ? 'text-center' : 'flex items-center gap-1.5'}`}>
-                      {!isSidebarCollapsed && (
-                        <>
-                          <Settings size={12} /> Settings
-                        </>
-                      )}
+                  {/* EXPANDABLE SETTINGS MENU */}
+                  <div className={`mt-6 border-t border-slate-100 dark:border-slate-800 pt-4`}>
+                      <button
+                          onClick={() => {
+                              if (isSidebarCollapsed) setIsSidebarCollapsed(false); 
+                              setIsSettingsExpanded(!isSettingsExpanded);
+                          }}
+                          className={`w-full flex items-center px-3 mb-2 text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 uppercase tracking-wider transition-colors outline-none ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
+                          title="Settings"
+                      >
+                          <div className="flex items-center gap-1.5">
+                              <Settings size={14} className={(!userApiKey || !userScraperKey) && !isSettingsExpanded ? "text-rose-500 animate-pulse" : ""} />
+                              {!isSidebarCollapsed && <span>Settings</span>}
+                          </div>
+                          {!isSidebarCollapsed && (
+                              <ChevronDown size={14} className={`transition-transform duration-200 ${isSettingsExpanded ? 'rotate-180' : ''}`} />
+                          )}
+                      </button>
+
+                      {/* Expanding Accordion Content */}
+                      <div 
+                          className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${isSettingsExpanded ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
+                      >
+                          {settingsItems.map((item) => {
+                              const Icon = item.icon;
+                              return (
+                                  <button
+                                      key={item.id}
+                                      onClick={item.onClick}
+                                      title={isSidebarCollapsed ? item.label : undefined}
+                                      className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-3'} py-3 rounded-lg transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium`}
+                                  >
+                                      <div className="relative">
+                                          <Icon size={22} className={`flex-shrink-0 ${item.alert ? 'text-rose-500 animate-pulse' : ''}`} />
+                                          {item.alert && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
+                                      </div>
+                                      {!isSidebarCollapsed && (
+                                          <span className={`whitespace-nowrap ${item.alert ? 'text-rose-500 font-bold' : ''}`}>
+                                              {item.label}
+                                          </span>
+                                      )}
+                                  </button>
+                              );
+                          })}
+                      </div>
                   </div>
-                  {settingsItems.map((item) => {
-                      const Icon = item.icon;
-                      return (
-                          <button
-                              key={item.id}
-                              onClick={item.onClick}
-                              title={isSidebarCollapsed ? item.label : undefined}
-                              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-3'} py-3 rounded-lg transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium`}
-                          >
-                              <div className="relative">
-                                  <Icon size={22} className={`flex-shrink-0 ${item.alert ? 'text-rose-500 animate-pulse' : ''}`} />
-                                  {item.alert && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
-                              </div>
-                              {!isSidebarCollapsed && (
-                                  <span className={`whitespace-nowrap ${item.alert ? 'text-rose-500 font-bold' : ''}`}>
-                                      {item.label}
-                                  </span>
-                              )}
-                          </button>
-                      );
-                  })}
+
               </nav>
 
               {/* User Profile & Collapse Area */}
@@ -1180,10 +1199,10 @@ const App: React.FC = () => {
                                   </div>
                                   <div className="lg:col-span-1">
                                       <PortfolioInsights 
-    holdings={holdings} 
-    realizedTrades={realizedTrades} 
-    stats={stats} 
-/>
+                                          holdings={holdings} 
+                                          realizedTrades={realizedTrades} 
+                                          stats={stats} 
+                                      />
                                   </div>
                               </div>
                           </div>
