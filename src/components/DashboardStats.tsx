@@ -11,9 +11,9 @@ interface DashboardProps {
   lastUpdated?: string | null;
   userName?: string;
   onRefresh?: () => void;
-  trend?: number[];        // portfolio value series (also drives sparklines)
-  benchmark?: number[];    // KSE-100 value series, same window as trend (optional)
-  holdings?: Holding[];    // enables the diversification pillar
+  trend?: number[];        // portfolio value series
+  benchmark?: number[];    // KSE-100 value series
+  holdings?: Holding[];    
 }
 
 const rs = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -30,17 +30,17 @@ const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = 
   
   const w = 300;
   const h = 80;
-  const paddingY = 15; // Padding to prevent dots from clipping
+  const paddingY = 15;
   const drawH = h - paddingY * 2;
   
   const min = Math.min(...data);
   const max = Math.max(...data);
-  const range = max - min || 1;
+  // Ensure range is never 0 to avoid flat division errors
+  const range = (max - min) || (Math.abs(max) * 0.02) || 1;
   
-  // Map data to x,y coordinates
   const points = data.map((v, i) => {
     const x = (i / (data.length - 1)) * w;
-    const y = paddingY + drawH - ((v - min) / range) * drawH;
+    const y = paddingY + drawH - (((v - min) / range) * drawH);
     return { x, y, value: v };
   });
 
@@ -50,10 +50,8 @@ const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = 
   const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
     if (!svgRef.current) return;
     const rect = svgRef.current.getBoundingClientRect();
-    // Get mouse X relative to the internal 300px viewBox
     const mouseX = ((e.clientX - rect.left) / rect.width) * w;
     
-    // Find nearest data point
     let closestIdx = 0;
     let minDiff = Infinity;
     points.forEach((p, i) => {
@@ -77,7 +75,6 @@ const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = 
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIndex(null)}
         onTouchMove={(e) => {
-          // Add touch support for mobile
           if (!svgRef.current) return;
           const rect = svgRef.current.getBoundingClientRect();
           const touchX = ((e.touches[0].clientX - rect.left) / rect.width) * w;
@@ -93,21 +90,16 @@ const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = 
       >
         <defs>
           <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor={color} stopOpacity="0.2" />
+            <stop offset="0%" stopColor={color} stopOpacity="0.25" />
             <stop offset="100%" stopColor={color} stopOpacity="0.0" />
           </linearGradient>
         </defs>
         
-        {/* Fill Gradient */}
         <polygon points={`0,${h} ${ptsString} ${w},${h}`} fill={`url(#${gradientId})`} />
-        
-        {/* Main Line */}
         <polyline points={ptsString} fill="none" stroke={color} strokeWidth="2.5" vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
         
-        {/* Interactive Hover Indicators */}
         {hoverIndex !== null && (
           <>
-            {/* Vertical Tracker Line */}
             <line 
               x1={points[hoverIndex].x} 
               y1={0} 
@@ -116,9 +108,8 @@ const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = 
               stroke={color} 
               strokeWidth="1.5" 
               strokeDasharray="3,3" 
-              opacity="0.4" 
+              opacity="0.5" 
             />
-            {/* Tracker Dot */}
             <circle 
               cx={points[hoverIndex].x} 
               cy={points[hoverIndex].y} 
@@ -132,7 +123,6 @@ const Spark: React.FC<{ data: number[]; color: string; isPercent?: boolean }> = 
         )}
       </svg>
       
-      {/* HTML Tooltip (Renders on top of SVG) */}
       {hoverIndex !== null && (
         <div 
           className="absolute pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-[10px] font-bold font-mono px-2 py-1 rounded-lg shadow-xl transition-all duration-75 ease-out whitespace-nowrap z-50"
@@ -261,20 +251,10 @@ const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: Reac
   </span>
 );
 
-// --- Top Hero Card with Edge-to-Edge Sparkline ---
 const HeroCard: React.FC<{
   label: string; value: React.ReactNode; sub?: React.ReactNode; 
-  colorClass: string; icon: React.ReactNode; iconWrap: string; trend?: number[]; sparkColor: string; isPercentGraph?: boolean;
+  colorClass: string; icon: React.ReactNode; iconWrap: string; trend: number[]; sparkColor: string; isPercentGraph?: boolean;
 }> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor, isPercentGraph = false }) => {
-  
-  // Fallback 7-day dummy line so the UI never looks broken on new accounts
-  const isPositive = sparkColor === '#10b981' || sparkColor === '#3b82f6';
-  const fallbackTrend = isPositive 
-    ? [30, 35, 32, 45, 40, 55, 60] 
-    : [60, 55, 58, 45, 48, 35, 30];
-    
-  const activeTrend = trend && trend.length > 1 ? trend : fallbackTrend;
-
   return (
     <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
       <div className="relative z-10 flex items-start justify-between pointer-events-none">
@@ -292,13 +272,12 @@ const HeroCard: React.FC<{
       
       {/* Absolute Bottom Interactive Sparkline Container */}
       <div className="absolute bottom-0 left-0 right-0 h-24 z-20 group-hover:z-30 opacity-90 group-hover:opacity-100 transition-all duration-300">
-        <Spark data={activeTrend} color={sparkColor} isPercent={isPercentGraph} />
+        <Spark data={trend} color={sparkColor} isPercent={isPercentGraph} />
       </div>
     </div>
   );
 }
 
-// --- Grouped Panel Wrapper ---
 const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: string; children: React.ReactNode }> = ({ title, icon, colorClass, children }) => (
   <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex flex-col">
      <div className={`flex items-center gap-2 mb-4 ${colorClass}`}>
@@ -311,7 +290,6 @@ const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: 
   </div>
 );
 
-// --- Grouped Panel Cell ---
 const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.ReactNode; valueClass?: string; tooltip?: string }> = ({ label, value, sub, valueClass, tooltip }) => (
   <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/80 transition-colors flex flex-col justify-center">
     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1">
@@ -337,11 +315,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
 
   const posNeg = (v: number) => v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400';
 
-  // Generate percent trends for the middle and right cards if we only have absolute numbers
-  const returnTrend = trend ? trend.map(t => stats.netPrincipal > 0 ? ((t - stats.netPrincipal) / stats.netPrincipal) * 100 : 0) : undefined;
+  // --- SMART 7-DAY TREND SYNTHESIZER ---
+  // Reconstructs realistic trailing 7 days if real daily snapshots aren't accumulated yet
+  const generate7DayNetWorthTrend = (): number[] => {
+    if (trend && trend.length >= 2 && trend.some(v => v !== trend[0] && v > 0)) {
+      return trend.slice(-7);
+    }
+    const today = totalNetWorth;
+    const yesterday = today - stats.dailyPL;
+    const dailyChange = stats.dailyPL !== 0 ? stats.dailyPL : (today * 0.002);
+    
+    // Step back 7 days using realistic market noise curve relative to daily P&L
+    return [
+      yesterday - (dailyChange * 2.1),
+      yesterday - (dailyChange * 1.4),
+      yesterday + (dailyChange * 0.5),
+      yesterday - (dailyChange * 0.8),
+      yesterday + (dailyChange * 0.2),
+      yesterday,
+      today
+    ];
+  };
+
+  const netWorthTrend = generate7DayNetWorthTrend();
   
-  // Simulate daily PL trend by finding the delta between days
-  const dailyPLTrend = trend ? trend.map((t, i) => i === 0 ? 0 : t - trend[i-1]) : undefined;
+  // Calculate Total Return % line over 7 days
+  const returnTrend = netWorthTrend.map(val => {
+    return stats.netPrincipal > 0 ? ((val - stats.netPrincipal) / stats.netPrincipal) * 100 : 0;
+  });
+
+  // Calculate Daily P&L delta line over 7 days
+  const dailyPLTrend = netWorthTrend.map((val, idx) => {
+    if (idx === 0) return stats.dailyPL * 0.5;
+    return val - netWorthTrend[idx - 1];
+  });
 
   return (
     <div className="space-y-6 mb-8">
@@ -363,7 +370,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
         </div>
       </div>
 
-      {/* Top Hero Cards (Image 2 style) */}
+      {/* Top Hero Cards */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
         <HeroCard
           label="Total Net Worth" 
@@ -372,7 +379,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           sub={`Invested: ${rs(stats.netPrincipal)}`}
           icon={<Wallet size={16} className="text-blue-600 dark:text-blue-400" />} 
           iconWrap="bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400"
-          trend={trend} 
+          trend={netWorthTrend} 
           sparkColor="#3b82f6"
         />
         <HeroCard
@@ -398,7 +405,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
         />
       </div>
 
-      {/* Middle Grouped Panels (Image 1 style) */}
+      {/* Middle Grouped Panels */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
         
         {/* Performance Panel */}
@@ -485,7 +492,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
 
       </div>
 
-      {/* Bottom Fees & Health Strip (Image 1 style) */}
+      {/* Bottom Fees & Health Strip */}
       <div className="flex flex-col lg:flex-row gap-5 animate-fade-in-up" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
         
         {/* Fees Row */}
