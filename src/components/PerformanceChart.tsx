@@ -13,7 +13,7 @@ import {
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
 import { KMI30 } from '../services/indices';
-import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle } from 'lucide-react';
+import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
 
 interface PerformanceChartProps {
@@ -26,10 +26,20 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   const [loading, setLoading] = useState(false);
   const [chartData, setChartData] = useState<any[]>(savedData || []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // NEW STATES: For Last Updated and Line Toggles
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [showKSE100, setShowKSE100] = useState<boolean>(true);
+  const [showKMI30, setShowKMI30] = useState<boolean>(true);
 
   // Sync internal state when switching portfolios or loading from Drive
   useEffect(() => {
     setChartData(savedData);
+    if (savedData && savedData.length > 0) {
+        // If we load saved data initially, we can show a general "Loaded from save" message, 
+        // or just leave it blank until they hit refresh. 
+        setLastUpdated(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
+    }
   }, [savedData]);
 
   // Helper to calculate exact quantities held on a specific historical date
@@ -64,7 +74,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           transactions.filter(t => t.type === 'BUY').map(t => t.ticker)
       ));
       
-      // Fetch KSE100, all KMI-30 constituent stocks, and user portfolio stocks
       const tickersToFetch = Array.from(new Set(['KSE100', ...KMI30, ...userTickers]));
       const historyData: Record<string, { time: number, price: number, dateStr: string }[]> = {};
 
@@ -93,11 +102,9 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       const newChartData = [];
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
 
-      // Process day-by-day calculations
       for (let i = 1; i < kseData.length; i++) {
         const todayKse = kseData[i];
         
-        // Filter for exactly last 30 calendar days
         if (todayKse.time < thirtyDaysAgo) continue;
 
         const prevKse = kseData[i - 1];
@@ -106,7 +113,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
         const kseChange = prevKse.price > 0 ? ((todayKse.price - prevKse.price) / prevKse.price) * 100 : 0;
 
-        // Calculate KMI-30 index return by averaging its constituent stocks
         let kmiTotalChange = 0;
         let kmiStockCount = 0;
 
@@ -126,7 +132,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         });
         const kmiChange = kmiStockCount > 0 ? kmiTotalChange / kmiStockCount : 0;
 
-        // Weighted Portfolio Calculation logic
         const heldBalances = getHeldBalancesOnDate(dateStr);
         let yesterdayTotalValue = 0;
         let todayTotalValue = 0;
@@ -166,6 +171,9 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
       setChartData(newChartData);
       onSaveData(newChartData); 
+      
+      // Update Timestamp on successful fetch
+      setLastUpdated(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
 
     } catch (error: any) {
       console.error("Performance Calculation Error:", error);
@@ -177,19 +185,57 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
 
   return (
     <Card className="w-full flex flex-col">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wider">
-          <TrendingUp className="text-emerald-500" size={18} />
-          30-Day Daily Return % (Portfolio Avg vs KSE-100 vs KMI-30)
-        </h2>
-        <button 
-          onClick={handleFetchAndCalculate} 
-          disabled={loading}
-          className="flex items-center gap-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
-        >
-          {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
-          {loading ? "Fetching Data..." : (chartData.length > 0 ? 'Refresh Data' : 'Generate Chart')}
-        </button>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+        
+        {/* Title & Last Updated Area */}
+        <div>
+          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wider">
+            <TrendingUp className="text-emerald-500" size={18} />
+            30-Day Daily Return %
+          </h2>
+          {lastUpdated && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 flex items-center gap-1 font-medium">
+              <Clock size={12} />
+              Last updated: {lastUpdated}
+            </p>
+          )}
+        </div>
+
+        {/* Toggles & Refresh Button Area */}
+        <div className="flex flex-wrap items-center gap-4">
+          
+          {/* Index Toggles */}
+          <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                checked={showKSE100} 
+                onChange={() => setShowKSE100(!showKSE100)} 
+                className="rounded border-slate-300 text-indigo-500 focus:ring-indigo-500 cursor-pointer"
+              />
+              KSE-100
+            </label>
+            <div className="w-px h-4 bg-slate-300 dark:bg-slate-600"></div>
+            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+              <input 
+                type="checkbox" 
+                checked={showKMI30} 
+                onChange={() => setShowKMI30(!showKMI30)} 
+                className="rounded border-slate-300 text-amber-500 focus:ring-amber-500 cursor-pointer"
+              />
+              KMI-30
+            </label>
+          </div>
+
+          <button 
+            onClick={handleFetchAndCalculate} 
+            disabled={loading}
+            className="flex items-center gap-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
+          >
+            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            {loading ? "Fetching Data..." : (chartData.length > 0 ? 'Refresh Data' : 'Generate Chart')}
+          </button>
+        </div>
       </div>
 
       {errorMsg && (
@@ -238,24 +284,32 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }}
                 activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }}
               />
-              <Line 
-                type="monotone" 
-                name="KSE100" 
-                dataKey="KSE100" 
-                stroke="#6366f1" 
-                strokeWidth={2.5} 
-                dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} 
-                activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
-              />
-              <Line 
-                type="monotone" 
-                name="KMI30" 
-                dataKey="KMI30" 
-                stroke="#f59e0b" 
-                strokeWidth={2.5} 
-                dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} 
-                activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }}
-              />
+              
+              {/* Conditionally Render KSE-100 */}
+              {showKSE100 && (
+                <Line 
+                  type="monotone" 
+                  name="KSE100" 
+                  dataKey="KSE100" 
+                  stroke="#6366f1" 
+                  strokeWidth={2.5} 
+                  dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} 
+                  activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }}
+                />
+              )}
+              
+              {/* Conditionally Render KMI-30 */}
+              {showKMI30 && (
+                <Line 
+                  type="monotone" 
+                  name="KMI30" 
+                  dataKey="KMI30" 
+                  stroke="#f59e0b" 
+                  strokeWidth={2.5} 
+                  dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} 
+                  activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         ) : (
