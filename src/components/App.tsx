@@ -22,15 +22,15 @@ import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
-import { PortfolioInsights } from './PortfolioInsights'; // <-- NEW IMPORT
+import { PortfolioInsights } from './PortfolioInsights';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { 
-    Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, 
-    LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, 
-    Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, 
-    ArrowRightLeft, Calculator, TrendingUp, Bell, Radar, ChevronsLeft, ChevronsRight 
+  Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, 
+  LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, 
+  Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, 
+  ArrowRightLeft, Calculator, TrendingUp, Bell, Radar, ChevronsLeft, ChevronsRight, Settings
 } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -40,13 +40,13 @@ import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const DEFAULT_BROKER: Broker = {
-    id: 'default_01',
-    name: 'Standard Broker',
-    commissionType: 'HIGHER_OF',
-    rate1: 0.15,
-    rate2: 0.05,
-    sstRate: 15,
-    isDefault: true
+  id: 'default_01',
+  name: 'Standard Broker',
+  commissionType: 'HIGHER_OF',
+  rate1: 0.15,
+  rate2: 0.05,
+  sstRate: 15,
+  isDefault: true
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
@@ -872,17 +872,19 @@ const App: React.FC = () => {
       { id: 'HISTORY', label: 'History', icon: History },
   ] as const;
 
+  // Reusable Settings Nav Items Array (Triggers Modals)
+  const settingsItems = [
+      { id: 'BROKERS', label: 'Broker Setup', icon: Briefcase, onClick: () => setShowBrokerManager(true), alert: false },
+      { id: 'API_KEYS', label: 'API Keys', icon: Key, onClick: () => setShowApiKeyManager(true), alert: (!userApiKey || !userScraperKey) },
+  ] as const;
+
   return (
-    // Updated wrapper to Flex and fixed height
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
       
-      {/* Ticker bar stays at the absolute top */}
       <MarketTicker />
       
-      {/* Main Flex Container for Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden relative">
           
-          {/* Background effects (moved here to stay behind main content) */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
               <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 dark:bg-emerald-600/10 rounded-full blur-[120px]"></div>
               <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 dark:bg-teal-600/10 rounded-full blur-[120px]"></div>
@@ -890,10 +892,8 @@ const App: React.FC = () => {
           </div>
 
           {/* ================= SIDEBAR ================= */}
-          {/* Using w-28 (112px) for collapsed to ensure large logos fit gracefully */}
           <div className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a0a0a] transition-all duration-300 z-30 ${isSidebarCollapsed ? 'w-28' : 'w-64'}`}>
               
-              {/* Logo Area: Changed to flex-col to place tagline below the logo */}
               <div className="flex flex-col items-center justify-center p-4 mb-2 border-b border-slate-100 dark:border-slate-800/50 min-h-[100px]">
                   <div className="flex-shrink-0 origin-center transition-transform duration-300">
                       <Logo />
@@ -909,7 +909,12 @@ const App: React.FC = () => {
               </div>
 
               {/* Navigation Links */}
-              <nav className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar">
+              <nav className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar pb-6">
+                  
+                  {/* MAIN MENU */}
+                  <div className={`px-3 mb-2 mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${isSidebarCollapsed ? 'text-center' : ''}`}>
+                      {!isSidebarCollapsed && 'Menu'}
+                  </div>
                   {navItems.map((item) => {
                       const Icon = item.icon;
                       const isActive = currentView === item.id;
@@ -919,7 +924,6 @@ const App: React.FC = () => {
                               key={item.id}
                               onClick={() => setCurrentView(item.id)}
                               title={isSidebarCollapsed ? item.label : undefined}
-                              // Centering logic when collapsed 
                               className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-3'} py-3 rounded-lg transition-colors ${
                                   isActive 
                                       ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50 font-bold' 
@@ -928,6 +932,36 @@ const App: React.FC = () => {
                           >
                               <Icon size={22} className="flex-shrink-0" />
                               {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
+                          </button>
+                      );
+                  })}
+
+                  {/* SETTINGS MENU */}
+                  <div className={`px-3 mb-2 mt-6 border-t border-slate-100 dark:border-slate-800 pt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${isSidebarCollapsed ? 'text-center' : 'flex items-center gap-1.5'}`}>
+                      {!isSidebarCollapsed && (
+                        <>
+                          <Settings size={12} /> Settings
+                        </>
+                      )}
+                  </div>
+                  {settingsItems.map((item) => {
+                      const Icon = item.icon;
+                      return (
+                          <button
+                              key={item.id}
+                              onClick={item.onClick}
+                              title={isSidebarCollapsed ? item.label : undefined}
+                              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-3'} py-3 rounded-lg transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium`}
+                          >
+                              <div className="relative">
+                                  <Icon size={22} className={`flex-shrink-0 ${item.alert ? 'text-rose-500 animate-pulse' : ''}`} />
+                                  {item.alert && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
+                              </div>
+                              {!isSidebarCollapsed && (
+                                  <span className={`whitespace-nowrap ${item.alert ? 'text-rose-500 font-bold' : ''}`}>
+                                      {item.label}
+                                  </span>
+                              )}
                           </button>
                       );
                   })}
@@ -1025,12 +1059,6 @@ const App: React.FC = () => {
                                           <ArrowRightLeft size={16} /> Transfer
                                       </button>
                                       <button
-                                          onClick={() => setShowBrokerManager(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
-                                      >
-                                          <Briefcase size={16} /> Brokers
-                                      </button>
-                                      <button
                                           onClick={() => setShowDividendScanner(true)}
                                           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
                                       >
@@ -1041,18 +1069,6 @@ const App: React.FC = () => {
                                           className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
                                       >
                                           <CalendarClock size={16} /> Future X-Dates
-                                      </button>
-                                      <button
-                                          onClick={() => setShowApiKeyManager(true)}
-                                          className={`border px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm ${
-                                              (!userApiKey || !userScraperKey)
-                                                  ? 'bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 animate-pulse'
-                                                  : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-200'
-                                          }`}
-                                          title={(!userApiKey || !userScraperKey) ? "Action Required: Save API Keys" : "AI Settings"}
-                                      >
-                                          <Key size={16} className={(!userApiKey || !userScraperKey) ? "text-rose-500 dark:text-rose-400" : "text-emerald-500 dark:text-emerald-400"} />
-                                          <span>{(!userApiKey || !userScraperKey) ? "Save API Key" : "API Key"}</span>
                                       </button>
                                   </div>
                                   <div className="flex items-center gap-4">
@@ -1123,7 +1139,7 @@ const App: React.FC = () => {
                                               >
                                                   <Edit3 size={18} /> <span>Manual Prices</span>
                                               </button>
-                                               <div className="flex items-center gap-2 shrink-0">
+                                             <div className="flex items-center gap-2 shrink-0">
                                                   <button
                                                       onClick={handleSyncPrices}
                                                       disabled={isSyncing}
@@ -1173,7 +1189,7 @@ const App: React.FC = () => {
                           </div>
                       )}
                       
-                      {/* NEW HOLDINGS VIEW */}
+                      {/* HOLDINGS VIEW */}
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <HoldingsTable
