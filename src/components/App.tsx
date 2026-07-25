@@ -1177,7 +1177,24 @@ const App: React.FC = () => {
                       {/* View Routing */}
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                              <Dashboard stats={stats} lastUpdated={lastPriceUpdate} />
+                              {(() => {
+                                  // 1. Grab the correct history (Combined or Individual Portfolio)
+                                  const historyData = performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [];
+                                  
+                                  // 2. Extract the actual portfolio values for the sparklines
+                                  const trendLine = historyData.map((d: any) => d.totalValue || d.value || 0);
+
+                                  return (
+                                      <Dashboard 
+                                          stats={stats} 
+                                          lastUpdated={lastPriceUpdate} 
+                                          userName={driveUser?.name?.split(' ')[0]} 
+                                          onRefresh={handleSyncPrices}
+                                          trend={trendLine.length > 1 ? trendLine : undefined}
+                                          holdings={holdings}
+                                      />
+                                  );
+                              })()}
                               
                               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
                                   <div className="lg:col-span-3">
