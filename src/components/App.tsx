@@ -871,13 +871,13 @@ const App: React.FC = () => {
   ] as const;
 
   return (
-    // 1. Updated wrapper to Flex and fixed height
+    // Updated wrapper to Flex and fixed height
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
       
       {/* Ticker bar stays at the absolute top */}
       <MarketTicker />
       
-      {/* 2. Main Flex Container for Sidebar + Content */}
+      {/* Main Flex Container for Sidebar + Content */}
       <div className="flex flex-1 overflow-hidden relative">
           
           {/* Background effects (moved here to stay behind main content) */}
@@ -888,16 +888,17 @@ const App: React.FC = () => {
           </div>
 
           {/* ================= SIDEBAR ================= */}
-          <div className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a0a0a] transition-all duration-300 z-30 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
+          {/* Using w-28 (112px) for collapsed to ensure large logos fit gracefully */}
+          <div className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a0a0a] transition-all duration-300 z-30 ${isSidebarCollapsed ? 'w-28' : 'w-64'}`}>
               
-              {/* Logo Area */}
-              <div className="flex items-center gap-3 p-4 mb-4 border-b border-slate-100 dark:border-slate-800/50 min-h-[80px]">
-                  <div className="scale-90 origin-left flex-shrink-0">
+              {/* Logo Area: Changed to flex-col to place tagline below the logo */}
+              <div className="flex flex-col items-center justify-center p-4 mb-2 border-b border-slate-100 dark:border-slate-800/50 min-h-[100px]">
+                  <div className="flex-shrink-0 origin-center transition-transform duration-300">
                       <Logo />
                   </div>
                   {!isSidebarCollapsed && (
-                      <div className="flex flex-col justify-center animate-in fade-in duration-300">
-                          <p className="text-[11px] font-bold tracking-wider whitespace-nowrap">
+                      <div className="mt-3 animate-in fade-in duration-300">
+                          <p className="text-[10px] md:text-[11px] font-bold tracking-wider whitespace-nowrap text-center">
                               <span className="text-slate-700 dark:text-slate-300">KNOW MORE. </span> 
                               <span className="text-cyan-500">EARN MORE.</span>
                           </p>
@@ -916,13 +917,14 @@ const App: React.FC = () => {
                               key={item.id}
                               onClick={() => setCurrentView(item.id)}
                               title={isSidebarCollapsed ? item.label : undefined}
-                              className={`w-full flex items-center gap-4 px-3 py-3 rounded-lg transition-colors ${
+                              // Centering logic when collapsed 
+                              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-3'} py-3 rounded-lg transition-colors ${
                                   isActive 
                                       ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50 font-bold' 
                                       : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
                               }`}
                           >
-                              <Icon size={20} className="flex-shrink-0" />
+                              <Icon size={22} className="flex-shrink-0" />
                               {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
                           </button>
                       );
@@ -933,7 +935,7 @@ const App: React.FC = () => {
               <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-4 bg-slate-50 dark:bg-[#0f0f0f]">
                   {driveUser ? (
                       <div className="flex flex-col gap-3">
-                          <div className="flex items-center gap-3">
+                          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
                               {driveUser.picture ? ( 
                                   <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-200 dark:border-emerald-900 flex-shrink-0" /> 
                               ) : ( 
@@ -966,10 +968,10 @@ const App: React.FC = () => {
 
                   <button 
                       onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                      className="w-full flex items-center gap-3 px-2 py-2 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+                      className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-2'} py-2 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors`}
                       title="Toggle Sidebar"
                   >
-                      {isSidebarCollapsed ? <ChevronsRight size={18} className="mx-auto" /> : <ChevronsLeft size={18} className="flex-shrink-0" />}
+                      {isSidebarCollapsed ? <ChevronsRight size={18} className="flex-shrink-0" /> : <ChevronsLeft size={18} className="flex-shrink-0" />}
                       {!isSidebarCollapsed && <span className="font-medium whitespace-nowrap">Collapse</span>}
                   </button>
               </div>
