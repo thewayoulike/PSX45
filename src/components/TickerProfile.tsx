@@ -5,10 +5,10 @@ import {
   TrendingUp, 
   Wallet, 
   Briefcase, 
-  PieChart, 
   History, 
   Coins, 
-  BarChart3 
+  BarChart3,
+  CheckCircle
 } from 'lucide-react';
 
 import PSXChart from './PSXChart';
@@ -32,28 +32,58 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   onClose
 }) => {
 
-  const { stats, sortedTransactionsDesc } = useMemo(() => {
+  const { stats, realizedStats, sortedTransactionsDesc } = useMemo(() => {
     let totalDividends = 0;
     let dividendTax = 0;
-    let totalFees = 0;
     let totalCashIn = 0;
     let totalCashOut = 0;
 
-    // Safely copy array before sorting to avoid direct prop mutation
+    // WAC (Weighted Average Cost) Trackers
+    let currentQty = 0;
+    let currentWAC = 0; // Average cost per share
+
+    let totalRealizedPnL = 0;
+    let totalRealizedCost = 0;
+    let totalRealizedRevenue = 0;
+    let totalRealizedShares = 0;
+
+    // Safely copy array and sort chronologically (oldest to newest) for WAC math
     const sortedAsc = [...transactions].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
     );
 
     sortedAsc.forEach((t) => {
       const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-      totalFees += fees;
       const gross = t.quantity * t.price;
 
-      if (t.type === 'BUY') {
-        totalCashIn += (gross + fees);
-      } else if (t.type === 'SELL') {
+      if (t.type === 'BUY' || t.type === 'TRANSFER_IN') {
+        const totalBuyCost = gross + fees;
+        totalCashIn += totalBuyCost;
+
+        // Update WAC
+        const newQty = currentQty + t.quantity;
+        if (newQty > 0) {
+          currentWAC = ((currentQty * currentWAC) + totalBuyCost) / newQty;
+        }
+        currentQty = newQty;
+
+      } else if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') {
         const netProceeds = gross - fees;
         totalCashOut += netProceeds;
+
+        // Calculate Realized PnL using WAC
+        const costOfGoodsSold = t.quantity * currentWAC;
+        const realizedPnL = netProceeds - costOfGoodsSold;
+
+        totalRealizedCost += costOfGoodsSold;
+        totalRealizedRevenue += netProceeds;
+        totalRealizedPnL += realizedPnL;
+        totalRealizedShares += t.quantity;
+
+        // Reduce holding quantity
+        currentQty = Math.max(0, currentQty - t.quantity);
+        if (currentQty === 0) currentWAC = 0;
+
       } else if (t.type === 'DIVIDEND') {
         totalDividends += gross;
         dividendTax += (t.tax || 0);
@@ -65,14 +95,25 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
     const currentMarketValue = (holding?.quantity || 0) * currentPrice;
     const lifetimeNet = (totalCashOut + currentMarketValue) - totalCashIn;
 
+    // True Weighted Realized ROI
+    const realizedROI = totalRealizedCost > 0 ? (totalRealizedPnL / totalRealizedCost) * 100 : 0;
+    const realizedAvgBuy = totalRealizedShares > 0 ? totalRealizedCost / totalRealizedShares : 0;
+    const realizedAvgSell = totalRealizedShares > 0 ? totalRealizedRevenue / totalRealizedShares : 0;
+
     return {
       stats: {
         netDividends: totalDividends - dividendTax,
-        totalFees,
         lifetimeNet,
         totalExtracted: totalCashOut
       },
-      // Memoized descending sort for rendering in transaction history table
+      realizedStats: {
+        pnl: totalRealizedPnL,
+        roi: realizedROI,
+        avgBuy: realizedAvgBuy,
+        avgSell: realizedAvgSell,
+        shares: totalRealizedShares
+      },
+      // Memoized descending sort for the transaction history table
       sortedTransactionsDesc: [...sortedAsc].reverse()
     };
   }, [transactions, holding, currentPrice]);
@@ -82,9 +123,14 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   const marketValue = quantity * currentPrice;
 
   const isLifetimeProfit = stats.lifetimeNet >= 0;
+  
+  // Unrealized Math
   const unrealizedPL = marketValue - (quantity * avgPrice);
   const unrealizedPLPercent = (quantity * avgPrice) > 0 ? (unrealizedPL / (quantity * avgPrice)) * 100 : 0;
   const isUnrealizedProfit = unrealizedPL >= 0;
+
+  // Realized Math
+  const isRealizedProfit = realizedStats.pnl >= 0;
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 overflow-y-auto animate-in slide-in-from-right duration-300">
@@ -148,73 +194,107 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         {/* STAT CARDS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
-          {/* CURRENT HOLDING */}
+          {/* 1. UNREALIZED HOLDING */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5"><Wallet size={100} /></div>
             <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
-                  <Briefcase size={18} />
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+                    <Briefcase size={18} />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Unrealized (Open)</h3>
                 </div>
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Current Holding</h3>
               </div>
 
               {quantity > 0 ? (
-                <div className="space-y-1">
-                  <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">
-                    {quantity.toLocaleString()} <span className="text-base font-medium text-slate-400">Shares</span>
-                  </div>
-                  <div className="flex justify-between items-end pt-2">
-                    <div className="text-xs text-slate-500">
-                      Avg: <span className="font-mono font-bold text-slate-700 dark:text-slate-300">{avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+                <div className="space-y-4">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <div className="text-sm text-slate-500 font-medium mb-1">Open Shares</div>
+                      <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                        {quantity.toLocaleString()}
+                      </div>
                     </div>
-                    <div className="text-xs text-slate-500">
-                      Value: <span className="font-mono font-bold text-slate-900 dark:text-slate-100">Rs. {marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    <div className="text-right">
+                      <div className={`text-xl font-bold ${isUnrealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {isUnrealizedProfit ? '+' : ''}{unrealizedPL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </div>
+                      <div className={`text-sm font-bold ${isUnrealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>
+                        {isUnrealizedProfit ? '+' : ''}{unrealizedPLPercent.toFixed(2)}% ROI
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                      <div className="text-xs text-slate-400 uppercase tracking-wider">Avg Buy</div>
+                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400 uppercase tracking-wider">Current</div>
+                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {currentPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
                     </div>
                   </div>
                 </div>
               ) : (
                 <div className="py-4 text-slate-400 font-medium italic flex items-center gap-2">
-                  <History size={20} /> Position Closed
+                  <History size={20} /> No Open Position
                 </div>
               )}
             </div>
           </div>
 
-          {/* UNREALIZED P&L / CASH EXTRACTED */}
+          {/* 2. REALIZED PERFORMANCE */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5"><TrendingUp size={100} /></div>
             <div className="relative z-10">
               <div className="flex items-center gap-2 mb-4">
-                <div className={`p-2 rounded-lg ${quantity > 0 ? (isUnrealizedProfit ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400') : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
-                  <PieChart size={18} />
+                <div className={`p-2 rounded-lg ${realizedStats.shares > 0 ? (isRealizedProfit ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400') : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+                  <CheckCircle size={18} />
                 </div>
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">
-                  {quantity > 0 ? 'Unrealized P&L' : 'Cash Extracted'}
-                </h3>
+                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Realized (Closed)</h3>
               </div>
 
-              {quantity > 0 ? (
-                <div className="space-y-1">
-                  <div className={`text-3xl font-bold ${isUnrealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                    {isUnrealizedProfit ? '+' : ''}{unrealizedPL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              {realizedStats.shares > 0 ? (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <div className="text-sm text-slate-500 font-medium mb-1">Shares Sold</div>
+                      <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                        {realizedStats.shares.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-xl font-bold ${isRealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                        {isRealizedProfit ? '+' : ''}{realizedStats.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </div>
+                      <div className={`text-sm font-bold ${isRealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>
+                        {isRealizedProfit ? '+' : ''}{realizedStats.roi.toFixed(2)}% ROI
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-sm font-bold text-slate-400">
-                    {unrealizedPLPercent.toFixed(2)}% Return
+
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                    <div>
+                      <div className="text-xs text-slate-400 uppercase tracking-wider">W. Avg Buy</div>
+                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {realizedStats.avgBuy.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-400 uppercase tracking-wider">W. Avg Sell</div>
+                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {realizedStats.avgSell.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                    </div>
                   </div>
                 </div>
               ) : (
-                <div className="space-y-1">
-                  <div className="text-3xl font-bold text-slate-700 dark:text-slate-300">
-                    {stats.totalExtracted.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                  </div>
-                  <div className="text-xs text-slate-400">Total Sales + Dividends</div>
+                <div className="py-4 text-slate-400 font-medium italic flex items-center gap-2">
+                  <History size={20} /> No Sales Yet
                 </div>
               )}
             </div>
           </div>
 
-          {/* PASSIVE INCOME */}
+          {/* 3. PASSIVE INCOME */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5"><Coins size={100} /></div>
             <div className="relative z-10">
