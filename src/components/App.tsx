@@ -49,7 +49,7 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -861,6 +861,7 @@ const App: React.FC = () => {
   // Reusable Sidebar Nav Items array
   const navItems = [
       { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
+      { id: 'HOLDINGS', label: 'Holdings', icon: FolderOpen },
       { id: 'STOCKS', label: 'Stocks', icon: ChartCandlestick },
       { id: 'ALERTS', label: 'Alerts', icon: Bell },
       { id: 'SIGNALS', label: 'Buy Signals', icon: Radar },
@@ -1155,16 +1156,23 @@ const App: React.FC = () => {
                                      }}
                                   />
                                   <AllocationChart holdings={holdings} />
-                                  <HoldingsTable
-                                      holdings={holdings}
-                                      showBroker={true}
-                                      failedTickers={failedTickers}
-                                      ldcpMap={ldcpMap}
-                                      onTickerClick={handleTickerClick}
-                                  />
                               </div>
                           </div>
                       )}
+                      
+                      {/* NEW HOLDINGS VIEW */}
+                      {currentView === 'HOLDINGS' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <HoldingsTable
+                                  holdings={holdings}
+                                  showBroker={true}
+                                  failedTickers={failedTickers}
+                                  ldcpMap={ldcpMap}
+                                  onTickerClick={handleTickerClick}
+                              />
+                          </div>
+                      )}
+
                       {currentView === 'STOCKS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <TickerPerformanceList
