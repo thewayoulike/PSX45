@@ -891,12 +891,17 @@ const App: React.FC = () => {
           <div className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a0a0a] transition-all duration-300 z-30 ${isSidebarCollapsed ? 'w-20' : 'w-64'}`}>
               
               {/* Logo Area */}
-              <div className="flex items-center gap-3 p-5 mb-4 border-b border-slate-100 dark:border-slate-800/50">
+              <div className="flex items-center gap-3 p-4 mb-4 border-b border-slate-100 dark:border-slate-800/50 min-h-[80px]">
                   <div className="scale-90 origin-left flex-shrink-0">
                       <Logo />
                   </div>
                   {!isSidebarCollapsed && (
-                      <span className="font-bold text-lg tracking-wide whitespace-nowrap text-slate-800 dark:text-slate-200">AlphaGen</span>
+                      <div className="flex flex-col justify-center animate-in fade-in duration-300">
+                          <p className="text-[11px] font-bold tracking-wider whitespace-nowrap">
+                              <span className="text-slate-700 dark:text-slate-300">KNOW MORE. </span> 
+                              <span className="text-cyan-500">EARN MORE.</span>
+                          </p>
+                      </div>
                   )}
               </div>
 
