@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { fetchStockHistory, TimeRange } from '../services/psxData';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, RefreshCw, Activity } from 'lucide-react';
 
 interface PSXChartProps {
   symbol: string;
@@ -66,26 +66,29 @@ const PSXChart: React.FC<PSXChartProps> = ({ symbol, height = 400 }) => {
   };
 
   return (
-    <div className="w-full bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col" style={{ height }}>
+    <div className="w-full bg-white/80 dark:bg-slate-900/50 backdrop-blur-md rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex flex-col" style={{ height }}>
       
       {/* 1. Header with Range Selector */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
-          <div className="flex items-center gap-2">
-              <span className="font-bold text-slate-800 text-sm flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+          <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm shrink-0">
+                  <Activity size={18} className="text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <span className="font-display font-black text-slate-900 dark:text-white text-lg tracking-tight">
                   Live Market Chart
               </span>
           </div>
           
-          {/* Replicating the 1D 1M 6M... style */}
-          <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-100">
+          {/* Premium Segmented Control Style */}
+          <div className="flex bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50 shadow-inner overflow-x-auto custom-scrollbar max-w-full">
               {RANGES.map((r) => (
                   <button
                       key={r}
                       onClick={() => setRange(r)}
-                      className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${
+                      className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all whitespace-nowrap ${
                           range === r 
-                              ? 'bg-emerald-600 text-white shadow-sm' 
-                              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200'
+                              ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                              : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-700/50'
                       }`}
                   >
                       {r}
@@ -97,17 +100,17 @@ const PSXChart: React.FC<PSXChartProps> = ({ symbol, height = 400 }) => {
       {/* 2. Chart Area */}
       <div className="flex-1 w-full relative min-h-0">
           {loading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 z-10">
-                  <Loader2 className="animate-spin text-emerald-500 mb-2" size={32} />
-                  <span className="text-slate-400 text-xs font-bold">Loading {range} Data...</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm z-10 rounded-xl">
+                  <Loader2 className="animate-spin text-emerald-500 mb-3" size={32} />
+                  <span className="text-slate-500 dark:text-slate-400 text-[10px] font-bold tracking-widest uppercase">Loading {range} Data...</span>
               </div>
           )}
 
           {error && !loading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white z-10">
-                  <p className="text-slate-400 font-medium mb-4 text-sm">Data Unavailable</p>
-                  <button onClick={() => loadData(range)} className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors text-xs font-bold">
-                      <RefreshCw size={14} /> Retry
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm z-10 rounded-xl">
+                  <p className="text-slate-500 dark:text-slate-400 font-bold mb-4 text-sm tracking-wide">Data Unavailable</p>
+                  <button onClick={() => loadData(range)} className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-xs font-bold shadow-sm hover:-translate-y-0.5 active:translate-y-0">
+                      <RefreshCw size={14} /> Retry Connection
                   </button>
               </div>
           )}
@@ -117,32 +120,33 @@ const PSXChart: React.FC<PSXChartProps> = ({ symbol, height = 400 }) => {
                   <AreaChart data={data}>
                       <defs>
                           <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="5%" stopColor={color} stopOpacity={0.2}/>
+                              <stop offset="5%" stopColor={color} stopOpacity={0.25}/>
                               <stop offset="95%" stopColor={color} stopOpacity={0}/>
                           </linearGradient>
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} strokeOpacity={0.15} stroke="currentColor" className="text-slate-400 dark:text-slate-500" />
                       <XAxis 
                           dataKey="time" 
                           tickFormatter={formatXAxis}
                           hide={false} 
                           minTickGap={range === '1D' ? 40 : 50}
-                          tick={{ fill: '#94a3b8', fontSize: 10 }}
+                          tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600 }}
                           axisLine={false}
                           tickLine={false}
                       />
                       <YAxis 
                           domain={[minPrice - padding, maxPrice + padding]} 
                           orientation="right"
-                          tick={{ fill: '#64748b', fontSize: 11 }}
+                          tick={{ fill: '#64748b', fontSize: 11, fontWeight: 600 }}
                           tickFormatter={(val) => val.toFixed(2)}
                           axisLine={false}
                           tickLine={false}
                           width={45}
                       />
                       <Tooltip 
-                          contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                          itemStyle={{ color: '#1e293b', fontWeight: 'bold', fontSize: '12px' }}
+                          contentStyle={{ backgroundColor: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1)' }}
+                          itemStyle={{ color: '#0f172a', fontWeight: '900', fontSize: '14px', fontFamily: 'monospace' }}
+                          labelStyle={{ color: '#64748b', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}
                           labelFormatter={(label) => new Date(label).toLocaleString([], { 
                               month: 'short', day: 'numeric', 
                               hour: range === '1D' ? '2-digit' : undefined, 
@@ -155,7 +159,7 @@ const PSXChart: React.FC<PSXChartProps> = ({ symbol, height = 400 }) => {
                           type="monotone" 
                           dataKey="price" 
                           stroke={color} 
-                          strokeWidth={2}
+                          strokeWidth={2.5}
                           fillOpacity={1} 
                           fill="url(#colorPrice)" 
                           animationDuration={500}
