@@ -3,6 +3,23 @@ import { Holding } from '../types';
 import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown as ArrowDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
+// --- Static Index Lists for Automatic Tagging ---
+const KMI30_TICKERS = new Set([
+  'ENGRO', 'FFC', 'HUBC', 'LUCK', 'MARI', 'MEBL', 'OGDC', 'POL', 'PPL', 'PSO', 'SYS', 'TRG', 
+  'CHCC', 'DGKC', 'FCCL', 'INIL', 'ISL', 'PIOC', 'PRL', 'SEARL', 'AICL', 'ATLH', 'DAWH', 
+  'EPCL', 'GLAXO', 'MTL', 'NML', 'PKGS', 'SAZEW', 'THALL', 'AVN', 'GWLC', 'NATF', 'PSMC', 'EFERT'
+]);
+
+const KSE100_TICKERS = new Set([
+  ...Array.from(KMI30_TICKERS), // All KMI-30 are typically in KSE-100
+  'UBL', 'HBL', 'MCB', 'BAHL', 'FABL', 'BAFL', 'BOP', 'SCBPL', 'KEL', 'FFBL', 'FATIMA', 
+  'INDU', 'HCAR', 'PAEL', 'AGP', 'MUREB', 'NESTLE', 'COLG', 'BATA', 'IGIHL', 'SHFA', 
+  'FEROZ', 'GTYR', 'LOTCHEM', 'NRL', 'SNGP', 'SSGC', 'NBP', 'AKBL', 'SNBL', 'HMB', 
+  'EFOODS', 'GATM', 'HINO', 'KAPCO', 'NCPL', 'NPL', 'PKPEL', 'RMPL', 'SHEL', 'SML', 
+  'TGL', 'GGL', 'GHGL', 'ASTL', 'ASL', 'CSAP', 'MUGHAL', 'AGHA', 'AMPL', 'FLYNG', 
+  'NCL', 'STJT', 'FML', 'GADT', 'ILP', 'KTML', 'CAPP', 'TATM', 'CPHL', 'DSIL'
+]);
+
 interface HoldingsTableProps {
   holdings: Holding[];
   showBroker?: boolean;
@@ -97,12 +114,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   };
 
   const SortIcon = ({ column }: { column: SortKey }) => {
-      if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />;
+      if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />;
       return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDownIcon size={12} className="text-emerald-500" />;
   };
 
   const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => (
-      <th className={`px-4 py-4 font-bold cursor-pointer select-none group hover:bg-slate-100 dark:hover:bg-slate-800/50 transition-colors ${className}`} onClick={() => sortKey && handleSort(sortKey)}>
+      <th className={`px-4 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 cursor-pointer select-none group hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors ${className}`} onClick={() => sortKey && handleSort(sortKey)}>
           <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}> 
             {label} {sortKey && <SortIcon column={sortKey} />} 
           </div>
@@ -110,19 +127,19 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   );
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden flex flex-col h-full animate-fade-in-up">
+    <div className="mt-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden flex flex-col mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
-        {/* Header Section */}
-        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-5 bg-slate-50/30 dark:bg-slate-800/20">
-          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+        {/* Header Controls */}
+        <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col gap-5 bg-white dark:bg-slate-900">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
              <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Active Holdings</h2>
-                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-md border border-slate-200 dark:border-slate-700 shadow-sm tabular-nums"> 
+                <div className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shadow-sm tabular-nums"> 
                   {filteredAndSortedHoldings.length} Assets 
                 </div>
                 {globalLastUpdate && ( 
-                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10 px-2.5 py-1 rounded-md border border-blue-100 dark:border-blue-500/20 shadow-sm"> 
-                    <Clock size={12} /> <span>Updated: {globalLastUpdate}</span> 
+                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-200/60 dark:border-blue-500/20 shadow-sm"> 
+                    <Clock size={14} /> <span>Updated: {globalLastUpdate}</span> 
                   </div> 
                 )}
              </div>
@@ -136,14 +153,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                     placeholder="Filter Ticker, Sector or Broker..." 
                     value={searchTerm} 
                     onChange={(e) => setSearchTerm(e.target.value)} 
-                    className="w-full glass-input rounded-xl pl-11 pr-4 py-2.5 text-sm transition-all" 
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-11 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" 
                   />
               </div>
-              <div className="flex bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-1 shadow-sm shrink-0 w-fit">
+              <div className="flex bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60 p-1 shadow-sm shrink-0 w-fit">
                   <button onClick={() => handleExport('excel')} className="p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 rounded-lg transition-colors" title="Export to Excel"> 
                     <FileSpreadsheet size={18} /> 
                   </button>
-                  <div className="w-[1px] bg-slate-200 dark:bg-slate-700 my-1 mx-1"></div>
+                  <div className="w-[1px] bg-slate-200 dark:bg-slate-700 my-1.5 mx-1"></div>
                   <button onClick={() => handleExport('csv')} className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 rounded-lg transition-colors" title="Export to CSV"> 
                     <FileText size={18} /> 
                   </button>
@@ -153,9 +170,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
         
         {/* Table Container */}
         <div className="overflow-x-auto flex-1 custom-scrollbar">
-          <table className="w-full text-left border-collapse whitespace-nowrap">
-            <thead className="sticky top-0 z-10 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm border-b border-slate-200 dark:border-slate-800">
-              <tr className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-widest">
+          <table className="w-full text-left whitespace-nowrap min-w-[1000px] border-collapse">
+            <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm border-b border-slate-200 dark:border-slate-800">
+              <tr>
                 <Th label="Asset" sortKey="ticker" />
                 {showBroker && <Th label="Broker" sortKey="broker" />}
                 <Th label="Qty" sortKey="quantity" align="right" />
@@ -170,7 +187,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
               {paginatedHoldings.length === 0 ? (
                 <tr> 
-                  <td colSpan={showBroker ? 9 : 8} className="px-6 py-20 text-center text-slate-400 italic"> 
+                  <td colSpan={showBroker ? 9 : 8} className="px-6 py-24 text-center text-slate-400 font-medium"> 
                     {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'} 
                   </td> 
                 </tr>
@@ -195,51 +212,63 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const breakEvenPrice = holding.avgPrice + sellFeePerShare;
 
                   const diff = holding.currentPrice - breakEvenPrice;
-                  let beColorClass = "text-amber-600 dark:text-amber-500"; 
-                  if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400"; 
-                  else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400"; 
+                  let beColorClass = "text-amber-600 dark:text-amber-500 bg-amber-50 dark:bg-amber-500/10"; 
+                  if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"; 
+                  else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"; 
+
+                  // --- INDEX TAG DETECTION ---
+                  const cleanTicker = holding.ticker.toUpperCase();
+                  const isKMI = KMI30_TICKERS.has(cleanTicker);
+                  const isKSE = KSE100_TICKERS.has(cleanTicker);
 
                   return (
                     <tr 
                       key={`${holding.ticker}-${holding.broker || idx}`} 
-                      className="even:bg-slate-100/60 dark:even:bg-slate-800/50 hover:bg-slate-200/60 dark:hover:bg-slate-700/50 transition-colors group cursor-pointer" 
+                      className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer" 
                       onClick={() => onTickerClick && onTickerClick(holding.ticker)}
                     >
                       {/* Asset Column */}
-                      <td className="px-4 py-4"> 
+                      <td className="px-4 py-3.5"> 
                         <div className="flex items-center gap-3"> 
-                          <div className="w-1 h-8 rounded-full" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> 
+                          <div className="w-1.5 h-10 rounded-full shadow-sm" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> 
                           <div> 
-                            <div className="font-display font-black text-slate-900 dark:text-white text-sm flex items-center gap-2"> 
+                            <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-2"> 
                               {holding.ticker} 
+                              {/* --- PREMIUM TAGS --- */}
+                              {isKSE && !isKMI && (
+                                <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 border border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 font-bold uppercase tracking-widest shadow-sm">KSE-100</span>
+                              )}
+                              {isKMI && (
+                                <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20 font-bold uppercase tracking-widest shadow-sm">KMI-30</span>
+                              )}
                               {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" title="Price update failed" />} 
                             </div> 
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[120px] mt-0.5">{holding.sector}</div> 
+                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[150px] mt-0.5">{holding.sector}</div> 
                           </div> 
                         </div> 
                       </td>
                       
                       {/* Broker */}
-                      {showBroker && <td className="px-4 py-4 text-xs font-medium text-slate-500 dark:text-slate-400">{holding.broker}</td>}
+                      {showBroker && <td className="px-4 py-3.5 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{holding.broker}</td>}
                       
                       {/* Qty */}
-                      <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-bold tabular-nums">
+                      <td className="px-4 py-3.5 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums">
                         {holding.quantity.toLocaleString()}
                       </td>
                       
                       {/* Avg Price */}
-                      <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 tabular-nums text-sm font-medium">
+                      <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-bold">
                           {roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* Current Price & BE */}
-                      <td className="px-4 py-4 text-right"> 
+                      <td className="px-4 py-3.5 text-right"> 
                         <div className="flex flex-col items-end"> 
                             <span className={`tabular-nums font-display font-black text-sm ${isFailed ? "text-amber-500" : "text-slate-900 dark:text-white"}`}> 
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} 
                             </span> 
                             {holding.quantity > 0 && (
-                                <span className={`text-[10px] font-bold tracking-tight mt-1 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded ${beColorClass}`} title={`Break-Even: Rs. ${breakEvenPrice.toFixed(4)}`}>
+                                <span className={`text-[9px] font-bold uppercase tracking-widest mt-1 px-1.5 py-0.5 rounded-md border shadow-sm border-transparent ${beColorClass}`} title={`Break-Even: Rs. ${breakEvenPrice.toFixed(4)}`}>
                                     BE: {breakEvenPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             )}
@@ -247,35 +276,35 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       </td>
                       
                       {/* Cost Basis */}
-                      <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 tabular-nums text-sm font-medium">
+                      <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-medium">
                         {costBasis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* Market Value */}
-                      <td className="px-4 py-4 text-right text-slate-900 dark:text-white font-display font-black tabular-nums text-sm">
+                      <td className="px-4 py-3.5 text-right text-slate-900 dark:text-white font-mono font-black tabular-nums text-sm">
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* Daily P&L */}
-                      <td className="px-4 py-4 text-right"> 
+                      <td className="px-4 py-3.5 text-right"> 
                         <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> 
-                          <span className="font-bold tabular-nums text-sm">
+                          <span className="font-mono font-bold tabular-nums text-sm">
                             {isDailyProfit ? '+' : ''}{dailyChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span> 
-                          <span className="text-[10px] font-bold flex items-center gap-0.5 mt-0.5 opacity-90">
-                            {isDailyProfit ? <TrendingUp size={10} /> : <TrendingDown size={10} />}
+                          <span className="text-[10px] font-bold flex items-center gap-0.5 mt-1 opacity-90 tracking-widest tabular-nums">
+                            {isDailyProfit ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
                             {dailyPercent.toFixed(2)}%
                           </span> 
                         </div> 
                       </td>
                       
                       {/* Total P&L */}
-                      <td className="px-4 py-4 text-right"> 
-                        <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> 
-                          <span className="font-display font-black tabular-nums text-sm">
+                      <td className="px-4 py-3.5 text-right"> 
+                        <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> 
+                          <span className="font-mono font-bold tabular-nums text-base">
                             {isProfit ? '+' : ''}{pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                           </span> 
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-1 ${isProfit ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md mt-1 tabular-nums border shadow-sm ${isProfit ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200/60 dark:border-rose-500/20'}`}>
                             {isProfit ? '+' : ''}{pnlPercent.toFixed(2)}%
                           </span> 
                         </div> 
@@ -288,33 +317,33 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             
             {/* Grand Total Footer */}
             {filteredAndSortedHoldings.length > 0 && (
-                <tfoot className="bg-slate-50 dark:bg-slate-900/80 border-t-2 border-slate-200 dark:border-slate-700 shadow-inner">
+                <tfoot className="bg-slate-50/90 dark:bg-slate-800/90 border-t-2 border-slate-200 dark:border-slate-700 shadow-inner">
                     <tr>
                         <td colSpan={showBroker ? 5 : 4} className="px-4 py-5 text-right text-[10px] uppercase font-bold tracking-widest text-slate-500 dark:text-slate-400">
                           Grand Total
                         </td>
-                        <td className="px-4 py-5 text-right text-sm font-medium tabular-nums text-slate-700 dark:text-slate-300">
+                        <td className="px-4 py-5 text-right text-sm font-mono font-bold tabular-nums text-slate-700 dark:text-slate-300">
                           {totals.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
-                        <td className="px-4 py-5 text-right text-base font-display font-black tabular-nums text-slate-900 dark:text-white">
+                        <td className="px-4 py-5 text-right text-base font-mono font-bold tabular-nums text-slate-900 dark:text-white">
                           {totals.totalMarket.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td className="px-4 py-5 text-right"> 
-                          <div className={`flex flex-col items-end ${totals.dailyPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> 
-                            <span className="font-bold tabular-nums text-sm">
+                          <div className={`flex flex-col items-end ${totals.dailyPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> 
+                            <span className="font-mono font-bold tabular-nums text-sm">
                               {totals.dailyPL >= 0 ? '+' : ''}{totals.dailyPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span> 
-                            <span className="text-[10px] font-bold mt-0.5 opacity-90">
+                            <span className="text-[10px] font-bold mt-1 opacity-90 tracking-widest tabular-nums">
                               {totalDailyPercent.toFixed(2)}%
                             </span> 
                           </div> 
                         </td>
                         <td className="px-4 py-5 text-right"> 
-                          <div className={`flex flex-col items-end ${totals.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> 
-                            <span className="font-display font-black tabular-nums text-base">
+                          <div className={`flex flex-col items-end ${totals.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> 
+                            <span className="font-mono font-bold tabular-nums text-base">
                               {totals.pnl >= 0 ? '+' : ''}{totals.pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span> 
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded mt-1 ${totals.pnl >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md mt-1 tabular-nums border shadow-sm ${totals.pnl >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200/60 dark:border-rose-500/20'}`}>
                               {totalPnlPercent.toFixed(2)}%
                             </span> 
                           </div> 
@@ -326,33 +355,33 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
         </div>
 
         {/* Pagination Footer */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+        <div className="p-4 border-t border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-3"> 
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rows per page:</span> 
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Rows:</span> 
               <select 
                 value={itemsPerPage} 
                 onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} 
-                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold py-1.5 px-3 outline-none focus:border-emerald-500 text-slate-700 dark:text-slate-300 shadow-sm"
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-xl text-xs font-bold py-1.5 px-3 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 text-slate-700 dark:text-slate-300 shadow-sm transition-colors cursor-pointer"
               > 
                 <option value={25}>25</option> <option value={50}>50</option> <option value={100}>100</option> 
               </select> 
             </div>
-            <div className="flex items-center gap-4"> 
-              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500 tabular-nums"> 
+            <div className="flex items-center gap-5"> 
+              <span className="text-[11px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 tabular-nums"> 
                 {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedHoldings.length)} of {filteredAndSortedHoldings.length} 
               </span> 
               <div className="flex gap-1.5"> 
                 <button 
                   onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
                   disabled={currentPage === 1} 
-                  className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors text-slate-600 dark:text-slate-400 shadow-sm"
+                  className="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors text-slate-600 dark:text-slate-400 shadow-sm disabled:cursor-not-allowed"
                 > 
                   <ChevronLeft size={16} /> 
                 </button> 
                 <button 
                   onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
                   disabled={currentPage === totalPages} 
-                  className="p-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors text-slate-600 dark:text-slate-400 shadow-sm"
+                  className="p-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors text-slate-600 dark:text-slate-400 shadow-sm disabled:cursor-not-allowed"
                 > 
                   <ChevronRight size={16} /> 
                 </button> 
