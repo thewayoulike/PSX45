@@ -13,7 +13,6 @@ import { DividendScanner } from './DividendScanner';
 import { UpcomingEventsScanner } from './UpcomingEventsScanner';
 import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
-import { Logo } from './ui/Logo';
 import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
 import { MarketTicker } from './MarketTicker';
@@ -23,14 +22,14 @@ import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
 import { PortfolioInsights } from './PortfolioInsights';
+import { Sidebar } from './Sidebar'; // NEW: Imported the isolated Sidebar
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { 
-  Edit3, Plus, FolderOpen, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, 
-  LogOut, Save, Briefcase, Key, LayoutDashboard, History, CheckCircle2, Pencil, 
-  Layers, ChevronDown, CheckSquare, Square, ChartCandlestick, CalendarClock, 
-  ArrowRightLeft, Calculator, TrendingUp, Bell, Radar, ChevronsLeft, ChevronsRight, Settings
+  Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, 
+  Save, Pencil, Layers, ChevronDown, CheckSquare, Square, Menu,
+  CalendarClock, ArrowRightLeft, LogOut
 } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -60,9 +59,8 @@ const App: React.FC = () => {
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
   
-  // Sidebar State
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
+  // Mobile Sidebar State
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [viewTicker, setViewTicker] = useState<string | null>(null);
 
@@ -855,27 +853,21 @@ const App: React.FC = () => {
       setCurrentView('STOCKS');
   };
   
+  // Handler for Sidebar navigation clicks to intercept Modals smoothly
+  const handleSidebarNav = (view: any) => {
+      if (view === 'BROKERS') {
+          setShowBrokerManager(true);
+      } else if (view === 'API_KEYS') {
+          setShowApiKeyManager(true);
+      } else {
+          setCurrentView(view as AppView);
+      }
+  };
+
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
   if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
-
-  const navItems = [
-      { id: 'DASHBOARD', label: 'Home', icon: LayoutDashboard },
-      { id: 'HOLDINGS', label: 'Holdings', icon: FolderOpen },
-      { id: 'STOCKS', label: 'Stocks', icon: ChartCandlestick },
-      { id: 'ALERTS', label: 'Alerts', icon: Bell },
-      { id: 'SIGNALS', label: 'Buy Signals', icon: Radar },
-      { id: 'CALCULATOR', label: 'Fair Value', icon: Calculator },
-      { id: 'SIMULATOR', label: 'Simulator', icon: TrendingUp },
-      { id: 'REALIZED', label: 'Realized Gains', icon: CheckCircle2 },
-      { id: 'HISTORY', label: 'History', icon: History },
-  ] as const;
-
-  const settingsItems = [
-      { id: 'BROKERS', label: 'Broker Setup', icon: Briefcase, onClick: () => setShowBrokerManager(true), alert: false },
-      { id: 'API_KEYS', label: 'API Keys', icon: Key, onClick: () => setShowApiKeyManager(true), alert: (!userApiKey || !userScraperKey) },
-  ] as const;
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
@@ -884,205 +876,118 @@ const App: React.FC = () => {
       
       <div className="flex flex-1 overflow-hidden relative">
           
+          {/* Ambient Background Blobs (Upgraded for Premium Look) */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
-              <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-emerald-400/10 dark:bg-emerald-600/10 rounded-full blur-[120px]"></div>
-              <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-teal-400/10 dark:bg-teal-600/10 rounded-full blur-[120px]"></div>
-              <div className="absolute top-[20%] right-[20%] w-[20%] h-[20%] bg-blue-400/5 dark:bg-blue-600/5 rounded-full blur-[100px]"></div>
+              <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]"></div>
+              <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-[120px]"></div>
           </div>
 
-          {/* SIDEBAR */}
-          <div className={`flex flex-col border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-[#0a0a0a] transition-all duration-300 z-30 ${isSidebarCollapsed ? 'w-28' : 'w-64'}`}>
-              
-              <div className="flex flex-col items-center justify-center p-4 mb-2 border-b border-slate-100 dark:border-slate-800/50 min-h-[100px]">
-                  <div className="flex-shrink-0 origin-center transition-transform duration-300">
-                      <Logo />
-                  </div>
-                  {!isSidebarCollapsed && (
-                      <div className="mt-3 animate-in fade-in duration-300">
-                          <p className="text-[10px] md:text-[11px] font-bold tracking-wider whitespace-nowrap text-center">
-                              <span className="text-slate-700 dark:text-slate-300">KNOW MORE. </span> 
-                              <span className="text-cyan-500">EARN MORE.</span>
-                          </p>
-                      </div>
-                  )}
-              </div>
-
-              <nav className="flex-1 overflow-y-auto px-3 space-y-1 custom-scrollbar pb-6">
-                  
-                  <div className={`px-3 mb-2 mt-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider ${isSidebarCollapsed ? 'text-center' : ''}`}>
-                      {!isSidebarCollapsed && 'Menu'}
-                  </div>
-                  {navItems.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = currentView === item.id;
-                      
-                      return (
-                          <button
-                              key={item.id}
-                              onClick={() => setCurrentView(item.id)}
-                              title={isSidebarCollapsed ? item.label : undefined}
-                              className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-3'} py-3 rounded-lg transition-colors ${
-                                  isActive 
-                                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-800/50 font-bold' 
-                                      : 'hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium'
-                              }`}
-                          >
-                              <Icon size={22} className="flex-shrink-0" />
-                              {!isSidebarCollapsed && <span className="whitespace-nowrap">{item.label}</span>}
-                          </button>
-                      );
-                  })}
-
-                  <div className={`mt-6 border-t border-slate-100 dark:border-slate-800 pt-4`}>
-                      <button
-                          onClick={() => {
-                              setIsSettingsExpanded(!isSettingsExpanded);
-                          }}
-                          className={`w-full flex items-center px-3 mb-2 text-[10px] font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 uppercase tracking-wider transition-colors outline-none ${isSidebarCollapsed ? 'justify-center' : 'justify-between'}`}
-                          title="Settings"
-                      >
-                          <div className="flex items-center gap-1.5">
-                              <Settings size={14} className={(!userApiKey || !userScraperKey) && !isSettingsExpanded ? "text-rose-500 animate-pulse" : ""} />
-                              {!isSidebarCollapsed && <span>Settings</span>}
-                          </div>
-                          {!isSidebarCollapsed && (
-                              <ChevronDown size={14} className={`transition-transform duration-200 ${isSettingsExpanded ? 'rotate-180' : ''}`} />
-                          )}
-                      </button>
-
-                      <div 
-                          className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${isSettingsExpanded ? 'max-h-40 opacity-100' : 'max-h-0 opacity-0'}`}
-                      >
-                          {settingsItems.map((item) => {
-                              const Icon = item.icon;
-                              return (
-                                  <button
-                                      key={item.id}
-                                      onClick={item.onClick}
-                                      title={isSidebarCollapsed ? item.label : undefined}
-                                      className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-4 px-3'} py-3 rounded-lg transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 font-medium`}
-                                  >
-                                      <div className="relative">
-                                          <Icon size={22} className={`flex-shrink-0 ${item.alert ? 'text-rose-500 animate-pulse' : ''}`} />
-                                          {item.alert && <span className="absolute -top-1 -right-1 w-2 h-2 bg-rose-500 rounded-full animate-ping"></span>}
-                                      </div>
-                                      {!isSidebarCollapsed && (
-                                          <span className={`whitespace-nowrap ${item.alert ? 'text-rose-500 font-bold' : ''}`}>
-                                              {item.label}
-                                          </span>
-                                      )}
-                                  </button>
-                              );
-                          })}
-                      </div>
-                  </div>
-
-              </nav>
-
-              <div className="p-4 border-t border-slate-200 dark:border-slate-800 space-y-4 bg-slate-50 dark:bg-[#0f0f0f]">
-                  {driveUser ? (
-                      <div className="flex flex-col gap-3">
-                          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
-                              {driveUser.picture ? ( 
-                                  <img src={driveUser.picture} alt="User" className="w-8 h-8 rounded-lg border border-emerald-200 dark:border-emerald-900 flex-shrink-0" /> 
-                              ) : ( 
-                                  <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold flex-shrink-0">
-                                      {driveUser.name?.[0]}
-                                  </div> 
-                              )}
-                              
-                              {!isSidebarCollapsed && (
-                                  <div className="flex flex-col min-w-0">
-                                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-wider flex items-center gap-1">
-                                          {isCloudSyncing ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Synced
-                                      </span>
-                                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{driveUser.name}</span>
-                                  </div>
-                              )}
-                          </div>
-                          {!isSidebarCollapsed && (
-                              <button onClick={handleManualLogout} className="flex items-center gap-2 text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-bold transition-colors w-full px-1">
-                                  <LogOut size={14} /> Sign Out
-                              </button>
-                          )}
-                      </div>
-                  ) : (
-                      <button onClick={handleLogin} className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all ${isSidebarCollapsed ? 'px-2' : 'px-4 w-full'}`}>
-                          <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 flex-shrink-0" alt="Google" /> 
-                          {!isSidebarCollapsed && <span>Sign in</span>}
-                      </button>
-                  )}
-
-                  <button 
-                      onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-                      className={`w-full flex items-center ${isSidebarCollapsed ? 'justify-center px-0' : 'gap-3 px-2'} py-2 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors`}
-                      title="Toggle Sidebar"
-                  >
-                      {isSidebarCollapsed ? <ChevronsRight size={18} className="flex-shrink-0" /> : <ChevronsLeft size={18} className="flex-shrink-0" />}
-                      {!isSidebarCollapsed && <span className="font-medium whitespace-nowrap">Collapse</span>}
-                  </button>
-              </div>
-          </div>
+          {/* New Reusable Sidebar Component */}
+          <Sidebar 
+             currentView={currentView}
+             onViewChange={handleSidebarNav}
+             isOpen={isMobileSidebarOpen}
+             onClose={() => setIsMobileSidebarOpen(false)}
+          />
 
           {/* MAIN CONTENT AREA */}
           <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
               <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-20">
                   
-                  <header className="flex justify-between items-center gap-4 mb-6 animate-in fade-in slide-in-from-top-5 duration-500">
+                  {/* Top Premium Glass Header */}
+                  <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
                       
-                      <div className="flex items-center gap-2 w-full md:w-auto bg-white dark:bg-slate-900/80 p-1.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm backdrop-blur">
+                      <div className="flex items-center gap-3">
+                         <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                            <Menu size={20} />
+                         </button>
+                      </div>
+
+                      <div className="flex items-center gap-2 w-full md:w-auto bg-white/80 dark:bg-slate-900/80 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
+                          
                           <ThemeToggle />
+                          
                           <div className="relative group flex-1 min-w-0">
                               <select
                                   value={currentPortfolioId}
                                   onChange={(e) => setCurrentPortfolioId(e.target.value)}
-                                  className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1 pl-1 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
+                                  className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1.5 pl-2 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
                               >
                                   {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
                               </select>
-                              <ChevronDown size={14} className="absolute right-0 top-1.5 text-slate-400 pointer-events-none" />
+                              <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
                           </div>
-                          <div className="flex items-center gap-1 pl-2 border-l border-slate-100 dark:border-slate-800 shrink-0">
-                              <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Edit"> <Pencil size={16} /> </button>
-                              <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="New"> <PlusCircle size={16} /> </button>
+                          
+                          <div className="flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-700 shrink-0">
+                              <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio"> <Pencil size={16} /> </button>
+                              <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio"> <PlusCircle size={16} /> </button>
+                          </div>
+
+                          {/* Top-Right Profile / Auth Block */}
+                          <div className="flex items-center gap-3 pl-3 ml-1 border-l border-slate-200 dark:border-slate-700">
+                              {driveUser ? (
+                                  <div className="flex items-center gap-3">
+                                      <div className="hidden md:flex flex-col items-end">
+                                          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 flex items-center gap-1">
+                                              {isCloudSyncing ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Synced
+                                          </span>
+                                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{driveUser.name}</span>
+                                      </div>
+                                      <button onClick={handleManualLogout} title="Sign Out" className="relative group">
+                                          {driveUser.picture ? ( 
+                                              <img src={driveUser.picture} alt="User" className="w-9 h-9 rounded-xl border-2 border-transparent group-hover:border-rose-400/50 transition-all" /> 
+                                          ) : ( 
+                                              <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold group-hover:bg-rose-100 dark:group-hover:bg-rose-900/50 group-hover:text-rose-600 transition-all">
+                                                  {driveUser.name?.[0]}
+                                              </div> 
+                                          )}
+                                      </button>
+                                  </div>
+                              ) : (
+                                  <button onClick={handleLogin} className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl font-bold shadow-sm transition-all text-xs border border-transparent">
+                                      <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> 
+                                      <span className="hidden sm:inline">Sign in</span>
+                                  </button>
+                              )}
                           </div>
                       </div>
                   </header>
 
                   <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
                       
-                      {/* Action Bar */}
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white/40 dark:bg-slate-900/40 p-4 rounded-2xl border border-white/60 dark:border-slate-700/60 backdrop-blur-md shadow-sm">
+                      {/* Premium Action Bar */}
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
                           <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
                               <div className="flex items-center justify-between min-w-max gap-6">
                                   <div className="flex items-center gap-3">
                                       <button
                                           onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
-                                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 md:px-5 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:scale-105 active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm dark:shadow-emerald-900/50"
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm dark:shadow-emerald-900/40"
                                       >
-                                          <Plus size={16} /> Add Transaction
+                                          <Plus size={18} /> Add Transaction
                                       </button>
                                       <button
                                           onClick={() => setShowTransferModal(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
                                       >
                                           <ArrowRightLeft size={16} /> Transfer
                                       </button>
                                       <button
                                           onClick={() => setShowDividendScanner(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-indigo-600 dark:text-indigo-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
                                       >
                                           <Coins size={16} /> Scan Dividends
                                       </button>
                                       <button
                                           onClick={() => setShowUpcomingScanner(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-blue-600 dark:text-blue-400 px-3 md:px-5 py-3 rounded-xl font-bold shadow-sm transition-all flex items-center justify-center gap-1.5 whitespace-nowrap text-xs md:text-sm"
+                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
                                       >
                                           <CalendarClock size={16} /> Future X-Dates
                                       </button>
                                   </div>
+
                                   <div className="flex items-center gap-4">
-                                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
+                                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm shrink-0">
                                           {isCombinedView && (
                                               <Popover.Root>
                                                   <Popover.Trigger asChild>
@@ -1096,13 +1001,13 @@ const App: React.FC = () => {
                                                   </Popover.Trigger>
                                                   <Popover.Portal>
                                                       <Popover.Content
-                                                          className="w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2"
+                                                          className="w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2"
                                                           sideOffset={5}
                                                           align="end"
                                                       >
                                                           <div className="flex justify-between items-center px-2 py-2 border-b border-slate-100 dark:border-slate-700 mb-1">
-                                                              <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500">Included Portfolios</span>
-                                                              <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline">Select All</button>
+                                                              <span className="text-[10px] uppercase font-bold text-slate-400 dark:text-slate-500 tracking-widest">Included Portfolios</span>
+                                                              <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline tracking-widest">Select All</button>
                                                           </div>
                                                           <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
                                                               {portfolios.map(p => {
@@ -1111,7 +1016,7 @@ const App: React.FC = () => {
                                                                       <div
                                                                           key={p.id}
                                                                           onClick={() => handleTogglePortfolioSelection(p.id)}
-                                                                          className={`flex items-center gap-3 px-3 py-2 rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}
+                                                                          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition-colors ${isSelected ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}
                                                                       >
                                                                           {isSelected ?
                                                                               <CheckSquare size={16} className="text-emerald-600 dark:text-emerald-400" /> :
@@ -1129,33 +1034,34 @@ const App: React.FC = () => {
                                           )}
                                           <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                           <div className="flex items-center gap-2">
-                                              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide whitespace-nowrap">Combined</span>
+                                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Combined</span>
                                               <button
                                                   onClick={() => {
                                                       const newState = !isCombinedView;
                                                       setIsCombinedView(newState);
                                                   }}
-                                                  className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-emerald-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                  className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}
                                               >
                                                   <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
                                               </button>
                                           </div>
                                       </div>
+
                                       {currentView === 'DASHBOARD' && (
                                           <>
                                               <button
                                                   onClick={() => setShowPriceEditor(true)}
-                                                  className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-3 rounded-xl font-medium shadow-sm transition-colors flex items-center gap-2 whitespace-nowrap shrink-0"
+                                                  className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 px-4 py-3 rounded-xl font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 whitespace-nowrap shrink-0 text-sm"
                                               >
-                                                  <Edit3 size={18} /> <span>Manual Prices</span>
+                                                  <Edit3 size={16} /> <span>Manual Prices</span>
                                               </button>
                                              <div className="flex items-center gap-2 shrink-0">
                                                   <button
                                                       onClick={handleSyncPrices}
                                                       disabled={isSyncing}
-                                                      className="bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-800/50 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl font-medium shadow-sm transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+                                                      className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm"
                                                   >
-                                                      {isSyncing ? <Loader2 size={18} className="animate-spin" /> : <RefreshCw size={18} />} <span>Sync PSX</span>
+                                                      {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} <span>Sync PSX</span>
                                                   </button>
                                                   {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                                               </div>
@@ -1293,39 +1199,39 @@ const App: React.FC = () => {
 
       {/* Modals outside of the flex container */}
       {isPortfolioModalOpen && (
-          <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl w-full max-w-sm p-6">
-                  <div className="flex justify-between items-center mb-4">
-                      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[70] flex items-center justify-center p-4">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-sm p-6 animate-in fade-in zoom-in-95 duration-200">
+                  <div className="flex justify-between items-center mb-6">
+                      <h3 className="text-xl font-display font-black text-slate-900 dark:text-white">
                           {editingPortfolioId ? 'Edit Portfolio' : 'Create Portfolio'}
                       </h3>
-                      <button onClick={() => setIsPortfolioModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={20} /></button>
+                      <button onClick={() => setIsPortfolioModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 rounded-full transition-colors"><X size={20} /></button>
                   </div>
                   <form onSubmit={handleSavePortfolio}>
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Portfolio Name <span className="text-rose-500">*</span></label>
-                      <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-slate-100 mb-4 outline-none focus:ring-2 focus:ring-emerald-500" />
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Portfolio Name <span className="text-rose-500">*</span></label>
+                      <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm mb-5 transition-all shadow-sm" />
 
-                      <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2">Default Broker <span className="text-rose-500">*</span></label>
-                      <div className="relative mb-6">
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Default Broker <span className="text-rose-500">*</span></label>
+                      <div className="relative mb-8">
                           <select
                               required
                               value={portfolioBrokerIdInput}
                               onChange={(e) => setPortfolioBrokerIdInput(e.target.value)}
-                              className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-700 dark:text-slate-100 outline-none appearance-none focus:ring-2 focus:ring-emerald-500"
+                              className="w-full glass-input rounded-xl px-4 py-3.5 text-sm outline-none appearance-none transition-all shadow-sm"
                           >
                               <option value="">Select a Broker</option>
                               {brokers.map(b => (
                                   <option key={b.id} value={b.id}>{b.name}</option>
                               ))}
                           </select>
-                          <Briefcase size={16} className="absolute right-4 top-3.5 text-slate-400 pointer-events-none" />
+                          <Briefcase size={16} className="absolute right-4 top-[14px] text-slate-400 pointer-events-none" />
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex gap-3">
                           {editingPortfolioId && (
                               <button
                                   type="button"
                                   onClick={handleDeletePortfolio}
-                                  className="px-4 py-3 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-900/50 border border-rose-200 dark:border-rose-800 rounded-xl font-bold transition-all"
+                                  className="px-4 py-3 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 hover:bg-rose-100 dark:hover:bg-rose-500/20 border border-rose-200 dark:border-rose-500/30 rounded-xl font-bold transition-all shadow-sm"
                                   title="Delete Portfolio"
                               >
                                   <Trash2 size={20} />
@@ -1334,7 +1240,7 @@ const App: React.FC = () => {
                           <button
                               type="submit"
                               disabled={!portfolioNameInput.trim()}
-                              className="flex-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-600/20"
+                              className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-3.5 rounded-xl transition-all shadow-md shadow-indigo-600/20 hover:-translate-y-0.5 active:translate-y-0"
                           >
                               {editingPortfolioId ? 'Save Changes' : 'Create Portfolio'}
                           </button>
