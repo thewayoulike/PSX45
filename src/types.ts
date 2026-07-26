@@ -24,6 +24,7 @@ export interface Holding {
   avgPrice: number;
   currentPrice: number;
   lastUpdated?: string;
+  listedIn?: string; // <--- ADDED THIS FOR DYNAMIC INDEX TAGS
   totalCommission: number;
   totalTax: number;
   totalCDC: number;
@@ -97,9 +98,6 @@ export interface Portfolio {
   defaultBrokerId: string;
 }
 
-// Added both SIMULATOR and CALCULATOR for the distinct views
-// Replace this line in src/types.ts
-// Replace your existing AppView type with this:
 export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'BROKERS' | 'API_KEYS';
 
 export interface DividendAnnouncement {
