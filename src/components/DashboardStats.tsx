@@ -13,7 +13,7 @@ interface DashboardProps {
   onRefresh?: () => void;
   trend?: number[];        // portfolio value series
   benchmark?: number[];    // KSE-100 value series
-  holdings?: Holding[];    
+  holdings?: Holding[];   
 }
 
 const rs = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -426,7 +426,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
               { label: 'CDC Charges', v: stats.totalCDC, icon: <FileText size={14} className="text-orange-500" /> },
               { label: 'Other Fees', v: stats.totalOtherFees, icon: <Stamp size={14} className="text-slate-400" /> },
             ].map((c) => (
-              <div key={c.label} className="bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl p-3 flex flex-col justify-center border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-colors">
+              <div key={c.label} className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 flex flex-col justify-center border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/80 transition-colors">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
                   {c.icon} {c.label}
                 </div>
