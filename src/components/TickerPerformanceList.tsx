@@ -16,7 +16,7 @@ import {
   Download,
   PieChart,
   Target,
-  Layers,     
+  Layers,      
   LayoutList, 
   TrendingUp, 
   Activity,
@@ -38,9 +38,9 @@ interface TickerPerformanceListProps {
 }
 
 interface ActivityRow extends Transaction {
-  avgBuyPrice: number;       
+  avgBuyPrice: number;        
   sellOrCurrentPrice: number; 
-  gain: number;              
+  gain: number;               
   gainType: 'REALIZED' | 'UNREALIZED' | 'NONE';
   remainingQty?: number;
 }
@@ -165,7 +165,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
-  // --- REVISED LOGIC: Intraday Priority, then FIFO ---
+  // --- Intraday Priority, then FIFO ---
   const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
       const txsByDate: Record<string, Transaction[]> = {};
       txs.forEach(t => {
@@ -438,7 +438,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
   // Formatting Helpers for Positive/Negative/Zero distinction
   const getColorClass = (val: number) => {
-      if (Math.abs(val) < 0.01) return 'text-slate-500 dark:text-slate-400'; // Gray for Zero
+      if (Math.abs(val) < 0.01) return 'text-slate-500 dark:text-slate-400';
       return val > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400';
   };
 
@@ -456,37 +456,37 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                               (analysisMode === 'SECTOR' && selectedSector && !selectedSectorStats);
 
   return (
-    <div className="max-w-7xl mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="max-w-[1600px] mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
       
       {/* HEADER SECTION with TOGGLE */}
-      <div className="relative z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-3xl p-8 shadow-xl shadow-slate-200/50 dark:shadow-black/40 mb-8 flex flex-col items-center justify-center text-center">
+      <div className="relative z-30 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl p-8 shadow-card dark:shadow-card-dark flex flex-col items-center justify-center text-center">
           
-          <div className="mb-6">
-              <h2 className="text-2xl font-black text-slate-800 dark:text-slate-100 tracking-tight mb-2">
+          <div className="mb-6 max-w-xl">
+              <h2 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight mb-2">
                   {analysisMode === 'STOCK' ? 'Stock Analyzer' : 'Sector Analyzer'}
               </h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">
+              <p className="text-slate-500 dark:text-slate-400 text-sm font-medium">
                   {analysisMode === 'STOCK' 
-                      ? 'Select a company to view position details, realized gains, and activity.'
-                      : 'Select a sector to view aggregated performance across multiple companies.'}
+                      ? 'Select a company to view position details, realized gains, and trade history.'
+                      : 'Select a sector to view aggregated performance across multiple portfolio positions.'}
               </p>
           </div>
 
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-6 shadow-inner border border-slate-200 dark:border-slate-700">
-              <button onClick={() => switchToStockMode()} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'STOCK' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}> <LayoutList size={16} /> Stock </button>
-              <button onClick={switchToSectorMode} className={`flex items-center gap-2 px-6 py-2 rounded-lg text-sm font-bold transition-all ${analysisMode === 'SECTOR' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}> <Layers size={16} /> Sector </button>
+          <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl mb-6 shadow-inner border border-slate-200/60 dark:border-slate-700/60">
+              <button onClick={() => switchToStockMode()} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${analysisMode === 'STOCK' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <LayoutList size={16} /> Stock </button>
+              <button onClick={switchToSectorMode} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${analysisMode === 'SECTOR' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Layers size={16} /> Sector </button>
           </div>
 
           <div className="relative w-full max-w-md" ref={dropdownRef}>
-              <div className="flex items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all cursor-text" onClick={() => setIsDropdownOpen(true)}>
-                  <Search size={20} className="text-slate-400 mr-3" />
-                  <input type="text" className="flex-1 bg-transparent outline-none text-slate-800 dark:text-slate-200 font-bold placeholder:font-normal" placeholder={analysisMode === 'STOCK' ? "Search Ticker (e.g. PPL)..." : "Search Sector (e.g. Fertilizer)..."} value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value.toUpperCase()); setIsDropdownOpen(true); }} onFocus={() => setIsDropdownOpen(true)} />
-                  {(selectedTicker || selectedSector) && ( <button onClick={handleClearSelection} className="p-1 hover:bg-slate-100 dark:bg-slate-700 rounded-full text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 mr-1"> <XCircle size={16} /> </button> )}
+              <div className="flex items-center glass-input rounded-2xl px-4 py-3.5 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all cursor-text" onClick={() => setIsDropdownOpen(true)}>
+                  <Search size={18} className="text-slate-400 mr-3 shrink-0" />
+                  <input type="text" className="flex-1 bg-transparent outline-none text-slate-900 dark:text-slate-100 font-bold placeholder:font-medium placeholder:text-slate-400" placeholder={analysisMode === 'STOCK' ? "Search Ticker (e.g. PPL)..." : "Search Sector (e.g. Fertilizer)..."} value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value.toUpperCase()); setIsDropdownOpen(true); }} onFocus={() => setIsDropdownOpen(true)} />
+                  {(selectedTicker || selectedSector) && ( <button onClick={handleClearSelection} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 mr-1 transition-colors"> <XCircle size={18} /> </button> )}
                   <ChevronDown size={18} className={`text-slate-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </div>
               {isDropdownOpen && (
-                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl z-50 max-h-[300px] overflow-y-auto custom-scrollbar p-2">
-                      {filteredOptions.length === 0 ? ( <div className="p-4 text-center text-slate-400 text-sm">No results found.</div> ) : ( filteredOptions.map((stats: any) => ( <div key={analysisMode === 'STOCK' ? stats.ticker : stats.name} onClick={() => handleSelect(analysisMode === 'STOCK' ? stats.ticker : stats.name)} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-xl cursor-pointer group transition-colors"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-black ${analysisMode === 'STOCK' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'}`}> {analysisMode === 'STOCK' ? stats.ticker.substring(0, 2) : <Layers size={16} />} </div> <div className="text-left"> <div className="font-bold text-slate-800 dark:text-slate-200">{analysisMode === 'STOCK' ? stats.ticker : stats.name}</div> <div className="text-[10px] text-slate-400 uppercase font-medium"> {analysisMode === 'STOCK' ? stats.sector : `${stats.stockCount} Companies`} </div> </div> </div> <div className="text-right"> <div className={`font-bold text-sm ${getColorClass(analysisMode === 'STOCK' ? stats.totalNetReturn : stats.lifetimeNet)}`}> {formatGain(analysisMode === 'STOCK' ? stats.totalNetReturn : stats.lifetimeNet)} </div> </div> </div> )) )}
+                  <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xl z-50 max-h-[300px] overflow-y-auto custom-scrollbar p-2">
+                      {filteredOptions.length === 0 ? ( <div className="p-4 text-center text-slate-400 font-medium text-sm">No results found.</div> ) : ( filteredOptions.map((stats: any) => ( <div key={analysisMode === 'STOCK' ? stats.ticker : stats.name} onClick={() => handleSelect(analysisMode === 'STOCK' ? stats.ticker : stats.name)} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl cursor-pointer group transition-colors"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black ${analysisMode === 'STOCK' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-blue-50 text-blue-600 border border-blue-100/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20'}`}> {analysisMode === 'STOCK' ? stats.ticker.substring(0, 2) : <Layers size={16} />} </div> <div className="text-left"> <div className="font-display font-black text-slate-900 dark:text-white">{analysisMode === 'STOCK' ? stats.ticker : stats.name}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest"> {analysisMode === 'STOCK' ? stats.sector : `${stats.stockCount} Companies`} </div> </div> </div> <div className="text-right"> <div className={`font-mono font-bold text-sm tabular-nums ${getColorClass(analysisMode === 'STOCK' ? stats.totalNetReturn : stats.lifetimeNet)}`}> {formatGain(analysisMode === 'STOCK' ? stats.totalNetReturn : stats.lifetimeNet)} </div> </div> </div> )) )}
                   </div>
               )}
           </div>
@@ -496,113 +496,121 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
         
         {/* --- STOCK DASHBOARD --- */}
         {analysisMode === 'STOCK' && selectedStockStats && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
                 {/* 1. HEADER */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner ${selectedStockStats.status === 'Active' ? 'bg-emerald-500 text-white' : 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400'}`}> {selectedStockStats.ticker.substring(0, 1)} </div>
-                        <div> <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight">{selectedStockStats.ticker}</h1> <div className="flex items-center gap-2 mt-1"> <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200 dark:border-slate-600">{selectedStockStats.sector}</span> <span className={`px-2 py-0.5 rounded text-xs font-bold uppercase border ${selectedStockStats.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-600'}`}> {selectedStockStats.status} </span> </div> </div>
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-display font-black shadow-inner ${selectedStockStats.status === 'Active' ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}> {selectedStockStats.ticker.substring(0, 1)} </div>
+                        <div> 
+                            <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">{selectedStockStats.ticker}</h1> 
+                            <div className="flex items-center gap-2 mt-1"> 
+                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border border-slate-200/60 dark:border-slate-700/60">{selectedStockStats.sector}</span> 
+                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border shadow-sm ${selectedStockStats.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}> {selectedStockStats.status} </span> 
+                            </div> 
+                        </div>
                     </div>
                 </div>
 
                 {/* 1.5 QUICK STATS BAR */}
                 <div className={`grid grid-cols-2 ${selectedStockStats.status === 'Active' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-3'} gap-4`}>
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="p-2 bg-slate-50 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-xl"><Activity size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Current Price</div> <div className="text-lg font-black text-slate-800 dark:text-slate-100">Rs. {formatDecimal(selectedStockStats.currentPrice)}</div> </div> </div> </div>
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`p-2 rounded-xl ${Math.abs(selectedStockStats.totalNetReturn) < 0.01 ? 'bg-slate-50 dark:bg-slate-900/20 text-slate-500 dark:text-slate-400' : selectedStockStats.totalNetReturn > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'}`}><TrendingUp size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lifetime Net</div> <div className={`text-lg font-black ${getColorClass(selectedStockStats.totalNetReturn)}`}> {formatGain(selectedStockStats.totalNetReturn)} </div> </div> </div> </div>
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`p-2 rounded-xl ${Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? 'bg-slate-50 dark:bg-slate-900/20 text-slate-500 dark:text-slate-400' : selectedStockStats.lifetimeROI > 0 ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-400'}`}><Percent size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Lifetime ROI</div> <div className={`text-lg font-black ${getColorClass(selectedStockStats.lifetimeROI)}`}> {Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? '0.00' : `${selectedStockStats.lifetimeROI > 0 ? '+' : ''}${formatDecimal(selectedStockStats.lifetimeROI)}`}% </div> </div> </div> </div>
-                    {selectedStockStats.status === 'Active' && ( <> <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="p-2 bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-400 rounded-xl"><PieChart size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Allocation</div> <div className="text-lg font-black text-slate-800 dark:text-slate-100">{selectedStockStats.allocationPercent.toFixed(1)}%</div> </div> </div> </div> <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="p-2 bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-400 rounded-xl"><Target size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Break-Even Price</div> <div className="text-lg font-black text-violet-600 dark:text-violet-400">Rs. {formatDecimal(selectedStockStats.breakEvenPrice)}</div> </div> </div> </div> </> )}
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"><Activity size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Current Price</div> <div className="text-lg font-mono font-bold text-slate-900 dark:text-white tabular-nums">Rs. {formatDecimal(selectedStockStats.currentPrice)}</div> </div> </div> </div>
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${Math.abs(selectedStockStats.totalNetReturn) < 0.01 ? 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' : selectedStockStats.totalNetReturn > 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}><TrendingUp size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lifetime Net</div> <div className={`text-lg font-mono font-bold tabular-nums ${getColorClass(selectedStockStats.totalNetReturn)}`}> {formatGain(selectedStockStats.totalNetReturn)} </div> </div> </div> </div>
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' : selectedStockStats.lifetimeROI > 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}><Percent size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lifetime ROI</div> <div className={`text-lg font-mono font-bold tabular-nums ${getColorClass(selectedStockStats.lifetimeROI)}`}> {Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? '0.00' : `${selectedStockStats.lifetimeROI > 0 ? '+' : ''}${formatDecimal(selectedStockStats.lifetimeROI)}`}% </div> </div> </div> </div>
+                    {selectedStockStats.status === 'Active' && ( <> <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="w-10 h-10 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-2xl flex items-center justify-center border border-sky-100 dark:border-sky-500/20 shadow-sm shrink-0"><PieChart size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Allocation</div> <div className="text-lg font-mono font-bold text-slate-900 dark:text-white tabular-nums">{selectedStockStats.allocationPercent.toFixed(1)}%</div> </div> </div> </div> <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="w-10 h-10 bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-2xl flex items-center justify-center border border-violet-100 dark:border-violet-500/20 shadow-sm shrink-0"><Target size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Break-Even</div> <div className="text-lg font-mono font-bold text-violet-600 dark:text-violet-400 tabular-nums">Rs. {formatDecimal(selectedStockStats.breakEvenPrice)}</div> </div> </div> </div> </> )}
                 </div>
 
                 {/* 2. STATS GRID */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Position & Gains</h3> </div>
+                        <div className="flex items-center gap-3 mb-6"> <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center border border-blue-100 dark:border-blue-500/20 shadow-sm shrink-0"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Position & Gains</h3> </div>
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4"> 
                                 <div> 
-                                    <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{selectedStockStats.ownedQty.toLocaleString()}</div> 
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Owned Shares</div> 
+                                    <div className="text-3xl font-display font-black text-slate-900 dark:text-white tabular-nums">{selectedStockStats.ownedQty.toLocaleString()}</div> 
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Owned Shares</div> 
                                     {selectedStockStats.holdingPeriod !== '-' && (
-                                        <div className="flex items-center gap-1 mt-1 text-[10px] text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-900/30 px-1.5 py-0.5 rounded w-fit" title="Duration of oldest unsold shares">
-                                            <Clock size={10} />
+                                        <div className="flex items-center gap-1.5 mt-2 text-[10px] text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-200/60 dark:border-blue-500/20 w-fit" title="Duration of oldest unsold shares">
+                                            <Clock size={12} />
                                             <span>Oldest: {selectedStockStats.holdingPeriod}</span>
                                         </div>
                                     )}
                                 </div> 
                                 <div> 
-                                    <div className="text-3xl font-bold text-slate-400 dark:text-slate-500">{selectedStockStats.soldQty.toLocaleString()}</div> 
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Sold Shares</div> 
+                                    <div className="text-3xl font-display font-black text-slate-400 dark:text-slate-500 tabular-nums">{selectedStockStats.soldQty.toLocaleString()}</div> 
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Sold Shares</div> 
                                 </div> 
                             </div>
-                            <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
-                            <div className="grid grid-cols-2 gap-4"> <div> <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Rs. {formatCurrency(selectedStockStats.totalCostBasis)}</div> <div className="text-[10px] text-slate-400">Total Cost Basis</div> <div className="text-[9px] text-slate-400 mt-0.5"> Avg: <span className="font-mono text-slate-600 dark:text-slate-300">Rs. {formatDecimal(selectedStockStats.currentAvgPrice)}</span> </div> </div> <div> <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Rs. {formatCurrency(selectedStockStats.currentValue)}</div> <div className="text-[10px] text-slate-400">Market Value</div> </div> </div>
-                            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700"> <div> <div className={`text-sm font-bold ${getColorClass(selectedStockStats.realizedPL)}`}> {formatGain(selectedStockStats.realizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Realized Gains</div> </div> <div> <div className={`text-sm font-bold ${getColorClass(selectedStockStats.unrealizedPL)}`}> {formatGain(selectedStockStats.unrealizedPL)} </div> <div className="text-[10px] text-slate-400 uppercase">Unrealized Gains</div> </div> </div>
+                            <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
+                            <div className="grid grid-cols-2 gap-4"> <div> <div className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {formatCurrency(selectedStockStats.totalCostBasis)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Cost Basis</div> <div className="text-[10px] text-slate-400 mt-1 font-bold"> Avg: <span className="font-mono text-slate-700 dark:text-slate-300 tabular-nums">Rs. {formatDecimal(selectedStockStats.currentAvgPrice)}</span> </div> </div> <div> <div className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {formatCurrency(selectedStockStats.currentValue)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Market Value</div> </div> </div>
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50/80 dark:bg-slate-800/40 p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60"> <div> <div className={`text-sm font-mono font-bold tabular-nums ${getColorClass(selectedStockStats.realizedPL)}`}> {formatGain(selectedStockStats.realizedPL)} </div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Realized Gains</div> </div> <div> <div className={`text-sm font-mono font-bold tabular-nums ${getColorClass(selectedStockStats.unrealizedPL)}`}> {formatGain(selectedStockStats.unrealizedPL)} </div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Unrealized Gains</div> </div> </div>
                         </div>
                     </Card>
                     
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Passive Income</h3> </div>
+                        <div className="flex items-center gap-3 mb-6"> <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 shadow-sm shrink-0"><Coins size={18} /></div> <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Passive Income</h3> </div>
                         <div className="space-y-6">
-                             <div> <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">+{formatCurrency(selectedStockStats.netDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends (After Tax)</div> </div>
-                             <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
-                             <div className="flex justify-between items-center"> <div> <div className="text-sm font-bold text-slate-700 dark:text-slate-300">{formatCurrency(selectedStockStats.totalDividends)}</div> <div className="text-[10px] text-slate-400">Gross Dividends</div> </div> <div className="text-right"> <div className="text-sm font-bold text-rose-500 dark:text-rose-400">-{formatCurrency(selectedStockStats.dividendTax)}</div> <div className="text-[10px] text-slate-400">Tax Paid</div> </div> </div>
-                             <div className="bg-indigo-50/50 dark:bg-indigo-900/10 rounded-xl p-3 border border-indigo-100 dark:border-indigo-800 flex justify-between items-center"> <div> <div className="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold"> <Percent size={14} /> <span>{selectedStockStats.dividendYieldOnCost.toFixed(2)}%</span> </div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Yield on Cost</div> </div> <div className="h-6 w-px bg-indigo-200/50 dark:bg-indigo-700"></div> <div className="text-right"> <div className="flex items-center justify-end gap-1.5 text-slate-700 dark:text-slate-300 font-bold"> <span>{selectedStockStats.dividendCount}</span> <CalendarCheck size={14} className="text-slate-400" /> </div> <div className="text-[9px] text-slate-400 uppercase mt-0.5">Payouts Received</div> </div> </div>
-                             <div className="flex gap-1 h-12 items-end mt-2 opacity-80"> {[30, 45, 25, 60, 40, 70, 50].map((h, i) => ( <div key={i} className="flex-1 bg-indigo-100 dark:bg-indigo-800 rounded-t-sm" style={{ height: `${h}%` }}></div> ))} </div>
+                             <div> <div className="text-3xl font-display font-black text-indigo-600 dark:text-indigo-400 tabular-nums">+{formatCurrency(selectedStockStats.netDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Net Dividends (After Tax)</div> </div>
+                             <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
+                             <div className="flex justify-between items-center"> <div> <div className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatCurrency(selectedStockStats.totalDividends)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Gross Dividends</div> </div> <div className="text-right"> <div className="text-sm font-mono font-bold text-rose-500 dark:text-rose-400 tabular-nums">-{formatCurrency(selectedStockStats.dividendTax)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Tax Paid</div> </div> </div>
+                             <div className="bg-indigo-50/50 dark:bg-indigo-500/10 rounded-2xl p-3.5 border border-indigo-100 dark:border-indigo-500/20 flex justify-between items-center shadow-sm"> <div> <div className="flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-mono font-bold text-sm tabular-nums"> <Percent size={14} /> <span>{selectedStockStats.dividendYieldOnCost.toFixed(2)}%</span> </div> <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Yield on Cost</div> </div> <div className="h-6 w-px bg-indigo-200/60 dark:bg-indigo-700/60"></div> <div className="text-right"> <div className="flex items-center justify-end gap-1.5 text-slate-900 dark:text-slate-100 font-mono font-bold text-sm tabular-nums"> <span>{selectedStockStats.dividendCount}</span> <CalendarCheck size={14} className="text-slate-400" /> </div> <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Payouts Received</div> </div> </div>
+                             <div className="flex gap-1.5 h-12 items-end mt-2 opacity-80"> {[30, 45, 25, 60, 40, 70, 50].map((h, i) => ( <div key={i} className="flex-1 bg-indigo-200 dark:bg-indigo-500/30 rounded-t-md transition-all hover:bg-indigo-500" style={{ height: `${h}%` }}></div> ))} </div>
                         </div>
                     </Card>
 
                      <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6"> <div className="p-2 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-lg"><Receipt size={18} /></div> <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Costs & Fees</h3> </div>
+                        <div className="flex items-center gap-3 mb-6"> <div className="w-10 h-10 bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-2xl flex items-center justify-center border border-amber-100 dark:border-amber-500/20 shadow-sm shrink-0"><Receipt size={18} /></div> <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Costs & Fees</h3> </div>
                         <div className="space-y-6">
-                             <div className="space-y-2">
-                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500 dark:text-slate-400">Commission</span> <span className="font-mono text-slate-700 dark:text-slate-300">{formatCurrency(selectedStockStats.totalComm)}</span> </div>
-                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500 dark:text-slate-400">Trading Tax</span> <span className="font-mono text-slate-700 dark:text-slate-300">{formatCurrency(selectedStockStats.totalTradingTax)}</span> </div>
-                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500 dark:text-slate-400">CDC Charges</span> <span className="font-mono text-slate-700 dark:text-slate-300">{formatCurrency(selectedStockStats.totalCDC)}</span> </div>
-                                 <div className="flex justify-between items-center text-xs"> <span className="text-slate-500 dark:text-slate-400">Other Fees</span> <span className="font-mono text-slate-700 dark:text-slate-300">{formatCurrency(selectedStockStats.totalOther)}</span> </div>
+                             <div className="space-y-2.5">
+                                 <div className="flex justify-between items-center text-xs font-bold"> <span className="text-slate-500 dark:text-slate-400">Commission</span> <span className="font-mono text-slate-900 dark:text-slate-100 tabular-nums">{formatCurrency(selectedStockStats.totalComm)}</span> </div>
+                                 <div className="flex justify-between items-center text-xs font-bold"> <span className="text-slate-500 dark:text-slate-400">Trading Tax</span> <span className="font-mono text-slate-900 dark:text-slate-100 tabular-nums">{formatCurrency(selectedStockStats.totalTradingTax)}</span> </div>
+                                 <div className="flex justify-between items-center text-xs font-bold"> <span className="text-slate-500 dark:text-slate-400">CDC Charges</span> <span className="font-mono text-slate-900 dark:text-slate-100 tabular-nums">{formatCurrency(selectedStockStats.totalCDC)}</span> </div>
+                                 <div className="flex justify-between items-center text-xs font-bold"> <span className="text-slate-500 dark:text-slate-400">Other Fees</span> <span className="font-mono text-slate-900 dark:text-slate-100 tabular-nums">{formatCurrency(selectedStockStats.totalOther)}</span> </div>
                              </div>
-                             <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
-                             <div> <div className="text-2xl font-bold text-rose-500 dark:text-rose-400">-{formatCurrency(selectedStockStats.feesPaid)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase">Total Charges</div> </div>
-                             <div className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 border border-slate-100 dark:border-slate-700">
-                                 <div className="flex justify-between items-center mb-1"> <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase">Trades Executed</span> <span className="text-lg font-black text-slate-800 dark:text-slate-200">{selectedStockStats.tradeCount}</span> </div>
-                                 <div className="flex justify-between items-center text-[10px] text-slate-400 mt-1 border-t border-slate-200 dark:border-slate-700 pt-1"> <div className="flex items-center gap-1"> <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div> <span>{selectedStockStats.buyCount} Buys</span> </div> <div className="flex items-center gap-1"> <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div> <span>{selectedStockStats.sellCount} Sells</span> </div> </div>
+                             <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
+                             <div> <div className="text-2xl font-display font-black text-rose-500 dark:text-rose-400 tabular-nums">-{formatCurrency(selectedStockStats.feesPaid)}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Total Charges</div> </div>
+                             <div className="bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl p-3.5 border border-slate-200/60 dark:border-slate-700/60">
+                                 <div className="flex justify-between items-center mb-1"> <span className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest">Trades Executed</span> <span className="text-lg font-mono font-bold text-slate-900 dark:text-white tabular-nums">{selectedStockStats.tradeCount}</span> </div>
+                                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 mt-2 border-t border-slate-200 dark:border-slate-700 pt-2"> <div className="flex items-center gap-1.5"> <div className="w-2 h-2 rounded-full bg-emerald-500"></div> <span>{selectedStockStats.buyCount} Buys</span> </div> <div className="flex items-center gap-1.5"> <div className="w-2 h-2 rounded-full bg-rose-500"></div> <span>{selectedStockStats.sellCount} Sells</span> </div> </div>
                              </div>
                         </div>
                     </Card>
                 </div>
 
                 {/* --- COMPANY FINANCIALS --- */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <FileText size={20} className="text-slate-500 dark:text-slate-400" />
-                            <h3 className="font-bold text-slate-800 dark:text-slate-200">Company Financials</h3>
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
+                    <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
+                              <FileText size={20} />
+                            </div>
+                            <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Company Financials</h3>
                         </div>
                         <div className="flex items-center gap-3">
-                            <div className="flex bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
-                                <button onClick={() => setFinancialPeriod('Annual')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${financialPeriod === 'Annual' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Annual</button>
-                                <button onClick={() => setFinancialPeriod('Quarterly')} className={`px-3 py-1.5 text-xs font-bold rounded-md transition-all ${financialPeriod === 'Quarterly' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>Quarterly</button>
+                            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                                <button onClick={() => setFinancialPeriod('Annual')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${financialPeriod === 'Annual' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>Annual</button>
+                                <button onClick={() => setFinancialPeriod('Quarterly')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${financialPeriod === 'Quarterly' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>Quarterly</button>
                             </div>
-                            <button onClick={loadFundamentals} disabled={loadingFundamentals} className="p-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-400 hover:text-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"> <RefreshCw size={16} className={loadingFundamentals ? "animate-spin" : ""} /> </button>
+                            <button onClick={loadFundamentals} disabled={loadingFundamentals} className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"> <RefreshCw size={16} className={loadingFundamentals ? "animate-spin" : ""} /> </button>
                         </div>
                     </div>
                     
-                    {!displayFinancials && !loadingFundamentals && ( <div className="p-8 text-center text-slate-400 text-sm">No {financialPeriod.toLowerCase()} data available for this company.</div> )}
+                    {!displayFinancials && !loadingFundamentals && ( <div className="p-12 text-center text-slate-400 font-medium text-sm">No {financialPeriod.toLowerCase()} data available for this company.</div> )}
 
                     {displayFinancials && (
-                        <div className="p-6 space-y-8 animate-in fade-in">
+                        <div className="p-6 space-y-8 animate-in fade-in duration-300">
                             {displayFinancials.financials.length > 0 && (
                                 <div>
-                                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">{financialPeriod} Results (000's)</h4>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300">
-                                            <thead className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
-                                                <tr> <th className="px-4 py-3"></th> {displayFinancials.financials.map(f => ( <th key={f.year} className="px-4 py-3 text-right">{f.year}</th> ))} </tr>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">{financialPeriod} Results (000's)</h4>
+                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                                        <table className="w-full text-sm text-left whitespace-nowrap">
+                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                                <tr> <th className="px-5 py-3.5">Metric</th> {displayFinancials.financials.map(f => ( <th key={f.year} className="px-5 py-3.5 text-right">{f.year}</th> ))} </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                                <tr> <td className="px-4 py-3 font-bold">Sales</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums">{f.sales}</td>)} </tr>
-                                                <tr> <td className="px-4 py-3 font-bold">Total Income</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums">{f.totalIncome}</td>)} </tr>
-                                                <tr> <td className="px-4 py-3 font-bold">Profit After Tax</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{f.profitAfterTax}</td>)} </tr>
-                                                <tr> <td className="px-4 py-3 font-bold">EPS</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-4 py-3 text-right tabular-nums font-bold text-indigo-600 dark:text-indigo-400">{f.eps}</td>)} </tr>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Sales</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">{f.sales}</td>)} </tr>
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Total Income</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">{f.totalIncome}</td>)} </tr>
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Profit After Tax</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{f.profitAfterTax}</td>)} </tr>
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">EPS</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums font-bold text-indigo-600 dark:text-indigo-400">{f.eps}</td>)} </tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -610,16 +618,16 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             )}
                             {displayFinancials.ratios.length > 0 && (
                                 <div>
-                                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-4">Key Ratios</h4>
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm text-left text-slate-700 dark:text-slate-300">
-                                            <thead className="text-xs text-slate-500 dark:text-slate-400 font-bold uppercase bg-slate-50 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700">
-                                                <tr> <th className="px-4 py-3"></th> {displayFinancials.ratios.map(r => ( <th key={r.year} className="px-4 py-3 text-right">{r.year}</th> ))} </tr>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Key Ratios</h4>
+                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                                        <table className="w-full text-sm text-left whitespace-nowrap">
+                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                                <tr> <th className="px-5 py-3.5">Ratio</th> {displayFinancials.ratios.map(r => ( <th key={r.year} className="px-5 py-3.5 text-right">{r.year}</th> ))} </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                                                <tr> <td className="px-4 py-3 font-bold">Net Profit Margin (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-4 py-3 text-right tabular-nums">{r.netProfitMargin}</td>)} </tr>
-                                                <tr> <td className="px-4 py-3 font-bold">EPS Growth (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className={`px-4 py-3 text-right tabular-nums ${r.epsGrowth.includes('(') ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{r.epsGrowth}</td>)} </tr>
-                                                <tr> <td className="px-4 py-3 font-bold">PEG</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-4 py-3 text-right tabular-nums">{r.peg}</td>)} </tr>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Net Profit Margin (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.netProfitMargin}</td>)} </tr>
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">EPS Growth (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className={`px-5 py-3.5 text-right font-mono tabular-nums font-bold ${r.epsGrowth.includes('(') ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{r.epsGrowth}</td>)} </tr>
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">PEG</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.peg}</td>)} </tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -633,17 +641,17 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
         {/* --- SECTOR DASHBOARD --- */}
         {analysisMode === 'SECTOR' && selectedSectorStats && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-8 duration-700">
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
                 {/* 1. HEADER */}
-                <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+                <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                        <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-black shadow-inner bg-blue-50 text-blue-600 border border-blue-100/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20">
                             <Layers size={32} />
                         </div>
                         <div>
-                            <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight">{selectedSectorStats.name}</h1>
+                            <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">{selectedSectorStats.name}</h1>
                             <div className="flex items-center gap-2 mt-1">
-                                <span className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded text-xs font-bold uppercase border border-slate-200 dark:border-slate-600">
+                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border border-slate-200/60 dark:border-slate-700/60">
                                     {selectedSectorStats.stockCount} Companies
                                 </span>
                             </div>
@@ -655,30 +663,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {/* Sector Overview */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg"><PieChart size={18} /></div>
-                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sector Overview</h3>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center border border-blue-100 dark:border-blue-500/20 shadow-sm shrink-0"><PieChart size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Sector Overview</h3>
                         </div>
                         <div className="space-y-6">
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">{selectedSectorStats.stockCount}</div>
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Active Stocks</div>
+                                    <div className="text-3xl font-display font-black text-slate-900 dark:text-white tabular-nums">{selectedSectorStats.stockCount}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Active Stocks</div>
                                 </div>
                                 <div>
-                                    <div className="text-3xl font-bold text-slate-400 dark:text-slate-500">{selectedSectorStats.allocationPercent.toFixed(1)}%</div>
-                                    <div className="text-[10px] text-slate-400 font-bold uppercase">Portfolio Alloc.</div>
+                                    <div className="text-3xl font-display font-black text-slate-400 dark:text-slate-500 tabular-nums">{selectedSectorStats.allocationPercent.toFixed(1)}%</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Portfolio Alloc.</div>
                                 </div>
                             </div>
-                            <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
+                            <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Rs. {formatCurrency(selectedSectorStats.totalCostBasis)}</div>
-                                    <div className="text-[10px] text-slate-400">Total Invested</div>
+                                    <div className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {formatCurrency(selectedSectorStats.totalCostBasis)}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Total Invested</div>
                                 </div>
                                 <div>
-                                    <div className="text-sm font-bold text-slate-700 dark:text-slate-300">Rs. {formatCurrency(selectedSectorStats.currentValue)}</div>
-                                    <div className="text-[10px] text-slate-400">Current Value</div>
+                                    <div className="text-sm font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {formatCurrency(selectedSectorStats.currentValue)}</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Current Value</div>
                                 </div>
                             </div>
                         </div>
@@ -686,30 +694,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                     {/* Sector Performance */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 rounded-lg"><TrendingUp size={18} /></div>
-                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Performance</h3>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-2xl flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm shrink-0"><TrendingUp size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Performance</h3>
                         </div>
                         <div className="space-y-6">
                             <div>
-                                <div className={`text-3xl font-bold ${getColorClass(selectedSectorStats.lifetimeNet)}`}>
+                                <div className={`text-3xl font-display font-black tabular-nums ${getColorClass(selectedSectorStats.lifetimeNet)}`}>
                                     {formatGain(selectedSectorStats.lifetimeNet)}
                                 </div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase">Lifetime Net Return</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Lifetime Net Return</div>
                             </div>
-                            <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
-                            <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-800 p-3 rounded-xl border border-slate-100 dark:border-slate-700">
+                            <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
+                            <div className="grid grid-cols-2 gap-4 bg-slate-50/80 dark:bg-slate-800/40 p-3.5 rounded-2xl border border-slate-200/60 dark:border-slate-700/60">
                                 <div>
-                                    <div className={`text-sm font-bold ${getColorClass(selectedSectorStats.realizedPL)}`}>
+                                    <div className={`text-sm font-mono font-bold tabular-nums ${getColorClass(selectedSectorStats.realizedPL)}`}>
                                         {formatGain(selectedSectorStats.realizedPL)}
                                     </div>
-                                    <div className="text-[10px] text-slate-400 uppercase">Realized</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Realized</div>
                                 </div>
                                 <div>
-                                    <div className={`text-sm font-bold ${getColorClass(selectedSectorStats.unrealizedPL)}`}>
+                                    <div className={`text-sm font-mono font-bold tabular-nums ${getColorClass(selectedSectorStats.unrealizedPL)}`}>
                                         {formatGain(selectedSectorStats.unrealizedPL)}
                                     </div>
-                                    <div className="text-[10px] text-slate-400 uppercase">Unrealized</div>
+                                    <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Unrealized</div>
                                 </div>
                             </div>
                         </div>
@@ -717,53 +725,52 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                     {/* Sector Income */}
                     <Card className="md:col-span-1">
-                        <div className="flex items-center gap-2 mb-6">
-                            <div className="p-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 rounded-lg"><Coins size={18} /></div>
-                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Income & Fees</h3>
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 shadow-sm shrink-0"><Coins size={18} /></div>
+                            <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Income & Fees</h3>
                         </div>
                         <div className="space-y-6">
                             <div>
-                                <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">+{formatCurrency(selectedSectorStats.netDividends)}</div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase">Net Dividends</div>
+                                <div className="text-3xl font-display font-black text-indigo-600 dark:text-indigo-400 tabular-nums">+{formatCurrency(selectedSectorStats.netDividends)}</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">Net Dividends</div>
                             </div>
-                            <div className="h-px bg-slate-100 dark:bg-slate-700 w-full"></div>
+                            <div className="h-px bg-slate-100 dark:bg-slate-800 w-full"></div>
                             <div>
-                                <div className="text-xl font-bold text-rose-500 dark:text-rose-400">-{formatCurrency(selectedSectorStats.feesPaid)}</div>
-                                <div className="text-[10px] text-slate-400 font-bold uppercase">Total Fees Paid</div>
+                                <div className="text-xl font-display font-black text-rose-500 dark:text-rose-400 tabular-nums">-{formatCurrency(selectedSectorStats.feesPaid)}</div>
+                                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Total Fees Paid</div>
                             </div>
-                            <div className="flex justify-between items-center text-xs text-slate-500 dark:text-slate-400">
+                            <div className="flex justify-between items-center text-xs font-bold text-slate-500 dark:text-slate-400">
                                 <span>Yield on Cost:</span>
-                                <span className="font-bold text-indigo-600 dark:text-indigo-400">{selectedSectorStats.dividendYieldOnCost.toFixed(2)}%</span>
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400 tabular-nums">{selectedSectorStats.dividendYieldOnCost.toFixed(2)}%</span>
                             </div>
                         </div>
                     </Card>
                 </div>
 
-                {/* 3. HOLDINGS LIST FOR SECTOR (ENHANCED) */}
-                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl overflow-hidden shadow-sm">
-                    <div className="p-6 border-b border-slate-100 dark:border-slate-700">
-                        <h3 className="font-bold text-slate-800 dark:text-slate-200">Sector Holdings</h3>
+                {/* 3. HOLDINGS LIST FOR SECTOR (HOLDINGS TABLE STYLE) */}
+                <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark">
+                    <div className="p-6 border-b border-slate-200/60 dark:border-slate-800">
+                        <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Sector Holdings</h3>
                     </div>
-                    <div className="overflow-x-auto">
-                        <table className="w-full text-left border-collapse">
-                            <thead className="bg-slate-50 dark:bg-slate-700/50 text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider border-b border-slate-200 dark:border-slate-700">
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-sm min-w-[900px] whitespace-nowrap border-collapse">
+                            <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-left sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest">
                                 <tr>
-                                    <th className="px-6 py-4">Ticker</th>
-                                    <th className="px-6 py-4 text-right">Qty</th>
-                                    <th className="px-6 py-4 text-right">Avg Price</th>
-                                    <th className="px-6 py-4 text-right">Current</th>
-                                    <th className="px-6 py-4 text-right">Total Cost</th>
-                                    <th className="px-6 py-4 text-right">Market Value</th>
-                                    <th className="px-6 py-4 text-right">% of Sector</th>
-                                    <th className="px-6 py-4 text-right">Total P&L</th>
+                                    <th className="px-6 py-3.5">Ticker</th>
+                                    <th className="px-6 py-3.5 text-right">Qty</th>
+                                    <th className="px-6 py-3.5 text-right">Avg Price</th>
+                                    <th className="px-6 py-3.5 text-right">Current</th>
+                                    <th className="px-6 py-3.5 text-right">Total Cost</th>
+                                    <th className="px-6 py-3.5 text-right">Market Value</th>
+                                    <th className="px-6 py-3.5 text-right">% of Sector</th>
+                                    <th className="px-6 py-3.5 text-right">Total P&L</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                 {selectedSectorStats.tickers.map(ticker => {
                                     const stockStats = allTickerStats.find(s => s.ticker === ticker);
                                     if (!stockStats) return null;
                                     
-                                    // Calculate % of Sector holding
                                     const percentOfSector = selectedSectorStats.currentValue > 0 
                                         ? (stockStats.currentValue / selectedSectorStats.currentValue) * 100 
                                         : 0;
@@ -771,30 +778,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     return (
                                         <tr 
                                             key={ticker} 
-                                            className="hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer transition-colors group" 
+                                            className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 cursor-pointer transition-colors group" 
                                             onClick={() => switchToStockMode(ticker)}
                                         >
-                                            <td className="px-6 py-4 font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                                                <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-xs font-bold text-slate-500 dark:text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 dark:group-hover:bg-blue-900/30 transition-colors">
+                                            <td className="px-6 py-3.5 font-display font-black text-slate-900 dark:text-white flex items-center gap-2.5">
+                                                <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500 dark:text-slate-400 group-hover:bg-blue-50 group-hover:text-blue-600 dark:group-hover:bg-blue-500/10 transition-colors">
                                                     {ticker.substring(0, 2)}
                                                 </div>
                                                 {ticker}
                                             </td>
-                                            <td className="px-6 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{stockStats.ownedQty.toLocaleString()}</td>
-                                            <td className="px-6 py-4 text-right font-mono text-xs text-slate-500 dark:text-slate-400">{formatDecimal(stockStats.currentAvgPrice)}</td>
-                                            <td className="px-6 py-4 text-right font-mono text-xs font-bold text-slate-800 dark:text-slate-200">{formatDecimal(stockStats.currentPrice)}</td>
-                                            <td className="px-6 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs">{formatCurrency(stockStats.totalCostBasis)}</td>
-                                            <td className="px-6 py-4 text-right font-bold text-slate-900 dark:text-slate-100 font-mono text-xs">{formatCurrency(stockStats.currentValue)}</td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    <span className="text-xs font-bold text-slate-600 dark:text-slate-300">{percentOfSector.toFixed(1)}%</span>
-                                                    <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                        <div className="h-full bg-blue-500" style={{ width: `${Math.min(percentOfSector, 100)}%` }}></div>
+                                            <td className="px-6 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{stockStats.ownedQty.toLocaleString()}</td>
+                                            <td className="px-6 py-3.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">{formatDecimal(stockStats.currentAvgPrice)}</td>
+                                            <td className="px-6 py-3.5 text-right font-mono text-xs font-bold text-slate-900 dark:text-slate-100 tabular-nums">{formatDecimal(stockStats.currentPrice)}</td>
+                                            <td className="px-6 py-3.5 text-right text-slate-500 dark:text-slate-400 font-mono text-xs tabular-nums">{formatCurrency(stockStats.totalCostBasis)}</td>
+                                            <td className="px-6 py-3.5 text-right font-bold text-slate-900 dark:text-slate-100 font-mono text-xs tabular-nums">{formatCurrency(stockStats.currentValue)}</td>
+                                            <td className="px-6 py-3.5 text-right">
+                                                <div className="flex items-center justify-end gap-2.5">
+                                                    <span className="text-xs font-bold font-mono text-slate-700 dark:text-slate-300 tabular-nums">{percentOfSector.toFixed(1)}%</span>
+                                                    <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
+                                                        <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${Math.min(percentOfSector, 100)}%` }}></div>
                                                     </div>
                                                 </div>
                                             </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <div className={`font-bold ${getColorClass(stockStats.totalNetReturn)}`}>
+                                            <td className="px-6 py-3.5 text-right">
+                                                <div className={`font-mono font-bold tabular-nums text-sm ${getColorClass(stockStats.totalNetReturn)}`}>
                                                     {formatGain(stockStats.totalNetReturn)}
                                                 </div>
                                             </td>
@@ -808,49 +815,81 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
             </div>
         )}
 
-        {/* --- ACTIVITY TABLE (Shared for both Stock & Sector) --- */}
+        {/* --- ACTIVITY TABLE (Holding/Realized Table Style) --- */}
         {(selectedTicker || selectedSector) && !isSelectionNotFound && (
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-3xl overflow-hidden shadow-sm mt-6">
-                <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/50 dark:bg-slate-700/30">
-                    <div className="flex items-center gap-2"> <History size={20} className="text-slate-500 dark:text-slate-400" /> <h3 className="font-bold text-slate-800 dark:text-slate-200">Activity Log</h3> </div>
-                    <button onClick={handleExportActivity} className="flex items-center gap-1.5 text-xs font-bold text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 px-3 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"> <Download size={14} /> Export CSV </button>
+            <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark mt-8">
+                <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900">
+                    <div className="flex items-center gap-3"> 
+                      <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
+                        <History size={20} /> 
+                      </div>
+                      <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Activity Log</h3> 
+                    </div>
+                    <button onClick={handleExportActivity} className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 px-4 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all shadow-sm hover:-translate-y-0.5"> <Download size={14} /> Export CSV </button>
                 </div>
-                <div className="overflow-x-auto">
-                    <table className="w-full text-left text-sm whitespace-nowrap">
-                        <thead className="bg-slate-50 dark:bg-slate-700/50 text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider border-b border-slate-200 dark:border-slate-700">
-                            <tr> <th className="px-6 py-4">Date</th> <th className="px-4 py-4">Ticker</th> <th className="px-4 py-4">Type</th> <th className="px-4 py-4 text-right">Qty</th> <th className="px-4 py-4 text-right text-slate-700 dark:text-slate-300" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th> <th className="px-4 py-4 text-right text-slate-700 dark:text-slate-300" title="Effective Sell Rate or Current Market Price">Sell / Current</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Comm</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Tax</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">CDC</th> <th className="px-4 py-4 text-right text-slate-400 dark:text-slate-500">Other</th> <th className="px-6 py-4 text-right">Net Amount</th> <th className="px-6 py-4 text-right text-emerald-600 dark:text-emerald-400 bg-emerald-50/30 dark:bg-emerald-900/10">Realized Gain</th> <th className="px-6 py-4 text-right text-blue-600 dark:text-blue-400 bg-blue-50/30 dark:bg-blue-900/10">Unrealized Gain</th> </tr>
+                <div className="overflow-x-auto custom-scrollbar">
+                    <table className="w-full text-left text-sm whitespace-nowrap min-w-[1000px] border-collapse">
+                        <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+                            <tr> 
+                              <th className="px-6 py-3.5">Date</th> 
+                              <th className="px-4 py-3.5">Ticker</th> 
+                              <th className="px-4 py-3.5">Type</th> 
+                              <th className="px-4 py-3.5 text-right">Qty</th> 
+                              <th className="px-4 py-3.5 text-right text-slate-700 dark:text-slate-300" title="Effective Buy Rate or Cost Basis">Avg Buy Price</th> 
+                              <th className="px-4 py-3.5 text-right text-slate-700 dark:text-slate-300" title="Effective Sell Rate or Current Market Price">Sell / Current</th> 
+                              <th className="px-4 py-3.5 text-right opacity-80">Comm</th> 
+                              <th className="px-4 py-3.5 text-right opacity-80">Tax</th> 
+                              <th className="px-4 py-3.5 text-right opacity-80">CDC</th> 
+                              <th className="px-4 py-3.5 text-right opacity-80">Other</th> 
+                              <th className="px-6 py-3.5 text-right">Net Amount</th> 
+                              <th className="px-6 py-3.5 text-right text-emerald-600 dark:text-emerald-400 bg-emerald-50/50 dark:bg-emerald-500/10">Realized Gain</th> 
+                              <th className="px-6 py-3.5 text-right text-blue-600 dark:text-blue-400 bg-blue-50/50 dark:bg-blue-500/10">Unrealized Gain</th> 
+                            </tr>
                         </thead>
-                        <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                        <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                             {paginatedActivity.map((t, i) => {
                                 const net = t.type === 'BUY' ? -((t.quantity * t.price) + (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : t.type === 'SELL' ? (t.quantity * t.price) - ((t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0)) : (t.quantity * t.price) - (t.tax||0); 
                                 return (
-                                    <tr key={`${t.id}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-700/50 transition-colors">
-                                        <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{t.date}</td>
-                                        <td className="px-4 py-4 font-bold text-slate-800 dark:text-slate-200">{t.ticker}</td>
-                                        <td className="px-4 py-4"> <span className={`text-[10px] font-bold px-2 py-1 rounded border ${t.type === 'BUY' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800' : t.type === 'SELL' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800' : 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800'}`}>{t.type}</span> </td>
-                                        <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300">{t.quantity.toLocaleString()}</td>
-                                        <td className="px-4 py-4 text-right font-mono text-xs text-slate-600 dark:text-slate-400">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
-                                        <td className={`px-4 py-4 text-right font-mono text-xs font-bold ${t.type === 'SELL' ? 'text-emerald-600 dark:text-emerald-400' : t.type === 'BUY' ? 'text-rose-500 dark:text-rose-400' : 'text-indigo-600 dark:text-indigo-400'}`}>{formatDecimal(t.sellOrCurrentPrice)}</td>
-                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.commission || 0).toLocaleString()}</td>
-                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.tax || 0).toLocaleString()}</td>
-                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.cdcCharges || 0).toLocaleString()}</td>
-                                        <td className="px-4 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs">{(t.otherFees || 0).toLocaleString()}</td>
-                                        <td className={`px-6 py-4 text-right font-bold font-mono ${getColorClass(net)}`}> {formatGain(net)} </td>
-                                        <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-emerald-50/30 dark:bg-emerald-900/10 ${t.gainType === 'REALIZED' ? getColorClass(t.gain) : 'text-slate-400'}`}>{t.gainType === 'REALIZED' ? formatGain(t.gain) : '-'}</td>
-                                        <td className={`px-6 py-4 text-right font-mono text-xs font-bold bg-blue-50/30 dark:bg-blue-900/10 ${t.gainType === 'UNREALIZED' ? getColorClass(t.gain) : 'text-slate-400'}`}>{t.gainType === 'UNREALIZED' ? ( <> {formatGain(t.gain)} {t.remainingQty && t.remainingQty < t.quantity && ( <span className="block text-[8px] opacity-60 font-sans font-normal text-slate-500 dark:text-slate-400 mt-0.5"> (On {t.remainingQty.toLocaleString()}) </span> )} </> ) : '-'}</td>
+                                    <tr key={`${t.id}-${i}`} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
+                                        <td className="px-6 py-3.5 text-slate-500 dark:text-slate-400 font-mono text-xs tabular-nums">{t.date}</td>
+                                        <td className="px-4 py-3.5 font-display font-black text-slate-900 dark:text-white">{t.ticker}</td>
+                                        <td className="px-4 py-3.5"> 
+                                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border shadow-sm ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20' : 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20'}`}>
+                                              {t.type}
+                                            </span> 
+                                        </td>
+                                        <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{t.quantity.toLocaleString()}</td>
+                                        <td className="px-4 py-3.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
+                                        <td className={`px-4 py-3.5 text-right font-mono text-xs font-bold tabular-nums ${t.type === 'SELL' ? 'text-emerald-600 dark:text-emerald-400' : t.type === 'BUY' ? 'text-rose-500 dark:text-rose-400' : 'text-indigo-600 dark:text-indigo-400'}`}>{formatDecimal(t.sellOrCurrentPrice)}</td>
+                                        <td className="px-4 py-3.5 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(t.commission || 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3.5 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(t.tax || 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3.5 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(t.cdcCharges || 0).toLocaleString()}</td>
+                                        <td className="px-4 py-3.5 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(t.otherFees || 0).toLocaleString()}</td>
+                                        <td className={`px-6 py-3.5 text-right font-bold font-mono tabular-nums ${getColorClass(net)}`}> {formatGain(net)} </td>
+                                        <td className={`px-6 py-3.5 text-right font-mono text-xs font-bold bg-emerald-50/30 dark:bg-emerald-900/10 tabular-nums ${t.gainType === 'REALIZED' ? getColorClass(t.gain) : 'text-slate-400'}`}>{t.gainType === 'REALIZED' ? formatGain(t.gain) : '-'}</td>
+                                        <td className={`px-6 py-3.5 text-right font-mono text-xs font-bold bg-blue-50/30 dark:bg-blue-900/10 tabular-nums ${t.gainType === 'UNREALIZED' ? getColorClass(t.gain) : 'text-slate-400'}`}>{t.gainType === 'UNREALIZED' ? ( <> {formatGain(t.gain)} {t.remainingQty && t.remainingQty < t.quantity && ( <span className="block text-[8px] opacity-60 font-sans font-normal text-slate-500 dark:text-slate-400 mt-0.5"> (On {t.remainingQty.toLocaleString()}) </span> )} </> ) : '-'}</td>
                                     </tr>
                                 );
                             })}
                         </tbody>
-                        <tfoot className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-700">
-                            <tr> <td colSpan={10} className="px-6 py-3 text-right uppercase tracking-wider text-slate-500 dark:text-slate-400">Grand Total (Visible)</td> <td className={`px-6 py-3 text-right font-mono ${getColorClass(activityTotals.netAmount)}`}> {formatGain(activityTotals.netAmount)} </td> <td className={`px-6 py-3 text-right font-mono ${getColorClass(activityTotals.realized)}`}> {formatGain(activityTotals.realized)} </td> <td className={`px-6 py-3 text-right font-mono ${getColorClass(activityTotals.unrealized)}`}> {formatGain(activityTotals.unrealized)} </td> </tr>
+                        <tfoot className="bg-slate-50/90 dark:bg-slate-800/90 text-xs font-bold text-slate-900 dark:text-slate-100 border-t-2 border-slate-200 dark:border-slate-700 shadow-inner">
+                            <tr> <td colSpan={10} className="px-6 py-4 text-right text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Grand Total (Visible)</td> <td className={`px-6 py-4 text-right font-mono tabular-nums ${getColorClass(activityTotals.netAmount)}`}> {formatGain(activityTotals.netAmount)} </td> <td className={`px-6 py-4 text-right font-mono tabular-nums ${getColorClass(activityTotals.realized)}`}> {formatGain(activityTotals.realized)} </td> <td className={`px-6 py-3 text-right font-mono tabular-nums ${getColorClass(activityTotals.unrealized)}`}> {formatGain(activityTotals.unrealized)} </td> </tr>
                         </tfoot>
                     </table>
                 </div>
                 {paginatedActivity.length > 0 && (
-                    <div className="p-4 border-t border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-800/40 flex flex-col sm:flex-row justify-between items-center gap-4">
-                        <div className="flex items-center gap-2"> <span className="text-xs text-slate-500 dark:text-slate-400">Rows per page:</span> <select value={activityRowsPerPage} onChange={(e) => { setActivityRowsPerPage(Number(e.target.value)); setActivityPage(1); }} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 cursor-pointer text-slate-700 dark:text-slate-300"> <option value={25}>25</option> <option value={50}>50</option> <option value={100}>100</option> </select> </div>
-                        <div className="flex items-center gap-4"> <span className="text-xs text-slate-500 dark:text-slate-400"> {(activityPage - 1) * activityRowsPerPage + 1}-{Math.min(activityPage * activityRowsPerPage, currentRows.length)} of {currentRows.length} </span> <div className="flex gap-1"> <button onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage === 1} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-600 dark:text-slate-400"><ChevronLeft size={16} /></button> <button onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))} disabled={activityPage === totalActivityPages || totalActivityPages === 0} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors text-slate-600 dark:text-slate-400"><ChevronRight size={16} /></button> </div> </div>
+                    <div className="p-5 border-t border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4">
+                        <div className="flex items-center gap-3"> 
+                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Rows:</span> 
+                            <select value={activityRowsPerPage} onChange={(e) => { setActivityRowsPerPage(Number(e.target.value)); setActivityPage(1); }} className="bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-lg text-xs py-1.5 px-2 outline-none focus:border-emerald-500 text-slate-700 dark:text-slate-300 font-bold cursor-pointer transition-colors shadow-sm"> <option value={25}>25</option> <option value={50}>50</option> <option value={100}>100</option> </select> 
+                        </div>
+                        <div className="flex items-center gap-5"> 
+                            <span className="text-xs font-bold text-slate-500 dark:text-slate-400 tabular-nums"> {(activityPage - 1) * activityRowsPerPage + 1}-{Math.min(activityPage * activityRowsPerPage, currentRows.length)} of {currentRows.length} </span> 
+                            <div className="flex gap-1.5"> 
+                                <button onClick={() => setActivityPage(p => Math.max(1, p - 1))} disabled={activityPage === 1} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300 shadow-sm"><ChevronLeft size={16} /></button> 
+                                <button onClick={() => setActivityPage(p => Math.min(totalActivityPages, p + 1))} disabled={activityPage === totalActivityPages || totalActivityPages === 0} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300 shadow-sm"><ChevronRight size={16} /></button> 
+                            </div> 
+                        </div>
                     </div>
                 )}
             </div>
@@ -858,28 +897,28 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
         {/* --- EMPTY STATE --- */}
         {!selectedTicker && !selectedSector && (
-            <div className="flex flex-col items-center justify-center py-20 opacity-50"> 
-                <div className="w-24 h-24 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4 text-slate-300 dark:text-slate-600"> 
-                    <BarChart3 size={48} /> 
+            <div className="flex flex-col items-center justify-center py-20 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-900/30"> 
+                <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-5 text-slate-400 dark:text-slate-500 shadow-inner"> 
+                    <BarChart3 size={36} /> 
                 </div> 
-                <h3 className="text-xl font-bold text-slate-400 dark:text-slate-500">No {analysisMode === 'STOCK' ? 'Stock' : 'Sector'} Selected</h3> 
-                <p className="text-slate-400 dark:text-slate-500">Use the search bar above to analyze performance.</p> 
+                <h3 className="text-xl font-display font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">No {analysisMode === 'STOCK' ? 'Stock' : 'Sector'} Selected</h3> 
+                <p className="text-slate-500 dark:text-slate-400 font-medium text-sm">Use the search bar above to analyze individual performance metrics.</p> 
             </div>
         )}
 
-        {/* --- NEW: SELECTED BUT NOT FOUND STATE --- */}
+        {/* --- SELECTED BUT NOT FOUND STATE --- */}
         {isSelectionNotFound && (
-            <div className="flex flex-col items-center justify-center py-20 opacity-70 animate-in fade-in zoom-in-95"> 
-                <div className="w-24 h-24 bg-amber-50 dark:bg-amber-900/20 rounded-full flex items-center justify-center mb-4 text-amber-400 dark:text-amber-500"> 
-                    <AlertCircle size={48} /> 
+            <div className="flex flex-col items-center justify-center py-20 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-900/30 animate-in fade-in zoom-in-95"> 
+                <div className="w-20 h-20 bg-amber-50 dark:bg-amber-500/10 rounded-full flex items-center justify-center mb-5 text-amber-500 shadow-inner border border-amber-200/60 dark:border-amber-500/20"> 
+                    <AlertCircle size={36} /> 
                 </div> 
-                <h3 className="text-xl font-bold text-slate-600 dark:text-slate-300">
+                <h3 className="text-xl font-display font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">
                     {analysisMode === 'STOCK' ? `Stock "${selectedTicker}" Not Found` : `Sector "${selectedSector}" Not Found`}
                 </h3> 
-                <p className="text-slate-400 dark:text-slate-500 max-w-md text-center mt-2 text-sm">
-                    This selection exists in your history but is not present in the currently active portfolio or combined view. 
+                <p className="text-slate-500 dark:text-slate-400 max-w-md text-center text-sm font-medium leading-relaxed">
+                    This selection exists in your overall history but is not present in the currently active portfolio.
                     <br/><br/>
-                    Try switching portfolios or enabling "Combined" view.
+                    Try switching portfolios or enabling "Combined" view in the top header.
                 </p> 
                 <button 
                     onClick={() => {
@@ -887,7 +926,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         if (analysisMode === 'STOCK') { setSelectedTicker(null); localStorage.removeItem('psx_last_analyzed_ticker'); }
                         else { setSelectedSector(null); localStorage.removeItem('psx_last_analyzed_sector'); }
                     }}
-                    className="mt-6 px-6 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg text-sm font-bold transition-colors"
+                    className="mt-6 px-6 py-2.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all shadow-sm"
                 >
                     Clear Selection
                 </button>
