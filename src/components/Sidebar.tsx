@@ -65,13 +65,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
       )}
 
-      {/* Sidebar Container */}
+      {/* Sidebar Container (Fixed Height Issue: using h-[100dvh] instead of h-screen) */}
       <div className={`
         fixed lg:static inset-y-0 left-0 z-50
         bg-white dark:bg-slate-900 border-r border-slate-200/60 dark:border-slate-800/60
         shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.2)]
         transform transition-all duration-300 ease-in-out
-        flex flex-col h-screen overflow-hidden
+        flex flex-col h-[100dvh] overflow-hidden
         ${isCollapsed ? 'w-24' : 'w-64'}
         ${isOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -185,8 +185,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* User Profile & Collapse Area (Completely Fixed for Collapsed State) */}
-        <div className={`border-t border-slate-200/60 dark:border-slate-800/60 flex flex-col bg-slate-50/50 dark:bg-[#0f0f0f]/50 shrink-0 transition-all ${isCollapsed ? 'p-3 gap-3' : 'p-4 gap-4'}`}>
+        {/* User Profile & Collapse Area (Fixed padding for bottom cutoff) */}
+        <div className={`border-t border-slate-200/60 dark:border-slate-800/60 flex flex-col bg-slate-50/50 dark:bg-[#0f0f0f]/50 shrink-0 transition-all ${isCollapsed ? 'p-3 pb-6 gap-3' : 'p-4 pb-8 gap-4'}`}>
             
             {driveUser ? (
                 <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-3`}>
