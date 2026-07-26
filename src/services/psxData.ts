@@ -47,7 +47,6 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
-// --- FIXED: ADDED 'export' HERE ---
 export const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> => {
     
     // 1. THE ULTIMATE FIX: Try your own Vercel Serverless Proxy first
@@ -154,7 +153,7 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
 };
 
 // B. FETCH BATCH PRICES (Sync PSX)
-export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number, high: number, low: number, volume: number }>> => {
+export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<string, { price: number, sector: string, ldcp: number, high: number, low: number, volume: number, listedIn: string }>> => {
     const results: Record<string, any> = {};
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     const targetTickers = new Set(tickers.map(t => t.trim().toUpperCase()));
@@ -168,7 +167,7 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     return results; 
 };
 
-// C. FETCH TOP VOLUME STOCKS (Ticker) - UPDATED FOR DYNAMIC COLUMNS
+// C. FETCH TOP VOLUME STOCKS (Ticker)
 export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: number; change: number; volume: number }[]> => {
     const targetUrl = `https://dps.psx.com.pk/market-watch`;
     const html = await fetchUrlWithFallback(targetUrl);
@@ -256,7 +255,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
             const rows = table.querySelectorAll("tr");
             if (rows.length < 2) return;
 
-            const colMap = { SYMBOL: -1, PRICE: -1, SECTOR: -1, LDCP: -1, HIGH: -1, LOW: -1, VOLUME: -1 };
+            const colMap = { SYMBOL: -1, PRICE: -1, SECTOR: -1, LISTEDIN: -1, LDCP: -1, HIGH: -1, LOW: -1, VOLUME: -1 };
             
             const headerRow = rows[0];
             const cells = headerRow.querySelectorAll("th, td");
@@ -265,6 +264,7 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
                 if (txt === 'SYMBOL' || txt === 'SCRIP') colMap.SYMBOL = idx;
                 if (txt.includes('CURRENT') || txt === 'PRICE' || txt === 'RATE') colMap.PRICE = idx;
                 if (txt === 'SECTOR') colMap.SECTOR = idx;
+                if (txt === 'LISTED IN' || txt.includes('LISTED')) colMap.LISTEDIN = idx; // MAPS THE LISTED IN COLUMN
                 if (txt === 'LDCP' || txt === 'PREV') colMap.LDCP = idx;
                 if (txt === 'HIGH') colMap.HIGH = idx;
                 if (txt === 'LOW') colMap.LOW = idx;
@@ -326,8 +326,17 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
                     if (secText) sector = SECTOR_CODE_MAP[secText] || secText;
                 }
 
+                // --- EXTRACT LISTED IN STRING ---
+                let listedIn = "";
+                if (colMap.LISTEDIN !== -1 && cols[colMap.LISTEDIN]) {
+                    listedIn = cols[colMap.LISTEDIN].textContent?.trim() || "";
+                }
+
                 if (price > 0) { 
-                    results[matchedTicker] = { price, sector, ldcp, high, low, volume }; 
+                    results[matchedTicker] = { price, sector, ldcp, high, low, volume, listedIn };
+                    
+                    // --- DEBUG LOG ADDED HERE ---
+                    console.log(`[PSX Scraper] Parsed ${matchedTicker}:`, { price, listedIn });
                 }
             });
         });
