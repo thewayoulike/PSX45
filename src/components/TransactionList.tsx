@@ -84,16 +84,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const getTypeConfig = (tx: Transaction) => {
       switch (tx.type) {
-          case 'BUY': return { style: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800', icon: <BuyIcon className="w-4 h-4" />, label: 'BUY' };
-          case 'SELL': return { style: 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800', icon: <SellIcon className="w-4 h-4" />, label: 'SELL' };
-          case 'DIVIDEND': return { style: 'bg-emerald-100 dark:bg-emerald-800 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-700 font-extrabold', icon: <DividendIcon className="w-4 h-4" />, label: 'DIVIDEND' };
-          case 'TAX': return { style: 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800', icon: <TaxIcon className="w-3 h-3" />, label: 'TAX' };
-          case 'HISTORY': return { style: tx.price >= 0 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100' : 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100', icon: <HistoricalPnLIcon className="w-4 h-4" />, label: 'Historical P&L' };
-          case 'DEPOSIT': return { style: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-800', icon: <DepositIcon className="w-4 h-4" />, label: 'DEPOSIT' };
-          case 'WITHDRAWAL': return { style: 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800', icon: <WithdrawIcon className="w-4 h-4" />, label: 'WITHDRAWAL' };
-          case 'ANNUAL_FEE': return { style: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-800', icon: <FeeIcon className="w-4 h-4" />, label: 'ANNUAL FEE' };
-          case 'OTHER': return { style: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700', icon: <Settings2 size={12} />, label: tx.category === 'OTHER_TAX' ? 'TAX/FEE' : tx.category === 'CDC_CHARGE' ? 'CDC FEE' : 'ADJUST' };
-          default: return { style: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200', icon: <ArrowUpRight size={10} />, label: tx.type };
+          case 'BUY': return { style: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20', icon: <BuyIcon className="w-3.5 h-3.5" />, label: 'BUY' };
+          case 'SELL': return { style: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20', icon: <SellIcon className="w-3.5 h-3.5" />, label: 'SELL' };
+          case 'DIVIDEND': return { style: 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200/60 dark:border-indigo-500/20', icon: <DividendIcon className="w-3.5 h-3.5" />, label: 'DIVIDEND' };
+          case 'TAX': return { style: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20', icon: <TaxIcon className="w-3 h-3" />, label: 'TAX' };
+          case 'HISTORY': return { style: tx.price >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20', icon: <HistoricalPnLIcon className="w-3.5 h-3.5" />, label: 'Historical P&L' };
+          case 'DEPOSIT': return { style: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-200/60 dark:border-blue-500/20', icon: <DepositIcon className="w-3.5 h-3.5" />, label: 'DEPOSIT' };
+          case 'WITHDRAWAL': return { style: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20', icon: <WithdrawIcon className="w-3.5 h-3.5" />, label: 'WITHDRAWAL' };
+          case 'ANNUAL_FEE': return { style: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-500/20', icon: <FeeIcon className="w-3.5 h-3.5" />, label: 'ANNUAL FEE' };
+          case 'OTHER': return { style: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60', icon: <Settings2 size={12} />, label: tx.category === 'OTHER_TAX' ? 'TAX/FEE' : tx.category === 'CDC_CHARGE' ? 'CDC FEE' : 'ADJUST' };
+          default: return { style: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60', icon: <ArrowUpRight size={10} />, label: tx.type };
       }
   };
 
@@ -108,35 +108,99 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
       exportToExcel(data, `Selected_Transactions_${new Date().toISOString().split('T')[0]}`); setSelectedIds(new Set());
   };
 
-  const SortIcon = ({ column }: { column: SortKey }) => { if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-300 dark:text-slate-600 opacity-0 group-hover:opacity-100 transition-opacity" />; return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDown size={12} className="text-emerald-500" />; };
-  const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => ( <th className={`px-4 py-4 font-semibold text-slate-600 dark:text-slate-400 cursor-pointer select-none group hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${className}`} onClick={() => sortKey && handleSort(sortKey)}> <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}> {label} {sortKey && <SortIcon column={sortKey} />} </div> </th> );
+  const SortIcon = ({ column }: { column: SortKey }) => { if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />; return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDown size={12} className="text-emerald-500" />; };
+  const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => ( <th className={`px-4 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 cursor-pointer select-none group hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors ${className}`} onClick={() => sortKey && handleSort(sortKey)}> <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}> {label} {sortKey && <SortIcon column={sortKey} />} </div> </th> );
 
   return (
-    <div className="mt-10 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-2xl overflow-hidden flex flex-col shadow-xl shadow-slate-200/50 dark:shadow-black/40 mb-20">
-      <div className="p-6 border-b border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-800/40 space-y-4">
-        <div className="flex flex-col lg:flex-row justify-between lg:items-center gap-4">
-          <div className="flex items-center gap-2"> <History size={20} className="text-emerald-600 dark:text-emerald-400" /> <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 tracking-tight">Transaction History</h2> </div>
-          <div className="flex items-center gap-3 overflow-x-auto pb-2 lg:pb-0 w-full lg:w-auto no-scrollbar">
-              {googleSheetId && ( <a href={`https://docs.google.com/spreadsheets/d/${googleSheetId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 px-3 py-1.5 rounded-lg border border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-800/30 transition-colors text-xs font-bold shrink-0"> <ExternalLink size={14} /> Open Sheet </a> )}
-              {selectedIds.size > 0 && ( <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-5 shrink-0"> <button onClick={handleExportSelected} className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-800/30 transition-colors text-xs font-bold shrink-0"> <Download size={14} /> Export ({selectedIds.size}) </button> {onDeleteMultiple && ( <button onClick={executeBulkDelete} className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-800/30 transition-colors text-xs font-bold shrink-0"> <Trash2 size={14} /> Delete ({selectedIds.size}) </button> )} <div className="h-5 w-[1px] bg-slate-300 dark:bg-slate-600 mx-1"></div> </div> )}
-              <div className="flex bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-1 shadow-sm shrink-0"> <button onClick={() => handleExport('excel')} className="p-1.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition-colors"> <FileSpreadsheet size={16} /> </button> <div className="w-[1px] bg-slate-100 dark:bg-slate-700 my-1 mx-0.5"></div> <button onClick={() => handleExport('csv')} className="p-1.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition-colors"> <FileText size={16} /> </button> </div>
-              <div className="text-xs text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-2 py-1 rounded border border-slate-200 dark:border-slate-700 shrink-0"> Total: {transactions.length} </div>
+    <div className="mt-8 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden flex flex-col shadow-card dark:shadow-card-dark mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Controls Header */}
+      <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col gap-4 bg-white dark:bg-slate-900">
+        <div className="flex flex-col xl:flex-row justify-between xl:items-center gap-4">
+          <div className="flex items-center gap-3"> 
+            <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 shadow-sm border border-emerald-100/60 dark:border-emerald-500/20">
+              <History size={20} /> 
+            </div>
+            <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Transaction History</h2> 
+          </div>
+          
+          <div className="flex items-center gap-3 overflow-x-auto pb-2 xl:pb-0 w-full xl:w-auto no-scrollbar">
+              {googleSheetId && ( <a href={`https://docs.google.com/spreadsheets/d/${googleSheetId}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-4 py-2.5 rounded-xl border border-emerald-200/60 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all text-xs font-bold shrink-0 shadow-sm hover:-translate-y-0.5"> <ExternalLink size={14} /> Open Sheet </a> )}
+              
+              {selectedIds.size > 0 && ( 
+                  <div className="flex items-center gap-2.5 animate-in fade-in slide-in-from-right-5 shrink-0"> 
+                      <button onClick={handleExportSelected} className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 px-4 py-2.5 rounded-xl border border-indigo-200/60 dark:border-indigo-500/20 hover:bg-indigo-100 dark:hover:bg-indigo-500/20 transition-all text-xs font-bold shrink-0 shadow-sm hover:-translate-y-0.5"> <Download size={14} /> Export ({selectedIds.size}) </button> 
+                      {onDeleteMultiple && ( <button onClick={executeBulkDelete} className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 px-4 py-2.5 rounded-xl border border-rose-200/60 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all text-xs font-bold shrink-0 shadow-sm hover:-translate-y-0.5"> <Trash2 size={14} /> Delete ({selectedIds.size}) </button> )} 
+                      <div className="h-6 w-px bg-slate-200 dark:bg-slate-700/60 mx-1"></div> 
+                  </div> 
+              )}
+              
+              <div className="flex bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60 p-1 shadow-sm shrink-0"> 
+                  <button onClick={() => handleExport('excel')} className="p-2.5 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-lg transition-colors" title="Export Excel"> <FileSpreadsheet size={16} /> </button> 
+                  <div className="w-[1px] bg-slate-200 dark:bg-slate-700 my-1.5 mx-0.5"></div> 
+                  <button onClick={() => handleExport('csv')} className="p-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors" title="Export CSV"> <FileText size={16} /> </button> 
+              </div>
+              <div className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-800 px-3 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shrink-0 shadow-sm tabular-nums"> Total: {transactions.length} </div>
           </div>
         </div>
+
         <div className="flex flex-col md:flex-row gap-3">
-            <div className="relative flex-1"> <Search size={16} className="absolute left-3 top-3 text-slate-400" /> <input type="text" placeholder="Search Ticker, Broker or Notes..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-emerald-500/20 outline-none placeholder-slate-400" /> </div>
-            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
-                <div className="relative w-full sm:w-auto"> <div className="absolute left-3 top-2.5 text-slate-400 pointer-events-none"><Filter size={16} /></div> <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full sm:w-[130px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-sm text-slate-600 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500/20 outline-none appearance-none cursor-pointer"> <option value="ALL">All Types</option> <option value="BUY">Buy</option> <option value="SELL">Sell</option> <option value="DIVIDEND">Dividend</option> <option value="TAX">Tax / CGT</option> <option value="HISTORY">History</option> <option value="DEPOSIT">Deposit</option> <option value="WITHDRAWAL">Withdrawal</option> <option value="ANNUAL_FEE">Annual Fee</option> <option value="OTHER">Other</option> </select> </div>
-                <div className="flex gap-2 items-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-0.5"> <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent border-none text-sm text-slate-600 dark:text-slate-300 focus:ring-0 outline-none w-[110px] py-2 dark:color-scheme-dark" /> <span className="text-slate-300 dark:text-slate-600 text-xs">to</span> <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent border-none text-sm text-slate-600 dark:text-slate-300 focus:ring-0 outline-none w-[110px] py-2 dark:color-scheme-dark" /> </div>
+            <div className="relative flex-1"> 
+                <Search size={16} className="absolute left-3.5 top-3 text-slate-400" /> 
+                <input type="text" placeholder="Search Ticker, Broker or Notes..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" /> 
             </div>
-            {hasActiveFilters && ( <button onClick={clearFilters} className="px-3 py-2 rounded-xl bg-rose-50 dark:bg-rose-900/30 text-rose-500 dark:text-rose-400 border border-rose-200 dark:border-rose-800 hover:bg-rose-100 dark:hover:bg-rose-800/30 transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap"> <X size={16} /> Clear </button> )}
+            <div className="flex gap-2 flex-wrap sm:flex-nowrap">
+                <div className="relative w-full sm:w-auto"> 
+                    <div className="absolute left-3.5 top-3 text-slate-400 pointer-events-none"><Filter size={16} /></div> 
+                    <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className="w-full sm:w-[150px] bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none appearance-none cursor-pointer shadow-sm transition-all"> 
+                        <option value="ALL">All Types</option> 
+                        <option value="BUY">Buy</option> 
+                        <option value="SELL">Sell</option> 
+                        <option value="DIVIDEND">Dividend</option> 
+                        <option value="TAX">Tax / CGT</option> 
+                        <option value="HISTORY">History</option> 
+                        <option value="DEPOSIT">Deposit</option> 
+                        <option value="WITHDRAWAL">Withdrawal</option> 
+                        <option value="ANNUAL_FEE">Annual Fee</option> 
+                        <option value="OTHER">Other</option> 
+                    </select> 
+                </div>
+                <div className="flex gap-2 items-center bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl px-3 py-1 shadow-sm transition-all shrink-0"> 
+                    <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent border-none text-sm font-medium text-slate-700 dark:text-slate-300 focus:ring-0 outline-none w-[110px] py-2 dark:color-scheme-dark" /> 
+                    <span className="text-slate-300 dark:text-slate-600 text-xs">-</span> 
+                    <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent border-none text-sm font-medium text-slate-700 dark:text-slate-300 focus:ring-0 outline-none w-[110px] py-2 dark:color-scheme-dark" /> 
+                </div>
+            </div>
+            {hasActiveFilters && ( 
+                <button onClick={clearFilters} className="px-4 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-200/60 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all shadow-sm hover:-translate-y-0.5 flex items-center gap-2 text-sm font-bold whitespace-nowrap shrink-0"> 
+                    <X size={16} /> Clear 
+                </button> 
+            )}
         </div>
       </div>
-      <div className="overflow-x-auto flex-1">
-        <table className="w-full text-left border-collapse">
-          <thead> <tr className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50"> <th className="px-4 py-4 w-10 text-center"> <input type="checkbox" onChange={handleSelectAll} checked={filteredAndSortedTransactions.length > 0 && selectedIds.size === filteredAndSortedTransactions.length} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </th> <Th label="Date" sortKey="date" /> <Th label="Type" sortKey="type" /> <Th label="Ticker" sortKey="ticker" /> <Th label="Broker" sortKey="broker" /> <Th label="Qty" sortKey="quantity" align="right" /> <Th label="Price" sortKey="price" align="right" /> <Th label="Comm" sortKey="commission" align="right" className="text-slate-400 dark:text-slate-500" /> <Th label="Tax" sortKey="tax" align="right" className="text-slate-400 dark:text-slate-500" /> <Th label="CDC" sortKey="cdcCharges" align="right" className="text-slate-400 dark:text-slate-500" /> <Th label="Other" sortKey="otherFees" align="right" className="text-slate-400 dark:text-slate-500" /> <Th label="Net Amount" sortKey="netAmount" align="right" /> <th className="px-4 py-4 font-semibold text-center text-slate-600 dark:text-slate-400">Action</th> </tr> </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
-            {paginatedTransactions.length === 0 ? ( <tr> <td colSpan={13} className="px-6 py-10 text-center text-slate-400 dark:text-slate-500 italic"> {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'} </td> </tr> ) : (
+
+      {/* Table Area */}
+      <div className="overflow-x-auto flex-1 custom-scrollbar">
+        <table className="w-full text-sm min-w-[1000px] whitespace-nowrap border-collapse">
+          <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-left sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800"> 
+            <tr> 
+                <th className="px-4 py-3.5 w-12 text-center"> <input type="checkbox" onChange={handleSelectAll} checked={filteredAndSortedTransactions.length > 0 && selectedIds.size === filteredAndSortedTransactions.length} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </th> 
+                <Th label="Date" sortKey="date" /> 
+                <Th label="Type" sortKey="type" /> 
+                <Th label="Ticker" sortKey="ticker" /> 
+                <Th label="Broker" sortKey="broker" /> 
+                <Th label="Qty" sortKey="quantity" align="right" /> 
+                <Th label="Price" sortKey="price" align="right" /> 
+                <Th label="Comm" sortKey="commission" align="right" className="opacity-80" /> 
+                <Th label="Tax" sortKey="tax" align="right" className="opacity-80" /> 
+                <Th label="CDC" sortKey="cdcCharges" align="right" className="opacity-80" /> 
+                <Th label="Other" sortKey="otherFees" align="right" className="opacity-80" /> 
+                <Th label="Net Amount" sortKey="netAmount" align="right" /> 
+                <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Action</th> 
+            </tr> 
+          </thead>
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {paginatedTransactions.length === 0 ? ( <tr> <td colSpan={13} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium"> {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'} </td> </tr> ) : (
                 paginatedTransactions.map((tx) => {
                     const isDiv = tx.type === 'DIVIDEND'; const netAmount = getNetAmount(tx); const typeConfig = getTypeConfig(tx); const isNegativeFlow = ['TAX', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) || (tx.type === 'OTHER' && (tx.category === 'OTHER_TAX' || tx.category === 'CDC_CHARGE')) || (tx.type === 'OTHER' && tx.price < 0) || (tx.type === 'HISTORY' && netAmount < 0); const isSelected = selectedIds.has(tx.id);
                     
@@ -149,20 +213,25 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                     const displayOther = isOtherManual ? tx.price : (tx.otherFees || 0);
 
                     return (
-                        <tr key={tx.id} className={`hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors ${isNegativeFlow ? 'bg-rose-50/30 dark:bg-rose-900/10' : ''} ${isSelected ? 'bg-indigo-50/60 dark:bg-indigo-900/20' : ''}`}>
-                        <td className="px-4 py-4 text-center"> <input type="checkbox" checked={isSelected} onChange={() => handleSelectOne(tx.id)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </td>
-                        <td className="px-4 py-4 text-slate-500 dark:text-slate-400 text-xs font-mono whitespace-nowrap">{tx.date}</td>
-                        <td className="px-4 py-4"> <span className={`inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold border ${typeConfig.style}`}> {typeConfig.icon} {typeConfig.label} </span> </td>
-                        <td className="px-4 py-4 font-bold text-slate-800 dark:text-slate-200"> {tx.ticker} {tx.notes && <div className="text-[9px] text-slate-400 font-normal mt-0.5 truncate max-w-[100px]" title={tx.notes}>{tx.notes}</div>} </td>
-                        <td className="px-4 py-4 text-xs text-slate-500 dark:text-slate-400">{tx.broker || (tx.type === 'TAX' ? 'System' : '-')}</td>
-                        <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 font-medium"> {tx.quantity.toLocaleString()} {isDiv && <div className="hidden group-hover:block absolute bg-slate-800 text-white text-[10px] p-2 rounded">Check History</div>} </td>
-                        <td className="px-4 py-4 text-right text-slate-800 dark:text-slate-200 font-mono text-xs font-medium"> {displayPrice !== 0 ? displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} </td>
-                        <td className="px-2 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs"> {(tx.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className="px-2 py-4 text-right text-slate-400 dark:text-slate-500 font-mono text-xs"> {(tx.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className={`px-2 py-4 text-right font-mono text-xs ${isCDCManual ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className={`px-2 py-4 text-right font-mono text-xs ${isOtherManual ? 'text-slate-700 dark:text-slate-300 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayOther.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className={`px-4 py-4 text-right font-bold font-mono text-xs ${netAmount < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}> {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className="px-4 py-4 text-center"> <div className="flex items-center justify-center gap-1"> <button onClick={(e) => { e.stopPropagation(); onEdit(tx); }} className="text-slate-400 hover:text-blue-500 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 p-2 rounded-lg transition-all" title="Edit"> <Pencil size={16} /> </button> <button onClick={(e) => {e.stopPropagation(); onDelete(tx.id);}} className="text-slate-400 hover:text-rose-500 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 p-2 rounded-lg transition-all" title="Delete"> <Trash2 size={16} /> </button> </div> </td>
+                        <tr key={tx.id} className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group ${isNegativeFlow ? 'bg-rose-50/30 dark:bg-rose-500/5' : ''} ${isSelected ? 'bg-indigo-50/80 dark:bg-indigo-500/10' : ''}`}>
+                        <td className="px-4 py-3 text-center"> <input type="checkbox" checked={isSelected} onChange={() => handleSelectOne(tx.id)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </td>
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs font-mono font-medium tabular-nums">{tx.date}</td>
+                        <td className="px-4 py-3"> <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${typeConfig.style}`}> {typeConfig.icon} {typeConfig.label} </span> </td>
+                        <td className="px-4 py-3 font-display font-black text-slate-900 dark:text-white"> {tx.ticker} {tx.notes && <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate max-w-[120px]" title={tx.notes}>{tx.notes}</div>} </td>
+                        <td className="px-4 py-3 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{tx.broker || (tx.type === 'TAX' ? 'System' : '-')}</td>
+                        <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums"> {tx.quantity.toLocaleString()} {isDiv && <div className="hidden group-hover:block absolute bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg z-20">Check History</div>} </td>
+                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300 font-mono text-xs tabular-nums"> {displayPrice !== 0 ? displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} </td>
+                        <td className="px-2 py-3 text-right text-slate-400 dark:text-slate-500 font-mono text-[10px] tabular-nums"> {(tx.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className="px-2 py-3 text-right text-slate-400 dark:text-slate-500 font-mono text-[10px] tabular-nums"> {(tx.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className={`px-2 py-3 text-right font-mono text-[10px] tabular-nums ${isCDCManual ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className={`px-2 py-3 text-right font-mono text-[10px] tabular-nums ${isOtherManual ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayOther.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className={`px-4 py-3 text-right font-bold font-mono text-sm tabular-nums ${netAmount < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}> {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className="px-4 py-3 text-center"> 
+                            <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"> 
+                                <button onClick={(e) => { e.stopPropagation(); onEdit(tx); }} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 p-2 rounded-xl transition-all shadow-sm" title="Edit"> <Pencil size={16} /> </button> 
+                                <button onClick={(e) => {e.stopPropagation(); onDelete(tx.id);}} className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 p-2 rounded-xl transition-all shadow-sm" title="Delete"> <Trash2 size={16} /> </button> 
+                            </div> 
+                        </td>
                         </tr>
                     );
                 })
@@ -170,9 +239,30 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
           </tbody>
         </table>
       </div>
-      <div className="p-4 border-t border-slate-200/60 dark:border-slate-700/60 bg-white/40 dark:bg-slate-800/40 flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2"> <span className="text-xs text-slate-500 dark:text-slate-400">Rows per page:</span> <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs py-1 px-2 outline-none focus:border-emerald-500 text-slate-700 dark:text-slate-300"> <option value={25}>25</option> <option value={50}>50</option> <option value={100}>100</option> </select> </div>
-          <div className="flex items-center gap-4"> <span className="text-xs text-slate-500 dark:text-slate-400"> {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedTransactions.length)} of {filteredAndSortedTransactions.length} </span> <div className="flex gap-1"> <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors text-slate-600 dark:text-slate-400"> <ChevronLeft size={16} /> </button> <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 transition-colors text-slate-600 dark:text-slate-400"> <ChevronRight size={16} /> </button> </div> </div>
+
+      {/* Pagination Footer */}
+      <div className="p-5 border-t border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-3"> 
+              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Rows:</span> 
+              <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-lg text-xs py-1.5 px-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 text-slate-700 dark:text-slate-300 font-bold cursor-pointer transition-colors shadow-sm"> 
+                  <option value={25}>25</option> 
+                  <option value={50}>50</option> 
+                  <option value={100}>100</option> 
+              </select> 
+          </div>
+          <div className="flex items-center gap-5"> 
+              <span className="text-xs font-bold text-slate-500 dark:text-slate-400 tabular-nums"> 
+                  {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedTransactions.length)} of {filteredAndSortedTransactions.length} 
+              </span> 
+              <div className="flex gap-1.5"> 
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300"> 
+                      <ChevronLeft size={16} /> 
+                  </button> 
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300"> 
+                      <ChevronRight size={16} /> 
+                  </button> 
+              </div> 
+          </div>
       </div>
     </div>
   );
