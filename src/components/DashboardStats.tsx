@@ -214,7 +214,7 @@ const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: 
 );
 
 const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.ReactNode; valueClass?: string; tooltip?: string }> = ({ label, value, sub, valueClass, tooltip }) => (
-  <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/80 transition-colors flex flex-col justify-center">
+  <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm flex flex-col justify-center">
     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1">
       {label} {tooltip && <Info size={10} className="text-slate-300 dark:text-slate-600 cursor-help" title={tooltip} />}
     </div>
@@ -426,7 +426,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
               { label: 'CDC Charges', v: stats.totalCDC, icon: <FileText size={14} className="text-orange-500" /> },
               { label: 'Other Fees', v: stats.totalOtherFees, icon: <Stamp size={14} className="text-slate-400" /> },
             ].map((c) => (
-              <div key={c.label} className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 flex flex-col justify-center border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100/50 dark:hover:bg-slate-800/80 transition-colors">
+              <div key={c.label} className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 flex flex-col justify-center border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">
                   {c.icon} {c.label}
                 </div>
