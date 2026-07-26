@@ -83,41 +83,50 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
   };
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 w-full">
-      <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2 mb-3">
-        <Bell size={18} className="text-indigo-500" /> Set Price Alert
-      </h4>
+    <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 w-full shadow-sm transition-all duration-300">
+      <div className="flex items-center gap-3 mb-5">
+        <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 shadow-sm shrink-0">
+          <Bell size={18} className="text-indigo-600 dark:text-indigo-400" />
+        </div>
+        <h4 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight">
+          Set Price Alert
+        </h4>
+      </div>
+
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">Rs.</span>
+          <span className="absolute left-4 top-3.5 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rs.</span>
           <input
             type="number"
+            step="any"
             value={target}
             onChange={(e) => {
                 setTarget(e.target.value === '' ? '' : Number(e.target.value));
                 if (status !== 'idle') { setStatus('idle'); setMessage(''); }
             }}
             placeholder={`${currentPrice ? (currentPrice * 1.05).toFixed(2) : '150'}`}
-            className="w-full pl-10 pr-3 py-2.5 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-xl outline-none focus:border-indigo-500 font-mono font-bold dark:text-slate-200 shadow-sm"
+            className="w-full pl-12 pr-4 py-3 text-sm bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 font-mono font-bold dark:text-slate-100 shadow-sm transition-all tabular-nums"
           />
         </div>
         <button
           onClick={handleSetAlert}
           disabled={status === 'loading' || !target}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-sm"
+          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 hover:-translate-y-0.5 active:translate-y-0 shrink-0"
         >
-          {status === 'loading' ? <Loader2 size={16} className="animate-spin" /> : 'Create Alert'}
+          {status === 'loading' ? <Loader2 size={18} className="animate-spin" /> : 'Create Alert'}
         </button>
       </div>
 
       {message && (
-        <div className={`mt-3 flex items-center gap-1.5 text-xs font-bold ${
-          status === 'success' ? 'text-emerald-600' : status === 'error' ? 'text-rose-500' : 'text-indigo-500'
+        <div className={`mt-4 p-3.5 rounded-xl flex items-center gap-2.5 text-xs font-bold border shadow-sm animate-in fade-in zoom-in-95 duration-200 ${
+          status === 'success' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 
+          status === 'error' ? 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20' : 
+          'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-200/60 dark:border-indigo-500/20'
         }`}>
-          {status === 'success' && <CheckCircle2 size={14} />}
-          {status === 'error' && <AlertCircle size={14} />}
-          {status === 'loading' && <Loader2 size={14} className="animate-spin" />}
-          {message}
+          {status === 'success' && <CheckCircle2 size={16} className="shrink-0" />}
+          {status === 'error' && <AlertCircle size={16} className="shrink-0" />}
+          {status === 'loading' && <Loader2 size={16} className="animate-spin shrink-0" />}
+          <span className="leading-snug">{message}</span>
         </div>
       )}
     </div>
