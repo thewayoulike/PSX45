@@ -46,7 +46,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
                 <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-slate-100 dark:border-slate-700/50 group-hover:scale-110 transition-transform duration-300">
                      <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-10 h-10 drop-shadow-sm" alt="Google" />
                 </div>
-                <h3 className="text-xl font-display font-black text-slate-900 dark:text-white mb-2 tracking-tight">Sign in with Google</h3>
+                <h3 className="text-xl font-display font-black text-slate-900 dark:text-white mb-2 tracking-tight">Sign inn with Google</h3>
                 <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
                     Sync your portfolio securely across all your devices using Drive.
                 </p>
