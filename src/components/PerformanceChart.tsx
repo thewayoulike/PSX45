@@ -174,82 +174,87 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   };
 
   return (
-    <Card className="w-full flex flex-col">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-        <div>
-          <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 uppercase tracking-wider">
-            <TrendingUp className="text-emerald-500" size={18} />
-            30-Day Daily Return %
-          </h2>
-          {lastUpdated && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5 flex items-center gap-1 font-medium">
-              <Clock size={12} />
-              Last updated: {lastUpdated}
-            </p>
-          )}
+    <Card className="w-full flex flex-col animate-in fade-in duration-500">
+      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center mb-8 gap-5">
+        
+        <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-emerald-50 dark:bg-emerald-500/10 rounded-2xl flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm shrink-0">
+                <TrendingUp className="text-emerald-600 dark:text-emerald-400" size={20} />
+            </div>
+            <div>
+                <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight">
+                    30-Day Daily Return %
+                </h2>
+                {lastUpdated && (
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mt-1 flex items-center gap-1.5">
+                        <Clock size={12} className="opacity-70" /> Last updated: {lastUpdated}
+                    </p>
+                )}
+            </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-4 bg-slate-50/80 dark:bg-slate-800/50 px-4 py-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer select-none group">
               <input 
                 type="checkbox" 
                 checked={showKSE100} 
                 onChange={() => setShowKSE100(!showKSE100)} 
-                className="rounded border-slate-300 text-indigo-500 focus:ring-indigo-500 cursor-pointer"
+                className="w-4 h-4 rounded border-slate-300 text-indigo-500 focus:ring-indigo-500 cursor-pointer transition-colors"
               />
-              KSE-100
+              <span className="group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">KSE-100</span>
             </label>
             <div className="w-px h-4 bg-slate-300 dark:bg-slate-600"></div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 cursor-pointer select-none group">
               <input 
                 type="checkbox" 
                 checked={showKMI30} 
                 onChange={() => setShowKMI30(!showKMI30)} 
-                className="rounded border-slate-300 text-amber-500 focus:ring-amber-500 cursor-pointer"
+                className="w-4 h-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500 cursor-pointer transition-colors"
               />
-              KMI-30
+              <span className="group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">KMI-30</span>
             </label>
           </div>
 
           <button 
             onClick={handleFetchAndCalculate} 
             disabled={loading}
-            className="flex items-center gap-2 bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 px-4 py-2 rounded-xl text-xs font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-bold hover:-translate-y-0.5 active:translate-y-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-emerald-600/20 shrink-0"
           >
-            {loading ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
+            {loading ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
             {loading ? "Fetching Data..." : (chartData.length > 0 ? 'Refresh Data' : 'Generate Chart')}
           </button>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="mb-4 bg-rose-50 text-rose-600 p-3 rounded-lg flex items-center gap-2 text-xs font-bold border border-rose-200">
-            <AlertCircle size={16} />
+        <div className="mb-6 bg-rose-50/80 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 p-4 rounded-2xl flex items-center gap-3 text-rose-600 dark:text-rose-400 text-sm font-bold shadow-sm animate-in fade-in">
+            <AlertCircle size={18} />
             {errorMsg}
         </div>
       )}
 
-      <div className="w-full" style={{ height: '400px' }}>
+      <div className="w-full relative" style={{ height: '400px' }}>
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" opacity={0.5} />
-              <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 10, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.15} className="text-slate-400 dark:text-slate-500" />
+              <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.6} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={45} />
               
               <Tooltip 
-                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
+                contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                 formatter={(value: number, name: string) => [
-                  `${value}%`, 
+                  <span className="font-mono">{value}%</span>, 
                   name === 'Portfolio' ? 'Portfolio Avg' : name === 'KSE100' ? 'KSE-100' : 'KMI-30'
                 ]}
-                labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+                labelStyle={{ fontWeight: '900', color: '#0f172a', marginBottom: '6px', fontSize: '13px' }}
+                itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
               />
-              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '10px' }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '15px' }} />
               
-              <Line type="monotone" name="Portfolio" dataKey="Portfolio" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />
+              <Line type="monotone" name="Portfolio" dataKey="Portfolio" stroke="#10b981" strokeWidth={3} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />
               
               {showKSE100 && (
                 <Line type="monotone" name="KSE100" dataKey="KSE100" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }} />
@@ -261,9 +266,12 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
             </LineChart>
           </ResponsiveContainer>
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-slate-400 bg-slate-50/50 dark:bg-slate-800/20 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
-             <Save size={32} className="mb-2 opacity-50" />
-             <p className="text-sm font-medium">Click Generate to calculate your 30-day historical returns</p>
+          <div className="w-full h-full flex flex-col items-center justify-center text-center px-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-900/30 transition-all">
+             <div className="w-16 h-16 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-5 shadow-inner">
+                 <Save size={28} className="text-slate-400 dark:text-slate-500" />
+             </div>
+             <p className="text-xl font-display font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">Ready to Calculate</p>
+             <p className="text-sm font-medium text-slate-500 dark:text-slate-400 max-w-sm">Click Generate to calculate your 30-day historical returns benchmarked against KSE-100 and KMI-30.</p>
           </div>
         )}
       </div>
