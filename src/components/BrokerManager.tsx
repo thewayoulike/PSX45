@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Broker, CommissionType, CDCType, CommissionSlab } from '../types';
-import { X, Plus, Pencil, Trash2, Save, Settings2, ArrowDown, Mail, AlertCircle } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Save, Settings2, ArrowDown, Mail, AlertCircle, Briefcase, Zap, ShieldCheck } from 'lucide-react';
 
 interface BrokerManagerProps {
   isOpen: boolean;
@@ -125,51 +125,59 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
   if (!isOpen) return null;
 
   return (
-    // FIX: Top Aligned on Mobile (pt-24)
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[60] flex items-start justify-center p-4 pt-24 md:pt-24 overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl w-full max-w-5xl flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[60] flex items-start justify-center p-4 pt-16 md:pt-20 overflow-y-auto transition-opacity">
+      <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-5xl flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-200">
         
-        <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Settings2 className="text-emerald-600 dark:text-emerald-400" /> Manage Brokers
+        {/* Header */}
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800/60 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20 shrink-0">
+          <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm">
+                <Settings2 size={20} />
+            </div>
+            Manage Brokers
           </h2>
-          <button onClick={onClose} className="text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"><X size={24} /></button>
+          <button 
+            onClick={onClose} 
+            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-full transition-colors"
+          >
+            <X size={20} />
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
           <div className="grid lg:grid-cols-3 gap-8">
             
             {/* FORM SECTION */}
-            <div className="lg:col-span-1 bg-slate-50 dark:bg-slate-800 p-5 rounded-xl border border-slate-200 dark:border-slate-700 h-fit">
-               <h3 className="font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
-                 {editingId ? <Pencil size={16} /> : <Plus size={16} />}
-                 {editingId ? 'Edit Broker' : 'Add New Broker'}
+            <div className="lg:col-span-1 bg-slate-50/50 dark:bg-slate-800/30 p-5 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 h-fit shadow-sm">
+               <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-5 flex items-center gap-2 uppercase tracking-wide">
+                 {editingId ? <Pencil size={16} className="text-blue-500" /> : <Plus size={16} className="text-emerald-500" />}
+                 {editingId ? 'Edit Broker Setup' : 'Add New Broker'}
                </h3>
                
                <form onSubmit={handleSubmit} className="space-y-5">
                   <div className="grid grid-cols-1 gap-4">
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1">Broker Name</label>
-                        <input type="text" required placeholder="e.g., KASB, AKD" value={name} onChange={e => setName(e.target.value)} className="w-full p-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-sm focus:border-emerald-500 outline-none shadow-sm" />
+                        <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1.5">Broker Name</label>
+                        <input type="text" required placeholder="e.g., KASB, AKD" value={name} onChange={e => setName(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-medium text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-sm" />
                       </div>
                       <div>
-                        <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 block mb-1">Email (For Import)</label>
+                        <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1.5">Email (For Import)</label>
                         <div className="relative">
-                            <input type="email" placeholder="alerts@broker.com" value={email} onChange={e => setEmail(e.target.value)} className="w-full p-2.5 pl-9 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-sm focus:border-emerald-500 outline-none shadow-sm" />
-                            <Mail className="absolute left-3 top-2.5 text-slate-400" size={14} />
+                            <input type="email" placeholder="alerts@broker.com" value={email} onChange={e => setEmail(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl pl-9 pr-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-medium text-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all shadow-sm" />
+                            <Mail className="absolute left-3.5 top-3 text-slate-400" size={14} />
                         </div>
                       </div>
                   </div>
 
-                  <hr className="border-slate-200 dark:border-slate-700" />
+                  <div className="h-px bg-slate-200 dark:bg-slate-700/60 w-full my-5"></div>
 
                   {/* Commission Section */}
-                  <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500"></span> Commission
+                  <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                          <Zap size={14} className="text-blue-500" /> Commission Rules
                       </div>
                       <div>
-                        <select value={commType} onChange={e => setCommType(e.target.value as CommissionType)} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs focus:border-emerald-500 outline-none">
+                        <select value={commType} onChange={e => setCommType(e.target.value as CommissionType)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-medium text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm">
                             <option value="HIGHER_OF">Max ( % or Rate )</option>
                             <option value="SLAB">Share Price Slabs (Variable)</option>
                             <option value="PERCENTAGE">Flat Percentage</option>
@@ -180,115 +188,148 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
 
                       {commType === 'SLAB' ? (
                           <div className="space-y-3">
-                              <div className="bg-indigo-50/60 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
-                                  <div className="flex items-center justify-between mb-1">
-                                      <label className="text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase">Compare with % (Optional)</label>
+                              <div className="bg-blue-50/60 dark:bg-blue-900/20 p-3.5 rounded-xl border border-blue-100 dark:border-blue-800/50 shadow-sm">
+                                  <div className="flex items-center justify-between mb-2">
+                                      <label className="text-[10px] font-bold text-blue-700 dark:text-blue-300 uppercase tracking-wider">Compare with % (Optional)</label>
                                   </div>
                                   <div className="flex items-center gap-2">
-                                      <input type="number" step="0.01" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full p-2 rounded border border-indigo-200 dark:border-indigo-700 text-xs font-bold text-indigo-700 dark:text-indigo-300 focus:border-indigo-500 outline-none bg-white dark:bg-slate-900" placeholder="e.g. 0.15" />
-                                      <span className="text-xs text-indigo-400 font-bold">%</span>
+                                      <input type="number" step="0.01" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full px-3 py-2 rounded-lg border border-blue-200 dark:border-blue-700 text-sm font-bold text-blue-700 dark:text-blue-300 focus:border-blue-500 outline-none bg-white dark:bg-slate-900 shadow-sm transition-colors" placeholder="e.g. 0.15" />
+                                      <span className="text-xs text-blue-400 font-black">%</span>
                                   </div>
                               </div>
-                              <div className="space-y-2">
-                                  <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase">Price Ranges</label>
+                              <div className="space-y-2.5">
+                                  <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Price Ranges</label>
                                   {slabs.map((slab, idx) => (
-                                      <div key={idx} className="flex gap-1 items-center">
-                                          <div className="flex flex-col flex-1"><input type="number" step="0.01" value={slab.min} onChange={e => updateSlab(idx, 'min', Number(e.target.value))} className="w-full p-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] text-center" placeholder="Min" /></div>
+                                      <div key={idx} className="flex gap-1.5 items-center">
+                                          <div className="flex flex-col flex-1"><input type="number" step="0.01" value={slab.min} onChange={e => updateSlab(idx, 'min', Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs text-center tabular-nums shadow-sm focus:border-blue-500 outline-none transition-colors" placeholder="Min" /></div>
                                           <span className="text-slate-300 dark:text-slate-600 text-[10px]">-</span>
-                                          <div className="flex flex-col flex-1"><input type="number" step="0.01" value={slab.max} onChange={e => updateSlab(idx, 'max', Number(e.target.value))} className="w-full p-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] text-center" placeholder="Max" /></div>
-                                          <div className="flex flex-col w-16"><input type="number" step="0.01" value={slab.rate} onChange={e => updateSlab(idx, 'rate', Number(e.target.value))} className="w-full p-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px] text-center font-bold" placeholder="Rate" /></div>
-                                          <select value={slab.type} onChange={e => updateSlab(idx, 'type', e.target.value)} className="w-14 p-1.5 rounded border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-[10px]"><option value="FIXED">Rs</option><option value="PERCENTAGE">%</option></select>
-                                          {slabs.length > 1 && (<button type="button" onClick={() => removeSlab(idx)} className="text-rose-400 hover:text-rose-600"><X size={14} /></button>)}
+                                          <div className="flex flex-col flex-1"><input type="number" step="0.01" value={slab.max} onChange={e => updateSlab(idx, 'max', Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs text-center tabular-nums shadow-sm focus:border-blue-500 outline-none transition-colors" placeholder="Max" /></div>
+                                          <div className="flex flex-col w-16"><input type="number" step="0.01" value={slab.rate} onChange={e => updateSlab(idx, 'rate', Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs text-center font-bold tabular-nums shadow-sm focus:border-blue-500 outline-none transition-colors" placeholder="Rate" /></div>
+                                          <select value={slab.type} onChange={e => updateSlab(idx, 'type', e.target.value)} className="w-14 p-2 rounded-lg border border-slate-200 dark:border-slate-700/60 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs shadow-sm focus:border-blue-500 outline-none transition-colors"><option value="FIXED">Rs</option><option value="PERCENTAGE">%</option></select>
+                                          {slabs.length > 1 && (<button type="button" onClick={() => removeSlab(idx)} className="p-1.5 text-slate-300 hover:text-rose-500 transition-colors"><X size={14} /></button>)}
                                       </div>
                                   ))}
-                                  <button type="button" onClick={addSlab} className="w-full py-1.5 mt-1 border border-dashed border-slate-300 dark:border-slate-600 rounded text-[10px] text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center gap-1 transition-colors"><Plus size={12} /> Add Range</button>
+                                  <button type="button" onClick={addSlab} className="w-full py-2 mt-1 border border-dashed border-slate-300 dark:border-slate-600 rounded-lg text-xs font-bold text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 flex items-center justify-center gap-1.5 transition-colors"><Plus size={14} /> Add Range</button>
                               </div>
                           </div>
                       ) : (
                           <div className="grid grid-cols-2 gap-3">
                              <div>
-                                 <input type="number" step="0.01" placeholder="Rate 1" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" />
-                                 <span className="text-[9px] text-slate-400">{commType === 'HIGHER_OF' ? '%' : commType === 'FIXED' ? 'Rs' : commType === 'PER_SHARE' ? 'Rs' : '%'}</span>
+                                 <input type="number" step="0.01" placeholder="Rate 1" value={rate1} onChange={e => setRate1(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-mono text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm" />
+                                 <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 block tracking-wider">{commType === 'HIGHER_OF' ? '%' : commType === 'FIXED' ? 'Rs' : commType === 'PER_SHARE' ? 'Rs' : '%'}</span>
                              </div>
                              {commType === 'HIGHER_OF' && (
                                  <div>
-                                    <input type="number" step="0.01" placeholder="Rate 2" value={rate2} onChange={e => setRate2(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" />
-                                    <span className="text-[9px] text-slate-400">Rs/share</span>
+                                    <input type="number" step="0.01" placeholder="Rate 2" value={rate2} onChange={e => setRate2(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-mono text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm" />
+                                    <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 block tracking-wider">Rs/share</span>
                                  </div>
                              )}
                           </div>
                       )}
 
                       <div>
-                         <label className="text-[9px] text-slate-400 block mb-1">Sales Tax (SST) %</label>
-                         <input type="number" value={sstRate} onChange={e => setSstRate(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" />
+                         <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1.5">Sales Tax (SST) %</label>
+                         <input type="number" value={sstRate} onChange={e => setSstRate(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-mono text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-sm" />
                       </div>
                   </div>
 
-                  <hr className="border-slate-200 dark:border-slate-700" />
+                  <div className="h-px bg-slate-200 dark:bg-slate-700/60 w-full my-5"></div>
 
-                  <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300"><span className="w-1.5 h-1.5 rounded-full bg-orange-500"></span> CDC / Regulatory</div>
+                  <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                          <ShieldCheck size={14} className="text-orange-500" /> CDC / Regulatory
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
-                         <div><input type="number" step="0.001" placeholder="Rate" value={cdcRate} onChange={e => setCdcRate(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /><span className="text-[9px] text-slate-400">{cdcType === 'FIXED' ? 'Rs Fixed' : 'Rs / Share'}</span></div>
-                         {cdcType === 'HIGHER_OF' && (<div><input type="number" step="0.01" placeholder="Min" value={cdcMin} onChange={e => setCdcMin(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /><span className="text-[9px] text-slate-400">Minimum Rs</span></div>)}
+                         <div>
+                             <input type="number" step="0.001" placeholder="Rate" value={cdcRate} onChange={e => setCdcRate(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-mono text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-sm" />
+                             <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 block tracking-wider">{cdcType === 'FIXED' ? 'Rs Fixed' : 'Rs / Share'}</span>
+                         </div>
+                         {cdcType === 'HIGHER_OF' && (
+                             <div>
+                                 <input type="number" step="0.01" placeholder="Min" value={cdcMin} onChange={e => setCdcMin(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-mono text-sm focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all shadow-sm" />
+                                 <span className="text-[10px] font-bold text-slate-400 uppercase mt-1 block tracking-wider">Minimum Rs</span>
+                             </div>
+                         )}
                       </div>
                   </div>
 
-                  <hr className="border-slate-200 dark:border-slate-700" />
+                  <div className="h-px bg-slate-200 dark:bg-slate-700/60 w-full my-5"></div>
 
-                  <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300"><Settings2 size={12} className="text-purple-500" /> Annual Maintenance</div>
+                  <div className="space-y-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                          <Briefcase size={14} className="text-purple-500" /> Annual Maintenance
+                      </div>
                       <div className="grid grid-cols-2 gap-3">
-                         <div><label className="text-[9px] text-slate-400 block mb-1">Start Date</label><input type="date" value={feeStartDate} onChange={e => setFeeStartDate(e.target.value)} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none dark:color-scheme-dark" /></div>
-                         <div><label className="text-[9px] text-slate-400 block mb-1">Amount (Rs)</label><input type="number" placeholder="e.g. 5000" value={annualFee} onChange={e => setAnnualFee(Number(e.target.value))} className="w-full p-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 text-xs outline-none" /></div>
+                         <div>
+                             <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1.5">Start Date</label>
+                             <input type="date" value={feeStartDate} onChange={e => setFeeStartDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all shadow-sm dark:color-scheme-dark" />
+                         </div>
+                         <div>
+                             <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest block mb-1.5">Amount (Rs)</label>
+                             <input type="number" placeholder="e.g. 5000" value={annualFee} onChange={e => setAnnualFee(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700/60 rounded-xl px-3.5 py-2.5 text-slate-900 dark:text-slate-100 outline-none font-mono text-sm focus:border-purple-500 focus:ring-2 focus:ring-purple-500/20 transition-all shadow-sm" />
+                         </div>
                       </div>
                   </div>
 
-                  <div className="flex gap-2 pt-4">
-                    {editingId && (<button type="button" onClick={handleCancelEdit} className="flex-1 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">Cancel</button>)}
-                    <button type="submit" className="flex-1 bg-emerald-600 text-white py-2.5 rounded-lg text-sm font-bold hover:bg-emerald-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"><Save size={16} /> {editingId ? 'Update' : 'Save Broker'}</button>
+                  <div className="flex gap-3 pt-6 border-t border-slate-200 dark:border-slate-700/60">
+                    {editingId && (
+                        <button type="button" onClick={handleCancelEdit} className="flex-1 py-3 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-sm font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shadow-sm">
+                            Cancel
+                        </button>
+                    )}
+                    <button type="submit" className="flex-1 bg-emerald-600 text-white py-3 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 hover:-translate-y-0.5 active:translate-y-0">
+                        <Save size={18} /> {editingId ? 'Update Config' : 'Save Broker'}
+                    </button>
                   </div>
                </form>
             </div>
 
             {/* TABLE SECTION */}
-            <div className="lg:col-span-2 overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[500px]">
-                <thead>
-                  <tr className="text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-wider border-b border-slate-200 dark:border-slate-700 bg-slate-50/30 dark:bg-slate-800/30">
-                    <th className="px-4 py-3 font-semibold">Broker Name</th>
-                    <th className="px-4 py-3 font-semibold">Commission</th>
-                    <th className="px-4 py-3 font-semibold">CDC Structure</th>
-                    <th className="px-4 py-3 font-semibold">Annual Fee</th>
-                    <th className="px-4 py-3 font-semibold text-right">Actions</th>
+            <div className="lg:col-span-2 overflow-x-auto custom-scrollbar rounded-2xl border border-slate-200/60 dark:border-slate-700/50 bg-white dark:bg-slate-900 h-fit max-h-full">
+              <table className="w-full text-left border-collapse min-w-[550px] whitespace-nowrap">
+                <thead className="sticky top-0 z-10 bg-slate-50/90 dark:bg-slate-800/90 backdrop-blur-md shadow-sm border-b border-slate-200/60 dark:border-slate-700/60">
+                  <tr className="text-slate-400 dark:text-slate-500 text-[10px] uppercase tracking-widest font-bold">
+                    <th className="px-5 py-4">Broker Name</th>
+                    <th className="px-5 py-4">Commission</th>
+                    <th className="px-5 py-4">CDC Structure</th>
+                    <th className="px-5 py-4">Annual Fee</th>
+                    <th className="px-5 py-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-700 text-sm">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
                   {brokers.map(b => (
-                    <tr key={b.id} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors group">
-                      <td className="px-4 py-3">
-                          <div className="font-bold text-slate-800 dark:text-slate-200">{b.name}</div>
-                          {b.email && <div className="text-[10px] text-slate-400 flex items-center gap-1"><Mail size={10} /> {b.email}</div>}
+                    <tr key={b.id} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/50 dark:hover:bg-slate-800/60 transition-colors group">
+                      <td className="px-5 py-4">
+                          <div className="font-display font-black text-slate-800 dark:text-slate-100">{b.name}</div>
+                          {b.email && <div className="text-[10px] font-medium text-slate-400 flex items-center gap-1.5 mt-0.5"><Mail size={12} /> {b.email}</div>}
                       </td>
-                      <td className="px-4 py-3">
-                         <div className="text-xs text-slate-700 dark:text-slate-300 font-medium">{b.commissionType.replace('_', ' ')}</div>
+                      <td className="px-5 py-4">
+                         <div className="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">{b.commissionType.replace('_', ' ')}</div>
                       </td>
-                      <td className="px-4 py-3">
-                         <div className="text-xs text-slate-700 dark:text-slate-300 font-medium">{b.cdcType ? b.cdcType.replace('_', ' ') : 'PER SHARE'}</div>
+                      <td className="px-5 py-4">
+                         <div className="text-xs text-slate-600 dark:text-slate-300 font-bold uppercase tracking-wider">{b.cdcType ? b.cdcType.replace('_', ' ') : 'PER SHARE'}</div>
                       </td>
-                      <td className="px-4 py-3 text-slate-700 dark:text-slate-300">
-                         {b.annualFee ? `Rs. ${b.annualFee}` : '-'}
+                      <td className="px-5 py-4 text-slate-700 dark:text-slate-300 tabular-nums font-medium text-sm">
+                         {b.annualFee ? `Rs. ${b.annualFee.toLocaleString()}` : '-'}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
-                           <button onClick={() => handleEdit(b)} className="p-1.5 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg"><Pencil size={14} /></button>
-                           <button onClick={() => onDeleteBroker(b.id)} className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded-lg"><Trash2 size={14} /></button>
+                           <button onClick={() => handleEdit(b)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-500/20 shadow-sm"><Pencil size={16} /></button>
+                           <button onClick={() => onDeleteBroker(b.id)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20 shadow-sm"><Trash2 size={16} /></button>
                         </div>
                       </td>
                     </tr>
                   ))}
-                  {brokers.length === 0 && (<tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400 flex flex-col items-center justify-center gap-2"><AlertCircle size={24} /><span>No brokers added yet. Add one to start.</span></td></tr>)}
+                  {brokers.length === 0 && (
+                    <tr>
+                        <td colSpan={5} className="px-5 py-16 text-center text-slate-400">
+                            <div className="flex flex-col items-center justify-center gap-3">
+                                <AlertCircle size={32} className="opacity-20" />
+                                <span className="font-bold text-sm uppercase tracking-widest">No brokers configured. Add one to start.</span>
+                            </div>
+                        </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
