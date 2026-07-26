@@ -133,22 +133,22 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   const isRealizedProfit = realizedStats.pnl >= 0;
 
   return (
-    <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 overflow-y-auto animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-[#0a0a0a] overflow-y-auto animate-in slide-in-from-right duration-300">
 
       {/* HEADER */}
-      <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800 px-6 py-4 flex items-center justify-between shadow-sm">
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200/60 dark:border-slate-800/60 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-4">
           <button 
             onClick={onClose} 
             aria-label="Close Profile"
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+            className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-600 dark:text-slate-300 shadow-sm"
           >
-            <ArrowLeft size={24} />
+            <ArrowLeft size={20} />
           </button>
           <div>
-            <h1 className="text-3xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-3">
+            <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
               {ticker}
-              <span className="text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-3 py-1 rounded-full border border-slate-200 dark:border-slate-700 uppercase tracking-wider hidden sm:block">
+              <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2.5 py-1 rounded-md border border-slate-200/60 dark:border-slate-700/60 uppercase tracking-widest hidden sm:block shadow-sm">
                 {sector}
               </span>
             </h1>
@@ -158,28 +158,30 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         <div className="flex items-center gap-6 text-right">
           {quantity > 0 && (
             <div className="hidden sm:block">
-              <div className="text-xs text-slate-400 font-bold uppercase tracking-wider">Current Price</div>
-              <div className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono">
-                Rs. {currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+              <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Current Price</div>
+              <div className="text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums">
+                Rs. {currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
           )}
-          <div className={`px-4 py-2 rounded-xl border ${isLifetimeProfit ? 'bg-emerald-50 dark:bg-emerald-900/30 border-emerald-100 dark:border-emerald-800' : 'bg-rose-50 dark:bg-rose-900/30 border-rose-100 dark:border-rose-800'}`}>
-            <div className={`text-xs font-bold uppercase tracking-wider ${isLifetimeProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>Lifetime Net</div>
-            <div className={`text-xl font-black ${isLifetimeProfit ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-700 dark:text-rose-300'}`}>
+          <div className={`px-4 py-2.5 rounded-xl border shadow-sm ${isLifetimeProfit ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200/60 dark:border-rose-500/20'}`}>
+            <div className={`text-[10px] font-bold uppercase tracking-widest ${isLifetimeProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>Lifetime Net</div>
+            <div className={`text-xl font-display font-black tabular-nums ${isLifetimeProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
               {isLifetimeProfit ? '+' : ''}{stats.lifetimeNet.toLocaleString(undefined, { maximumFractionDigits: 0 })}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-6 md:p-8 space-y-8">
+      <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
 
         {/* LIVE MARKET CHART */}
-        <div className="bg-white dark:bg-slate-900 p-1 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50">
-            <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-              <BarChart3 size={20} className="text-emerald-600 dark:text-emerald-400" />
+        <div className="bg-white dark:bg-slate-900 p-1.5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
+          <div className="p-5 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between bg-white dark:bg-slate-900">
+            <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm">
+                <BarChart3 size={20} />
+              </div>
               Live Market Chart
             </h3>
           </div>
@@ -195,50 +197,50 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* 1. UNREALIZED HOLDING */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5"><Wallet size={100} /></div>
             <div className="relative z-10">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center border border-blue-100 dark:border-blue-500/20 shadow-sm">
                     <Briefcase size={18} />
                   </div>
-                  <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Unrealized (Open)</h3>
+                  <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Unrealized (Open)</h3>
                 </div>
               </div>
 
               {quantity > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex justify-between items-end">
                     <div>
-                      <div className="text-sm text-slate-500 font-medium mb-1">Open Shares</div>
-                      <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Open Shares</div>
+                      <div className="text-3xl font-display font-black text-slate-900 dark:text-white tabular-nums">
                         {quantity.toLocaleString()}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-xl font-bold ${isUnrealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <div className={`text-2xl font-display font-black tabular-nums ${isUnrealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         {isUnrealizedProfit ? '+' : ''}{unrealizedPL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </div>
-                      <div className={`text-sm font-bold ${isUnrealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>
+                      <div className={`text-xs font-bold font-mono tabular-nums ${isUnrealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>
                         {isUnrealizedProfit ? '+' : ''}{unrealizedPLPercent.toFixed(2)}% ROI
                       </div>
                     </div>
                   </div>
                   
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="grid grid-cols-2 gap-4 pt-5 border-t border-slate-100 dark:border-slate-800">
                     <div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wider">Avg Buy</div>
-                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {avgPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Avg Buy</div>
+                      <div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {avgPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wider">Current</div>
-                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {currentPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Current</div>
+                      <div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="py-4 text-slate-400 font-medium italic flex items-center gap-2">
+                <div className="py-8 text-slate-400 font-medium italic flex items-center justify-center gap-2">
                   <History size={20} /> No Open Position
                 </div>
               )}
@@ -246,48 +248,48 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
           </div>
 
           {/* 2. REALIZED PERFORMANCE */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5"><TrendingUp size={100} /></div>
             <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4">
-                <div className={`p-2 rounded-lg ${realizedStats.shares > 0 ? (isRealizedProfit ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400') : 'bg-slate-100 dark:bg-slate-800 text-slate-500'}`}>
+              <div className="flex items-center gap-3 mb-6">
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-sm ${realizedStats.shares > 0 ? (isRealizedProfit ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20') : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}>
                   <CheckCircle size={18} />
                 </div>
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Realized (Closed)</h3>
+                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Realized (Closed)</h3>
               </div>
 
               {realizedStats.shares > 0 ? (
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <div className="flex justify-between items-end">
                     <div>
-                      <div className="text-sm text-slate-500 font-medium mb-1">Shares Sold</div>
-                      <div className="text-3xl font-bold text-slate-800 dark:text-slate-100">
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Shares Sold</div>
+                      <div className="text-3xl font-display font-black text-slate-900 dark:text-white tabular-nums">
                         {realizedStats.shares.toLocaleString()}
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-xl font-bold ${isRealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <div className={`text-2xl font-display font-black tabular-nums ${isRealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                         {isRealizedProfit ? '+' : ''}{realizedStats.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </div>
-                      <div className={`text-sm font-bold ${isRealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>
+                      <div className={`text-xs font-bold font-mono tabular-nums ${isRealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>
                         {isRealizedProfit ? '+' : ''}{realizedStats.roi.toFixed(2)}% ROI
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 dark:border-slate-800">
+                  <div className="grid grid-cols-2 gap-4 pt-5 border-t border-slate-100 dark:border-slate-800">
                     <div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wider">W. Avg Buy</div>
-                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {realizedStats.avgBuy.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">W. Avg Buy</div>
+                      <div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {realizedStats.avgBuy.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                     <div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wider">W. Avg Sell</div>
-                      <div className="font-mono font-bold text-slate-700 dark:text-slate-300">Rs. {realizedStats.avgSell.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                      <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">W. Avg Sell</div>
+                      <div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {realizedStats.avgSell.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                     </div>
                   </div>
                 </div>
               ) : (
-                <div className="py-4 text-slate-400 font-medium italic flex items-center gap-2">
+                <div className="py-8 text-slate-400 font-medium italic flex items-center justify-center gap-2">
                   <History size={20} /> No Sales Yet
                 </div>
               )}
@@ -295,18 +297,20 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
           </div>
 
           {/* 3. PASSIVE INCOME */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark relative overflow-hidden">
             <div className="absolute top-0 right-0 p-4 opacity-5"><Coins size={100} /></div>
             <div className="relative z-10">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-lg"><Coins size={18} /></div>
-                <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Passive Income</h3>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 rounded-2xl flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 shadow-sm">
+                  <Coins size={18} />
+                </div>
+                <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Passive Income</h3>
               </div>
-              <div className="space-y-1">
-                <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+              <div className="space-y-2">
+                <div className="text-3xl font-display font-black text-indigo-600 dark:text-indigo-400 tabular-nums">
                   +{stats.netDividends.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </div>
-                <div className="text-xs text-slate-400">Net Dividends Collected</div>
+                <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Net Dividends Collected</div>
               </div>
             </div>
           </div>
@@ -314,24 +318,26 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         </div>
 
         {/* TRANSACTION HISTORY TABLE */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex items-center gap-2">
-            <History size={20} className="text-slate-400" />
-            <h3 className="font-bold text-slate-800 dark:text-slate-200 text-lg">Transaction History</h3>
+        <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark">
+          <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex items-center gap-3 bg-white dark:bg-slate-900">
+            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
+              <History size={20} />
+            </div>
+            <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Transaction History</h3>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-slate-50 dark:bg-slate-800 text-xs uppercase text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-200 dark:border-slate-700">
+          <div className="overflow-x-auto custom-scrollbar">
+            <table className="w-full text-left text-sm whitespace-nowrap min-w-[900px] border-collapse">
+              <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
                 <tr>
-                  <th className="px-6 py-4">Date</th>
-                  <th className="px-6 py-4">Type</th>
-                  <th className="px-6 py-4">Broker</th>
-                  <th className="px-6 py-4 text-right">Qty</th>
-                  <th className="px-6 py-4 text-right">Price</th>
-                  <th className="px-6 py-4 text-right">Net Amount</th>
+                  <th className="px-6 py-3.5">Date</th>
+                  <th className="px-6 py-3.5">Type</th>
+                  <th className="px-6 py-3.5">Broker</th>
+                  <th className="px-6 py-3.5 text-right">Qty</th>
+                  <th className="px-6 py-3.5 text-right">Price</th>
+                  <th className="px-6 py-3.5 text-right">Net Amount</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {sortedTransactionsDesc.map((t, index) => {
                   const total = t.quantity * t.price;
                   const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
@@ -341,20 +347,20 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
                   else if (t.type === 'DIVIDEND') net = total - (t.tax || 0);
 
                   return (
-                    <tr key={t.id || index} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors">
-                      <td className="px-6 py-4 text-slate-500 dark:text-slate-400 font-mono text-xs">{t.date}</td>
-                      <td className="px-6 py-4">
-                        <span className={`text-[10px] font-bold px-2 py-1 rounded border ${
-                          t.type === 'BUY' ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800' :
-                          t.type === 'SELL' ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-800' :
-                          t.type === 'DIVIDEND' ? 'bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800' : 'bg-slate-100 dark:bg-slate-800'
+                    <tr key={t.id || index} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
+                      <td className="px-6 py-3.5 text-slate-500 dark:text-slate-400 font-mono text-xs tabular-nums">{t.date}</td>
+                      <td className="px-6 py-3.5">
+                        <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border shadow-sm ${
+                          t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' :
+                          t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20' :
+                          t.type === 'DIVIDEND' ? 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60'
                         }`}>{t.type}</span>
                       </td>
-                      <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-xs">{t.broker || '-'}</td>
-                      <td className="px-6 py-4 text-right text-slate-700 dark:text-slate-300 font-medium">{t.quantity.toLocaleString()}</td>
-                      <td className="px-6 py-4 text-right text-slate-600 dark:text-slate-400 font-mono">{t.price.toLocaleString()}</td>
-                      <td className={`px-6 py-4 text-right font-bold font-mono ${net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
-                        {net.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      <td className="px-6 py-3.5 text-slate-500 dark:text-slate-400 text-[11px] font-bold tracking-wider uppercase">{t.broker || '-'}</td>
+                      <td className="px-6 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{t.quantity.toLocaleString()}</td>
+                      <td className="px-6 py-3.5 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{t.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      <td className={`px-6 py-3.5 text-right font-bold font-mono tabular-nums ${net >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                        {net >= 0 ? '+' : ''}{net.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                       </td>
                     </tr>
                   );
