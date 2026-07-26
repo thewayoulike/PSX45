@@ -77,8 +77,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       `}>
         
         {/* Header / Logo Area */}
-        <div className={`relative flex flex-col items-center justify-center p-6 mb-2 border-b border-slate-100 dark:border-slate-800/60 shrink-0 transition-all duration-300 ${isCollapsed ? 'min-h-[100px]' : 'min-h-[120px]'}`}>
-          <div className={`flex-shrink-0 origin-center transition-transform duration-300 transform ${isCollapsed ? 'scale-90' : 'scale-110'}`}>
+        <div className={`relative flex flex-col items-center justify-center border-b border-slate-100 dark:border-slate-800/60 shrink-0 transition-all duration-300 ${isCollapsed ? 'py-6 min-h-[90px]' : 'p-6 mb-2 min-h-[120px]'}`}>
+          
+          <div className={`flex-shrink-0 origin-center transition-transform duration-300 transform ${isCollapsed ? 'scale-75' : 'scale-110'}`}>
               <Logo />
           </div>
           
@@ -184,23 +185,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* User Profile & Collapse Area */}
-        <div className={`p-4 border-t border-slate-200/60 dark:border-slate-800/60 space-y-4 bg-slate-50/50 dark:bg-[#0f0f0f]/50 shrink-0 transition-all ${isCollapsed ? 'px-2' : 'px-4'}`}>
+        {/* User Profile & Collapse Area (Completely Fixed for Collapsed State) */}
+        <div className={`border-t border-slate-200/60 dark:border-slate-800/60 flex flex-col bg-slate-50/50 dark:bg-[#0f0f0f]/50 shrink-0 transition-all ${isCollapsed ? 'p-3 gap-3' : 'p-4 gap-4'}`}>
+            
             {driveUser ? (
                 <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-3`}>
-                    <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'}`}>
+                    
+                    <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} w-full`}>
                         {driveUser.picture ? ( 
-                            <img src={driveUser.picture} alt="User" className="w-9 h-9 rounded-xl border border-emerald-200 dark:border-emerald-900 flex-shrink-0 shadow-sm" /> 
+                            <img src={driveUser.picture} alt="User" className="w-10 h-10 rounded-xl border border-emerald-200 dark:border-emerald-900 flex-shrink-0 shadow-sm" /> 
                         ) : ( 
-                            <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold flex-shrink-0 shadow-sm">
+                            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold flex-shrink-0 shadow-sm">
                                 {driveUser.name?.[0]}
                             </div> 
                         )}
                         
                         {!isCollapsed && (
-                            <div className="flex flex-col min-w-0">
+                            <div className="flex flex-col min-w-0 overflow-hidden">
                                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                                    {isCloudSyncing ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Synced
+                                    {isCloudSyncing ? <Loader2 size={10} className="animate-spin shrink-0" /> : <Save size={10} className="shrink-0" />} Synced
                                 </span>
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{driveUser.name}</span>
                             </div>
@@ -210,31 +213,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     <button 
                         onClick={onLogout} 
                         title={isCollapsed ? "Sign Out" : undefined}
-                        className={`flex items-center text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-bold transition-colors w-full ${isCollapsed ? 'justify-center' : 'gap-2 px-1'}`}
+                        className={`flex items-center justify-center text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-bold transition-all w-full rounded-xl ${isCollapsed ? 'p-2.5 hover:bg-rose-50 dark:hover:bg-rose-500/10' : 'gap-2 px-2 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/10'}`}
                     >
-                        <LogOut size={16} /> 
+                        <LogOut size={18} className="shrink-0" /> 
                         {!isCollapsed && <span>Sign Out</span>}
                     </button>
-                    
+
                 </div>
             ) : (
                 <button 
                     onClick={onLogin} 
                     title={isCollapsed ? "Sign in with Google" : undefined}
-                    className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 py-2.5 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all ${isCollapsed ? 'px-2' : 'px-4 w-full'}`}
+                    className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all ${isCollapsed ? 'p-3' : 'px-4 py-2.5 w-full'}`}
                 >
-                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 flex-shrink-0" alt="Google" /> 
+                    <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 flex-shrink-0" alt="Google" /> 
                     {!isCollapsed && <span>Sign in</span>}
                 </button>
             )}
 
             <button 
                 onClick={onToggleCollapse}
-                className={`w-full flex items-center py-2 text-sm text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors ${isCollapsed ? 'justify-center px-0' : 'gap-3 px-2'}`}
+                className={`w-full flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${isCollapsed ? 'p-3' : 'py-3 gap-3'}`}
                 title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
-                {isCollapsed ? <ChevronsRight size={18} className="flex-shrink-0" /> : <ChevronsLeft size={18} className="flex-shrink-0" />}
-                {!isCollapsed && <span className="font-medium whitespace-nowrap">Collapse</span>}
+                {isCollapsed ? <ChevronsRight size={22} className="shrink-0" /> : <ChevronsLeft size={22} className="shrink-0" />}
+                {!isCollapsed && <span className="font-bold text-sm">Collapse Sidebar</span>}
             </button>
         </div>
 
