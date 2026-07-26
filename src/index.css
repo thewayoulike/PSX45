@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800;900&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -46,8 +46,13 @@ html.dark {
     color: rgb(var(--text));
   }
 
+  /* Premium Display Font for Headers */
+  .font-display {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+
   /* Numbers align in columns — essential for money tables */
-  .tabular, table td, .font-display {
+  .tabular, table td, .tabular-nums {
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum";
   }
@@ -136,7 +141,15 @@ html.dark {
     box-shadow: 0 0 0 3px rgb(var(--accent) / 0.2);
   }
 
-  /* Scrollbars */
+  /* Specific Custom Scrollbar Class for Tables/Modals */
+  .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #334155; }
+  .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+  /* Global Scrollbars */
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -146,6 +159,11 @@ html.dark {
 
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Fixes white calendar icon in dark mode HTML date inputs */
+  .color-scheme-dark {
+    color-scheme: dark;
+  }
 }
 
 @keyframes shimmer {
