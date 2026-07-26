@@ -150,7 +150,6 @@ const App: React.FC = () => {
       return {};
   });
 
-  // --- DYNAMIC LISTED IN MAP (NEW) ---
   const [listedInMap, setListedInMap] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_listed_in_map');
@@ -417,11 +416,15 @@ const App: React.FC = () => {
 
       try {
           const newResults = await fetchBatchPSXPrices(uniqueTickers);
+          
+          // --- NEW DEBUG LOG ---
+          console.log("[App.tsx] Full PSX Sync Results:", newResults);
+
           const failed = new Set<string>();
           const validUpdates: Record<string, number> = {};
           const ldcpUpdates: Record<string, number> = {};
           const newSectors: Record<string, string> = {};
-          const listedInUpdates: Record<string, string> = {}; // <-- NEW DYNAMIC MAP
+          const listedInUpdates: Record<string, string> = {};
           const now = new Date().toISOString();
           const timestampUpdates: Record<string, string> = {};
 
@@ -434,7 +437,6 @@ const App: React.FC = () => {
                   if (data.sector && data.sector !== 'Unknown Sector') {
                       newSectors[ticker] = data.sector;
                   }
-                  // Map the listedIn tag
                   if (data.listedIn) {
                       listedInUpdates[ticker] = data.listedIn;
                   }
@@ -453,7 +455,6 @@ const App: React.FC = () => {
               setSectorOverrides(prev => ({ ...prev, ...newSectors }));
           }
 
-          // UPDATE THE LISTED IN TAGS DYNAMICALLY
           if (Object.keys(listedInUpdates).length > 0) {
               setListedInMap(prev => ({ ...prev, ...listedInUpdates }));
           }
@@ -875,7 +876,6 @@ const App: React.FC = () => {
       setCurrentView('STOCKS');
   };
   
-  // Handler for Sidebar navigation clicks to intercept Modals smoothly
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
           setShowBrokerManager(true);
@@ -898,13 +898,11 @@ const App: React.FC = () => {
       
       <div className="flex flex-1 overflow-hidden relative">
           
-          {/* Ambient Background Blobs (Upgraded for Premium Look) */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
               <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]"></div>
               <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-[120px]"></div>
           </div>
 
-          {/* New Reusable Sidebar Component */}
           <Sidebar 
              currentView={currentView}
              onViewChange={handleSidebarNav}
@@ -919,11 +917,9 @@ const App: React.FC = () => {
              hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 
-          {/* MAIN CONTENT AREA */}
           <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
               <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-20">
                   
-                  {/* Top Premium Glass Header */}
                   <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
                       
                       <div className="flex items-center gap-3">
@@ -956,7 +952,6 @@ const App: React.FC = () => {
 
                   <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
                       
-                      {/* Premium Action Bar */}
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
                           <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
                               <div className="flex items-center justify-between min-w-max gap-6">
@@ -1073,13 +1068,11 @@ const App: React.FC = () => {
                           </div>
                       </div>
 
-                      {/* View Routing */}
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               {(() => {
                                   const historyData = performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [];
                                   
-                                  // Flexible mapping to extract values regardless of stored property name
                                   const trendLine = historyData.map((d: any) => {
                                       if (typeof d === 'number') return d;
                                       return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
@@ -1125,7 +1118,6 @@ const App: React.FC = () => {
                           </div>
                       )}
                       
-                      {/* HOLDINGS VIEW */}
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <HoldingsTable
@@ -1133,7 +1125,7 @@ const App: React.FC = () => {
                                   showBroker={true}
                                   failedTickers={failedTickers}
                                   ldcpMap={ldcpMap}
-                                  listedInMap={listedInMap} // <--- PASSING THE NEW DYNAMIC TAG MAP HERE
+                                  listedInMap={listedInMap} 
                                   onTickerClick={handleTickerClick}
                               />
                           </div>
@@ -1199,7 +1191,6 @@ const App: React.FC = () => {
           </div>
       </div>
 
-      {/* Modals outside of the flex container */}
       {isPortfolioModalOpen && (
           <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[70] flex items-center justify-center p-4">
               <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-sm p-6 animate-in fade-in zoom-in-95 duration-200">
