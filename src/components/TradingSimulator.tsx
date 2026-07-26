@@ -1,7 +1,5 @@
-// src/components/TradingSimulator.tsx
 import React, { useState, useMemo } from 'react';
 import { Holding, Broker, Transaction } from '../types';
-import { Card } from './ui/Card';
 import { 
   Plus, 
   Trash2, 
@@ -228,82 +226,91 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
   }, [buyPositions, sellPositions, activeHolding, broker, historicalState, targetPrice]);
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto animate-in fade-in slide-in-from-bottom-5 duration-700">
+    <div className="space-y-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-5 duration-700">
       
       {/* HEADER: SELECTOR & TARGET PRICE */}
-      <Card className="p-6">
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark transition-all">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="w-full md:w-1/3">
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Select Stock</label>
-            <select 
-              className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-              value={selectedTicker}
-              onChange={(e) => { setSelectedTicker(e.target.value); setBuyPositions([]); setSellPositions([]); setCustomTargetPrice(''); }}
-            >
-              <option value="">Choose a stock...</option>
-              {holdings.map(h => <option key={h.ticker} value={h.ticker}>{h.ticker} ({h.quantity} shs)</option>)}
-            </select>
+            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Select Stock</label>
+            <div className="relative">
+              <select 
+                className="w-full pl-4 pr-10 py-3.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm appearance-none cursor-pointer transition-all"
+                value={selectedTicker}
+                onChange={(e) => { setSelectedTicker(e.target.value); setBuyPositions([]); setSellPositions([]); setCustomTargetPrice(''); }}
+              >
+                <option value="">Choose a stock...</option>
+                {holdings.map(h => <option key={h.ticker} value={h.ticker}>{h.ticker} ({h.quantity} shs)</option>)}
+              </select>
+              <div className="absolute right-4 top-4 text-slate-400 pointer-events-none">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+              </div>
+            </div>
           </div>
           
           {activeHolding && (
-              <div className="flex flex-1 items-center gap-4 justify-end">
+              <div className="flex flex-1 items-center gap-5 justify-end">
                   <div className="text-right hidden sm:block">
-                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Current Market Price</p>
-                      <p className="font-mono text-xl font-medium text-slate-700 dark:text-slate-300">Rs. {activeHolding.currentPrice.toFixed(2)}</p>
+                      <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Current Market Price</p>
+                      <p className="font-mono text-xl font-black text-slate-900 dark:text-white tabular-nums">Rs. {activeHolding.currentPrice.toFixed(2)}</p>
                   </div>
-                  <div className="h-10 w-px bg-slate-200 dark:bg-slate-700 hidden sm:block"></div>
-                  <div className="w-full sm:w-48 relative">
-                      <label className="block text-[10px] font-bold text-indigo-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                          <Crosshair size={12}/> Simulation Target Price
+                  <div className="h-10 w-px bg-slate-200/60 dark:bg-slate-700/60 hidden sm:block"></div>
+                  <div className="w-full sm:w-56 relative">
+                      <label className="block text-[10px] font-bold text-indigo-500 uppercase tracking-widest mb-2 flex items-center gap-1.5 ml-1">
+                          <Crosshair size={14}/> Simulation Target
                       </label>
                       <input 
                           type="number" 
+                          step="any"
                           placeholder={activeHolding.currentPrice.toString()}
                           value={customTargetPrice}
                           onChange={(e) => setCustomTargetPrice(e.target.value)}
-                          className="w-full p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-900/20 text-indigo-800 dark:text-indigo-200 font-black font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                          className="w-full px-4 py-3.5 rounded-xl border border-indigo-200/60 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-black font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all"
                       />
                   </div>
               </div>
           )}
         </div>
-      </Card>
+      </div>
 
-      {/* OPEN LOTS BREAKDOWN */}
+      {/* OPEN LOTS BREAKDOWN (HOLDINGS TABLE STYLE) */}
       {activeHolding && historicalState.openLots.length > 0 && (
-          <Card className="p-0 overflow-hidden border-slate-200 dark:border-slate-700">
-              <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
-                  <h3 className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2 text-sm">
-                      <PieChart size={16} className="text-blue-500" /> Current Holdings Breakdown (FIFO Lots)
-                  </h3>
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark">
+              <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-4 bg-white dark:bg-slate-900">
+                  <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 rounded-2xl flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0 shadow-sm border border-blue-100 dark:border-blue-500/20">
+                          <PieChart size={20} />
+                      </div>
+                      <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Current Holdings Breakdown (FIFO)</h3>
+                  </div>
               </div>
-              <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                      <thead>
-                          <tr className="bg-white dark:bg-slate-900 text-[10px] uppercase text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700">
-                              <th className="p-4 font-semibold">Buy Date</th>
-                              <th className="p-4 font-semibold text-right">Quantity</th>
-                              <th className="p-4 font-semibold text-right">Avg Cost</th>
-                              <th className="p-4 font-semibold text-right">Total Cost</th>
-                              <th className="p-4 font-semibold text-right">Value (@ Target)</th>
-                              <th className="p-4 font-semibold text-right">Net P&L (After Exit Fees)</th>
+              <div className="overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left text-sm whitespace-nowrap min-w-[900px] border-collapse">
+                      <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+                          <tr>
+                              <th className="px-6 py-3.5">Buy Date</th>
+                              <th className="px-6 py-3.5 text-right">Quantity</th>
+                              <th className="px-6 py-3.5 text-right">Avg Cost</th>
+                              <th className="px-6 py-3.5 text-right">Total Cost</th>
+                              <th className="px-6 py-3.5 text-right">Value (@ Target)</th>
+                              <th className="px-6 py-3.5 text-right">Net P&L (After Exit Fees)</th>
                           </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-sm">
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                           {historicalState.openLots.map((lot, idx) => {
                               const cost = lot.quantity * lot.costPerShare;
                               const value = lot.quantity * targetPrice;
                               const exitFees = calculateFees(targetPrice, lot.quantity).total;
                               const pnl = value - cost - exitFees;
                               return (
-                                  <tr key={lot.id + idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                                      <td className="p-4 text-slate-600 dark:text-slate-400 font-mono text-xs">{lot.date}</td>
-                                      <td className="p-4 text-right font-medium text-slate-800 dark:text-slate-200">{lot.quantity.toLocaleString()}</td>
-                                      <td className="p-4 text-right font-mono text-slate-500 dark:text-slate-400">{lot.costPerShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                      <td className="p-4 text-right font-mono text-slate-600 dark:text-slate-300">{cost.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
-                                      <td className="p-4 text-right font-mono font-bold text-slate-800 dark:text-slate-200">{value.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
-                                      <td className="p-4 text-right">
-                                          <div className={`font-bold font-mono ${pnl >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                  <tr key={lot.id + idx} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
+                                      <td className="px-6 py-3.5 text-slate-500 dark:text-slate-400 font-mono text-xs tabular-nums">{lot.date}</td>
+                                      <td className="px-6 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{lot.quantity.toLocaleString()}</td>
+                                      <td className="px-6 py-3.5 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{lot.costPerShare.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                      <td className="px-6 py-3.5 text-right font-mono text-slate-600 dark:text-slate-300 tabular-nums">{cost.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                                      <td className="px-6 py-3.5 text-right font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">{value.toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                                      <td className="px-6 py-3.5 text-right">
+                                          <div className={`font-mono font-bold tabular-nums text-sm ${pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                                               {pnl >= 0 ? '+' : ''}{pnl.toLocaleString(undefined, {maximumFractionDigits: 0})}
                                           </div>
                                       </td>
@@ -311,188 +318,202 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                               );
                           })}
                       </tbody>
-                      <tfoot className="bg-slate-50 dark:bg-slate-800/80 border-t-2 border-slate-200 dark:border-slate-700 text-sm font-bold shadow-inner">
+                      <tfoot className="bg-slate-50/90 dark:bg-slate-800/90 border-t-2 border-slate-200 dark:border-slate-700 text-sm font-bold shadow-inner">
                           <tr>
-                              <td className="p-4 text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider">Aggregate Total</td>
-                              <td className="p-4 text-right">{activeHolding.quantity.toLocaleString()}</td>
-                              <td className="p-4 text-right font-mono">{activeHolding.avgPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-                              <td className="p-4 text-right font-mono">{(activeHolding.quantity * activeHolding.avgPrice).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
-                              <td className="p-4 text-right font-mono">{(activeHolding.quantity * targetPrice).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
-                              <td className={`p-4 text-right font-mono ${analysis.currentUnrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              <td className="px-6 py-4 text-slate-500 dark:text-slate-400 text-[10px] uppercase tracking-widest">Aggregate Total</td>
+                              <td className="px-6 py-4 text-right font-mono tabular-nums text-slate-900 dark:text-slate-100">{activeHolding.quantity.toLocaleString()}</td>
+                              <td className="px-6 py-4 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">{activeHolding.avgPrice.toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+                              <td className="px-6 py-4 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">{(activeHolding.quantity * activeHolding.avgPrice).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                              <td className="px-6 py-4 text-right font-mono tabular-nums text-slate-800 dark:text-slate-200">{(activeHolding.quantity * targetPrice).toLocaleString(undefined, {maximumFractionDigits: 0})}</td>
+                              <td className={`px-6 py-4 text-right font-mono tabular-nums text-base ${analysis.currentUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                   {analysis.currentUnrealizedPL >= 0 ? '+' : ''}{analysis.currentUnrealizedPL.toLocaleString(undefined, {maximumFractionDigits: 0})}
                               </td>
                           </tr>
                       </tfoot>
                   </table>
               </div>
-          </Card>
+          </div>
       )}
 
       {/* SIMULATOR GRIDS */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         
         {/* BUY SECTION */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="font-bold flex items-center gap-2 text-emerald-600 dark:text-emerald-400 text-sm">
-              <ArrowUpCircle size={18} /> Add Buy Positions
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-3xl border border-slate-200/60 dark:border-slate-800/60 p-6 shadow-card dark:shadow-card-dark space-y-5">
+          <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+            <h3 className="font-display font-black flex items-center gap-3 text-emerald-600 dark:text-emerald-400 text-lg">
+              <div className="p-2 bg-emerald-50 dark:bg-emerald-500/10 rounded-xl">
+                <ArrowUpCircle size={20} />
+              </div> 
+              Add Buy Positions
             </h3>
             <button onClick={() => {
                 if (buyPositions.length < 10) setBuyPositions([...buyPositions, { id: Math.random().toString(36).substring(2, 10), quantity: 0, price: targetPrice }]);
-            }} disabled={!activeHolding} className="p-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 rounded-lg hover:bg-emerald-200 transition-colors disabled:opacity-50">
-              <Plus size={16} />
+            }} disabled={!activeHolding} className="p-2.5 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-500/20 rounded-xl hover:bg-emerald-100 dark:hover:bg-emerald-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:-translate-y-0.5 active:translate-y-0">
+              <Plus size={18} />
             </button>
           </div>
           
-          <div className="space-y-2">
+          <div className="space-y-3">
             {analysis.buys.map((pos, idx) => (
-              <div key={pos.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-l-4 border-l-emerald-500 shadow-sm">
-                <div className="flex flex-col gap-1 w-full sm:flex-1">
-                    <span className="text-[9px] text-slate-400 uppercase font-bold">Invest Amount</span>
-                    <input type="number" placeholder="e.g. 50000" className="w-full p-2 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-emerald-500" onChange={(e) => { const amt = parseFloat(e.target.value) || 0; if (amt > 0 && pos.price > 0) { const qty = Math.floor(amt / (pos.price * 1.005)); const newPos = [...buyPositions]; newPos[idx].quantity = qty; setBuyPositions(newPos); } }} />
+              <div key={pos.id} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 border-l-4 border-l-emerald-500 shadow-sm transition-all hover:shadow-md">
+                <div className="flex flex-col gap-1.5 w-full sm:flex-1">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest ml-1">Invest Amount</span>
+                    <input type="number" placeholder="e.g. 50000" className="w-full px-4 py-2.5 text-sm font-mono tabular-nums bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/60 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 shadow-sm transition-all" onChange={(e) => { const amt = parseFloat(e.target.value) || 0; if (amt > 0 && pos.price > 0) { const qty = Math.floor(amt / (pos.price * 1.005)); const newPos = [...buyPositions]; newPos[idx].quantity = qty; setBuyPositions(newPos); } }} />
                 </div>
-                <div className="flex items-end gap-2 w-full sm:w-auto">
-                    <div className="flex flex-col gap-1 w-20">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">Qty</span>
-                        <input type="number" value={pos.quantity || ''} onChange={(e) => { const newPos = [...buyPositions]; newPos[idx].quantity = parseInt(e.target.value) || 0; setBuyPositions(newPos); }} className="w-full p-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-emerald-500 text-center" />
+                <div className="flex items-end gap-3 w-full sm:w-auto">
+                    <div className="flex flex-col gap-1.5 w-24">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest ml-1 text-center">Qty</span>
+                        <input type="number" value={pos.quantity || ''} onChange={(e) => { const newPos = [...buyPositions]; newPos[idx].quantity = parseInt(e.target.value) || 0; setBuyPositions(newPos); }} className="w-full px-3 py-2.5 text-sm font-mono font-bold tabular-nums bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/60 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-center shadow-sm transition-all" />
                     </div>
-                    <div className="flex flex-col gap-1 w-24">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">Buy Price</span>
-                        <input type="number" step="0.01" value={pos.price || ''} onChange={(e) => { const newPos = [...buyPositions]; newPos[idx].price = parseFloat(e.target.value) || 0; setBuyPositions(newPos); }} className="w-full p-2 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-emerald-500 text-center" />
+                    <div className="flex flex-col gap-1.5 w-28">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest ml-1 text-center">Buy Price</span>
+                        <input type="number" step="any" value={pos.price || ''} onChange={(e) => { const newPos = [...buyPositions]; newPos[idx].price = parseFloat(e.target.value) || 0; setBuyPositions(newPos); }} className="w-full px-3 py-2.5 text-sm font-mono tabular-nums bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/60 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 text-center shadow-sm transition-all" />
                     </div>
                 </div>
-                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-700">
+                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-slate-200/60 dark:border-slate-700/60">
                     <div className="flex flex-col text-right">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">Avg w/ Fees</span>
-                        <span className="text-xs font-bold font-mono text-emerald-600 dark:text-emerald-400">Rs {(pos.avgBuy || 0).toFixed(2)}</span>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Avg w/ Fees</span>
+                        <span className="text-sm font-bold font-mono tabular-nums text-emerald-600 dark:text-emerald-400">Rs. {(pos.avgBuy || 0).toFixed(2)}</span>
                     </div>
-                    <button onClick={() => setBuyPositions(buyPositions.filter(p => p.id !== pos.id))} className="p-2 bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-colors"> <Trash2 size={14} /> </button>
+                    <button onClick={() => setBuyPositions(buyPositions.filter(p => p.id !== pos.id))} className="p-2.5 bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all border border-rose-100/60 dark:border-rose-500/20 shadow-sm hover:-translate-y-0.5"> <Trash2 size={16} /> </button>
                 </div>
               </div>
             ))}
+            {buyPositions.length === 0 && (
+                <div className="p-6 text-center text-slate-400 dark:text-slate-500 font-medium text-sm border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">No simulated buy positions added.</div>
+            )}
           </div>
         </div>
 
         {/* SELL SECTION */}
-        <div className="space-y-4">
-          <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h3 className="font-bold flex items-center gap-2 text-rose-600 dark:text-rose-400 text-sm">
-              <ArrowDownCircle size={18} /> Add Sell Positions
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-3xl border border-slate-200/60 dark:border-slate-800/60 p-6 shadow-card dark:shadow-card-dark space-y-5">
+          <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm">
+            <h3 className="font-display font-black flex items-center gap-3 text-rose-600 dark:text-rose-400 text-lg">
+              <div className="p-2 bg-rose-50 dark:bg-rose-500/10 rounded-xl">
+                <ArrowDownCircle size={20} />
+              </div> 
+              Add Sell Positions
             </h3>
             <button onClick={() => {
                 if (sellPositions.length < 10) setSellPositions([...sellPositions, { id: Math.random().toString(36).substring(2, 10), quantity: 0, price: targetPrice, isIntraday: false }]);
-            }} disabled={!activeHolding} className="p-1.5 bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400 rounded-lg hover:bg-rose-200 transition-colors disabled:opacity-50">
-              <Plus size={16} />
+            }} disabled={!activeHolding} className="p-2.5 bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-200/60 dark:border-rose-500/20 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:-translate-y-0.5 active:translate-y-0">
+              <Plus size={18} />
             </button>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-3">
             {analysis.sells.map((pos, idx) => (
-              <div key={pos.id} className="flex flex-wrap sm:flex-nowrap items-center gap-2 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 border-l-4 border-l-rose-500 shadow-sm">
-                <div className="flex items-end gap-2 w-full sm:flex-1">
-                    <div className="flex flex-col gap-1 flex-1 sm:w-20">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">Sell Qty</span>
-                        <input type="number" value={pos.quantity || ''} onChange={(e) => { const newPos = [...sellPositions]; newPos[idx].quantity = parseInt(e.target.value) || 0; setSellPositions(newPos); }} className="w-full p-2 text-xs font-bold bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-rose-500 text-center" />
+              <div key={pos.id} className="flex flex-wrap sm:flex-nowrap items-center gap-3 p-4 bg-slate-50/80 dark:bg-slate-800/40 rounded-2xl border border-slate-200/60 dark:border-slate-700/50 border-l-4 border-l-rose-500 shadow-sm transition-all hover:shadow-md">
+                <div className="flex items-end gap-3 w-full sm:flex-1">
+                    <div className="flex flex-col gap-1.5 flex-1 sm:w-24">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest ml-1 text-center">Sell Qty</span>
+                        <input type="number" value={pos.quantity || ''} onChange={(e) => { const newPos = [...sellPositions]; newPos[idx].quantity = parseInt(e.target.value) || 0; setSellPositions(newPos); }} className="w-full px-3 py-2.5 text-sm font-mono font-bold tabular-nums bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/60 rounded-xl outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 text-center shadow-sm transition-all" />
                     </div>
-                    <div className="flex flex-col gap-1 flex-1 sm:w-24">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">Target Price</span>
-                        <input type="number" step="0.01" value={pos.price || ''} onChange={(e) => { const newPos = [...sellPositions]; newPos[idx].price = parseFloat(e.target.value) || 0; setSellPositions(newPos); }} className="w-full p-2 text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded-lg outline-none focus:border-rose-500 text-center" />
+                    <div className="flex flex-col gap-1.5 flex-1 sm:w-28">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest ml-1 text-center">Target Price</span>
+                        <input type="number" step="any" value={pos.price || ''} onChange={(e) => { const newPos = [...sellPositions]; newPos[idx].price = parseFloat(e.target.value) || 0; setSellPositions(newPos); }} className="w-full px-3 py-2.5 text-sm font-mono tabular-nums bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-700/60 rounded-xl outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 text-center shadow-sm transition-all" />
                     </div>
-                    <div className="flex flex-col gap-1 w-20">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold text-center">Intraday</span>
-                        <button onClick={() => { const newPos = [...sellPositions]; newPos[idx].isIntraday = !newPos[idx].isIntraday; setSellPositions(newPos); }} className={`w-full p-2 rounded-lg text-[10px] font-bold transition-all border ${pos.isIntraday ? 'bg-indigo-600 text-white border-indigo-700 shadow-inner' : 'bg-slate-50 dark:bg-slate-700 text-slate-400 border-slate-200 dark:border-slate-600'}`}> {pos.isIntraday ? 'YES' : 'NO'} </button>
+                    <div className="flex flex-col gap-1.5 w-20">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-widest text-center">Intraday</span>
+                        <button onClick={() => { const newPos = [...sellPositions]; newPos[idx].isIntraday = !newPos[idx].isIntraday; setSellPositions(newPos); }} className={`w-full py-2.5 rounded-xl text-[10px] font-bold tracking-widest transition-all border shadow-sm ${pos.isIntraday ? 'bg-indigo-600 text-white border-indigo-700' : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200/80 dark:border-slate-700/60'}`}> {pos.isIntraday ? 'YES' : 'NO'} </button>
                     </div>
                 </div>
-                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-3 mt-2 sm:mt-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 dark:border-slate-700">
+                <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto gap-4 mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-0 border-slate-200/60 dark:border-slate-700/60">
                     <div className="flex flex-col text-right">
-                        <span className="text-[9px] text-slate-400 uppercase font-bold">Est. Realized</span>
-                        <span className={`text-xs font-bold font-mono ${pos.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {pos.profit >= 0 ? '+' : ''}{(pos.profit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} </span>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold tracking-widest">Est. Realized</span>
+                        <span className={`text-sm font-bold font-mono tabular-nums ${pos.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> {pos.profit >= 0 ? '+' : ''}{(pos.profit || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })} </span>
                     </div>
-                    <button onClick={() => setSellPositions(sellPositions.filter(p => p.id !== pos.id))} className="p-2 bg-rose-50 text-rose-500 dark:bg-rose-900/20 dark:text-rose-400 rounded-lg hover:bg-rose-100 transition-colors"> <Trash2 size={14} /> </button>
+                    <button onClick={() => setSellPositions(sellPositions.filter(p => p.id !== pos.id))} className="p-2.5 bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400 rounded-xl hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all border border-rose-100/60 dark:border-rose-500/20 shadow-sm hover:-translate-y-0.5"> <Trash2 size={16} /> </button>
                 </div>
               </div>
             ))}
+            {sellPositions.length === 0 && (
+                <div className="p-6 text-center text-slate-400 dark:text-slate-500 font-medium text-sm border border-dashed border-slate-200 dark:border-slate-700 rounded-2xl">No simulated sell positions added.</div>
+            )}
           </div>
         </div>
       </div>
 
       {/* OVERALL ABSOLUTE SUMMARY CARD */}
       {activeHolding && (
-          <Card className="p-0 overflow-hidden border-indigo-200 dark:border-indigo-800/50 shadow-xl bg-gradient-to-br from-white to-indigo-50/30 dark:from-slate-900 dark:to-indigo-950/20 mt-8">
-              <div className="p-4 bg-indigo-600 dark:bg-indigo-900/50 border-b border-indigo-500 dark:border-indigo-800 flex items-center gap-2 text-white">
-                  <LineChart size={20} />
-                  <h3 className="font-bold text-sm tracking-wide uppercase">Simulation Results & Lifetime Outcome</h3>
+          <div className="rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark bg-gradient-to-br from-indigo-500/5 to-purple-500/5 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200/50 dark:border-indigo-800/50 mt-8">
+              <div className="p-5 bg-indigo-600 dark:bg-indigo-900/60 border-b border-indigo-500 dark:border-indigo-800/80 flex items-center gap-3 text-white">
+                  <div className="p-2 bg-white/20 rounded-xl">
+                      <LineChart size={20} />
+                  </div>
+                  <h3 className="font-display font-black text-lg tracking-wide uppercase">Simulation Results & Lifetime Outcome</h3>
               </div>
               
-              <div className="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-3 gap-6">
                   
                   {/* COLUMN 1: INTERMEDIATE STATE (AFTER BUYS) */}
-                  <div className="bg-white/50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-3 flex items-center gap-1"><ArrowUpCircle size={14}/> State After Simulated Buys</h4>
-                      <div className="flex justify-between items-end mb-2">
-                          <span className="text-xs text-slate-500">Total Shares</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">{analysis.overallQtyAfterBuys.toLocaleString()}</span>
+                  <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
+                      <h4 className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-widest mb-4 flex items-center gap-2"><ArrowUpCircle size={16} className="text-emerald-500"/> State After Simulated Buys</h4>
+                      <div className="flex justify-between items-end mb-3">
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Total Shares</span>
+                          <span className="font-mono font-bold text-lg text-slate-900 dark:text-slate-100 tabular-nums">{analysis.overallQtyAfterBuys.toLocaleString()}</span>
                       </div>
                       <div className="flex justify-between items-end">
-                          <span className="text-xs text-slate-500">New Average Price</span>
-                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">Rs. {analysis.overallAvgAfterBuys.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">New Average Price</span>
+                          <span className="font-mono font-bold text-lg text-emerald-600 dark:text-emerald-400 tabular-nums">Rs. {analysis.overallAvgAfterBuys.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                       </div>
                   </div>
 
                   {/* COLUMN 2: FINAL STATE (AFTER SELLS) */}
-                  <div className="bg-white/50 dark:bg-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
-                      <h4 className="text-[10px] uppercase font-bold text-slate-500 mb-3 flex items-center gap-1"><ArrowDownCircle size={14}/> Final Remaining State</h4>
-                      <div className="flex justify-between items-end mb-2">
-                          <span className="text-xs text-slate-500">Remaining Shares</span>
-                          <span className="font-bold text-slate-800 dark:text-slate-200">{analysis.finalRemainingQty.toLocaleString()}</span>
+                  <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md p-6 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
+                      <h4 className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-widest mb-4 flex items-center gap-2"><ArrowDownCircle size={16} className="text-rose-500"/> Final Remaining State</h4>
+                      <div className="flex justify-between items-end mb-3">
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Remaining Shares</span>
+                          <span className="font-mono font-bold text-lg text-slate-900 dark:text-slate-100 tabular-nums">{analysis.finalRemainingQty.toLocaleString()}</span>
                       </div>
-                      <div className="flex justify-between items-end mb-2">
-                          <span className="text-xs text-slate-500">Remaining Avg Price</span>
-                          <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">Rs. {analysis.finalRemainingAvg.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                      <div className="flex justify-between items-end mb-4">
+                          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Remaining Avg Price</span>
+                          <span className="font-mono font-bold text-lg text-indigo-600 dark:text-indigo-400 tabular-nums">Rs. {analysis.finalRemainingAvg.toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
                       </div>
-                      <div className="flex justify-between items-end pt-2 border-t border-slate-200 dark:border-slate-700">
-                          <span className="text-[10px] text-slate-500 leading-tight">Projected Unrealized<br/>(At Target Price)</span>
-                          <span className={`font-mono font-bold ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                      <div className="flex justify-between items-end pt-4 border-t border-slate-200/60 dark:border-slate-700/60">
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 leading-tight">Projected Unrealized<br/>(At Target Price)</span>
+                          <span className={`font-mono font-bold text-lg tabular-nums ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                               {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{analysis.finalUnrealizedPL.toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </span>
                       </div>
                   </div>
 
                   {/* COLUMN 3: LIFETIME P&L */}
-                  <div className="bg-indigo-50 dark:bg-indigo-900/30 p-4 rounded-xl border border-indigo-200 dark:border-indigo-800 relative">
-                      <h4 className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 mb-3 flex items-center gap-1"><Calculator size={14}/> Total Absolute P&L</h4>
+                  <div className="bg-indigo-50/80 dark:bg-indigo-500/10 backdrop-blur-md p-6 rounded-2xl border border-indigo-200/60 dark:border-indigo-500/20 shadow-sm relative flex flex-col">
+                      <h4 className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 tracking-widest mb-5 flex items-center gap-2"><Calculator size={16}/> Total Absolute P&L</h4>
                       
-                      <div className="space-y-1 mb-3 text-xs">
-                          <div className="flex justify-between">
-                              <span className="text-slate-500">Past Realized</span>
-                              <span className={`font-mono ${historicalState.historicalRealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      <div className="space-y-3 mb-5 flex-1">
+                          <div className="flex justify-between items-center text-xs font-bold">
+                              <span className="text-slate-500 dark:text-slate-400">Past Realized</span>
+                              <span className={`font-mono tabular-nums ${historicalState.historicalRealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                   {historicalState.historicalRealizedPL >= 0 ? '+' : ''}{historicalState.historicalRealizedPL.toLocaleString(undefined, {maximumFractionDigits:0})}
                               </span>
                           </div>
-                          <div className="flex justify-between">
-                              <span className="text-slate-500">Simulated Realized</span>
-                              <span className={`font-mono ${analysis.totalProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          <div className="flex justify-between items-center text-xs font-bold">
+                              <span className="text-slate-500 dark:text-slate-400">Simulated Realized</span>
+                              <span className={`font-mono tabular-nums ${analysis.totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                   {analysis.totalProfit >= 0 ? '+' : ''}{analysis.totalProfit.toLocaleString(undefined, {maximumFractionDigits:0})}
                               </span>
                           </div>
-                          <div className="flex justify-between">
-                              <span className="text-slate-500">Projected Unrealized</span>
-                              <span className={`font-mono ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                          <div className="flex justify-between items-center text-xs font-bold">
+                              <span className="text-slate-500 dark:text-slate-400">Projected Unrealized</span>
+                              <span className={`font-mono tabular-nums ${analysis.finalUnrealizedPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                                   {analysis.finalUnrealizedPL >= 0 ? '+' : ''}{analysis.finalUnrealizedPL.toLocaleString(undefined, {maximumFractionDigits:0})}
                               </span>
                           </div>
                       </div>
 
-                      <div className="border-t border-indigo-200 dark:border-indigo-800/50 pt-2 flex justify-between items-center">
-                          <span className="text-[10px] font-bold text-indigo-800 dark:text-indigo-200 uppercase">Overall Net</span>
-                          <span className={`text-xl font-black font-mono tracking-tighter ${analysis.totalLifetimeNet >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <div className="border-t border-indigo-200/60 dark:border-indigo-500/20 pt-4 flex justify-between items-end mt-auto">
+                          <span className="text-[11px] font-bold text-indigo-800 dark:text-indigo-200 uppercase tracking-widest">Overall Net</span>
+                          <span className={`text-3xl font-display font-black tabular-nums tracking-tight ${analysis.totalLifetimeNet >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                               {analysis.totalLifetimeNet >= 0 ? '+' : ''}{analysis.totalLifetimeNet.toLocaleString(undefined, {maximumFractionDigits: 0})}
                           </span>
                       </div>
                   </div>
 
               </div>
-          </Card>
+          </div>
       )}
 
     </div>
