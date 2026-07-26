@@ -8,7 +8,7 @@ interface HoldingsTableProps {
   showBroker?: boolean;
   failedTickers?: Set<string>;
   ldcpMap?: Record<string, number>;
-  listedInMap?: Record<string, string>; // Pass the "LISTED IN" string here if not inside Holding type
+  listedInMap?: Record<string, string>; // Maps ticker -> "KSE100, KMI30"
   onTickerClick?: (ticker: string) => void;
 }
 
@@ -199,7 +199,8 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"; 
                   else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"; 
 
-                  // --- FULLY DYNAMIC INDEX TAG DETECTION ---
+                  // --- FULLY DYNAMIC PSX MARKET WATCH DETECTION ---
+                  // It looks for holding.listedIn. If that's undefined, it checks listedInMap.
                   const rawListedIn = holding.listedIn || listedInMap[holding.ticker] || "";
                   const cleanListedIn = rawListedIn.toUpperCase();
                   const isKMI = cleanListedIn.includes('KMI30');
