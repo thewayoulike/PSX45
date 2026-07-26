@@ -9,18 +9,9 @@ interface AllocationChartProps {
 
 // Vibrant palette matching the reference style
 const COLORS = [
-  '#0088FE', // Blue
-  '#00C49F', // Teal
-  '#FFBB28', // Yellow/Orange
-  '#FF8042', // Orange
-  '#F43F5E', // Red/Pink
-  '#8884d8', // Purple
-  '#82ca9d', // Light Green
-  '#a4de6c', // Lime
-  '#d0ed57', // Yellow-Green
-  '#ffc658', // Light Orange
-  '#8dd1e1', // Light Blue
-  '#26C6DA', // Cyan
+  '#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#F43F5E', 
+  '#8884d8', '#82ca9d', '#a4de6c', '#d0ed57', '#ffc658', 
+  '#8dd1e1', '#26C6DA',
 ];
 
 const RADIAN = Math.PI / 180;
@@ -28,7 +19,7 @@ const RADIAN = Math.PI / 180;
 export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) => {
   const [chartMode, setChartMode] = useState<'asset' | 'sector'>('sector');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [activeIndex, setActiveIndex] = useState<number>(-1); // Track clicked slice
+  const [activeIndex, setActiveIndex] = useState<number>(-1);
 
   useEffect(() => {
     const handleResize = () => {
@@ -83,7 +74,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
   }, [holdings, chartMode]);
 
   const onPieClick = (_: any, index: number) => {
-    setActiveIndex(index === activeIndex ? -1 : index); // Toggle open/close
+    setActiveIndex(index === activeIndex ? -1 : index);
   };
 
   // --- RENDER ACTIVE SHAPE (The Split Slice) ---
@@ -92,7 +83,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     
     // Calculate the "Split" offset based on angle
     const midAngle = (startAngle + endAngle) / 2;
-    const splitDistance = 15; // How far it splits from the circle
+    const splitDistance = 15; 
     const sx = cx + (splitDistance * Math.cos(-midAngle * RADIAN));
     const sy = cy + (splitDistance * Math.sin(-midAngle * RADIAN));
 
@@ -102,12 +93,13 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
           cx={sx}
           cy={sy}
           innerRadius={innerRadius}
-          outerRadius={outerRadius}
+          outerRadius={outerRadius + 4} // Slightly enlarge active slice
           startAngle={startAngle}
           endAngle={endAngle}
           fill={fill}
-          filter="url(#realistic-3d)" // Ensure 3D effect stays on the moved slice
+          filter="url(#realistic-3d)"
           stroke="none"
+          className="transition-all duration-300"
         />
       </g>
     );
@@ -120,7 +112,6 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     const threshold = isMobile ? 0.05 : 0.02; 
     if (percent < threshold) return null; 
 
-    // Determine center coordinates (Shifted if active, Normal if not)
     const isActive = index === activeIndex;
     const splitDistance = isActive ? 15 : 0;
     
@@ -144,16 +135,15 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
     const textAnchor = cosMid >= 0 ? 'start' : 'end';
 
     return (
-      <g>
-        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={1.5} opacity={0.6} />
+      <g className="pointer-events-none">
+        <path d={`M${sx},${sy}L${mx},${my}L${ex},${ey}`} stroke={fill} fill="none" strokeWidth={2} opacity={0.5} />
         <text 
-            x={ex + (cosMid >= 0 ? 5 : -5)} 
+            x={ex + (cosMid >= 0 ? 6 : -6)} 
             y={ey} 
             dy={4} 
             textAnchor={textAnchor} 
-            fill="#64748b" 
-            fontSize={isMobile ? 10 : 11} 
-            fontWeight="bold"
+            fill="currentColor" 
+            className="text-[10px] md:text-xs font-bold tabular-nums text-slate-500 dark:text-slate-400"
         >
           {`${(percent * 100).toFixed(1)}%`}
         </text>
@@ -168,23 +158,23 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
       
       return (
         <div 
-            className="relative z-50 text-white text-xs rounded-xl shadow-2xl border border-white/20 p-3 min-w-[160px] backdrop-blur-md"
-            style={{ backgroundColor: data.fill, boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.3)' }}
+            className="relative z-50 text-white rounded-2xl shadow-card border border-white/10 p-3.5 min-w-[170px] backdrop-blur-xl"
+            style={{ backgroundColor: `${data.fill}FA` }}
         >
-          <div className="font-bold text-sm mb-1 pb-1 border-b border-white/20">{data.name}</div>
+          <div className="font-display font-black text-sm mb-2 pb-2 border-b border-white/20 tracking-wide">{data.name}</div>
           
-          <div className="flex justify-between items-center gap-4 mt-1.5">
-              <span className="opacity-80">Share:</span>
-              <span className="font-mono font-bold">{percent.toFixed(2)}%</span>
+          <div className="flex justify-between items-center gap-4 mt-2">
+              <span className="opacity-90 text-xs font-medium uppercase tracking-wider">Share</span>
+              <span className="tabular-nums font-bold text-sm">{percent.toFixed(2)}%</span>
           </div>
           
-          <div className="flex flex-col gap-1 mt-1.5">
+          <div className="flex flex-col gap-1 mt-2 pt-2 border-t border-white/10">
               <div className="flex justify-between items-center gap-4">
-                  <span className="opacity-80">Value:</span>
-                  <span className="font-mono font-bold">Rs. {Math.round(data.value).toLocaleString()}</span>
+                  <span className="opacity-90 text-xs font-medium uppercase tracking-wider">Value</span>
+                  <span className="tabular-nums font-bold text-sm">Rs. {Math.round(data.value).toLocaleString()}</span>
               </div>
-              <div className="text-right opacity-70 text-[10px] font-mono">
-                  ({data.quantity.toLocaleString()})
+              <div className="text-right opacity-80 text-[10px] tabular-nums font-medium">
+                  ({data.quantity.toLocaleString()} qty)
               </div>
           </div>
         </div>
@@ -194,24 +184,26 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
   };
 
   return (
-    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 rounded-3xl p-6 shadow-xl shadow-slate-200/50 dark:shadow-black/40 flex flex-col w-full h-full min-h-[550px]">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 flex flex-col w-full h-full min-h-[550px]">
       
       {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-black text-slate-800 dark:text-slate-100 tracking-tight flex items-center gap-2">
-            <Layers size={20} className="text-emerald-500" />
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+          <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20">
+                <Layers size={16} className="text-emerald-500 dark:text-emerald-400" />
+            </div>
             Allocation Analysis
           </h2>
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
+          <div className="flex bg-slate-50 dark:bg-slate-800/50 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm shrink-0">
               <button 
                 onClick={() => { setChartMode('sector'); setActiveIndex(-1); }} 
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${chartMode === 'sector' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMode === 'sector' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200/50 dark:border-slate-600' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                   <Layers size={14} /> Sector
               </button>
               <button 
                 onClick={() => { setChartMode('asset'); setActiveIndex(-1); }} 
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${chartMode === 'asset' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMode === 'asset' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/50 dark:border-slate-600' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                   <PieChartIcon size={14} /> Asset
               </button>
@@ -227,9 +219,9 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
             {/* Center Donut Text (Layer 0 - Background) */}
             {displayData.length > 0 && (
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
-                   <div className="flex flex-col items-center justify-center">
-                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[9px] md:text-[10px] uppercase tracking-widest mb-1">TOTAL {chartMode === 'sector' ? 'SECTORS' : 'ASSETS'}</span>
-                       <span className="text-slate-800 dark:text-slate-100 font-black text-3xl md:text-4xl tracking-tighter">{displayData.length}</span>
+                   <div className="flex flex-col items-center justify-center mt-2">
+                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-0.5">TOTAL {chartMode === 'sector' ? 'SECTORS' : 'ASSETS'}</span>
+                       <span className="text-slate-900 dark:text-white font-display font-black text-4xl md:text-5xl tracking-tighter tabular-nums">{displayData.length}</span>
                    </div>
                </div>
             )}
@@ -243,11 +235,11 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                         {/* Realistic 3D Filter */}
                         <filter id="realistic-3d" x="-20%" y="-20%" width="140%" height="140%">
                           <feGaussianBlur in="SourceAlpha" stdDeviation="4" result="blur" />
-                          <feOffset in="blur" dx="3" dy="5" result="offsetBlur" />
-                          <feFlood floodColor="#000000" floodOpacity="0.2" result="offsetColor"/>
+                          <feOffset in="blur" dx="2" dy="4" result="offsetBlur" />
+                          <feFlood floodColor="#000" floodOpacity="0.15" result="offsetColor"/>
                           <feComposite in="offsetColor" in2="offsetBlur" operator="in" result="offsetBlur"/>
-                          <feGaussianBlur in="SourceAlpha" stdDeviation="3" result="blur2"/>
-                          <feSpecularLighting in="blur2" surfaceScale="3" specularConstant="0.6" specularExponent="15" lightingColor="#ffffff" result="specOut">
+                          <feGaussianBlur in="SourceAlpha" stdDeviation="2" result="blur2"/>
+                          <feSpecularLighting in="blur2" surfaceScale="2" specularConstant="0.5" specularExponent="20" lightingColor="#fff" result="specOut">
                             <fePointLight x="-5000" y="-10000" z="20000"/>
                           </feSpecularLighting>
                           <feComposite in="specOut" in2="SourceAlpha" operator="in" result="specOut"/>
@@ -265,15 +257,15 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                         cy="50%"
                         innerRadius={isMobile ? 65 : 95}  
                         outerRadius={isMobile ? 90 : 135} 
-                        paddingAngle={2}
+                        paddingAngle={3}
                         dataKey="value"
                         label={renderCustomizedLabel}
                         labelLine={false} 
                         filter="url(#realistic-3d)"
                         stroke="none"
                         activeIndex={activeIndex}
-                        activeShape={renderActiveShape} // Renders the split slice
-                        onClick={onPieClick} // Handles the click event
+                        activeShape={renderActiveShape}
+                        onClick={onPieClick}
                         cursor="pointer"
                       >
                         {displayData.map((entry, index) => (
@@ -290,7 +282,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                 ) : (
                   <div className="absolute inset-0 flex items-center justify-center flex-col text-slate-400">
                     <PieChartIcon size={48} className="mb-2 opacity-20" />
-                    <span className="text-sm font-bold opacity-50">No Data Available</span>
+                    <span className="text-sm font-bold opacity-50 uppercase tracking-widest">No Data Available</span>
                   </div>
                 )}
             </div>
@@ -298,31 +290,32 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
           
           {/* Right: Legend List */}
           <div className="w-full lg:w-2/5 flex flex-col h-[400px] overflow-y-auto custom-scrollbar pr-2 relative z-10">
-              <div className="space-y-3 pt-2">
+              <div className="space-y-2 pt-2">
                   {displayData.map((item, idx) => {
                       const percent = (item.value / totalValue) * 100;
+                      const isActive = activeIndex === idx;
                       return (
                         <div 
                             key={item.name} 
-                            onClick={() => setActiveIndex(idx === activeIndex ? -1 : idx)}
-                            className={`flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-all duration-200 group ${activeIndex === idx ? 'bg-slate-100 dark:bg-slate-800 scale-[1.02] shadow-sm' : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                            onClick={() => setActiveIndex(isActive ? -1 : idx)}
+                            className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-300 group border ${isActive ? 'bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 shadow-sm scale-[1.02]' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}
                         >
                             <div 
-                                className="w-3 h-3 rounded-sm shadow-sm shrink-0 transition-transform group-hover:scale-125" 
+                                className="w-3.5 h-3.5 rounded-[4px] shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-125" 
                                 style={{ backgroundColor: item.fill }}
                             ></div>
                             
                             <div className="flex-1 flex justify-between items-center min-w-0">
-                                <span className={`text-xs font-bold truncate pr-2 ${activeIndex === idx ? 'text-slate-900 dark:text-white' : 'text-slate-700 dark:text-slate-300'}`} title={item.name}>
+                                <span className={`text-xs font-display font-bold truncate pr-3 transition-colors ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100'}`} title={item.name}>
                                     {item.name}
                                 </span>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono hidden sm:block">
+                                <div className="flex items-center gap-3 shrink-0">
+                                    <span className="text-[11px] text-slate-400 dark:text-slate-500 font-bold tabular-nums hidden sm:block">
                                         Rs. {(item.value / 1000).toFixed(0)}k
                                     </span>
-                                    <div className="w-16 flex justify-end">
-                                        <span className={`text-xs font-bold px-1.5 py-0.5 rounded border min-w-[45px] text-center shadow-sm ${activeIndex === idx ? 'bg-white dark:bg-slate-700 text-emerald-600 border-emerald-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700'}`}>
-                                            {percent.toFixed(2)}%
+                                    <div className="w-[60px] flex justify-end">
+                                        <span className={`text-[11px] font-black tabular-nums px-2 py-1 rounded-md border min-w-[50px] text-center transition-colors ${isActive ? 'bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 shadow-inner' : 'bg-transparent text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-800'}`}>
+                                            {percent.toFixed(1)}%
                                         </span>
                                     </div>
                                 </div>
