@@ -3,12 +3,29 @@ import { Holding } from '../types';
 import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown as ArrowDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
+// --- HYBRID FALLBACK: Static Lists (Used only if live PSX scraping fails) ---
+const FALLBACK_KMI30 = new Set([
+  'ENGRO', 'FFC', 'HUBC', 'LUCK', 'MARI', 'MEBL', 'OGDC', 'POL', 'PPL', 'PSO', 'SYS', 'TRG', 
+  'CHCC', 'DGKC', 'FCCL', 'INIL', 'ISL', 'PIOC', 'PRL', 'SEARL', 'AICL', 'ATLH', 'DAWH', 
+  'EPCL', 'GLAXO', 'MTL', 'NML', 'PKGS', 'SAZEW', 'THALL', 'AVN', 'GWLC', 'NATF', 'PSMC', 'EFERT'
+]);
+
+const FALLBACK_KSE100 = new Set([
+  ...Array.from(FALLBACK_KMI30), 
+  'UBL', 'HBL', 'MCB', 'BAHL', 'FABL', 'BAFL', 'BOP', 'SCBPL', 'KEL', 'FFBL', 'FATIMA', 
+  'INDU', 'HCAR', 'PAEL', 'AGP', 'MUREB', 'NESTLE', 'COLG', 'BATA', 'IGIHL', 'SHFA', 
+  'FEROZ', 'GTYR', 'LOTCHEM', 'NRL', 'SNGP', 'SSGC', 'NBP', 'AKBL', 'SNBL', 'HMB', 
+  'EFOODS', 'GATM', 'HINO', 'KAPCO', 'NCPL', 'NPL', 'PKPEL', 'RMPL', 'SHEL', 'SML', 
+  'TGL', 'GGL', 'GHGL', 'ASTL', 'ASL', 'CSAP', 'MUGHAL', 'AGHA', 'AMPL', 'FLYNG', 
+  'NCL', 'STJT', 'FML', 'GADT', 'ILP', 'KTML', 'CAPP', 'TATM', 'CPHL', 'DSIL'
+]);
+
 interface HoldingsTableProps {
   holdings: Holding[];
   showBroker?: boolean;
   failedTickers?: Set<string>;
   ldcpMap?: Record<string, number>;
-  listedInMap?: Record<string, string>; // Maps ticker -> "KSE100, KMI30"
+  listedInMap?: Record<string, string>; 
   onTickerClick?: (ticker: string) => void;
 }
 
@@ -199,12 +216,18 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"; 
                   else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"; 
 
-                  // --- FULLY DYNAMIC PSX MARKET WATCH DETECTION ---
-                  // It looks for holding.listedIn. If that's undefined, it checks listedInMap.
+                  // --- EXTRACT ALL LISTED TAGS DYNAMICALLY ---
                   const rawListedIn = holding.listedIn || listedInMap[holding.ticker] || "";
-                  const cleanListedIn = rawListedIn.toUpperCase();
-                  const isKMI = cleanListedIn.includes('KMI30');
-                  const isKSE = cleanListedIn.includes('KSE100');
+                  let tags: string[] = [];
+                  
+                  if (rawListedIn) {
+                      tags = rawListedIn.split(',').map(t => t.trim()).filter(t => t);
+                  } else {
+                      // Fallback if data is missing
+                      const cleanTicker = holding.ticker.toUpperCase();
+                      if (FALLBACK_KMI30.has(cleanTicker)) tags.push('KMI30');
+                      if (FALLBACK_KSE100.has(cleanTicker)) tags.push('KSE100');
+                  }
 
                   return (
                     <tr 
@@ -214,42 +237,64 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                     >
                       {/* Asset Column */}
                       <td className="px-4 py-3.5"> 
-                        <div className="flex items-center gap-3"> 
-                          <div className="w-1.5 h-10 rounded-full shadow-sm" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> 
-                          <div> 
+                        <div className="flex items-start gap-3"> 
+                          <div className="w-1.5 h-[50px] rounded-full shadow-sm mt-0.5" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> 
+                          <div className="flex flex-col"> 
+                            
+                            {/* Ticker Name */}
                             <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5"> 
                               {holding.ticker} 
-                              
-                              {/* --- PREMIUM ULTRA-COMPACT TAGS --- */}
-                              {isKSE && !isKMI && (
-                                <span className="text-[7px] leading-none px-1.5 py-[3px] rounded-[4px] bg-blue-50 text-blue-500 border border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 font-bold uppercase shadow-sm">KSE-100</span>
-                              )}
-                              {isKMI && (
-                                <span className="text-[7px] leading-none px-1.5 py-[3px] rounded-[4px] bg-purple-50 text-purple-600 border border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20 font-bold uppercase shadow-sm">KMI-30</span>
-                              )}
-                              
                               {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" title="Price update failed" />} 
                             </div> 
-                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[150px] mt-0.5">{holding.sector}</div> 
+                            
+                            {/* Sector */}
+                            <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[200px] mt-0.5">
+                                {holding.sector}
+                            </div> 
+
+                            {/* --- MULTIPLE TAGS RENDERED UNDER THE SECTOR --- */}
+                            {tags.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1.5 max-w-[220px]">
+                                    {tags.map((tag, i) => {
+                                        let colorClass = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
+                                        
+                                        if (tag.includes('KMI')) {
+                                            colorClass = "bg-purple-50 text-purple-600 border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20";
+                                        } else if (tag.includes('KSE')) {
+                                            colorClass = "bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20";
+                                        }
+
+                                        return (
+                                            <span 
+                                                key={`${tag}-${i}`} 
+                                                className={`text-[8px] leading-none px-1.5 py-1 rounded-[4px] border font-bold uppercase tracking-wider shadow-sm ${colorClass}`}
+                                            >
+                                                {tag}
+                                            </span>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
                           </div> 
                         </div> 
                       </td>
                       
                       {/* Broker */}
-                      {showBroker && <td className="px-4 py-3.5 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{holding.broker}</td>}
+                      {showBroker && <td className="px-4 py-3.5 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400 align-middle">{holding.broker}</td>}
                       
                       {/* Qty */}
-                      <td className="px-4 py-3.5 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums">
+                      <td className="px-4 py-3.5 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums align-middle">
                         {holding.quantity.toLocaleString()}
                       </td>
                       
                       {/* Avg Price */}
-                      <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-bold">
+                      <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-bold align-middle">
                           {roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* Current Price & BE */}
-                      <td className="px-4 py-3.5 text-right"> 
+                      <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className="flex flex-col items-end"> 
                             <span className={`tabular-nums font-display font-black text-sm ${isFailed ? "text-amber-500" : "text-slate-900 dark:text-white"}`}> 
                                 {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} 
@@ -263,17 +308,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       </td>
                       
                       {/* Cost Basis */}
-                      <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-medium">
+                      <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-medium align-middle">
                         {costBasis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* Market Value */}
-                      <td className="px-4 py-3.5 text-right text-slate-900 dark:text-white font-mono font-black tabular-nums text-sm">
+                      <td className="px-4 py-3.5 text-right text-slate-900 dark:text-white font-mono font-black tabular-nums text-sm align-middle">
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* Daily P&L */}
-                      <td className="px-4 py-3.5 text-right"> 
+                      <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> 
                           <span className="font-mono font-bold tabular-nums text-sm">
                             {isDailyProfit ? '+' : ''}{dailyChange.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -286,7 +331,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       </td>
                       
                       {/* Total P&L */}
-                      <td className="px-4 py-3.5 text-right"> 
+                      <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> 
                           <span className="font-mono font-bold tabular-nums text-base">
                             {isProfit ? '+' : ''}{pnl.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
