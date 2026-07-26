@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { AppView } from '../types';
 import { 
-  LayoutDashboard, History, PieChart, Activity, Bell, Calculator, 
-  LineChart, Settings, Briefcase, Key, X, ChevronDown, 
-  ChevronsLeft, ChevronsRight, LogOut, Save, Loader2
+  LayoutDashboard, History, Activity, Bell, Calculator, 
+  Settings, Briefcase, Key, X, ChevronDown, 
+  ChevronsLeft, ChevronsRight, LogOut, Save, Loader2,
+  FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 
@@ -28,16 +29,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
   
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 
-  // Main Application Views
+  // RESTORED: All 9 distinct app views correctly mapped
   const mainNavItems: { id: AppView; label: string; icon: React.ReactNode }[] = [
     { id: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={22} /> },
-    { id: 'STOCKS', label: 'Holdings', icon: <PieChart size={22} /> },
-    { id: 'REALIZED', label: 'Realized P&L', icon: <Activity size={22} /> }, 
+    { id: 'HOLDINGS', label: 'Holdings', icon: <FolderOpen size={22} /> },
+    { id: 'STOCKS', label: 'Stock Analyzer', icon: <ChartCandlestick size={22} /> },
+    { id: 'REALIZED', label: 'Realized P&L', icon: <CheckCircle2 size={22} /> }, 
     { id: 'HISTORY', label: 'History', icon: <History size={22} /> },
-    { id: 'SIGNALS', label: 'Market Signals', icon: <Activity size={22} /> },
+    { id: 'SIGNALS', label: 'Market Signals', icon: <Radar size={22} /> },
     { id: 'ALERTS', label: 'Price Alerts', icon: <Bell size={22} /> },
-    { id: 'SIMULATOR', label: 'Trading Simulator', icon: <LineChart size={22} /> },
     { id: 'CALCULATOR', label: 'Fair Value Calc', icon: <Calculator size={22} /> },
+    { id: 'SIMULATOR', label: 'Trading Simulator', icon: <TrendingUp size={22} /> },
   ];
 
   // Settings & Configuration Views
@@ -179,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         </div>
 
-        {/* User Profile & Collapse Area (Restored exactly to your logic) */}
+        {/* User Profile & Collapse Area */}
         <div className="p-4 border-t border-slate-200/60 dark:border-slate-800/60 space-y-4 bg-slate-50/50 dark:bg-[#0f0f0f]/50 shrink-0">
             {driveUser ? (
                 <div className="flex flex-col gap-3">
