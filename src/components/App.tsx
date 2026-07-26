@@ -22,14 +22,14 @@ import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
 import { PortfolioInsights } from './PortfolioInsights';
-import { Sidebar } from './Sidebar'; // NEW: Imported the isolated Sidebar
+import { Sidebar } from './Sidebar'; 
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import { 
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, 
-  Save, Pencil, Layers, ChevronDown, CheckSquare, Square, Menu,
-  CalendarClock, ArrowRightLeft, LogOut
+  Pencil, Layers, ChevronDown, CheckSquare, Square, Menu,
+  CalendarClock, ArrowRightLeft
 } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -59,7 +59,8 @@ const App: React.FC = () => {
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
   
-  // Mobile Sidebar State
+  // Sidebar State Restored
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   const [viewTicker, setViewTicker] = useState<string | null>(null);
@@ -888,6 +889,13 @@ const App: React.FC = () => {
              onViewChange={handleSidebarNav}
              isOpen={isMobileSidebarOpen}
              onClose={() => setIsMobileSidebarOpen(false)}
+             isSidebarCollapsed={isSidebarCollapsed}
+             onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+             driveUser={driveUser}
+             onLogin={handleLogin}
+             onLogout={handleManualLogout}
+             isCloudSyncing={isCloudSyncing}
+             hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 
           {/* MAIN CONTENT AREA */}
@@ -921,34 +929,6 @@ const App: React.FC = () => {
                           <div className="flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-700 shrink-0">
                               <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio"> <Pencil size={16} /> </button>
                               <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio"> <PlusCircle size={16} /> </button>
-                          </div>
-
-                          {/* Top-Right Profile / Auth Block */}
-                          <div className="flex items-center gap-3 pl-3 ml-1 border-l border-slate-200 dark:border-slate-700">
-                              {driveUser ? (
-                                  <div className="flex items-center gap-3">
-                                      <div className="hidden md:flex flex-col items-end">
-                                          <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-500 flex items-center gap-1">
-                                              {isCloudSyncing ? <Loader2 size={10} className="animate-spin" /> : <Save size={10} />} Synced
-                                          </span>
-                                          <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{driveUser.name}</span>
-                                      </div>
-                                      <button onClick={handleManualLogout} title="Sign Out" className="relative group">
-                                          {driveUser.picture ? ( 
-                                              <img src={driveUser.picture} alt="User" className="w-9 h-9 rounded-xl border-2 border-transparent group-hover:border-rose-400/50 transition-all" /> 
-                                          ) : ( 
-                                              <div className="w-9 h-9 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold group-hover:bg-rose-100 dark:group-hover:bg-rose-900/50 group-hover:text-rose-600 transition-all">
-                                                  {driveUser.name?.[0]}
-                                              </div> 
-                                          )}
-                                      </button>
-                                  </div>
-                              ) : (
-                                  <button onClick={handleLogin} className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-xl font-bold shadow-sm transition-all text-xs border border-transparent">
-                                      <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> 
-                                      <span className="hidden sm:inline">Sign in</span>
-                                  </button>
-                              )}
                           </div>
                       </div>
                   </header>
