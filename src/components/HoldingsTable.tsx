@@ -3,28 +3,12 @@ import { Holding } from '../types';
 import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown as ArrowDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
-// --- Static Index Lists for Automatic Tagging ---
-const KMI30_TICKERS = new Set([
-  'ENGRO', 'FFC', 'HUBC', 'LUCK', 'MARI', 'MEBL', 'OGDC', 'POL', 'PPL', 'PSO', 'SYS', 'TRG', 
-  'CHCC', 'DGKC', 'FCCL', 'INIL', 'ISL', 'PIOC', 'PRL', 'SEARL', 'AICL', 'ATLH', 'DAWH', 
-  'EPCL', 'GLAXO', 'MTL', 'NML', 'PKGS', 'SAZEW', 'THALL', 'AVN', 'GWLC', 'NATF', 'PSMC', 'EFERT'
-]);
-
-const KSE100_TICKERS = new Set([
-  ...Array.from(KMI30_TICKERS), // All KMI-30 are typically in KSE-100
-  'UBL', 'HBL', 'MCB', 'BAHL', 'FABL', 'BAFL', 'BOP', 'SCBPL', 'KEL', 'FFBL', 'FATIMA', 
-  'INDU', 'HCAR', 'PAEL', 'AGP', 'MUREB', 'NESTLE', 'COLG', 'BATA', 'IGIHL', 'SHFA', 
-  'FEROZ', 'GTYR', 'LOTCHEM', 'NRL', 'SNGP', 'SSGC', 'NBP', 'AKBL', 'SNBL', 'HMB', 
-  'EFOODS', 'GATM', 'HINO', 'KAPCO', 'NCPL', 'NPL', 'PKPEL', 'RMPL', 'SHEL', 'SML', 
-  'TGL', 'GGL', 'GHGL', 'ASTL', 'ASL', 'CSAP', 'MUGHAL', 'AGHA', 'AMPL', 'FLYNG', 
-  'NCL', 'STJT', 'FML', 'GADT', 'ILP', 'KTML', 'CAPP', 'TATM', 'CPHL', 'DSIL'
-]);
-
 interface HoldingsTableProps {
   holdings: Holding[];
   showBroker?: boolean;
   failedTickers?: Set<string>;
   ldcpMap?: Record<string, number>;
+  listedInMap?: Record<string, string>; // Pass the "LISTED IN" string here if not inside Holding type
   onTickerClick?: (ticker: string) => void;
 }
 
@@ -38,7 +22,7 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, onTickerClick }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, onTickerClick }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'ticker', direction: 'asc' });
   const [itemsPerPage, setItemsPerPage] = useState<number>(25);
@@ -200,7 +184,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0; 
                   const isProfit = pnl >= 0; 
                   const isFailed = failedTickers.has(holding.ticker); 
-                  const updateTime = formatUpdateDate(holding.lastUpdated); 
                   const ldcp = ldcpMap[holding.ticker] || holding.currentPrice; 
                   const dailyChange = (holding.currentPrice - ldcp) * holding.quantity; 
                   const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0; 
@@ -216,10 +199,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"; 
                   else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"; 
 
-                  // --- INDEX TAG DETECTION ---
-                  const cleanTicker = holding.ticker.toUpperCase();
-                  const isKMI = KMI30_TICKERS.has(cleanTicker);
-                  const isKSE = KSE100_TICKERS.has(cleanTicker);
+                  // --- FULLY DYNAMIC INDEX TAG DETECTION ---
+                  const rawListedIn = holding.listedIn || listedInMap[holding.ticker] || "";
+                  const cleanListedIn = rawListedIn.toUpperCase();
+                  const isKMI = cleanListedIn.includes('KMI30');
+                  const isKSE = cleanListedIn.includes('KSE100');
 
                   return (
                     <tr 
@@ -232,15 +216,17 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         <div className="flex items-center gap-3"> 
                           <div className="w-1.5 h-10 rounded-full shadow-sm" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> 
                           <div> 
-                            <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-2"> 
+                            <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5"> 
                               {holding.ticker} 
-                              {/* --- PREMIUM TAGS --- */}
+                              
+                              {/* --- PREMIUM ULTRA-COMPACT TAGS --- */}
                               {isKSE && !isKMI && (
-                                <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-blue-50 text-blue-600 border border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 font-bold uppercase tracking-widest shadow-sm">KSE-100</span>
+                                <span className="text-[7px] leading-none px-1.5 py-[3px] rounded-[4px] bg-blue-50 text-blue-500 border border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20 font-bold uppercase shadow-sm">KSE-100</span>
                               )}
                               {isKMI && (
-                                <span className="text-[8px] px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-600 border border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20 font-bold uppercase tracking-widest shadow-sm">KMI-30</span>
+                                <span className="text-[7px] leading-none px-1.5 py-[3px] rounded-[4px] bg-purple-50 text-purple-600 border border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20 font-bold uppercase shadow-sm">KMI-30</span>
                               )}
+                              
                               {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" title="Price update failed" />} 
                             </div> 
                             <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[150px] mt-0.5">{holding.sector}</div> 
