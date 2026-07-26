@@ -30,31 +30,46 @@ export const MarketTicker: React.FC = () => {
   const tickerItems = [...stocks, ...stocks, ...stocks];
 
   return (
-    <div className="w-full bg-emerald-50/90 dark:bg-emerald-950/90 backdrop-blur-md border-b border-emerald-100 dark:border-emerald-900 shadow-sm relative z-50 h-10 flex items-center overflow-hidden font-sans">
-      <div className="bg-emerald-600 h-full px-4 flex items-center justify-center gap-2 shadow-lg z-20 shrink-0 relative">
-        <Activity size={14} className="text-white" />
-        <span className="font-black text-[10px] md:text-xs uppercase tracking-widest text-white">
+    <div className="w-full bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800/60 shadow-sm relative z-50 h-10 flex items-center overflow-hidden">
+      
+      {/* Premium Badge Area */}
+      <div className="bg-emerald-600 dark:bg-emerald-600 h-full px-5 flex items-center justify-center gap-2 shadow-md z-20 shrink-0 relative">
+        <Activity size={14} className="text-white drop-shadow-sm" />
+        <span className="font-display font-black text-[10px] md:text-xs uppercase tracking-widest text-white drop-shadow-sm">
           Top Active
         </span>
-        <div className="absolute -right-2 top-0 h-full w-4 bg-emerald-600 transform skew-x-12"></div>
+        {/* The slanted edge element */}
+        <div className="absolute -right-2 top-0 h-full w-4 bg-emerald-600 dark:bg-emerald-600 transform skew-x-12 border-r border-emerald-500/30"></div>
       </div>
 
       <div className="flex-1 overflow-hidden relative h-full flex items-center group mask-gradient">
         <div className="animate-ticker flex items-center whitespace-nowrap pl-6">
           {tickerItems.map((s, i) => (
             <div key={`${s.symbol}-${i}`} className="flex items-center gap-3 text-xs mr-8">
-              <span className="font-black text-slate-800 dark:text-slate-100">{s.symbol}</span>
-              <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+              
+              {/* Ticker Symbol */}
+              <span className="font-display font-black text-slate-900 dark:text-white tracking-tight">
+                {s.symbol}
+              </span>
+              
+              {/* Price */}
+              <span className="font-mono font-bold text-slate-800 dark:text-slate-200 tabular-nums">
                 {s.price.toFixed(2)}
               </span>
-              <div className={`flex items-center gap-0.5 font-bold ${s.change > 0 ? 'text-emerald-600 dark:text-emerald-400' : s.change < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500'}`}>
-                {s.change > 0 ? <TrendingUp size={12} /> : s.change < 0 ? <TrendingDown size={12} /> : <Minus size={12} />}
+              
+              {/* Change Indicator */}
+              <div className={`flex items-center gap-1 font-mono font-bold tabular-nums ${s.change > 0 ? 'text-emerald-600 dark:text-emerald-400' : s.change < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-slate-400 dark:text-slate-500'}`}>
+                {s.change > 0 ? <TrendingUp size={12} strokeWidth={3} /> : s.change < 0 ? <TrendingDown size={12} strokeWidth={3} /> : <Minus size={12} strokeWidth={3} />}
                 <span>{Math.abs(s.change).toFixed(2)}</span>
               </div>
-              <span className="text-[10px] text-orange-700 dark:text-orange-400 font-bold font-mono">
+              
+              {/* Volume */}
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest tabular-nums border-l border-slate-200 dark:border-slate-700 pl-3 ml-1">
                 Vol: {(s.volume / 1000000).toFixed(2)}M
               </span>
-              <div className="w-1 h-1 rounded-full bg-emerald-200 dark:bg-emerald-800 mx-2"></div>
+              
+              {/* Separator Dot */}
+              <div className="w-1.5 h-1.5 rounded-full bg-slate-200 dark:bg-slate-700 mx-3"></div>
             </div>
           ))}
         </div>
