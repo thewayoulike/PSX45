@@ -70,11 +70,13 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   };
 
   const SortIcon = ({ column }: { column: SortKey }) => { if (sortConfig.key !== column) return <ArrowUpDown size={12} className="text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />; return sortConfig.direction === 'asc' ? <ArrowUp size={12} className="text-emerald-500" /> : <ArrowDown size={12} className="text-emerald-500" />; };
-  const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => ( <th className={`px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 cursor-pointer select-none group hover:bg-slate-100/50 dark:hover:bg-slate-800/50 transition-colors ${className}`} onClick={() => sortKey && handleSort(sortKey)}> <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}> {label} {sortKey && <SortIcon column={sortKey} />} </div> </th> );
+  const Th = ({ label, sortKey, align = 'left', className = '' }: { label: string, sortKey?: SortKey, align?: 'left'|'right'|'center', className?: string }) => ( <th className={`px-4 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 cursor-pointer select-none group hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors ${className}`} onClick={() => sortKey && handleSort(sortKey)}> <div className={`flex items-center gap-1.5 ${align === 'right' ? 'justify-end' : align === 'center' ? 'justify-center' : 'justify-start'}`}> {label} {sortKey && <SortIcon column={sortKey} />} </div> </th> );
 
   return (
-    <div className="mt-8 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden flex flex-col shadow-card dark:shadow-card-dark animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="p-6 border-b border-slate-200/60 dark:border-slate-700/60 flex flex-col xl:flex-row justify-between gap-5 bg-slate-50/50 dark:bg-slate-800/20">
+    <div className="mt-8 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden flex flex-col shadow-card dark:shadow-card-dark animate-in fade-in slide-in-from-bottom-4 duration-500">
+      
+      {/* Controls Header */}
+      <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col xl:flex-row justify-between gap-5 bg-white dark:bg-slate-900">
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
             <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight whitespace-nowrap">Realized History</h2>
             <div className="flex items-center gap-2"> 
@@ -85,18 +87,18 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto">
              <div className="relative flex-grow sm:w-56"> 
                  <Search size={16} className="absolute left-3.5 top-3 text-slate-400" /> 
-                 <input type="text" placeholder="Search Ticker..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" /> 
+                 <input type="text" placeholder="Search Ticker..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" /> 
              </div>
-            <div className="flex gap-2 items-center bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl px-3 py-2.5 shrink-0 shadow-sm transition-all"> 
+            <div className="flex gap-2 items-center bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl px-3 py-2.5 shrink-0 shadow-sm transition-all"> 
                 <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent border-none text-sm font-medium text-slate-700 dark:text-slate-300 focus:ring-0 outline-none w-28 p-0 dark:color-scheme-dark" /> 
                 <span className="text-slate-300 dark:text-slate-600">-</span> 
                 <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent border-none text-sm font-medium text-slate-700 dark:text-slate-300 focus:ring-0 outline-none w-28 p-0 dark:color-scheme-dark" /> 
             </div>
             <div className="flex gap-2 shrink-0"> 
-                <div className="flex bg-white dark:bg-slate-900/50 rounded-xl border border-slate-200/80 dark:border-slate-700/60 p-1 shadow-sm"> 
-                    <button onClick={() => handleExport('excel')} className="p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded-lg transition-colors" title="Export Excel"> <FileSpreadsheet size={16} /> </button> 
-                    <div className="w-[1px] bg-slate-100 dark:bg-slate-700 my-1 mx-0.5"></div> 
-                    <button onClick={() => handleExport('csv')} className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors" title="Export CSV"> <FileText size={16} /> </button> 
+                <div className="flex bg-slate-50 dark:bg-slate-800 rounded-xl border border-slate-200/80 dark:border-slate-700/60 p-1 shadow-sm"> 
+                    <button onClick={() => handleExport('excel')} className="p-2 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 rounded-lg transition-colors" title="Export Excel"> <FileSpreadsheet size={16} /> </button> 
+                    <div className="w-[1px] bg-slate-200 dark:bg-slate-700 my-1 mx-0.5"></div> 
+                    <button onClick={() => handleExport('csv')} className="p-2 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40 rounded-lg transition-colors" title="Export CSV"> <FileText size={16} /> </button> 
                 </div> 
                 {hasActiveFilters && ( 
                     <button onClick={clearFilters} className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-500/10 text-rose-500 dark:text-rose-400 border border-rose-200/60 dark:border-rose-500/20 hover:bg-rose-100 dark:hover:bg-rose-500/20 transition-all shadow-sm hover:-translate-y-0.5" title="Clear Filters"> <X size={16} /> </button> 
@@ -105,33 +107,34 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </div>
       </div>
 
+      {/* Table Area */}
       <div className="overflow-x-auto flex-1 custom-scrollbar">
-        <table className="w-full text-left border-collapse min-w-[1000px]">
-          <thead>
-            <tr className="border-b border-slate-200/60 dark:border-slate-700/60 bg-slate-50/80 dark:bg-slate-800/50">
-              <Th label="Date" sortKey="date" /> <Th label="Ticker" sortKey="ticker" /> {showBroker && <Th label="Broker" sortKey="broker" />} <Th label="Qty" sortKey="quantity" align="right" /> <Th label="Buy Avg" sortKey="buyAvg" align="right" /> <Th label="Sell Price" sortKey="sellPrice" align="right" /> <Th label="Total Cost" sortKey="totalCost" align="right" /> <Th label="Total Sell" sortKey="totalSell" align="right" /> <Th label="Comm" sortKey="commission" align="right" className="opacity-70" /> <Th label="Tax" sortKey="tax" align="right" className="opacity-70" /> <Th label="CDC" sortKey="cdcCharges" align="right" className="opacity-70" /> <Th label="Other" sortKey="otherFees" align="right" className="opacity-70" /> <Th label="Net Profit" sortKey="profit" align="right" />
+        <table className="w-full text-sm min-w-[1000px] whitespace-nowrap">
+          <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-left sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
+            <tr>
+              <Th label="Date" sortKey="date" /> <Th label="Ticker" sortKey="ticker" /> {showBroker && <Th label="Broker" sortKey="broker" />} <Th label="Qty" sortKey="quantity" align="right" /> <Th label="Buy Avg" sortKey="buyAvg" align="right" /> <Th label="Sell Price" sortKey="sellPrice" align="right" /> <Th label="Total Cost" sortKey="totalCost" align="right" /> <Th label="Total Sell" sortKey="totalSell" align="right" /> <Th label="Comm" sortKey="commission" align="right" className="opacity-80" /> <Th label="Tax" sortKey="tax" align="right" className="opacity-80" /> <Th label="CDC" sortKey="cdcCharges" align="right" className="opacity-80" /> <Th label="Other" sortKey="otherFees" align="right" className="opacity-80" /> <Th label="Net Profit" sortKey="profit" align="right" />
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-sm">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {paginatedTrades.length === 0 ? ( <tr> <td colSpan={showBroker ? 13 : 12} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium"> {hasActiveFilters ? 'No trades match your filters.' : 'No realized trades yet.'} </td> </tr> ) : (
               paginatedTrades.map((trade) => {
                 const isProfit = trade.profit >= 0; const totalCost = (trade.buyAvg || 0) * trade.quantity; const totalSell = (trade.sellPrice || 0) * trade.quantity;
                 return (
                   <tr key={trade.id} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
-                    <td className="px-4 py-4 text-slate-500 dark:text-slate-400 text-xs font-mono font-medium whitespace-nowrap">{trade.date}</td>
-                    <td className="px-4 py-4 font-display font-black text-slate-900 dark:text-white">{trade.ticker}</td>
-                    {showBroker && <td className="px-4 py-4 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{trade.broker || '-'}</td>}
-                    <td className="px-4 py-4 text-right text-slate-700 dark:text-slate-300 tabular-nums font-medium">{trade.quantity.toLocaleString()}</td>
-                    <td className="px-4 py-4 text-right text-slate-500 dark:text-slate-400 font-mono text-xs tabular-nums">{(trade.buyAvg || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-4 text-right text-slate-900 dark:text-slate-100 font-mono text-xs font-bold tabular-nums">{(trade.sellPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-4 text-right text-slate-600 dark:text-slate-400 font-mono text-xs font-medium tabular-nums">{totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-4 text-right text-slate-900 dark:text-slate-100 font-mono text-xs font-bold tabular-nums">{totalSell.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-2 py-4 text-right text-rose-400 dark:text-rose-500 font-mono text-[10px] tabular-nums">{(trade.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-2 py-4 text-right text-rose-400 dark:text-rose-500 font-mono text-[10px] tabular-nums">{(trade.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-2 py-4 text-right text-rose-400 dark:text-rose-500 font-mono text-[10px] tabular-nums">{(trade.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-2 py-4 text-right text-rose-400 dark:text-rose-500 font-mono text-[10px] tabular-nums">{(trade.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-4 text-right"> 
-                        <div className={`font-mono font-bold text-sm tabular-nums ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> 
+                    <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs font-mono font-medium tabular-nums">{trade.date}</td>
+                    <td className="px-4 py-3 font-display font-black text-slate-900 dark:text-white">{trade.ticker}</td>
+                    {showBroker && <td className="px-4 py-3 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{trade.broker || '-'}</td>}
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{trade.quantity.toLocaleString()}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{(trade.buyAvg || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{(trade.sellPrice || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{totalSell.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-3 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(trade.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-3 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(trade.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-3 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(trade.cdcCharges || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-2 py-3 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{(trade.otherFees || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right"> 
+                        <div className={`px-2 py-1 rounded-md inline-block font-mono font-bold tabular-nums text-sm shadow-sm ${isProfit ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400'}`}> 
                             {isProfit ? '+' : ''}{trade.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
                         </div> 
                     </td>
@@ -144,14 +147,14 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
               <tfoot className="bg-slate-50/90 dark:bg-slate-800/90 border-t-2 border-slate-200 dark:border-slate-700 font-bold text-xs text-slate-900 dark:text-slate-100 shadow-inner">
                   <tr>
                       <td colSpan={showBroker ? 3 : 2} className="px-4 py-4 text-right text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Totals</td>
-                      <td className="px-4 py-4 text-right tabular-nums text-sm">{totals.qty.toLocaleString()}</td>
+                      <td className="px-4 py-4 text-right font-mono tabular-nums text-sm">{totals.qty.toLocaleString()}</td>
                       <td colSpan={2} className="px-4 py-4"></td>
-                      <td className="px-4 py-4 text-right tabular-nums text-sm">{totals.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                      <td className="px-4 py-4 text-right tabular-nums text-sm">{totals.sell.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                      <td className="px-2 py-4 text-right text-rose-500 dark:text-rose-400 tabular-nums">{totals.comm.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                      <td className="px-2 py-4 text-right text-rose-500 dark:text-rose-400 tabular-nums">{totals.tax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                      <td className="px-2 py-4 text-right text-rose-500 dark:text-rose-400 tabular-nums">{totals.cdc.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                      <td className="px-2 py-4 text-right text-rose-500 dark:text-rose-400 tabular-nums">{totals.other.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-4 py-4 text-right font-mono tabular-nums text-sm">{totals.cost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-4 py-4 text-right font-mono tabular-nums text-sm">{totals.sell.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right font-mono text-rose-500 dark:text-rose-400 tabular-nums">{totals.comm.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right font-mono text-rose-500 dark:text-rose-400 tabular-nums">{totals.tax.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right font-mono text-rose-500 dark:text-rose-400 tabular-nums">{totals.cdc.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                      <td className="px-2 py-4 text-right font-mono text-rose-500 dark:text-rose-400 tabular-nums">{totals.other.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
                       <td className={`px-4 py-4 text-right font-mono text-base tabular-nums ${totals.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> 
                           {totals.profit >= 0 ? '+' : ''}{totals.profit.toLocaleString(undefined, { maximumFractionDigits: 0 })} 
                       </td>
@@ -161,10 +164,11 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </table>
       </div>
       
-      <div className="p-5 border-t border-slate-200/60 dark:border-slate-700/60 bg-slate-50/50 dark:bg-slate-800/20 flex flex-col sm:flex-row justify-between items-center gap-4">
+      {/* Pagination Footer */}
+      <div className="p-5 border-t border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3"> 
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Rows:</span> 
-              <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-700/60 rounded-lg text-xs py-1.5 px-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 text-slate-700 dark:text-slate-300 shadow-sm font-bold cursor-pointer"> 
+              <select value={itemsPerPage} onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }} className="bg-slate-50 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 rounded-lg text-xs py-1.5 px-2 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20 text-slate-700 dark:text-slate-300 shadow-sm font-bold cursor-pointer transition-colors"> 
                   <option value={25}>25</option> 
                   <option value={50}>50</option> 
                   <option value={100}>100</option> 
@@ -175,10 +179,10 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                   {(currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filteredAndSortedTrades.length)} of {filteredAndSortedTrades.length} 
               </span> 
               <div className="flex gap-1.5"> 
-                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300"> 
+                  <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300"> 
                       <ChevronLeft size={16} /> 
                   </button> 
-                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300"> 
+                  <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-1.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 shadow-sm disabled:opacity-30 disabled:cursor-not-allowed transition-all text-slate-600 dark:text-slate-300"> 
                       <ChevronRight size={16} /> 
                   </button> 
               </div> 
