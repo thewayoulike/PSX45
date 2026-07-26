@@ -149,6 +149,16 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
+
+  // --- DYNAMIC LISTED IN MAP (NEW) ---
+  const [listedInMap, setListedInMap] = useState<Record<string, string>>(() => {
+      try {
+          const saved = localStorage.getItem('psx_listed_in_map');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return {};
+  });
+
   const [priceTimestamps, setPriceTimestamps] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_price_timestamps');
@@ -204,7 +214,7 @@ const App: React.FC = () => {
   
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]);
-      setManualPrices({}); setLdcpMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory({});
+      setManualPrices({}); setLdcpMap({}); setListedInMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory({});
       setFairValueCache({});
       setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
       setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
@@ -411,6 +421,7 @@ const App: React.FC = () => {
           const validUpdates: Record<string, number> = {};
           const ldcpUpdates: Record<string, number> = {};
           const newSectors: Record<string, string> = {};
+          const listedInUpdates: Record<string, string> = {}; // <-- NEW DYNAMIC MAP
           const now = new Date().toISOString();
           const timestampUpdates: Record<string, string> = {};
 
@@ -422,6 +433,10 @@ const App: React.FC = () => {
                   if (data.ldcp > 0) ldcpUpdates[ticker] = data.ldcp;
                   if (data.sector && data.sector !== 'Unknown Sector') {
                       newSectors[ticker] = data.sector;
+                  }
+                  // Map the listedIn tag
+                  if (data.listedIn) {
+                      listedInUpdates[ticker] = data.listedIn;
                   }
               } else {
                   failed.add(ticker);
@@ -436,6 +451,11 @@ const App: React.FC = () => {
 
           if (Object.keys(newSectors).length > 0) {
               setSectorOverrides(prev => ({ ...prev, ...newSectors }));
+          }
+
+          // UPDATE THE LISTED IN TAGS DYNAMICALLY
+          if (Object.keys(listedInUpdates).length > 0) {
+              setListedInMap(prev => ({ ...prev, ...listedInUpdates }));
           }
 
           if (failed.size > 0) {
@@ -657,6 +677,7 @@ const App: React.FC = () => {
           localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
           localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
           localStorage.setItem('psx_ldcp_map', JSON.stringify(ldcpMap));
+          localStorage.setItem('psx_listed_in_map', JSON.stringify(listedInMap));
           localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps));
           localStorage.setItem('psx_brokers', JSON.stringify(brokers));
           localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
@@ -693,7 +714,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
   
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -1112,6 +1133,7 @@ const App: React.FC = () => {
                                   showBroker={true}
                                   failedTickers={failedTickers}
                                   ldcpMap={ldcpMap}
+                                  listedInMap={listedInMap} // <--- PASSING THE NEW DYNAMIC TAG MAP HERE
                                   onTickerClick={handleTickerClick}
                               />
                           </div>
