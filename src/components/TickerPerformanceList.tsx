@@ -30,10 +30,28 @@ import { Card } from './ui/Card';
 import { exportToCSV } from '../utils/export';
 import { fetchCompanyFundamentals, FundamentalsData } from '../services/financials';
 
+// --- HYBRID FALLBACK: Static Lists ---
+const FALLBACK_KMI30 = new Set([
+  'ENGRO', 'FFC', 'HUBC', 'LUCK', 'MARI', 'MEBL', 'OGDC', 'POL', 'PPL', 'PSO', 'SYS', 'TRG', 
+  'CHCC', 'DGKC', 'FCCL', 'INIL', 'ISL', 'PIOC', 'PRL', 'SEARL', 'AICL', 'ATLH', 'DAWH', 
+  'EPCL', 'GLAXO', 'MTL', 'NML', 'PKGS', 'SAZEW', 'THALL', 'AVN', 'GWLC', 'NATF', 'PSMC', 'EFERT'
+]);
+
+const FALLBACK_KSE100 = new Set([
+  ...Array.from(FALLBACK_KMI30), 
+  'UBL', 'HBL', 'MCB', 'BAHL', 'FABL', 'BAFL', 'BOP', 'SCBPL', 'KEL', 'FFBL', 'FATIMA', 
+  'INDU', 'HCAR', 'PAEL', 'AGP', 'MUREB', 'NESTLE', 'COLG', 'BATA', 'IGIHL', 'SHFA', 
+  'FEROZ', 'GTYR', 'LOTCHEM', 'NRL', 'SNGP', 'SSGC', 'NBP', 'AKBL', 'SNBL', 'HMB', 
+  'EFOODS', 'GATM', 'HINO', 'KAPCO', 'NCPL', 'NPL', 'PKPEL', 'RMPL', 'SHEL', 'SML', 
+  'TGL', 'GGL', 'GHGL', 'ASTL', 'ASL', 'CSAP', 'MUGHAL', 'AGHA', 'AMPL', 'FLYNG', 
+  'NCL', 'STJT', 'FML', 'GADT', 'ILP', 'KTML', 'CAPP', 'TATM', 'CPHL', 'DSIL'
+]);
+
 interface TickerPerformanceListProps {
   transactions: Transaction[];
   currentPrices: Record<string, number>;
   sectors: Record<string, string>;
+  listedInMap?: Record<string, string>; // Pass the dynamic tags here
   onTickerClick: (ticker: string) => void;
 }
 
@@ -97,7 +115,7 @@ const getHoldingDuration = (dateStr: string) => {
 };
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
-  transactions, currentPrices, sectors, onTickerClick
+  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick
 }) => {
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
       return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
@@ -165,7 +183,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }, 0);
   }, [transactions, currentPrices]);
 
-  // --- Intraday Priority, then FIFO ---
   const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
       const txsByDate: Record<string, Transaction[]> = {};
       txs.forEach(t => {
@@ -436,7 +453,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formatDecimal = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  // Formatting Helpers for Positive/Negative/Zero distinction
   const getColorClass = (val: number) => {
       if (Math.abs(val) < 0.01) return 'text-slate-500 dark:text-slate-400';
       return val > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400';
@@ -454,6 +470,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
   const isSelectionNotFound = (analysisMode === 'STOCK' && selectedTicker && !selectedStockStats) || 
                               (analysisMode === 'SECTOR' && selectedSector && !selectedSectorStats);
+
+  // --- DYNAMIC TAG GENERATION ---
+  let tags: string[] = [];
+  if (selectedStockStats) {
+      const rawListedIn = listedInMap?.[selectedStockStats.ticker] || "";
+      if (rawListedIn) {
+          tags = rawListedIn.split(',').map(t => t.trim()).filter(t => t);
+      } else {
+          const cleanTicker = selectedStockStats.ticker.toUpperCase();
+          if (FALLBACK_KMI30.has(cleanTicker)) tags.push('KMI30');
+          if (FALLBACK_KSE100.has(cleanTicker)) tags.push('KSE100');
+      }
+  }
 
   return (
     <div className="max-w-[1600px] mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
@@ -499,14 +528,43 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500">
                 {/* 1. HEADER */}
                 <div className="bg-white dark:bg-slate-900 rounded-3xl p-6 border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex flex-col md:flex-row justify-between items-center gap-4">
-                    <div className="flex items-center gap-4">
-                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-display font-black shadow-inner ${selectedStockStats.status === 'Active' ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}> {selectedStockStats.ticker.substring(0, 1)} </div>
-                        <div> 
+                    <div className="flex items-start gap-4">
+                        <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-3xl font-display font-black shadow-inner shrink-0 ${selectedStockStats.status === 'Active' ? 'bg-emerald-600 text-white' : 'bg-slate-200 dark:bg-slate-800 text-slate-500 dark:text-slate-400'}`}> 
+                            {selectedStockStats.ticker.substring(0, 1)} 
+                        </div>
+                        <div className="flex flex-col"> 
                             <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">{selectedStockStats.ticker}</h1> 
-                            <div className="flex items-center gap-2 mt-1"> 
-                                <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border border-slate-200/60 dark:border-slate-700/60">{selectedStockStats.sector}</span> 
-                                <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border shadow-sm ${selectedStockStats.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}> {selectedStockStats.status} </span> 
-                            </div> 
+                            
+                            <div className="flex flex-col gap-2 mt-2">
+                                {/* SECTOR & STATUS */}
+                                <div className="flex items-center gap-2"> 
+                                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border border-slate-200/60 dark:border-slate-700/60 shadow-sm">{selectedStockStats.sector}</span> 
+                                    <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border shadow-sm ${selectedStockStats.status === 'Active' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700'}`}> {selectedStockStats.status} </span> 
+                                </div> 
+                                
+                                {/* --- DYNAMIC TAGS --- */}
+                                {tags.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 mt-1">
+                                        {tags.map((tag, i) => {
+                                            let colorClass = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
+                                            if (tag.includes('KMI')) {
+                                                colorClass = "bg-purple-50 text-purple-600 border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20";
+                                            } else if (tag.includes('KSE')) {
+                                                colorClass = "bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20";
+                                            }
+                                            return (
+                                                <span 
+                                                    key={`${tag}-${i}`} 
+                                                    className={`text-[9px] leading-none px-2 py-1 rounded-md border font-bold uppercase tracking-wider shadow-sm ${colorClass}`}
+                                                >
+                                                    {tag}
+                                                </span>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+
                         </div>
                     </div>
                 </div>
@@ -747,7 +805,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </Card>
                 </div>
 
-                {/* 3. HOLDINGS LIST FOR SECTOR (HOLDINGS TABLE STYLE) */}
+                {/* 3. HOLDINGS LIST FOR SECTOR */}
                 <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark">
                     <div className="p-6 border-b border-slate-200/60 dark:border-slate-800">
                         <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Sector Holdings</h3>
@@ -815,7 +873,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
             </div>
         )}
 
-        {/* --- ACTIVITY TABLE (Holding/Realized Table Style) --- */}
+        {/* --- ACTIVITY TABLE --- */}
         {(selectedTicker || selectedSector) && !isSelectionNotFound && (
             <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark mt-8">
                 <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900">
