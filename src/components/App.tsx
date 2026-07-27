@@ -1137,6 +1137,7 @@ const App: React.FC = () => {
                                   transactions={portfolioTransactions}
                                   currentPrices={manualPrices}
                                   sectors={sectorMap}
+                                  listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
                               />
                           </div>
@@ -1300,6 +1301,7 @@ const App: React.FC = () => {
               sector={sectorOverrides[viewTicker] || getSector(viewTicker)}
               transactions={portfolioTransactions.filter(t => t.ticker === viewTicker)}
               holding={holdings.find(h => h.ticker === viewTicker)}
+              listedInMap={listedInMap}
               onClose={() => setViewTicker(null)}
           />
       )}
