@@ -417,7 +417,6 @@ const App: React.FC = () => {
       try {
           const newResults = await fetchBatchPSXPrices(uniqueTickers);
           
-          // --- NEW DEBUG LOG ---
           console.log("[App.tsx] Full PSX Sync Results:", newResults);
 
           const failed = new Set<string>();
@@ -570,7 +569,7 @@ const App: React.FC = () => {
             }
         }
         else if (t.type === 'DIVIDEND') {
-            const netDiv = (t.quantity * t.price) - (t.tax || 0);
+            const netDiv = (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
             dividendSum += netDiv;
             divTaxSum += (t.tax || 0);
             if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv, originalIndex: idx });
