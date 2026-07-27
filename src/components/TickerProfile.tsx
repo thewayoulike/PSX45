@@ -14,12 +14,30 @@ import {
 import PSXChart from './PSXChart';
 import { SetAlert } from './SetAlert';
 
+// --- HYBRID FALLBACK: Static Lists ---
+const FALLBACK_KMI30 = new Set([
+  'ENGRO', 'FFC', 'HUBC', 'LUCK', 'MARI', 'MEBL', 'OGDC', 'POL', 'PPL', 'PSO', 'SYS', 'TRG', 
+  'CHCC', 'DGKC', 'FCCL', 'INIL', 'ISL', 'PIOC', 'PRL', 'SEARL', 'AICL', 'ATLH', 'DAWH', 
+  'EPCL', 'GLAXO', 'MTL', 'NML', 'PKGS', 'SAZEW', 'THALL', 'AVN', 'GWLC', 'NATF', 'PSMC', 'EFERT'
+]);
+
+const FALLBACK_KSE100 = new Set([
+  ...Array.from(FALLBACK_KMI30), 
+  'UBL', 'HBL', 'MCB', 'BAHL', 'FABL', 'BAFL', 'BOP', 'SCBPL', 'KEL', 'FFBL', 'FATIMA', 
+  'INDU', 'HCAR', 'PAEL', 'AGP', 'MUREB', 'NESTLE', 'COLG', 'BATA', 'IGIHL', 'SHFA', 
+  'FEROZ', 'GTYR', 'LOTCHEM', 'NRL', 'SNGP', 'SSGC', 'NBP', 'AKBL', 'SNBL', 'HMB', 
+  'EFOODS', 'GATM', 'HINO', 'KAPCO', 'NCPL', 'NPL', 'PKPEL', 'RMPL', 'SHEL', 'SML', 
+  'TGL', 'GGL', 'GHGL', 'ASTL', 'ASL', 'CSAP', 'MUGHAL', 'AGHA', 'AMPL', 'FLYNG', 
+  'NCL', 'STJT', 'FML', 'GADT', 'ILP', 'KTML', 'CAPP', 'TATM', 'CPHL', 'DSIL'
+]);
+
 interface TickerProfileProps {
   ticker: string;
   currentPrice: number;
   sector: string;
   transactions: Transaction[];
   holding?: Holding;
+  listedInMap?: Record<string, string>; // Pass the dynamic tags here
   onClose: () => void;
 }
 
@@ -29,6 +47,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   sector, 
   transactions, 
   holding, 
+  listedInMap = {},
   onClose
 }) => {
 
@@ -132,26 +151,63 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   // Realized Math
   const isRealizedProfit = realizedStats.pnl >= 0;
 
+  // --- DYNAMIC TAG GENERATION ---
+  let tags: string[] = [];
+  const rawListedIn = listedInMap?.[ticker] || "";
+  if (rawListedIn) {
+      tags = rawListedIn.split(',').map(t => t.trim()).filter(t => t);
+  } else {
+      const cleanTicker = ticker.toUpperCase();
+      if (FALLBACK_KMI30.has(cleanTicker)) tags.push('KMI30');
+      if (FALLBACK_KSE100.has(cleanTicker)) tags.push('KSE100');
+  }
+
   return (
     <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-[#0a0a0a] overflow-y-auto animate-in slide-in-from-right duration-300">
 
       {/* HEADER */}
       <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200/60 dark:border-slate-800/60 px-6 py-4 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-4">
+        <div className="flex items-start gap-4">
           <button 
             onClick={onClose} 
             aria-label="Close Profile"
-            className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-600 dark:text-slate-300 shadow-sm"
+            className="p-2.5 mt-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-600 dark:text-slate-300 shadow-sm shrink-0"
           >
             <ArrowLeft size={20} />
           </button>
-          <div>
+          
+          <div className="flex flex-col">
             <h1 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
               {ticker}
-              <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2.5 py-1 rounded-md border border-slate-200/60 dark:border-slate-700/60 uppercase tracking-widest hidden sm:block shadow-sm">
-                {sector}
-              </span>
             </h1>
+            
+            <div className="flex flex-col gap-2 mt-1.5">
+                <span className="text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2.5 py-1 rounded-md border border-slate-200/60 dark:border-slate-700/60 uppercase tracking-widest hidden sm:inline-block w-fit shadow-sm">
+                  {sector}
+                </span>
+                
+                {/* --- DYNAMIC TAGS --- */}
+                {tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                        {tags.map((tag, i) => {
+                            let colorClass = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
+                            if (tag.includes('KMI')) {
+                                colorClass = "bg-purple-50 text-purple-600 border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20";
+                            } else if (tag.includes('KSE')) {
+                                colorClass = "bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20";
+                            }
+                            return (
+                                <span 
+                                    key={`${tag}-${i}`} 
+                                    className={`text-[9px] leading-none px-2 py-1 rounded-md border font-bold uppercase tracking-wider shadow-sm ${colorClass}`}
+                                >
+                                    {tag}
+                                </span>
+                            );
+                        })}
+                    </div>
+                )}
+            </div>
           </div>
         </div>
 
