@@ -106,7 +106,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
       } else if (t.type === 'DIVIDEND') {
         totalDividends += gross;
         dividendTax += (t.tax || 0);
-        const netDiv = gross - (t.tax || 0);
+        const netDiv = gross - (t.tax || 0) - (t.otherFees || 0);
         totalCashOut += netDiv;
       }
     });
@@ -400,7 +400,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
                   let net = 0;
                   if (t.type === 'BUY') net = -(total + fees);
                   else if (t.type === 'SELL') net = total - fees;
-                  else if (t.type === 'DIVIDEND') net = total - (t.tax || 0);
+                  else if (t.type === 'DIVIDEND') net = total - (t.tax || 0) - (t.otherFees || 0);
 
                   return (
                     <tr key={t.id || index} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
