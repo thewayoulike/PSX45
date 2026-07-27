@@ -110,6 +110,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           const fees = (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0);
           if (t.type === 'BUY') totalBuy += (val + fees);
           else if (t.type === 'SELL') totalSell += (val - fees);
+          else if (t.type === 'DIVIDEND') totalSell += (val - (Number(t.tax)||0) - (Number(t.otherFees)||0));
       });
       return { totalBuy, totalSell, net: totalSell - totalBuy };
   }, [savedScannedTrades]);
@@ -192,22 +193,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         }
         
         if (editingTransaction) {
-            setMode('MANUAL'); setType(editingTransaction.type); setDate(editingTransaction.date); setTicker(editingTransaction.ticker); setQuantity(editingTransaction.quantity); setPrice(editingTransaction.price); setCommission(editingTransaction.commission); setTax(editingTransaction.tax || 0); setCdcCharges(editingTransaction.cdcCharges || 0); setOtherFees(editingTransaction.otherFees || 0); setNotes(editingTransaction.notes || ''); 
-            
-            // --- THE FIX IS HERE ---
-            setIsAutoCalc(false); // Do not auto-calculate over existing manual figures!
-            
-            if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
+            setMode('MANUAL'); setType(editingTransaction.type); setDate(editingTransaction.date); setTicker(editingTransaction.ticker); setQuantity(editingTransaction.quantity); setPrice(editingTransaction.price); setCommission(editingTransaction.commission); setTax(editingTransaction.tax || 0); setCdcCharges(editingTransaction.cdcCharges || 0); setOtherFees(editingTransaction.otherFees || 0); setNotes(editingTransaction.notes || ''); setIsAutoCalc(false); if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             if (editingTransaction.type === 'TAX') { setPrice(editingTransaction.price); setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'HISTORY') { setHistAmount(editingTransaction.price); setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX'); }
             if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(editingTransaction.type)) { setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'OTHER') { setCategory(editingTransaction.category || 'ADJUSTMENT'); setHistAmount(editingTransaction.price); }
         } else {
-            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } 
-            
-            setIsAutoCalc(true); // Always true for fresh transactions
-            
-            setDate(new Date().toISOString().split('T')[0]); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
+            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(true); setDate(new Date().toISOString().split('T')[0]); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
@@ -416,7 +408,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Commission</label><input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 disabled:bg-slate-100 dark:disabled:bg-slate-800 dark:text-slate-200 tabular-nums shadow-sm outline-none"/></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 dark:text-slate-200 tabular-nums shadow-sm outline-none"/></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">CDC Charges</label><input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 disabled:bg-slate-100 dark:disabled:bg-slate-800 dark:text-slate-200 tabular-nums shadow-sm outline-none"/></div>
-                  <div> <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1"> {type === 'DIVIDEND' ? 'Other Charges' : 'Other Fees'} </label> <input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 dark:text-slate-200 tabular-nums shadow-sm outline-none" /> </div>
+                  <div> 
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1"> 
+                          {type === 'DIVIDEND' ? 'Zakat' : 'Other Fees'} 
+                      </label> 
+                      <input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 dark:text-slate-200 tabular-nums shadow-sm outline-none" /> 
+                  </div>
               </div>
           </div>
       </>
@@ -629,7 +626,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                             <th className="px-3 py-3.5 w-20 text-right opacity-70">Comm</th> 
                                             <th className="px-3 py-3.5 w-20 text-right opacity-70">Tax</th> 
                                             <th className="px-3 py-3.5 w-20 text-right opacity-70">CDC</th> 
-                                            <th className="px-3 py-3.5 w-20 text-right opacity-70">Other</th> 
+                                            <th className="px-3 py-3.5 w-20 text-right opacity-70">Other/Zakat</th> 
                                             <th className="px-4 py-3.5 text-center">Action</th> 
                                         </tr> 
                                     </thead>
