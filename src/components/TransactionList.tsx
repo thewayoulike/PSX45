@@ -41,7 +41,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
 
   const getNetAmount = (tx: Transaction) => {
       let netAmount = 0; const totalAmount = tx.price * tx.quantity;
-      if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0);
+      if (tx.type === 'DIVIDEND') netAmount = totalAmount - (tx.tax || 0) - (tx.otherFees || 0);
       else if (tx.type === 'TAX') netAmount = -totalAmount;
       else if (tx.type === 'HISTORY' || tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') netAmount = (tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE') ? -Math.abs(totalAmount) : totalAmount;
       else if (tx.type === 'OTHER') { 
@@ -194,7 +194,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                 <Th label="Comm" sortKey="commission" align="right" className="opacity-80" /> 
                 <Th label="Tax" sortKey="tax" align="right" className="opacity-80" /> 
                 <Th label="CDC" sortKey="cdcCharges" align="right" className="opacity-80" /> 
-                <Th label="Other" sortKey="otherFees" align="right" className="opacity-80" /> 
+                <Th label="Other/Zakat" sortKey="otherFees" align="right" className="opacity-80" /> 
                 <Th label="Net Amount" sortKey="netAmount" align="right" /> 
                 <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Action</th> 
             </tr> 
