@@ -7,6 +7,8 @@ import { PerformanceChart } from './PerformanceChart';
 import { RealizedTable } from './RealizedTable';
 import { TransactionList } from './TransactionList';
 import { PortfolioSummary } from './PortfolioSummary';
+import { TopHoldings } from './TopHoldings';
+import { IndexBar } from './IndexBar';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -60,7 +62,6 @@ const App: React.FC = () => {
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
 
-  // Sidebar State Restored
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -150,7 +151,6 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
-
   const [listedInMap, setListedInMap] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_listed_in_map');
@@ -158,7 +158,6 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
-
   const [priceTimestamps, setPriceTimestamps] = useState<Record<string, string>>(() => {
       try {
           const saved = localStorage.getItem('psx_price_timestamps');
@@ -417,7 +416,6 @@ const App: React.FC = () => {
 
       try {
           const newResults = await fetchBatchPSXPrices(uniqueTickers);
-
           console.log("[App.tsx] Full PSX Sync Results:", newResults);
 
           const failed = new Set<string>();
@@ -1069,9 +1067,12 @@ const App: React.FC = () => {
 
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+
+                              {/* 👇 NEW — Index bar (KSE-100 / KMI-30 / USD-PKR) */}
+                              <div className="mb-6"><IndexBar /></div>
+
                               {(() => {
                                   const historyData = performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [];
-
                                   const trendLine = historyData.map((d: any) => {
                                       if (typeof d === 'number') return d;
                                       return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
@@ -1106,7 +1107,15 @@ const App: React.FC = () => {
                                   <div className="lg:col-span-2">
                                       <AllocationChart holdings={holdings} />
                                   </div>
-                                  <div className="lg:col-span-1">
+
+                                  {/* 👇 NEW — Top Holdings stacked above Insights */}
+                                  <div className="lg:col-span-1 flex flex-col gap-6">
+                                      <TopHoldings
+                                          holdings={holdings}
+                                          stats={stats}
+                                          onTickerClick={handleTickerClick}
+                                          onViewAll={() => setCurrentView('HOLDINGS')}
+                                      />
                                       <PortfolioInsights
                                           holdings={holdings}
                                           realizedTrades={realizedTrades}
@@ -1115,7 +1124,7 @@ const App: React.FC = () => {
                                   </div>
                               </div>
 
-                              {/* 👇 NEW — Portfolio Summary */}
+                              {/* Portfolio Summary */}
                               <div className="mt-6">
                                   <PortfolioSummary
                                       holdings={holdings}
@@ -1155,7 +1164,7 @@ const App: React.FC = () => {
                       )}
                       {currentView === 'REALIZED' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                              <RealizedTable trades={realizedTrades} showBroker={true} />
+                              <RealizedTable trades={realizedTrades} showBroker={true} totalCGT={stats.totalCGT} />
                           </div>
                       )}
                       {currentView === 'HISTORY' && (
@@ -1226,7 +1235,7 @@ const App: React.FC = () => {
                                   <option key={b.id} value={b.id}>{b.name}</option>
                               ))}
                           </select>
-                          <Briefcase size={16} className="absolute right-4 top-[14px] text-slate-400 pointer-events-none" />
+                          <ChevronDown size={16} className="absolute right-4 top-[14px] text-slate-400 pointer-events-none" />
                       </div>
                       <div className="flex gap-3">
                           {editingPortfolioId && (
