@@ -9,6 +9,9 @@ import { TransactionList } from './TransactionList';
 import { PortfolioSummary } from './PortfolioSummary';
 import { TopHoldings } from './TopHoldings';
 import { IndexBar } from './IndexBar';
+import { BenchmarkPanel } from './BenchmarkPanel';
+import { UpcomingDividends } from './UpcomingDividends';
+import { SectorTilt } from './SectorTilt';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -887,6 +890,7 @@ const App: React.FC = () => {
   if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
+  const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
@@ -1068,11 +1072,11 @@ const App: React.FC = () => {
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
 
-                              {/* 👇 NEW — Index bar (KSE-100 / KMI-30 / USD-PKR) */}
+                              {/* Index bar (KSE-100 / KMI-30 / USD-PKR) */}
                               <div className="mb-6"><IndexBar /></div>
 
                               {(() => {
-                                  const historyData = performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [];
+                                  const historyData = performanceHistory[perfKey] || [];
                                   const trendLine = historyData.map((d: any) => {
                                       if (typeof d === 'number') return d;
                                       return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
@@ -1090,25 +1094,25 @@ const App: React.FC = () => {
                                   );
                               })()}
 
+                              {/* Performance vs Index (period toggle + benchmark headline) */}
+                              <div className="mt-6">
+                                  <BenchmarkPanel data={performanceHistory[perfKey] || []} />
+                              </div>
+
                               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
                                   <div className="lg:col-span-3">
                                       <PerformanceChart
-                                         key={isCombinedView ? 'combined' : currentPortfolioId}
+                                         key={perfKey}
                                          transactions={portfolioTransactions}
-                                         savedData={performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || []}
+                                         savedData={performanceHistory[perfKey] || []}
                                          onSaveData={(data) => {
-                                             setPerformanceHistory(prev => ({
-                                                 ...prev,
-                                                 [isCombinedView ? 'combined' : currentPortfolioId]: data
-                                             }));
+                                             setPerformanceHistory(prev => ({ ...prev, [perfKey]: data }));
                                          }}
                                       />
                                   </div>
                                   <div className="lg:col-span-2">
                                       <AllocationChart holdings={holdings} />
                                   </div>
-
-                                  {/* 👇 NEW — Top Holdings stacked above Insights */}
                                   <div className="lg:col-span-1 flex flex-col gap-6">
                                       <TopHoldings
                                           holdings={holdings}
@@ -1124,7 +1128,16 @@ const App: React.FC = () => {
                                   </div>
                               </div>
 
-                              {/* Portfolio Summary */}
+                              {/* Upcoming dividends + Sector tilt */}
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                                  <UpcomingDividends
+                                      dividends={scannerState[currentPortfolioId] || []}
+                                      onOpenScanner={() => setShowDividendScanner(true)}
+                                  />
+                                  <SectorTilt holdings={holdings} stats={stats} />
+                              </div>
+
+                              {/* Portfolio summary */}
                               <div className="mt-6">
                                   <PortfolioSummary
                                       holdings={holdings}
