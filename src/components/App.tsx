@@ -11,7 +11,6 @@ import { TopHoldings } from './TopHoldings';
 import { IndexBar } from './IndexBar';
 import { BenchmarkPanel } from './BenchmarkPanel';
 import { UpcomingDividends } from './UpcomingDividends';
-import { SectorTilt } from './SectorTilt';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -1128,10 +1127,9 @@ const App: React.FC = () => {
                                   </div>
                               </div>
 
-                              {/* Upcoming dividends + Sector tilt */}
-                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                              {/* Upcoming dividends */}
+                              <div className="mt-6">
                                   <UpcomingDividends holdings={holdings} />
-                                  <SectorTilt holdings={holdings} stats={stats} />
                               </div>
 
                               {/* Portfolio summary */}
