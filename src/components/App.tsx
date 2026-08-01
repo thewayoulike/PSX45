@@ -23,12 +23,12 @@ import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
 import { PortfolioInsights } from './PortfolioInsights';
-import { Sidebar } from './Sidebar'; 
+import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
-import { 
-  Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins, 
+import {
+  Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
   Pencil, Layers, ChevronDown, CheckSquare, Square, Menu,
   CalendarClock, ArrowRightLeft
 } from 'lucide-react';
@@ -59,7 +59,7 @@ const App: React.FC = () => {
   const [showLogin, setShowLogin] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
-  
+
   // Sidebar State Restored
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -128,7 +128,7 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
-  
+
   const [isPortfolioModalOpen, setIsPortfolioModalOpen] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
@@ -173,7 +173,7 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
-  
+
   const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || '');
   const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || '');
   const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || '');
@@ -193,16 +193,16 @@ const App: React.FC = () => {
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
-  
+
   const isReadyToSave = useRef(false);
   const initialSyncDone = useRef(false);
-  
+
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
       if (times.length === 0) return null;
       return times.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
   }, [priceTimestamps]);
-  
+
   const sectorMap = useMemo(() => {
       const map: Record<string, string> = {};
       const allTickers = new Set(transactions.map(t => t.ticker));
@@ -211,7 +211,7 @@ const App: React.FC = () => {
       });
       return map;
   }, [transactions, sectorOverrides]);
-  
+
   const performLogout = useCallback(() => {
       setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]);
       setManualPrices({}); setLdcpMap({}); setListedInMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory({});
@@ -222,29 +222,29 @@ const App: React.FC = () => {
       isReadyToSave.current = false;
       initialSyncDone.current = false;
   }, []);
-  
+
   useIdleTimer(1800000, () => {
       if (driveUser) {
           performLogout();
           alert("Session timed out due to inactivity. Data cleared for security.");
       }
   });
-  
+
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
   const handleLogin = () => signInWithDrive();
-  
+
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
       if (userScraperKey) setScrapingApiKey(userScraperKey);
       if (userWebScrapingAIKey) setWebScrapingAIKey(userWebScrapingAIKey);
   }, [userApiKey, userScraperKey, userWebScrapingAIKey]);
-  
+
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
           setCombinedPortfolioIds(new Set(portfolios.map(p => p.id)));
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
-  
+
   useEffect(() => {
       initDriveAuth(async (user) => {
           setDriveUser(user);
@@ -300,7 +300,7 @@ const App: React.FC = () => {
       });
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
   }, []);
-  
+
   const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => {
       setUserApiKey(geminiKey); setUserScraperKey(scraperKey); setUserWebScrapingAIKey(webAIKey);
       setGeminiApiKey(geminiKey); setScrapingApiKey(scraperKey); setWebScrapingAIKey(webAIKey);
@@ -327,7 +327,7 @@ const App: React.FC = () => {
       const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId, brokerId: currentPortfolio.defaultBrokerId, broker: brokerToUse?.name || 'Unknown' };
       setTransactions(prev => [...prev, newTx]);
   };
-  
+
   const handleTransferStock = (ticker: string, quantity: number, destPortfolioId: string, date: string) => {
       const sourcePortfolio = portfolios.find(p => p.id === currentPortfolioId);
       const destPortfolio = portfolios.find(p => p.id === destPortfolioId);
@@ -364,7 +364,7 @@ const App: React.FC = () => {
       };
       setTransactions(prev => [...prev, transferOut, transferIn]);
   };
-  
+
   const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleDeleteTransactions = (ids: string[]) => { if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) { setTransactions(prev => prev.filter(t => !ids.includes(t.id))); } };
@@ -374,39 +374,39 @@ const App: React.FC = () => {
   const handleUpdateTradeScanResults = (results: EditableTrade[]) => { setTradeScanResults(results); };
   const openCreatePortfolioModal = () => { setEditingPortfolioId(null); setPortfolioNameInput(''); setPortfolioBrokerIdInput(''); setIsPortfolioModalOpen(true); };
   const openEditPortfolioModal = () => { const current = portfolios.find(p => p.id === currentPortfolioId); if (current) { setEditingPortfolioId(current.id); setPortfolioNameInput(current.name); setPortfolioBrokerIdInput(current.defaultBrokerId); setIsPortfolioModalOpen(true); } };
-  
-  const handleSavePortfolio = (e: React.FormEvent) => { 
-      e.preventDefault(); 
-      if (!portfolioNameInput.trim()) { alert("Portfolio Name is required"); return; } 
-      if (!portfolioBrokerIdInput) { alert("A Default Broker is required for every portfolio."); return; } 
-      if (editingPortfolioId) { 
-          setPortfolios(prev => prev.map(p => p.id === editingPortfolioId ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } : p)); 
-      } else { 
-          const newId = Date.now().toString(); 
-          setPortfolios(prev => [...prev, { id: newId, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput }]); 
-          setCurrentPortfolioId(newId); 
-      } 
-      setPortfolioNameInput(''); 
-      setPortfolioBrokerIdInput(''); 
-      setEditingPortfolioId(null); 
-      setIsPortfolioModalOpen(false); 
+
+  const handleSavePortfolio = (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!portfolioNameInput.trim()) { alert("Portfolio Name is required"); return; }
+      if (!portfolioBrokerIdInput) { alert("A Default Broker is required for every portfolio."); return; }
+      if (editingPortfolioId) {
+          setPortfolios(prev => prev.map(p => p.id === editingPortfolioId ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } : p));
+      } else {
+          const newId = Date.now().toString();
+          setPortfolios(prev => [...prev, { id: newId, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput }]);
+          setCurrentPortfolioId(newId);
+      }
+      setPortfolioNameInput('');
+      setPortfolioBrokerIdInput('');
+      setEditingPortfolioId(null);
+      setIsPortfolioModalOpen(false);
   };
-  
-  const handleDeletePortfolio = () => { 
-      if (portfolios.length === 1) return alert("You cannot delete the last portfolio."); 
-      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) { 
-          const idToDelete = currentPortfolioId; 
-          setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id); 
-          setPortfolios(prev => prev.filter(p => p.id !== idToDelete)); 
-          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete)); 
-          setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; }); 
-          setIsPortfolioModalOpen(false); 
-      } 
+
+  const handleDeletePortfolio = () => {
+      if (portfolios.length === 1) return alert("You cannot delete the last portfolio.");
+      if (window.confirm("Are you sure? This will delete ALL transactions in this portfolio.")) {
+          const idToDelete = currentPortfolioId;
+          setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id);
+          setPortfolios(prev => prev.filter(p => p.id !== idToDelete));
+          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
+          setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; });
+          setIsPortfolioModalOpen(false);
+      }
   };
 
   const handleTogglePortfolioSelection = (id: string) => { const newSet = new Set(combinedPortfolioIds); if (newSet.has(id)) { if (newSet.size > 1) newSet.delete(id); } else { newSet.add(id); } setCombinedPortfolioIds(newSet); };
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
-  
+
   const handleSyncPrices = useCallback(async () => {
       const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
       if (uniqueTickers.length === 0) return;
@@ -417,7 +417,7 @@ const App: React.FC = () => {
 
       try {
           const newResults = await fetchBatchPSXPrices(uniqueTickers);
-          
+
           console.log("[App.tsx] Full PSX Sync Results:", newResults);
 
           const failed = new Set<string>();
@@ -470,7 +470,7 @@ const App: React.FC = () => {
           setIsSyncing(false);
       }
   }, [holdings]);
-  
+
   useEffect(() => {
       if (!driveUser || holdings.length === 0) return;
       if (!initialSyncDone.current) {
@@ -482,46 +482,46 @@ const App: React.FC = () => {
       }, 5 * 60 * 1000);
       return () => clearInterval(interval);
   }, [driveUser, holdings.length]);
-  
-  useEffect(() => { 
-      if (brokers.length === 0) return; 
-      const generateFees = () => { 
-          let newTransactions: Transaction[] = []; 
-          brokers.forEach(broker => { 
-              if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return; 
-              let nextDueDate = new Date(broker.feeStartDate); 
-              nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); 
-              const today = new Date(); 
-              while (nextDueDate <= today) { 
-                  const feeYear = nextDueDate.getFullYear(); 
-                  const txId = `auto-fee-${broker.id}-${feeYear}`; 
-                  const exists = transactions.some(t => t.id === txId); 
-                  if (!exists) { 
-                      const feeDateStr = nextDueDate.toISOString().split('T')[0]; 
-                      const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` }; 
-                      newTransactions.push(newTx); 
-                  } 
-                  nextDueDate.setFullYear(nextDueDate.getFullYear() + 1); 
-              } 
-          }); 
-          if (newTransactions.length > 0) { 
-              setTransactions(prev => [...prev, ...newTransactions]); 
-          } 
-      }; 
-      generateFees(); 
+
+  useEffect(() => {
+      if (brokers.length === 0) return;
+      const generateFees = () => {
+          let newTransactions: Transaction[] = [];
+          brokers.forEach(broker => {
+              if (!broker.annualFee || !broker.feeStartDate || broker.annualFee <= 0) return;
+              let nextDueDate = new Date(broker.feeStartDate);
+              nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+              const today = new Date();
+              while (nextDueDate <= today) {
+                  const feeYear = nextDueDate.getFullYear();
+                  const txId = `auto-fee-${broker.id}-${feeYear}`;
+                  const exists = transactions.some(t => t.id === txId);
+                  if (!exists) {
+                      const feeDateStr = nextDueDate.toISOString().split('T')[0];
+                      const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` };
+                      newTransactions.push(newTx);
+                  }
+                  nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
+              }
+          });
+          if (newTransactions.length > 0) {
+              setTransactions(prev => [...prev, ...newTransactions]);
+          }
+      };
+      generateFees();
   }, [brokers, currentPortfolioId]);
-  
-  useEffect(() => { 
-      if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) { 
-          setCurrentPortfolioId(portfolios[0].id); 
-      } 
+
+  useEffect(() => {
+      if (portfolios.length > 0 && !portfolios.find(p => p.id === currentPortfolioId)) {
+          setCurrentPortfolioId(portfolios[0].id);
+      }
   }, [portfolios, currentPortfolioId]);
 
   const portfolioTransactions = useMemo(() => {
       if (isCombinedView) return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       return transactions.filter(t => t.portfolioId === currentPortfolioId);
   }, [transactions, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
-  
+
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0;
     let operationalExpenses = 0;
@@ -669,7 +669,7 @@ const App: React.FC = () => {
         netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, roi, mwrr
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]);
-  
+
   useEffect(() => {
       if (driveUser || transactions.length > 0) {
           localStorage.setItem('psx_transactions', JSON.stringify(transactions));
@@ -715,7 +715,7 @@ const App: React.FC = () => {
           return () => clearTimeout(timer);
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
-  
+
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
       const tempRealized: RealizedTrade[] = [];
@@ -874,7 +874,7 @@ const App: React.FC = () => {
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
       setCurrentView('STOCKS');
   };
-  
+
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
           setShowBrokerManager(true);
@@ -892,17 +892,17 @@ const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
-      
+
       <MarketTicker />
-      
+
       <div className="flex flex-1 overflow-hidden relative">
-          
+
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
               <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]"></div>
               <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-[120px]"></div>
           </div>
 
-          <Sidebar 
+          <Sidebar
              currentView={currentView}
              onViewChange={handleSidebarNav}
              isOpen={isMobileSidebarOpen}
@@ -918,9 +918,9 @@ const App: React.FC = () => {
 
           <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
               <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-20">
-                  
+
                   <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
-                      
+
                       <div className="flex items-center gap-3">
                          <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
                             <Menu size={20} />
@@ -928,9 +928,9 @@ const App: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2 w-full md:w-auto bg-white/80 dark:bg-slate-900/80 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
-                          
+
                           <ThemeToggle />
-                          
+
                           <div className="relative group flex-1 min-w-0">
                               <select
                                   value={currentPortfolioId}
@@ -941,7 +941,7 @@ const App: React.FC = () => {
                               </select>
                               <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
                           </div>
-                          
+
                           <div className="flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-700 shrink-0">
                               <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio"> <Pencil size={16} /> </button>
                               <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio"> <PlusCircle size={16} /> </button>
@@ -950,7 +950,7 @@ const App: React.FC = () => {
                   </header>
 
                   <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
-                      
+
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
                           <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
                               <div className="flex items-center justify-between min-w-max gap-6">
@@ -1071,24 +1071,24 @@ const App: React.FC = () => {
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               {(() => {
                                   const historyData = performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [];
-                                  
+
                                   const trendLine = historyData.map((d: any) => {
                                       if (typeof d === 'number') return d;
                                       return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
                                   }).filter((v: number) => !isNaN(v));
 
                                   return (
-                                      <Dashboard 
-                                          stats={stats} 
-                                          lastUpdated={lastPriceUpdate} 
-                                          userName={driveUser?.name?.split(' ')[0]} 
+                                      <Dashboard
+                                          stats={stats}
+                                          lastUpdated={lastPriceUpdate}
+                                          userName={driveUser?.name?.split(' ')[0]}
                                           onRefresh={handleSyncPrices}
                                           trend={trendLine}
                                           holdings={holdings}
                                       />
                                   );
                               })()}
-                              
+
                               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
                                   <div className="lg:col-span-3">
                                       <PerformanceChart
@@ -1107,16 +1107,25 @@ const App: React.FC = () => {
                                       <AllocationChart holdings={holdings} />
                                   </div>
                                   <div className="lg:col-span-1">
-                                      <PortfolioInsights 
-                                          holdings={holdings} 
-                                          realizedTrades={realizedTrades} 
-                                          stats={stats} 
+                                      <PortfolioInsights
+                                          holdings={holdings}
+                                          realizedTrades={realizedTrades}
+                                          stats={stats}
                                       />
                                   </div>
                               </div>
+
+                              {/* 👇 NEW — Portfolio Summary */}
+                              <div className="mt-6">
+                                  <PortfolioSummary
+                                      holdings={holdings}
+                                      realizedTrades={realizedTrades}
+                                      stats={stats}
+                                  />
+                              </div>
                           </div>
                       )}
-                      
+
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <HoldingsTable
@@ -1124,7 +1133,7 @@ const App: React.FC = () => {
                                   showBroker={true}
                                   failedTickers={failedTickers}
                                   ldcpMap={ldcpMap}
-                                  listedInMap={listedInMap} 
+                                  listedInMap={listedInMap}
                                   onTickerClick={handleTickerClick}
                               />
                           </div>
