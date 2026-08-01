@@ -6,6 +6,7 @@ import { AllocationChart } from './AllocationChart';
 import { PerformanceChart } from './PerformanceChart';
 import { RealizedTable } from './RealizedTable';
 import { TransactionList } from './TransactionList';
+import { PortfolioSummary } from './PortfolioSummary';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
