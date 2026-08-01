@@ -657,8 +657,7 @@ const App: React.FC = () => {
     }
     const mwrr = calculateXIRR(cashFlowsForXIRR);
 
-    const yesterdayValue = totalValue - dailyPL;
-    const dailyPLPercent = yesterdayValue > 0 ? (dailyPL / yesterdayValue) * 100 : 0;
+    const dailyPLPercent = totalCost > 0 ? (dailyPL / totalCost) * 100 : 0;
     const reinvestedProfits = Math.max(0, totalCost - Math.max(0, netPrincipal));
     if (dividendSum !== totalDividends) setTotalDividends(dividendSum);
     if (divTaxSum !== totalDividendTax) setTotalDividendTax(divTaxSum);
