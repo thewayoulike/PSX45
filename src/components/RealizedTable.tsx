@@ -9,10 +9,12 @@ import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContaine
 interface RealizedTableProps {
   trades: RealizedTrade[];
   showBroker?: boolean;
+  totalCGT?: number; // capital gains tax you've recorded, for the net-of-CGT line
 }
 
 type SortKey = keyof RealizedTrade | 'totalCost' | 'totalSell';
 type SortDirection = 'asc' | 'desc';
+type ResultFilter = 'all' | 'win' | 'loss';
 interface SortConfig { key: SortKey; direction: SortDirection; }
 
 const f2 = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -21,7 +23,6 @@ const fK = (n: number) => (Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(1)}K` : `
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DONUT = ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#94a3b8'];
 
-// small progress ring for win/loss %
 const Ring: React.FC<{ pct: number; color: string }> = ({ pct, color }) => {
   const r = 18, c = 2 * Math.PI * r;
   return (
@@ -33,7 +34,6 @@ const Ring: React.FC<{ pct: number; color: string }> = ({ pct, color }) => {
   );
 };
 
-// mini sparkline
 const Spark: React.FC<{ data: number[]; color: string }> = ({ data, color }) => {
   if (data.length < 2) return null;
   const w = 220, h = 40, min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
@@ -52,8 +52,8 @@ const StatCard: React.FC<{ label: string; children: React.ReactNode }> = ({ labe
   </div>
 );
 
-const ChartCard: React.FC<{ title: string; right?: React.ReactNode; children: React.ReactNode }> = ({ title, right, children }) => (
-  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
+const ChartCard: React.FC<{ title: string; right?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, right, children, className }) => (
+  <div className={`bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm ${className || ''}`}>
     <div className="flex items-center justify-between mb-3">
       <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">{title}</h3>
       {right}
@@ -62,10 +62,11 @@ const ChartCard: React.FC<{ title: string; right?: React.ReactNode; children: Re
   </div>
 );
 
-export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = false }) => {
+export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = false, totalCGT = 0 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
+  const [result, setResult] = useState<ResultFilter>('all');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -80,13 +81,66 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
     setSortConfig({ key, direction });
   };
 
+  // ---- Summary + charts: computed from ALL trades (stable overview) ----
+  const summary = useMemo(() => {
+    const t = trades;
+    const totalProfit = t.reduce((s, x) => s + x.profit, 0);
+    const totalCost = t.reduce((s, x) => s + (x.buyAvg || 0) * x.quantity, 0);
+    const totalPct = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
+    const wins = t.filter(x => x.profit > 0);
+    const losses = t.filter(x => x.profit < 0);
+    const total = t.length || 1;
+    const grossProfit = wins.reduce((s, x) => s + x.profit, 0);
+    const grossLoss = Math.abs(losses.reduce((s, x) => s + x.profit, 0));
+    const avgWin = wins.length ? grossProfit / wins.length : 0;
+    const avgLoss = losses.length ? -grossLoss / losses.length : 0; // negative
+    const winRate = (wins.length / total) * 100;
+    const lossRate = (losses.length / total) * 100;
+    const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? Infinity : 0);
+    const expectancy = (winRate / 100) * avgWin + (lossRate / 100) * avgLoss;
+    const winLoss = avgLoss !== 0 ? avgWin / Math.abs(avgLoss) : (avgWin > 0 ? Infinity : 0);
+
+    const byDate: Record<string, number> = {};
+    t.forEach(x => { byDate[x.date] = (byDate[x.date] || 0) + x.profit; });
+    const dates = Object.keys(byDate).sort();
+    let run = 0;
+    const timeSeries = dates.map(d => { run += byDate[d]; return { date: d.slice(5), daily: byDate[d], cumulative: run }; });
+
+    const byMonth: Record<string, number[]> = {};
+    t.forEach(x => { const [y, m] = x.date.split('-'); (byMonth[y] ||= new Array(12).fill(0))[Number(m) - 1] += x.profit; });
+    const years = Object.keys(byMonth).sort().reverse();
+    let maxAbsMonth = 0;
+    Object.values(byMonth).forEach(arr => arr.forEach(v => { if (Math.abs(v) > maxAbsMonth) maxAbsMonth = Math.abs(v); }));
+
+    const byTicker: Record<string, number> = {};
+    t.forEach(x => { const k = x.ticker === 'PREV-PNL' ? 'HISTORY' : x.ticker; byTicker[k] = (byTicker[k] || 0) + x.profit; });
+    const tickerArr = Object.entries(byTicker).map(([name, v]) => ({ name, value: v })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
+    const top = tickerArr.slice(0, 4);
+    const othersVal = tickerArr.slice(4).reduce((s, x) => s + x.value, 0);
+    const donut = othersVal !== 0 ? [...top, { name: 'Others', value: othersVal }] : top;
+    const donutTotalAbs = donut.reduce((s, x) => s + Math.abs(x.value), 0) || 1;
+
+    return { totalProfit, totalPct, count: t.length, wins: wins.length, losses: losses.length, winRate, lossRate,
+      avgWin, avgLoss, grossProfit, grossLoss, profitFactor, expectancy, winLoss,
+      timeSeries, byMonth, years, maxAbsMonth, donut, donutTotalAbs, tickerAll: tickerArr };
+  }, [trades]);
+
+  useEffect(() => { if (!monthYear && summary.years.length) setMonthYear(summary.years[0]); }, [summary.years, monthYear]);
+
+  const monthData = useMemo(() => {
+    const arr = summary.byMonth[monthYear] || new Array(12).fill(0);
+    return arr.map((v, i) => ({ month: MONTHS[i], value: v }));
+  }, [summary.byMonth, monthYear]);
+
+  // ---- Table: responds to filters ----
   const filteredAndSortedTrades = useMemo(() => {
     const filtered = trades.filter(trade => {
       const term = searchTerm.toLowerCase();
       const matchesSearch = trade.ticker.toLowerCase().includes(term) || (trade.broker && trade.broker.toLowerCase().includes(term));
       const matchesFrom = dateFrom ? trade.date >= dateFrom : true;
       const matchesTo = dateTo ? trade.date <= dateTo : true;
-      return matchesSearch && matchesFrom && matchesTo;
+      const matchesResult = result === 'all' ? true : result === 'win' ? trade.profit > 0 : trade.profit < 0;
+      return matchesSearch && matchesFrom && matchesTo && matchesResult;
     });
     return filtered.sort((a, b) => {
       let aValue: any = a[sortConfig.key as keyof RealizedTrade], bValue: any = b[sortConfig.key as keyof RealizedTrade];
@@ -97,54 +151,9 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [trades, searchTerm, dateFrom, dateTo, sortConfig]);
+  }, [trades, searchTerm, dateFrom, dateTo, result, sortConfig]);
 
-  useEffect(() => { setCurrentPage(1); }, [searchTerm, dateFrom, dateTo]);
-
-  // ---- summary + chart data (from filtered set) ----
-  const summary = useMemo(() => {
-    const t = filteredAndSortedTrades;
-    const totalProfit = t.reduce((s, x) => s + x.profit, 0);
-    const totalCost = t.reduce((s, x) => s + (x.buyAvg || 0) * x.quantity, 0);
-    const totalPct = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
-    const wins = t.filter(x => x.profit > 0);
-    const losses = t.filter(x => x.profit < 0);
-    const total = t.length || 1;
-    const avgProfit = wins.length ? wins.reduce((s, x) => s + x.profit, 0) / wins.length : 0;
-    const avgLoss = losses.length ? losses.reduce((s, x) => s + x.profit, 0) / losses.length : 0;
-
-    // by date (for spark + over-time chart)
-    const byDate: Record<string, number> = {};
-    t.forEach(x => { byDate[x.date] = (byDate[x.date] || 0) + x.profit; });
-    const dates = Object.keys(byDate).sort();
-    let run = 0;
-    const timeSeries = dates.map(d => { run += byDate[d]; return { date: d.slice(5), daily: byDate[d], cumulative: run }; });
-
-    // by month/year
-    const byMonth: Record<string, number[]> = {};
-    t.forEach(x => { const [y, m] = x.date.split('-'); (byMonth[y] ||= new Array(12).fill(0))[Number(m) - 1] += x.profit; });
-    const years = Object.keys(byMonth).sort().reverse();
-
-    // by ticker
-    const byTicker: Record<string, number> = {};
-    t.forEach(x => { const k = x.ticker === 'PREV-PNL' ? 'HISTORY' : x.ticker; byTicker[k] = (byTicker[k] || 0) + x.profit; });
-    const tickerArr = Object.entries(byTicker).map(([name, v]) => ({ name, value: v })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-    const top = tickerArr.slice(0, 4);
-    const othersVal = tickerArr.slice(4).reduce((s, x) => s + x.value, 0);
-    const donut = othersVal !== 0 ? [...top, { name: 'Others', value: othersVal }] : top;
-    const donutTotalAbs = donut.reduce((s, x) => s + Math.abs(x.value), 0) || 1;
-
-    return { totalProfit, totalPct, count: t.length, wins: wins.length, losses: losses.length,
-      winPct: (wins.length / total) * 100, losePct: (losses.length / total) * 100,
-      avgProfit, avgLoss, timeSeries, byMonth, years, donut, donutTotalAbs, tickerAll: tickerArr };
-  }, [filteredAndSortedTrades]);
-
-  useEffect(() => { if (!monthYear && summary.years.length) setMonthYear(summary.years[0]); }, [summary.years, monthYear]);
-
-  const monthData = useMemo(() => {
-    const arr = summary.byMonth[monthYear] || new Array(12).fill(0);
-    return arr.map((v, i) => ({ month: MONTHS[i], value: v }));
-  }, [summary.byMonth, monthYear]);
+  useEffect(() => { setCurrentPage(1); }, [searchTerm, dateFrom, dateTo, result]);
 
   const totalPages = Math.ceil(filteredAndSortedTrades.length / itemsPerPage);
   const paginatedTrades = useMemo(() => { const start = (currentPage - 1) * itemsPerPage; return filteredAndSortedTrades.slice(start, start + itemsPerPage); }, [filteredAndSortedTrades, currentPage, itemsPerPage]);
@@ -154,8 +163,27 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
     return { qty: acc.qty + t.quantity, cost: acc.cost + cost, sell: acc.sell + sell, comm: acc.comm + (t.commission || 0), tax: acc.tax + (t.tax || 0), cdc: acc.cdc + (t.cdcCharges || 0), other: acc.other + (t.otherFees || 0), profit: acc.profit + t.profit };
   }, { qty: 0, cost: 0, sell: 0, comm: 0, tax: 0, cdc: 0, other: 0, profit: 0 }), [filteredAndSortedTrades]);
 
-  const clearFilters = () => { setSearchTerm(''); setDateFrom(''); setDateTo(''); };
-  const hasActiveFilters = searchTerm || dateFrom || dateTo;
+  const hasActiveFilters = searchTerm || dateFrom || dateTo || result !== 'all';
+  const clearFilters = () => { setSearchTerm(''); setDateFrom(''); setDateTo(''); setResult('all'); };
+
+  // date presets
+  const iso = (d: Date) => d.toISOString().split('T')[0];
+  const setPreset = (preset: 'all' | 'month' | 'year' | '30') => {
+    const now = new Date();
+    if (preset === 'all') { setDateFrom(''); setDateTo(''); }
+    else if (preset === 'month') { setDateFrom(iso(new Date(now.getFullYear(), now.getMonth(), 1))); setDateTo(iso(now)); }
+    else if (preset === 'year') { setDateFrom(iso(new Date(now.getFullYear(), 0, 1))); setDateTo(iso(now)); }
+    else { setDateFrom(iso(new Date(now.getTime() - 30 * 864e5))); setDateTo(iso(now)); }
+  };
+
+  const filterByTicker = (name: string) => setSearchTerm(name === 'HISTORY' ? 'PREV-PNL' : name);
+  const filterByMonthIndex = (mi: number) => {
+    if (mi < 0 || !monthYear) return;
+    const mm = String(mi + 1).padStart(2, '0');
+    const last = new Date(Number(monthYear), mi + 1, 0).getDate();
+    setDateFrom(`${monthYear}-${mm}-01`);
+    setDateTo(`${monthYear}-${mm}-${String(last).padStart(2, '0')}`);
+  };
 
   const handleExport = (type: 'excel' | 'csv') => {
     const data = filteredAndSortedTrades.map(trade => {
@@ -174,6 +202,15 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   );
 
   const tip = { contentStyle: { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }, formatter: (v: number) => [`Rs. ${f0(v)}`, 'P&L'] as [string, string] };
+  const pf = summary.profitFactor;
+  const netAfterCgt = summary.totalProfit - (totalCGT || 0);
+  const heatColor = (v: number) => {
+    if (!v || summary.maxAbsMonth === 0) return 'rgba(148,163,184,0.08)';
+    const op = 0.15 + 0.75 * (Math.abs(v) / summary.maxAbsMonth);
+    return v >= 0 ? `rgba(16,185,129,${op})` : `rgba(244,63,94,${op})`;
+  };
+
+  const chip = (active: boolean) => `px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`;
 
   return (
     <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -212,6 +249,20 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </div>
       </div>
 
+      {/* Quick filters */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Period</span>
+        <button onClick={() => setPreset('month')} className={chip(false)}>This month</button>
+        <button onClick={() => setPreset('year')} className={chip(false)}>This year</button>
+        <button onClick={() => setPreset('30')} className={chip(false)}>Last 30d</button>
+        <button onClick={() => setPreset('all')} className={chip(!dateFrom && !dateTo)}>All time</button>
+        <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 mx-1" />
+        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Result</span>
+        <button onClick={() => setResult('all')} className={chip(result === 'all')}>All</button>
+        <button onClick={() => setResult('win')} className={chip(result === 'win')}>Winners</button>
+        <button onClick={() => setResult('loss')} className={chip(result === 'loss')}>Losers</button>
+      </div>
+
       {/* Summary stat cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
         <StatCard label="Total Realized P&L">
@@ -219,6 +270,9 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             <span className={`text-xl font-black ${summary.totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>Rs. {f0(summary.totalProfit)}</span>
             <span className={`text-[10px] font-bold ${summary.totalPct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{summary.totalPct >= 0 ? '+' : ''}{summary.totalPct.toFixed(2)}%</span>
           </div>
+          {totalCGT > 0 && (
+            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">CGT −Rs {f0(totalCGT)} · Net Rs {f0(netAfterCgt)}</div>
+          )}
           <div className="mt-1"><Spark data={summary.timeSeries.map(d => d.cumulative)} color={summary.totalProfit >= 0 ? '#10b981' : '#f43f5e'} /></div>
         </StatCard>
         <StatCard label="Total Trades">
@@ -227,27 +281,29 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </StatCard>
         <StatCard label="Winning Trades">
           <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{summary.wins}</div>
-              <div className="text-[10px] font-bold text-slate-400">{summary.winPct.toFixed(2)}%</div>
-            </div>
-            <div className="relative text-emerald-500"><Ring pct={summary.winPct} color="#10b981" /></div>
+            <div><div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{summary.wins}</div><div className="text-[10px] font-bold text-slate-400">{summary.winRate.toFixed(1)}%</div></div>
+            <Ring pct={summary.winRate} color="#10b981" />
           </div>
         </StatCard>
         <StatCard label="Losing Trades">
           <div className="flex items-center justify-between">
-            <div>
-              <div className="text-xl font-black text-rose-500">{summary.losses}</div>
-              <div className="text-[10px] font-bold text-slate-400">{summary.losePct.toFixed(2)}%</div>
-            </div>
-            <div className="relative"><Ring pct={summary.losePct} color="#f43f5e" /></div>
+            <div><div className="text-xl font-black text-rose-500">{summary.losses}</div><div className="text-[10px] font-bold text-slate-400">{summary.lossRate.toFixed(1)}%</div></div>
+            <Ring pct={summary.lossRate} color="#f43f5e" />
           </div>
         </StatCard>
-        <StatCard label="Average Profit">
-          <div className="text-xl font-black text-emerald-600 dark:text-emerald-400">Rs. {f2(summary.avgProfit)}</div>
+        <StatCard label="Average Profit"><div className="text-xl font-black text-emerald-600 dark:text-emerald-400">Rs. {f2(summary.avgWin)}</div></StatCard>
+        <StatCard label="Average Loss"><div className="text-xl font-black text-rose-500">Rs. {f2(summary.avgLoss)}</div></StatCard>
+        <StatCard label="Profit Factor">
+          <div className={`text-xl font-black ${pf >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : pf >= 1 ? 'text-amber-500' : 'text-rose-500'}`}>{pf === Infinity ? '∞' : pf.toFixed(2)}</div>
+          <div className="text-[10px] text-slate-400 font-semibold mt-1">gross win ÷ gross loss</div>
         </StatCard>
-        <StatCard label="Average Loss">
-          <div className="text-xl font-black text-rose-500">Rs. {f2(summary.avgLoss)}</div>
+        <StatCard label="Expectancy / Trade">
+          <div className={`text-xl font-black ${summary.expectancy >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{summary.expectancy >= 0 ? '+' : ''}Rs. {f0(summary.expectancy)}</div>
+          <div className="text-[10px] text-slate-400 font-semibold mt-1">avg P&L per trade</div>
+        </StatCard>
+        <StatCard label="Win / Loss Ratio">
+          <div className="text-xl font-black text-slate-900 dark:text-slate-100">{summary.winLoss === Infinity ? '∞' : summary.winLoss.toFixed(2)}</div>
+          <div className="text-[10px] text-slate-400 font-semibold mt-1">avg win ÷ avg loss</div>
         </StatCard>
       </div>
 
@@ -255,18 +311,12 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-3">
         <ChartCard title="P&L over time" right={
           <select value={timeMode} onChange={(e) => setTimeMode(e.target.value as any)} className="text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none dark:text-slate-200">
-            <option value="daily">Daily</option>
-            <option value="cumulative">Cumulative</option>
+            <option value="daily">Daily</option><option value="cumulative">Cumulative</option>
           </select>
         }>
           <ResponsiveContainer width="100%" height={200}>
             <AreaChart data={summary.timeSeries} margin={{ top: 5, right: 5, left: -18, bottom: 0 }}>
-              <defs>
-                <linearGradient id="rzArea" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+              <defs><linearGradient id="rzArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#10b981" stopOpacity={0.25} /><stop offset="100%" stopColor="#10b981" stopOpacity={0} /></linearGradient></defs>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.4} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} minTickGap={24} />
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={fK} />
@@ -282,16 +332,17 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
           </select>
         }>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={monthData} margin={{ top: 5, right: 5, left: -18, bottom: 0 }}>
+            <BarChart data={monthData} margin={{ top: 5, right: 5, left: -18, bottom: 0 }} onClick={(e: any) => e && e.activeLabel && filterByMonthIndex(MONTHS.indexOf(e.activeLabel))}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.4} vertical={false} />
               <XAxis dataKey="month" tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
               <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} tickFormatter={fK} />
               <Tooltip {...tip} cursor={{ fill: 'rgba(148,163,184,0.08)' }} />
-              <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+              <Bar dataKey="value" radius={[4, 4, 0, 0]} className="cursor-pointer">
                 {monthData.map((d, i) => <Cell key={i} fill={d.value >= 0 ? '#10b981' : '#f43f5e'} />)}
               </Bar>
             </BarChart>
           </ResponsiveContainer>
+          <p className="text-[10px] text-slate-400 text-center mt-1">Click a bar to filter the table to that month</p>
         </ChartCard>
 
         <ChartCard title="P&L by ticker">
@@ -299,14 +350,10 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             <div className="relative w-[150px] h-[150px] shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie
-                    data={summary.donut.map(d => ({ ...d, abs: Math.abs(d.value) }))}
-                    dataKey="abs" nameKey="name" innerRadius={46} outerRadius={66} paddingAngle={2} stroke="none"
+                  <Pie data={summary.donut.map(d => ({ ...d, abs: Math.abs(d.value) }))} dataKey="abs" nameKey="name" innerRadius={46} outerRadius={66} paddingAngle={2} stroke="none"
                     onMouseEnter={(_: any, i: number) => setPieActive(i)} onMouseLeave={() => setPieActive(null)}
-                  >
-                    {summary.donut.map((_, i) => (
-                      <Cell key={i} fill={DONUT[i % DONUT.length]} opacity={pieActive == null || pieActive === i ? 1 : 0.3} />
-                    ))}
+                    onClick={(d: any) => d && d.name && d.name !== 'Others' && filterByTicker(d.name)} className="cursor-pointer">
+                    {summary.donut.map((_, i) => <Cell key={i} fill={DONUT[i % DONUT.length]} opacity={pieActive == null || pieActive === i ? 1 : 0.3} />)}
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
@@ -314,22 +361,17 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                 {(() => {
                   const a = pieActive != null ? summary.donut[pieActive] : null;
                   const val = a ? a.value : summary.totalProfit;
-                  return (
-                    <>
-                      <span className={`text-sm font-black ${val >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-rose-500'}`}>Rs. {fK(val)}</span>
-                      <span className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[104px]">{a ? a.name : 'Total'}</span>
-                    </>
-                  );
+                  return (<><span className={`text-sm font-black ${val >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-rose-500'}`}>Rs. {fK(val)}</span><span className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[104px]">{a ? a.name : 'Total'}</span></>);
                 })()}
               </div>
             </div>
             <div className="flex-1 min-w-0 space-y-1.5">
               {summary.donut.filter(d => d.name !== 'Others').map((d, i) => (
-                <div key={d.name} className="flex items-center gap-2 text-xs">
+                <button key={d.name} onClick={() => filterByTicker(d.name)} className="w-full flex items-center gap-2 text-xs hover:opacity-80 transition-opacity">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: DONUT[i % DONUT.length] }} />
-                  <span className="font-semibold text-slate-600 dark:text-slate-300 flex-1 truncate">{d.name}</span>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300 flex-1 text-left truncate">{d.name}</span>
                   <span className="font-bold text-slate-500 dark:text-slate-400 tabular-nums">{((Math.abs(d.value) / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
-                </div>
+                </button>
               ))}
               {summary.donut.some(d => d.name === 'Others') && (() => {
                 const topCount = summary.donut.filter(d => d.name !== 'Others').length;
@@ -346,11 +388,11 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                     {showOthers && (
                       <div className="mt-1.5 ml-4 pl-2 border-l border-slate-200 dark:border-slate-700 space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
                         {members.map(m => (
-                          <div key={m.name} className="flex items-center gap-2 text-[11px]">
-                            <span className="font-medium text-slate-500 dark:text-slate-400 flex-1 truncate">{m.name}</span>
+                          <button key={m.name} onClick={() => filterByTicker(m.name)} className="w-full flex items-center gap-2 text-[11px] hover:opacity-80">
+                            <span className="font-medium text-slate-500 dark:text-slate-400 flex-1 text-left truncate">{m.name}</span>
                             <span className={`font-mono tabular-nums ${m.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{m.value >= 0 ? '+' : ''}{f0(m.value)}</span>
                             <span className="font-bold text-slate-400 tabular-nums w-11 text-right">{((Math.abs(m.value) / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
-                          </div>
+                          </button>
                         ))}
                       </div>
                     )}
@@ -361,6 +403,32 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
           </div>
         </ChartCard>
       </div>
+
+      {/* Monthly heatmap */}
+      {summary.years.length > 0 && (
+        <ChartCard title="Monthly P&L heatmap">
+          <div className="overflow-x-auto custom-scrollbar">
+            <div className="min-w-[640px]">
+              <div className="grid grid-cols-[48px_repeat(12,1fr)] gap-1 mb-1">
+                <div />
+                {MONTHS.map(m => <div key={m} className="text-[9px] font-bold uppercase text-slate-400 text-center">{m}</div>)}
+              </div>
+              {summary.years.map(y => (
+                <div key={y} className="grid grid-cols-[48px_repeat(12,1fr)] gap-1 mb-1">
+                  <div className="text-[10px] font-bold text-slate-500 dark:text-slate-400 flex items-center">{y}</div>
+                  {summary.byMonth[y].map((v, i) => (
+                    <button key={i} onClick={() => { setMonthYear(y); filterByMonthIndex(i); }} title={`${MONTHS[i]} ${y}: Rs. ${f0(v)}`}
+                      className="h-8 rounded-md flex items-center justify-center text-[9px] font-bold tabular-nums transition-transform hover:scale-105"
+                      style={{ background: heatColor(v), color: v ? (Math.abs(v) / (summary.maxAbsMonth || 1) > 0.55 ? '#fff' : 'inherit') : undefined }}>
+                      {v ? fK(v) : ''}
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </ChartCard>
+      )}
 
       {/* Table */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl overflow-hidden flex flex-col shadow-sm">
@@ -381,7 +449,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                   return (
                     <tr key={trade.id} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs font-mono tabular-nums">{trade.date}</td>
-                      <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-display font-black text-slate-800 dark:text-white text-xs">{trade.ticker}</span></td>
+                      <td className="px-4 py-3"><button onClick={() => filterByTicker(trade.ticker === 'PREV-PNL' ? 'HISTORY' : trade.ticker)} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-display font-black text-slate-800 dark:text-white text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors">{trade.ticker}</button></td>
                       {showBroker && <td className="px-4 py-3 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{trade.broker || '-'}</td>}
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{trade.quantity.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{f2(trade.buyAvg || 0)}</td>
@@ -393,9 +461,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                       <td className="px-2 py-3 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{f2(trade.cdcCharges || 0)}</td>
                       <td className="px-2 py-3 text-right text-rose-500 dark:text-rose-400 font-mono text-[10px] tabular-nums">{f2(trade.otherFees || 0)}</td>
                       <td className={`px-4 py-3 text-right font-mono font-bold text-xs tabular-nums ${plPct == null ? 'text-slate-400' : plPct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{plPct == null ? '-' : `${plPct >= 0 ? '+' : ''}${plPct.toFixed(2)}%`}</td>
-                      <td className="px-4 py-3 text-right">
-                        <div className={`px-2 py-1 rounded-md inline-block font-mono font-bold tabular-nums text-sm ${isProfit ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400'}`}>{isProfit ? '+' : ''}{f2(trade.profit)}</div>
-                      </td>
+                      <td className="px-4 py-3 text-right"><div className={`px-2 py-1 rounded-md inline-block font-mono font-bold tabular-nums text-sm ${isProfit ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400' : 'bg-rose-50 text-rose-500 dark:bg-rose-500/10 dark:text-rose-400'}`}>{isProfit ? '+' : ''}{f2(trade.profit)}</div></td>
                     </tr>
                   );
                 })
@@ -421,7 +487,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
           </table>
         </div>
 
-        {/* Pagination */}
         <div className="p-4 border-t border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-3">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Rows per page:</span>
