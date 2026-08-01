@@ -7,9 +7,10 @@ interface Props {
   stats: PortfolioStats;
 }
 
-// Approximate KSE-100 sector weights (%). EDIT these keys to EXACTLY match the
-// sector strings your getSector()/sectorOverrides produce, and refresh the
-// weights from PSX periodically. Unmatched sectors are compared against 0.
+// DEV NOTE (not shown to users): these are approximate KSE-100 sector weights (%).
+// Edit the KEYS to exactly match the sector strings your getSector()/sectorOverrides
+// produce, and refresh the weights from PSX periodically. Unmatched sectors compare
+// against 0.
 const KSE100_SECTOR_WEIGHTS: Record<string, number> = {
   'Commercial Banks': 28,
   'Oil & Gas Exploration Companies': 14,
@@ -78,7 +79,8 @@ export const SectorTilt: React.FC<Props> = ({ holdings, stats }) => {
       )}
 
       <p className="text-[10px] text-slate-400 mt-3 leading-snug">
-        OW = overweight vs index, UW = underweight. Index weights are approximate — edit them in SectorTilt.tsx to match PSX and your sector labels.
+        <span className="font-bold text-emerald-600 dark:text-emerald-400">OW</span> = overweight vs KSE-100 ·
+        <span className="font-bold text-rose-500"> UW</span> = underweight. Your sector mix relative to the index; index weights are indicative.
       </p>
     </div>
   );
