@@ -9,7 +9,7 @@ import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContaine
 interface RealizedTableProps {
   trades: RealizedTrade[];
   showBroker?: boolean;
-  totalCGT?: number; // capital gains tax you've recorded, for the net-of-CGT line
+  totalCGT?: number;
 }
 
 type SortKey = keyof RealizedTrade | 'totalCost' | 'totalSell';
@@ -35,7 +35,7 @@ const Ring: React.FC<{ pct: number; color: string }> = ({ pct, color }) => {
 };
 
 const Spark: React.FC<{ data: number[]; color: string }> = ({ data, color }) => {
-  if (data.length < 2) return null;
+  if (data.length < 2) return <div className="h-10" />;
   const w = 220, h = 40, min = Math.min(...data), max = Math.max(...data), range = max - min || 1;
   const pts = data.map((v, i) => `${(i / (data.length - 1)) * w},${h - ((v - min) / range) * h}`);
   return (
@@ -52,8 +52,8 @@ const StatCard: React.FC<{ label: string; children: React.ReactNode }> = ({ labe
   </div>
 );
 
-const ChartCard: React.FC<{ title: string; right?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ title, right, children, className }) => (
-  <div className={`bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm ${className || ''}`}>
+const ChartCard: React.FC<{ title: string; right?: React.ReactNode; children: React.ReactNode }> = ({ title, right, children }) => (
+  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm">
     <div className="flex items-center justify-between mb-3">
       <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">{title}</h3>
       {right}
@@ -81,9 +81,29 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
     setSortConfig({ key, direction });
   };
 
-  // ---- Summary + charts: computed from ALL trades (stable overview) ----
+  // ---- Filtered + sorted (drives EVERYTHING: cards, charts, table) ----
+  const filteredAndSortedTrades = useMemo(() => {
+    const filtered = trades.filter(trade => {
+      const term = searchTerm.toLowerCase();
+      const matchesSearch = trade.ticker.toLowerCase().includes(term) || (trade.broker && trade.broker.toLowerCase().includes(term));
+      const matchesFrom = dateFrom ? trade.date >= dateFrom : true;
+      const matchesTo = dateTo ? trade.date <= dateTo : true;
+      const matchesResult = result === 'all' ? true : result === 'win' ? trade.profit > 0 : trade.profit < 0;
+      return matchesSearch && matchesFrom && matchesTo && matchesResult;
+    });
+    return filtered.sort((a, b) => {
+      let aValue: any = a[sortConfig.key as keyof RealizedTrade], bValue: any = b[sortConfig.key as keyof RealizedTrade];
+      if (sortConfig.key === 'totalCost') { aValue = (a.buyAvg || 0) * a.quantity; bValue = (b.buyAvg || 0) * b.quantity; }
+      else if (sortConfig.key === 'totalSell') { aValue = (a.sellPrice || 0) * a.quantity; bValue = (b.sellPrice || 0) * b.quantity; }
+      if (typeof aValue === 'string') { aValue = aValue.toLowerCase(); bValue = bValue.toLowerCase(); }
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [trades, searchTerm, dateFrom, dateTo, result, sortConfig]);
+
   const summary = useMemo(() => {
-    const t = trades;
+    const t = filteredAndSortedTrades;
     const totalProfit = t.reduce((s, x) => s + x.profit, 0);
     const totalCost = t.reduce((s, x) => s + (x.buyAvg || 0) * x.quantity, 0);
     const totalPct = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
@@ -93,7 +113,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
     const grossProfit = wins.reduce((s, x) => s + x.profit, 0);
     const grossLoss = Math.abs(losses.reduce((s, x) => s + x.profit, 0));
     const avgWin = wins.length ? grossProfit / wins.length : 0;
-    const avgLoss = losses.length ? -grossLoss / losses.length : 0; // negative
+    const avgLoss = losses.length ? -grossLoss / losses.length : 0;
     const winRate = (wins.length / total) * 100;
     const lossRate = (losses.length / total) * 100;
     const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : (grossProfit > 0 ? Infinity : 0);
@@ -115,43 +135,25 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
     const byTicker: Record<string, number> = {};
     t.forEach(x => { const k = x.ticker === 'PREV-PNL' ? 'HISTORY' : x.ticker; byTicker[k] = (byTicker[k] || 0) + x.profit; });
     const tickerArr = Object.entries(byTicker).map(([name, v]) => ({ name, value: v })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value));
-    const top = tickerArr.slice(0, 4);
-    const othersVal = tickerArr.slice(4).reduce((s, x) => s + x.value, 0);
-    const donut = othersVal !== 0 ? [...top, { name: 'Others', value: othersVal }] : top;
-    const donutTotalAbs = donut.reduce((s, x) => s + Math.abs(x.value), 0) || 1;
+    const grossAbs = tickerArr.reduce((s, x) => s + Math.abs(x.value), 0) || 1; // shared base -> %s sum to 100
+    const top = tickerArr.slice(0, 4).map(x => ({ name: x.name, value: x.value, mag: Math.abs(x.value) }));
+    const others = tickerArr.slice(4);
+    const othersMag = others.reduce((s, x) => s + Math.abs(x.value), 0);
+    const othersNet = others.reduce((s, x) => s + x.value, 0);
+    const donut = others.length ? [...top, { name: 'Others', value: othersNet, mag: othersMag }] : top;
 
     return { totalProfit, totalPct, count: t.length, wins: wins.length, losses: losses.length, winRate, lossRate,
       avgWin, avgLoss, grossProfit, grossLoss, profitFactor, expectancy, winLoss,
-      timeSeries, byMonth, years, maxAbsMonth, donut, donutTotalAbs, tickerAll: tickerArr };
-  }, [trades]);
+      timeSeries, byMonth, years, maxAbsMonth, donut, grossAbs, tickerAll: tickerArr };
+  }, [filteredAndSortedTrades]);
 
-  useEffect(() => { if (!monthYear && summary.years.length) setMonthYear(summary.years[0]); }, [summary.years, monthYear]);
+  useEffect(() => { if (summary.years.length && !summary.years.includes(monthYear)) setMonthYear(summary.years[0]); }, [summary.years, monthYear]);
+  const monthYearEff = summary.years.includes(monthYear) ? monthYear : (summary.years[0] || '');
 
   const monthData = useMemo(() => {
-    const arr = summary.byMonth[monthYear] || new Array(12).fill(0);
+    const arr = summary.byMonth[monthYearEff] || new Array(12).fill(0);
     return arr.map((v, i) => ({ month: MONTHS[i], value: v }));
-  }, [summary.byMonth, monthYear]);
-
-  // ---- Table: responds to filters ----
-  const filteredAndSortedTrades = useMemo(() => {
-    const filtered = trades.filter(trade => {
-      const term = searchTerm.toLowerCase();
-      const matchesSearch = trade.ticker.toLowerCase().includes(term) || (trade.broker && trade.broker.toLowerCase().includes(term));
-      const matchesFrom = dateFrom ? trade.date >= dateFrom : true;
-      const matchesTo = dateTo ? trade.date <= dateTo : true;
-      const matchesResult = result === 'all' ? true : result === 'win' ? trade.profit > 0 : trade.profit < 0;
-      return matchesSearch && matchesFrom && matchesTo && matchesResult;
-    });
-    return filtered.sort((a, b) => {
-      let aValue: any = a[sortConfig.key as keyof RealizedTrade], bValue: any = b[sortConfig.key as keyof RealizedTrade];
-      if (sortConfig.key === 'totalCost') { aValue = (a.buyAvg || 0) * a.quantity; bValue = (b.buyAvg || 0) * b.quantity; }
-      else if (sortConfig.key === 'totalSell') { aValue = (a.sellPrice || 0) * a.quantity; bValue = (b.sellPrice || 0) * b.quantity; }
-      if (typeof aValue === 'string') { aValue = aValue.toLowerCase(); bValue = bValue.toLowerCase(); }
-      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
-      return 0;
-    });
-  }, [trades, searchTerm, dateFrom, dateTo, result, sortConfig]);
+  }, [summary.byMonth, monthYearEff]);
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm, dateFrom, dateTo, result]);
 
@@ -166,7 +168,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   const hasActiveFilters = searchTerm || dateFrom || dateTo || result !== 'all';
   const clearFilters = () => { setSearchTerm(''); setDateFrom(''); setDateTo(''); setResult('all'); };
 
-  // date presets
   const iso = (d: Date) => d.toISOString().split('T')[0];
   const setPreset = (preset: 'all' | 'month' | 'year' | '30') => {
     const now = new Date();
@@ -178,11 +179,11 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
 
   const filterByTicker = (name: string) => setSearchTerm(name === 'HISTORY' ? 'PREV-PNL' : name);
   const filterByMonthIndex = (mi: number) => {
-    if (mi < 0 || !monthYear) return;
+    if (mi < 0 || !monthYearEff) return;
     const mm = String(mi + 1).padStart(2, '0');
-    const last = new Date(Number(monthYear), mi + 1, 0).getDate();
-    setDateFrom(`${monthYear}-${mm}-01`);
-    setDateTo(`${monthYear}-${mm}-${String(last).padStart(2, '0')}`);
+    const last = new Date(Number(monthYearEff), mi + 1, 0).getDate();
+    setDateFrom(`${monthYearEff}-${mm}-01`);
+    setDateTo(`${monthYearEff}-${mm}-${String(last).padStart(2, '0')}`);
   };
 
   const handleExport = (type: 'excel' | 'csv') => {
@@ -209,7 +210,6 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
     const op = 0.15 + 0.75 * (Math.abs(v) / summary.maxAbsMonth);
     return v >= 0 ? `rgba(16,185,129,${op})` : `rgba(244,63,94,${op})`;
   };
-
   const chip = (active: boolean) => `px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`;
 
   return (
@@ -261,19 +261,21 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         <button onClick={() => setResult('all')} className={chip(result === 'all')}>All</button>
         <button onClick={() => setResult('win')} className={chip(result === 'win')}>Winners</button>
         <button onClick={() => setResult('loss')} className={chip(result === 'loss')}>Losers</button>
+        {hasActiveFilters && <button onClick={clearFilters} className="text-[11px] font-bold text-rose-500 hover:underline ml-1">Reset</button>}
       </div>
 
-      {/* Summary stat cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
+      {/* Summary cards — 10 cards, even 5-wide grid */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <StatCard label="Total Realized P&L">
           <div className="flex items-center gap-2">
             <span className={`text-xl font-black ${summary.totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>Rs. {f0(summary.totalProfit)}</span>
             <span className={`text-[10px] font-bold ${summary.totalPct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{summary.totalPct >= 0 ? '+' : ''}{summary.totalPct.toFixed(2)}%</span>
           </div>
-          {totalCGT > 0 && (
-            <div className="text-[10px] text-slate-400 font-semibold mt-0.5">CGT −Rs {f0(totalCGT)} · Net Rs {f0(netAfterCgt)}</div>
-          )}
           <div className="mt-1"><Spark data={summary.timeSeries.map(d => d.cumulative)} color={summary.totalProfit >= 0 ? '#10b981' : '#f43f5e'} /></div>
+        </StatCard>
+        <StatCard label="Net after CGT">
+          <div className={`text-xl font-black ${netAfterCgt >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>Rs. {f0(netAfterCgt)}</div>
+          <div className="text-[10px] text-slate-400 font-semibold mt-1">CGT −Rs {f0(totalCGT)}</div>
         </StatCard>
         <StatCard label="Total Trades">
           <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{summary.count}</div>
@@ -327,7 +329,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </ChartCard>
 
         <ChartCard title="P&L by month" right={
-          <select value={monthYear} onChange={(e) => setMonthYear(e.target.value)} className="text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none dark:text-slate-200">
+          <select value={monthYearEff} onChange={(e) => setMonthYear(e.target.value)} className="text-xs font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 outline-none dark:text-slate-200">
             {summary.years.map(y => <option key={y} value={y}>{y}</option>)}
           </select>
         }>
@@ -350,7 +352,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             <div className="relative w-[150px] h-[150px] shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={summary.donut.map(d => ({ ...d, abs: Math.abs(d.value) }))} dataKey="abs" nameKey="name" innerRadius={46} outerRadius={66} paddingAngle={2} stroke="none"
+                  <Pie data={summary.donut} dataKey="mag" nameKey="name" innerRadius={46} outerRadius={66} paddingAngle={2} stroke="none"
                     onMouseEnter={(_: any, i: number) => setPieActive(i)} onMouseLeave={() => setPieActive(null)}
                     onClick={(d: any) => d && d.name && d.name !== 'Others' && filterByTicker(d.name)} className="cursor-pointer">
                     {summary.donut.map((_, i) => <Cell key={i} fill={DONUT[i % DONUT.length]} opacity={pieActive == null || pieActive === i ? 1 : 0.3} />)}
@@ -370,19 +372,19 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                 <button key={d.name} onClick={() => filterByTicker(d.name)} className="w-full flex items-center gap-2 text-xs hover:opacity-80 transition-opacity">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: DONUT[i % DONUT.length] }} />
                   <span className="font-semibold text-slate-600 dark:text-slate-300 flex-1 text-left truncate">{d.name}</span>
-                  <span className="font-bold text-slate-500 dark:text-slate-400 tabular-nums">{((Math.abs(d.value) / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
+                  <span className="font-bold text-slate-500 dark:text-slate-400 tabular-nums">{((d.mag / summary.grossAbs) * 100).toFixed(1)}%</span>
                 </button>
               ))}
               {summary.donut.some(d => d.name === 'Others') && (() => {
                 const topCount = summary.donut.filter(d => d.name !== 'Others').length;
                 const members = summary.tickerAll.slice(topCount);
-                const othersAbs = members.reduce((s, m) => s + Math.abs(m.value), 0);
+                const othersMag = members.reduce((s, m) => s + Math.abs(m.value), 0);
                 return (
                   <div>
                     <button onClick={() => setShowOthers(v => !v)} className="w-full flex items-center gap-2 text-xs hover:opacity-80 transition-opacity">
                       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: DONUT[4] }} />
                       <span className="font-semibold text-slate-600 dark:text-slate-300 flex-1 text-left truncate">Others <span className="text-slate-400">({members.length})</span></span>
-                      <span className="font-bold text-slate-500 dark:text-slate-400 tabular-nums">{((othersAbs / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
+                      <span className="font-bold text-slate-500 dark:text-slate-400 tabular-nums">{((othersMag / summary.grossAbs) * 100).toFixed(1)}%</span>
                       <ChevronDown size={13} className={`text-slate-400 transition-transform ${showOthers ? 'rotate-180' : ''}`} />
                     </button>
                     {showOthers && (
@@ -391,7 +393,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                           <button key={m.name} onClick={() => filterByTicker(m.name)} className="w-full flex items-center gap-2 text-[11px] hover:opacity-80">
                             <span className="font-medium text-slate-500 dark:text-slate-400 flex-1 text-left truncate">{m.name}</span>
                             <span className={`font-mono tabular-nums ${m.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{m.value >= 0 ? '+' : ''}{f0(m.value)}</span>
-                            <span className="font-bold text-slate-400 tabular-nums w-11 text-right">{((Math.abs(m.value) / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
+                            <span className="font-bold text-slate-400 tabular-nums w-11 text-right">{((Math.abs(m.value) / summary.grossAbs) * 100).toFixed(1)}%</span>
                           </button>
                         ))}
                       </div>
@@ -404,7 +406,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         </ChartCard>
       </div>
 
-      {/* Monthly heatmap */}
+      {/* Heatmap */}
       {summary.years.length > 0 && (
         <ChartCard title="Monthly P&L heatmap">
           <div className="overflow-x-auto custom-scrollbar">
@@ -419,7 +421,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                   {summary.byMonth[y].map((v, i) => (
                     <button key={i} onClick={() => { setMonthYear(y); filterByMonthIndex(i); }} title={`${MONTHS[i]} ${y}: Rs. ${f0(v)}`}
                       className="h-8 rounded-md flex items-center justify-center text-[9px] font-bold tabular-nums transition-transform hover:scale-105"
-                      style={{ background: heatColor(v), color: v ? (Math.abs(v) / (summary.maxAbsMonth || 1) > 0.55 ? '#fff' : 'inherit') : undefined }}>
+                      style={{ background: heatColor(v), color: v && Math.abs(v) / (summary.maxAbsMonth || 1) > 0.55 ? '#fff' : undefined }}>
                       {v ? fK(v) : ''}
                     </button>
                   ))}
