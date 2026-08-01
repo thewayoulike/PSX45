@@ -100,7 +100,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   }, [filteredAndSortedHoldings, ldcpMap]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
-  const totalDailyPercent = (totals.totalMarket - totals.dailyPL) > 0 ? (totals.dailyPL / (totals.totalMarket - totals.dailyPL)) * 100 : 0;
+  const totalDailyPercent = totals.totalCost > 0 ? (totals.dailyPL / totals.totalCost) * 100 : 0;
 
   const formatUpdateDate = (isoString?: string) => { if (!isoString) return null; return new Date(isoString).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); };
   const globalLastUpdate = useMemo(() => { if (holdings.length === 0) return null; const times = holdings.map(h => h.lastUpdated).filter((t): t is string => !!t).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); return times.length > 0 ? formatUpdateDate(times[0]) : null; }, [holdings]);
