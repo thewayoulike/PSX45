@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { RealizedTrade } from '../types';
 import {
-  Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight
+  Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -71,6 +71,8 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [timeMode, setTimeMode] = useState<'daily' | 'cumulative'>('daily');
   const [monthYear, setMonthYear] = useState<string>('');
+  const [pieActive, setPieActive] = useState<number | null>(null);
+  const [showOthers, setShowOthers] = useState(false);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
@@ -134,7 +136,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
 
     return { totalProfit, totalPct, count: t.length, wins: wins.length, losses: losses.length,
       winPct: (wins.length / total) * 100, losePct: (losses.length / total) * 100,
-      avgProfit, avgLoss, timeSeries, byMonth, years, donut, donutTotalAbs };
+      avgProfit, avgLoss, timeSeries, byMonth, years, donut, donutTotalAbs, tickerAll: tickerArr };
   }, [filteredAndSortedTrades]);
 
   useEffect(() => { if (!monthYear && summary.years.length) setMonthYear(summary.years[0]); }, [summary.years, monthYear]);
@@ -297,25 +299,64 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
             <div className="relative w-[150px] h-[150px] shrink-0">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <Pie data={summary.donut.map(d => ({ ...d, abs: Math.abs(d.value) }))} dataKey="abs" nameKey="name" innerRadius={45} outerRadius={65} paddingAngle={2} stroke="none">
-                    {summary.donut.map((_, i) => <Cell key={i} fill={DONUT[i % DONUT.length]} />)}
+                  <Pie
+                    data={summary.donut.map(d => ({ ...d, abs: Math.abs(d.value) }))}
+                    dataKey="abs" nameKey="name" innerRadius={46} outerRadius={66} paddingAngle={2} stroke="none"
+                    onMouseEnter={(_: any, i: number) => setPieActive(i)} onMouseLeave={() => setPieActive(null)}
+                  >
+                    {summary.donut.map((_, i) => (
+                      <Cell key={i} fill={DONUT[i % DONUT.length]} opacity={pieActive == null || pieActive === i ? 1 : 0.3} />
+                    ))}
                   </Pie>
-                  <Tooltip formatter={(v: number, n: string) => [`Rs. ${f0(v)}`, n]} contentStyle={tip.contentStyle} />
                 </PieChart>
               </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-sm font-black text-slate-900 dark:text-slate-100">Rs. {fK(summary.totalProfit)}</span>
-                <span className="text-[9px] text-slate-400 font-bold uppercase">Total</span>
+              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-3 text-center">
+                {(() => {
+                  const a = pieActive != null ? summary.donut[pieActive] : null;
+                  const val = a ? a.value : summary.totalProfit;
+                  return (
+                    <>
+                      <span className={`text-sm font-black ${val >= 0 ? 'text-slate-900 dark:text-slate-100' : 'text-rose-500'}`}>Rs. {fK(val)}</span>
+                      <span className="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[104px]">{a ? a.name : 'Total'}</span>
+                    </>
+                  );
+                })()}
               </div>
             </div>
-            <div className="flex-1 space-y-1.5">
-              {summary.donut.map((d, i) => (
+            <div className="flex-1 min-w-0 space-y-1.5">
+              {summary.donut.filter(d => d.name !== 'Others').map((d, i) => (
                 <div key={d.name} className="flex items-center gap-2 text-xs">
                   <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: DONUT[i % DONUT.length] }} />
                   <span className="font-semibold text-slate-600 dark:text-slate-300 flex-1 truncate">{d.name}</span>
                   <span className="font-bold text-slate-500 dark:text-slate-400 tabular-nums">{((Math.abs(d.value) / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
                 </div>
               ))}
+              {summary.donut.some(d => d.name === 'Others') && (() => {
+                const topCount = summary.donut.filter(d => d.name !== 'Others').length;
+                const members = summary.tickerAll.slice(topCount);
+                const othersAbs = members.reduce((s, m) => s + Math.abs(m.value), 0);
+                return (
+                  <div>
+                    <button onClick={() => setShowOthers(v => !v)} className="w-full flex items-center gap-2 text-xs hover:opacity-80 transition-opacity">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: DONUT[4] }} />
+                      <span className="font-semibold text-slate-600 dark:text-slate-300 flex-1 text-left truncate">Others <span className="text-slate-400">({members.length})</span></span>
+                      <span className="font-bold text-slate-500 dark:text-slate-400 tabular-nums">{((othersAbs / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
+                      <ChevronDown size={13} className={`text-slate-400 transition-transform ${showOthers ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showOthers && (
+                      <div className="mt-1.5 ml-4 pl-2 border-l border-slate-200 dark:border-slate-700 space-y-1 max-h-40 overflow-y-auto custom-scrollbar">
+                        {members.map(m => (
+                          <div key={m.name} className="flex items-center gap-2 text-[11px]">
+                            <span className="font-medium text-slate-500 dark:text-slate-400 flex-1 truncate">{m.name}</span>
+                            <span className={`font-mono tabular-nums ${m.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{m.value >= 0 ? '+' : ''}{f0(m.value)}</span>
+                            <span className="font-bold text-slate-400 tabular-nums w-11 text-right">{((Math.abs(m.value) / summary.donutTotalAbs) * 100).toFixed(1)}%</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </ChartCard>
