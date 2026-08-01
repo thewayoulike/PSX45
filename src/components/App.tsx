@@ -1130,10 +1130,7 @@ const App: React.FC = () => {
 
                               {/* Upcoming dividends + Sector tilt */}
                               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-                                  <UpcomingDividends
-                                      dividends={scannerState[currentPortfolioId] || []}
-                                      onOpenScanner={() => setShowDividendScanner(true)}
-                                  />
+                                  <UpcomingDividends holdings={holdings} />
                                   <SectorTilt holdings={holdings} stats={stats} />
                               </div>
 
