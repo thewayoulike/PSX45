@@ -1,33 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fetchUrlWithFallback } from '../services/psxData';
+import { fetchStockHistory } from '../services/psxData';
 
 interface Idx { label: string; value: number; changePct: number | null; }
 
-const num = (s?: string | null) => {
-  const v = parseFloat((s || '').replace(/,/g, '').replace('%', '').trim());
-  return isNaN(v) ? 0 : v;
-};
-
-// Parse the PSX indices page for KSE100 / KMI30 (value + change %).
-const parseIndices = (html: string): Record<string, Idx> => {
-  const out: Record<string, Idx> = {};
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  doc.querySelectorAll('tr').forEach(tr => {
-    const cells = Array.from(tr.querySelectorAll('td')).map(td => (td.textContent || '').trim());
-    if (cells.length < 3) return;
-    const key = cells.join(' ').toUpperCase();
-    const nums = cells.map(num).filter(n => n !== 0);
-    if (key.includes('KSE') && key.includes('100')) {
-      out['KSE-100'] = { label: 'KSE-100', value: nums[0] || 0, changePct: extractPct(cells) };
-    } else if (key.includes('KMI') && key.includes('30')) {
-      out['KMI-30'] = { label: 'KMI-30', value: nums[0] || 0, changePct: extractPct(cells) };
-    }
-  });
-  return out;
-};
-const extractPct = (cells: string[]): number | null => {
-  const pctCell = cells.find(c => c.includes('%'));
-  return pctCell ? num(pctCell) : null;
+// Last value + close-to-close change from a fetchStockHistory series.
+const lastChange = (arr: { time: number; price: number }[] | undefined): Idx | null => {
+  if (!arr || arr.length < 2) return null;
+  const a = arr[arr.length - 1].price;
+  const b = arr[arr.length - 2].price;
+  if (!a) return null;
+  return { label: '', value: a, changePct: b > 0 ? ((a - b) / b) * 100 : null };
 };
 
 export const IndexBar: React.FC = () => {
@@ -36,17 +18,17 @@ export const IndexBar: React.FC = () => {
   const load = useCallback(async () => {
     const collected: Idx[] = [];
 
-    // PSX indices (KSE-100, KMI-30)
+    // KSE-100 & KMI-30 from the SAME reliable source your PerformanceChart uses.
     try {
-      const html = await fetchUrlWithFallback('https://dps.psx.com.pk/indices');
-      if (html) {
-        const parsed = parseIndices(html);
-        if (parsed['KSE-100']) collected.push(parsed['KSE-100']);
-        if (parsed['KMI-30']) collected.push(parsed['KMI-30']);
-      }
+      const [kse, kmi] = await Promise.all([
+        fetchStockHistory('KSE100', '1M'),
+        fetchStockHistory('KMI30', '1M'),
+      ]);
+      const k = lastChange(kse); if (k) collected.push({ ...k, label: 'KSE-100' });
+      const m = lastChange(kmi); if (m) collected.push({ ...m, label: 'KMI-30' });
     } catch { /* ignore */ }
 
-    // USD / PKR (free, CORS-open forex API)
+    // USD/PKR (free forex source; may differ slightly from Google/interbank).
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/USD');
       const data = await res.json();
