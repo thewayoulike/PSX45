@@ -1,4 +1,4 @@
-import { CompanyPayout } from '../types';
+import { CompanyPayout, DividendAnnouncement } from '../types';
 import { getValidToken } from './driveStorage';
 import { fetchUrlWithFallback } from './psxData';
 import { percentToRs } from '../utils/faceValues';
@@ -199,6 +199,59 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     console.error("Google Sheet Fetch Failed:", e);
     return [];
   }
+};
+
+// --- 2b. Dividend Scanner source: read the SAME sheet, backward-looking window ---
+// Used by the Dividend Scanner as its PRIMARY source (deterministic + correct face value).
+// Unlike fetchMarketWideDividends (which keeps only FUTURE ex-dates for display), this
+// returns PAST dividends within the lookback window so the scanner can catch ones you
+// already earned. THROWS on auth/HTTP failure so the caller can fall back to AI search.
+export const fetchDividendsForScan = async (months: number = 6): Promise<DividendAnnouncement[]> => {
+  const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
+  const RANGE = "Sheet1!A3:F";
+
+  const token = await getValidToken();
+  if (!token) throw new Error("SHEET_AUTH_REQUIRED"); // -> triggers AI fallback
+
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}`;
+  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!response.ok) throw new Error(`SHEET_HTTP_${response.status}`); // -> triggers AI fallback
+
+  const json = await response.json();
+  const rows = json.values || [];
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const cutoff = new Date(today);
+  cutoff.setDate(cutoff.getDate() - Math.round(months * 31)); // lookback window
+
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toISO = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+  return rows.map((row: any[]): DividendAnnouncement | null => {
+      const ticker = (row[0] || '').toString().trim().toUpperCase();
+      if (!ticker) return null;
+
+      const cleanPercent = parseFloat((row[2] || '0').toString().replace('%', ''));
+      const amount = percentToRs(cleanPercent, ticker); // face-value aware
+      if (!isFinite(amount) || amount <= 0) return null;
+
+      const ex = new Date(row[5] || '');
+      ex.setHours(0, 0, 0, 0);
+      if (isNaN(ex.getTime())) return null;
+      // Backward-looking: only dividends whose ex-date already passed, within the window.
+      if (ex > today || ex < cutoff) return null;
+
+      return {
+          ticker,
+          amount: Number(amount.toFixed(2)),
+          exDate: toISO(ex),            // normalized YYYY-MM-DD for the scanner's date logic
+          type: 'Interim',             // sheet doesn't distinguish; label only
+          period: undefined,
+      };
+  })
+  .filter((d): d is DividendAnnouncement => d !== null)
+  .sort((a, b) => (a.exDate < b.exDate ? 1 : -1)); // newest first
 };
 
 // --- 3. Connect to Google Sheets Bridge (For Fair Value Calculator) ---
