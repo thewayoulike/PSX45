@@ -55,11 +55,30 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           }
 
           const newEligible: FoundDividend[] = [];
+
+          // A dividend is "already recorded" if a DIVIDEND entry exists for the same
+          // ticker + broker dated ON the ex-date OR up to ~45 days AFTER it. Dividends
+          // are PAID a couple of weeks after the ex-date, so users commonly record them
+          // on the PAY date, not the ex-date — matching only the exact ex-date would make
+          // an already-recorded dividend keep re-appearing here.
+          const PAY_WINDOW_DAYS = 45;
+          const isAlreadyRecorded = (ticker: string, brokerName: string, exDate: string) => {
+              const exMs = new Date(exDate).getTime();
+              return transactions.some(t => {
+                  if (t.type !== 'DIVIDEND' || t.ticker !== ticker) return false;
+                  if ((t.broker || 'Unknown Broker') !== brokerName) return false;
+                  if (t.date === exDate) return true;
+                  const dayDiff = (new Date(t.date).getTime() - exMs) / 86400000;
+                  return dayDiff >= -7 && dayDiff <= PAY_WINDOW_DAYS; // ex-date .. pay-date
+              });
+          };
+
           announcements.forEach(ann => {
               const brokerMap = getHoldingsBreakdownOnDate(ann.ticker, ann.exDate);
               Object.entries(brokerMap).forEach(([brokerName, qty]) => {
-                  const alreadyRecorded = transactions.some(t => t.type === 'DIVIDEND' && t.ticker === ann.ticker && t.date === ann.exDate && (t.broker || 'Unknown Broker') === brokerName);
-                  if (!alreadyRecorded) { newEligible.push({ ...ann, eligibleQty: qty, broker: brokerName }); }
+                  if (!isAlreadyRecorded(ann.ticker, brokerName, ann.exDate)) {
+                      newEligible.push({ ...ann, eligibleQty: qty, broker: brokerName });
+                  }
               });
           });
           updateDividends(newEligible); 
