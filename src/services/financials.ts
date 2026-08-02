@@ -1,6 +1,7 @@
 import { CompanyPayout } from '../types';
 import { getValidToken } from './driveStorage';
-import { fetchUrlWithFallback } from './psxData'; 
+import { fetchUrlWithFallback } from './psxData';
+import { percentToRs } from '../utils/faceValues';
 
 export interface CompanyFinancials {
   year: string;
@@ -38,7 +39,7 @@ export interface FundamentalsData {
 // --- 1. Fetch Company Fundamentals (PSX Scraping) ---
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
-  
+
   const html = await fetchUrlWithFallback(targetUrl);
 
   if (html && html.length > 500) {
@@ -53,7 +54,7 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
             if (rows.length === 0) return data;
             const headerCells = Array.from(rows[0].querySelectorAll('th, td'));
             const periods = headerCells.slice(1).map(c => c.textContent?.trim() || '');
-            
+
             const getRowData = (keywords: string[]) => {
                 const row = rows.find(r => {
                     const firstCell = r.querySelector('td, th');
@@ -68,7 +69,7 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
             const income = getRowData(['Total Income']);
             const profit = getRowData(['Profit after Taxation', 'Profit After Tax', 'Net Profit']);
             const eps = getRowData(['EPS', 'Earnings per share']);
-            
+
             const bookValue = getRowData(['Break-up value', 'Book Value', 'Net Asset Value']);
             const totalLiabilities = getRowData(['Total Liabilities']);
             const totalEquity = getRowData(['Total Equity', 'Shareholders Equity']);
@@ -79,11 +80,11 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
 
             periods.forEach((period, i) => {
                 if (period) {
-                    data.push({ 
-                        year: period, 
-                        sales: sales[i] || '-', 
-                        totalIncome: income[i] || '-', 
-                        profitAfterTax: profit[i] || '-', 
+                    data.push({
+                        year: period,
+                        sales: sales[i] || '-',
+                        totalIncome: income[i] || '-',
+                        profitAfterTax: profit[i] || '-',
                         eps: eps[i] || '-',
                         bookValue: bookValue[i] || '-',
                         totalLiabilities: totalLiabilities[i] || '-',
@@ -143,7 +144,7 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
 // --- 2. Fetch Market Wide Dividends from Google Sheet ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
   const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
-  const RANGE = "Sheet1!A3:F"; 
+  const RANGE = "Sheet1!A3:F";
 
   try {
     const token = await getValidToken();
@@ -157,31 +158,34 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     if (!response.ok) throw new Error(`Google Sheets API Error: ${response.status}`);
 
     const json = await response.json();
-    const rows = json.values || []; 
+    const rows = json.values || [];
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     return rows.map((row: any[]) => {
-        const rawDiv = row[2] || '0';
+        const ticker = (row[0] || 'Unknown').toString().trim().toUpperCase();
+        const rawDiv = (row[2] || '0').toString();
         const cleanPercent = parseFloat(rawDiv.replace('%', ''));
-        const pkrAmount = cleanPercent / 10;
+        // Dividends are a % of FACE VALUE. Most PSX stocks are Rs. 10 face value
+        // (so percent/10), but low-face-value stocks (Rs. 5 / 3.5 / 1) pay less.
+        const pkrAmount = percentToRs(cleanPercent, ticker);
         const dateStr = row[5] || '';
         const xDate = new Date(dateStr);
         xDate.setHours(0, 0, 0, 0);
 
-        if (isNaN(xDate.getTime()) || xDate < today) return null; 
+        if (isNaN(xDate.getTime()) || xDate < today) return null;
 
         const isDueToday = xDate.getTime() === today.getTime();
 
         return {
-            ticker: row[0] || 'Unknown',
+            ticker: ticker || 'Unknown',
             announceDate: row[1] || '-',
             financialResult: '-',
-            details: isNaN(pkrAmount) ? 'Dividend' : `Div: Rs. ${pkrAmount.toFixed(2)}`, 
+            details: isNaN(pkrAmount) ? 'Dividend' : `Div: Rs. ${pkrAmount.toFixed(2)}`,
             bookClosure: `Ex-Date: ${dateStr}`,
             isUpcoming: true,
-            isDueToday: isDueToday 
+            isDueToday: isDueToday
         };
     })
     .filter((p): p is CompanyPayout & { isDueToday: boolean } => p !== null)
@@ -199,14 +203,14 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
 // --- 3. Connect to Google Sheets Bridge (For Fair Value Calculator) ---
 export const syncWithGoogleSheet = async (ticker: string) => {
-  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzbUM26wtJDrXc_iW6JsyjZYcRhMZBkLgyX1Jfll1y16WrhkpSk9XjTxIpGTkQqD1NEhQ/exec"; 
-  
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzbUM26wtJDrXc_iW6JsyjZYcRhMZBkLgyX1Jfll1y16WrhkpSk9XjTxIpGTkQqD1NEhQ/exec";
+
   try {
     const response = await fetch(`${GOOGLE_SCRIPT_URL}?ticker=${ticker.toLowerCase()}`, {
         redirect: 'follow'
     });
     if (!response.ok) return null;
-    
+
     return await response.json();
   } catch (e) {
     console.error("Google Sheet Sync Failed:", e);
