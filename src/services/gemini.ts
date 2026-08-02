@@ -170,7 +170,13 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
             contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
-            
+
+            IMPORTANT: "amount" must be the ACTUAL cash dividend in RUPEES PER SHARE (DPS), not the declared percentage.
+            PSX dividends are declared as a percentage of FACE VALUE. Most PSX stocks have a Rs. 10 face value
+            (so 100% = Rs. 10.00/share), but some have a lower face value — e.g. Rs. 5 (100% = Rs. 5.00),
+            Rs. 3.5 (K-Electric/KEL, 100% = Rs. 3.50), or Rs. 1 (100% = Rs. 1.00). Convert to the correct
+            rupee amount using that stock's real face value before returning it.
+
             Ignore any dividends older than ${months} months.`,
             config: {
                 tools: [{ googleSearch: {} }]
