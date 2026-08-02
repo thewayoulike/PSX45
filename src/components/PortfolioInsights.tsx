@@ -71,17 +71,19 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       return { best, worst };
     };
 
-    // ---- Overall (active + sold) ----
-    const overall: Record<string, Agg> = {};
-    realTrades.forEach((t) => {
-      const s = (overall[t.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
-      s.profit += t.profit; s.cost += t.buyAvg * t.quantity; s.isRealized = true;
-    });
+    // ---- Best / worst split into CURRENT HOLDINGS vs SOLD (realized) ----
+    const holdingAgg: Record<string, Agg> = {};
     holdings.forEach((h) => {
-      const s = (overall[h.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: false });
-      s.profit += (h.currentPrice - h.avgPrice) * h.quantity; s.cost += h.avgPrice * h.quantity; s.isHolding = true;
+      const s = (holdingAgg[h.ticker] ||= { profit: 0, cost: 0, isHolding: true, isRealized: false });
+      s.profit += (h.currentPrice - h.avgPrice) * h.quantity; s.cost += h.avgPrice * h.quantity;
     });
-    const { best, worst } = bestWorst(overall);
+    const soldAgg: Record<string, Agg> = {};
+    realTrades.forEach((t) => {
+      const s = (soldAgg[t.ticker] ||= { profit: 0, cost: 0, isHolding: false, isRealized: true });
+      s.profit += t.profit; s.cost += t.buyAvg * t.quantity;
+    });
+    const { best: bestHold, worst: worstHold } = bestWorst(holdingAgg);
+    const { best: bestSold, worst: worstSold } = bestWorst(soldAgg);
 
     // ---- This month (realized trades closed this month) ----
     const monthAgg: Record<string, Agg> = {};
@@ -91,25 +93,52 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
     });
     const { best: bestM, worst: worstM } = bestWorst(monthAgg);
 
-    // 1) Best performer overall — pinned to top
-    if (best) {
+    // A labelled row, e.g.:  HOLDINGS  MEBL  +1,234.00 (12.55%)
+    const splitRow = (label: string, d: { ticker: string; ret: number; profit: number } | null) =>
+      d ? (
+        <span className="block mt-1 leading-snug">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-2">{label}</span>
+          {strong(d.ticker)}{' '}
+          <span className={`font-bold ${d.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
+            {d.profit >= 0 ? '+' : ''}{money(d.profit)} ({pct(d.ret)})
+          </span>
+        </span>
+      ) : null;
+
+    // 3) Best performer — current holdings AND sold, shown together
+    if (bestHold || bestSold) {
       out.push({
-        key: 'best', tone: 'good', Icon: TrendingUp, score: 1000,
+        key: 'best', tone: 'good', Icon: TrendingUp, score: 980,
         node: (
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            {strong(best.ticker)} is your best performer <Badge>{best.status}</Badge>
-            <span className={`block mt-0.5 font-bold ${best.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
-              {best.profit >= 0 ? '+' : ''}{money(best.profit)} ({pct(best.ret)})
-            </span>
-          </p>
+          <div className="text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Best performer</span>
+            {splitRow('Holdings', bestHold)}
+            {splitRow('Sold', bestSold)}
+          </div>
         ),
       });
     }
 
-    // 2) Best performer this month
+    // 4) Biggest drag — current holdings AND sold, shown together
+    const dragHold = worstHold && worstHold.ret < 0 ? worstHold : null;
+    const dragSold = worstSold && worstSold.ret < 0 ? worstSold : null;
+    if (dragHold || dragSold) {
+      out.push({
+        key: 'worst', tone: 'rose', Icon: TrendingDown, score: 970,
+        node: (
+          <div className="text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-semibold text-slate-700 dark:text-slate-200">Biggest drag</span>
+            {splitRow('Holdings', dragHold)}
+            {splitRow('Sold', dragSold)}
+          </div>
+        ),
+      });
+    }
+
+    // Best / worst performer THIS MONTH (lower priority — under "show more")
     if (bestM && bestM.profit > 0) {
       out.push({
-        key: 'bestMonth', tone: 'good', Icon: CalendarDays, score: 950,
+        key: 'bestMonth', tone: 'good', Icon: CalendarDays, score: 905,
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
             {strong(bestM.ticker)} is your top performer this month <Badge>{monthName}</Badge>
@@ -118,24 +147,9 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
         ),
       });
     }
-
-    // 3) Biggest drag overall
-    if (worst && (!best || worst.ticker !== best.ticker) && worst.ret < 0) {
-      out.push({
-        key: 'worst', tone: 'rose', Icon: TrendingDown, score: 900,
-        node: (
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            {strong(worst.ticker)} is your biggest drag
-            <span className="block mt-0.5 font-bold text-rose-500">{money(worst.profit)} ({pct(worst.ret)})</span>
-          </p>
-        ),
-      });
-    }
-
-    // 4) Biggest drag this month
     if (worstM && worstM.ret < 0 && (!bestM || worstM.ticker !== bestM.ticker)) {
       out.push({
-        key: 'worstMonth', tone: 'rose', Icon: CalendarDays, score: 850,
+        key: 'worstMonth', tone: 'rose', Icon: CalendarDays, score: 904,
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
             {strong(worstM.ticker)} is your biggest drag this month <Badge>{monthName}</Badge>
@@ -157,7 +171,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const heavy = top3Pct >= 60;
       out.push({
         key: 'conc', tone: heavy ? 'warn' : 'info', Icon: heavy ? AlertTriangle : PieChart,
-        score: 30 + top3Pct,
+        score: 940,
         node: valued.length >= 3 ? (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
             Your top 3 — {strong(top3.map((x) => x.ticker).join(', '))} — are {strong(pct(top3Pct))} of the portfolio{heavy ? ' (heavily concentrated)' : ''}
@@ -179,7 +193,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const sPct = (val / stats.totalValue) * 100;
       if (sPct >= 20) {
         out.push({
-          key: 'sector', tone: sPct >= 45 ? 'warn' : 'info', Icon: Layers, score: 14 + sPct / 2,
+          key: 'sector', tone: sPct >= 45 ? 'warn' : 'info', Icon: Layers, score: 950,
           node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(name)} is your largest sector at {strong(pct(sPct))} of holdings</p>,
         });
       }
@@ -191,7 +205,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       if (under > 0) {
         const underPct = (under / holdings.length) * 100;
         out.push({
-          key: 'under', tone: underPct >= 50 ? 'warn' : 'info', Icon: Activity, score: 18 + underPct / 3,
+          key: 'under', tone: underPct >= 50 ? 'warn' : 'info', Icon: Activity, score: 990,
           node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(`${under} of ${holdings.length}`)} holdings are currently in the red</p>,
         });
       }
@@ -202,7 +216,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const wins = realTrades.filter((t) => t.profit > 0).length;
       const wr = (wins / realTrades.length) * 100;
       out.push({
-        key: 'winrate', tone: wr >= 50 ? 'good' : 'warn', Icon: Target, score: 22,
+        key: 'winrate', tone: wr >= 50 ? 'good' : 'warn', Icon: Target, score: 920,
         node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">You've closed {strong(String(realTrades.length))} trades with a {strong(pct(wr))} win rate</p>,
       });
 
@@ -210,7 +224,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const worstTrade = realTrades.reduce((a, b) => (b.profit < a.profit ? b : a));
       if (bestTrade.profit > 0 || worstTrade.profit < 0) {
         out.push({
-          key: 'extremes', tone: 'info', Icon: Trophy, score: 16,
+          key: 'extremes', tone: 'info', Icon: Trophy, score: 960,
           node: (
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
               Best exit {strong(bestTrade.ticker)} <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{money0(bestTrade.profit)}</span>
@@ -227,7 +241,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const grossGains = stats.netRealizedPL + stats.totalDividends + Math.max(0, stats.unrealizedPL) + totalCosts;
       const feePct = grossGains > 0 ? (totalCosts / grossGains) * 100 : null;
       out.push({
-        key: 'fees', tone: feePct != null && feePct >= 15 ? 'warn' : 'info', Icon: Receipt, score: 26 + (feePct || 0),
+        key: 'fees', tone: feePct != null && feePct >= 15 ? 'warn' : 'info', Icon: Receipt, score: 930,
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
             Fees and taxes have cost {strong(`Rs ${money0(totalCosts)}`)}{feePct != null && <> — about {strong(pct(feePct))} of your gross gains</>}
@@ -242,7 +256,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const cashPct = (stats.freeCash / netWorth) * 100;
       if (cashPct >= 10) {
         out.push({
-          key: 'cash', tone: cashPct >= 30 ? 'warn' : 'info', Icon: Wallet, score: 8 + cashPct / 2,
+          key: 'cash', tone: cashPct >= 30 ? 'warn' : 'info', Icon: Wallet, score: 903,
           node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(`Rs ${money0(stats.freeCash)}`)} ({pct(cashPct)} of net worth) is sitting in cash</p>,
         });
       }
@@ -253,7 +267,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
     if (totalGain > 0 && stats.unrealizedPL > 0) {
       const paperPct = (stats.unrealizedPL / totalGain) * 100;
       out.push({
-        key: 'paper', tone: 'info', Icon: Percent, score: 9,
+        key: 'paper', tone: 'info', Icon: Percent, score: 902,
         node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{strong(pct(paperPct))} of your gains are still unrealized (on paper)</p>,
       });
     }
@@ -263,14 +277,14 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       const totalReturn = stats.unrealizedPL + stats.netRealizedPL + stats.totalDividends;
       const divPct = totalReturn > 0 ? (stats.totalDividends / totalReturn) * 100 : 0;
       out.push({
-        key: 'div', tone: 'purple', Icon: Coins, score: 12,
+        key: 'div', tone: 'purple', Icon: Coins, score: 910,
         node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">Dividends are {strong(pct(divPct))} of your total returns</p>,
       });
     }
 
     // ---- Today's move (low priority) ----
     out.push({
-      key: 'daily', tone: stats.dailyPL >= 0 ? 'good' : 'rose', Icon: Activity, score: 5,
+      key: 'daily', tone: stats.dailyPL >= 0 ? 'good' : 'rose', Icon: Activity, score: 1000,
       node: <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">Your portfolio {stats.dailyPL >= 0 ? 'gained' : 'lost'} {strong(pct(Math.abs(stats.dailyPLPercent)))} today</p>,
     });
 
