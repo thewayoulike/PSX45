@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Transaction, FoundDividend } from '../types'; 
+import { Transaction, FoundDividend, DividendAnnouncement } from '../types';
 import { fetchDividends } from '../services/gemini';
+import { fetchDividendsForScan } from '../services/financials';
 import { Coins, Loader2, CheckCircle, Calendar, Search, X, History, Sparkles, Building2, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 
 interface DividendScannerProps {
@@ -23,6 +24,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
   const [scanned, setScanned] = useState(savedResults.length > 0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [useDeepScan, setUseDeepScan] = useState(false);
+  const [scanSource, setScanSource] = useState<'sheet' | 'ai' | null>(null);
 
   const updateDividends = (newDividends: FoundDividend[]) => { setFoundDividends(newDividends); onSaveResults(newDividends); };
 
@@ -40,7 +42,18 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
       if (tickers.length === 0) { setLoading(false); setScanned(true); return; }
       try {
           const months = useDeepScan ? 12 : 6;
-          const announcements = await fetchDividends(tickers, months);
+
+          // PRIMARY: your X-Dates Google Sheet (deterministic, correct face value).
+          // FALLBACK: Gemini AI search — used ONLY if the sheet fails (not signed in / API error).
+          let announcements: DividendAnnouncement[];
+          try {
+              announcements = await fetchDividendsForScan(months);
+              setScanSource('sheet');
+          } catch (sheetErr) {
+              announcements = await fetchDividends(tickers, months);
+              setScanSource('ai');
+          }
+
           const newEligible: FoundDividend[] = [];
           announcements.forEach(ann => {
               const brokerMap = getHoldingsBreakdownOnDate(ann.ticker, ann.exDate);
@@ -156,9 +169,14 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
                             // Results List
                             <>
                                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800/60">
-                                    <h3 className="text-slate-900 dark:text-white font-display font-black text-lg tracking-tight flex items-center gap-2"> 
-                                        {showDismissed ? <><History size={18} className="text-slate-400" /> Dismissed History</> : <><Sparkles size={18} className="text-indigo-500" /> Found {foundDividends.length} Eligible</>} 
+                                    <h3 className="text-slate-900 dark:text-white font-display font-black text-lg tracking-tight flex items-center gap-2">
+                                        {showDismissed ? <><History size={18} className="text-slate-400" /> Dismissed History</> : <><Sparkles size={18} className="text-indigo-500" /> Found {foundDividends.length} Eligible</>}
                                     </h3>
+                                    {!showDismissed && scanSource && (
+                                        <span className={`text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-lg border shadow-sm ${scanSource === 'sheet' ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200/60 dark:border-amber-500/20'}`}>
+                                            {scanSource === 'sheet' ? 'via X-Dates Sheet' : 'via AI Search'}
+                                        </span>
+                                    )}
                                 </div>
                                 
                                 <div className="space-y-4">
