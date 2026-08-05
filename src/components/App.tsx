@@ -1095,7 +1095,7 @@ const App: React.FC = () => {
 
                               {/* Performance vs Index (period toggle + benchmark headline) */}
                               <div className="mt-6">
-                                  <BenchmarkPanel data={performanceHistory[perfKey] || []} />
+                                  <BenchmarkPanel data={performanceHistory[perfKey] || []} portfolioTodayPct={stats.dailyPLPercent} />
                               </div>
 
                               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
@@ -1326,6 +1326,7 @@ const App: React.FC = () => {
               sector={sectorOverrides[viewTicker] || getSector(viewTicker)}
               transactions={portfolioTransactions.filter(t => t.ticker === viewTicker)}
               holding={holdings.find(h => h.ticker === viewTicker)}
+              realizedTrades={realizedTrades.filter(t => t.ticker === viewTicker)}
               listedInMap={listedInMap}
               onClose={() => setViewTicker(null)}
           />
