@@ -12,6 +12,7 @@ const sanitizeKey = (key: string): string => {
 export const setGeminiApiKey = (key: string | null) => {
     userProvidedKey = key ? sanitizeKey(key) : null;
     aiClient = null;
+    discoveredModels = null; // re-discover available models for the new key
 };
 
 const getApiKey = () => userProvidedKey;
@@ -30,8 +31,7 @@ export const GEMINI_MODELS: string[] = [
   'gemini-2.5-flash-lite',     // free, budget
   'gemini-3.5-flash',          // newer; may require billing
   'gemini-3.5-flash-lite',
-    'gemini-3.6-flash',
-  'gemini-3.1-pro',            // paid, most capable — last resort
+  'gemini-2.5-pro',            // paid, most capable — last resort
 ];
 
 // Should we give up on THIS model and try the next one? (availability/quota only)
@@ -54,6 +54,51 @@ const shouldTryNextModel = (err: any): boolean => {
   );
 };
 
+// Rank a model name: lower = tried earlier. Free/cheap flash-lite first, pro last,
+// stable ahead of preview/experimental. Used to order dynamically-discovered models.
+const rankModel = (name: string): number => {
+  const n = name.toLowerCase();
+  let score = 100;
+  if (n.includes('flash-lite')) score = 0;       // cheapest / most free
+  else if (n.includes('flash')) score = 10;      // free tier, fast
+  else if (n.includes('pro')) score = 60;        // paid, capable
+  if (n.includes('latest')) score -= 2;          // self-healing aliases slightly preferred
+  if (n.includes('preview') || n.includes('exp')) score += 20; // stable first
+  // Newer generation gets a tiny edge within the same class.
+  const gen = n.match(/gemini-(\d+(?:\.\d+)?)/);
+  if (gen) score -= Math.min(5, parseFloat(gen[1]));
+  return score;
+};
+
+// Only general text models that can actually do chat/tools — exclude media/embeddings.
+const isUsableTextModel = (name: string, actions?: string[]): boolean => {
+  const n = name.toLowerCase();
+  if (!n.includes('gemini')) return false;
+  if (/image|vision|tts|audio|embedding|veo|lyria|robotics|computer-use|live|omni|nano/.test(n)) return false;
+  if (actions && actions.length && !actions.includes('generateContent')) return false;
+  return true;
+};
+
+// Cache the discovered, ranked model list for this session (per key/client).
+let discoveredModels: string[] | null = null;
+
+const discoverModels = async (ai: GoogleGenAI): Promise<string[]> => {
+  if (discoveredModels) return discoveredModels;
+  try {
+    const pager = await ai.models.list();
+    const found: string[] = [];
+    for await (const m of pager) {
+      const raw = (m as any).name || '';
+      const name = raw.replace(/^models\//, '');
+      if (name && isUsableTextModel(name, (m as any).supportedActions)) found.push(name);
+    }
+    discoveredModels = found.sort((a, b) => rankModel(a) - rankModel(b));
+  } catch {
+    discoveredModels = []; // listing failed (network/permission) — fall back to static list
+  }
+  return discoveredModels;
+};
+
 export interface FallbackResult { response: any; model: string; }
 
 /**
@@ -66,9 +111,15 @@ export const generateWithFallback = async (
   params: any,
   preferred?: string
 ): Promise<FallbackResult> => {
-  const order = preferred
-    ? [preferred, ...GEMINI_MODELS.filter(m => m !== preferred)]
-    : GEMINI_MODELS;
+  // Prefer models the key ACTUALLY supports (discovered via ListModels), then the
+  // static list as a safety net. This adapts to whatever the user's key/region/API
+  // version exposes instead of guessing model strings that may not exist for them.
+  const discovered = await discoverModels(ai);
+  const order = Array.from(new Set([
+    ...(preferred ? [preferred] : []),
+    ...discovered,
+    ...GEMINI_MODELS,
+  ]));
 
   let lastErr: any = null;
   for (const model of order) {
