@@ -1,8 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, TrendingDown } from 'lucide-react';
+import { fetchStockHistory } from '../services/psxData';
 
 // Each entry: { rawDate, Portfolio, KSE100, KMI30 }  (daily return %)
-interface Props { data: any[]; }
+interface Props {
+  data: any[];
+  // Live "today" portfolio move (same number as the Today's P&L card). Optional.
+  portfolioTodayPct?: number | null;
+}
 
 type Win = '1D' | '1W' | '1M';
 
@@ -12,18 +17,59 @@ const posNeg = (v: number) => (v >= 0 ? 'text-emerald-600 dark:text-emerald-400'
 // Compound daily % returns into a cumulative % for the window.
 const cum = (rows: any[], key: string) => (rows.reduce((acc, d) => acc * (1 + (Number(d[key]) || 0) / 100), 1) - 1) * 100;
 
-export const BenchmarkPanel: React.FC<Props> = ({ data }) => {
+// Close-to-close % from a fetchStockHistory series (last vs previous point).
+const lastChangePct = (arr: { time: number; price: number }[] | undefined): number | null => {
+  if (!arr || arr.length < 2) return null;
+  const a = arr[arr.length - 1].price;
+  const b = arr[arr.length - 2].price;
+  return b > 0 ? ((a - b) / b) * 100 : null;
+};
+
+export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => {
   const [win, setWin] = useState<Win>('1M');
+  // Live today's index moves — same source as the Index bar, so the "Today" tab
+  // matches reality instead of the last (stale, end-of-day) row of the history.
+  const [live, setLive] = useState<{ kse: number | null; kmi: number | null }>({ kse: null, kmi: null });
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const [kse, kmi] = await Promise.all([
+          fetchStockHistory('KSE100', '1M'),
+          fetchStockHistory('KMI30', '1M'),
+        ]);
+        if (alive) setLive({ kse: lastChangePct(kse), kmi: lastChangePct(kmi) });
+      } catch { /* ignore — fall back to history */ }
+    })();
+    return () => { alive = false; };
+  }, []);
 
   const stats = useMemo(() => {
     const clean = (data || []).filter(d => d && d.rawDate);
-    const rows = win === '1D' ? clean.slice(-1) : win === '1W' ? clean.slice(-5) : clean;
+
+    // TODAY: prefer live numbers (portfolio from the Today's P&L card, indices from
+    // the live fetch). Fall back to the most recent history row if live data is missing.
+    if (win === '1D') {
+      const histPort = clean.length ? cum(clean.slice(-1), 'Portfolio') : null;
+      const histKse = clean.length ? cum(clean.slice(-1), 'KSE100') : null;
+      const histKmi = clean.length ? cum(clean.slice(-1), 'KMI30') : null;
+      const port = portfolioTodayPct ?? histPort;
+      const kse = live.kse ?? histKse;
+      const kmi = live.kmi ?? histKmi;
+      if (port == null && kse == null && kmi == null) return null;
+      const p = port ?? 0, k = kse ?? 0, m = kmi ?? 0;
+      return { port: p, kse: k, kmi: m, vsKse: p - k, vsKmi: p - m };
+    }
+
+    // 1 WEEK / 1 MONTH: compound the daily returns from the generated history.
+    const rows = win === '1W' ? clean.slice(-5) : clean;
     if (rows.length === 0) return null;
     const port = cum(rows, 'Portfolio');
     const kse = cum(rows, 'KSE100');
     const kmi = cum(rows, 'KMI30');
     return { port, kse, kmi, vsKse: port - kse, vsKmi: port - kmi };
-  }, [data, win]);
+  }, [data, win, live, portfolioTodayPct]);
 
   const chip = (active: boolean) => `px-3 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`;
 
@@ -69,7 +115,11 @@ export const BenchmarkPanel: React.FC<Props> = ({ data }) => {
               <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.vsKse)}`}>{spct(stats.vsKse)}</div>
             </div>
           </div>
-          <p className="text-[10px] text-slate-400 mt-3 leading-snug">Compounded daily returns over the selected window (from your generated history, up to ~1 month).</p>
+          <p className="text-[10px] text-slate-400 mt-3 leading-snug">
+            {win === '1D'
+              ? 'Live today: your portfolio move vs the latest KSE-100 / KMI-30 change.'
+              : 'Compounded daily returns over the selected window (from your generated history, up to ~1 month).'}
+          </p>
         </>
       )}
     </div>
