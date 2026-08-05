@@ -2,6 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Holding, PortfolioStats, RealizedTrade, Transaction } from '../types';
 import { fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks } from './psxData';
 import { fetchCompanyFundamentals, fetchDividendsForScan } from './financials';
+import { fetchBalanceSheetViaSearch, BalanceSheetYear } from './gemini';
 import { computeSignal, computeTradePlan } from '../utils/indicators';
 
 /* =============================================================================
@@ -42,6 +43,14 @@ STYLE
 - Format with short paragraphs or compact bullet lists. No large tables.
 - If the user asks something you have no tool for (e.g. macro news), say what you
   do and don't know rather than speculating.
+
+DATA SOURCES
+- PSX's official page publishes ONLY sales, profit after taxation and EPS. It has no
+  balance sheet, so book value, equity, liabilities, current assets/liabilities,
+  inventory and free cash flow come from secondary web sources.
+- When you cite a balance-sheet figure, name its source and note it should be
+  verified against the annual report. Never present a secondary figure as official.
+- If a figure genuinely isn't available, say "not available" — never estimate one.
 
 BOUNDARIES
 - You are a research assistant, not a financial advisor. Do not give direct
@@ -127,10 +136,13 @@ const functionDeclarations = [
   },
   {
     name: "get_company_fundamentals",
-    description: "Company financials from PSX for a symbol: sales, profit after tax, EPS, book value, equity and liabilities across recent periods.",
+    description: "Company financials for a PSX symbol. Returns the income statement (sales, profit after taxation, EPS, margins) from PSX's official page, PLUS balance-sheet items (book value per share, total equity, total/current assets and liabilities, inventory, free cash flow) gathered from secondary web sources, since PSX does not publish balance sheets. Always tell the user which figures came from PSX and which came from secondary sources.",
     parameters: {
       type: Type.OBJECT,
-      properties: { symbol: { type: Type.STRING } },
+      properties: {
+        symbol: { type: Type.STRING },
+        include_balance_sheet: { type: Type.BOOLEAN, description: "Set false to skip the slower web search and return only PSX income-statement data. Default true." },
+      },
       required: ["symbol"],
     },
   },
@@ -371,14 +383,38 @@ const executeTool = async (name: string, args: any, ctx: AgentContext): Promise<
     case "get_company_fundamentals": {
       const sym = String(args?.symbol || '').trim().toUpperCase();
       if (!sym) return { error: "No symbol provided." };
-      const f = await fetchCompanyFundamentals(sym);
-      if (!f) return { error: `Could not retrieve fundamentals for ${sym} from PSX.` };
+
+      // PSX is authoritative but ONLY publishes Sales / Profit after Taxation / EPS.
+      // Balance-sheet items must come from elsewhere, so we search for those in parallel.
+      const wantBalanceSheet = args?.include_balance_sheet !== false;
+      const [psx, searched] = await Promise.all([
+        fetchCompanyFundamentals(sym).catch(() => null),
+        wantBalanceSheet
+          ? fetchBalanceSheetViaSearch(sym).catch(() => [] as BalanceSheetYear[])
+          : Promise.resolve([] as BalanceSheetYear[]),
+      ]);
+
+      if (!psx && (!searched || searched.length === 0)) {
+        return { error: `Could not retrieve fundamentals for ${sym} from PSX or other sources.` };
+      }
+
       return {
         symbol: sym,
-        annual: f.annual.financials.slice(0, 5),
-        annual_ratios: f.annual.ratios.slice(0, 5),
-        quarterly: f.quarterly.financials.slice(0, 4),
-        note: "Figures scraped from the PSX company page; units are as reported.",
+        units: "Rupee amounts in thousands (000's) unless noted; EPS and book value are per share.",
+        income_statement_psx: psx ? {
+          annual: psx.annual.financials.slice(0, 5),
+          quarterly: psx.quarterly.financials.slice(0, 4),
+          ratios: psx.annual.ratios.slice(0, 5),
+          source: "dps.psx.com.pk (official)",
+        } : null,
+        balance_sheet: searched && searched.length ? {
+          years: searched.slice(0, 3),
+          source: "Web search (scstrade / annual reports / broker research)",
+          reliability: "Secondary sources — less reliable than PSX. Mention the source when citing these and flag that they should be verified against the annual report.",
+        } : null,
+        note: psx && (!searched || !searched.length)
+          ? "PSX only publishes Sales, Profit after Taxation and EPS — it has no balance-sheet data. Balance-sheet figures could not be found from other sources for this company; say so plainly rather than guessing."
+          : "PSX supplies the income statement; balance-sheet items come from secondary web sources.",
       };
     }
 
