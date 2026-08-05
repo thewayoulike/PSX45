@@ -2,7 +2,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { Holding, PortfolioStats, RealizedTrade, Transaction } from '../types';
 import { fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks } from './psxData';
 import { fetchCompanyFundamentals, fetchDividendsForScan } from './financials';
-import { fetchBalanceSheetViaSearch, BalanceSheetYear } from './gemini';
+import { fetchBalanceSheetViaSearch, BalanceSheetYear, generateWithFallback } from './gemini';
 import { computeSignal, computeTradePlan } from '../utils/indicators';
 
 /* =============================================================================
@@ -25,8 +25,6 @@ export interface AgentMessage {
   /** names of tools the agent ran to produce this answer (for the UI trace) */
   toolsUsed?: string[];
 }
-
-const MODEL = "gemini-2.5-flash";
 
 const SYSTEM_INSTRUCTION = `You are the PSX Assistant — an expert analyst for the Pakistan Stock Exchange, built into a user's own portfolio tracker.
 
@@ -462,16 +460,17 @@ export const runAgent = async (
 
   const toolsUsed: string[] = [];
   const MAX_STEPS = 6; // guard against runaway tool loops
+  let chosenModel: string | undefined; // reuse the first model that works
 
   for (let step = 0; step < MAX_STEPS; step++) {
-    const response: any = await ai.models.generateContent({
-      model: MODEL,
+    const { response, model } = await generateWithFallback(ai, {
       contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
         tools: [{ functionDeclarations: functionDeclarations as any }],
       },
-    });
+    }, chosenModel);
+    chosenModel = model;
 
     const calls = response.functionCalls;
 
