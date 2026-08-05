@@ -13,6 +13,7 @@ export const setGeminiApiKey = (key: string | null) => {
     userProvidedKey = key ? sanitizeKey(key) : null;
     aiClient = null;
     discoveredModels = null; // re-discover available models for the new key
+    deadModels.clear();      // forget which models were unavailable/quota-capped
 };
 
 const getApiKey = () => userProvidedKey;
@@ -34,25 +35,64 @@ export const GEMINI_MODELS: string[] = [
   'gemini-2.5-pro',            // paid, most capable — last resort
 ];
 
-// Should we give up on THIS model and try the next one? (availability/quota only)
-const shouldTryNextModel = (err: any): boolean => {
-  const code = err?.status ?? err?.code ?? err?.response?.status;
-  const msg = String(err?.message || err || '').toLowerCase();
-  if (code === 404 || code === 400 || code === 429) return true;
-  return (
-    msg.includes('not_found') ||
-    msg.includes('not found') ||
-    msg.includes('no longer available') ||
-    msg.includes('not available') ||
-    msg.includes('is not supported') ||
-    msg.includes('unsupported') ||
-    msg.includes('does not exist') ||
-    msg.includes('quota') ||
-    msg.includes('resource_exhausted') ||
-    msg.includes('overloaded') ||
-    msg.includes('unavailable')
-  );
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+const MAX_RETRY_WAIT_MS = 12000; // don't block the UI longer than this on a rate limit
+
+// Pull a retry delay (ms) out of a 429 message / RetryInfo, if present.
+const parseRetryMs = (msg: string): number | null => {
+  const m =
+    msg.match(/retry in ([\d.]+)\s*s/i) ||
+    msg.match(/retryDelay["'\s:]+([\d.]+)s/i);
+  return m ? Math.ceil(parseFloat(m[1]) * 1000) : null;
 };
+
+type ErrKind = 'auth' | 'permanent' | 'ratelimit' | 'other';
+interface ErrInfo { kind: ErrKind; retryMs?: number | null; }
+
+// Classify a failed generateContent call so we know how to react.
+const classifyError = (err: any): ErrInfo => {
+  const code = err?.status ?? err?.code ?? err?.response?.status;
+  const msg = String(err?.message || err || '');
+  const low = msg.toLowerCase();
+
+  // Bad key / no access — pointless to try other models.
+  if (code === 401 || code === 403 ||
+      low.includes('api key') || low.includes('api_key') ||
+      low.includes('permission denied') || low.includes('unauthenticated')) {
+    return { kind: 'auth' };
+  }
+
+  // Quota / rate limit.
+  if (code === 429 || low.includes('resource_exhausted') || low.includes('quota')) {
+    // "limit: 0" -> model has NO quota on this tier (paid-only on a free key).
+    // A PER-DAY cap won't reset in seconds -> this model is done for today.
+    // Both mean: stop using this model and move to the next one.
+    if (/limit:\s*0\b/.test(low) || low.includes('perday') || low.includes('per day')) {
+      return { kind: 'permanent' };
+    }
+    // Per-minute / per-second cap -> a short wait then retry the SAME model works.
+    return { kind: 'ratelimit', retryMs: parseRetryMs(msg) };
+  }
+
+  // Model doesn't exist / not usable for this key.
+  if (code === 404 || code === 400 ||
+      low.includes('not_found') || low.includes('not found') ||
+      low.includes('no longer available') || low.includes('not available') ||
+      low.includes('is not supported') || low.includes('unsupported') ||
+      low.includes('does not exist')) {
+    return { kind: 'permanent' };
+  }
+
+  // Server hiccup — brief retry is worthwhile.
+  if (code === 500 || code === 503 || low.includes('overloaded') || low.includes('unavailable')) {
+    return { kind: 'ratelimit', retryMs: 1500 };
+  }
+
+  return { kind: 'other' };
+};
+
+// Models known to be unavailable for this key (limit:0 / not found) — skip them.
+const deadModels = new Set<string>();
 
 // Rank a model name: lower = tried earlier. Free/cheap flash-lite first, pro last,
 // stable ahead of preview/experimental. Used to order dynamically-discovered models.
@@ -119,22 +159,55 @@ export const generateWithFallback = async (
     ...(preferred ? [preferred] : []),
     ...discovered,
     ...GEMINI_MODELS,
-  ]));
+  ])).filter(m => !deadModels.has(m));
 
   let lastErr: any = null;
+  let lastRetryMs: number | null = null;
+  let sawQuota = false;
+
   for (const model of order) {
-    try {
-      const response = await ai.models.generateContent({ ...params, model });
-      return { response, model };
-    } catch (e: any) {
-      lastErr = e;
-      if (shouldTryNextModel(e)) continue; // availability/quota → next model
-      throw e;                             // auth / invalid request → stop
+    if (deadModels.has(model)) continue;
+
+    // Up to 2 attempts: the 2nd only happens after a short wait on a transient limit.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await ai.models.generateContent({ ...params, model });
+        return { response, model };
+      } catch (e: any) {
+        lastErr = e;
+        const info = classifyError(e);
+
+        if (info.kind === 'auth') throw e; // bad key — pointless to keep trying
+
+        if (info.kind === 'permanent') {
+          deadModels.add(model); // not available / out of daily quota — skip for the session
+          const low = String(e?.message || '').toLowerCase();
+          if (low.includes('quota') || low.includes('resource_exhausted')) sawQuota = true;
+          break; // next model
+        }
+
+        if (info.kind === 'ratelimit') {
+          lastRetryMs = info.retryMs ?? lastRetryMs;
+          if (attempt === 0 && info.retryMs && info.retryMs <= MAX_RETRY_WAIT_MS) {
+            await sleep(info.retryMs + 300);
+            continue; // retry the SAME model once
+          }
+          break; // give up on this model, try the next
+        }
+
+        break; // 'other' — try the next model
+      }
     }
   }
-  throw new Error(
-    `All Gemini models failed. Last error: ${lastErr?.message || lastErr || 'unknown'}`
-  );
+
+  // Everything failed — surface a clean, human message instead of raw API JSON.
+  if (lastRetryMs != null) {
+    throw new Error(`Gemini is rate-limiting your API key right now. Please wait about ${Math.max(1, Math.ceil(lastRetryMs / 1000))}s and try again.`);
+  }
+  if (sawQuota) {
+    throw new Error(`Your Gemini API key has hit its free-tier daily quota on every available model. Wait for the quota to reset (usually next day, Pacific time), or add billing to your Google AI Studio project for higher limits.`);
+  }
+  throw new Error(`All Gemini models failed. ${String(lastErr?.message || lastErr || 'unknown').slice(0, 300)}`);
 };
 
 const getAi = (): GoogleGenAI | null => {
