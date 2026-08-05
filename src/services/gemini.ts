@@ -16,6 +16,76 @@ export const setGeminiApiKey = (key: string | null) => {
 
 const getApiKey = () => userProvidedKey;
 
+/* ---------------------------------------------------------------------------
+   MODEL FALLBACK
+   Gemini periodically retires model strings (or blocks them for new API keys),
+   which returns a 404 NOT_FOUND. Rather than hard-code one model, we try a chain:
+   free / low-cost models first, paid ones last. "*-latest" aliases always point
+   at a current model, so they self-heal when Google rotates versions.
+   --------------------------------------------------------------------------- */
+export const GEMINI_MODELS: string[] = [
+  'gemini-flash-latest',       // free tier, always current — first choice
+  'gemini-flash-lite-latest',  // cheapest, free tier
+  'gemini-2.5-flash',          // works for existing keys
+  'gemini-2.5-flash-lite',     // free, budget
+  'gemini-3.5-flash',          // newer; may require billing
+  'gemini-3.5-flash-lite',
+    'gemini-3.6-flash',
+  'gemini-3.1-pro',            // paid, most capable — last resort
+];
+
+// Should we give up on THIS model and try the next one? (availability/quota only)
+const shouldTryNextModel = (err: any): boolean => {
+  const code = err?.status ?? err?.code ?? err?.response?.status;
+  const msg = String(err?.message || err || '').toLowerCase();
+  if (code === 404 || code === 400 || code === 429) return true;
+  return (
+    msg.includes('not_found') ||
+    msg.includes('not found') ||
+    msg.includes('no longer available') ||
+    msg.includes('not available') ||
+    msg.includes('is not supported') ||
+    msg.includes('unsupported') ||
+    msg.includes('does not exist') ||
+    msg.includes('quota') ||
+    msg.includes('resource_exhausted') ||
+    msg.includes('overloaded') ||
+    msg.includes('unavailable')
+  );
+};
+
+export interface FallbackResult { response: any; model: string; }
+
+/**
+ * Calls generateContent, trying each model in GEMINI_MODELS until one works.
+ * `preferred`, if given, is tried first (so a multi-step agent sticks with a
+ * model it already knows works). Auth / bad-request errors surface immediately.
+ */
+export const generateWithFallback = async (
+  ai: GoogleGenAI,
+  params: any,
+  preferred?: string
+): Promise<FallbackResult> => {
+  const order = preferred
+    ? [preferred, ...GEMINI_MODELS.filter(m => m !== preferred)]
+    : GEMINI_MODELS;
+
+  let lastErr: any = null;
+  for (const model of order) {
+    try {
+      const response = await ai.models.generateContent({ ...params, model });
+      return { response, model };
+    } catch (e: any) {
+      lastErr = e;
+      if (shouldTryNextModel(e)) continue; // availability/quota → next model
+      throw e;                             // auth / invalid request → stop
+    }
+  }
+  throw new Error(
+    `All Gemini models failed. Last error: ${lastErr?.message || lastErr || 'unknown'}`
+  );
+};
+
 const getAi = (): GoogleGenAI | null => {
     if (aiClient) return aiClient;
     const key = getApiKey();
@@ -123,8 +193,7 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
         ];
     }
 
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const { response } = await generateWithFallback(ai, {
       contents: { parts: parts },
       config: {
         responseMimeType: "application/json",
@@ -248,8 +317,7 @@ INSTRUCTIONS
 - Keep every "detail" to 1-2 sentences. Aim for 2-4 strengths, 2-4 risks, 2-4 ideas.`;
 
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
+    const { response } = await generateWithFallback(ai, {
       contents: prompt,
       config: {
         responseMimeType: "application/json",
@@ -342,8 +410,7 @@ export const fetchBalanceSheetViaSearch = async (
 
   const who = companyName ? `${companyName} (PSX: ${symbol})` : `PSX-listed company with ticker ${symbol}`;
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
+  const { response } = await generateWithFallback(ai, {
     contents: `Find the most recent audited balance sheet and cash-flow figures for ${who},
 listed on the Pakistan Stock Exchange.
 
@@ -395,8 +462,7 @@ export const fetchDividends = async (tickers: string[], months: number = 6): Pro
 
         const tickerList = tickers.join(", ");
         
-        const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+        const { response } = await generateWithFallback(ai, {
             contents: `Find all dividend announcements declared in the LAST ${months} MONTHS for these Pakistan Stock Exchange (PSX) tickers: ${tickerList}.
             Return ONLY a raw JSON array (no markdown) with objects:
             [{ "ticker": "ABC", "amount": 5.5, "exDate": "YYYY-MM-DD", "payoutDate": "YYYY-MM-DD", "type": "Interim", "period": "1st Quarter" }]
