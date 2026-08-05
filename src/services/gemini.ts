@@ -158,6 +158,236 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
   }
 };
 
+// ---------------------------------------------------------------------------
+// AI PORTFOLIO REVIEW
+// Sends a compact, anonymous snapshot of the portfolio (no names, no account
+// numbers — only tickers, weights and percentages) and asks Gemini for an
+// educational review. Output is structured JSON so the UI can render it safely.
+// ---------------------------------------------------------------------------
+
+export interface AiReviewPoint {
+  title: string;
+  detail: string;
+}
+
+export interface AiReviewRisk extends AiReviewPoint {
+  severity: 'HIGH' | 'MEDIUM' | 'LOW';
+}
+
+export interface AiPortfolioReview {
+  headline: string;
+  summary: string;
+  strengths: AiReviewPoint[];
+  risks: AiReviewRisk[];
+  ideas: AiReviewPoint[];
+  diversification: string;
+  generatedAt: string;
+}
+
+export interface AiPortfolioSnapshot {
+  totalValue: number;
+  totalCost: number;
+  unrealizedPLPercent: number;
+  realizedPL: number;
+  totalDividends: number;
+  totalFees: number;
+  freeCash: number;
+  cashPercent: number;
+  winRate: number | null;
+  closedTrades: number;
+  holdings: {
+    ticker: string;
+    sector: string;
+    weightPercent: number;
+    plPercent: number;
+  }[];
+  sectors: { sector: string; weightPercent: number }[];
+}
+
+export const analyzePortfolio = async (snap: AiPortfolioSnapshot): Promise<AiPortfolioReview> => {
+  const ai = getAi();
+  if (!ai) throw new Error("API Key missing. Please go to Settings → API Keys to add one.");
+
+  const n = (v: number) => Number(v || 0).toFixed(2);
+
+  const holdingLines = snap.holdings
+    .map(h => `- ${h.ticker} (${h.sector}): ${n(h.weightPercent)}% of portfolio, currently ${n(h.plPercent)}% P&L`)
+    .join('\n');
+  const sectorLines = snap.sectors
+    .map(s => `- ${s.sector}: ${n(s.weightPercent)}%`)
+    .join('\n');
+
+  const prompt = `You are an experienced equity portfolio analyst reviewing a retail investor's
+Pakistan Stock Exchange (PSX) portfolio. Give a clear, educational review in plain English.
+
+PORTFOLIO SNAPSHOT
+Total market value: PKR ${n(snap.totalValue)}
+Total invested (cost basis): PKR ${n(snap.totalCost)}
+Unrealized return: ${n(snap.unrealizedPLPercent)}%
+Realized P&L to date: PKR ${n(snap.realizedPL)}
+Dividends received: PKR ${n(snap.totalDividends)}
+Fees & taxes paid: PKR ${n(snap.totalFees)}
+Idle cash: PKR ${n(snap.freeCash)} (${n(snap.cashPercent)}% of net worth)
+Closed trades: ${snap.closedTrades}${snap.winRate != null ? `, win rate ${n(snap.winRate)}%` : ''}
+
+HOLDINGS (${snap.holdings.length})
+${holdingLines || '- none'}
+
+SECTOR EXPOSURE
+${sectorLines || '- none'}
+
+INSTRUCTIONS
+- Be specific and quantitative: name actual tickers and cite the real percentages above.
+- Focus on portfolio construction: concentration, sector balance, position sizing, cash drag,
+  fee efficiency, and the spread between realized and unrealized performance.
+- "risks" must be ranked with severity HIGH/MEDIUM/LOW, most serious first.
+- "ideas" are things the investor could consider researching or reviewing — frame them as
+  questions or areas to examine, NOT as buy/sell instructions or price targets.
+- Do NOT predict prices, do NOT promise returns, and do NOT tell the user to buy or sell
+  any specific stock. This is educational analysis, not investment advice.
+- Keep every "detail" to 1-2 sentences. Aim for 2-4 strengths, 2-4 risks, 2-4 ideas.`;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            headline: { type: Type.STRING, description: "One punchy sentence summarising the portfolio's state" },
+            summary: { type: Type.STRING, description: "2-3 sentence overview" },
+            diversification: { type: Type.STRING, description: "One or two sentences on how well spread the portfolio is" },
+            strengths: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: { title: { type: Type.STRING }, detail: { type: Type.STRING } },
+                required: ["title", "detail"]
+              }
+            },
+            risks: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  detail: { type: Type.STRING },
+                  severity: { type: Type.STRING, enum: ["HIGH", "MEDIUM", "LOW"] }
+                },
+                required: ["title", "detail", "severity"]
+              }
+            },
+            ideas: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: { title: { type: Type.STRING }, detail: { type: Type.STRING } },
+                required: ["title", "detail"]
+              }
+            }
+          },
+          required: ["headline", "summary", "strengths", "risks", "ideas", "diversification"]
+        }
+      }
+    });
+
+    if (!response.text) throw new Error("Empty response from AI.");
+    const parsed = JSON.parse(response.text);
+    return {
+      headline: parsed.headline || 'Portfolio review',
+      summary: parsed.summary || '',
+      diversification: parsed.diversification || '',
+      strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+      risks: Array.isArray(parsed.risks) ? parsed.risks : [],
+      ideas: Array.isArray(parsed.ideas) ? parsed.ideas : [],
+      generatedAt: new Date().toISOString(),
+    };
+  } catch (error: any) {
+    console.error("AI portfolio review failed:", error);
+    throw new Error(error?.message || "Failed to generate review.");
+  }
+};
+
+// ---------------------------------------------------------------------------
+// BALANCE-SHEET FUNDAMENTALS VIA SEARCH
+// The PSX company page only publishes Sales, Profit after Taxation and EPS —
+// it has NO balance-sheet rows. So book value, equity, liabilities, current
+// assets/liabilities, inventory and free cash flow can never be scraped there.
+// This uses Gemini with Google Search grounding to pull those figures from
+// other public sources (scstrade, annual reports, broker research, etc.).
+// ---------------------------------------------------------------------------
+
+export interface BalanceSheetYear {
+  period: string;              // e.g. "2024" or "FY2024"
+  bookValuePerShare?: string;
+  totalEquity?: string;
+  totalLiabilities?: string;
+  totalAssets?: string;
+  currentAssets?: string;
+  currentLiabilities?: string;
+  inventory?: string;
+  freeCashFlow?: string;
+  sales?: string;
+  source?: string;             // where the figure came from
+}
+
+export const fetchBalanceSheetViaSearch = async (
+  symbol: string,
+  companyName?: string
+): Promise<BalanceSheetYear[]> => {
+  const ai = getAi();
+  if (!ai) throw new Error("API Key missing.");
+
+  const who = companyName ? `${companyName} (PSX: ${symbol})` : `PSX-listed company with ticker ${symbol}`;
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: `Find the most recent audited balance sheet and cash-flow figures for ${who},
+listed on the Pakistan Stock Exchange.
+
+Search sources such as scstrade.com, the company's own annual report / investor relations page,
+Capital Stake, and Pakistani broker research. Cross-check where possible.
+
+Return ONLY a raw JSON array (no markdown fences) covering the last 2-3 fiscal years, newest first:
+[{
+  "period": "2024",
+  "sales": "123,456",
+  "bookValuePerShare": "85.20",
+  "totalEquity": "45,000,000",
+  "totalLiabilities": "22,000,000",
+  "totalAssets": "67,000,000",
+  "currentAssets": "30,000,000",
+  "currentLiabilities": "18,000,000",
+  "inventory": "9,000,000",
+  "freeCashFlow": "4,500,000",
+  "source": "scstrade.com"
+}]
+
+RULES
+- State units consistently: report rupee amounts in THOUSANDS (000's), like PSX does, and say so in "source" if the source used a different unit.
+- bookValuePerShare is per share in PKR (break-up value), not in thousands.
+- OMIT any field you cannot verify — do NOT guess, estimate or fabricate a number.
+- If you cannot find reliable data at all, return an empty array [].
+- Always fill "source" with the site or document the figures came from.`,
+    config: {
+      tools: [{ googleSearch: {} }]
+    }
+  });
+
+  const text = response.text;
+  if (!text) return [];
+  const jsonString = extractJsonArray(text);
+  if (!jsonString) return [];
+  try {
+    const parsed = JSON.parse(jsonString);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+};
+
 export const fetchDividends = async (tickers: string[], months: number = 6): Promise<DividendAnnouncement[]> => {
     try {
         const ai = getAi(); 
