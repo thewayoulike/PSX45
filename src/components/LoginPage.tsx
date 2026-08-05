@@ -228,12 +228,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 flex items-center justify-center mb-4">
                 <Sparkles size={20} />
               </div>
-              <h3 className="font-display font-black text-lg tracking-tight mb-2">Optional AI Insights</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Add your own Gemini key for AI-assisted research.</p>
+              <h3 className="font-display font-black text-lg tracking-tight mb-2">PSX AI Assistant</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Ask questions about your portfolio — it looks up live data before answering.</p>
               <ul className="space-y-2">
+                <Check>Reads your real holdings</Check>
+                <Check>Live prices &amp; technicals</Check>
                 <Check>Bring your own API key</Check>
-                <Check>Billing stays yours</Check>
-                <Check>Entirely optional</Check>
               </ul>
             </div>
           </div>
