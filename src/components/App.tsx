@@ -10,6 +10,7 @@ import { PortfolioSummary } from './PortfolioSummary';
 import { TopHoldings } from './TopHoldings';
 import { IndexBar } from './IndexBar';
 import { BenchmarkPanel } from './BenchmarkPanel';
+import { AiAgent } from './AiAgent';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
@@ -54,7 +55,7 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -1183,6 +1184,18 @@ const App: React.FC = () => {
                                   onDeleteMultiple={handleDeleteTransactions}
                                   onEdit={handleEditClick}
                                   googleSheetId={googleSheetId}
+                              />
+                          </div>
+                      )}
+                      {currentView === 'AI_AGENT' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <AiAgent
+                                  holdings={holdings}
+                                  stats={stats}
+                                  realizedTrades={realizedTrades}
+                                  transactions={portfolioTransactions}
+                                  apiKey={userApiKey}
+                                  onOpenApiKeys={() => setCurrentView('API_KEYS' as AppView)}
                               />
                           </div>
                       )}
