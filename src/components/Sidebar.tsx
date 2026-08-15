@@ -243,7 +243,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full flex items-center justify-between px-3 mb-1.5 font-display font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 uppercase tracking-widest text-[11px] transition-colors outline-none"
                   >
                     <span className="flex items-center gap-2">
-                      <span className={`shrink-0 ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`}><group.Icon size={15} /></span>
+                      <span className={`shrink-0 ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`}><group.Icon size={22} /></span>
                       {group.label}
                     </span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
