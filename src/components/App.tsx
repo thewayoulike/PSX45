@@ -198,6 +198,9 @@ const App: React.FC = () => {
 
   const isReadyToSave = useRef(false);
   const initialSyncDone = useRef(false);
+  // When the user explicitly picks Guest Mode we must ignore any Google session
+  // that silently restores afterwards, otherwise it would auto-log them back in.
+  const guestModeRef = useRef(false);
 
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
@@ -233,7 +236,16 @@ const App: React.FC = () => {
   });
 
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
-  const handleLogin = () => signInWithDrive();
+  // Explicit Google sign-in — clears guest mode so the auth callback is honoured.
+  const handleLogin = () => { guestModeRef.current = false; signInWithDrive(); };
+
+  // Explicit Guest Mode — enter locally and block any silent Google restore.
+  const handleGuestLogin = () => {
+      guestModeRef.current = true;
+      setDriveUser(null);
+      setIsAuthChecking(false);
+      setShowLogin(false);
+  };
 
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
@@ -249,6 +261,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
       initDriveAuth(async (user) => {
+          // User chose Guest Mode — ignore a silently-restored Google session.
+          if (guestModeRef.current) { setIsAuthChecking(false); return; }
           setDriveUser(user);
           setIsAuthChecking(false);
           setShowLogin(false);
@@ -887,7 +901,7 @@ const App: React.FC = () => {
   };
 
   if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
-  if (showLogin) return <LoginPage onGuestLogin={() => setShowLogin(false)} onGoogleLogin={handleLogin} />;
+  if (showLogin) return <LoginPage onGuestLogin={handleGuestLogin} onGoogleLogin={handleLogin} />;
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
   const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
