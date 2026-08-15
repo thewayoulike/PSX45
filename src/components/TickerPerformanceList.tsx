@@ -53,6 +53,8 @@ interface TickerPerformanceListProps {
   sectors: Record<string, string>;
   listedInMap?: Record<string, string>; // Pass the dynamic tags here
   onTickerClick: (ticker: string) => void;
+  mode?: 'STOCK' | 'SECTOR';                 // drive Stock/Sector from the sidebar
+  onModeChange?: (mode: 'STOCK' | 'SECTOR') => void; // keep sidebar highlight in sync
 }
 
 interface ActivityRow extends Transaction {
@@ -115,7 +117,7 @@ const getHoldingDuration = (dateStr: string) => {
 };
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
-  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick
+  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick, mode, onModeChange
 }) => {
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
       return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
@@ -425,9 +427,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const switchToStockMode = (ticker?: string) => { 
-      setAnalysisMode('STOCK'); 
-      localStorage.setItem('psx_analyzer_mode', 'STOCK'); 
+  const switchToStockMode = (ticker?: string) => {
+      setAnalysisMode('STOCK');
+      onModeChange?.('STOCK');
+      localStorage.setItem('psx_analyzer_mode', 'STOCK');
       const targetTicker = ticker || localStorage.getItem('psx_last_analyzed_ticker') || '';
       if (targetTicker) {
           setSelectedTicker(targetTicker);
@@ -437,7 +440,15 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       setIsDropdownOpen(false); 
   };
 
-  const switchToSectorMode = () => { setAnalysisMode('SECTOR'); localStorage.setItem('psx_analyzer_mode', 'SECTOR'); const lastSector = localStorage.getItem('psx_last_analyzed_sector'); setSearchTerm(lastSector || ''); setIsDropdownOpen(false); };
+  const switchToSectorMode = () => { setAnalysisMode('SECTOR'); onModeChange?.('SECTOR'); localStorage.setItem('psx_analyzer_mode', 'SECTOR'); const lastSector = localStorage.getItem('psx_last_analyzed_sector'); setSearchTerm(lastSector || ''); setIsDropdownOpen(false); };
+
+  // Let the sidebar (Profile → Stocks / Sector) drive the analysis mode.
+  useEffect(() => {
+      if (!mode || mode === analysisMode) return;
+      if (mode === 'SECTOR') switchToSectorMode();
+      else switchToStockMode();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode]);
   const handleSelect = (val: string) => { if (analysisMode === 'STOCK') { setSelectedTicker(val); localStorage.setItem('psx_last_analyzed_ticker', val); } else { setSelectedSector(val); localStorage.setItem('psx_last_analyzed_sector', val); } setSearchTerm(val); setIsDropdownOpen(false); };
   const handleClearSelection = (e: React.MouseEvent) => { e.stopPropagation(); setSearchTerm(''); if (analysisMode === 'STOCK') { setSelectedTicker(null); localStorage.removeItem('psx_last_analyzed_ticker'); } else { setSelectedSector(null); localStorage.removeItem('psx_last_analyzed_sector'); } };
 
