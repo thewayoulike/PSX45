@@ -39,16 +39,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const isProfileView = currentView === 'STOCKS' || currentView === 'SECTOR';
 
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ Menu: true, Tools: true, Reports: true, Settings: false });
+  // Which group each view belongs to (so we can auto-open the active one).
+  const groupOfView: Record<string, string> = {
+    DASHBOARD: 'Menu', HOLDINGS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
+    SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools',
+    REALIZED: 'Reports', HISTORY: 'Reports',
+    BROKERS: 'Settings', API_KEYS: 'Settings',
+  };
+
+  // Everything collapsed by default — only the group holding the active view is open.
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
+    const base = { Menu: false, Tools: false, Reports: false, Settings: false } as Record<string, boolean>;
+    const g = groupOfView[currentView];
+    if (g) base[g] = true;
+    return base;
+  });
   const [profileOpen, setProfileOpen] = useState(isProfileView);
 
-  // Auto-expand the Profile sub-menu (and its group) when its page is active.
+  // Keep the active group (and Profile sub-menu) open as the view changes,
+  // without forcing the others shut.
   useEffect(() => {
-    if (isProfileView) {
-      setProfileOpen(true);
-      setOpenGroups(g => ({ ...g, Menu: true }));
-    }
-  }, [isProfileView]);
+    const g = groupOfView[currentView];
+    if (g) setOpenGroups(prev => ({ ...prev, [g]: true }));
+    if (isProfileView) setProfileOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentView, isProfileView]);
 
   const groups: NavGroup[] = [
     {
