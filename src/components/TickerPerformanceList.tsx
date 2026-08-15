@@ -512,11 +512,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               </p>
           </div>
 
-          <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl mb-6 shadow-inner border border-slate-200/60 dark:border-slate-700/60">
-              <button onClick={() => switchToStockMode()} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${analysisMode === 'STOCK' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <LayoutList size={16} /> Stock </button>
-              <button onClick={switchToSectorMode} className={`flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-bold transition-all ${analysisMode === 'SECTOR' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Layers size={16} /> Sector </button>
-          </div>
-
           <div className="relative w-full max-w-md" ref={dropdownRef}>
               <div className="flex items-center glass-input rounded-2xl px-4 py-3.5 shadow-sm focus-within:ring-2 focus-within:ring-emerald-500/20 focus-within:border-emerald-500 transition-all cursor-text" onClick={() => setIsDropdownOpen(true)}>
                   <Search size={18} className="text-slate-400 mr-3 shrink-0" />
