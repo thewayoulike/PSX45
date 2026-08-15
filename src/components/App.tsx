@@ -56,7 +56,7 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -1192,7 +1192,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      {currentView === 'STOCKS' && (
+                      {(currentView === 'STOCKS' || currentView === 'SECTOR') && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <TickerPerformanceList
                                   transactions={portfolioTransactions}
@@ -1200,6 +1200,8 @@ const App: React.FC = () => {
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
+                                  mode={currentView === 'SECTOR' ? 'SECTOR' : 'STOCK'}
+                                  onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
                           </div>
                       )}
