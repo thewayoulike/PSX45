@@ -11,6 +11,7 @@ import { TopHoldings } from './TopHoldings';
 import { IndexBar } from './IndexBar';
 import { BenchmarkPanel } from './BenchmarkPanel';
 import { AiAgent } from './AiAgent';
+import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
@@ -55,7 +56,7 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -146,6 +147,13 @@ const App: React.FC = () => {
           if (saved) return JSON.parse(saved);
       } catch (e) {}
       return {};
+  });
+  const [watchlist, setWatchlist] = useState<string[]>(() => {
+      try {
+          const saved = localStorage.getItem('psx_watchlist');
+          if (saved) return JSON.parse(saved);
+      } catch (e) {}
+      return [];
   });
   const [ldcpMap, setLdcpMap] = useState<Record<string, number>>(() => {
       try {
@@ -278,6 +286,7 @@ const App: React.FC = () => {
                       setTransactions(cleanTx);
                   }
                   if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
+                  if (Array.isArray(cloudData.watchlist)) setWatchlist(cloudData.watchlist);
                   if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap);
                   if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
                   if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
@@ -326,9 +335,19 @@ const App: React.FC = () => {
       if (driveUser) {
           saveToDrive({
               transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers,
-              sectorOverrides, scannerState, performanceHistory, fairValueCache, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
+              sectorOverrides, scannerState, performanceHistory, fairValueCache, watchlist, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
           });
       }
+  };
+
+  const handleAddToWatchlist = (ticker: string) => {
+      const t = ticker.trim().toUpperCase();
+      if (!t) return;
+      setWatchlist(prev => (prev.includes(t) ? prev : [...prev, t]));
+  };
+  const handleRemoveFromWatchlist = (ticker: string) => {
+      const t = ticker.toUpperCase();
+      setWatchlist(prev => prev.filter(x => x.toUpperCase() !== t));
   };
 
   const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
@@ -700,6 +719,7 @@ const App: React.FC = () => {
           localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
           localStorage.setItem('psx_performance_history', JSON.stringify(performanceHistory));
           localStorage.setItem('psx_fair_value_cache', JSON.stringify(fairValueCache));
+          localStorage.setItem('psx_watchlist', JSON.stringify(watchlist));
       }
 
       if (driveUser && isReadyToSave.current) {
@@ -717,6 +737,7 @@ const App: React.FC = () => {
                   scannerState,
                   performanceHistory,
                   fairValueCache,
+                  watchlist,
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
                   webScrapingAIKey: userWebScrapingAIKey
@@ -729,7 +750,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -1198,6 +1219,17 @@ const App: React.FC = () => {
                                   onDeleteMultiple={handleDeleteTransactions}
                                   onEdit={handleEditClick}
                                   googleSheetId={googleSheetId}
+                              />
+                          </div>
+                      )}
+                      {currentView === 'WATCHLIST' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <Watchlist
+                                  watchlist={watchlist}
+                                  onAdd={handleAddToWatchlist}
+                                  onRemove={handleRemoveFromWatchlist}
+                                  onSelectTicker={(t) => setViewTicker(t)}
+                                  seedPrices={manualPrices}
                               />
                           </div>
                       )}
