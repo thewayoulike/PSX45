@@ -4,7 +4,7 @@ import {
   LayoutDashboard, History, PieChart, Activity, Bell, Calculator, 
   LineChart, Settings, Briefcase, Key, X, ChevronDown, 
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2,
-  FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles
+  FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 
@@ -35,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'STOCKS', label: 'Stock Analyzer', icon: <ChartCandlestick size={22} /> },
     { id: 'REALIZED', label: 'Realized P&L', icon: <CheckCircle2 size={22} /> }, 
     { id: 'HISTORY', label: 'History', icon: <History size={22} /> },
+    { id: 'WATCHLIST', label: 'Watchlist', icon: <Star size={22} /> },
     { id: 'SIGNALS', label: 'Market Signals', icon: <Radar size={22} /> },
     { id: 'AI_AGENT', label: 'PSX Assistant', icon: <Sparkles size={22} /> },
     { id: 'ALERTS', label: 'Price Alerts', icon: <Bell size={22} /> },
