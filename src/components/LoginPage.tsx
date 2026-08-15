@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Logo } from './ui/Logo';
 import {
   User, LayoutDashboard, Radar, BellRing, Coins, Calculator, LineChart,
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
-  Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target
+  Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target,
+  Mail, Send, Loader2, AlertCircle, UserPlus
 } from 'lucide-react';
+
+const WEB3FORMS_ACCESS_KEY = import.meta.env.VITE_WEB3FORMS_KEY || '';
 
 interface LoginPageProps {
   onGuestLogin: () => void;
@@ -53,6 +56,48 @@ const SectionHead: React.FC<{ eyebrow: string; title: string; sub?: string }> = 
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogin }) => {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+
+  // ---- Request Access form (emails the owner via Web3Forms) ----
+  const [form, setForm] = useState({ name: '', email: '', message: '' });
+  const [reqStatus, setReqStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [reqMsg, setReqMsg] = useState('');
+
+  const submitRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim() || !form.email.trim()) {
+      setReqStatus('error'); setReqMsg('Please enter your name and Gmail address.'); return;
+    }
+    if (!WEB3FORMS_ACCESS_KEY) {
+      setReqStatus('error'); setReqMsg('Signup is not configured yet. Please contact the owner directly.'); return;
+    }
+    setReqStatus('loading'); setReqMsg('');
+    try {
+      const res = await fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({
+          access_key: WEB3FORMS_ACCESS_KEY,
+          subject: 'New PSX Tracker access request',
+          from_name: 'PSX Tracker Signup',
+          name: form.name,
+          email: form.email,          // the Gmail they want to sign in with
+          message: form.message || '(no message)',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.success) {
+        setReqStatus('success');
+        setReqMsg("Request sent! Once you're approved you'll be able to sign in with that Gmail.");
+        setForm({ name: '', email: '', message: '' });
+      } else {
+        setReqStatus('error');
+        setReqMsg(data.message || 'Could not send your request. Please try again.');
+      }
+    } catch (err: any) {
+      setReqStatus('error');
+      setReqMsg(err?.message || 'Network error — please try again.');
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] font-sans text-slate-900 dark:text-white selection:bg-emerald-200 dark:selection:bg-emerald-900 overflow-x-hidden">
@@ -350,6 +395,70 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
                 Start using it immediately. Data is stored locally on this device.
               </p>
             </button>
+          </div>
+
+          {/* ---- Request Access (new users) ---- */}
+          <div className="mt-8 max-w-xl mx-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 rounded-3xl shadow-sm p-7">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-500/20 flex items-center justify-center shrink-0">
+                <UserPlus size={20} />
+              </div>
+              <div>
+                <h3 className="text-lg font-display font-black tracking-tight">New here? Request access</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">Send your details — once approved you can sign in with your Gmail.</p>
+              </div>
+            </div>
+
+            {reqStatus === 'success' ? (
+              <div className="mt-4 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 flex items-start gap-2.5 text-emerald-700 dark:text-emerald-400">
+                <CheckCircle2 size={18} className="shrink-0 mt-0.5" />
+                <span className="text-sm font-semibold leading-snug">{reqMsg}</span>
+              </div>
+            ) : (
+              <form onSubmit={submitRequest} className="mt-4 space-y-3">
+                <div className="grid sm:grid-cols-2 gap-3">
+                  <div className="relative">
+                    <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      value={form.name}
+                      onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setReqStatus('idle'); }}
+                      placeholder="Your name"
+                      className="w-full pl-10 pr-3 py-3 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
+                    />
+                  </div>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="email"
+                      value={form.email}
+                      onChange={e => { setForm(f => ({ ...f, email: e.target.value })); setReqStatus('idle'); }}
+                      placeholder="Your Gmail address"
+                      className="w-full pl-10 pr-3 py-3 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all"
+                    />
+                  </div>
+                </div>
+                <textarea
+                  value={form.message}
+                  onChange={e => { setForm(f => ({ ...f, message: e.target.value })); setReqStatus('idle'); }}
+                  placeholder="Anything you'd like to add (optional)"
+                  rows={3}
+                  className="w-full px-4 py-3 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 dark:text-white transition-all resize-none"
+                />
+                {reqStatus === 'error' && (
+                  <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400">
+                    <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                    <span className="text-sm font-medium">{reqMsg}</span>
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={reqStatus === 'loading'}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white font-bold py-3 rounded-xl shadow-md shadow-indigo-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2"
+                >
+                  {reqStatus === 'loading' ? <><Loader2 size={18} className="animate-spin" /> Sending…</> : <><Send size={17} /> Request access</>}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </section>
