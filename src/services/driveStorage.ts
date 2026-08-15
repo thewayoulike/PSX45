@@ -174,7 +174,13 @@ export const getValidToken = async (): Promise<string | null> => {
     }
 
     if (!tokenClient) return null;
-    
+
+    // Never pop the Google sign-in prompt for someone who hasn't signed in
+    // (e.g. Guest Mode). Only silently refresh a token for an already-authenticated
+    // user — otherwise Google-Sheets features would force guests to log in.
+    const hasSignedIn = !!localStorage.getItem(STORAGE_USER_KEY);
+    if (!hasSignedIn) return null;
+
     return new Promise((resolve) => {
         refreshTokenResolver = resolve;
         tokenClient.requestAccessToken({ prompt: '' });
