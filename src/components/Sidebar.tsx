@@ -190,13 +190,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div className="space-y-1">
               {groups.map((group, gi) => {
                 const open = openGroups[group.key];
-                const leaves = group.items.flatMap(it =>
-                  it.children ? it.children : [{ id: it.id as AppView, label: it.label, icon: it.icon, alert: it.alert }]
-                );
                 return (
                   <div key={group.key}>
                     {gi > 0 && <div className="my-1.5 mx-3 border-t border-slate-100 dark:border-slate-800/60" />}
-                    {/* Group toggle (icon = section, small chevron shows state) */}
+                    {/* Group toggle (section icon + small chevron shows state) */}
                     <button
                       onClick={() => toggleGroup(group.key)}
                       title={`${group.label} — ${open ? 'collapse' : 'expand'}`}
@@ -205,9 +202,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       <span className={`relative ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : ''}`}>{group.icon}</span>
                       <ChevronDown size={11} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
                     </button>
-                    {/* Group items (icons) */}
+                    {/* Group items (icons). Profile stays a single icon that expands to its children. */}
                     <div className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${open ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-                      {leaves.map(leaf => <NavButton key={leaf.id} item={leaf} />)}
+                      {group.items.map(item => {
+                        if (item.children) {
+                          const parentActive = isProfileView;
+                          return (
+                            <div key={item.id}>
+                              <button
+                                onClick={() => setProfileOpen(o => !o)}
+                                title={`${item.label} — ${profileOpen ? 'collapse' : 'expand'}`}
+                                className={`w-full flex items-center justify-center gap-0.5 py-2.5 rounded-xl transition-all outline-none ${parentActive ? 'bg-emerald-50/80 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
+                              >
+                                <span className={parentActive ? 'text-emerald-500 dark:text-emerald-400' : ''}>{item.icon}</span>
+                                <ChevronDown size={10} className={`transition-transform duration-200 ${profileOpen ? 'rotate-180' : ''}`} />
+                              </button>
+                              <div className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${profileOpen ? 'max-h-40 opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                                {item.children.map(child => <NavButton key={child.id} item={child} />)}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return <NavButton key={item.id} item={item as Leaf} settings={group.key === 'Settings'} />;
+                      })}
                     </div>
                   </div>
                 );
@@ -223,7 +240,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {/* Group header */}
                   <button
                     onClick={() => toggleGroup(group.key)}
-                    className="w-full flex items-center justify-between px-3 mb-1.5 font-display font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 uppercase tracking-widest text-[10px] transition-colors outline-none"
+                    className="w-full flex items-center justify-between px-3 mb-1.5 font-display font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 uppercase tracking-widest text-[11px] transition-colors outline-none"
                   >
                     <span className="flex items-center gap-2">
                       <span className={`shrink-0 ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`}>{group.icon}</span>
