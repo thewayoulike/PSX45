@@ -5,7 +5,7 @@ import {
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  LayoutGrid, Wrench, BarChart3
+  Compass, Wrench, BarChart3
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 
@@ -31,7 +31,7 @@ interface NavItem {
   alert?: boolean;
   children?: Leaf[];
 }
-interface NavGroup { key: string; label: string; icon: React.ReactNode; gear?: boolean; items: NavItem[]; }
+interface NavGroup { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }>; gear?: boolean; items: NavItem[]; }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView, onViewChange, isOpen, onClose,
@@ -68,7 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const groups: NavGroup[] = [
     {
-      key: 'Menu', label: 'Menu', icon: <LayoutGrid size={14} />, items: [
+      key: 'Menu', label: 'Menu', Icon: Compass, items: [
         { id: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={22} /> },
         { id: 'HOLDINGS', label: 'Holdings', icon: <FolderOpen size={22} /> },
         {
@@ -80,7 +80,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      key: 'Tools', label: 'Tools', icon: <Wrench size={14} />, items: [
+      key: 'Tools', label: 'Tools', Icon: Wrench, items: [
         { id: 'SIGNALS', label: 'Market Signals', icon: <Radar size={22} /> },
         { id: 'WATCHLIST', label: 'Watchlist', icon: <Star size={22} /> },
         { id: 'ALERTS', label: 'Price Alerts', icon: <Bell size={22} /> },
@@ -90,13 +90,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      key: 'Reports', label: 'Reports', icon: <BarChart3 size={14} />, items: [
+      key: 'Reports', label: 'Reports', Icon: BarChart3, items: [
         { id: 'REALIZED', label: 'Realized P&L', icon: <CheckCircle2 size={22} /> },
         { id: 'HISTORY', label: 'History', icon: <History size={22} /> },
       ]
     },
     {
-      key: 'Settings', label: 'Settings', icon: <Settings size={14} />, gear: true, items: [
+      key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
         { id: 'BROKERS', label: 'Broker Setup', icon: <Briefcase size={22} /> },
         { id: 'API_KEYS', label: 'API Keys', icon: <Key size={22} />, alert: !hasApiKeys },
       ]
@@ -199,7 +199,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       title={`${group.label} — ${open ? 'collapse' : 'expand'}`}
                       className={`w-full flex items-center justify-center gap-0.5 py-2 rounded-xl transition-all outline-none ${open ? 'text-slate-600 dark:text-slate-300' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800/50'}`}
                     >
-                      <span className={`relative ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : ''}`}>{group.icon}</span>
+                      <span className={`relative ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : ''}`}><group.Icon size={22} /></span>
                       <ChevronDown size={11} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
                     </button>
                     {/* Group items (icons). Profile stays a single icon that expands to its children. */}
@@ -243,7 +243,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     className="w-full flex items-center justify-between px-3 mb-1.5 font-display font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 uppercase tracking-widest text-[11px] transition-colors outline-none"
                   >
                     <span className="flex items-center gap-2">
-                      <span className={`shrink-0 ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`}>{group.icon}</span>
+                      <span className={`shrink-0 ${group.gear && !hasApiKeys && !open ? 'text-rose-500 animate-pulse' : 'text-slate-400 dark:text-slate-500'}`}><group.Icon size={15} /></span>
                       {group.label}
                     </span>
                     <ChevronDown size={14} className={`transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
