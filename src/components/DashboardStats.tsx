@@ -340,7 +340,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           <PanelCell
             label="Net Invested"
             value={rs0(stats.netPrincipal)}
-            sub={`Peak: ${rs0(stats.peakNetPrincipal)}`}
+            sub={`Peak: ${rs0(stats.peakNetPrincipal)}${(stats.dividendReinvested || 0) > 0 ? ` · incl. ${rs0(stats.dividendReinvested || 0)} reinvested` : ''}`}
           />
           <PanelCell
             label="Cost Basis"
