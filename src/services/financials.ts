@@ -344,3 +344,116 @@ export const fetchCompanyAnnouncements = async (ticker: string): Promise<Company
     return [];
   }
 };
+
+// --- Upcoming Board Meetings (market-wide) -------------------------------
+// Source: public "BoardMeetings" tab of the X-Dates workbook (gid 516127681).
+// Columns: company_code, company_name, sector_name, bm_date, bm_time, bm_place,
+//          bm_year, bm_quarter_number
+export interface BoardMeeting {
+  ticker: string;
+  name: string;
+  sector: string;
+  date: Date;
+  time: string;    // e.g. "9.30 A.M"
+  place: string;   // e.g. "Lahore"
+  quarter: string; // bm_quarter_number (often blank)
+  daysTo: number;
+}
+
+const BOARD_MEETINGS_CSV =
+  'https://docs.google.com/spreadsheets/d/1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g/gviz/tq?tqx=out:csv&gid=516127681';
+
+// Minimal CSV parser that respects quoted fields and escaped quotes ("").
+const parseCSV = (text: string): string[][] => {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = '';
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else inQuotes = false;
+      } else field += c;
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ',') {
+      row.push(field); field = '';
+    } else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i + 1] === '\n') i++;
+      row.push(field); field = '';
+      if (row.length > 1 || row[0] !== '') rows.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows;
+};
+
+// Parse "M/D/YYYY" (as stored in the sheet) into a local Date, or null.
+const parseSheetDate = (s: string): Date | null => {
+  const parts = (s || '').trim().split('/');
+  if (parts.length !== 3) return null;
+  const m = parseInt(parts[0], 10);
+  const d = parseInt(parts[1], 10);
+  const y = parseInt(parts[2], 10);
+  if (!m || !d || !y) return null;
+  const dt = new Date(y, m - 1, d);
+  dt.setHours(0, 0, 0, 0);
+  return isNaN(dt.getTime()) ? null : dt;
+};
+
+export const fetchBoardMeetings = async (): Promise<BoardMeeting[]> => {
+  try {
+    const raw = await fetchUrlWithFallback(BOARD_MEETINGS_CSV);
+    if (!raw) return [];
+
+    const rows = parseCSV(raw);
+    if (rows.length < 2) return [];
+
+    const header = rows[0].map(h => h.trim().toLowerCase());
+    const idx = (name: string) => header.indexOf(name);
+    const ci = {
+      code: idx('company_code'),
+      name: idx('company_name'),
+      sector: idx('sector_name'),
+      date: idx('bm_date'),
+      time: idx('bm_time'),
+      place: idx('bm_place'),
+      quarter: idx('bm_quarter_number'),
+    };
+    if (ci.code === -1 || ci.date === -1) return [];
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const out: BoardMeeting[] = [];
+    for (let i = 1; i < rows.length; i++) {
+      const r = rows[i];
+      const ticker = (r[ci.code] || '').trim().toUpperCase();
+      if (!ticker) continue;
+      const date = parseSheetDate(r[ci.date] || '');
+      if (!date) continue;
+      const daysTo = Math.round((date.getTime() - today.getTime()) / 864e5);
+      out.push({
+        ticker,
+        name: (r[ci.name] || '').trim(),
+        sector: (r[ci.sector] || '').trim(),
+        date,
+        time: (r[ci.time] || '').trim().replace(/\s+/g, ' '),
+        place: (r[ci.place] || '').trim(),
+        quarter: ci.quarter !== -1 ? (r[ci.quarter] || '').trim() : '',
+        daysTo,
+      });
+    }
+
+    // Keep upcoming (today onwards), soonest first.
+    return out
+      .filter(m => m.daysTo >= 0)
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  } catch (e) {
+    console.error('fetchBoardMeetings failed', e);
+    return [];
+  }
+};
