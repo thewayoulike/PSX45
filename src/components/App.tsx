@@ -42,7 +42,7 @@ import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
-import { getAuthUser, isApproved, signOutAuth, AppAuthUser } from '../services/auth';
+import { getAuthUser, checkApproval, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { calculateXIRR } from '../utils/finance';
 
@@ -261,12 +261,15 @@ const App: React.FC = () => {
       setShowLogin(false);
   };
 
+  // A Google user who authenticated but isn't approved yet (blocks entry).
+  const [accessPendingEmail, setAccessPendingEmail] = useState<string | null>(null);
+
   // Re-check Supabase session + approval (after email login/signup, or "check now").
   const refreshAuthStatus = async () => {
       const u = await getAuthUser();
       setSbUser(u);
       if (u) {
-          const ap = await isApproved(u.id);
+          const ap = await checkApproval(u.email);
           setSbApproved(ap);
           if (ap) { guestModeRef.current = false; setShowLogin(false); }
       } else {
@@ -274,11 +277,28 @@ const App: React.FC = () => {
       }
   };
 
+  // "Check now" from the pending screen (covers both email and Google users).
+  const refreshPending = async () => {
+      if (accessPendingEmail) {
+          const ok = await checkApproval(accessPendingEmail);
+          if (ok) { window.location.reload(); return; } // re-run the Google flow, now approved
+          return;
+      }
+      await refreshAuthStatus();
+  };
+
   const handleAuthSignOut = async () => {
       await signOutAuth();
       setSbUser(null);
       setSbApproved(false);
       setShowLogin(true);
+  };
+
+  // Full sign-out from the pending screen (clears Google/Drive too).
+  const handlePendingSignOut = async () => {
+      await signOutAuth();
+      setAccessPendingEmail(null);
+      signOutDrive(); // clears the Drive token and reloads to a clean state
   };
 
   // On load, see if there's an approved Supabase session.
@@ -306,6 +326,18 @@ const App: React.FC = () => {
       initDriveAuth(async (user) => {
           // User chose Guest Mode — ignore a silently-restored Google session.
           if (guestModeRef.current) { setIsAuthChecking(false); return; }
+
+          // Gate Google sign-in by owner approval (same allowlist as email/password).
+          const approved = await checkApproval(user.email, user.name, true);
+          if (!approved) {
+              setAccessPendingEmail(user.email);
+              setDriveUser(null);
+              setIsAuthChecking(false);
+              setShowLogin(true);
+              return; // don't enter the app until approved
+          }
+
+          setAccessPendingEmail(null);
           setDriveUser(user);
           setIsAuthChecking(false);
           setShowLogin(false);
@@ -958,10 +990,11 @@ const App: React.FC = () => {
 
   if (isAuthChecking || sbChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
   if (showLogin) {
-      // Signed up but not yet approved → pending screen (unless they're an existing
-      // Google-Drive user or a guest, who are already allowed in).
-      if (sbUser && !sbApproved && !driveUser && !guestModeRef.current) {
-          return <PendingApproval email={sbUser.email} onRefresh={refreshAuthStatus} onSignOut={handleAuthSignOut} />;
+      // Awaiting approval → pending screen. Covers Google users (accessPendingEmail)
+      // and email/password users (sbUser not yet approved).
+      const pendingEmail = accessPendingEmail || (sbUser && !sbApproved ? sbUser.email : null);
+      if (pendingEmail && !driveUser && !guestModeRef.current) {
+          return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
       }
       return <LoginPage onGuestLogin={handleGuestLogin} onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
   }
