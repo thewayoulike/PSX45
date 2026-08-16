@@ -280,3 +280,67 @@ export const syncWithGoogleSheet = async (ticker: string) => {
     return null;
   }
 };
+
+// --- 4. Company announcements (scraped from each PSX company page) ---
+export interface CompanyAnnouncement {
+  ticker: string;
+  date: string;   // as shown on PSX (e.g. "Oct 29, 2024")
+  ts: number;     // parsed timestamp for sorting (0 if unparseable)
+  title: string;
+  pdfUrl: string;
+  kind: 'Board Meeting' | 'Result' | 'Dividend' | 'Other';
+}
+
+const classifyAnnouncement = (title: string): CompanyAnnouncement['kind'] => {
+  const t = title.toLowerCase();
+  if (t.includes('board meeting')) return 'Board Meeting';
+  if (t.includes('dividend') || t.includes('bonus') || t.includes('payout') || t.includes('book closure') || t.includes('entitlement')) return 'Dividend';
+  if (t.includes('financial result') || t.includes('results') || t.includes('accounts') || t.includes('quarter') || t.includes('annual report')) return 'Result';
+  return 'Other';
+};
+
+export const fetchCompanyAnnouncements = async (ticker: string): Promise<CompanyAnnouncement[]> => {
+  const url = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
+  const html = await fetchUrlWithFallback(url);
+  if (!html || html.length < 500) return [];
+
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    const links = Array.from(doc.querySelectorAll('a[href*="download/document"]'));
+    const seen = new Set<string>();
+    const out: CompanyAnnouncement[] = [];
+
+    links.forEach((a) => {
+      const href = a.getAttribute('href') || '';
+      if (!href || seen.has(href)) return;
+      const row = a.closest('tr');
+      if (!row) return;
+      const cells = Array.from(row.querySelectorAll('td')).map((c) => (c.textContent || '').trim());
+      if (cells.length < 2) return;
+
+      const date = cells[0] || '';
+      // Title = the longest non-date, non-"View/PDF" cell.
+      const title =
+        cells.slice(1).filter((c) => c && !/^(view|pdf)$/i.test(c)).sort((x, y) => y.length - x.length)[0] ||
+        cells[1] || '';
+      if (!title) return;
+
+      seen.add(href);
+      const ts = Date.parse(date);
+      out.push({
+        ticker: ticker.toUpperCase(),
+        date,
+        ts: isNaN(ts) ? 0 : ts,
+        title,
+        pdfUrl: href.startsWith('http') ? href : `https://dps.psx.com.pk${href}`,
+        kind: classifyAnnouncement(title),
+      });
+    });
+
+    return out.sort((a, b) => b.ts - a.ts).slice(0, 12);
+  } catch (e) {
+    console.warn(`Announcements parse failed for ${ticker}`, e);
+    return [];
+  }
+};
