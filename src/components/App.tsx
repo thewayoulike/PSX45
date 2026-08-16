@@ -511,7 +511,12 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = useCallback(async () => {
-      const uniqueTickers = Array.from(new Set(holdings.map(h => h.ticker)));
+      // Sync prices for every stock the user has ever traded — open holdings AND
+      // closed positions — so the stock page shows a current price for sold tickers too.
+      const uniqueTickers = Array.from(new Set([
+          ...holdings.map(h => h.ticker),
+          ...transactions.filter(t => t.type === 'BUY' || t.type === 'SELL').map(t => t.ticker),
+      ].filter(Boolean)));
       if (uniqueTickers.length === 0) return;
 
       setIsSyncing(true);
@@ -571,7 +576,7 @@ const App: React.FC = () => {
       } finally {
           setIsSyncing(false);
       }
-  }, [holdings]);
+  }, [holdings, transactions]);
 
   useEffect(() => {
       if (!driveUser || holdings.length === 0) return;
@@ -1188,7 +1193,8 @@ const App: React.FC = () => {
                                           </div>
                                       </div>
 
-                                      {currentView === 'DASHBOARD' && (
+                                      {/* Manual Prices + Sync PSX — always available, on every view */}
+                                      {(
                                           <>
                                               <button
                                                   onClick={() => setShowPriceEditor(true)}
