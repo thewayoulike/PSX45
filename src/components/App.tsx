@@ -42,6 +42,8 @@ import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
+import { getAuthUser, isApproved, signOutAuth, AppAuthUser } from '../services/auth';
+import { PendingApproval } from './PendingApproval';
 import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
@@ -56,13 +58,17 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [googleSheetId, setGoogleSheetId] = useState<string | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
+  // Supabase email/password auth + owner-approval gate
+  const [sbUser, setSbUser] = useState<AppAuthUser | null>(null);
+  const [sbApproved, setSbApproved] = useState(false);
+  const [sbChecking, setSbChecking] = useState(true);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
 
@@ -254,6 +260,35 @@ const App: React.FC = () => {
       setIsAuthChecking(false);
       setShowLogin(false);
   };
+
+  // Re-check Supabase session + approval (after email login/signup, or "check now").
+  const refreshAuthStatus = async () => {
+      const u = await getAuthUser();
+      setSbUser(u);
+      if (u) {
+          const ap = await isApproved(u.id);
+          setSbApproved(ap);
+          if (ap) { guestModeRef.current = false; setShowLogin(false); }
+      } else {
+          setSbApproved(false);
+      }
+  };
+
+  const handleAuthSignOut = async () => {
+      await signOutAuth();
+      setSbUser(null);
+      setSbApproved(false);
+      setShowLogin(true);
+  };
+
+  // On load, see if there's an approved Supabase session.
+  useEffect(() => {
+      (async () => {
+          try { await refreshAuthStatus(); } catch (e) { /* ignore */ }
+          finally { setSbChecking(false); }
+      })();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
@@ -921,8 +956,15 @@ const App: React.FC = () => {
       }
   };
 
-  if (isAuthChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
-  if (showLogin) return <LoginPage onGuestLogin={handleGuestLogin} onGoogleLogin={handleLogin} />;
+  if (isAuthChecking || sbChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
+  if (showLogin) {
+      // Signed up but not yet approved → pending screen (unless they're an existing
+      // Google-Drive user or a guest, who are already allowed in).
+      if (sbUser && !sbApproved && !driveUser && !guestModeRef.current) {
+          return <PendingApproval email={sbUser.email} onRefresh={refreshAuthStatus} onSignOut={handleAuthSignOut} />;
+      }
+      return <LoginPage onGuestLogin={handleGuestLogin} onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
+  }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
   const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
@@ -1192,7 +1234,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      {(currentView === 'STOCKS' || currentView === 'SECTOR') && (
+                      {currentView === 'STOCKS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <TickerPerformanceList
                                   transactions={portfolioTransactions}
@@ -1200,8 +1242,6 @@ const App: React.FC = () => {
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
-                                  mode={currentView === 'SECTOR' ? 'SECTOR' : 'STOCK'}
-                                  onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
                           </div>
                       )}
