@@ -12,10 +12,19 @@ interface Props {
 type IndexKey = 'KSE100' | 'KMI30';
 type Dir = 'gainers' | 'losers';
 
-interface Row { ticker: string; price: number; change: number; }
+interface Row {
+  ticker: string;
+  price: number;
+  change: number;
+  volume: number;
+  high: number;
+  low: number;
+}
 
 const REFRESH_MS = 5 * 60 * 1000;
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const vol = (n: number) =>
+  n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : n > 0 ? String(n) : '—';
 
 export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
   const [index, setIndex] = useState<IndexKey>('KSE100');
@@ -36,7 +45,14 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
       universe.forEach(t => {
         const d = (data as any)[t];
         if (d && d.price > 0 && d.ldcp > 0) {
-          out.push({ ticker: t, price: d.price, change: ((d.price - d.ldcp) / d.ldcp) * 100 });
+          out.push({
+            ticker: t,
+            price: d.price,
+            change: ((d.price - d.ldcp) / d.ldcp) * 100,
+            volume: d.volume || 0,
+            high: d.high || 0,
+            low: d.low || 0,
+          });
         }
       });
       setRows(out);
@@ -72,7 +88,7 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5">
-      {/* Header */}
+      {/* Card header */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <Flame size={16} className="text-orange-500" /> Top Movers
@@ -94,34 +110,54 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
         <button onClick={() => setDir('losers')} className={dirChip('losers')}><TrendingDown size={13} /> Losers</button>
       </div>
 
-      {/* List */}
+      {/* Table */}
       {loading && rows.length === 0 ? (
         <div className="flex items-center justify-center py-12 text-slate-400"><Loader2 size={22} className="animate-spin" /></div>
       ) : list.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-10">No data available. Try refreshing during market hours.</p>
       ) : (
-        <div className="divide-y divide-slate-50 dark:divide-slate-800/60">
-          {list.map((r, i) => {
-            const up = r.change >= 0;
-            const isOwned = owned.has(r.ticker);
-            return (
-              <button
-                key={r.ticker}
-                onClick={() => onSelectTicker?.(r.ticker)}
-                className="w-full flex items-center gap-3 py-2.5 text-left hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors rounded-lg px-1"
-              >
-                <span className="w-5 text-center text-xs font-bold text-slate-400 tabular-nums shrink-0">{i + 1}</span>
-                <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                  <span className="font-display font-black text-slate-800 dark:text-white text-sm truncate">{r.ticker}</span>
-                  {isOwned && <Star size={12} className="text-amber-500 fill-amber-500 shrink-0" />}
-                </div>
-                <span className="font-mono text-sm text-slate-500 dark:text-slate-400 tabular-nums shrink-0">{rs(r.price)}</span>
-                <span className={`font-bold text-sm tabular-nums w-20 text-right shrink-0 ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
-                  {up ? '+' : ''}{r.change.toFixed(2)}%
-                </span>
-              </button>
-            );
-          })}
+        <div className="overflow-x-auto -mx-1">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800">
+                <th className="text-left font-bold py-2 px-1 w-6">#</th>
+                <th className="text-left font-bold py-2 px-1">Symbol</th>
+                <th className="text-right font-bold py-2 px-2">Price</th>
+                <th className="text-right font-bold py-2 px-2">Chg %</th>
+                <th className="text-right font-bold py-2 px-2">Volume</th>
+                <th className="text-right font-bold py-2 px-2 hidden sm:table-cell">High</th>
+                <th className="text-right font-bold py-2 px-2 hidden sm:table-cell">Low</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/60">
+              {list.map((r, i) => {
+                const up = r.change >= 0;
+                const isOwned = owned.has(r.ticker);
+                return (
+                  <tr
+                    key={r.ticker}
+                    onClick={() => onSelectTicker?.(r.ticker)}
+                    className="cursor-pointer hover:bg-slate-50/70 dark:hover:bg-slate-800/30 transition-colors"
+                  >
+                    <td className="py-2.5 px-1 text-xs font-bold text-slate-400 tabular-nums">{i + 1}</td>
+                    <td className="py-2.5 px-1">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span className="font-display font-black text-slate-800 dark:text-white">{r.ticker}</span>
+                        {isOwned && <Star size={12} className="text-amber-500 fill-amber-500 shrink-0" />}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-mono text-slate-600 dark:text-slate-300 tabular-nums">{rs(r.price)}</td>
+                    <td className={`py-2.5 px-2 text-right font-bold tabular-nums ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
+                      {up ? '+' : ''}{r.change.toFixed(2)}%
+                    </td>
+                    <td className="py-2.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{vol(r.volume)}</td>
+                    <td className="py-2.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums hidden sm:table-cell">{r.high > 0 ? rs(r.high) : '—'}</td>
+                    <td className="py-2.5 px-2 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums hidden sm:table-cell">{r.low > 0 ? rs(r.low) : '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
