@@ -1023,6 +1023,7 @@ const App: React.FC = () => {
              isSidebarCollapsed={isSidebarCollapsed}
              onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
              driveUser={driveUser}
+             authUser={sbUser}
              onLogin={handleLogin}
              onLogout={handleManualLogout}
              isCloudSyncing={isCloudSyncing}
