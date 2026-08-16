@@ -17,6 +17,7 @@ interface SidebarProps {
   isSidebarCollapsed: boolean;
   onToggleCollapse: () => void;
   driveUser: any | null;
+  authUser?: { name?: string; email: string } | null; // email/password (Supabase) user
   onLogin: () => void;
   onLogout: () => void;
   isCloudSyncing: boolean;
@@ -35,7 +36,7 @@ interface NavGroup { key: string; label: string; Icon: React.ComponentType<{ siz
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView, onViewChange, isOpen, onClose,
-  isSidebarCollapsed, onToggleCollapse, driveUser, onLogin, onLogout, isCloudSyncing, hasApiKeys
+  isSidebarCollapsed, onToggleCollapse, driveUser, authUser, onLogin, onLogout, isCloudSyncing, hasApiKeys
 }) => {
 
   const isProfileView = currentView === 'STOCKS' || currentView === 'SECTOR';
@@ -319,6 +320,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         {!isCollapsed && <span>Sign Out</span>}
                     </button>
 
+                </div>
+            ) : authUser ? (
+                /* Signed in with email/password (no Drive yet) */
+                <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-3`}>
+                    <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} w-full`}>
+                        <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold flex-shrink-0 shadow-sm uppercase">
+                            {(authUser.name || authUser.email)?.[0]}
+                        </div>
+                        {!isCollapsed && (
+                            <div className="flex flex-col min-w-0 overflow-hidden">
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-widest">Local · not synced</span>
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{authUser.name || authUser.email}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <button
+                        onClick={onLogin}
+                        title={isCollapsed ? "Connect Google Drive" : undefined}
+                        className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all w-full ${isCollapsed ? 'p-2.5' : 'px-3 py-2.5 text-xs'}`}
+                    >
+                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 flex-shrink-0" alt="Google" />
+                        {!isCollapsed && <span>Connect Drive</span>}
+                    </button>
+
+                    <button
+                        onClick={onLogout}
+                        title={isCollapsed ? "Sign Out" : undefined}
+                        className={`flex items-center justify-center text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-bold transition-all w-full rounded-xl ${isCollapsed ? 'p-2.5 hover:bg-rose-50 dark:hover:bg-rose-500/10' : 'gap-2 px-2 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/10'}`}
+                    >
+                        <LogOut size={18} className="shrink-0" />
+                        {!isCollapsed && <span>Sign Out</span>}
+                    </button>
                 </div>
             ) : (
                 <button
