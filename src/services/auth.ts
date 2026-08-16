@@ -29,16 +29,29 @@ export const signUp = async (name: string, email: string, password: string) => {
   });
   if (error) throw error;
 
-  // Fire the owner-notification email (non-blocking failure).
-  try {
-    await fetch('/api/notify-signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name }),
-    });
-  } catch { /* ignore — signup already succeeded */ }
+  // Add them to the allowlist as pending and email the owner an approve link.
+  try { await checkApproval(email, name, true); } catch { /* signup already succeeded */ }
 
   return data;
+};
+
+/**
+ * Ask the server whether an email is approved (works for BOTH email/password and
+ * Google users). If `notify` is true and the email is new, it's added as pending
+ * and the owner is emailed an approve link.
+ */
+export const checkApproval = async (email: string, name?: string, notify = false): Promise<boolean> => {
+  try {
+    const res = await fetch('/api/check-access', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, name: name || '', notify }),
+    });
+    const data = await res.json().catch(() => ({ approved: false }));
+    return !!data.approved;
+  } catch {
+    return false;
+  }
 };
 
 export const signIn = async (email: string, password: string) => {
@@ -61,17 +74,6 @@ export const getAuthUser = async (): Promise<AppAuthUser | null> => {
   const u = data.user;
   if (!u) return null;
   return { id: u.id, email: u.email || '', name: (u.user_metadata as any)?.full_name };
-};
-
-/** Has the owner approved this account yet? */
-export const isApproved = async (userId: string): Promise<boolean> => {
-  const { data, error } = await supabase
-    .from('profiles')
-    .select('approved')
-    .eq('id', userId)
-    .maybeSingle();
-  if (error) return false;
-  return !!data?.approved;
 };
 
 /** Subscribe to auth changes (login/logout/token refresh). Returns an unsubscribe fn. */
