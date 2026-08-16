@@ -117,9 +117,28 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({ is
                       {item.isDueToday && <span className="text-[9px] bg-emerald-600 text-white px-2 py-0.5 rounded-md font-bold uppercase tracking-widest shadow-sm">Due Today</span>}
                       {isOwned && <span className="text-[9px] bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-500/20 px-2 py-0.5 rounded-md font-bold uppercase tracking-widest shadow-sm">Owned</span>} 
                     </div> 
-                    <div className="text-xs text-slate-600 dark:text-slate-300 font-medium bg-slate-100/80 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg inline-block border border-slate-200/50 dark:border-slate-700/50"> 
-                      {item.details} 
+                    
+                    {/* UPDATED: Dynamic Chips for Cash, Bonus, and Rights */}
+                    <div className="flex flex-wrap gap-2 mt-1"> 
+                      {item.details && item.details !== '-' && (
+                        <div className="text-xs text-slate-600 dark:text-slate-300 font-medium bg-slate-100/80 dark:bg-slate-800/80 px-2.5 py-1.5 rounded-lg border border-slate-200/50 dark:border-slate-700/50"> 
+                          {item.details.includes('%') || item.details.toLowerCase().includes('cash') || item.details.toLowerCase().includes('div') 
+                            ? item.details 
+                            : `Cash: ${item.details}`}
+                        </div> 
+                      )}
+                      {item.bonus && item.bonus !== '-' && item.bonus !== '0' && item.bonus !== '0%' && (
+                        <div className="text-xs text-indigo-600 dark:text-indigo-400 font-medium bg-indigo-50 dark:bg-indigo-500/10 px-2.5 py-1.5 rounded-lg border border-indigo-200/60 dark:border-indigo-500/20"> 
+                          Bonus: {item.bonus.includes('%') ? item.bonus : `${item.bonus}%`}
+                        </div> 
+                      )}
+                      {item.right && item.right !== '-' && item.right !== '0' && item.right !== '0%' && (
+                        <div className="text-xs text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-200/60 dark:border-amber-500/20"> 
+                          Right: {item.right.includes('%') ? item.right : `${item.right}%`}
+                        </div> 
+                      )}
                     </div> 
+
                   </div>
                 </div>
                 <div className="text-left sm:text-right mt-1 sm:mt-0 ml-18 sm:ml-0"> 
