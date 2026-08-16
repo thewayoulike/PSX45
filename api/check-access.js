@@ -19,6 +19,7 @@ export default async function handler(req, res) {
     const email = (body?.email || '').toString().trim().toLowerCase();
     const name = (body?.name || '').toString().trim();
     const notify = body?.notify === true;
+    const resend = body?.resend === true; // re-email the owner even if already pending
     if (!email) return res.status(400).json({ error: 'email required' });
 
     const supabase = createClient(
@@ -33,15 +34,17 @@ export default async function handler(req, res) {
       .eq('email', email)
       .maybeSingle();
 
-    if (existing) {
-      return res.status(200).json({ approved: !!existing.approved, pending: !existing.approved });
+    const approved = !!existing?.approved;
+
+    // Create a pending row the first time we see this email.
+    if (!existing) {
+      await supabase.from('allowlist').insert({ email, name: name || null, approved: false });
     }
 
-    // New requester → create a pending row.
-    await supabase.from('allowlist').insert({ email, name: name || null, approved: false });
-
-    // Email the owner a one-click approve link (best-effort).
-    if (notify) {
+    // Email the owner an approve link: always for a brand-new email, and on the
+    // signup path (resend) if they're still pending. Never re-spams on silent loads.
+    const shouldNotify = notify && !approved && (!existing || resend);
+    if (shouldNotify) {
       try {
         const owner = process.env.OWNER_EMAIL || 'itruth2011@gmail.com';
         const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
@@ -55,10 +58,10 @@ export default async function handler(req, res) {
             <p><a href="${approveUrl}" style="display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold">✅ Approve this user</a></p>
           </div>`
         );
-      } catch (e) { console.error('owner notify failed', e); }
+      } catch (e) { console.error('owner notify (Brevo) failed:', e); }
     }
 
-    return res.status(200).json({ approved: false, pending: true, new: true });
+    return res.status(200).json({ approved, pending: !approved, new: !existing });
   } catch (e) {
     console.error('check-access error', e);
     return res.status(500).json({ error: e.message });
