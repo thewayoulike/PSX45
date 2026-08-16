@@ -30,6 +30,7 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
   // Live today's index moves — same source as the Index bar, so the "Today" tab
   // matches reality instead of the last (stale, end-of-day) row of the history.
   const [live, setLive] = useState<{ kse: number | null; kmi: number | null }>({ kse: null, kmi: null });
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -39,11 +40,23 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
           fetchStockHistory('KSE100', '1M'),
           fetchStockHistory('KMI30', '1M'),
         ]);
-        if (alive) setLive({ kse: lastChangePct(kse), kmi: lastChangePct(kmi) });
-      } catch { /* ignore — fall back to history */ }
+        if (alive) {
+          setLive({ kse: lastChangePct(kse), kmi: lastChangePct(kmi) });
+          setLastUpdated(new Date());
+        }
+      } catch { 
+        /* ignore — fall back to history */ 
+      }
     })();
     return () => { alive = false; };
   }, []);
+
+  // Update timestamp if new data prop arrives
+  useEffect(() => {
+    if (data && data.length > 0) {
+      setLastUpdated(new Date());
+    }
+  }, [data]);
 
   const stats = useMemo(() => {
     const clean = (data || []).filter(d => d && d.rawDate);
@@ -71,21 +84,44 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
     return { port, kse, kmi, vsKse: port - kse, vsKmi: port - kmi };
   }, [data, win, live, portfolioTodayPct]);
 
+  const formatLastUpdated = (date: Date) => {
+    return new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true,
+    }).format(date);
+  };
+
   const chip = (active: boolean) => `px-3 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`;
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest">Performance vs Index</h3>
+        <div>
+          <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest">
+            Performance vs Index
+          </h3>
+          {lastUpdated && (
+            <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
+              Last updated: {formatLastUpdated(lastUpdated)}
+            </div>
+          )}
+        </div>
         <div className="flex gap-1.5">
           {(['1D', '1W', '1M'] as Win[]).map(w => (
-            <button key={w} onClick={() => setWin(w)} className={chip(win === w)}>{w === '1M' ? '1 Month' : w === '1W' ? '1 Week' : 'Today'}</button>
+            <button key={w} onClick={() => setWin(w)} className={chip(win === w)}>
+              {w === '1M' ? '1 Month' : w === '1W' ? '1 Week' : 'Today'}
+            </button>
           ))}
         </div>
       </div>
 
       {!stats ? (
-        <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">Generate the performance chart below to unlock this comparison.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">
+          Generate the performance chart below to unlock this comparison.
+        </p>
       ) : (
         <>
           {/* Headline */}
