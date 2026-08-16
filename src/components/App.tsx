@@ -1349,8 +1349,9 @@ const App: React.FC = () => {
                       {currentView === 'DASH_CUSTOMIZE' && (
                           <DashboardCustomizer
                               layout={dashboardLayout}
-                              onChange={setDashboardLayout}
-                              onDone={() => setCurrentView('DASHBOARD')}
+                              renderCard={renderDashCard}
+                              onSave={(l) => { setDashboardLayout(l); setCurrentView('DASHBOARD'); }}
+                              onCancel={() => setCurrentView('DASHBOARD')}
                           />
                       )}
 
