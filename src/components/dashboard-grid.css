@@ -1,0 +1,73 @@
+/* Prominent, easy-to-grab resize handles for the dashboard customizer only. */
+
+.dash-editor .react-grid-item > .react-resizable-handle {
+  z-index: 50;
+  opacity: 1;
+  padding: 0;
+}
+
+/* Hide react-resizable's default tiny corner glyph */
+.dash-editor .react-grid-item > .react-resizable-handle::after {
+  display: none;
+}
+
+/* Corner (width + height together) */
+.dash-editor .react-grid-item > .react-resizable-handle-se {
+  width: 24px;
+  height: 24px;
+  right: 3px;
+  bottom: 3px;
+  background: none;
+  border-right: 3px solid #10b981;
+  border-bottom: 3px solid #10b981;
+  border-bottom-right-radius: 10px;
+  cursor: se-resize;
+}
+.dash-editor .react-grid-item > .react-resizable-handle-se:hover {
+  border-color: #059669;
+}
+
+/* Right edge → width */
+.dash-editor .react-grid-item > .react-resizable-handle-e {
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 46px;
+  margin: 0;
+  background: rgba(16, 185, 129, 0.4);
+  border-radius: 6px;
+  cursor: ew-resize;
+}
+.dash-editor .react-grid-item > .react-resizable-handle-e:hover {
+  background: rgba(16, 185, 129, 0.8);
+}
+
+/* Bottom edge → height */
+.dash-editor .react-grid-item > .react-resizable-handle-s {
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  height: 8px;
+  width: 46px;
+  margin: 0;
+  background: rgba(16, 185, 129, 0.4);
+  border-radius: 6px;
+  cursor: ns-resize;
+}
+.dash-editor .react-grid-item > .react-resizable-handle-s:hover {
+  background: rgba(16, 185, 129, 0.8);
+}
+
+/* Give the item a subtle outline while dragging/resizing so it reads as active */
+.dash-editor .react-grid-item.react-draggable-dragging,
+.dash-editor .react-grid-item.resizing {
+  z-index: 60;
+}
+
+/* The placeholder RGL drops behind a moving card */
+.dash-editor .react-grid-placeholder {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border: 2px dashed #10b981;
+  border-radius: 1.5rem;
+}
