@@ -1,8 +1,9 @@
-// Only allow proxying to trusted PSX hosts.
+// Only allow proxying to trusted hosts.
 const ALLOWED_HOSTS = new Set([
   'dps.psx.com.pk',
   'www.psx.com.pk',
-  'psx.com.pk'
+  'psx.com.pk',
+  'docs.google.com' // public Google Sheets exports (e.g. BoardMeetings CSV)
 ]);
 
 export default async function handler(req, res) {
