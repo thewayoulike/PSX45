@@ -26,17 +26,13 @@ export default async function handler(req, res) {
     { auth: { persistSession: false, autoRefreshToken: false } }
   );
 
-  const { data, error } = await supabase
-    .from('profiles')
-    .update({ approved: true })
-    .eq('email', email)
-    .select('id');
+  const cleanEmail = String(email).trim().toLowerCase();
+  const { error } = await supabase
+    .from('allowlist')
+    .upsert({ email: cleanEmail, approved: true }, { onConflict: 'email' });
 
   if (error) {
     return res.status(500).send(page('Database error', error.message));
-  }
-  if (!data || data.length === 0) {
-    return res.status(404).send(page('User not found', `No signup found for ${email}. They may need to sign up first.`));
   }
 
   // Tell the user they're in (best-effort; approval already succeeded).
