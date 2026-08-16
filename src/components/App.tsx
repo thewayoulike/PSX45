@@ -14,6 +14,7 @@ import { AiAgent } from './AiAgent';
 import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
+import { Announcements } from './Announcements';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -1287,6 +1288,11 @@ const App: React.FC = () => {
                               {/* Top movers — KSE-100 / KMI-30 gainers & losers */}
                               <div className="mt-6">
                                   <TopMovers holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
+                              </div>
+
+                              {/* Announcements for your holdings (PSX company pages) */}
+                              <div className="mt-6">
+                                  <Announcements holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
                               </div>
 
                               {/* Portfolio summary */}
