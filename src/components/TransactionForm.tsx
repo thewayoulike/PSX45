@@ -241,8 +241,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const handleManualSubmit = (e: React.FormEvent) => { e.preventDefault(); setFormError(null); const cleanTicker = ticker.toUpperCase(); let brokerName = undefined; const b = brokers.find(b => b.id === selectedBrokerId); if (b) brokerName = b.name; const qtyNum = Number(quantity); if (type === 'SELL') { const heldQty = getHoldingQty(cleanTicker, selectedBrokerId); let adjustedQty = heldQty; if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) { adjustedQty += editingTransaction.quantity; } else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) { adjustedQty -= editingTransaction.quantity; } if (qtyNum > adjustedQty) { setFormError(`Insufficient holdings! You only have ${adjustedQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}.`); return; } } if (type === 'BUY' && !editingTransaction && freeCash !== undefined) { const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees); if (totalCost > freeCash) { setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`); return; } } const txData: any = { ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId, commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0, category: type === 'OTHER' ? category : undefined, notes: notes.trim() || undefined }; if (type === 'OTHER') { txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE'; } if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData }); else onAddTransaction(txData); onClose(); };
   
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.files && e.target.files[0]) { setSelectedFile(e.target.files[0]); setScanError(null); updateScannedTrades([]); } };
-  
   const handleImportFile = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { const data = await selectedFile.arrayBuffer(); const workbook = XLSX.read(data); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); const trades: EditableTrade[] = jsonData.map((row: any) => { const comm = getRowValue(row, ['Commission', 'Comm', 'Brokerage', 'Trading Fee']); const tax = getRowValue(row, ['Tax', 'SST', 'WHT', 'Sales Tax', 'Govt Tax']); const cdc = getRowValue(row, ['CDC Charges', 'CDC', 'CDC Fee', 'Regulatory Fee', 'Reg Fee']); const other = getRowValue(row, ['Other Fees', 'Other', 'FED', 'Service Charges', 'Misc', 'Tax 2']); const price = getRowValue(row, ['Price', 'Rate', 'Exec Price']); const qty = getRowValue(row, ['Quantity', 'Qty', 'Volume']); const type = row['Type'] ? row['Type'].toString().toUpperCase() : 'BUY'; const ticker = row['Ticker'] ? row['Ticker'].toString().toUpperCase() : row['Symbol'] ? row['Symbol'].toString().toUpperCase() : ''; const dateVal = row['Date'] || row['Trade Date']; return { date: normalizeDate(dateVal), type, ticker, broker: row['Broker'], quantity: qty || 0, price: price || 0, commission: comm, tax: tax, cdcCharges: cdc, otherFees: other, brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id }; }).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0); if (trades.length === 0) throw new Error("No valid trades found. Please check column headers."); updateScannedTrades(trades); } catch (e: any) { setScanError("Failed to parse file. Ensure it is a valid Excel/CSV."); } finally { setIsScanning(false); } };
   
   const handleProcessScan = async () => { 
@@ -451,10 +449,26 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
-                    <div className="grid grid-cols-8 gap-1.5 bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50">
-                        {['BUY', 'SELL', 'DIVIDEND', 'TAX', 'HISTORY', 'DEPOSIT', 'ANNUAL_FEE', 'OTHER'].map(t => (
-                            <button key={t} type="button" onClick={() => setType(t as any)} className={`py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${type === t || (t === 'DEPOSIT' && type === 'WITHDRAWAL') ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white font-black' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> {t === 'DEPOSIT' ? 'CASH' : t === 'ANNUAL_FEE' ? 'FEE' : t === 'TAX' ? 'CGT' : t === 'HISTORY' ? 'HIST' : t === 'DIVIDEND' ? 'DIV' : t} </button>
-                        ))}
+                    
+                    <div className="mb-4">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Transaction Type</label>
+                        <div className="relative">
+                            <select
+                                value={type === 'WITHDRAWAL' ? 'DEPOSIT' : type}
+                                onChange={(e) => setType(e.target.value as any)}
+                                className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none shadow-sm transition-all"
+                            >
+                                <option value="BUY">Buy</option>
+                                <option value="SELL">Sell</option>
+                                <option value="DIVIDEND">Dividend (DIV)</option>
+                                <option value="TAX">Tax (CGT)</option>
+                                <option value="HISTORY">History</option>
+                                <option value="DEPOSIT">Cash (Deposit / Withdrawal)</option>
+                                <option value="ANNUAL_FEE">Annual Fee</option>
+                                <option value="OTHER">Other</option>
+                            </select>
+                            <ChevronDown className="absolute right-4 top-4 text-slate-400 pointer-events-none" size={16} />
+                        </div>
                     </div>
 
                     {renderFormContent()}
