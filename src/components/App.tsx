@@ -14,7 +14,7 @@ import { AiAgent } from './AiAgent';
 import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
-import { Announcements } from './Announcements';
+import { BoardMeetings } from './BoardMeetings';
 import { StockLookup } from './StockLookup';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
@@ -1310,9 +1310,9 @@ const App: React.FC = () => {
                                   <TopMovers holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
                               </div>
 
-                              {/* Company announcements for your holdings */}
+                              {/* Upcoming board meetings (market-wide, holdings highlighted) */}
                               <div className="mt-6">
-                                  <Announcements holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
+                                  <BoardMeetings holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
                               </div>
 
                               {/* Portfolio summary */}
