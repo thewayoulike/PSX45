@@ -3,6 +3,7 @@ import React, { useMemo, useState } from 'react';
 import GridLayout, { WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
+import './dashboard-grid.css';
 import {
   CardLayout, Device, DashboardLayout, DEFAULT_LAYOUT,
   COLS, ROW_HEIGHT, GRID_MARGIN, metaFor, isCore, minFor,
@@ -119,7 +120,7 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
       </div>
 
       {/* Editable grid */}
-      <div className={device === 'mobile' ? 'max-w-md mx-auto' : ''}>
+      <div className={`dash-editor ${device === 'mobile' ? 'max-w-md mx-auto' : ''}`}>
         <RGL
           className="layout"
           layout={rglLayout}
@@ -130,6 +131,7 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
           isDraggable
           isResizable
           draggableHandle=".rgl-drag"
+          resizeHandles={device === 'mobile' ? ['s'] : ['se', 'e', 's']}
           compactType="vertical"
           onLayoutChange={applyCoords}
           onDragStop={() => setDirty(true)}
