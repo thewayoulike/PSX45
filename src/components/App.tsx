@@ -16,6 +16,9 @@ import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
 import { BoardMeetings } from './BoardMeetings';
 import { StockLookup } from './StockLookup';
+import { DashboardGrid } from './DashboardGrid';
+import { DashboardCustomizer } from './DashboardCustomizer';
+import { DashboardLayout, normalizeLayout, DEFAULT_LAYOUT } from './dashboard';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -38,7 +41,7 @@ import { setGeminiApiKey } from '../services/gemini';
 import {
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
   Pencil, Layers, ChevronDown, CheckSquare, Square, Menu,
-  CalendarClock, ArrowRightLeft, AlertTriangle
+  CalendarClock, ArrowRightLeft, AlertTriangle, LayoutGrid
 } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -60,7 +63,7 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -163,6 +166,27 @@ const App: React.FC = () => {
       } catch (e) {}
       return [];
   });
+  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(() => {
+      try {
+          const saved = localStorage.getItem('psx_dashboard_layout');
+          if (saved) return normalizeLayout(JSON.parse(saved));
+      } catch (e) {}
+      return DEFAULT_LAYOUT;
+  });
+  // Track whether we're on a narrow (mobile) viewport so the dashboard uses the
+  // separately-saved mobile layout.
+  const [isNarrowViewport, setIsNarrowViewport] = useState<boolean>(
+      typeof window !== 'undefined' ? window.innerWidth < 1024 : false
+  );
+  useEffect(() => {
+      const onResize = () => setIsNarrowViewport(window.innerWidth < 1024);
+      window.addEventListener('resize', onResize);
+      return () => window.removeEventListener('resize', onResize);
+  }, []);
+  // Persist dashboard layout locally whenever it changes (works for guests too).
+  useEffect(() => {
+      try { localStorage.setItem('psx_dashboard_layout', JSON.stringify(dashboardLayout)); } catch (e) {}
+  }, [dashboardLayout]);
   const [ldcpMap, setLdcpMap] = useState<Record<string, number>>(() => {
       try {
           const saved = localStorage.getItem('psx_ldcp_map');
@@ -364,6 +388,7 @@ const App: React.FC = () => {
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState);
                   if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
                   if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
+                  if (cloudData.dashboardLayout) setDashboardLayout(normalizeLayout(cloudData.dashboardLayout));
 
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
@@ -835,6 +860,7 @@ const App: React.FC = () => {
                   performanceHistory,
                   fairValueCache,
                   watchlist,
+                  dashboardLayout,
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
                   webScrapingAIKey: userWebScrapingAIKey
@@ -847,7 +873,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayout, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -1031,6 +1057,65 @@ const App: React.FC = () => {
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
   const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
+
+  // Render a single dashboard card by id. Used by the customizable DashboardGrid.
+  const renderDashCard = (id: string): React.ReactNode => {
+      switch (id) {
+          case 'indexBar':
+              return <IndexBar />;
+          case 'stats': {
+              const historyData = performanceHistory[perfKey] || [];
+              const trendLine = historyData.map((d: any) => {
+                  if (typeof d === 'number') return d;
+                  return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
+              }).filter((v: number) => !isNaN(v));
+              return (
+                  <Dashboard
+                      stats={stats}
+                      lastUpdated={lastPriceUpdate}
+                      userName={driveUser?.name?.split(' ')[0]}
+                      onRefresh={handleSyncPrices}
+                      trend={trendLine}
+                      holdings={holdings}
+                  />
+              );
+          }
+          case 'benchmark':
+              return <BenchmarkPanel data={performanceHistory[perfKey] || []} portfolioTodayPct={stats.dailyPLPercent} />;
+          case 'performance':
+              return (
+                  <PerformanceChart
+                      key={perfKey}
+                      transactions={portfolioTransactions}
+                      savedData={performanceHistory[perfKey] || []}
+                      onSaveData={(data) => setPerformanceHistory(prev => ({ ...prev, [perfKey]: data }))}
+                  />
+              );
+          case 'allocation':
+              return <AllocationChart holdings={holdings} />;
+          case 'topHoldings':
+              return (
+                  <TopHoldings
+                      holdings={holdings}
+                      stats={stats}
+                      onTickerClick={handleTickerClick}
+                      onViewAll={() => setCurrentView('HOLDINGS')}
+                  />
+              );
+          case 'insights':
+              return <PortfolioInsights holdings={holdings} realizedTrades={realizedTrades} stats={stats} />;
+          case 'dividends':
+              return <UpcomingDividends holdings={holdings} />;
+          case 'topMovers':
+              return <TopMovers holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />;
+          case 'boardMeetings':
+              return <BoardMeetings holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />;
+          case 'summary':
+              return <PortfolioSummary holdings={holdings} realizedTrades={realizedTrades} stats={stats} />;
+          default:
+              return null;
+      }
+  };
 
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
@@ -1243,87 +1328,30 @@ const App: React.FC = () => {
 
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-
-                              {/* Index bar (KSE-100 / KMI-30 / USD-PKR) */}
-                              <div className="mb-6"><IndexBar /></div>
-
-                              {(() => {
-                                  const historyData = performanceHistory[perfKey] || [];
-                                  const trendLine = historyData.map((d: any) => {
-                                      if (typeof d === 'number') return d;
-                                      return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
-                                  }).filter((v: number) => !isNaN(v));
-
-                                  return (
-                                      <Dashboard
-                                          stats={stats}
-                                          lastUpdated={lastPriceUpdate}
-                                          userName={driveUser?.name?.split(' ')[0]}
-                                          onRefresh={handleSyncPrices}
-                                          trend={trendLine}
-                                          holdings={holdings}
-                                      />
-                                  );
-                              })()}
-
-                              {/* Performance vs Index (period toggle + benchmark headline) */}
-                              <div className="mt-6">
-                                  <BenchmarkPanel data={performanceHistory[perfKey] || []} portfolioTodayPct={stats.dailyPLPercent} />
+                              <div className="flex justify-end mb-4">
+                                  <button
+                                      onClick={() => setCurrentView('DASH_CUSTOMIZE')}
+                                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 hover:text-brand-600 hover:border-brand-400 transition-colors"
+                                      title="Customize dashboard layout"
+                                  >
+                                      <LayoutGrid size={15} /> Customize
+                                  </button>
                               </div>
 
-                              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
-                                  <div className="lg:col-span-3">
-                                      <PerformanceChart
-                                         key={perfKey}
-                                         transactions={portfolioTransactions}
-                                         savedData={performanceHistory[perfKey] || []}
-                                         onSaveData={(data) => {
-                                             setPerformanceHistory(prev => ({ ...prev, [perfKey]: data }));
-                                         }}
-                                      />
-                                  </div>
-                                  <div className="lg:col-span-2">
-                                      <AllocationChart holdings={holdings} />
-                                  </div>
-                                  <div className="lg:col-span-1 flex flex-col gap-6">
-                                      <TopHoldings
-                                          holdings={holdings}
-                                          stats={stats}
-                                          onTickerClick={handleTickerClick}
-                                          onViewAll={() => setCurrentView('HOLDINGS')}
-                                      />
-                                      <PortfolioInsights
-                                          holdings={holdings}
-                                          realizedTrades={realizedTrades}
-                                          stats={stats}
-                                      />
-                                  </div>
-                              </div>
-
-                              {/* Upcoming dividends */}
-                              <div className="mt-6">
-                                  <UpcomingDividends holdings={holdings} />
-                              </div>
-
-                              {/* Top movers (KSE100 / KMI30 gainers & losers) */}
-                              <div className="mt-6">
-                                  <TopMovers holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
-                              </div>
-
-                              {/* Upcoming board meetings (market-wide, holdings highlighted) */}
-                              <div className="mt-6">
-                                  <BoardMeetings holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
-                              </div>
-
-                              {/* Portfolio summary */}
-                              <div className="mt-6">
-                                  <PortfolioSummary
-                                      holdings={holdings}
-                                      realizedTrades={realizedTrades}
-                                      stats={stats}
-                                  />
-                              </div>
+                              <DashboardGrid
+                                  layout={isNarrowViewport ? dashboardLayout.mobile : dashboardLayout.web}
+                                  device={isNarrowViewport ? 'mobile' : 'web'}
+                                  renderCard={renderDashCard}
+                              />
                           </div>
+                      )}
+
+                      {currentView === 'DASH_CUSTOMIZE' && (
+                          <DashboardCustomizer
+                              layout={dashboardLayout}
+                              onChange={setDashboardLayout}
+                              onDone={() => setCurrentView('DASHBOARD')}
+                          />
                       )}
 
                       {currentView === 'HOLDINGS' && (
