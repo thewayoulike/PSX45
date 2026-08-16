@@ -1,37 +1,36 @@
 // Dashboard layout model + card registry (data only — rendering lives in App.tsx).
+// Layout is a true 2-D grid (react-grid-layout): each card has x, y, w, h.
 
 export interface CardMeta {
   id: string;
   label: string;
-  hint?: string;     // short description shown in the customizer
+  hint?: string;
   core?: boolean;    // core cards can never be hidden/removed
-  defaultW: number;  // default width in 12-col grid units (web)
 }
 
-// Order here = the default dashboard order.
 export const CARD_META: CardMeta[] = [
-  { id: 'indexBar',   label: 'Market Index Bar',   hint: 'KSE-100 · KMI-30 · USD-PKR strip', defaultW: 12 },
-  { id: 'stats',      label: 'Portfolio Stats',    hint: 'Net Worth · Total Return · Today’s P&L', core: true, defaultW: 12 },
-  { id: 'benchmark',  label: 'Performance vs Index', hint: 'Your return vs the index',        defaultW: 12 },
-  { id: 'performance',label: 'Performance Chart',  hint: 'Portfolio value over time',         defaultW: 12 },
-  { id: 'allocation', label: 'Allocation',         hint: 'Sector / holding allocation donut', defaultW: 8 },
-  { id: 'topHoldings',label: 'Top Holdings',       hint: 'Your biggest positions',            defaultW: 4 },
-  { id: 'insights',   label: 'Insights',           hint: 'Best / worst movers',               defaultW: 4 },
-  { id: 'dividends',  label: 'Upcoming Dividends', hint: 'Your holdings’ payouts',        defaultW: 4 },
-  { id: 'topMovers',  label: 'Top Movers',         hint: 'KSE-100 / KMI-30 gainers & losers', defaultW: 4 },
-  { id: 'boardMeetings', label: 'Board Meetings',  hint: 'Upcoming board meetings',           defaultW: 8 },
-  { id: 'summary',    label: 'Portfolio Summary',  hint: 'Full holdings + realized summary',  defaultW: 12 },
+  { id: 'indexBar',    label: 'Market Index Bar',    hint: 'KSE-100 · KMI-30 · USD-PKR strip' },
+  { id: 'stats',       label: 'Portfolio Stats',     hint: 'Net Worth · Total Return · Today’s P&L', core: true },
+  { id: 'benchmark',   label: 'Performance vs Index',hint: 'Your return vs the index' },
+  { id: 'performance', label: 'Performance Chart',   hint: 'Portfolio value over time' },
+  { id: 'allocation',  label: 'Allocation',          hint: 'Sector / holding allocation donut' },
+  { id: 'topHoldings', label: 'Top Holdings',        hint: 'Your biggest positions' },
+  { id: 'insights',    label: 'Insights',            hint: 'Best / worst movers' },
+  { id: 'dividends',   label: 'Upcoming Dividends',  hint: 'Your holdings’ payouts' },
+  { id: 'topMovers',   label: 'Top Movers',          hint: 'KSE-100 / KMI-30 gainers & losers' },
+  { id: 'boardMeetings', label: 'Board Meetings',    hint: 'Upcoming board meetings' },
+  { id: 'summary',     label: 'Portfolio Summary',   hint: 'Full holdings + realized summary' },
 ];
 
 export const CORE_IDS = CARD_META.filter(m => m.core).map(m => m.id);
 export const isCore = (id: string) => CORE_IDS.includes(id);
 export const metaFor = (id: string) => CARD_META.find(m => m.id === id);
 
-// Per-card layout. w = width in 12-col units (web only; mobile is always full).
-// h = fixed pixel height, or 0 for natural/auto height.
 export interface CardLayout {
   id: string;
   visible: boolean;
+  x: number;
+  y: number;
   w: number;
   h: number;
 }
@@ -43,59 +42,87 @@ export interface DashboardLayout {
   mobile: CardLayout[];
 }
 
-const buildDefault = (device: Device): CardLayout[] =>
-  CARD_META.map(m => ({
-    id: m.id,
-    visible: true,
-    w: device === 'mobile' ? 12 : m.defaultW,
-    h: 0,
-  }));
+export const COLS: Record<Device, number> = { web: 12, mobile: 1 };
+export const ROW_HEIGHT = 110;         // px per grid row unit
+export const GRID_MARGIN: [number, number] = [24, 24];
 
-export const DEFAULT_LAYOUT: DashboardLayout = {
-  web: buildDefault('web'),
-  mobile: buildDefault('mobile'),
+// Default web layout: [id, x, y, w, h]
+const WEB_BASE: Array<[string, number, number, number, number]> = [
+  ['indexBar',     0,  0, 12, 1],
+  ['stats',        0,  1, 12, 3],
+  ['benchmark',    0,  4, 12, 3],
+  ['performance',  0,  7, 12, 4],
+  ['allocation',   0, 11,  8, 4],
+  ['topHoldings',  8, 11,  4, 4],
+  ['insights',     0, 15,  4, 3],
+  ['dividends',    4, 15,  4, 4],
+  ['topMovers',    8, 15,  4, 5],
+  ['boardMeetings',0, 20,  8, 5],
+  ['summary',      0, 25, 12, 4],
+];
+
+// Default heights reused for the (single-column) mobile stack.
+const H_BY_ID: Record<string, number> = Object.fromEntries(WEB_BASE.map(([id, , , , h]) => [id, h]));
+
+// Minimum size per card (cols, rows) so content stays readable when resized.
+const MIN_BY_ID: Record<string, [number, number]> = {
+  indexBar:     [3, 1],
+  stats:        [4, 2],
+  benchmark:    [4, 2],
+  performance:  [4, 3],
+  allocation:   [3, 3],
+  topHoldings:  [3, 2],
+  insights:     [3, 2],
+  dividends:    [3, 2],
+  topMovers:    [3, 3],
+  boardMeetings:[3, 3],
+  summary:      [4, 3],
 };
 
-const clampW = (w: any): number => {
-  const n = Math.round(Number(w));
-  if (!Number.isFinite(n)) return 12;
-  return Math.min(12, Math.max(1, n));
+export const minFor = (id: string, device: Device): { minW: number; minH: number } => {
+  const [mw, mh] = MIN_BY_ID[id] || [2, 2];
+  return { minW: device === 'mobile' ? 1 : mw, minH: mh };
 };
 
-const clampH = (h: any): number => {
-  const n = Math.round(Number(h));
-  if (!Number.isFinite(n) || n <= 0) return 0;
-  return Math.min(1200, Math.max(120, n));
+const buildWeb = (): CardLayout[] =>
+  WEB_BASE.map(([id, x, y, w, h]) => ({ id, visible: true, x, y, w, h }));
+
+const buildMobile = (): CardLayout[] =>
+  CARD_META.map((m, i) => ({ id: m.id, visible: true, x: 0, y: i * 3, w: 1, h: H_BY_ID[m.id] ?? 3 }));
+
+export const DEFAULT_LAYOUT: DashboardLayout = { web: buildWeb(), mobile: buildMobile() };
+
+const num = (v: any, fallback: number) => {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? n : fallback;
 };
 
-// Merge a (possibly stale / partial) saved device layout with the registry so
-// new cards appear and removed cards drop out. Core cards are forced visible.
 const normalizeDevice = (saved: any[], device: Device): CardLayout[] => {
+  const cols = COLS[device];
   const savedArr = Array.isArray(saved) ? saved : [];
   const known = new Set(CARD_META.map(m => m.id));
-  const out: CardLayout[] = [];
   const seen = new Set<string>();
+  const out: CardLayout[] = [];
+  let maxY = 0;
 
   savedArr.forEach((c) => {
     if (!c || typeof c.id !== 'string' || !known.has(c.id) || seen.has(c.id)) return;
     seen.add(c.id);
-    out.push({
-      id: c.id,
-      visible: isCore(c.id) ? true : c.visible !== false,
-      w: device === 'mobile' ? 12 : clampW(c.w ?? metaFor(c.id)?.defaultW ?? 12),
-      h: clampH(c.h),
-    });
+    const { minW, minH } = minFor(c.id, device);
+    const w = Math.min(cols, Math.max(minW, num(c.w, device === 'mobile' ? 1 : 4)));
+    const x = Math.min(cols - w, Math.max(0, num(c.x, 0)));
+    const y = Math.max(0, num(c.y, maxY));
+    const h = Math.max(minH, num(c.h, H_BY_ID[c.id] ?? 3));
+    out.push({ id: c.id, visible: isCore(c.id) ? true : c.visible !== false, x, y, w, h });
+    maxY = Math.max(maxY, y + h);
   });
 
-  // Append any registry cards missing from the saved layout (new features).
+  // Append any registry cards missing from the saved layout, at the bottom.
   CARD_META.forEach((m) => {
     if (seen.has(m.id)) return;
-    out.push({
-      id: m.id,
-      visible: true,
-      w: device === 'mobile' ? 12 : m.defaultW,
-      h: 0,
-    });
+    const h = H_BY_ID[m.id] ?? 3;
+    out.push({ id: m.id, visible: true, x: 0, y: maxY, w: device === 'mobile' ? 1 : Math.min(cols, 4), h });
+    maxY += h;
   });
 
   return out;
@@ -111,6 +138,3 @@ export const normalizeLayout = (saved: any): DashboardLayout => {
 
 export const visibleOrdered = (device: CardLayout[]): CardLayout[] =>
   device.filter(c => c.visible);
-
-export const hiddenCards = (device: CardLayout[]): CardLayout[] =>
-  device.filter(c => !c.visible);
