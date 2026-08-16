@@ -5,7 +5,7 @@ import {
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  Compass, Wrench, BarChart3
+  Compass, Wrench, BarChart3, LayoutGrid
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 
@@ -46,7 +46,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     DASHBOARD: 'Menu', HOLDINGS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
     SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
-    BROKERS: 'Settings', API_KEYS: 'Settings',
+    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings',
   };
 
   // Everything collapsed by default — only the group holding the active view is open.
@@ -98,6 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
+        { id: 'DASH_CUSTOMIZE', label: 'Dashboard Layout', icon: <LayoutGrid size={22} /> },
         { id: 'BROKERS', label: 'Broker Setup', icon: <Briefcase size={22} /> },
         { id: 'API_KEYS', label: 'API Keys', icon: <Key size={22} />, alert: !hasApiKeys },
       ]
