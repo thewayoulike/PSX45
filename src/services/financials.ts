@@ -165,7 +165,12 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
     return rows.map((row: any[]) => {
         const ticker = (row[0] || 'Unknown').toString().trim().toUpperCase();
+        
+        // Grab Dividend, Bonus, and Right from their respective columns
         const rawDiv = (row[2] || '0').toString();
+        const rawBonus = (row[3] || '').toString().trim();
+        const rawRight = (row[4] || '').toString().trim();
+
         const cleanPercent = parseFloat(rawDiv.replace('%', ''));
         // Dividends are a % of FACE VALUE. Most PSX stocks are Rs. 10 face value
         // (so percent/10), but low-face-value stocks (Rs. 5 / 3.5 / 1) pay less.
@@ -178,11 +183,16 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
         const isDueToday = xDate.getTime() === today.getTime();
 
+        // If there is no cash dividend, pass "-" so the UI relies purely on Bonus/Right chips
+        const detailsText = (isNaN(pkrAmount) || pkrAmount <= 0) ? '-' : `Div: Rs. ${pkrAmount.toFixed(2)}`;
+
         return {
             ticker: ticker || 'Unknown',
             announceDate: row[1] || '-',
             financialResult: '-',
-            details: isNaN(pkrAmount) ? 'Dividend' : `Div: Rs. ${pkrAmount.toFixed(2)}`,
+            details: detailsText,
+            bonus: rawBonus || '-',
+            right: rawRight || '-',
             bookClosure: `Ex-Date: ${dateStr}`,
             isUpcoming: true,
             isDueToday: isDueToday
