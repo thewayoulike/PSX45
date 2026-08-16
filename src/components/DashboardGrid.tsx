@@ -1,43 +1,73 @@
-import React, { useMemo } from 'react';
-// @ts-ignore - react-grid-layout ships without bundled types
-import GridLayout, { WidthProvider } from 'react-grid-layout';
-import 'react-grid-layout/css/styles.css';
-import 'react-resizable/css/styles.css';
-import { CardLayout, Device, COLS, ROW_HEIGHT, GRID_MARGIN, visibleOrdered } from './dashboard';
+/* Prominent, easy-to-grab resize handles for the dashboard customizer only. */
 
-const RGL: any = WidthProvider(GridLayout as any);
-
-interface Props {
-  layout: CardLayout[];
-  device: Device;
-  renderCard: (id: string) => React.ReactNode;
+.dash-editor .react-grid-item > .react-resizable-handle {
+  z-index: 50;
+  opacity: 1;
+  padding: 0;
 }
 
-// Live dashboard, rendered read-only from the saved 2-D grid layout.
-export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard }) => {
-  const cards = useMemo(() => visibleOrdered(layout), [layout]);
-  const rglLayout = useMemo(
-    () => cards.map(c => ({ i: c.id, x: c.x, y: c.y, w: c.w, h: c.h, static: true })),
-    [cards]
-  );
+/* Hide react-resizable's default tiny corner glyph */
+.dash-editor .react-grid-item > .react-resizable-handle::after {
+  display: none;
+}
 
-  return (
-    <RGL
-      className="layout"
-      layout={rglLayout}
-      cols={COLS[device]}
-      rowHeight={ROW_HEIGHT}
-      margin={GRID_MARGIN}
-      containerPadding={[0, 0]}
-      isDraggable={false}
-      isResizable={false}
-      compactType="vertical"
-    >
-      {cards.map(c => (
-        <div key={c.id} className="h-full overflow-auto rounded-3xl [&>*]:min-h-full">
-          {renderCard(c.id)}
-        </div>
-      ))}
-    </RGL>
-  );
-};
+/* Corner (width + height together) */
+.dash-editor .react-grid-item > .react-resizable-handle-se {
+  width: 24px;
+  height: 24px;
+  right: 3px;
+  bottom: 3px;
+  background: none;
+  border-right: 3px solid #10b981;
+  border-bottom: 3px solid #10b981;
+  border-bottom-right-radius: 10px;
+  cursor: se-resize;
+}
+.dash-editor .react-grid-item > .react-resizable-handle-se:hover {
+  border-color: #059669;
+}
+
+/* Right edge → width */
+.dash-editor .react-grid-item > .react-resizable-handle-e {
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 46px;
+  margin: 0;
+  background: rgba(16, 185, 129, 0.4);
+  border-radius: 6px;
+  cursor: ew-resize;
+}
+.dash-editor .react-grid-item > .react-resizable-handle-e:hover {
+  background: rgba(16, 185, 129, 0.8);
+}
+
+/* Bottom edge → height */
+.dash-editor .react-grid-item > .react-resizable-handle-s {
+  left: 50%;
+  bottom: 0;
+  transform: translateX(-50%);
+  height: 8px;
+  width: 46px;
+  margin: 0;
+  background: rgba(16, 185, 129, 0.4);
+  border-radius: 6px;
+  cursor: ns-resize;
+}
+.dash-editor .react-grid-item > .react-resizable-handle-s:hover {
+  background: rgba(16, 185, 129, 0.8);
+}
+
+/* Give the item a subtle outline while dragging/resizing so it reads as active */
+.dash-editor .react-grid-item.react-draggable-dragging,
+.dash-editor .react-grid-item.resizing {
+  z-index: 60;
+}
+
+/* The placeholder RGL drops behind a moving card */
+.dash-editor .react-grid-placeholder {
+  background: rgba(16, 185, 129, 0.18) !important;
+  border: 2px dashed #10b981;
+  border-radius: 1.5rem;
+}
