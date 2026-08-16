@@ -1,48 +1,43 @@
-import React from 'react';
-import { CardLayout, Device, visibleOrdered } from './dashboard';
+import React, { useMemo } from 'react';
+// @ts-ignore - react-grid-layout ships without bundled types
+import GridLayout, { WidthProvider } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+import { CardLayout, Device, COLS, ROW_HEIGHT, GRID_MARGIN, visibleOrdered } from './dashboard';
+
+const RGL: any = WidthProvider(GridLayout as any);
 
 interface Props {
-  layout: CardLayout[];              // the active device's card list (ordered)
+  layout: CardLayout[];
   device: Device;
   renderCard: (id: string) => React.ReactNode;
 }
 
-// Renders the dashboard from a saved layout. Read-only (editing happens in the
-// customizer). Web uses a 12-col grid with per-card spans; mobile stacks.
+// Live dashboard, rendered read-only from the saved 2-D grid layout.
 export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard }) => {
-  const cards = visibleOrdered(layout);
-
-  if (device === 'mobile') {
-    return (
-      <div className="flex flex-col gap-6">
-        {cards.map((c) => (
-          <div
-            key={c.id}
-            style={c.h > 0 ? { height: c.h, overflow: 'auto' } : undefined}
-          >
-            {renderCard(c.id)}
-          </div>
-        ))}
-      </div>
-    );
-  }
+  const cards = useMemo(() => visibleOrdered(layout), [layout]);
+  const rglLayout = useMemo(
+    () => cards.map(c => ({ i: c.id, x: c.x, y: c.y, w: c.w, h: c.h, static: true })),
+    [cards]
+  );
 
   return (
-    <div
-      className="grid grid-cols-12 gap-6"
-      style={{ gridAutoFlow: 'row dense', alignItems: 'start' }}
+    <RGL
+      className="layout"
+      layout={rglLayout}
+      cols={COLS[device]}
+      rowHeight={ROW_HEIGHT}
+      margin={GRID_MARGIN}
+      containerPadding={[0, 0]}
+      isDraggable={false}
+      isResizable={false}
+      compactType="vertical"
     >
-      {cards.map((c) => (
-        <div
-          key={c.id}
-          style={{
-            gridColumn: `span ${Math.min(12, Math.max(1, c.w))} / span ${Math.min(12, Math.max(1, c.w))}`,
-            ...(c.h > 0 ? { height: c.h, overflow: 'auto' } : {}),
-          }}
-        >
+      {cards.map(c => (
+        <div key={c.id} className="h-full overflow-auto rounded-3xl [&>*]:min-h-full">
           {renderCard(c.id)}
         </div>
       ))}
-    </div>
+    </RGL>
   );
 };
