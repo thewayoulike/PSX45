@@ -1,7 +1,7 @@
 export interface Transaction {
   id: string;
   portfolioId: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER' | 'TRANSFER_IN' | 'TRANSFER_OUT'; 
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER' | 'TRANSFER_IN' | 'TRANSFER_OUT';
   ticker: string;
   quantity: number;
   price: number;
@@ -87,6 +87,7 @@ export interface PortfolioStats {
   netPrincipal: number;
   peakNetPrincipal: number;
   reinvestedProfits: number;
+  dividendReinvested?: number;
   roi: number;
   
   mwrr: number;
