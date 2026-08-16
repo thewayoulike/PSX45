@@ -36,7 +36,7 @@ import { setGeminiApiKey } from '../services/gemini';
 import {
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
   Pencil, Layers, ChevronDown, CheckSquare, Square, Menu,
-  CalendarClock, ArrowRightLeft
+  CalendarClock, ArrowRightLeft, AlertTriangle
 } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
@@ -263,6 +263,7 @@ const App: React.FC = () => {
 
   // A Google user who authenticated but isn't approved yet (blocks entry).
   const [accessPendingEmail, setAccessPendingEmail] = useState<string | null>(null);
+  const [driveBannerDismissed, setDriveBannerDismissed] = useState(false);
 
   // Re-check Supabase session + approval (after email login/signup, or "check now").
   const refreshAuthStatus = async () => {
@@ -1062,6 +1063,38 @@ const App: React.FC = () => {
                   </header>
 
                   <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+
+                      {/* Connect Google Drive prompt — for signed-in users whose data isn't syncing yet. */}
+                      {sbUser && !driveUser && !driveBannerDismissed && (
+                          <div className="mb-6 rounded-3xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
+                              <div className="flex items-start gap-3 flex-1 min-w-0">
+                                  <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                                      <AlertTriangle size={20} />
+                                  </div>
+                                  <div className="min-w-0">
+                                      <h4 className="font-display font-black text-slate-900 dark:text-white text-sm md:text-base tracking-tight">Connect Google Drive to save your data</h4>
+                                      <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
+                                          Your portfolio is currently stored only on this device. <span className="font-semibold">It won't be backed up or synced across devices — and could be lost if you clear your browser</span> — until you connect Google Drive.
+                                      </p>
+                                  </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                      onClick={handleLogin}
+                                      className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600 text-slate-800 dark:text-slate-100 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 flex items-center gap-2 whitespace-nowrap"
+                                  >
+                                      <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> Connect Google Drive
+                                  </button>
+                                  <button
+                                      onClick={() => setDriveBannerDismissed(true)}
+                                      className="p-2 rounded-lg text-amber-600/70 dark:text-amber-400/70 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors"
+                                      title="Dismiss for now"
+                                  >
+                                      <X size={18} />
+                                  </button>
+                              </div>
+                          </div>
+                      )}
 
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
                           <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
