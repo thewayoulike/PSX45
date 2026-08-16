@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Search as SearchIcon } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
@@ -65,7 +65,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   onSaveScannedTrades
 }) => {
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
   
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [ticker, setTicker] = useState('');
@@ -196,7 +196,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
             setMode('MANUAL'); setType(editingTransaction.type); setDate(editingTransaction.date); setTicker(editingTransaction.ticker); setQuantity(editingTransaction.quantity); setPrice(editingTransaction.price); setCommission(editingTransaction.commission); setTax(editingTransaction.tax || 0); setCdcCharges(editingTransaction.cdcCharges || 0); setOtherFees(editingTransaction.otherFees || 0); setNotes(editingTransaction.notes || ''); setIsAutoCalc(false); if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             if (editingTransaction.type === 'TAX') { setPrice(editingTransaction.price); setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'HISTORY') { setHistAmount(editingTransaction.price); setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX'); }
-            if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(editingTransaction.type)) { setHistAmount(editingTransaction.price); }
+            if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'DIVIDEND_REINVEST'].includes(editingTransaction.type)) { setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'OTHER') { setCategory(editingTransaction.category || 'ADJUSTMENT'); setHistAmount(editingTransaction.price); }
         } else {
             setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(true); setDate(new Date().toISOString().split('T')[0]); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
@@ -220,7 +220,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (isAutoCalc && mode === 'MANUAL') {
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
         else if (type === 'HISTORY' && typeof histAmount === 'number') { setQuantity(1); setTicker('PREV-PNL'); if (histTaxType === 'BEFORE_TAX') { if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0); } else setTax(0); setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0); }
-        else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
+        else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE' || type === 'DIVIDEND_REINVEST') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : type === 'DIVIDEND_REINVEST' ? 'DIV REINVEST' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
         else if (type === 'OTHER' && typeof histAmount === 'number') { 
             setQuantity(1); 
             setTicker(category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE'); 
@@ -358,11 +358,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         );
     }
     
-    if (type === 'DEPOSIT' || type === 'WITHDRAWAL') {
+    if (type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'DIVIDEND_REINVEST') {
         return (
           <>
-              <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-200/60 dark:border-emerald-500/20 flex gap-3 items-start shadow-sm"><Wallet className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium"><p className="font-bold mb-0.5">Cash Management</p><p className="opacity-90">Track deposits and withdrawals for accurate principal calculation.</p></div></div>
-              <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl mb-3 shadow-inner"><button type="button" onClick={() => setType('DEPOSIT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'DEPOSIT' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <Plus size={14} strokeWidth={3} /> Add Funds </button><button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all ${type === 'WITHDRAWAL' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw </button></div>
+              <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-200/60 dark:border-emerald-500/20 flex gap-3 items-start shadow-sm"><Wallet className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium"><p className="font-bold mb-0.5">Cash Management</p><p className="opacity-90">{type === 'DIVIDEND_REINVEST' ? 'Reinvested dividends count as income and are added to your invested base. Withdrawals draw these down first. Record the buy separately.' : 'Track deposits and withdrawals for accurate principal calculation.'}</p></div></div>
+              <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl mb-3 shadow-inner gap-1"><button type="button" onClick={() => setType('DEPOSIT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'DEPOSIT' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <Plus size={14} strokeWidth={3} /> Add Funds </button><button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'WITHDRAWAL' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw </button><button type="button" onClick={() => setType('DIVIDEND_REINVEST')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'DIVIDEND_REINVEST' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <Coins size={14} strokeWidth={3} /> Reinvest Div </button></div>
               <div className="grid grid-cols-2 gap-4"> <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={14} /></div></div> <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> </div>
               <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:text-slate-100 tabular-nums" placeholder="50000"/><span className="absolute right-4 top-4 text-xs font-bold text-slate-400">PKR</span></div></div>
           </>
@@ -463,7 +463,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Transaction Type</label>
                         <div className="relative">
                             <select
-                                value={type === 'WITHDRAWAL' ? 'DEPOSIT' : type}
+                                value={type === 'WITHDRAWAL' || type === 'DIVIDEND_REINVEST' ? 'DEPOSIT' : type}
                                 onChange={(e) => setType(e.target.value as any)}
                                 className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none shadow-sm transition-all"
                             >
@@ -481,6 +481,26 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     </div>
 
                     {renderFormContent()}
+
+                    {/* Live total incl. fees — for Buy / Sell / Dividend */}
+                    {(type === 'BUY' || type === 'SELL' || type === 'DIVIDEND') && Number(quantity) > 0 && Number(price) > 0 && (() => {
+                        const q = Number(quantity) || 0;
+                        const p = Number(price) || 0;
+                        const gross = q * p;
+                        const feeSum = (Number(commission) || 0) + (Number(tax) || 0) + (Number(cdcCharges) || 0) + (Number(otherFees) || 0);
+                        const total = type === 'BUY' ? gross + feeSum : type === 'SELL' ? gross - feeSum : gross - (Number(tax) || 0) - (Number(otherFees) || 0);
+                        const label = type === 'BUY' ? 'Total cost (incl. fees)' : type === 'SELL' ? 'Net proceeds (after fees)' : 'Net dividend (after tax)';
+                        const money = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                        return (
+                            <div className="mt-4 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl px-4 py-3">
+                                <div className="flex flex-col">
+                                    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</span>
+                                    <span className="text-[10px] text-slate-400 tabular-nums">{q.toLocaleString()} × {money(p)}{feeSum > 0 ? ` ${type === 'SELL' ? '−' : type === 'DIVIDEND' ? '−' : '+'} ${money(type === 'DIVIDEND' ? (Number(tax) || 0) + (Number(otherFees) || 0) : feeSum)} fees` : ''}</span>
+                                </div>
+                                <span className={`text-lg font-display font-black tabular-nums ${type === 'BUY' ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{money(total)}</span>
+                            </div>
+                        );
+                    })()}
 
                     <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md shadow-emerald-600/20 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 mt-6 text-sm">
                         <Save size={18} /> Save Transaction
