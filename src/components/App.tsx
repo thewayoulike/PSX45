@@ -15,6 +15,7 @@ import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
 import { Announcements } from './Announcements';
+import { StockLookup } from './StockLookup';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -24,7 +25,6 @@ import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
 import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
-import { MarketTicker } from './MarketTicker';
 import { TransferModal } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
@@ -33,7 +33,7 @@ import { MarketSignalScanner } from './MarketSignalScanner';
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
+import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { setGeminiApiKey } from '../services/gemini';
 import {
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
@@ -513,23 +513,19 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = useCallback(async () => {
-      // Sync prices for every stock the user has ever traded — open holdings AND
-      // closed positions — so the stock page shows a current price for sold tickers too.
-      const uniqueTickers = Array.from(new Set([
-          ...holdings.map(h => h.ticker),
-          ...transactions.filter(t => t.type === 'BUY' || t.type === 'SELL').map(t => t.ticker),
-      ].filter(Boolean)));
-      if (uniqueTickers.length === 0) return;
-
+      // Sync prices for the ENTIRE PSX market in a single request. The market-watch
+      // board already lists every symbol, so this prices your holdings, your closed
+      // positions, AND any stock you've never traded — so any profile you open has a
+      // live price.
       setIsSyncing(true);
       setPriceError(false);
       setFailedTickers(new Set());
 
       try {
-          const newResults = await fetchBatchPSXPrices(uniqueTickers);
-          console.log("[App.tsx] Full PSX Sync Results:", newResults);
+          const newResults = await fetchAllPSXPrices();
+          const marketTickers = Object.keys(newResults);
+          console.log(`[App.tsx] PSX market sync: ${marketTickers.length} symbols`);
 
-          const failed = new Set<string>();
           const validUpdates: Record<string, number> = {};
           const ldcpUpdates: Record<string, number> = {};
           const newSectors: Record<string, string> = {};
@@ -537,7 +533,7 @@ const App: React.FC = () => {
           const now = new Date().toISOString();
           const timestampUpdates: Record<string, string> = {};
 
-          uniqueTickers.forEach(ticker => {
+          marketTickers.forEach(ticker => {
               const data = newResults[ticker];
               if (data && data.price > 0) {
                   validUpdates[ticker] = data.price;
@@ -549,8 +545,6 @@ const App: React.FC = () => {
                   if (data.listedIn) {
                       listedInUpdates[ticker] = data.listedIn;
                   }
-              } else {
-                  failed.add(ticker);
               }
           });
 
@@ -568,14 +562,19 @@ const App: React.FC = () => {
               setListedInMap(prev => ({ ...prev, ...listedInUpdates }));
           }
 
-          // Only raise the alarm for tickers you CURRENTLY hold. Closed/sold or
-          // delisted positions often fail to return a price (renamed, removed
-          // from PSX, etc.) — that's expected and shouldn't trip the red error dot.
-          const holdingTickers = new Set(holdings.map(h => h.ticker));
-          const failedHoldings = new Set([...failed].filter(t => holdingTickers.has(t)));
-          if (failedHoldings.size > 0) {
-              setFailedTickers(failedHoldings);
+          // If the whole board came back empty, the fetch/proxy failed — that's a real error.
+          if (marketTickers.length === 0) {
               setPriceError(true);
+          } else {
+              // Otherwise only warn about stocks you CURRENTLY hold that weren't on the
+              // board (suspended / delisted / renamed). Everything else is expected.
+              const failedHoldings = new Set(
+                  holdings.map(h => h.ticker).filter(t => t && !(validUpdates[t] > 0))
+              );
+              if (failedHoldings.size > 0) {
+                  setFailedTickers(failedHoldings);
+                  setPriceError(true);
+              }
           }
       } catch (e) {
           console.error(e);
@@ -583,7 +582,7 @@ const App: React.FC = () => {
       } finally {
           setIsSyncing(false);
       }
-  }, [holdings, transactions]);
+  }, [holdings]);
 
   useEffect(() => {
       if (!driveUser || holdings.length === 0) return;
@@ -1036,8 +1035,6 @@ const App: React.FC = () => {
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
 
-      <MarketTicker />
-
       <div className="flex flex-1 overflow-hidden relative">
 
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
@@ -1344,6 +1341,17 @@ const App: React.FC = () => {
 
                       {currentView === 'STOCKS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <StockLookup
+                                  seededPrices={manualPrices}
+                                  onResolve={(ticker, q) => {
+                                      setManualPrices(prev => ({ ...prev, [ticker]: q.price }));
+                                      if (q.ldcp > 0) setLdcpMap(prev => ({ ...prev, [ticker]: q.ldcp }));
+                                      if (q.sector && q.sector !== 'Unknown Sector') setSectorOverrides(prev => ({ ...prev, [ticker]: q.sector }));
+                                      if (q.listedIn) setListedInMap(prev => ({ ...prev, [ticker]: q.listedIn }));
+                                      setPriceTimestamps(prev => ({ ...prev, [ticker]: new Date().toISOString() }));
+                                  }}
+                                  onOpen={(t) => setViewTicker(t)}
+                              />
                               <TickerPerformanceList
                                   transactions={portfolioTransactions}
                                   currentPrices={manualPrices}
