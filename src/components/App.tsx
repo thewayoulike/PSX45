@@ -13,6 +13,8 @@ import { BenchmarkPanel } from './BenchmarkPanel';
 import { AiAgent } from './AiAgent';
 import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
+import { TopMovers } from './TopMovers';
+import { Announcements } from './Announcements';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -566,8 +568,13 @@ const App: React.FC = () => {
               setListedInMap(prev => ({ ...prev, ...listedInUpdates }));
           }
 
-          if (failed.size > 0) {
-              setFailedTickers(failed);
+          // Only raise the alarm for tickers you CURRENTLY hold. Closed/sold or
+          // delisted positions often fail to return a price (renamed, removed
+          // from PSX, etc.) — that's expected and shouldn't trip the red error dot.
+          const holdingTickers = new Set(holdings.map(h => h.ticker));
+          const failedHoldings = new Set([...failed].filter(t => holdingTickers.has(t)));
+          if (failedHoldings.size > 0) {
+              setFailedTickers(failedHoldings);
               setPriceError(true);
           }
       } catch (e) {
@@ -1299,6 +1306,16 @@ const App: React.FC = () => {
                               {/* Upcoming dividends */}
                               <div className="mt-6">
                                   <UpcomingDividends holdings={holdings} />
+                              </div>
+
+                              {/* Top movers (KSE100 / KMI30 gainers & losers) */}
+                              <div className="mt-6">
+                                  <TopMovers holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
+                              </div>
+
+                              {/* Company announcements for your holdings */}
+                              <div className="mt-6">
+                                  <Announcements holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
                               </div>
 
                               {/* Portfolio summary */}
