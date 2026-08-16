@@ -30,7 +30,8 @@ export const signUp = async (name: string, email: string, password: string) => {
   if (error) throw error;
 
   // Add them to the allowlist as pending and email the owner an approve link.
-  try { await checkApproval(email, name, true); } catch { /* signup already succeeded */ }
+  // resend=true so retrying a signup always re-sends the owner email.
+  try { await checkApproval(email, name, true, true); } catch { /* signup already succeeded */ }
 
   return data;
 };
@@ -40,12 +41,12 @@ export const signUp = async (name: string, email: string, password: string) => {
  * Google users). If `notify` is true and the email is new, it's added as pending
  * and the owner is emailed an approve link.
  */
-export const checkApproval = async (email: string, name?: string, notify = false): Promise<boolean> => {
+export const checkApproval = async (email: string, name?: string, notify = false, resend = false): Promise<boolean> => {
   try {
     const res = await fetch('/api/check-access', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, name: name || '', notify }),
+      body: JSON.stringify({ email, name: name || '', notify, resend }),
     });
     const data = await res.json().catch(() => ({ approved: false }));
     return !!data.approved;
