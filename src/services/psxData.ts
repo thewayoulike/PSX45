@@ -163,8 +163,22 @@ export const fetchBatchPSXPrices = async (tickers: string[]): Promise<Record<str
     if (html && html.length > 500) {
         parseMarketWatchTable(html, results, targetTickers);
     }
-    
-    return results; 
+
+    return results;
+};
+
+// B2. FETCH EVERY SYMBOL ON THE MARKET-WATCH BOARD (whole-market sync, one request)
+export const fetchAllPSXPrices = async (): Promise<Record<string, { price: number, sector: string, ldcp: number, high: number, low: number, volume: number, listedIn: string }>> => {
+    const results: Record<string, any> = {};
+    const targetUrl = `https://dps.psx.com.pk/market-watch`;
+
+    const html = await fetchUrlWithFallback(targetUrl);
+
+    if (html && html.length > 500) {
+        parseMarketWatchTable(html, results, null); // null = grab all symbols
+    }
+
+    return results;
 };
 
 // C. FETCH TOP VOLUME STOCKS (Ticker)
@@ -244,7 +258,8 @@ export const fetchTopVolumeStocks = async (): Promise<{ symbol: string; price: n
     }
 };
 
-const parseMarketWatchTable = (html: string, results: Record<string, any>, targetTickers: Set<string>) => {
+// targetTickers = null means "match EVERY symbol on the board" (whole-market sync).
+const parseMarketWatchTable = (html: string, results: Record<string, any>, targetTickers: Set<string> | null) => {
     try {
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, "text/html");
@@ -299,11 +314,19 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
                     symbolText = (tempDiv.textContent || "").toUpperCase().replace(/\s+/g, ' ').trim();
                 }
                 
-                let matchedTicker = null;
-                for (const ticker of targetTickers) { 
-                    if (symbolText === ticker || symbolText.startsWith(ticker + ' ')) { 
-                        matchedTicker = ticker; break; 
-                    } 
+                let matchedTicker: string | null = null;
+                if (targetTickers === null) {
+                    // Whole-market mode: take the first token of the symbol cell as the ticker.
+                    const sym = symbolText.split(/[\s-]/)[0];
+                    if (sym && !TICKER_BLACKLIST.includes(sym) && sym.length <= 8 && isNaN(Number(sym))) {
+                        matchedTicker = sym;
+                    }
+                } else {
+                    for (const ticker of targetTickers) {
+                        if (symbolText === ticker || symbolText.startsWith(ticker + ' ')) {
+                            matchedTicker = ticker; break;
+                        }
+                    }
                 }
 
                 if (!matchedTicker) return;
