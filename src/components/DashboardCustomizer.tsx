@@ -1,6 +1,7 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
-  DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors, DragEndEvent,
+  DndContext, closestCenter, PointerSensor, KeyboardSensor, useSensor, useSensors,
+  DragEndEvent, DragStartEvent, DragOverlay, MeasuringStrategy,
 } from '@dnd-kit/core';
 import {
   SortableContext, useSortable, rectSortingStrategy, arrayMove, sortableKeyboardCoordinates,
@@ -20,17 +21,16 @@ interface Props {
   onCancel: () => void;
 }
 
-const HEIGHT_PRESETS: { label: string; h: number }[] = [
-  { label: 'Auto', h: 0 },
-  { label: 'S', h: 300 },
-  { label: 'M', h: 460 },
-  { label: 'L', h: 640 },
-];
+const ROW = 120; // px per height unit
+const hLabel = (h: number) => (h === 0 ? 'Auto' : String(Math.round(h / ROW)));
+const hMinus = (h: number) => (h === 0 ? 0 : h - ROW < ROW ? 0 : h - ROW);
+const hPlus = (h: number) => (h === 0 ? 2 * ROW : Math.min(10 * ROW, h + ROW));
 
 export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSave, onCancel }) => {
   const [device, setDevice] = useState<Device>('web');
   const [draft, setDraft] = useState<DashboardLayout>(layout);
   const [dirty, setDirty] = useState(false);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const gridRef = useRef<HTMLDivElement>(null);
 
   const list = draft[device];
@@ -44,11 +44,11 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
     setDraft(prev => ({ ...prev, [device]: nextList }));
     setDirty(true);
   };
-
   const patch = (id: string, changes: Partial<CardLayout>) =>
     update(list.map(c => (c.id === id ? { ...c, ...changes } : c)));
 
   const handleDragEnd = (e: DragEndEvent) => {
+    setActiveId(null);
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const oldIndex = list.findIndex(c => c.id === active.id);
@@ -62,27 +62,37 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
     patch(id, { visible: !list.find(c => c.id === id)?.visible });
   };
   const setWidth = (id: string, w: number) => patch(id, { w: Math.min(12, Math.max(1, w)) });
-  const setHeight = (id: string, h: number) => patch(id, { h });
+  const setHeight = (id: string, h: number) => patch(id, { h: Math.max(0, Math.min(10 * ROW, h)) });
 
   const resetDevice = () => {
     setDraft(prev => ({ ...prev, [device]: DEFAULT_LAYOUT[device].map(c => ({ ...c })) }));
     setDirty(true);
   };
-
   const save = () => { onSave(draft); setDirty(false); };
 
   // Drag the right edge to resize width (web only), snapping to grid columns.
   const startWidthResize = (id: string, startW: number) => (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     const gridW = gridRef.current?.clientWidth || 1;
     const colW = gridW / 12;
     const startX = e.clientX;
     const move = (ev: PointerEvent) => setWidth(id, startW + Math.round((ev.clientX - startX) / colW));
-    const up = () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
+
+  // Drag the bottom edge to resize height, snapping to row units.
+  const startHeightResize = (id: string, startH: number) => (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    const base = startH === 0 ? 3 * ROW : startH;
+    const startY = e.clientY;
+    const move = (ev: PointerEvent) => {
+      const raw = base + (ev.clientY - startY);
+      const snapped = Math.round(raw / ROW) * ROW;
+      setHeight(id, snapped < ROW ? 0 : snapped);
     };
+    const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
@@ -101,6 +111,8 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
     );
   };
 
+  const activeMeta = activeId ? metaFor(activeId) : null;
+
   return (
     <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 space-y-6">
       {/* Header */}
@@ -112,7 +124,7 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
             </div>
             <div>
               <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight">Dashboard Layout</h2>
-              <p className="text-xs text-slate-400 font-medium">Tick to show/hide, drag the ⋮⋮ handle to reorder, resize width, and set height. Web &amp; mobile save separately.</p>
+              <p className="text-xs text-slate-400 font-medium">Tick to show/hide · drag the ⋮⋮ handle to reorder · set width &amp; height. Two cards sit side by side when their widths add up to 12.</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -139,7 +151,14 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
       </div>
 
       {/* Live editable grid — real cards */}
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        measuring={{ droppable: { strategy: MeasuringStrategy.Always } }}
+        onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}
+        onDragCancel={() => setActiveId(null)}
+        onDragEnd={handleDragEnd}
+      >
         <SortableContext items={list.map(c => c.id)} strategy={rectSortingStrategy}>
           <div
             ref={gridRef}
@@ -155,12 +174,24 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
                 onToggle={() => toggle(c.id)}
                 onWidthMinus={() => setWidth(c.id, c.w - 1)}
                 onWidthPlus={() => setWidth(c.id, c.w + 1)}
-                onHeight={(h) => setHeight(c.id, h)}
-                onStartResize={startWidthResize(c.id, c.w)}
+                onHeightMinus={() => setHeight(c.id, hMinus(c.h))}
+                onHeightPlus={() => setHeight(c.id, hPlus(c.h))}
+                onStartWidthResize={startWidthResize(c.id, c.w)}
+                onStartHeightResize={startHeightResize(c.id, c.h)}
               />
             ))}
           </div>
         </SortableContext>
+
+        {/* Compact drag proxy so you're not hauling a huge card around */}
+        <DragOverlay dropAnimation={null}>
+          {activeMeta ? (
+            <div className="flex items-center gap-2 px-4 py-3 rounded-2xl bg-slate-900 text-white shadow-2xl border border-white/10">
+              <GripVertical size={16} className="opacity-70" />
+              <span className="font-display font-black text-sm">{activeMeta.label}</span>
+            </div>
+          ) : null}
+        </DragOverlay>
       </DndContext>
     </div>
   );
@@ -173,11 +204,18 @@ interface CardProps {
   onToggle: () => void;
   onWidthMinus: () => void;
   onWidthPlus: () => void;
-  onHeight: (h: number) => void;
-  onStartResize: (e: React.PointerEvent) => void;
+  onHeightMinus: () => void;
+  onHeightPlus: () => void;
+  onStartWidthResize: (e: React.PointerEvent) => void;
+  onStartHeightResize: (e: React.PointerEvent) => void;
 }
 
-const EditCard: React.FC<CardProps> = ({ card, device, renderCard, onToggle, onWidthMinus, onWidthPlus, onHeight, onStartResize }) => {
+const stepBtn = 'w-6 h-6 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:border-brand-400';
+
+const EditCard: React.FC<CardProps> = ({
+  card, device, renderCard, onToggle,
+  onWidthMinus, onWidthPlus, onHeightMinus, onHeightPlus, onStartWidthResize, onStartHeightResize,
+}) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   const m = metaFor(card.id);
   const core = isCore(card.id);
@@ -185,10 +223,19 @@ const EditCard: React.FC<CardProps> = ({ card, device, renderCard, onToggle, onW
   const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.6 : 1,
-    zIndex: isDragging ? 30 : undefined,
     ...(device === 'web' ? { gridColumn: `span ${card.w} / span ${card.w}` } : {}),
   };
+
+  // While dragging, collapse to a clear placeholder slot (keeps its grid span).
+  if (isDragging) {
+    return (
+      <div ref={setNodeRef} style={style} {...attributes}>
+        <div className="h-40 rounded-3xl border-2 border-dashed border-brand-400/70 bg-brand-50/50 dark:bg-brand-500/5 flex items-center justify-center">
+          <span className="text-xs font-bold uppercase tracking-widest text-brand-500">Drop here</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -209,7 +256,6 @@ const EditCard: React.FC<CardProps> = ({ card, device, renderCard, onToggle, onW
           <GripVertical size={18} />
         </button>
 
-        {/* show/hide checkbox */}
         <button
           onClick={onToggle}
           disabled={core}
@@ -230,27 +276,17 @@ const EditCard: React.FC<CardProps> = ({ card, device, renderCard, onToggle, onW
         {device === 'web' && (
           <div className="flex items-center gap-1">
             <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mr-0.5">W</span>
-            <button onClick={onWidthMinus} disabled={card.w <= 1} className="w-6 h-6 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:border-brand-400"><Minus size={12} /></button>
-            <span className="w-8 text-center text-[11px] font-bold tabular-nums text-slate-700 dark:text-slate-200">{card.w}/12</span>
-            <button onClick={onWidthPlus} disabled={card.w >= 12} className="w-6 h-6 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 flex items-center justify-center text-slate-500 disabled:opacity-30 hover:border-brand-400"><Plus size={12} /></button>
+            <button onClick={onWidthMinus} disabled={card.w <= 1} className={stepBtn}><Minus size={12} /></button>
+            <span className="w-9 text-center text-[11px] font-bold tabular-nums text-slate-700 dark:text-slate-200">{card.w}/12</span>
+            <button onClick={onWidthPlus} disabled={card.w >= 12} className={stepBtn}><Plus size={12} /></button>
           </div>
         )}
 
         <div className="flex items-center gap-1">
           <span className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mr-0.5">H</span>
-          {HEIGHT_PRESETS.map(p => (
-            <button
-              key={p.label}
-              onClick={() => onHeight(p.h)}
-              className={`px-2 h-6 rounded-lg text-[11px] font-bold border transition-colors ${
-                card.h === p.h
-                  ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-500 hover:border-brand-400'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
+          <button onClick={onHeightMinus} disabled={card.h <= 0} className={stepBtn}><Minus size={12} /></button>
+          <span className="w-10 text-center text-[11px] font-bold tabular-nums text-slate-700 dark:text-slate-200">{hLabel(card.h)}</span>
+          <button onClick={onHeightPlus} className={stepBtn}><Plus size={12} /></button>
         </div>
       </div>
 
@@ -269,14 +305,19 @@ const EditCard: React.FC<CardProps> = ({ card, device, renderCard, onToggle, onW
         )}
       </div>
 
-      {/* Right-edge width resize handle (web only) */}
+      {/* Resize handles */}
       {device === 'web' && (
         <div
-          onPointerDown={onStartResize}
+          onPointerDown={onStartWidthResize}
           className="hidden md:block absolute top-14 bottom-3 right-0 w-2 rounded-full cursor-col-resize bg-brand-400/0 hover:bg-brand-400/60 transition-colors"
           title="Drag to resize width"
         />
       )}
+      <div
+        onPointerDown={onStartHeightResize}
+        className="absolute left-6 right-6 bottom-0 h-2 rounded-full cursor-row-resize bg-brand-400/0 hover:bg-brand-400/60 transition-colors"
+        title="Drag to resize height"
+      />
     </div>
   );
 };
