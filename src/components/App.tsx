@@ -13,6 +13,7 @@ import { BenchmarkPanel } from './BenchmarkPanel';
 import { AiAgent } from './AiAgent';
 import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
+import { TopMovers } from './TopMovers';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -1281,6 +1282,11 @@ const App: React.FC = () => {
                               {/* Upcoming dividends */}
                               <div className="mt-6">
                                   <UpcomingDividends holdings={holdings} />
+                              </div>
+
+                              {/* Top movers — KSE-100 / KMI-30 gainers & losers */}
+                              <div className="mt-6">
+                                  <TopMovers holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
                               </div>
 
                               {/* Portfolio summary */}
