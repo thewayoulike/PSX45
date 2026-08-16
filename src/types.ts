@@ -99,7 +99,7 @@ export interface Portfolio {
   defaultBrokerId: string;
 }
 
-export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR' | 'BROKERS' | 'API_KEYS';
+export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR' | 'BROKERS' | 'API_KEYS' | 'DASH_CUSTOMIZE';
 
 export interface DividendAnnouncement {
     ticker: string;
