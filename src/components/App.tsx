@@ -48,8 +48,9 @@ import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
-import { getAuthUser, checkApproval, signOutAuth, AppAuthUser } from '../services/auth';
+import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
+import { Paywall } from './Paywall';
 import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
@@ -75,6 +76,8 @@ const App: React.FC = () => {
   const [sbUser, setSbUser] = useState<AppAuthUser | null>(null);
   const [sbApproved, setSbApproved] = useState(false);
   const [sbChecking, setSbChecking] = useState(true);
+  const [sbStatus, setSbStatus] = useState<AccessStatus | null>(null);      // access status of the signed-in user
+  const [pendingStatus, setPendingStatus] = useState<AccessStatus | null>(null); // access status of a blocked Google user
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
 
@@ -297,19 +300,22 @@ const App: React.FC = () => {
       const u = await getAuthUser();
       setSbUser(u);
       if (u) {
-          const ap = await checkApproval(u.email);
-          setSbApproved(ap);
-          if (ap) { guestModeRef.current = false; setShowLogin(false); }
+          const st = await getAccessStatus(u.email);
+          setSbStatus(st);
+          setSbApproved(st.active);
+          if (st.active) { guestModeRef.current = false; setShowLogin(false); }
       } else {
           setSbApproved(false);
+          setSbStatus(null);
       }
   };
 
   // "Check now" from the pending screen (covers both email and Google users).
   const refreshPending = async () => {
       if (accessPendingEmail) {
-          const ok = await checkApproval(accessPendingEmail);
-          if (ok) { window.location.reload(); return; } // re-run the Google flow, now approved
+          const st = await getAccessStatus(accessPendingEmail);
+          setPendingStatus(st);
+          if (st.active) { window.location.reload(); return; } // re-run the Google flow, now with access
           return;
       }
       await refreshAuthStatus();
@@ -355,14 +361,16 @@ const App: React.FC = () => {
           // User chose Guest Mode — ignore a silently-restored Google session.
           if (guestModeRef.current) { setIsAuthChecking(false); return; }
 
-          // Gate Google sign-in by owner approval (same allowlist as email/password).
-          const approved = await checkApproval(user.email, user.name, true);
-          if (!approved) {
+          // Gate Google sign-in by owner approval + subscription (same allowlist).
+          const st = await getAccessStatus(user.email, user.name, true);
+          setSbStatus(st);
+          if (!st.active) {
               setAccessPendingEmail(user.email);
+              setPendingStatus(st);
               setDriveUser(null);
               setIsAuthChecking(false);
               setShowLogin(true);
-              return; // don't enter the app until approved
+              return; // don't enter the app until approved / paid
           }
 
           setAccessPendingEmail(null);
@@ -1050,7 +1058,12 @@ const App: React.FC = () => {
       // Awaiting approval → pending screen. Covers Google users (accessPendingEmail)
       // and email/password users (sbUser not yet approved).
       const pendingEmail = accessPendingEmail || (sbUser && !sbApproved ? sbUser.email : null);
+      const blockStatus = accessPendingEmail ? pendingStatus : sbStatus;
       if (pendingEmail && !driveUser && !guestModeRef.current) {
+          // Approved once but trial/subscription lapsed → payment screen.
+          if (blockStatus?.status === 'expired') {
+              return <Paywall email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
+          }
           return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
       }
       return <LoginPage onGuestLogin={handleGuestLogin} onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
@@ -1124,8 +1137,30 @@ const App: React.FC = () => {
       }
   };
 
+  const trialBanner = (() => {
+      const st = sbStatus;
+      if (!st) return null;
+      if (st.status === 'trial' && st.daysLeft != null) {
+          return (
+              <div className="shrink-0 text-center text-xs font-bold py-1.5 px-4 bg-amber-500 text-white">
+                  Free trial · {st.daysLeft} {st.daysLeft === 1 ? 'day' : 'days'} left. Subscribe to keep access after it ends.
+              </div>
+          );
+      }
+      if (st.status === 'paid' && st.daysLeft != null && st.daysLeft <= 7) {
+          return (
+              <div className="shrink-0 text-center text-xs font-bold py-1.5 px-4 bg-amber-500 text-white">
+                  Subscription ends in {st.daysLeft} {st.daysLeft === 1 ? 'day' : 'days'}. Please renew to avoid interruption.
+              </div>
+          );
+      }
+      return null;
+  })();
+
   return (
     <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
+
+      {trialBanner}
 
       <div className="flex flex-1 overflow-hidden relative">
 
