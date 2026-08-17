@@ -633,7 +633,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </div>
 
           <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
-            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash (03367580244), email the receipt — your account is activated as soon as it's confirmed.
+            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash, email the receipt — your account is activated as soon as it's confirmed.
           </p>
         </div>
       </section>
