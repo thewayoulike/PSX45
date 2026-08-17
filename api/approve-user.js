@@ -27,9 +27,18 @@ export default async function handler(req, res) {
   );
 
   const cleanEmail = String(email).trim().toLowerCase();
+
+  // Start the trial clock on first approval only (don't reset it on re-clicks).
+  const { data: existing } = await supabase
+    .from('allowlist')
+    .select('approved_at')
+    .eq('email', cleanEmail)
+    .maybeSingle();
+  const approvedAt = existing?.approved_at || new Date().toISOString();
+
   const { error } = await supabase
     .from('allowlist')
-    .upsert({ email: cleanEmail, approved: true }, { onConflict: 'email' });
+    .upsert({ email: cleanEmail, approved: true, approved_at: approvedAt }, { onConflict: 'email' });
 
   if (error) {
     return res.status(500).send(page('Database error', error.message));
