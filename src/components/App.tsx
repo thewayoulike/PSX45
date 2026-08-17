@@ -16,6 +16,7 @@ import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
 import { BoardMeetings } from './BoardMeetings';
 import { StockLookup } from './StockLookup';
+import { SectorView } from './SectorView';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardCustomizer } from './DashboardCustomizer';
 import { AdminUsers } from './AdminUsers';
@@ -65,7 +66,7 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -1435,6 +1436,10 @@ const App: React.FC = () => {
                               />
                           </div>
                       )}
+                      {currentView === 'SECTOR' && (
+                          <SectorView holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
+                      )}
+
                       {currentView === 'SIGNALS' && (
                           <MarketSignalScanner onSymbolClick={(t) => setViewTicker(t)} />
                       )}
