@@ -208,8 +208,22 @@ const MiniCard: React.FC<{ label: string; rows: [string, string][] }> = ({ label
   </div>
 );
 
+const Panel: React.FC<{ title: string; children: React.ReactNode; className?: string }> = ({ title, children, className }) => (
+  <div className={`rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4 ${className || ''}`}>
+    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{title}</div>
+    {children}
+  </div>
+);
+
+const Row: React.FC<{ left: React.ReactNode; right: string; up?: boolean }> = ({ left, right, up = true }) => (
+  <div className="flex items-center justify-between gap-2 py-0.5">
+    <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">{left}</span>
+    <span className={`text-[11px] sm:text-sm font-bold tabular-nums ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{right}</span>
+  </div>
+);
+
 const DashboardShot: React.FC = () => (
-  <div className="relative max-w-4xl mx-auto mt-4 text-left">
+  <div className="relative max-w-5xl mx-auto mt-4 text-left">
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
       {/* browser chrome */}
       <div className="h-9 flex items-center gap-1.5 px-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
@@ -220,8 +234,9 @@ const DashboardShot: React.FC = () => (
       </div>
 
       {/* dashboard body */}
-      <div className="p-4 sm:p-6 bg-slate-50 dark:bg-[#0a0a0a]">
-        <div className="flex items-center justify-between mb-4">
+      <div className="p-4 sm:p-6 bg-slate-50 dark:bg-[#0a0a0a] space-y-3">
+        {/* header */}
+        <div className="flex items-center justify-between">
           <div>
             <div className="text-lg sm:text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Welcome back 👋</div>
             <div className="text-[10px] sm:text-xs text-slate-400">Here's how your investments are performing today.</div>
@@ -229,16 +244,84 @@ const DashboardShot: React.FC = () => (
           <span className="hidden sm:inline text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1">Updated 9:42 AM</span>
         </div>
 
+        {/* hero stats */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <StatCard label="Total Net Worth" value="Rs. 4,182,650" sub="Invested Rs. 3,532,830" points="0,20 16,17 32,19 48,11 64,13 80,6 100,3" />
           <StatCard label="Total Return" value="+18.42%" sub="+Rs. 649,820" points="0,22 16,19 32,16 48,15 64,9 80,7 100,2" />
           <StatCard label="Today's P&L" value="+Rs. 12,340" sub="+0.30%" points="0,18 16,20 32,12 48,15 64,10 80,12 100,5" />
         </div>
 
-        <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-2 sm:mt-3">
+        {/* performance / capital / income */}
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <MiniCard label="Performance" rows={[['MWR (XIRR)', '+22.6%'], ['ROI', '+18.4%']]} />
           <MiniCard label="Capital" rows={[['Net Invested', 'Rs. 3.53M'], ['Stock Value', 'Rs. 3.94M']]} />
           <MiniCard label="Income" rows={[['Dividends', '+Rs. 84,500'], ['Yield on Cost', '2.4%']]} />
+        </div>
+
+        {/* fees + health strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+          {[['Commission', 'Rs. 42,180'], ['Taxes (SST)', 'Rs. 6,120'], ['CDC Charges', 'Rs. 2,040'], ['Other Fees', 'Rs. 890']].map(([k, v]) => (
+            <div key={k} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5">
+              <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">{k}</div>
+              <div className="text-[11px] sm:text-sm font-display font-black text-slate-800 dark:text-white tabular-nums mt-0.5">{v}</div>
+            </div>
+          ))}
+          <div className="rounded-xl border border-emerald-200/70 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
+            <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Health Score</div>
+            <div className="text-[11px] sm:text-sm font-display font-black text-emerald-700 dark:text-emerald-300 tabular-nums mt-0.5">82/100 · Great</div>
+          </div>
+        </div>
+
+        {/* performance vs index — area chart */}
+        <Panel title="Performance vs KSE-100 · +6.8% ahead">
+          <svg viewBox="0 0 300 80" preserveAspectRatio="none" className="w-full h-16 sm:h-24">
+            <defs>
+              <linearGradient id="pxg" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stopColor="#10b981" stopOpacity="0.35" />
+                <stop offset="1" stopColor="#10b981" stopOpacity="0" />
+              </linearGradient>
+            </defs>
+            <path d="M0,62 L30,56 L60,58 L90,46 L120,50 L150,38 L180,42 L210,28 L240,24 L270,15 L300,10 L300,80 L0,80 Z" fill="url(#pxg)" />
+            <polyline points="0,62 30,56 60,58 90,46 120,50 150,38 180,42 210,28 240,24 270,15 300,10" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" />
+            <polyline points="0,66 30,64 60,65 90,60 120,62 150,56 180,58 210,52 240,50 270,46 300,44" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 3" />
+          </svg>
+        </Panel>
+
+        {/* allocation + top holdings */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <Panel title="Allocation">
+            <div className="flex items-center gap-3">
+              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full shrink-0" style={{ background: 'conic-gradient(#10b981 0 32%, #6366f1 32% 56%, #f59e0b 56% 74%, #06b6d4 74% 88%, #f43f5e 88% 100%)' }}>
+                <div className="absolute inset-[24%] rounded-full bg-white dark:bg-slate-900" />
+              </div>
+              <div className="space-y-1 text-[10px] sm:text-xs">
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500" /> Banks 32%</div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-indigo-500" /> Tech 24%</div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-amber-500" /> Cement 18%</div>
+                <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-cyan-500" /> Energy 14%</div>
+              </div>
+            </div>
+          </Panel>
+          <Panel title="Top Holdings">
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">SYS · 19%</span>} right="+46.8%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">MEBL · 14%</span>} right="+28.3%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">LUCK · 11%</span>} right="+15.9%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">OGDC · 9%</span>} right="+7.2%" />
+          </Panel>
+        </div>
+
+        {/* top movers + board meetings */}
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <Panel title="Top Movers · KSE-100">
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">TRG</span>} right="+7.5%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">PPL</span>} right="+5.1%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">HUBC</span>} right="+4.3%" />
+          </Panel>
+          <Panel title="Board Meetings">
+            <Row left={<span><span className="font-bold text-slate-700 dark:text-slate-200">ENGRO</span> · Karachi</span>} right="in 2d" up />
+            <Row left={<span><span className="font-bold text-slate-700 dark:text-slate-200">FFC</span> · Rawalpindi</span>} right="in 4d" up />
+            <Row left={<span><span className="font-bold text-slate-700 dark:text-slate-200">MARI</span> · Islamabad</span>} right="in 6d" up />
+          </Panel>
         </div>
       </div>
     </div>
