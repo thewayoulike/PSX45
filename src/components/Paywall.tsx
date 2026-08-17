@@ -13,15 +13,15 @@ const PAY_EMAIL = ((import.meta as any).env?.VITE_OWNER_EMAIL || 'itruth2011@gma
 
 // Per-month pricing (cheaper the longer you commit). Edit here if prices change.
 const PLANS: { label: string; perMonth: string; total: string; best?: boolean }[] = [
-  { label: '1 Month', perMonth: 'Rs. 750', total: 'Rs. 750' },
-  { label: '3 Months', perMonth: 'Rs. 650', total: 'Rs. 1,950' },
-  { label: '6 Months', perMonth: 'Rs. 550', total: 'Rs. 3,300' },
-  { label: '1 Year', perMonth: 'Rs. 500', total: 'Rs. 6,000', best: true },
+  { label: '1 Month', perMonth: 'Rs. 500', total: 'Rs. 500' },
+  { label: '3 Months', perMonth: 'Rs. 400', total: 'Rs. 1,200' },
+  { label: '1 Year', perMonth: 'Rs. 350', total: 'Rs. 4,200', best: true },
 ];
 
 const ACCOUNTS: { bank: string; iban: string }[] = [
   { bank: 'Naya Pay', iban: 'PK96NAYA1234503367580244' },
-  { bank: 'Meezan Bank', iban: 'PK80MEZN0011670110653033' },
+  { bank: 'Jazz Cash', iban: '03367580244' },
+  { bank: 'Bank Transfer (Meezan)', iban: 'PK80MEZN0011670110653033' },
 ];
 const ACCOUNT_TITLE = 'Muhammad Aftab Jamil';
 
@@ -52,7 +52,7 @@ export const Paywall: React.FC<Props> = ({ email, onRefresh, onSignOut }) => {
         </p>
 
         {/* Plans — per month, cheaper the longer you commit */}
-        <div className="grid grid-cols-2 gap-2 mb-5">
+        <div className="grid grid-cols-3 gap-2 mb-5">
           {PLANS.map(p => (
             <div key={p.label} className={`relative rounded-2xl border p-3 text-center ${p.best ? 'border-emerald-400 dark:border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-500/5' : 'border-slate-200 dark:border-slate-700'}`}>
               {p.best && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2 py-0.5 rounded-full">Best value</span>}
