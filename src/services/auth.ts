@@ -42,16 +42,48 @@ export const signUp = async (name: string, email: string, password: string) => {
  * and the owner is emailed an approve link.
  */
 export const checkApproval = async (email: string, name?: string, notify = false, resend = false): Promise<boolean> => {
+  const st = await getAccessStatus(email, name, notify, resend);
+  return st.active;
+};
+
+export type AccessState = 'pending' | 'trial' | 'paid' | 'lifetime' | 'expired';
+
+export interface AccessStatus {
+  approved: boolean;       // owner has let them in (trial or beyond)
+  active: boolean;         // currently has access to the app
+  status: AccessState;
+  lifetime: boolean;
+  accessUntil?: string | null;
+  trialEnds?: string | null;
+  daysLeft?: number | null;
+  isNew?: boolean;
+}
+
+/**
+ * Full access picture for an email (trial / paid / lifetime / expired). If
+ * `notify` is true and the email is new, it's added as pending and the owner
+ * is emailed an approve link (unchanged behaviour).
+ */
+export const getAccessStatus = async (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {
   try {
     const res = await fetch('/api/check-access', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, name: name || '', notify, resend }),
     });
-    const data = await res.json().catch(() => ({ approved: false }));
-    return !!data.approved;
+    const d = await res.json().catch(() => ({}));
+    return {
+      approved: !!d.approved,
+      active: !!d.active,
+      status: (d.accessStatus as AccessState) || (d.approved ? 'trial' : 'pending'),
+      lifetime: !!d.lifetime,
+      accessUntil: d.accessUntil ?? null,
+      trialEnds: d.trialEnds ?? null,
+      daysLeft: d.daysLeft ?? null,
+      isNew: !!d.new,
+    };
   } catch {
-    return false;
+    return { approved: false, active: false, status: 'pending', lifetime: false, accessUntil: null, trialEnds: null, daysLeft: null };
   }
 };
 
