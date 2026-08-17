@@ -18,6 +18,7 @@ import { BoardMeetings } from './BoardMeetings';
 import { StockLookup } from './StockLookup';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardCustomizer } from './DashboardCustomizer';
+import { AdminUsers } from './AdminUsers';
 import { DashboardLayout, normalizeLayout, DEFAULT_LAYOUT } from './dashboard';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
@@ -63,7 +64,7 @@ const DEFAULT_BROKER: Broker = {
 };
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
 
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
@@ -1058,6 +1059,12 @@ const App: React.FC = () => {
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
   const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
 
+  // Owner-only admin gate. Matches the signed-in email (Google Drive or Supabase)
+  // against the owner address. Configurable via VITE_OWNER_EMAIL.
+  const OWNER_EMAIL = ((import.meta as any).env?.VITE_OWNER_EMAIL || 'itruth2011@gmail.com').toLowerCase();
+  const isOwner = [driveUser?.email, sbUser?.email]
+    .some(e => (e || '').toLowerCase() === OWNER_EMAIL);
+
   // Render a single dashboard card by id. Used by the customizable DashboardGrid.
   const renderDashCard = (id: string): React.ReactNode => {
       switch (id) {
@@ -1136,6 +1143,7 @@ const App: React.FC = () => {
              onToggleCollapse={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
              driveUser={driveUser}
              authUser={sbUser}
+             isOwner={isOwner}
              onLogin={handleLogin}
              onLogout={handleManualLogout}
              isCloudSyncing={isCloudSyncing}
@@ -1354,6 +1362,8 @@ const App: React.FC = () => {
                               onCancel={() => setCurrentView('DASHBOARD')}
                           />
                       )}
+
+                      {currentView === 'ADMIN_USERS' && isOwner && <AdminUsers />}
 
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
