@@ -16,7 +16,7 @@ interface LoginPageProps {
 
 /* ---------- email/password auth (Supabase) ---------- */
 
-const EmailAuth: React.FC<{ onAuthSuccess?: () => void }> = ({ onAuthSuccess }) => {
+const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => void; onGuestLogin: () => void }> = ({ onAuthSuccess, onGoogleLogin, onGuestLogin }) => {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -107,9 +107,34 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void }> = ({ onAuthSuccess }) 
 
       <p className="text-[11px] text-slate-400 text-center mt-4 leading-snug">
         {tab === 'signup'
-          ? 'New accounts need owner approval before first login.'
+          ? 'New accounts get a 15-day free trial after a quick owner approval.'
           : "Signed up but can't get in yet? Your account may still be pending approval."}
       </p>
+
+      {/* Google + Guest, inside the same card */}
+      <div className="flex items-center gap-3 my-5">
+        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">or</span>
+        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
+      </div>
+
+      <button
+        onClick={onGoogleLogin}
+        className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:shadow-md text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-all"
+      >
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+        Sign in with Google
+        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Recommended</span>
+      </button>
+      <p className="text-[11px] text-slate-400 text-center mt-1.5">Syncs securely to your own Google Drive across devices.</p>
+
+      <button
+        onClick={onGuestLogin}
+        className="w-full flex items-center justify-center gap-2 mt-3 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+      >
+        <User size={16} /> Continue as Guest
+        <span className="text-[11px] font-medium text-slate-400">· local only, no sync</span>
+      </button>
     </div>
   );
 };
@@ -151,6 +176,26 @@ const SectionHead: React.FC<{ eyebrow: string; title: string; sub?: string }> = 
     {sub && <p className="text-slate-500 dark:text-slate-400 leading-relaxed">{sub}</p>}
   </div>
 );
+
+// Framed dashboard screenshot. Drop your image at public/dashboard-preview.png.
+// If it's not there yet, the frame simply doesn't render (no broken image).
+const DashboardShot: React.FC = () => {
+  const [ok, setOk] = useState(true);
+  if (!ok) return null;
+  return (
+    <div className="relative max-w-4xl mx-auto mt-4">
+      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+        <div className="h-9 flex items-center gap-1.5 px-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+          <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+          <span className="ml-3 text-[11px] text-slate-400 font-mono">psx-tracker.com</span>
+        </div>
+        <img src="/dashboard-preview.png" alt="PSX Tracker dashboard preview" className="w-full block" onError={() => setOk(false)} />
+      </div>
+    </div>
+  );
+};
 
 /* ---------- page ---------- */
 
@@ -202,9 +247,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             technical buy/sell signals and price alerts — in one fast, private web app.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-12">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
             <button
-              onClick={onGoogleLogin}
+              onClick={() => scrollTo('start')}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
             >
               Start Free <ArrowRight size={18} />
@@ -216,16 +261,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               Explore Features
             </button>
           </div>
+          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-12">✓ 15-day free trial · no card required</p>
 
           <div className="flex flex-wrap gap-2 justify-center">
             <Pill>Live PSX Prices</Pill>
             <Pill>Buy / Sell Signals</Pill>
             <Pill>Price Alerts</Pill>
             <Pill>Dividend Scanner</Pill>
+            <Pill>Watchlist</Pill>
+            <Pill>Board Meetings</Pill>
             <Pill>Realized P&amp;L + CGT</Pill>
             <Pill>vs KSE-100 &amp; KMI-30</Pill>
             <Pill>Drive Sync</Pill>
           </div>
+
+          {/* Dashboard screenshot */}
+          <DashboardShot />
         </div>
       </section>
 
@@ -365,26 +416,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-lg">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Sample Holding</div>
             <div className="flex items-baseline justify-between mb-1">
-              <span className="font-display font-black text-2xl">MACTER</span>
-              <span className="text-2xl font-display font-black tabular-nums text-rose-500">−32.15%</span>
+              <span className="font-display font-black text-2xl">SYS</span>
+              <span className="text-2xl font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+46.80%</span>
             </div>
-            <div className="text-xs text-slate-400 mb-5">143 shares · Avg cost Rs. 410.65</div>
+            <div className="text-xs text-slate-400 mb-5">300 shares · Avg cost Rs. 620.00</div>
             <div className="space-y-3 pt-5 border-t border-slate-100 dark:border-slate-800">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Open position</span>
-                <span className="font-bold tabular-nums text-rose-500">−18,877</span>
+                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+87,300</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Realized (day trade)</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+922</span>
+                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+4,120</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Dividends received</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+170</span>
+                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+2,250</span>
               </div>
               <div className="flex justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                 <span className="text-sm font-bold">Lifetime return</span>
-                <span className="font-display font-black tabular-nums text-rose-500">−17.24%</span>
+                <span className="font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+52.40%</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-400 mt-4 leading-snug">
@@ -412,8 +463,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             <Feature Icon={Smartphone} title="Installable App" tint="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20">
               Add to your home screen and it works like a native app, offline included.
             </Feature>
-            <Feature Icon={Wallet} title="Free to Use" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
-              No subscription, no paywalled features, no hidden limits.
+            <Feature Icon={Wallet} title="15-Day Free Trial" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
+              Try every feature free for 15 days. Keep going with a simple subscription — monthly, yearly, or lifetime.
             </Feature>
           </div>
         </div>
@@ -422,47 +473,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
       {/* ================= START / SIGN IN ================= */}
       <section id="start" className="px-5 py-20 bg-white/60 dark:bg-slate-900/20 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-3xl mx-auto">
-          <SectionHead eyebrow="Get Started" title="Log in or create an account" sub="New accounts need a quick owner approval. Prefer no account? Use Guest Mode below." />
+          <SectionHead eyebrow="Get Started" title="Start your 15-day free trial" sub="Create an account (a quick owner approval), sign in with Google, or use Guest Mode — no sign-up needed." />
 
-          {/* Email / password auth */}
-          <EmailAuth onAuthSuccess={onAuthSuccess} />
-
-          <div className="flex items-center gap-3 my-8 max-w-md mx-auto">
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-            <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">or</span>
-            <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-          </div>
-
-          <div className="flex flex-col md:flex-row gap-5 justify-center">
-            {/* Google */}
-            <button
-              onClick={onGoogleLogin}
-              className="group relative bg-white dark:bg-slate-900 border-2 border-emerald-500/30 dark:border-emerald-500/30 p-8 rounded-3xl shadow-lg hover:shadow-xl hover:border-emerald-500/60 transition-all hover:-translate-y-1 w-full md:w-80 flex flex-col items-center text-center"
-            >
-              <span className="absolute -top-3 px-3 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest shadow-md">Recommended</span>
-              <div className="w-20 h-20 bg-white dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-6 shadow-sm border border-slate-100 dark:border-slate-700/50 group-hover:scale-110 transition-transform duration-300">
-                <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-10 h-10 drop-shadow-sm" alt="Google" />
-              </div>
-              <h3 className="text-xl font-display font-black mb-2 tracking-tight">Sign in with Google</h3>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                Sync your portfolio securely across all your devices using your own Drive.
-              </p>
-            </button>
-
-            {/* Guest */}
-            <button
-              onClick={onGuestLogin}
-              className="group bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 p-8 rounded-3xl shadow-sm hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700 transition-all hover:-translate-y-1 w-full md:w-80 flex flex-col items-center text-center"
-            >
-              <div className="w-20 h-20 bg-slate-50 dark:bg-slate-800 rounded-2xl flex items-center justify-center mb-6 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-700/50 group-hover:bg-emerald-50 dark:group-hover:bg-emerald-500/10 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-all duration-300 group-hover:scale-110 shadow-sm">
-                <User size={36} strokeWidth={2.5} />
-              </div>
-              <h3 className="text-xl font-display font-black mb-2 tracking-tight">Guest Mode</h3>
-              <p className="text-sm font-medium text-slate-500 dark:text-slate-400 leading-relaxed">
-                Start using it immediately. Data is stored locally on this device.
-              </p>
-            </button>
-          </div>
+          {/* Email / password + Google + Guest, all in one card */}
+          <EmailAuth onAuthSuccess={onAuthSuccess} onGoogleLogin={onGoogleLogin} onGuestLogin={onGuestLogin} />
         </div>
       </section>
 
