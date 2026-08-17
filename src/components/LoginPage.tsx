@@ -177,25 +177,73 @@ const SectionHead: React.FC<{ eyebrow: string; title: string; sub?: string }> = 
   </div>
 );
 
-// Framed dashboard screenshot. Drop your image at public/dashboard-preview.png.
-// If it's not there yet, the frame simply doesn't render (no broken image).
-const DashboardShot: React.FC = () => {
-  const [ok, setOk] = useState(true);
-  if (!ok) return null;
-  return (
-    <div className="relative max-w-4xl mx-auto mt-4">
-      <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
-        <div className="h-9 flex items-center gap-1.5 px-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
-          <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-          <span className="ml-3 text-[11px] text-slate-400 font-mono">psx-tracker.com</span>
+// A self-contained dashboard preview (no screenshot needed) — mirrors the real
+// dashboard's cards with a strong, positive example for the landing page.
+const Spark: React.FC<{ points: string }> = ({ points }) => (
+  <svg viewBox="0 0 100 26" preserveAspectRatio="none" className="w-full h-6 mt-2">
+    <polyline points={points} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+  </svg>
+);
+
+const StatCard: React.FC<{ label: string; value: string; sub: string; points: string }> = ({ label, value, sub, points }) => (
+  <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4">
+    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
+    <div className="text-base sm:text-xl font-display font-black text-slate-900 dark:text-white tabular-nums mt-1">{value}</div>
+    <div className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">{sub}</div>
+    <Spark points={points} />
+  </div>
+);
+
+const MiniCard: React.FC<{ label: string; rows: [string, string][] }> = ({ label, rows }) => (
+  <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4">
+    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</div>
+    <div className="space-y-1.5">
+      {rows.map(([k, v]) => (
+        <div key={k} className="flex items-center justify-between gap-2">
+          <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">{k}</span>
+          <span className="text-[11px] sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{v}</span>
         </div>
-        <img src="/dashboard-preview.png" alt="PSX Tracker dashboard preview" className="w-full block" onError={() => setOk(false)} />
+      ))}
+    </div>
+  </div>
+);
+
+const DashboardShot: React.FC = () => (
+  <div className="relative max-w-4xl mx-auto mt-4 text-left">
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+      {/* browser chrome */}
+      <div className="h-9 flex items-center gap-1.5 px-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+        <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+        <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+        <span className="ml-3 text-[11px] text-slate-400 font-mono">psx-tracker.com</span>
+      </div>
+
+      {/* dashboard body */}
+      <div className="p-4 sm:p-6 bg-slate-50 dark:bg-[#0a0a0a]">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="text-lg sm:text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Welcome back 👋</div>
+            <div className="text-[10px] sm:text-xs text-slate-400">Here's how your investments are performing today.</div>
+          </div>
+          <span className="hidden sm:inline text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1">Updated 9:42 AM</span>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
+          <StatCard label="Total Net Worth" value="Rs. 4,182,650" sub="Invested Rs. 3,532,830" points="0,20 16,17 32,19 48,11 64,13 80,6 100,3" />
+          <StatCard label="Total Return" value="+18.42%" sub="+Rs. 649,820" points="0,22 16,19 32,16 48,15 64,9 80,7 100,2" />
+          <StatCard label="Today's P&L" value="+Rs. 12,340" sub="+0.30%" points="0,18 16,20 32,12 48,15 64,10 80,12 100,5" />
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 sm:gap-3 mt-2 sm:mt-3">
+          <MiniCard label="Performance" rows={[['MWR (XIRR)', '+22.6%'], ['ROI', '+18.4%']]} />
+          <MiniCard label="Capital" rows={[['Net Invested', 'Rs. 3.53M'], ['Stock Value', 'Rs. 3.94M']]} />
+          <MiniCard label="Income" rows={[['Dividends', '+Rs. 84,500'], ['Yield on Cost', '2.4%']]} />
+        </div>
       </div>
     </div>
-  );
-};
+  </div>
+);
 
 /* ---------- page ---------- */
 
@@ -435,7 +483,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               </div>
               <div className="flex justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                 <span className="text-sm font-bold">Lifetime return</span>
-                <span className="font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+52.40%</span>
+                <span className="font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+50.30%</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-400 mt-4 leading-snug">
