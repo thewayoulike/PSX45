@@ -66,6 +66,33 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', de
 
 type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
 
+// Give every view its own URL (History API — no router dependency).
+const VIEW_TO_PATH: Record<string, string> = {
+  DASHBOARD: '/',
+  HOLDINGS: '/holdings',
+  STOCKS: '/stocks',
+  SECTOR: '/sector',
+  REALIZED: '/realized',
+  HISTORY: '/history',
+  WATCHLIST: '/watchlist',
+  SIGNALS: '/signals',
+  ALERTS: '/alerts',
+  AI_AGENT: '/assistant',
+  SIMULATOR: '/simulator',
+  CALCULATOR: '/calculator',
+  DASH_CUSTOMIZE: '/dashboard/customize',
+  ADMIN_USERS: '/admin/users',
+  BROKERS: '/settings/brokers',
+  API_KEYS: '/settings/api-keys',
+};
+const PATH_TO_VIEW: Record<string, string> = Object.fromEntries(
+  Object.entries(VIEW_TO_PATH).map(([v, p]) => [p, v])
+);
+const viewFromPath = (path: string): AppView => {
+  const p = path !== '/' ? path.replace(/\/+$/, '') : '/';
+  return (PATH_TO_VIEW[p] as AppView) || 'DASHBOARD';
+};
+
 const App: React.FC = () => {
   const [driveUser, setDriveUser] = useState<DriveUser | null>(null);
   const [googleSheetId, setGoogleSheetId] = useState<string | null>(null);
@@ -78,7 +105,22 @@ const App: React.FC = () => {
   const [sbStatus, setSbStatus] = useState<AccessStatus | null>(null);      // access status of the signed-in user
   const [pendingStatus, setPendingStatus] = useState<AccessStatus | null>(null); // access status of a blocked Google user
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
-  const [currentView, setCurrentView] = useState<AppView>('DASHBOARD');
+  const [currentView, setCurrentView] = useState<AppView>(
+      () => (typeof window !== 'undefined' ? viewFromPath(window.location.pathname) : 'DASHBOARD')
+  );
+
+  // Keep the URL in sync with the current view, and react to browser back/forward.
+  useEffect(() => {
+      const path = VIEW_TO_PATH[currentView] || '/';
+      if (window.location.pathname !== path) {
+          window.history.pushState(null, '', path);
+      }
+  }, [currentView]);
+  useEffect(() => {
+      const onPop = () => setCurrentView(viewFromPath(window.location.pathname));
+      window.addEventListener('popstate', onPop);
+      return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
