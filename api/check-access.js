@@ -6,6 +6,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { sendBrevo, escapeHtml } from '../lib/brevo.js';
+import { computeAccess } from '../lib/access.js';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -30,7 +31,7 @@ export default async function handler(req, res) {
 
     const { data: existing } = await supabase
       .from('allowlist')
-      .select('approved')
+      .select('approved, approved_at, access_until, lifetime')
       .eq('email', email)
       .maybeSingle();
 
@@ -61,7 +62,20 @@ export default async function handler(req, res) {
       } catch (e) { console.error('owner notify (Brevo) failed:', e); }
     }
 
-    return res.status(200).json({ approved, pending: !approved, new: !existing });
+    // Full access picture (trial / paid / lifetime / expired). A brand-new row is
+    // treated as pending (not yet approved).
+    const access = computeAccess(existing || { approved: false });
+    return res.status(200).json({
+      approved,
+      pending: !approved,
+      new: !existing,
+      active: access.active,
+      accessStatus: access.status,
+      lifetime: access.lifetime,
+      accessUntil: access.accessUntil,
+      trialEnds: access.trialEnds,
+      daysLeft: access.daysLeft,
+    });
   } catch (e) {
     console.error('check-access error', e);
     return res.status(500).json({ error: e.message });
