@@ -346,6 +346,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-500 dark:text-slate-400">
             <button onClick={() => scrollTo('features')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</button>
             <button onClick={() => scrollTo('tools')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</button>
+            <button onClick={() => scrollTo('pricing')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</button>
             <button onClick={() => scrollTo('privacy')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy</button>
           </nav>
           <button
@@ -598,6 +599,43 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               Try every feature free for 15 days. Keep going with a simple subscription — monthly, yearly, or lifetime.
             </Feature>
           </div>
+        </div>
+      </section>
+
+      {/* ================= PRICING ================= */}
+      <section id="pricing" className="px-5 py-20 bg-white/60 dark:bg-slate-900/20 border-y border-slate-200/60 dark:border-slate-800/60">
+        <div className="max-w-5xl mx-auto">
+          <SectionHead
+            eyebrow="Pricing"
+            title="Simple, honest pricing"
+            sub="Start with a 15-day free trial — no card needed. Then pick a plan: the longer you commit, the less you pay per month."
+          />
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            {[
+              { label: '1 Month', pm: '750', total: '750', save: null as string | null, best: false },
+              { label: '3 Months', pm: '650', total: '1,950', save: '13% off', best: false },
+              { label: '6 Months', pm: '550', total: '3,300', save: '27% off', best: false },
+              { label: '1 Year', pm: '500', total: '6,000', save: '33% off', best: true },
+            ].map(p => (
+              <div key={p.label} className={`relative rounded-3xl border p-6 text-center shadow-sm ${p.best ? 'border-emerald-400 dark:border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-500/5 shadow-lg' : 'border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900'}`}>
+                {p.best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest shadow-md">Best value</span>}
+                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">{p.label}</div>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">Rs. {p.pm}</span>
+                  <span className="text-sm font-bold text-slate-400">/mo</span>
+                </div>
+                <div className="text-xs text-slate-400 mt-1">Rs. {p.total} billed</div>
+                {p.save
+                  ? <div className="mt-3 inline-block text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full">Save {p.save}</div>
+                  : <div className="mt-3 inline-block text-[11px] font-bold text-slate-400 px-2.5 py-1">Pay monthly</div>}
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
+            Lifetime access is available too. Pay by bank transfer (Naya Pay or Meezan) and email the receipt — your account is activated as soon as it's confirmed.
+          </p>
         </div>
       </section>
 
