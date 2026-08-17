@@ -185,23 +185,41 @@ const Spark: React.FC<{ points: string }> = ({ points }) => (
   </svg>
 );
 
-const StatCard: React.FC<{ label: string; value: string; sub: string; points: string }> = ({ label, value, sub, points }) => (
-  <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4">
-    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
-    <div className="text-base sm:text-xl font-display font-black text-slate-900 dark:text-white tabular-nums mt-1">{value}</div>
-    <div className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">{sub}</div>
-    <Spark points={points} />
-  </div>
-);
+const StatCard: React.FC<{ label: string; value: string; sub: string; Icon: any; points: string }> = ({ label, value, sub, Icon, points }) => {
+  const pts = points.trim().split(/\s+/);
+  const area = `M${pts[0]} ${pts.slice(1).map(p => 'L' + p).join(' ')} L100,26 L0,26 Z`;
+  const gid = 'g' + label.replace(/[^a-z]/gi, '');
+  return (
+    <div className="rounded-3xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</div>
+          <div className="text-lg sm:text-2xl font-display font-black text-slate-900 dark:text-white tabular-nums mt-1">{value}</div>
+          <div className="text-[10px] sm:text-xs text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">{sub}</div>
+        </div>
+        <div className="w-8 h-8 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center shrink-0"><Icon size={15} /></div>
+      </div>
+      <svg viewBox="0 0 100 26" preserveAspectRatio="none" className="w-full h-8 mt-2">
+        <defs><linearGradient id={gid} x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#10b981" stopOpacity="0.28" /><stop offset="1" stopColor="#10b981" stopOpacity="0" /></linearGradient></defs>
+        <path d={area} fill={`url(#${gid})`} />
+        <polyline points={points} fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+};
 
-const MiniCard: React.FC<{ label: string; rows: [string, string][] }> = ({ label, rows }) => (
-  <div className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4">
-    <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">{label}</div>
-    <div className="space-y-1.5">
-      {rows.map(([k, v]) => (
-        <div key={k} className="flex items-center justify-between gap-2">
-          <span className="text-[10px] sm:text-xs text-slate-500 dark:text-slate-400 truncate">{k}</span>
-          <span className="text-[11px] sm:text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">{v}</span>
+const GroupCard: React.FC<{ title: string; Icon: any; tint: string; tiles: { label: string; value: string; sub?: string; color?: string }[] }> = ({ title, Icon, tint, tiles }) => (
+  <div className="rounded-3xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm">
+    <div className="flex items-center gap-2 mb-3">
+      <Icon size={15} className={tint} />
+      <span className={`text-[10px] font-black uppercase tracking-widest ${tint}`}>{title}</span>
+    </div>
+    <div className="grid grid-cols-2 gap-2">
+      {tiles.map(t => (
+        <div key={t.label} className="rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-2.5">
+          <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400">{t.label}</div>
+          <div className={`text-sm font-display font-black tabular-nums mt-0.5 ${t.color || 'text-slate-900 dark:text-white'}`}>{t.value}</div>
+          {t.sub && <div className="text-[8px] text-slate-400 mt-0.5">{t.sub}</div>}
         </div>
       ))}
     </div>
@@ -246,46 +264,73 @@ const DashboardShot: React.FC = () => (
 
         {/* hero stats */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <StatCard label="Total Net Worth" value="Rs. 4,182,650" sub="Invested Rs. 3,532,830" points="0,20 16,17 32,19 48,11 64,13 80,6 100,3" />
-          <StatCard label="Total Return" value="+18.42%" sub="+Rs. 649,820" points="0,22 16,19 32,16 48,15 64,9 80,7 100,2" />
-          <StatCard label="Today's P&L" value="+Rs. 12,340" sub="+0.30%" points="0,18 16,20 32,12 48,15 64,10 80,12 100,5" />
+          <StatCard label="Total Net Worth" value="Rs. 4,182,650" sub="Invested Rs. 3,532,830" Icon={Wallet} points="0,20 16,17 32,19 48,11 64,13 80,6 100,3" />
+          <StatCard label="Total Return" value="+18.42%" sub="+Rs. 649,820" Icon={TrendingUp} points="0,22 16,19 32,16 48,15 64,9 80,7 100,2" />
+          <StatCard label="Today's P&L" value="+Rs. 12,340" sub="+0.30%" Icon={Activity} points="0,18 16,20 32,12 48,15 64,10 80,12 100,5" />
         </div>
 
         {/* performance / capital / income */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <MiniCard label="Performance" rows={[['MWR (XIRR)', '+22.6%'], ['ROI', '+18.4%']]} />
-          <MiniCard label="Capital" rows={[['Net Invested', 'Rs. 3.53M'], ['Stock Value', 'Rs. 3.94M']]} />
-          <MiniCard label="Income" rows={[['Dividends', '+Rs. 84,500'], ['Yield on Cost', '2.4%']]} />
+          <GroupCard title="Performance" Icon={TrendingUp} tint="text-emerald-600 dark:text-emerald-400" tiles={[
+            { label: 'MWR (XIRR)', value: '+22.6%', sub: 'Annualized', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'ROI', value: '+18.4%', sub: 'Incl. dividends', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Realized Gain', value: '+Rs. 128,400', sub: 'All time', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Unrealized Gain', value: '+Rs. 521,420', sub: 'Current open', color: 'text-emerald-600 dark:text-emerald-400' },
+          ]} />
+          <GroupCard title="Capital" Icon={Building2} tint="text-blue-600 dark:text-blue-400" tiles={[
+            { label: 'Net Invested', value: 'Rs. 3.53M', sub: 'Peak 3.53M' },
+            { label: 'Cost Basis', value: 'Rs. 3.29M' },
+            { label: 'Stock Value', value: 'Rs. 3.94M', sub: 'Current mkt' },
+            { label: 'Cash Balance', value: 'Rs. 248K', sub: 'Available' },
+          ]} />
+          <GroupCard title="Income" Icon={Coins} tint="text-violet-600 dark:text-violet-400" tiles={[
+            { label: 'Dividends', value: '+Rs. 84,500', sub: 'Tax Rs. 14.9K', color: 'text-violet-600 dark:text-violet-400' },
+            { label: 'Dividend Yield', value: '2.4%', sub: 'Yield on cost', color: 'text-violet-600 dark:text-violet-400' },
+            { label: 'Total P&L', value: '+Rs. 649,820', sub: 'Net profit', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Total CGT', value: 'Rs. 9,240', sub: 'Capital gains tax' },
+          ]} />
         </div>
 
         {/* fees + health strip */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
           {[['Commission', 'Rs. 42,180'], ['Taxes (SST)', 'Rs. 6,120'], ['CDC Charges', 'Rs. 2,040'], ['Other Fees', 'Rs. 890']].map(([k, v]) => (
-            <div key={k} className="rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5">
+            <div key={k} className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
               <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">{k}</div>
               <div className="text-[11px] sm:text-sm font-display font-black text-slate-800 dark:text-white tabular-nums mt-0.5">{v}</div>
             </div>
           ))}
-          <div className="rounded-xl border border-emerald-200/70 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
-            <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Health Score</div>
-            <div className="text-[11px] sm:text-sm font-display font-black text-emerald-700 dark:text-emerald-300 tabular-nums mt-0.5">82/100 · Great</div>
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
+            <div className="flex items-center gap-1.5"><ShieldCheck size={12} className="text-emerald-500" /><span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">Health Score</span></div>
+            <div className="text-[11px] sm:text-sm font-display font-black text-slate-800 dark:text-white tabular-nums mt-0.5">82<span className="text-slate-400 text-[10px]">/100</span> · <span className="text-emerald-600 dark:text-emerald-400">Great</span></div>
+            <div className="h-1.5 mt-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '82%' }} /></div>
           </div>
         </div>
 
-        {/* performance vs index — area chart */}
-        <Panel title="Performance vs KSE-100 · +6.8% ahead">
-          <svg viewBox="0 0 300 80" preserveAspectRatio="none" className="w-full h-16 sm:h-24">
-            <defs>
-              <linearGradient id="pxg" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0" stopColor="#10b981" stopOpacity="0.35" />
-                <stop offset="1" stopColor="#10b981" stopOpacity="0" />
-              </linearGradient>
-            </defs>
-            <path d="M0,62 L30,56 L60,58 L90,46 L120,50 L150,38 L180,42 L210,28 L240,24 L270,15 L300,10 L300,80 L0,80 Z" fill="url(#pxg)" />
-            <polyline points="0,62 30,56 60,58 90,46 120,50 150,38 180,42 210,28 240,24 270,15 300,10" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinejoin="round" />
-            <polyline points="0,66 30,64 60,65 90,60 120,62 150,56 180,58 210,52 240,50 270,46 300,44" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeDasharray="4 3" />
-          </svg>
-        </Panel>
+        {/* Performance vs Index panel */}
+        <div className="rounded-3xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div>
+              <div className="text-[10px] sm:text-xs font-black uppercase tracking-widest text-slate-900 dark:text-white">Performance vs Index</div>
+              <div className="text-[9px] text-slate-400">Last updated Aug 17, 6:27 PM</div>
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
+              <span className="text-[10px] font-bold text-slate-500 px-2 py-1 rounded-lg">Today</span>
+              <span className="text-[10px] font-bold text-slate-500 px-2 py-1 rounded-lg">1 Week</span>
+              <span className="text-[10px] font-bold text-white bg-emerald-600 px-2 py-1 rounded-lg">1 Month</span>
+            </div>
+          </div>
+          <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-3 py-2 text-[11px] sm:text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-3 flex items-center gap-1.5">
+            <TrendingUp size={13} /> Ahead of KSE-100 by 6.82% this month
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {[['Your Portfolio', '+9.49%', 'text-emerald-600 dark:text-emerald-400'], ['KSE-100', '+2.67%', 'text-slate-700 dark:text-slate-200'], ['KMI-30', '+2.94%', 'text-slate-700 dark:text-slate-200'], ['Outperformance', '+6.82%', 'text-emerald-600 dark:text-emerald-400']].map(([k, v, c]) => (
+              <div key={k} className="rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-2.5">
+                <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">{k}</div>
+                <div className={`text-sm font-display font-black tabular-nums mt-0.5 ${c}`}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
 
         {/* allocation + top holdings */}
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
@@ -633,7 +678,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </div>
 
           <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
-            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash, email the receipt — your account is activated as soon as it's confirmed.
+            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash (03367580244), email the receipt — your account is activated as soon as it's confirmed.
           </p>
         </div>
       </section>
