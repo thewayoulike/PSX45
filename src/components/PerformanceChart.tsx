@@ -38,7 +38,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
   useEffect(() => {
     setChartData(savedData);
     if (savedData && savedData.length > 0) {
-        setLastUpdated(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
+        setLastUpdated(new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
     }
   }, [savedData]);
 
@@ -187,7 +187,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       
       setChartData(newChartData);
       onSaveData(newChartData);
-      setLastUpdated(new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }));
+      setLastUpdated(new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
     } catch (error: any) {
       console.error("Performance Calculation Error:", error);
       setErrorMsg(error.message || "Failed to calculate performance history.");
@@ -263,7 +263,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.15} className="text-slate-400 dark:text-slate-500" />
               <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.6} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
-              <YAxis tickFormatter={(val) => `${val}%`} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={45} />
+              <YAxis domain={[-10, 10]} ticks={[10, 0, -10]} allowDataOverflow tickFormatter={(val) => `${val > 0 ? '+' : ''}${val}%`} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={45} />
 
               <Tooltip
                 contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
