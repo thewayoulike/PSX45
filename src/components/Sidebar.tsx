@@ -5,7 +5,7 @@ import {
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  Compass, Wrench, BarChart3, LayoutGrid
+  Compass, Wrench, BarChart3, LayoutGrid, UsersRound
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 
@@ -18,6 +18,7 @@ interface SidebarProps {
   onToggleCollapse: () => void;
   driveUser: any | null;
   authUser?: { name?: string; email: string } | null; // email/password (Supabase) user
+  isOwner?: boolean; // owner-only admin items
   onLogin: () => void;
   onLogout: () => void;
   isCloudSyncing: boolean;
@@ -36,7 +37,7 @@ interface NavGroup { key: string; label: string; Icon: React.ComponentType<{ siz
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView, onViewChange, isOpen, onClose,
-  isSidebarCollapsed, onToggleCollapse, driveUser, authUser, onLogin, onLogout, isCloudSyncing, hasApiKeys
+  isSidebarCollapsed, onToggleCollapse, driveUser, authUser, isOwner, onLogin, onLogout, isCloudSyncing, hasApiKeys
 }) => {
 
   const isProfileView = currentView === 'STOCKS' || currentView === 'SECTOR';
@@ -46,7 +47,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     DASHBOARD: 'Menu', HOLDINGS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
     SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
-    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings',
+    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings',
   };
 
   // Everything collapsed by default — only the group holding the active view is open.
@@ -99,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     {
       key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
         { id: 'DASH_CUSTOMIZE', label: 'Dashboard Layout', icon: <LayoutGrid size={22} /> },
+        ...(isOwner ? [{ id: 'ADMIN_USERS' as AppView, label: 'Users', icon: <UsersRound size={22} /> }] : []),
         { id: 'BROKERS', label: 'Broker Setup', icon: <Briefcase size={22} /> },
         { id: 'API_KEYS', label: 'API Keys', icon: <Key size={22} />, alert: !hasApiKeys },
       ]
