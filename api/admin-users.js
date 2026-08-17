@@ -8,6 +8,7 @@
 // Auth: send the secret as header `x-admin-secret` (or ?secret= for GET).
 
 import { createClient } from '@supabase/supabase-js';
+import { computeAccess } from '../lib/access.js';
 
 const getSecret = (req) =>
   (req.headers['x-admin-secret'] ||
@@ -39,7 +40,8 @@ export default async function handler(req, res) {
         .order('approved', { ascending: true })
         .order('email', { ascending: true });
       if (error) throw error;
-      return res.status(200).json({ users: data || [] });
+      const users = (data || []).map(row => ({ ...row, access: computeAccess(row) }));
+      return res.status(200).json({ users });
     }
 
     if (req.method === 'POST') {
@@ -49,22 +51,59 @@ export default async function handler(req, res) {
       if (!email) return res.status(400).json({ error: 'email required' });
 
       if (action === 'approve') {
+        // Approve = start the 15-day trial (stamp approved_at only if not set).
+        const { data: cur } = await supabase
+          .from('allowlist').select('approved_at').eq('email', email).maybeSingle();
+        const approvedAt = cur?.approved_at || new Date().toISOString();
         const { error } = await supabase
           .from('allowlist')
-          .upsert({ email, approved: true }, { onConflict: 'email' });
+          .upsert({ email, approved: true, approved_at: approvedAt }, { onConflict: 'email' });
         if (error) throw error;
+
+      } else if (action === 'mark_paid') {
+        // Paid access until (start date/time) + a period in months and/or days.
+        const start = body?.start ? new Date(body.start) : new Date();
+        const months = Number(body?.months || 0);
+        const days = Number(body?.days || 0);
+        if (isNaN(start.getTime()) || (months <= 0 && days <= 0)) {
+          return res.status(400).json({ error: 'Provide a valid start and a period' });
+        }
+        const until = new Date(start);
+        if (months) until.setMonth(until.getMonth() + months);
+        if (days) until.setDate(until.getDate() + days);
+        const { error } = await supabase
+          .from('allowlist')
+          .upsert({ email, approved: true, access_until: until.toISOString(), lifetime: false }, { onConflict: 'email' });
+        if (error) throw error;
+
+      } else if (action === 'lifetime') {
+        const value = body?.value !== false; // default true
+        const { error } = await supabase
+          .from('allowlist')
+          .upsert({ email, approved: true, lifetime: value }, { onConflict: 'email' });
+        if (error) throw error;
+
+      } else if (action === 'start_trial') {
+        // Reset to a fresh 15-day trial from now.
+        const { error } = await supabase
+          .from('allowlist')
+          .upsert({ email, approved: true, approved_at: new Date().toISOString(), access_until: null, lifetime: false }, { onConflict: 'email' });
+        if (error) throw error;
+
       } else if (action === 'disable') {
         const { error } = await supabase
           .from('allowlist')
           .update({ approved: false })
           .eq('email', email);
         if (error) throw error;
+
       } else if (action === 'remove') {
         const { error } = await supabase
           .from('allowlist')
           .delete()
           .eq('email', email);
         if (error) throw error;
+
       } else {
         return res.status(400).json({ error: 'Unknown action' });
       }
