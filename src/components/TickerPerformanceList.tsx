@@ -55,6 +55,7 @@ interface TickerPerformanceListProps {
   onTickerClick: (ticker: string) => void;
   mode?: 'STOCK' | 'SECTOR';                 // drive Stock/Sector from the sidebar
   onModeChange?: (mode: 'STOCK' | 'SECTOR') => void; // keep sidebar highlight in sync
+  onOpenProfile?: (ticker: string) => void;  // open ANY PSX stock's profile, even if never traded
 }
 
 interface ActivityRow extends Transaction {
@@ -117,7 +118,7 @@ const getHoldingDuration = (dateStr: string) => {
 };
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
-  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick, mode, onModeChange
+  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick, mode, onModeChange, onOpenProfile
 }) => {
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
       return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
@@ -522,6 +523,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               {isDropdownOpen && (
                   <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl shadow-2xl z-50 max-h-[300px] overflow-y-auto custom-scrollbar p-2">
                       {filteredOptions.length === 0 ? ( <div className="p-4 text-center text-slate-400 font-medium text-sm">No results found.</div> ) : ( filteredOptions.map((stats: any) => ( <div key={analysisMode === 'STOCK' ? stats.ticker : stats.name} onClick={() => handleSelect(analysisMode === 'STOCK' ? stats.ticker : stats.name)} className="flex items-center justify-between p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl cursor-pointer group transition-colors"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black ${analysisMode === 'STOCK' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-blue-50 text-blue-600 border border-blue-100/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20'}`}> {analysisMode === 'STOCK' ? stats.ticker.substring(0, 2) : <Layers size={16} />} </div> <div className="text-left"> <div className="font-display font-black text-slate-900 dark:text-white">{analysisMode === 'STOCK' ? stats.ticker : stats.name}</div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest"> {analysisMode === 'STOCK' ? stats.sector : `${stats.stockCount} Companies`} </div> </div> </div> <div className="text-right"> <div className={`font-mono font-bold text-sm tabular-nums ${getColorClass(analysisMode === 'STOCK' ? stats.totalNetReturn : stats.lifetimeNet)}`}> {formatGain(analysisMode === 'STOCK' ? stats.totalNetReturn : stats.lifetimeNet)} </div> </div> </div> )) )}
+                      {analysisMode === 'STOCK' && onOpenProfile && searchTerm.trim().length >= 1 && searchTerm.trim().length <= 8 && !allTickerStats.some((s: any) => s.ticker === searchTerm.trim().toUpperCase()) && (
+                          <button
+                              onClick={() => { onOpenProfile(searchTerm.trim().toUpperCase()); setSearchTerm(''); setIsDropdownOpen(false); }}
+                              className="w-full flex items-center gap-3 p-3 mt-1 border-t border-slate-100 dark:border-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-xl text-left transition-colors"
+                          >
+                              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-100/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20 flex items-center justify-center"><Search size={16} /></div>
+                              <div>
+                                  <div className="font-display font-black text-emerald-600 dark:text-emerald-400">Open {searchTerm.trim().toUpperCase()}</div>
+                                  <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">View live profile · not in your portfolio</div>
+                              </div>
+                              <ChevronRight size={16} className="text-slate-300 ml-auto" />
+                          </button>
+                      )}
                   </div>
               )}
           </div>
