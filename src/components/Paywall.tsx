@@ -11,11 +11,12 @@ interface Props {
 // Who receives the payment screenshot.
 const PAY_EMAIL = ((import.meta as any).env?.VITE_OWNER_EMAIL || 'itruth2011@gmail.com');
 
-// Edit these to your real prices.
-const PLANS: { label: string; price: string }[] = [
-  { label: '1 Month', price: 'Rs. 500' },
-  { label: '3 Months', price: 'Rs. 1,300' },
-  { label: '1 Year', price: 'Rs. 4,500' },
+// Per-month pricing (cheaper the longer you commit). Edit here if prices change.
+const PLANS: { label: string; perMonth: string; total: string; best?: boolean }[] = [
+  { label: '1 Month', perMonth: 'Rs. 750', total: 'Rs. 750' },
+  { label: '3 Months', perMonth: 'Rs. 650', total: 'Rs. 1,950' },
+  { label: '6 Months', perMonth: 'Rs. 550', total: 'Rs. 3,300' },
+  { label: '1 Year', perMonth: 'Rs. 500', total: 'Rs. 6,000', best: true },
 ];
 
 const ACCOUNTS: { bank: string; iban: string }[] = [
@@ -50,12 +51,14 @@ export const Paywall: React.FC<Props> = ({ email, onRefresh, onSignOut }) => {
           To keep using PSX Tracker, please subscribe. Pay via bank transfer and send the receipt — your access is restored as soon as it's confirmed.
         </p>
 
-        {/* Plans */}
-        <div className="grid grid-cols-3 gap-2 mb-5">
+        {/* Plans — per month, cheaper the longer you commit */}
+        <div className="grid grid-cols-2 gap-2 mb-5">
           {PLANS.map(p => (
-            <div key={p.label} className="rounded-2xl border border-slate-200 dark:border-slate-700 p-3 text-center">
+            <div key={p.label} className={`relative rounded-2xl border p-3 text-center ${p.best ? 'border-emerald-400 dark:border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-500/5' : 'border-slate-200 dark:border-slate-700'}`}>
+              {p.best && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2 py-0.5 rounded-full">Best value</span>}
               <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{p.label}</div>
-              <div className="text-base font-display font-black text-slate-900 dark:text-white mt-1">{p.price}</div>
+              <div className="text-base font-display font-black text-slate-900 dark:text-white mt-1">{p.perMonth}<span className="text-[10px] font-bold text-slate-400">/mo</span></div>
+              <div className="text-[10px] text-slate-400">{p.total} total</div>
             </div>
           ))}
         </div>
