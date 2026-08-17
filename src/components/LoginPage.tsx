@@ -611,12 +611,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             sub="Start with a 15-day free trial — no card needed. Then pick a plan: the longer you commit, the less you pay per month."
           />
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
             {[
-              { label: '1 Month', pm: '750', total: '750', save: null as string | null, best: false },
-              { label: '3 Months', pm: '650', total: '1,950', save: '13% off', best: false },
-              { label: '6 Months', pm: '550', total: '3,300', save: '27% off', best: false },
-              { label: '1 Year', pm: '500', total: '6,000', save: '33% off', best: true },
+              { label: '1 Month', pm: '500', total: '500', save: null as string | null, best: false },
+              { label: '3 Months', pm: '400', total: '1,200', save: '20% off', best: false },
+              { label: '1 Year', pm: '350', total: '4,200', save: '30% off', best: true },
             ].map(p => (
               <div key={p.label} className={`relative rounded-3xl border p-6 text-center shadow-sm ${p.best ? 'border-emerald-400 dark:border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-500/5 shadow-lg' : 'border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900'}`}>
                 {p.best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest shadow-md">Best value</span>}
@@ -634,7 +633,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </div>
 
           <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
-            Lifetime access is available too. Pay by bank transfer (Naya Pay or Meezan) and email the receipt — your account is activated as soon as it's confirmed.
+            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash (03367580244), email the receipt — your account is activated as soon as it's confirmed.
           </p>
         </div>
       </section>
