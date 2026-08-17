@@ -1042,12 +1042,11 @@ const App: React.FC = () => {
       setCurrentView('STOCKS');
   };
 
-  // Open ANY PSX stock's profile — even one you've never traded. Opens right away,
-  // then fetches a live price in the background if we don't already have one.
-  const handleOpenStockProfile = useCallback(async (ticker: string) => {
+  // A stock the user added to the analyzer that they've never traded — make sure we
+  // have a live price (and sector/ldcp) so the inline profile shows market info.
+  const handleAddStock = useCallback(async (ticker: string) => {
       const t = (ticker || '').trim().toUpperCase();
       if (!t) return;
-      setViewTicker(t);
       if (!(manualPrices[t] > 0)) {
           try {
               const data = await fetchBatchPSXPrices([t]);
@@ -1441,7 +1440,7 @@ const App: React.FC = () => {
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
-                                  onOpenProfile={handleOpenStockProfile}
+                                  onAddStock={handleAddStock}
                                   mode="STOCK"
                                   onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
@@ -1455,7 +1454,7 @@ const App: React.FC = () => {
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
-                                  onOpenProfile={handleOpenStockProfile}
+                                  onAddStock={handleAddStock}
                                   mode="SECTOR"
                                   onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
