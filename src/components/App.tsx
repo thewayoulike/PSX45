@@ -15,7 +15,6 @@ import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
 import { BoardMeetings } from './BoardMeetings';
-import { StockLookup } from './StockLookup';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardCustomizer } from './DashboardCustomizer';
 import { AdminUsers } from './AdminUsers';
@@ -1043,6 +1042,27 @@ const App: React.FC = () => {
       setCurrentView('STOCKS');
   };
 
+  // Open ANY PSX stock's profile — even one you've never traded. Opens right away,
+  // then fetches a live price in the background if we don't already have one.
+  const handleOpenStockProfile = useCallback(async (ticker: string) => {
+      const t = (ticker || '').trim().toUpperCase();
+      if (!t) return;
+      setViewTicker(t);
+      if (!(manualPrices[t] > 0)) {
+          try {
+              const data = await fetchBatchPSXPrices([t]);
+              const q = (data as any)[t];
+              if (q && q.price > 0) {
+                  setManualPrices(prev => ({ ...prev, [t]: q.price }));
+                  if (q.ldcp > 0) setLdcpMap(prev => ({ ...prev, [t]: q.ldcp }));
+                  if (q.sector && q.sector !== 'Unknown Sector') setSectorOverrides(prev => ({ ...prev, [t]: q.sector }));
+                  if (q.listedIn) setListedInMap(prev => ({ ...prev, [t]: q.listedIn }));
+                  setPriceTimestamps(prev => ({ ...prev, [t]: new Date().toISOString() }));
+              }
+          } catch (e) { /* profile still opens with whatever price we have */ }
+      }
+  }, [manualPrices]);
+
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
           setShowBrokerManager(true);
@@ -1415,23 +1435,13 @@ const App: React.FC = () => {
 
                       {currentView === 'STOCKS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                              <StockLookup
-                                  seededPrices={manualPrices}
-                                  onResolve={(ticker, q) => {
-                                      setManualPrices(prev => ({ ...prev, [ticker]: q.price }));
-                                      if (q.ldcp > 0) setLdcpMap(prev => ({ ...prev, [ticker]: q.ldcp }));
-                                      if (q.sector && q.sector !== 'Unknown Sector') setSectorOverrides(prev => ({ ...prev, [ticker]: q.sector }));
-                                      if (q.listedIn) setListedInMap(prev => ({ ...prev, [ticker]: q.listedIn }));
-                                      setPriceTimestamps(prev => ({ ...prev, [ticker]: new Date().toISOString() }));
-                                  }}
-                                  onOpen={(t) => setViewTicker(t)}
-                              />
                               <TickerPerformanceList
                                   transactions={portfolioTransactions}
                                   currentPrices={manualPrices}
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
+                                  onOpenProfile={handleOpenStockProfile}
                                   mode="STOCK"
                                   onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
@@ -1445,6 +1455,7 @@ const App: React.FC = () => {
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
+                                  onOpenProfile={handleOpenStockProfile}
                                   mode="SECTOR"
                                   onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
