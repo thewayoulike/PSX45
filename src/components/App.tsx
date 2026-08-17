@@ -16,7 +16,6 @@ import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
 import { BoardMeetings } from './BoardMeetings';
 import { StockLookup } from './StockLookup';
-import { SectorView } from './SectorView';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardCustomizer } from './DashboardCustomizer';
 import { AdminUsers } from './AdminUsers';
@@ -1433,11 +1432,23 @@ const App: React.FC = () => {
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
+                                  mode="STOCK"
+                                  onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
                           </div>
                       )}
                       {currentView === 'SECTOR' && (
-                          <SectorView holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <TickerPerformanceList
+                                  transactions={portfolioTransactions}
+                                  currentPrices={manualPrices}
+                                  sectors={sectorMap}
+                                  listedInMap={listedInMap}
+                                  onTickerClick={(t) => setViewTicker(t)}
+                                  mode="SECTOR"
+                                  onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
+                              />
+                          </div>
                       )}
 
                       {currentView === 'SIGNALS' && (
