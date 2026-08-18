@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { StockAnnouncements } from './StockAnnouncements';
+import { StockChart } from './StockChart';
 import { exportToCSV } from '../utils/export';
 import { fetchCompanyFundamentals, FundamentalsData } from '../services/financials';
 
@@ -138,7 +139,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       try { localStorage.setItem('psx_watch_stocks', JSON.stringify(extraTickers)); } catch {}
   }, [extraTickers]);
 
-  const [detailTab, setDetailTab] = useState<'position' | 'financials' | 'announcements'>('position');
+  const [detailTab, setDetailTab] = useState<'position' | 'chart' | 'financials' | 'announcements'>('position');
 
   const [selectedSector, setSelectedSector] = useState<string | null>(() => {
       return localStorage.getItem('psx_last_analyzed_sector') || null;
@@ -633,7 +634,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* --- STOCK DETAIL TABS --- */}
                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 rounded-2xl p-1 overflow-x-auto">
-                    {([['position', 'Position & Gains'], ['financials', 'Financials'], ['announcements', 'Announcements']] as const).map(([id, label]) => (
+                    {([['position', 'Position & Gains'], ['chart', 'Chart'], ['financials', 'Financials'], ['announcements', 'Announcements']] as const).map(([id, label]) => (
                         <button key={id} onClick={() => setDetailTab(id)} className={`flex-1 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${detailTab === id ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>{label}</button>
                     ))}
                 </div>
@@ -768,6 +769,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     )}
                 </div>
                 </>)}
+
+                {detailTab === 'chart' && (
+                    <div className="mt-2"><StockChart symbol={selectedTicker} /></div>
+                )}
 
                 {detailTab === 'announcements' && (
                     <div className="mt-2"><StockAnnouncements ticker={selectedTicker} /></div>
