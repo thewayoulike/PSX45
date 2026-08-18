@@ -109,15 +109,20 @@ const App: React.FC = () => {
       () => (typeof window !== 'undefined' ? viewFromPath(window.location.pathname) : 'DASHBOARD')
   );
 
-  // Keep the URL in sync with the current view, and react to browser back/forward.
+  // React to browser back/forward — a /stock/TICKER path opens the profile overlay,
+  // any other path selects the matching page. (URL is pushed further below, once
+  // viewTicker state exists.)
   useEffect(() => {
-      const path = VIEW_TO_PATH[currentView] || '/';
-      if (window.location.pathname !== path) {
-          window.history.pushState(null, '', path);
-      }
-  }, [currentView]);
-  useEffect(() => {
-      const onPop = () => setCurrentView(viewFromPath(window.location.pathname));
+      const onPop = () => {
+          const path = window.location.pathname;
+          const m = path.match(/^\/stock\/([^/]+)/i);
+          if (m) {
+              setViewTicker(decodeURIComponent(m[1]).toUpperCase());
+          } else {
+              setViewTicker(null);
+              setCurrentView(viewFromPath(path));
+          }
+      };
       window.addEventListener('popstate', onPop);
       return () => window.removeEventListener('popstate', onPop);
   }, []);
@@ -125,7 +130,21 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const [viewTicker, setViewTicker] = useState<string | null>(null);
+  const [viewTicker, setViewTicker] = useState<string | null>(() => {
+      if (typeof window === 'undefined') return null;
+      const m = window.location.pathname.match(/^\/stock\/([^/]+)/i);
+      return m ? decodeURIComponent(m[1]).toUpperCase() : null;
+  });
+
+  // Push the URL for the current page — or /stock/TICKER when a profile is open.
+  useEffect(() => {
+      const path = viewTicker
+          ? `/stock/${encodeURIComponent(viewTicker)}`
+          : (VIEW_TO_PATH[currentView] || '/');
+      if (window.location.pathname !== path) {
+          window.history.pushState(null, '', path);
+      }
+  }, [currentView, viewTicker]);
 
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       try {
@@ -1103,6 +1122,12 @@ const App: React.FC = () => {
           } catch (e) { /* profile still opens with whatever price we have */ }
       }
   }, [manualPrices]);
+
+  // Deep link like /stock/ENGRO on first load → make sure that stock has a price.
+  useEffect(() => {
+      if (viewTicker) handleAddStock(viewTicker);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
