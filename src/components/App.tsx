@@ -979,64 +979,83 @@ const App: React.FC = () => {
           }
           const lots: Lot[] = [];
 
-          // Honor the real sequence of transactions: process oldest date first, and
-          // within the same day, in the order the transactions were entered (their
-          // position in the list). PSX EOD data carries no intraday time, so entry
-          // order is the only sequence signal we have. This makes same-day FIFO
-          // deterministic: the earliest-entered lot is sold first, and whatever was
-          // entered last is what stays on hold.
-          const orderedTxs = txs
-              .map((t, i) => ({ t, i }))
-              .sort((a, b) => {
-                  const d = new Date(a.t.date).getTime() - new Date(b.t.date).getTime();
-                  return d !== 0 ? d : a.i - b.i;
-              })
-              .map(x => x.t);
-
+          // Group by day so an intraday BUY and SELL square off against each other
+          // (a day-trade), then fall back to FIFO across earlier holdings. Dates run
+          // oldest-first, and within a day we keep the order the transactions were
+          // entered (their position in the list) — the only sequence signal PSX day
+          // data gives us. This prevents an intraday sell from eating older lots and
+          // avoids phantom/duplicate holdings when a position is squared off same-day.
+          const txsByDate: Record<string, Transaction[]> = {};
+          txs.forEach(t => {
+              if (!txsByDate[t.date]) txsByDate[t.date] = [];
+              txsByDate[t.date].push(t);
+          });
+          const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
           let matchSeq = 0;
-          orderedTxs.forEach(tx => {
-              const fees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
-              if (tx.type === 'BUY' || tx.type === 'TRANSFER_IN') {
-                  const costPerShare = tx.quantity > 0 ? ((tx.quantity * tx.price) + fees) / tx.quantity : 0;
-                  lots.push({
-                      quantity: tx.quantity,
+          sortedDates.forEach(date => {
+              const dayTxs = txsByDate[date];
+              const dayBuys = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN');
+              const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
+              const dayBuyLots = dayBuys.map(t => {
+                  const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+                  const costPerShare = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
+                  return {
+                      quantity: t.quantity,
                       costPerShare,
-                      date: tx.date,
-                      commPerShare: tx.quantity > 0 ? (tx.commission || 0) / tx.quantity : 0,
-                      taxPerShare: tx.quantity > 0 ? (tx.tax || 0) / tx.quantity : 0,
-                      cdcPerShare: tx.quantity > 0 ? (tx.cdcCharges || 0) / tx.quantity : 0,
-                      otherPerShare: tx.quantity > 0 ? (tx.otherFees || 0) / tx.quantity : 0
-                  });
-              } else if (tx.type === 'SELL' || tx.type === 'TRANSFER_OUT') {
-                  let qtyToSell = tx.quantity;
-                  const sellFeePerShare = tx.quantity > 0 ? fees / tx.quantity : 0;
-                  while (qtyToSell > 0.0001 && lots.length > 0) {
-                      const fifoLot = lots[0];
-                      const matched = Math.min(qtyToSell, fifoLot.quantity);
-                      const revenue = matched * tx.price;
-                      const cost = matched * fifoLot.costPerShare;
+                      date: t.date,
+                      commPerShare: t.quantity > 0 ? (t.commission || 0) / t.quantity : 0,
+                      taxPerShare: t.quantity > 0 ? (t.tax || 0) / t.quantity : 0,
+                      cdcPerShare: t.quantity > 0 ? (t.cdcCharges || 0) / t.quantity : 0,
+                      otherPerShare: t.quantity > 0 ? (t.otherFees || 0) / t.quantity : 0
+                  };
+              });
+              daySells.forEach(sellTx => {
+                  let qtyToSell = sellTx.quantity;
+                  const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
+                  const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
+                  const pushRealized = (lotCost: number, matched: number) => {
+                      const revenue = matched * sellTx.price;
+                      const cost = matched * lotCost;
                       const matchedSellFees = matched * sellFeePerShare;
-                      const profit = revenue - cost - matchedSellFees;
                       tempRealized.push({
-                          id: `${tx.id}-fifo-${matchSeq++}`,
+                          id: `${sellTx.id}-m${matchSeq++}`,
                           ticker,
                           broker: brokerName,
                           quantity: matched,
-                          buyAvg: fifoLot.costPerShare,
-                          sellPrice: tx.price,
-                          date: tx.date,
-                          profit,
+                          buyAvg: lotCost,
+                          sellPrice: sellTx.price,
+                          date: sellTx.date,
+                          profit: revenue - cost - matchedSellFees,
                           fees: matchedSellFees,
-                          commission: (tx.commission || 0) * (matched / tx.quantity),
-                          tax: (tx.tax || 0) * (matched / tx.quantity),
-                          cdcCharges: (tx.cdcCharges || 0) * (matched / tx.quantity),
-                          otherFees: (tx.otherFees || 0) * (matched / tx.quantity)
+                          commission: (sellTx.commission || 0) * (matched / sellTx.quantity),
+                          tax: (sellTx.tax || 0) * (matched / sellTx.quantity),
+                          cdcCharges: (sellTx.cdcCharges || 0) * (matched / sellTx.quantity),
+                          otherFees: (sellTx.otherFees || 0) * (matched / sellTx.quantity)
                       });
+                  };
+                  // 1) Square off against same-day buys first (intraday day-trade).
+                  for (const buyLot of dayBuyLots) {
+                      if (qtyToSell <= 0.0001) break;
+                      if (buyLot.quantity > 0) {
+                          const matched = Math.min(qtyToSell, buyLot.quantity);
+                          pushRealized(buyLot.costPerShare, matched);
+                          buyLot.quantity -= matched;
+                          qtyToSell -= matched;
+                      }
+                  }
+                  // 2) Then consume earlier holdings FIFO (oldest lot first).
+                  while (qtyToSell > 0.0001 && lots.length > 0) {
+                      const fifoLot = lots[0];
+                      const matched = Math.min(qtyToSell, fifoLot.quantity);
+                      pushRealized(fifoLot.costPerShare, matched);
                       fifoLot.quantity -= matched;
                       qtyToSell -= matched;
                       if (fifoLot.quantity < 0.0001) lots.shift();
                   }
-              }
+              });
+              dayBuyLots.forEach(l => {
+                  if (l.quantity > 0.0001) lots.push(l);
+              });
           });
           if (lots.length > 0) {
               const totalQty = lots.reduce((acc, l) => acc + l.quantity, 0);
