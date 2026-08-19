@@ -1141,8 +1141,6 @@ const App: React.FC = () => {
   // Render a single dashboard card by id. Used by the customizable DashboardGrid.
   const renderDashCard = (id: string): React.ReactNode => {
       switch (id) {
-          case 'indexBar':
-              return <IndexBar />;
           case 'stats': {
               const historyData = performanceHistory[perfKey] || [];
               const trendLine = historyData.map((d: any) => {
@@ -1312,7 +1310,9 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
+                      <div className="sticky top-4 z-40 mb-6 flex flex-col gap-3">
+                          <IndexBar />
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
                           <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
                               <div className="flex items-center justify-between min-w-max gap-6">
                                   <div className="flex items-center gap-3">
@@ -1426,9 +1426,9 @@ const App: React.FC = () => {
                                       )}
                                   </div>
                               </div>
-                          </div>
-                      </div>
-
+                            </div>
+                           </div>
+                       </div>
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <div className="flex justify-end mb-4">

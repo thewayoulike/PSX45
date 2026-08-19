@@ -9,7 +9,6 @@ export interface CardMeta {
 }
 
 export const CARD_META: CardMeta[] = [
-  { id: 'indexBar',    label: 'Market Index Bar',    hint: 'KSE-100 · KMI-30 · USD-PKR strip' },
   { id: 'stats',       label: 'Portfolio Stats',     hint: 'Net Worth · Total Return · Today’s P&L', core: true },
   { id: 'benchmark',   label: 'Performance vs Index',hint: 'Your return vs the index' },
   { id: 'performance', label: 'Performance Chart',   hint: 'Portfolio value over time' },
@@ -48,8 +47,7 @@ export const GRID_MARGIN: [number, number] = [24, 24];
 
 // Default web layout: [id, x, y, w, h]
 const WEB_BASE: Array<[string, number, number, number, number]> = [
-  ['indexBar',     0,  0, 12, 1],
-  ['stats',        0,  1, 12, 3],
+  ['stats',        0,  0, 12, 3],
   ['benchmark',    0,  4, 12, 3],
   ['performance',  0,  7, 12, 4],
   ['allocation',   0, 11,  8, 4],
@@ -66,7 +64,6 @@ const H_BY_ID: Record<string, number> = Object.fromEntries(WEB_BASE.map(([id, , 
 
 // Minimum size per card (cols, rows) so content stays readable when resized.
 const MIN_BY_ID: Record<string, [number, number]> = {
-  indexBar:     [3, 1],
   stats:        [4, 2],
   benchmark:    [4, 2],
   performance:  [4, 3],
