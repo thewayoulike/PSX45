@@ -3,13 +3,14 @@ import { Holding, PortfolioStats } from '../types';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
   Activity, Coins, Receipt, Building2, FileText, PiggyBank, Scale, TrendingUp, TrendingDown,
-  Percent, BarChart3, History, Info, Stamp, ShieldCheck, Landmark, Briefcase, Zap
+  Percent, BarChart3, History, Info, Stamp, ShieldCheck, Landmark, Briefcase, Zap, LayoutGrid
 } from 'lucide-react';
 interface DashboardProps {
   stats: PortfolioStats;
   lastUpdated?: string | null;
   userName?: string;
   onRefresh?: () => void;
+  onCustomize?: () => void;
   trend?: number[];        // portfolio value series
   benchmark?: number[];    // KSE-100 value series
   holdings?: Holding[];
@@ -205,7 +206,7 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, trend, benchmark, holdings }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, benchmark, holdings }) => {
   const totalNetWorth = stats.totalValue + stats.freeCash;
   const totalReturnPercent = stats.netPrincipal > 0 ? ((totalNetWorth - stats.netPrincipal) / stats.netPrincipal) * 100 : 0;
   const totalReturnRs = totalNetWorth - stats.netPrincipal;
@@ -263,7 +264,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Here's how your investments are performing today.</p>
         </div>
         <div className="flex items-center gap-3">
-          {lastUpdated && <span className="text-xs font-medium text-slate-400 whitespace-nowrap bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full">Updated: {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
+          {onCustomize && (
+              <button
+                  onClick={onCustomize}
+                  className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 hover:text-indigo-600 hover:border-indigo-400 transition-colors"
+                  title="Customize dashboard layout"
+              >
+                  <LayoutGrid size={15} /> Customize
+              </button>
+          )}
+          {lastUpdated && <span className="text-xs font-medium text-slate-400 whitespace-nowrap bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full hidden md:inline-block">Updated: {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
           {onRefresh && (
             <button onClick={onRefresh} className="flex items-center gap-1.5 glass-input px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer">
               <RefreshCw size={15} /> Refresh

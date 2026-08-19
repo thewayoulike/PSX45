@@ -1153,6 +1153,7 @@ const App: React.FC = () => {
                       lastUpdated={lastPriceUpdate}
                       userName={driveUser?.name?.split(' ')[0]}
                       onRefresh={handleSyncPrices}
+                      onCustomize={() => setCurrentView('DASH_CUSTOMIZE')}
                       trend={trendLine}
                       holdings={holdings}
                   />
@@ -1431,16 +1432,6 @@ const App: React.FC = () => {
                        </div>
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                              <div className="flex justify-end mb-4">
-                                  <button
-                                      onClick={() => setCurrentView('DASH_CUSTOMIZE')}
-                                      className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 hover:text-brand-600 hover:border-brand-400 transition-colors"
-                                      title="Customize dashboard layout"
-                                  >
-                                      <LayoutGrid size={15} /> Customize
-                                  </button>
-                              </div>
-
                               <DashboardGrid
                                   layout={isNarrowViewport ? dashboardLayout.mobile : dashboardLayout.web}
                                   device={isNarrowViewport ? 'mobile' : 'web'}
