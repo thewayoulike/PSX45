@@ -1311,7 +1311,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      <div className="sticky top-4 z-40 mb-6 flex flex-col gap-3">
+                      <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-4 mb-6 flex flex-col gap-3 bg-slate-50/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-all">
                           <IndexBar />
                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
                           <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
