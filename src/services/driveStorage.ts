@@ -21,6 +21,11 @@ let accessToken: string | null = null;
 let tokenExpiryTime: number = 0;
 
 let refreshTokenResolver: ((token: string) => void) | null = null;
+let onSessionExpired: (() => void) | null = null;
+let expiredNotified = false;
+// App registers this so an expired Drive token logs the user out to the login
+// screen instead of auto-popping the Google account chooser.
+export const setDriveSessionExpiredHandler = (fn: (() => void) | null) => { onSessionExpired = fn; };
 
 export interface DriveUser {
   name: string;
@@ -101,6 +106,7 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
                             accessToken = tokenResponse.access_token;
                             const expiresIn = (tokenResponse.expires_in || 3599) * 1000;
                             tokenExpiryTime = Date.now() + expiresIn;
+                            expiredNotified = false;
 
                             localStorage.setItem(STORAGE_TOKEN_KEY, accessToken!);
                             localStorage.setItem(STORAGE_EXPIRY_KEY, tokenExpiryTime.toString());
@@ -175,16 +181,24 @@ export const getValidToken = async (): Promise<string | null> => {
 
     if (!tokenClient) return null;
 
-    // Never pop the Google sign-in prompt for someone who hasn't signed in
-    // (e.g. Guest Mode). Only silently refresh a token for an already-authenticated
-    // user — otherwise Google-Sheets features would force guests to log in.
+    // Token missing/expired. Do NOT auto-pop the Google sign-in prompt: with
+    // multiple Google accounts a "silent" refresh still shows the account
+    // chooser, and two concurrent syncs pop it twice. Instead clear the Drive
+    // session and notify the app to show the login screen — the user signs in
+    // again manually when they resume. Guests (no stored user) are skipped.
     const hasSignedIn = !!localStorage.getItem(STORAGE_USER_KEY);
     if (!hasSignedIn) return null;
 
-    return new Promise((resolve) => {
-        refreshTokenResolver = resolve;
-        tokenClient.requestAccessToken({ prompt: '' });
-    });
+    accessToken = null;
+    tokenExpiryTime = 0;
+    localStorage.removeItem(STORAGE_TOKEN_KEY);
+    localStorage.removeItem(STORAGE_EXPIRY_KEY);
+    localStorage.removeItem(STORAGE_USER_KEY);
+    if (!expiredNotified) {
+        expiredNotified = true;
+        if (onSessionExpired) { try { onSessionExpired(); } catch { /* ignore */ } }
+    }
+    return null;
 };
 
 // --- Drive File Operations ---

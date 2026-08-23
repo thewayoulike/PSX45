@@ -46,7 +46,7 @@ import {
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler } from '../services/driveStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { Paywall } from './Paywall';
@@ -421,6 +421,14 @@ const App: React.FC = () => {
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
   useEffect(() => {
+      // If the Drive token expires, log out to the login screen instead of
+      // auto-popping Google. The user signs back in when they want to resume.
+      setDriveSessionExpiredHandler(() => {
+          setDriveUser(null);
+          setGoogleSheetId(null);
+          setIsCloudSyncing(false);
+          setShowLogin(true);
+      });
       initDriveAuth(async (user) => {
           // User chose Guest Mode — ignore a silently-restored Google session.
           if (guestModeRef.current) { setIsAuthChecking(false); return; }
