@@ -66,9 +66,14 @@ export interface AccessStatus {
  */
 export const getAccessStatus = async (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    // Send the user's session so the server only emails the owner for the
+    // caller's OWN account (kills anonymous owner-spam / user enumeration).
+    if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
     const res = await fetch('/api/check-access', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({ email, name: name || '', notify, resend }),
     });
     const d = await res.json().catch(() => ({}));
