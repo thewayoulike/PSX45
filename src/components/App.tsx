@@ -748,7 +748,7 @@ const App: React.FC = () => {
 
     let realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
 
-    const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number, kind?: 'capital' | 'reinvest' }[] = [];
+    const events: { date: string, type: 'IN' | 'OUT' | 'PROFIT' | 'LOSS', amount: number, originalIndex: number, kind?: 'capital' | 'reinvest', bucket?: 'realized' }[] = [];
     const txIndexMap = new Map<string, number>();
     portfolioTransactions.forEach((t, idx) => txIndexMap.set(t.id, idx));
     portfolioTransactions.forEach((t, idx) => {
@@ -796,7 +796,7 @@ const App: React.FC = () => {
         }
         else if (t.type === 'TAX') {
             totalCGT += t.price;
-            events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx });
+            events.push({ date: t.date, type: 'LOSS', amount: t.price, originalIndex: idx, bucket: 'realized' });
         }
         else if (t.type === 'HISTORY') {
             totalCGT += (t.tax || 0);
@@ -818,8 +818,8 @@ const App: React.FC = () => {
 
     realizedTrades.forEach((t) => {
         const originalIdx = txIndexMap.get(t.id) ?? 999999;
-        if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx });
-        else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit), originalIndex: originalIdx });
+        if (t.profit >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.profit, originalIndex: originalIdx, bucket: 'realized' });
+        else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.profit), originalIndex: originalIdx, bucket: 'realized' });
     });
     events.sort((a, b) => {
         const dateDiff = a.date.localeCompare(b.date);
@@ -829,6 +829,7 @@ const App: React.FC = () => {
     const netRealizedPL = realizedPL - totalCGT;
     let runningCapital = 0;
     let runningReinvest = 0;
+    let runningRealized = 0; // realized trade P&L net of CGT, accrued to date; withdrawn first
     let peakInvested = 0;
     events.forEach(e => {
         if (e.type === 'IN') {
@@ -837,10 +838,20 @@ const App: React.FC = () => {
             const total = runningCapital + runningReinvest;
             if (total > peakInvested) peakInvested = total;
         }
+        else if (e.bucket === 'realized') {
+            // Realized trade profit adds to (and CGT subtracts from) the withdrawable
+            // realized-profit pool. This pool is NOT part of invested capital.
+            runningRealized += (e.type === 'PROFIT' ? e.amount : -e.amount);
+        }
         else if (e.type === 'OUT') {
-            // Withdrawals draw down reinvested dividends first, then original capital.
+            // Withdrawals draw down realized profit (net of CGT) first, then
+            // reinvested dividends, then original capital — so pulling out gains
+            // doesn't reduce your invested base.
             let out = e.amount;
-            const fromReinvest = Math.min(out, runningReinvest);
+            const fromRealized = Math.min(out, Math.max(0, runningRealized));
+            runningRealized -= fromRealized;
+            out -= fromRealized;
+            const fromReinvest = Math.min(out, Math.max(0, runningReinvest));
             runningReinvest -= fromReinvest;
             out -= fromReinvest;
             runningCapital -= out;

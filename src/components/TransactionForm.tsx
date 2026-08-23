@@ -250,7 +250,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       } 
   };
   
-  const handleImportFile = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { const data = await selectedFile.arrayBuffer(); const workbook = XLSX.read(data); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); const trades: EditableTrade[] = jsonData.map((row: any) => { const comm = getRowValue(row, ['Commission', 'Comm', 'Brokerage', 'Trading Fee']); const tax = getRowValue(row, ['Tax', 'SST', 'WHT', 'Sales Tax', 'Govt Tax']); const cdc = getRowValue(row, ['CDC Charges', 'CDC', 'CDC Fee', 'Regulatory Fee', 'Reg Fee']); const other = getRowValue(row, ['Other Fees', 'Other', 'FED', 'Service Charges', 'Misc', 'Tax 2']); const price = getRowValue(row, ['Price', 'Rate', 'Exec Price']); const qty = getRowValue(row, ['Quantity', 'Qty', 'Volume']); const type = row['Type'] ? row['Type'].toString().toUpperCase() : 'BUY'; const ticker = row['Ticker'] ? row['Ticker'].toString().toUpperCase() : row['Symbol'] ? row['Symbol'].toString().toUpperCase() : ''; const dateVal = row['Date'] || row['Trade Date']; return { date: normalizeDate(dateVal), type, ticker, broker: row['Broker'], quantity: qty || 0, price: price || 0, commission: comm, tax: tax, cdcCharges: cdc, otherFees: other, brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id }; }).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0); if (trades.length === 0) throw new Error("No valid trades found. Please check column headers."); updateScannedTrades(trades); } catch (e: any) { setScanError("Failed to parse file. Ensure it is a valid Excel/CSV."); } finally { setIsScanning(false); } };
+  const handleImportFile = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { const data = await selectedFile.arrayBuffer(); const workbook = XLSX.read(data); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); const trades: EditableTrade[] = jsonData.map((row: any) => { const comm = getRowValue(row, ['Commission', 'Comm', 'Brokerage', 'Trading Fee']); const tax = getRowValue(row, ['Tax', 'SST', 'WHT', 'Sales Tax', 'Govt Tax']); const cdc = getRowValue(row, ['CDC Charges', 'CDC', 'CDC Fee', 'Regulatory Fee', 'Reg Fee']); const other = getRowValue(row, ['Other Fees', 'Other', 'FED', 'Service Charges', 'Misc', 'Tax 2']); const price = getRowValue(row, ['Price', 'Rate', 'Exec Price']); const qty = getRowValue(row, ['Quantity', 'Qty', 'Volume']); const type = row['Type'] ? row['Type'].toString().toUpperCase() : 'BUY'; const ticker = row['Ticker'] ? row['Ticker'].toString().toUpperCase() : row['Symbol'] ? row['Symbol'].toString().toUpperCase() : ''; const dateVal = row['Date'] || row['Trade Date']; return { date: normalizeDate(dateVal), type, ticker, broker: row['Broker'], quantity: qty || 0, price: Math.round((price||0)*100)/100, commission: Math.round((comm||0)*100)/100, tax: Math.round((tax||0)*100)/100, cdcCharges: Math.round((cdc||0)*100)/100, otherFees: Math.round((other||0)*100)/100, brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id }; }).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0); if (trades.length === 0) throw new Error("No valid trades found. Please check column headers."); updateScannedTrades(trades); } catch (e: any) { setScanError("Failed to parse file. Ensure it is a valid Excel/CSV."); } finally { setIsScanning(false); } };
   
   const handleProcessScan = async () => { 
       if (!selectedFile) return; 
@@ -271,8 +271,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           
           if (trades.length === 0) throw new Error("No trades found in this file."); 
           
+          const r2 = (v: any) => Math.round((Number(v) || 0) * 100) / 100; 
           const enrichedTrades: EditableTrade[] = trades.map(t => ({ 
               ...t, 
+              price: r2(t.price), 
+              commission: r2(t.commission), 
+              tax: r2(t.tax), 
+              cdcCharges: r2(t.cdcCharges), 
+              otherFees: r2(t.otherFees), 
               brokerId: selectedBrokerId || undefined, 
               broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker 
           })); 
@@ -288,6 +294,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const toggleScanSelection = (index: number) => { const next = new Set(selectedScanIndices); if (next.has(index)) next.delete(index); else next.add(index); setSelectedScanIndices(next); };
   const toggleSelectAll = () => { if (selectedScanIndices.size === savedScannedTrades.length) setSelectedScanIndices(new Set()); else setSelectedScanIndices(new Set(savedScannedTrades.map((_, i) => i))); };
   const getTradeCost = (t: EditableTrade) => { return (Number(t.quantity) * Number(t.price)) + (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0); };
+  const getTradeProceeds = (t: EditableTrade) => { return (Number(t.quantity) * Number(t.price)) - (Number(t.commission)||0) - (Number(t.tax)||0) - (Number(t.cdcCharges)||0) - (Number(t.otherFees)||0); };
+  const money2 = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  // A SELL is only valid if a BUY of the same ticker exists on or before its date,
+  // either in saved history or among the buys being added in the same batch.
+  const hasPriorBuy = (ticker: string, sellDate: string, extraBuys: EditableTrade[] = []) => {
+      const norm = (ticker || '').toUpperCase();
+      const d = sellDate || '';
+      const inExisting = existingTransactions.some(tx => (tx.type === 'BUY' || tx.type === 'TRANSFER_IN') && (tx.ticker || '').toUpperCase() === norm && tx.date <= d);
+      const inBatch = extraBuys.some(t => (t.type === 'BUY' || t.type === 'TRANSFER_IN') && (t.ticker || '').toUpperCase() === norm && (t.date || '') <= d);
+      return inExisting || inBatch;
+  };
   const addSingleTrade = (trade: EditableTrade) => { let finalBrokerName = trade.broker; if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; } onAddTransaction({ ticker: trade.ticker, type: trade.type as any, quantity: Number(trade.quantity), price: Number(trade.price), date: trade.date || new Date().toISOString().split('T')[0], broker: finalBrokerName, brokerId: trade.brokerId, commission: Number(trade.commission) || 0, tax: Number(trade.tax) || 0, cdcCharges: Number(trade.cdcCharges) || 0, otherFees: Number(trade.otherFees) || 0 }); };
   
   const handleAcceptTrade = (trade: EditableTrade) => { 
@@ -303,6 +320,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (trade.type === 'SELL') { 
           const targetBrokerId = trade.brokerId || selectedBrokerId; 
           const currentQty = getHoldingQty(trade.ticker, targetBrokerId); 
+          if (!hasPriorBuy(trade.ticker, trade.date || '')) { 
+              setFormError(`Cannot add SELL of ${trade.ticker}: no BUY exists on or before ${trade.date || 'that date'}.`); 
+              scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
+              return; 
+          } 
           if (Number(trade.quantity) > currentQty) { 
               setFormError(`Insufficient Holdings! You are trying to sell ${trade.quantity} ${trade.ticker}, but you only own ${currentQty}.`); 
               scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -317,9 +339,24 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setFormError(null); 
       const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i)); 
       
-      const totalBuyCost = selectedTrades.reduce((acc, t) => { return t.type === 'BUY' ? acc + getTradeCost(t) : acc; }, 0); 
-      if (freeCash !== undefined && totalBuyCost > freeCash) { 
-          setFormError(`Insufficient Buying Power! Selected trades cost Rs. ${totalBuyCost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`); 
+      // Buying power is checked on the NET of the batch (buys minus sell proceeds),
+      // so an intraday set that squares off can be added together even when the
+      // gross buy cost alone exceeds available cash.
+      const totalBuyCost = selectedTrades.reduce((acc, t) => t.type === 'BUY' ? acc + getTradeCost(t) : acc, 0); 
+      const totalSellProceeds = selectedTrades.reduce((acc, t) => t.type === 'SELL' ? acc + getTradeProceeds(t) : acc, 0); 
+      const netCost = totalBuyCost - totalSellProceeds; 
+      if (freeCash !== undefined && netCost > freeCash + 0.01) { 
+          setFormError(`Insufficient Buying Power! These trades need Rs. ${money2(netCost)} net but you have Rs. ${money2(freeCash)}.`); 
+          scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
+          return; 
+      } 
+
+      // Every SELL must have a BUY of the same ticker on or before its date
+      // (existing history, or a BUY included in this same batch).
+      const buysInBatch = selectedTrades.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN'); 
+      const badSell = selectedTrades.find(t => t.type === 'SELL' && !hasPriorBuy(t.ticker, t.date || '', buysInBatch)); 
+      if (badSell) { 
+          setFormError(`Cannot add SELL of ${badSell.ticker}: no BUY exists on or before ${badSell.date || 'that date'}.`); 
           scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
           return; 
       } 
@@ -432,7 +469,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   return (
     // MODAL CONTAINER: Top Aligned with glassmorphism
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[60] flex items-start justify-center p-4 pt-12 md:pt-20 overflow-y-auto transition-opacity">
-      <div className={`bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full flex flex-col max-h-[90vh] transition-all duration-300 animate-in fade-in zoom-in-95 duration-200 ${savedScannedTrades.length > 0 ? 'max-w-6xl' : 'max-w-md'}`}>
+      <div className={`bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full flex flex-col max-h-[90vh] transition-all duration-300 animate-in fade-in zoom-in-95 duration-200 ${savedScannedTrades.length > 0 ? 'max-w-6xl' : 'max-w-md md:max-w-2xl'}`}>
         
         <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-800/20 rounded-t-3xl shrink-0">
           <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight">
