@@ -332,10 +332,14 @@ const App: React.FC = () => {
       initialSyncDone.current = false;
   }, []);
 
-  useIdleTimer(1800000, () => {
+  // Idle auto-logout window. 12h keeps you signed in through a normal day of
+  // intermittent checking (30m was far too aggressive and wiped the Google
+  // Drive session, forcing a fresh Google sign-in on return).
+  const IDLE_LOGOUT_MS = 12 * 60 * 60 * 1000; // 12 hours
+  useIdleTimer(IDLE_LOGOUT_MS, () => {
       if (driveUser) {
           performLogout();
-          alert("Session timed out due to inactivity. Data cleared for security.");
+          alert("Session timed out after 12 hours of inactivity. Data cleared for security.");
       }
   });
 
