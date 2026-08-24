@@ -614,6 +614,11 @@ const App: React.FC = () => {
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
+  // Fix an out-of-sequence same-day SELL: stamp it 'now' so it sorts after every
+  // same-day BUY (which have earlier/blank timestamps), resolving the warning.
+  const handleFixSequence = (txId: string) => {
+      setTransactions(prev => prev.map(t => t.id === txId ? { ...t, createdAt: nextCreatedAt() } : t));
+  };
   const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
   const handleDeleteTransactions = (ids: string[]) => { if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) { setTransactions(prev => prev.filter(t => !ids.includes(t.id))); } };
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
@@ -1071,12 +1076,16 @@ const App: React.FC = () => {
           };
           let matchSeq = 0;
           sortedDates.forEach(date => {
-              const dayList = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
-              const dayLots: Lot[] = [];
-              dayList.forEach(t => {
-                  if (t.type === 'BUY' || t.type === 'TRANSFER_IN') { dayLots.push(makeLot(t)); return; }
-                  if (t.type !== 'SELL' && t.type !== 'TRANSFER_OUT') return;
-                  const sellTx = t;
+              const dayTxs = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
+              // Build ALL of the day's buy lots up-front (createdAt order) so a SELL
+              // can be covered by ANY same-day BUY regardless of entry order. This
+              // prevents phantom "held" shares when a sell was recorded before its
+              // covering buy. The lot that stays held still follows createdAt order.
+              const dayBuyLots: Lot[] = dayTxs
+                  .filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN')
+                  .map(makeLot);
+              const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
+              daySells.forEach(sellTx => {
                   let qtyToSell = sellTx.quantity;
                   const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
                   const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
@@ -1100,8 +1109,9 @@ const App: React.FC = () => {
                           otherFees: (sellTx.otherFees || 0) * (matched / sellTx.quantity)
                       });
                   };
-                  // 1) Same-day buys entered BEFORE this sell (intraday day-trade).
-                  for (const bl of dayLots) {
+                  // 1) Same-day buys first (all of them, FIFO by createdAt) — squares
+                  //    off intraday trades and prevents same-day oversell.
+                  for (const bl of dayBuyLots) {
                       if (qtyToSell <= 0.0001) break;
                       if (bl.quantity > 0) {
                           const matched = Math.min(qtyToSell, bl.quantity);
@@ -1120,7 +1130,7 @@ const App: React.FC = () => {
                       if (fifoLot.quantity < 0.0001) lots.shift();
                   }
               });
-              dayLots.forEach(l => { if (l.quantity > 0.0001) lots.push(l); });
+              dayBuyLots.forEach(l => { if (l.quantity > 0.0001) lots.push(l); });
           });
           if (lots.length > 0) {
               const totalQty = lots.reduce((acc, l) => acc + l.quantity, 0);
@@ -1557,6 +1567,7 @@ const App: React.FC = () => {
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
                                   onAddStock={handleAddStock}
+                                  onFixSequence={handleFixSequence}
                                   mode="STOCK"
                                   onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />
@@ -1571,6 +1582,7 @@ const App: React.FC = () => {
                                   listedInMap={listedInMap}
                                   onTickerClick={(t) => setViewTicker(t)}
                                   onAddStock={handleAddStock}
+                                  onFixSequence={handleFixSequence}
                                   mode="SECTOR"
                                   onModeChange={(m) => setCurrentView(m === 'SECTOR' ? 'SECTOR' : 'STOCKS')}
                               />

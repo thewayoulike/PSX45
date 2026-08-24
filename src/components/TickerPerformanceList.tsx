@@ -58,6 +58,7 @@ interface TickerPerformanceListProps {
   mode?: 'STOCK' | 'SECTOR';                 // drive Stock/Sector from the sidebar
   onModeChange?: (mode: 'STOCK' | 'SECTOR') => void; // keep sidebar highlight in sync
   onAddStock?: (ticker: string) => void;  // ensure a live price for a never-traded stock the user adds
+  onFixSequence?: (txId: string) => void;  // move an out-of-sequence SELL after its same-day BUY
 }
 
 interface ActivityRow extends Transaction {
@@ -121,7 +122,7 @@ const getHoldingDuration = (dateStr: string) => {
 };
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
-  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick, mode, onModeChange, onAddStock
+  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick, mode, onModeChange, onAddStock, onFixSequence
 }) => {
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
       return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
@@ -1019,7 +1020,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                         <td className="px-4 py-3.5"> 
                                             <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border shadow-sm ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20' : 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20'}`}>
                                               {t.type}
-                                            </span>{(t as any).seqWarning && <AlertTriangle size={13} className="text-amber-500 ml-1.5 inline-block align-middle cursor-help" title="This SELL is recorded before the BUY that covers it on the same day. Fix: give the covering BUY an earlier time so it is entered first, then this resolves." />} 
+                                            </span>{(t as any).seqWarning && (
+                                              <span className="inline-flex items-center align-middle ml-1.5">
+                                                <span className="relative group/w inline-flex">
+                                                  <AlertTriangle size={13} className="text-amber-500 cursor-help" />
+                                                  <span className="pointer-events-none absolute left-0 top-full mt-1 w-64 z-50 opacity-0 group-hover/w:opacity-100 transition-opacity duration-150 bg-slate-900 text-white text-[10px] font-medium leading-snug rounded-lg px-2.5 py-2 shadow-xl normal-case tracking-normal">
+                                                    This SELL is recorded before the BUY that covers it on the same day. Click Fix to move it right after the buy.
+                                                  </span>
+                                                </span>
+                                                {onFixSequence && (
+                                                  <button onClick={() => onFixSequence(t.id)} className="ml-1.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 dark:border-amber-500/30 dark:text-amber-300 dark:bg-amber-500/10 transition-colors" title="Move this SELL after the same-day BUY">Fix</button>
+                                                )}
+                                              </span>
+                                            )} 
                                         </td>
                                         <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{t.quantity.toLocaleString()}</td>
                                         <td className="px-4 py-3.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
