@@ -24,7 +24,7 @@ import {
   FileText,
   RefreshCw,
   Clock,
-  AlertCircle
+  AlertCircle, AlertTriangle
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { StockAnnouncements } from './StockAnnouncements';
@@ -66,6 +66,7 @@ interface ActivityRow extends Transaction {
   gain: number;               
   gainType: 'REALIZED' | 'UNREALIZED' | 'NONE';
   remainingQty?: number;
+  seqWarning?: boolean;
 }
 
 interface SectorStats {
@@ -212,25 +213,41 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE' }> = {};
 
       const ordVal = (t: any) => (t.createdAt ? Date.parse(t.createdAt) : 0);
+      // Flag SELLs recorded before the BUY that covers them on the same day
+      // (out-of-sequence). Walk the position in date + entry-time order; a SELL
+      // that would drive holdings negative relied on a later same-day buy.
+      const seqWarnIds = new Set<string>();
+      {
+        let held = 0;
+        sortedDates.forEach(d => {
+          [...txsByDate[d]].sort((a, b) => ordVal(a) - ordVal(b)).forEach(t => {
+            if (t.type === 'BUY' || t.type === 'TRANSFER_IN') held += t.quantity;
+            else if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') {
+              if (held - t.quantity < -0.0001) seqWarnIds.add(t.id);
+              held -= t.quantity;
+            }
+          });
+        });
+      }
       sortedDates.forEach(date => {
-          const dayList = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
-          const dayLots: { id: string, quantity: number, costPerShare: number }[] = [];
-          dayList.forEach(t => {
-              if (t.type === 'BUY') {
-                  const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-                  const effRate = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
-                  dayLots.push({ id: t.id, quantity: t.quantity, costPerShare: effRate });
-                  buyRemainingMap[t.id] = t.quantity;
-                  return;
-              }
-              if (t.type !== 'SELL') return;
-              const sellTx = t;
+          const dayTxs = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
+          // Build all same-day buy lots up front so a SELL can be covered by ANY
+          // same-day BUY (prevents phantom held shares from a sell entered before
+          // its covering buy). The leftover lot still follows createdAt order.
+          const dayBuyLots = dayTxs.filter(t => t.type === 'BUY').map(t => {
+              const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+              const effRate = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
+              buyRemainingMap[t.id] = t.quantity;
+              return { id: t.id, quantity: t.quantity, costPerShare: effRate };
+          });
+          const daySells = dayTxs.filter(t => t.type === 'SELL');
+          daySells.forEach(sellTx => {
               const fees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
               const netProceeds = (sellTx.quantity * sellTx.price) - fees;
               let qtyToFill = sellTx.quantity;
               let totalCostBasis = 0;
-              // 1) Same-day buys entered BEFORE this sell (intraday day-trade).
-              for (const bl of dayLots) {
+              // 1) Same-day buys first (all of them, FIFO by createdAt).
+              for (const bl of dayBuyLots) {
                   if (qtyToFill <= 0.0001) break;
                   if (bl.quantity > 0) {
                       const matched = Math.min(qtyToFill, bl.quantity);
@@ -255,7 +272,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               const gain = netProceeds - totalCostBasis;
               sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: filledQty > 0 ? 'REALIZED' : 'NONE' };
           });
-          dayLots.forEach(lot => {
+          dayBuyLots.forEach(lot => {
               if (lot.quantity > 0.0001) {
                   mainLots.push({ id: lot.id, quantity: lot.quantity, costPerShare: lot.costPerShare });
                   buyRemainingMap[lot.id] = lot.quantity;
@@ -296,7 +313,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                gain = (t.quantity * t.price) - (t.tax || 0);
                gainType = 'NONE';
           }
-          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
+          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty, seqWarning: (t.type === 'SELL' || t.type === 'TRANSFER_OUT') && seqWarnIds.has(t.id) };
       }).sort((a, b) => { const d = new Date(b.date).getTime() - new Date(a.date).getTime(); return d !== 0 ? d : (ordVal(b) - ordVal(a)); });
   };
 
@@ -491,6 +508,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const paginatedActivity = useMemo(() => { const start = (activityPage - 1) * activityRowsPerPage; return currentRows.slice(start, start + activityRowsPerPage); }, [currentRows, activityPage, activityRowsPerPage]);
   const totalActivityPages = Math.ceil(currentRows.length / activityRowsPerPage);
   const activityTotals = useMemo(() => { return currentRows.reduce((acc, row) => { let net = 0; const gross = row.quantity * row.price; const fees = (row.commission || 0) + (row.tax || 0) + (row.cdcCharges || 0) + (row.otherFees || 0); if (row.type === 'BUY') net = -(gross + fees); else if (row.type === 'SELL') net = gross - fees; else if (row.type === 'DIVIDEND') net = gross - (row.tax || 0); return { netAmount: acc.netAmount + net, realized: acc.realized + (row.gainType === 'REALIZED' ? row.gain : 0), unrealized: acc.unrealized + (row.gainType === 'UNREALIZED' ? row.gain : 0) }; }, { netAmount: 0, realized: 0, unrealized: 0 }); }, [currentRows]);
+  const hasSeqWarnings = useMemo(() => currentRows.some((r: any) => r.seqWarning), [currentRows]);
 
   const handleExportActivity = () => { if (analysisMode === 'STOCK' && selectedTicker) { const dataToExport = activityRows.map(row => ({ Date: row.date, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy / Cost': row.avgBuyPrice, 'Sell / Current': row.sellOrCurrentPrice, 'Gain/Loss': row.gain, 'Gain Type': row.gainType })); exportToCSV(dataToExport, `${selectedTicker}_Activity_Log`); } else if (analysisMode === 'SECTOR' && selectedSector) { const dataToExport = sectorActivityRows.map(row => ({ Date: row.date, Ticker: row.ticker, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy': row.avgBuyPrice, 'Sell/Current': row.sellOrCurrentPrice, 'Gain': row.gain })); exportToCSV(dataToExport, `${selectedSector}_Sector_Activity`); } };
   
@@ -966,6 +984,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </div>
                     <button onClick={handleExportActivity} className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 px-4 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all shadow-sm hover:-translate-y-0.5"> <Download size={14} /> Export CSV </button>
                 </div>
+                {hasSeqWarnings && (
+                  <div className="mx-6 mt-4 flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 px-4 py-3 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
+                    <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                    <span><b>Out-of-sequence trade.</b> A SELL below is recorded before the BUY that covers it on the same day. Enter transactions in the order they happened — for same-day trades, add the BUY before the SELL — so FIFO, gains and holdings stay correct.</span>
+                  </div>
+                )}
                 <div className="overflow-x-auto custom-scrollbar">
                     <table className="w-full text-left text-sm whitespace-nowrap min-w-[1000px] border-collapse">
                         <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
@@ -995,7 +1019,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                         <td className="px-4 py-3.5"> 
                                             <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border shadow-sm ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : t.type === 'SELL' ? 'bg-rose-50 text-rose-600 border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20' : 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20'}`}>
                                               {t.type}
-                                            </span> 
+                                            </span>{(t as any).seqWarning && <AlertTriangle size={13} className="text-amber-500 ml-1.5 inline-block align-middle cursor-help" title="This SELL is recorded before the BUY that covers it on the same day. Fix: give the covering BUY an earlier time so it is entered first, then this resolves." />} 
                                         </td>
                                         <td className="px-4 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{t.quantity.toLocaleString()}</td>
                                         <td className="px-4 py-3.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums">{t.type === 'DIVIDEND' ? '-' : formatDecimal(t.avgBuyPrice)}</td>
