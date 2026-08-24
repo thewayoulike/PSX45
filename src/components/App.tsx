@@ -874,7 +874,6 @@ const App: React.FC = () => {
     const netRealizedPL = realizedPL - totalCGT;
     let runningCapital = 0;
     let runningReinvest = 0;
-    let runningRealized = 0; // realized trade profit (net of CGT) accrued to date; withdrawn first
     let peakInvested = 0;
     events.forEach(e => {
         if (e.type === 'IN') {
@@ -883,29 +882,27 @@ const App: React.FC = () => {
             const total = runningCapital + runningReinvest;
             if (total > peakInvested) peakInvested = total;
         }
-        else if (e.bucket === 'realized') {
-            // Realized trade profit adds to (and CGT subtracts from) a withdrawable
-            // realized-profit pool that is NOT part of invested capital.
-            runningRealized += (e.type === 'PROFIT' ? e.amount : -e.amount);
-        }
         else if (e.type === 'OUT') {
-            // Net Invested = capital − withdrawals, where a withdrawal is drawn
-            // first from realized gain, then from reinvested dividends, then from
-            // capital. So cashing out your gains does not reduce Net Invested.
             let out = e.amount;
-            const fromRealized = Math.min(out, Math.max(0, runningRealized));
-            runningRealized -= fromRealized;
-            out -= fromRealized;
             const fromReinvest = Math.min(out, Math.max(0, runningReinvest));
             runningReinvest -= fromReinvest;
             out -= fromReinvest;
             runningCapital -= out;
         }
     });
-    const currentInvested = runningCapital + runningReinvest;
-    const netPrincipal = Math.max(0, currentInvested);
+    // Net Invested = capital − withdrawals, where a withdrawal is funded first from
+    // TOTAL realized gain (net of CGT), then reinvested dividends, then capital.
+    // Only the capital-funded portion of withdrawals reduces Net Invested — so
+    // cashing out your gains leaves Net Invested unchanged.
+    let wLeft = totalWithdrawals;
+    wLeft -= Math.min(wLeft, Math.max(0, netRealizedPL));            // realized gain first
+    const reinvestUsed = Math.min(wLeft, Math.max(0, totalReinvest));
+    wLeft -= reinvestUsed;                                           // then reinvested dividends
+    const capitalRemaining = totalDeposits - wLeft;                 // then capital
+    const reinvestRemaining = Math.max(0, totalReinvest - reinvestUsed);
+    const netPrincipal = Math.max(0, capitalRemaining + reinvestRemaining);
     const peakNetPrincipal = peakInvested;
-    const dividendReinvested = Math.max(0, runningReinvest);
+    const dividendReinvested = reinvestRemaining;
     let tradingCashFlow = 0;
     portfolioTransactions.forEach(t => {
         const val = t.price * t.quantity;
