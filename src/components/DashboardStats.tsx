@@ -213,7 +213,15 @@ const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: 
 const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.ReactNode; valueClass?: string; tooltip?: string }> = ({ label, value, sub, valueClass, tooltip }) => (
   <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm flex flex-col justify-center">
     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1">
-      {label} {tooltip && <Info size={10} className="text-slate-300 dark:text-slate-600 cursor-help" title={tooltip} />}
+      {label}
+      {tooltip && (
+        <span className="relative group/tt inline-flex items-center">
+          <Info size={10} className="text-slate-400 dark:text-slate-500 cursor-help" />
+          <span className="pointer-events-none absolute left-0 bottom-full mb-1.5 w-56 z-50 opacity-0 group-hover/tt:opacity-100 transition-opacity duration-150 bg-slate-900 dark:bg-slate-700 text-white text-[10px] font-medium leading-snug rounded-lg px-2.5 py-2 shadow-xl normal-case tracking-normal">
+            {tooltip}
+          </span>
+        </span>
+      )}
     </div>
     <div className={`text-lg sm:text-xl font-display font-black tabular-nums tracking-tight leading-none ${valueClass || 'text-slate-800 dark:text-slate-100'}`}>
       {value}
@@ -236,7 +244,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
 
   // ROI excluding dividends (Inc. vs Exc.)
   let roiExcDiv = 0;
-  const roiDenom = stats.netPrincipal > 0 ? stats.netPrincipal : (stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : 1);
+  const roiDenom = stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : (stats.netPrincipal > 0 ? stats.netPrincipal : 1);
   if (roiDenom > 0) roiExcDiv = (((stats.roi / 100) * roiDenom - stats.totalDividends) / roiDenom) * 100;
 
   // --- SMART 7-DAY TREND SYNTHESIZER ---
@@ -342,13 +350,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             value={spct(stats.mwrr)}
             valueClass={stats.mwrr >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
             sub="Annualized"
-            tooltip="Money-Weighted Return factors in the timing of your deposits and withdrawals."
+            tooltip="MWR (XIRR): your true, annualized personal return \u2014 it accounts for how much you invested and exactly when you deposited or withdrew. Because it is annualized, a gain earned over a short period can look large."
           />
           <PanelCell
             label="ROI"
             value={spct(stats.roi)}
             valueClass={posNeg(stats.roi)}
             sub={<>Inc. div · Exc. <span className={posNeg(roiExcDiv)}>{spct(roiExcDiv)}</span></>}
+            tooltip="Return on Investment: total profit (realized + unrealized + dividends \u2212 fees) \u00f7 your peak capital invested. A simple period return, not annualized."
           />
           <PanelCell
             label="Realized Gain"

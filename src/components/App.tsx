@@ -917,7 +917,9 @@ const App: React.FC = () => {
 
     const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses + totalAdjustments;
 
-    const roiDenominator = netPrincipal > 0 ? netPrincipal : (peakNetPrincipal > 0 ? peakNetPrincipal : 1);
+    // Total Return / ROI are measured against PEAK capital (the most you ever had
+    // invested), so cashing out gains/capital doesn't inflate the percentage.
+    const roiDenominator = peakNetPrincipal > 0 ? peakNetPrincipal : (netPrincipal > 0 ? netPrincipal : 1);
     const roi = (totalNetReturn / roiDenominator) * 100;
 
     const unrealizedPL = totalValue - totalCost;
