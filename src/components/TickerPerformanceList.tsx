@@ -211,36 +211,36 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const buyRemainingMap: Record<string, number> = {};
       const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE' }> = {};
 
+      const ordVal = (t: any) => (t.createdAt ? Date.parse(t.createdAt) : 0);
       sortedDates.forEach(date => {
-          const dayTxs = txsByDate[date];
-          const dayBuys = dayTxs.filter(t => t.type === 'BUY');
-          const daySells = dayTxs.filter(t => t.type === 'SELL');
-
-          const dayBuyLots = dayBuys.map(t => {
-              const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-              const effRate = ((t.quantity * t.price) + fees) / t.quantity;
-              return { id: t.id, quantity: t.quantity, costPerShare: effRate };
-          });
-
-          daySells.forEach(sellTx => {
+          const dayList = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
+          const dayLots: { id: string, quantity: number, costPerShare: number }[] = [];
+          dayList.forEach(t => {
+              if (t.type === 'BUY') {
+                  const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+                  const effRate = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
+                  dayLots.push({ id: t.id, quantity: t.quantity, costPerShare: effRate });
+                  buyRemainingMap[t.id] = t.quantity;
+                  return;
+              }
+              if (t.type !== 'SELL') return;
+              const sellTx = t;
               const fees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
               const netProceeds = (sellTx.quantity * sellTx.price) - fees;
               let qtyToFill = sellTx.quantity;
               let totalCostBasis = 0;
-
-              if (dayBuyLots.length > 0) {
-                  for (const buyLot of dayBuyLots) {
-                      if (qtyToFill <= 0.0001) break;
-                      if (buyLot.quantity > 0) {
-                          const matched = Math.min(qtyToFill, buyLot.quantity);
-                          totalCostBasis += matched * buyLot.costPerShare;
-                          buyLot.quantity -= matched;
-                          qtyToFill -= matched;
-                          buyRemainingMap[buyLot.id] = buyLot.quantity; 
-                      }
+              // 1) Same-day buys entered BEFORE this sell (intraday day-trade).
+              for (const bl of dayLots) {
+                  if (qtyToFill <= 0.0001) break;
+                  if (bl.quantity > 0) {
+                      const matched = Math.min(qtyToFill, bl.quantity);
+                      totalCostBasis += matched * bl.costPerShare;
+                      bl.quantity -= matched;
+                      qtyToFill -= matched;
+                      buyRemainingMap[bl.id] = bl.quantity;
                   }
               }
-
+              // 2) Then older holdings, FIFO oldest-first.
               while (qtyToFill > 0.0001 && mainLots.length > 0) {
                   const historyLot = mainLots[0];
                   const matched = Math.min(qtyToFill, historyLot.quantity);
@@ -250,19 +250,17 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   buyRemainingMap[historyLot.id] = historyLot.quantity;
                   if (historyLot.quantity < 0.0001) mainLots.shift();
               }
-
               const filledQty = sellTx.quantity - qtyToFill;
               const avgBuy = filledQty > 0 ? totalCostBasis / filledQty : 0;
               const gain = netProceeds - totalCostBasis;
               sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: filledQty > 0 ? 'REALIZED' : 'NONE' };
           });
-
-          dayBuyLots.forEach(lot => {
+          dayLots.forEach(lot => {
               if (lot.quantity > 0.0001) {
                   mainLots.push({ id: lot.id, quantity: lot.quantity, costPerShare: lot.costPerShare });
                   buyRemainingMap[lot.id] = lot.quantity;
               } else if (buyRemainingMap[lot.id] === undefined) {
-                  buyRemainingMap[lot.id] = 0; 
+                  buyRemainingMap[lot.id] = 0;
               }
           });
       });
@@ -299,7 +297,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                gainType = 'NONE';
           }
           return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty };
-      }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      }).sort((a, b) => { const d = new Date(b.date).getTime() - new Date(a.date).getTime(); return d !== 0 ? d : (ordVal(b) - ordVal(a)); });
   };
 
   const allTickerStats = useMemo(() => {

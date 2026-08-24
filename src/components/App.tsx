@@ -530,12 +530,16 @@ const App: React.FC = () => {
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
 
+  // Monotonic add-time stamp so same-day trades keep the exact order they were
+  // entered (Date.now() can repeat within a ms on bulk adds; we bump past it).
+  const seqRef = useRef<number>(0);
+  const nextCreatedAt = () => { const t = Date.now(); seqRef.current = t > seqRef.current ? t : seqRef.current + 1; return new Date(seqRef.current).toISOString(); };
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
       const brokerToUse = brokers.find(b => b.id === currentPortfolio.defaultBrokerId);
       const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
-      const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId, brokerId: currentPortfolio.defaultBrokerId, broker: brokerToUse?.name || 'Unknown' };
+      const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId, brokerId: currentPortfolio.defaultBrokerId, broker: brokerToUse?.name || 'Unknown', createdAt: nextCreatedAt() };
       setTransactions(prev => [...prev, newTx]);
   };
 
@@ -549,6 +553,7 @@ const App: React.FC = () => {
       const transferId = Date.now().toString();
       const transferOut: Transaction = {
           id: `tx-out-${transferId}`,
+          createdAt: nextCreatedAt(),
           portfolioId: currentPortfolioId,
           type: 'TRANSFER_OUT',
           ticker,
@@ -562,6 +567,7 @@ const App: React.FC = () => {
       };
       const transferIn: Transaction = {
           id: `tx-in-${transferId}`,
+          createdAt: nextCreatedAt(),
           portfolioId: destPortfolioId,
           type: 'TRANSFER_IN',
           ticker,
@@ -717,7 +723,7 @@ const App: React.FC = () => {
                   const exists = transactions.some(t => t.id === txId);
                   if (!exists) {
                       const feeDateStr = nextDueDate.toISOString().split('T')[0];
-                      const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})` };
+                      const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})`, createdAt: new Date(feeDateStr + 'T00:00:00Z').toISOString() };
                       newTransactions.push(newTx);
                   }
                   nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
@@ -1014,25 +1020,33 @@ const App: React.FC = () => {
               txsByDate[t.date].push(t);
           });
           const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+          // Within a day, order by the exact add time (createdAt); legacy rows with
+          // no timestamp keep their saved order (stable sort). A SELL squares off
+          // only against BUYs entered BEFORE it that day, then falls through to
+          // older holdings FIFO (oldest first). This makes same-day results follow
+          // the real sequence in which trades were entered.
+          const ordVal = (t: Transaction) => (t.createdAt ? Date.parse(t.createdAt) : 0);
+          const makeLot = (t: Transaction): Lot => {
+              const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+              const costPerShare = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
+              return {
+                  quantity: t.quantity,
+                  costPerShare,
+                  date: t.date,
+                  commPerShare: t.quantity > 0 ? (t.commission || 0) / t.quantity : 0,
+                  taxPerShare: t.quantity > 0 ? (t.tax || 0) / t.quantity : 0,
+                  cdcPerShare: t.quantity > 0 ? (t.cdcCharges || 0) / t.quantity : 0,
+                  otherPerShare: t.quantity > 0 ? (t.otherFees || 0) / t.quantity : 0
+              };
+          };
           let matchSeq = 0;
           sortedDates.forEach(date => {
-              const dayTxs = txsByDate[date];
-              const dayBuys = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN');
-              const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
-              const dayBuyLots = dayBuys.map(t => {
-                  const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-                  const costPerShare = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
-                  return {
-                      quantity: t.quantity,
-                      costPerShare,
-                      date: t.date,
-                      commPerShare: t.quantity > 0 ? (t.commission || 0) / t.quantity : 0,
-                      taxPerShare: t.quantity > 0 ? (t.tax || 0) / t.quantity : 0,
-                      cdcPerShare: t.quantity > 0 ? (t.cdcCharges || 0) / t.quantity : 0,
-                      otherPerShare: t.quantity > 0 ? (t.otherFees || 0) / t.quantity : 0
-                  };
-              });
-              daySells.forEach(sellTx => {
+              const dayList = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
+              const dayLots: Lot[] = [];
+              dayList.forEach(t => {
+                  if (t.type === 'BUY' || t.type === 'TRANSFER_IN') { dayLots.push(makeLot(t)); return; }
+                  if (t.type !== 'SELL' && t.type !== 'TRANSFER_OUT') return;
+                  const sellTx = t;
                   let qtyToSell = sellTx.quantity;
                   const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
                   const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
@@ -1056,17 +1070,17 @@ const App: React.FC = () => {
                           otherFees: (sellTx.otherFees || 0) * (matched / sellTx.quantity)
                       });
                   };
-                  // 1) Square off against same-day buys first (intraday day-trade).
-                  for (const buyLot of dayBuyLots) {
+                  // 1) Same-day buys entered BEFORE this sell (intraday day-trade).
+                  for (const bl of dayLots) {
                       if (qtyToSell <= 0.0001) break;
-                      if (buyLot.quantity > 0) {
-                          const matched = Math.min(qtyToSell, buyLot.quantity);
-                          pushRealized(buyLot.costPerShare, matched);
-                          buyLot.quantity -= matched;
+                      if (bl.quantity > 0) {
+                          const matched = Math.min(qtyToSell, bl.quantity);
+                          pushRealized(bl.costPerShare, matched);
+                          bl.quantity -= matched;
                           qtyToSell -= matched;
                       }
                   }
-                  // 2) Then consume earlier holdings FIFO (oldest lot first).
+                  // 2) Then older holdings, FIFO oldest-first.
                   while (qtyToSell > 0.0001 && lots.length > 0) {
                       const fifoLot = lots[0];
                       const matched = Math.min(qtyToSell, fifoLot.quantity);
@@ -1076,9 +1090,7 @@ const App: React.FC = () => {
                       if (fifoLot.quantity < 0.0001) lots.shift();
                   }
               });
-              dayBuyLots.forEach(l => {
-                  if (l.quantity > 0.0001) lots.push(l);
-              });
+              dayLots.forEach(l => { if (l.quantity > 0.0001) lots.push(l); });
           });
           if (lots.length > 0) {
               const totalQty = lots.reduce((acc, l) => acc + l.quantity, 0);

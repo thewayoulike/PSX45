@@ -14,6 +14,7 @@ export interface Transaction {
   otherFees: number;
   notes?: string; 
   category?: 'ADJUSTMENT' | 'OTHER_TAX' | 'CDC_CHARGE'; 
+  createdAt?: string; // ISO time the row was added; used to order same-day trades deterministically
 }
 
 export interface Holding {
