@@ -302,6 +302,7 @@ const App: React.FC = () => {
 
   const isReadyToSave = useRef(false);
   const initialSyncDone = useRef(false);
+  const loadedEmailRef = useRef<string | null>(null); // which Google account's data is currently loaded
   // When the user explicitly picks Guest Mode we must ignore any Google session
   // that silently restores afterwards, otherwise it would auto-log them back in.
   const guestModeRef = useRef(false);
@@ -458,6 +459,27 @@ const App: React.FC = () => {
           setDriveUser(user);
           setIsAuthChecking(false);
           setShowLogin(false);
+
+          // ---- Account-switch safety ----
+          // If a DIFFERENT Google account just signed in, wipe the previous
+          // account's in-memory + cached portfolio BEFORE loading this account's
+          // Drive, and block auto-save until the load finishes. Otherwise the old
+          // account's data can be written into the new account's Drive file.
+          if (loadedEmailRef.current && loadedEmailRef.current !== user.email) {
+              isReadyToSave.current = false;
+              initialSyncDone.current = false;
+              setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setCurrentPortfolioId(DEFAULT_PORTFOLIO.id);
+              setHoldings([]); setRealizedTrades([]);
+              setManualPrices({}); setLdcpMap({}); setListedInMap({}); setPriceTimestamps({});
+              setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]);
+              setPerformanceHistory({}); setFairValueCache({}); setWatchlist([]);
+              setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
+              setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
+              try {
+                  ['psx_transactions', 'psx_portfolios', 'psx_current_portfolio_id', 'psx_gemini_api_key', 'psx_scraping_api_key', 'psx_webscraping_ai_key'].forEach(k => localStorage.removeItem(k));
+              } catch { /* ignore */ }
+          }
+          loadedEmailRef.current = user.email;
 
           getGoogleSheetId().then(id => setGoogleSheetId(id));
           setIsCloudSyncing(true);
@@ -929,7 +951,7 @@ const App: React.FC = () => {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL,
         totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC,
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
-        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr
+        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]);
 

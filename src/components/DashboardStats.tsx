@@ -208,8 +208,11 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
 );
 export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, benchmark, holdings }) => {
   const totalNetWorth = stats.totalValue + stats.freeCash;
-  const totalReturnPercent = stats.netPrincipal > 0 ? ((totalNetWorth - stats.netPrincipal) / stats.netPrincipal) * 100 : 0;
-  const totalReturnRs = totalNetWorth - stats.netPrincipal;
+  // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
+  // Realized Gain). This counts profit you've already withdrawn too, so it no
+  // longer collapses to ~0 after cash-outs the way NetWorth - Invested does.
+  const totalReturnRs = (stats as any).totalNetReturn ?? (stats.netRealizedPL + stats.unrealizedPL + stats.totalDividends);
+  const totalReturnPercent = stats.roi;
   const isTotalReturnPositive = totalReturnRs >= 0;
   const dividendYield = stats.totalCost > 0 ? (stats.totalDividends / stats.totalCost) * 100 : 0;
   const isDailyProfitable = stats.dailyPL >= 0;
