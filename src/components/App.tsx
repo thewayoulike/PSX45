@@ -399,6 +399,15 @@ const App: React.FC = () => {
       signOutDrive(); // clears the Drive token and reloads to a clean state
   };
 
+  // Safety net: never leave the app stuck on the boot spinner. If any auth
+  // check stalls (network, Google/Supabase lock, blocked request), force the
+  // loading gates open after a few seconds so the user at least reaches the
+  // app or the login screen instead of an endless loader.
+  useEffect(() => {
+      const t = setTimeout(() => { setIsAuthChecking(false); setSbChecking(false); }, 5000);
+      return () => clearTimeout(t);
+  }, []);
+
   // On load, see if there's an approved Supabase session.
   useEffect(() => {
       (async () => {

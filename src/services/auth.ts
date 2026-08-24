@@ -66,11 +66,17 @@ export interface AccessStatus {
  */
 export const getAccessStatus = async (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {
   try {
-    const { data: { session } } = await supabase.auth.getSession();
+    // Attach the user's session token if it's readily available, but never let
+    // this block boot: getSession() can stall (auth-lock/refresh), so cap it.
+    let token: string | undefined;
+    try {
+      token = await Promise.race([
+        supabase.auth.getSession().then(r => r.data?.session?.access_token || undefined).catch(() => undefined),
+        new Promise<undefined>(res => setTimeout(() => res(undefined), 1200)),
+      ]);
+    } catch { token = undefined; }
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    // Send the user's session so the server only emails the owner for the
-    // caller's OWN account (kills anonymous owner-spam / user enumeration).
-    if (session?.access_token) headers['Authorization'] = `Bearer ${session.access_token}`;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch('/api/check-access', {
       method: 'POST',
       headers,
