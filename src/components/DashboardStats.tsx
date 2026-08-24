@@ -85,6 +85,21 @@ const computeHealth = (stats: PortfolioStats, holdings?: Holding[], trend?: numb
     perfScore = 0.6 * absScore + 0.4 * relScore;
   }
   pillars.push({ name: 'Performance', score: Math.round(perfScore), weight: 30 });
+  // All-cash portfolio (sold everything): composition pillars (diversification,
+  // liquidity, drawdown-vs-peak) don't apply and would wrongly read "Weak". Score
+  // purely on realized performance and label it as an "All Cash" state.
+  const noPositions = !holdings || holdings.length === 0 || stats.totalValue <= 0.01;
+  if (noPositions) {
+    const s = Math.round(clamp(perfScore));
+    const positive = totalReturnRs >= 0;
+    return {
+      score: s,
+      label: 'All Cash',
+      bar: positive ? 'bg-emerald-500' : 'bg-rose-500',
+      text: positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500',
+      pillars: [{ name: 'Performance', score: s, weight: 100 }],
+    };
+  }
   const riskSubs: number[] = [];
   if (holdings && holdings.length && stats.totalValue > 0) {
     const weights = holdings.map((h) => (h.currentPrice * h.quantity) / stats.totalValue).filter((w) => w > 0);

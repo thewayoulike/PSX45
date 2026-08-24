@@ -874,7 +874,7 @@ const App: React.FC = () => {
     const netRealizedPL = realizedPL - totalCGT;
     let runningCapital = 0;
     let runningReinvest = 0;
-    let runningRealized = 0; // realized trade P&L net of CGT, accrued to date; withdrawn first
+    let runningRealized = 0; // realized trade profit (net of CGT) accrued to date; withdrawn first
     let peakInvested = 0;
     events.forEach(e => {
         if (e.type === 'IN') {
@@ -884,14 +884,14 @@ const App: React.FC = () => {
             if (total > peakInvested) peakInvested = total;
         }
         else if (e.bucket === 'realized') {
-            // Realized trade profit adds to (and CGT subtracts from) the withdrawable
-            // realized-profit pool. This pool is NOT part of invested capital.
+            // Realized trade profit adds to (and CGT subtracts from) a withdrawable
+            // realized-profit pool that is NOT part of invested capital.
             runningRealized += (e.type === 'PROFIT' ? e.amount : -e.amount);
         }
         else if (e.type === 'OUT') {
-            // Withdrawals draw down realized profit (net of CGT) first, then
-            // reinvested dividends, then original capital — so pulling out gains
-            // doesn't reduce your invested base.
+            // Net Invested = capital − withdrawals, where a withdrawal is drawn
+            // first from realized gain, then from reinvested dividends, then from
+            // capital. So cashing out your gains does not reduce Net Invested.
             let out = e.amount;
             const fromRealized = Math.min(out, Math.max(0, runningRealized));
             runningRealized -= fromRealized;
