@@ -48,7 +48,11 @@ export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard }) =
     () => cards.map(c => ({
       i: c.id, x: c.x, y: c.y, w: c.w,
       h: hForPx(heights[c.id] ?? c.h * 110),
-      static: true,
+      // Non-interactive but NOT static, so react-grid-layout vertically compacts
+      // away any empty rows left by hidden/reordered cards (fixes the top gap).
+      static: false,
+      isDraggable: false,
+      isResizable: false,
     })),
     [cards, heights]
   );
