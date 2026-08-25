@@ -31,6 +31,10 @@ interface TransactionFormProps {
 
 const normalizeDate = (input: any): string => toDatePK(input);
 
+/** Compare cash amounts in PKR with 1-paisa tolerance (avoids float/display rounding false rejects). */
+const roundMoney = (n: number) => Math.round(n * 100) / 100;
+const canAfford = (cost: number, available: number) => roundMoney(cost) <= roundMoney(available) + 0.01;
+
 const getRowValue = (row: any, aliases: string[]): number => {
     const rowKeys = Object.keys(row);
     for (const alias of aliases) {
@@ -347,8 +351,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       }
       if (type === 'BUY' && !editingTransaction && freeCash !== undefined) {
           const totalCost = (qtyNum * priceNum) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
-          if (totalCost > freeCash) {
-              setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`);
+          if (!canAfford(totalCost, freeCash)) {
+              setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} but only have Rs. ${freeCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`);
               return;
           }
       }
@@ -445,8 +449,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setFormError(null); 
       if (trade.type === 'BUY' && freeCash !== undefined) { 
           const cost = getTradeCost(trade); 
-          if (cost > freeCash) { 
-              setFormError(`Insufficient Buying Power! This trade costs Rs. ${cost.toLocaleString()} but you have Rs. ${freeCash.toLocaleString()}.`); 
+          if (!canAfford(cost, freeCash)) { 
+              setFormError(`Insufficient Buying Power! This trade costs Rs. ${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} but you have Rs. ${freeCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`); 
               scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
               return; 
           } 
@@ -479,7 +483,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       const totalBuyCost = selectedTrades.reduce((acc, t) => t.type === 'BUY' ? acc + getTradeCost(t) : acc, 0); 
       const totalSellProceeds = selectedTrades.reduce((acc, t) => t.type === 'SELL' ? acc + getTradeProceeds(t) : acc, 0); 
       const netCost = totalBuyCost - totalSellProceeds; 
-      if (freeCash !== undefined && netCost > freeCash + 0.01) { 
+      if (freeCash !== undefined && !canAfford(netCost, freeCash)) { 
           setFormError(`Insufficient Buying Power! These trades need Rs. ${money2(netCost)} net but you have Rs. ${money2(freeCash)}.`); 
           scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
           return; 
