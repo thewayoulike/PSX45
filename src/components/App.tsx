@@ -682,9 +682,17 @@ const App: React.FC = () => {
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
+      const isFund = getPortfolioType(currentPortfolio) === 'MUTUAL_FUND';
       const brokerToUse = brokers.find(b => b.id === currentPortfolio.defaultBrokerId);
       const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
-      const newTx: Transaction = { ...txData, id: newId, portfolioId: currentPortfolioId, brokerId: currentPortfolio.defaultBrokerId, broker: brokerToUse?.name || 'Unknown', createdAt: nextCreatedAt() };
+      const newTx: Transaction = {
+          ...txData,
+          id: newId,
+          portfolioId: currentPortfolioId,
+          brokerId: isFund ? undefined : (txData.brokerId ?? currentPortfolio.defaultBrokerId),
+          broker: isFund ? undefined : (txData.broker ?? brokerToUse?.name ?? 'Unknown'),
+          createdAt: nextCreatedAt(),
+      };
       setTransactions(prev => [...prev, newTx]);
   };
 
@@ -764,17 +772,18 @@ const App: React.FC = () => {
   const handleSavePortfolio = (e: React.FormEvent) => {
       e.preventDefault();
       if (!portfolioNameInput.trim()) { alert("Portfolio Name is required"); return; }
-      if (!portfolioBrokerIdInput) { alert("A Default Broker is required for every portfolio."); return; }
+      if (portfolioTypeInput !== 'MUTUAL_FUND' && !portfolioBrokerIdInput) { alert("A Default Broker is required for stock portfolios."); return; }
+      const brokerIdForPortfolio = portfolioTypeInput === 'MUTUAL_FUND' ? '' : portfolioBrokerIdInput;
       if (editingPortfolioId) {
           setPortfolios(prev => prev.map(p => p.id === editingPortfolioId
-              ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput, type: portfolioTypeInput }
+              ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: brokerIdForPortfolio, type: portfolioTypeInput }
               : p));
       } else {
           const newId = Date.now().toString();
           setPortfolios(prev => [...prev, {
               id: newId,
               name: portfolioNameInput.trim(),
-              defaultBrokerId: portfolioBrokerIdInput,
+              defaultBrokerId: brokerIdForPortfolio,
               type: portfolioTypeInput,
           }]);
           setCurrentPortfolioId(newId);
@@ -1246,7 +1255,7 @@ const App: React.FC = () => {
               });
               return;
           }
-          const brokerKey = (tx.broker || 'Unknown');
+          const brokerKey = isFundTicker(tx.ticker) ? '_' : (tx.broker || 'Unknown');
           const key = `${tx.ticker}|${brokerKey}`;
           if (!txsByKey[key]) txsByKey[key] = [];
           txsByKey[key].push(tx);
@@ -1369,7 +1378,7 @@ const App: React.FC = () => {
               tempHoldings[key] = {
                   ticker,
                   sector,
-                  broker: brokerName,
+                  broker: isFundTicker(ticker) ? (fundCatalog[ticker]?.amc || '') : brokerName,
                   quantity: totalQty,
                   avgPrice,
                   currentPrice: 0,
@@ -1811,7 +1820,7 @@ const App: React.FC = () => {
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <HoldingsTable
                                   holdings={holdings}
-                                  showBroker={true}
+                                  showBroker={!isFundPortfolio}
                                   failedTickers={failedTickers}
                                   ldcpMap={ldcpMap}
                                   listedInMap={listedInMap}
@@ -1858,7 +1867,7 @@ const App: React.FC = () => {
                       )}
                       {currentView === 'REALIZED' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                              <RealizedTable trades={realizedTrades} showBroker={true} totalCGT={stats.totalCGT} />
+                              <RealizedTable trades={realizedTrades} showBroker={!isFundPortfolio} totalCGT={stats.totalCGT} />
                           </div>
                       )}
                       {currentView === 'HISTORY' && (
@@ -1869,6 +1878,8 @@ const App: React.FC = () => {
                                   onDeleteMultiple={handleDeleteTransactions}
                                   onEdit={handleEditClick}
                                   googleSheetId={googleSheetId}
+                                  displayNames={fundDisplayNames}
+                                  portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                               />
                           </div>
                       )}
@@ -1966,23 +1977,32 @@ const App: React.FC = () => {
                           </p>
                       )}
 
-                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">
-                          {portfolioTypeInput === 'MUTUAL_FUND' ? 'Default Bank / Account' : 'Default Broker'} <span className="text-rose-500">*</span>
-                      </label>
-                      <div className="relative mb-8">
-                          <select
-                              required
-                              value={portfolioBrokerIdInput}
-                              onChange={(e) => setPortfolioBrokerIdInput(e.target.value)}
-                              className="w-full glass-input rounded-xl px-4 py-3.5 text-sm outline-none appearance-none transition-all shadow-sm"
-                          >
-                              <option value="">Select a Broker</option>
-                              {brokers.map(b => (
-                                  <option key={b.id} value={b.id}>{b.name}</option>
-                              ))}
-                          </select>
-                          <ChevronDown size={16} className="absolute right-4 top-[14px] text-slate-400 pointer-events-none" />
-                      </div>
+                      {portfolioTypeInput !== 'MUTUAL_FUND' && (
+                          <>
+                              <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">
+                                  Default Broker <span className="text-rose-500">*</span>
+                              </label>
+                              <div className="relative mb-8">
+                                  <select
+                                      required
+                                      value={portfolioBrokerIdInput}
+                                      onChange={(e) => setPortfolioBrokerIdInput(e.target.value)}
+                                      className="w-full glass-input rounded-xl px-4 py-3.5 text-sm outline-none appearance-none transition-all shadow-sm"
+                                  >
+                                      <option value="">Select a Broker</option>
+                                      {brokers.map(b => (
+                                          <option key={b.id} value={b.id}>{b.name}</option>
+                                      ))}
+                                  </select>
+                                  <ChevronDown size={16} className="absolute right-4 top-[14px] text-slate-400 pointer-events-none" />
+                              </div>
+                          </>
+                      )}
+                      {portfolioTypeInput === 'MUTUAL_FUND' && (
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-8 leading-snug">
+                              No broker setup needed — fund transactions track by AMC account only.
+                          </p>
+                      )}
                       <div className="flex gap-3">
                           {editingPortfolioId && (
                               <button

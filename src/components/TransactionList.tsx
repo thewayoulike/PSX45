@@ -10,8 +10,10 @@ import { DividendIcon } from './ui/DividendIcon';
 import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon';
 import { FeeIcon } from './ui/FeeIcon'; 
 import { exportToExcel, exportToCSV } from '../utils/export';
+import { PortfolioType } from '../types';
 import { isFundTicker } from '../utils/fundId';
 import { fmtFundNav, fmtFundUnits } from '../utils/fundFormat';
+import { formatTransactionLabel, formatTransactionSubtext } from '../utils/fundDisplay';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -19,13 +21,25 @@ interface TransactionListProps {
   onDeleteMultiple?: (ids: string[]) => void;
   onEdit: (tx: Transaction) => void;
   googleSheetId?: string | null;
+  displayNames?: Record<string, string>;
+  portfolioType?: PortfolioType;
 }
 
 type SortKey = keyof Transaction | 'netAmount';
 type SortDirection = 'asc' | 'desc';
 interface SortConfig { key: SortKey; direction: SortDirection; }
 
-export const TransactionList: React.FC<TransactionListProps> = ({ transactions, onDelete, onDeleteMultiple, onEdit, googleSheetId }) => {
+export const TransactionList: React.FC<TransactionListProps> = ({
+  transactions,
+  onDelete,
+  onDeleteMultiple,
+  onEdit,
+  googleSheetId,
+  displayNames = {},
+  portfolioType = 'PSX',
+}) => {
+  const isFund = portfolioType === 'MUTUAL_FUND';
+  const colSpan = isFund ? 10 : 13;
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<string>('ALL');
   const [dateFrom, setDateFrom] = useState('');
@@ -57,7 +71,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   const filteredAndSortedTransactions = useMemo(() => {
     const filtered = transactions.filter(tx => {
         const searchLower = searchTerm.toLowerCase();
-        const matchesSearch = tx.ticker.toLowerCase().includes(searchLower) || (tx.broker && tx.broker.toLowerCase().includes(searchLower)) || (tx.notes && tx.notes.toLowerCase().includes(searchLower));
+        const label = formatTransactionLabel(tx.ticker, displayNames, tx.notes).toLowerCase();
+        const matchesSearch = tx.ticker.toLowerCase().includes(searchLower)
+          || label.includes(searchLower)
+          || (tx.broker && tx.broker.toLowerCase().includes(searchLower))
+          || (tx.notes && tx.notes.toLowerCase().includes(searchLower));
         const matchesFrom = dateFrom ? tx.date >= dateFrom : true;
         const matchesTo = dateTo ? tx.date <= dateTo : true;
         const matchesType = filterType === 'ALL' || tx.type === filterType;
@@ -100,13 +118,39 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
   };
 
   const handleExport = (type: 'excel' | 'csv') => {
-      const data = filteredAndSortedTransactions.map(tx => ({ Date: tx.date, Type: tx.type, Ticker: tx.ticker, Broker: tx.broker || 'N/A', Quantity: tx.quantity, Price: tx.price, Commission: tx.commission || 0, Tax: tx.tax || 0, CDC: tx.cdcCharges || 0, Other: tx.otherFees || 0, 'Net Amount': getNetAmount(tx), Notes: tx.notes || '' }));
+      const data = filteredAndSortedTransactions.map(tx => ({
+        Date: tx.date,
+        Type: tx.type,
+        [isFund ? 'Fund' : 'Ticker']: formatTransactionLabel(tx.ticker, displayNames, tx.notes),
+        ...(isFund ? {} : { Broker: tx.broker || 'N/A' }),
+        Quantity: tx.quantity,
+        Price: tx.price,
+        Commission: tx.commission || 0,
+        Tax: tx.tax || 0,
+        CDC: tx.cdcCharges || 0,
+        Other: tx.otherFees || 0,
+        'Net Amount': getNetAmount(tx),
+        Notes: tx.notes || '',
+      }));
       const filename = `Transactions_Export_${new Date().toISOString().split('T')[0]}`;
       if (type === 'excel') exportToExcel(data, filename); else exportToCSV(data, filename);
   };
   const handleExportSelected = () => {
       const selectedTransactions = transactions.filter(t => selectedIds.has(t.id));
-      const data = selectedTransactions.map(tx => ({ Date: tx.date, Type: tx.type, Ticker: tx.ticker, Broker: tx.broker || 'N/A', Quantity: tx.quantity, Price: tx.price, Commission: tx.commission || 0, Tax: tx.tax || 0, CDC: tx.cdcCharges || 0, Other: tx.otherFees || 0, 'Net Amount': getNetAmount(tx), Notes: tx.notes || '' }));
+      const data = selectedTransactions.map(tx => ({
+        Date: tx.date,
+        Type: tx.type,
+        [isFund ? 'Fund' : 'Ticker']: formatTransactionLabel(tx.ticker, displayNames, tx.notes),
+        ...(isFund ? {} : { Broker: tx.broker || 'N/A' }),
+        Quantity: tx.quantity,
+        Price: tx.price,
+        Commission: tx.commission || 0,
+        Tax: tx.tax || 0,
+        CDC: tx.cdcCharges || 0,
+        Other: tx.otherFees || 0,
+        'Net Amount': getNetAmount(tx),
+        Notes: tx.notes || '',
+      }));
       exportToExcel(data, `Selected_Transactions_${new Date().toISOString().split('T')[0]}`); setSelectedIds(new Set());
   };
 
@@ -149,7 +193,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
         <div className="flex flex-col md:flex-row gap-3">
             <div className="relative flex-1"> 
                 <Search size={16} className="absolute left-3.5 top-3 text-slate-400" /> 
-                <input type="text" placeholder="Search Ticker, Broker or Notes..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" /> 
+                <input type="text" placeholder={isFund ? 'Search fund or notes...' : 'Search Ticker, Broker or Notes...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" /> 
             </div>
             <div className="flex gap-2 flex-wrap sm:flex-nowrap">
                 <div className="relative w-full sm:w-auto"> 
@@ -189,22 +233,24 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                 <th className="px-4 py-3.5 w-12 text-center"> <input type="checkbox" onChange={handleSelectAll} checked={filteredAndSortedTransactions.length > 0 && selectedIds.size === filteredAndSortedTransactions.length} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </th> 
                 <Th label="Date" sortKey="date" /> 
                 <Th label="Type" sortKey="type" /> 
-                <Th label="Ticker" sortKey="ticker" /> 
-                <Th label="Broker" sortKey="broker" /> 
-                <Th label="Qty" sortKey="quantity" align="right" /> 
-                <Th label="Price" sortKey="price" align="right" /> 
-                <Th label="Comm" sortKey="commission" align="right" className="opacity-80" /> 
+                <Th label={isFund ? 'Fund' : 'Ticker'} sortKey="ticker" /> 
+                {!isFund && <Th label="Broker" sortKey="broker" />} 
+                <Th label={isFund ? 'Units' : 'Qty'} sortKey="quantity" align="right" /> 
+                <Th label={isFund ? 'NAV' : 'Price'} sortKey="price" align="right" /> 
+                {!isFund && <Th label="Comm" sortKey="commission" align="right" className="opacity-80" />} 
                 <Th label="Tax" sortKey="tax" align="right" className="opacity-80" /> 
-                <Th label="CDC" sortKey="cdcCharges" align="right" className="opacity-80" /> 
-                <Th label="Other/Zakat" sortKey="otherFees" align="right" className="opacity-80" /> 
+                {!isFund && <Th label="CDC" sortKey="cdcCharges" align="right" className="opacity-80" />} 
+                <Th label={isFund ? 'Load/Fees' : 'Other/Zakat'} sortKey="otherFees" align="right" className="opacity-80" /> 
                 <Th label="Net Amount" sortKey="netAmount" align="right" /> 
                 <th className="px-4 py-3.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Action</th> 
             </tr> 
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-            {paginatedTransactions.length === 0 ? ( <tr> <td colSpan={13} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium"> {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'} </td> </tr> ) : (
+            {paginatedTransactions.length === 0 ? ( <tr> <td colSpan={colSpan} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium"> {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'} </td> </tr> ) : (
                 paginatedTransactions.map((tx) => {
                     const isDiv = tx.type === 'DIVIDEND'; const netAmount = getNetAmount(tx); const typeConfig = getTypeConfig(tx); const isNegativeFlow = ['TAX', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) || (tx.type === 'OTHER' && (tx.category === 'OTHER_TAX' || tx.category === 'CDC_CHARGE')) || (tx.type === 'OTHER' && tx.price < 0) || (tx.type === 'HISTORY' && netAmount < 0); const isSelected = selectedIds.has(tx.id);
+                    const txLabel = formatTransactionLabel(tx.ticker, displayNames, tx.notes);
+                    const txSub = formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
                     
                     // Logic to display manual fees in correct columns
                     const isCDCManual = tx.type === 'OTHER' && tx.category === 'CDC_CHARGE';
@@ -219,13 +265,16 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <td className="px-4 py-3 text-center"> <input type="checkbox" checked={isSelected} onChange={() => handleSelectOne(tx.id)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer"/> </td>
                         <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs font-mono font-medium tabular-nums">{tx.date}</td>
                         <td className="px-4 py-3"> <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${typeConfig.style}`}> {typeConfig.icon} {typeConfig.label} </span> </td>
-                        <td className="px-4 py-3 font-display font-black text-slate-900 dark:text-white"> {tx.ticker} {tx.notes && <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate max-w-[120px]" title={tx.notes}>{tx.notes}</div>} </td>
-                        <td className="px-4 py-3 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{tx.broker || (tx.type === 'TAX' ? 'System' : '-')}</td>
+                        <td className="px-4 py-3 font-display font-black text-slate-900 dark:text-white max-w-[220px]">
+                          <div className="truncate" title={txLabel}>{txLabel}</div>
+                          {txSub && <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate" title={txSub}>{txSub}</div>}
+                        </td>
+                        {!isFund && <td className="px-4 py-3 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{tx.broker || (tx.type === 'TAX' ? 'System' : '-')}</td>}
                         <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums"> {isFundTicker(tx.ticker) ? fmtFundUnits(tx.quantity) : tx.quantity.toLocaleString()} {isDiv && <div className="hidden group-hover:block absolute bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg z-20">Check History</div>} </td>
-                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300 font-mono text-xs tabular-nums"> {displayPrice !== 0 ? (isFundTicker(tx.ticker) && !['DEPOSIT', 'HISTORY', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) ? fmtFundNav(displayPrice) : displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '-'} </td>
-                        <td className="px-2 py-3 text-right text-slate-400 dark:text-slate-500 font-mono text-[10px] tabular-nums"> {(tx.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300 font-mono text-xs tabular-nums"> {displayPrice !== 0 ? (isFundTicker(tx.ticker) && !['DEPOSIT', 'HISTORY', 'WITHDRAWAL', 'ANNUAL_FEE', 'CASH'].includes(tx.ticker) && !['DEPOSIT', 'HISTORY', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) ? fmtFundNav(displayPrice) : displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '-'} </td>
+                        {!isFund && <td className="px-2 py-3 text-right text-slate-400 dark:text-slate-500 font-mono text-[10px] tabular-nums"> {(tx.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>}
                         <td className="px-2 py-3 text-right text-slate-400 dark:text-slate-500 font-mono text-[10px] tabular-nums"> {(tx.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
-                        <td className={`px-2 py-3 text-right font-mono text-[10px] tabular-nums ${isCDCManual ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
+                        {!isFund && <td className={`px-2 py-3 text-right font-mono text-[10px] tabular-nums ${isCDCManual ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>}
                         <td className={`px-2 py-3 text-right font-mono text-[10px] tabular-nums ${isOtherManual ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayOther.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className={`px-4 py-3 text-right font-bold font-mono text-sm tabular-nums ${netAmount < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}> {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className="px-4 py-3 text-center"> 

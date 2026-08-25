@@ -132,7 +132,6 @@ export function fundScanToTrades(
       quantity: h.units,
       price: roundNav(h.nav),
       date,
-      broker: record?.amc || scan.amc,
       notes: h.fundCode !== id ? `${h.fundCode}${h.fundName ? ` — ${h.fundName}` : ''}` : h.fundName,
     });
   }
