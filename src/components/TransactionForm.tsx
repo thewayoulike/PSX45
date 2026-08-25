@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade, PortfolioType } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon } from 'lucide-react';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon, Info, BookOpen } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
-import { parseTradeDocument } from '../services/gemini';
+import { parseTradeDocument, parseFundBalanceDocument } from '../services/gemini';
+import { fundScanToTrades } from '../services/fundImport';
 import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
 import { exportToCSV } from '../utils/export';
 import { todayPK, toDatePK } from '../utils/dates';
@@ -83,6 +84,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [notes, setNotes] = useState('');
   const [selectedFund, setSelectedFund] = useState<MutualFundRecord | null>(null);
   const [fundNavLoading, setFundNavLoading] = useState(false);
+  const [showFundGuide, setShowFundGuide] = useState(true);
+  const [fundScanHint, setFundScanHint] = useState<string | null>(null);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -110,14 +113,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const scanTotals = useMemo(() => {
       let totalBuy = 0;
       let totalSell = 0;
+      let totalDeposit = 0;
       savedScannedTrades.forEach(t => {
           const val = Number(t.quantity) * Number(t.price);
           const fees = (Number(t.commission)||0) + (Number(t.tax)||0) + (Number(t.cdcCharges)||0) + (Number(t.otherFees)||0);
           if (t.type === 'BUY') totalBuy += (val + fees);
           else if (t.type === 'SELL') totalSell += (val - fees);
           else if (t.type === 'DIVIDEND') totalSell += (val - (Number(t.tax)||0) - (Number(t.otherFees)||0));
+          else if (t.type === 'DEPOSIT') totalDeposit += Number(t.price);
       });
-      return { totalBuy, totalSell, net: totalSell - totalBuy };
+      return { totalBuy, totalSell, totalDeposit, net: totalSell - totalBuy + totalDeposit };
   }, [savedScannedTrades]);
 
   const calculateFeesForTrade = (tradeType: string, qty: number, prc: number, brokerId: string) => {
@@ -192,6 +197,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   useEffect(() => {
     if (isOpen) {
         setFormError(null); 
+        setFundScanHint(null);
         const activeBroker = brokers.find(b => b.id === selectedBrokerId);
         if (activeBroker && activeBroker.email && !emailSender) {
             setEmailSender(activeBroker.email);
@@ -396,6 +402,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       updateScannedTrades([]); 
       
       try { 
+          if (isFundPortfolio && mode === 'AI_SCAN') {
+              const scan = await parseFundBalanceDocument(selectedFile);
+              if (!scan.holdings?.length) throw new Error("No fund holdings found. Upload your AMC balance summary screenshot or PDF.");
+              const trades = fundScanToTrades(scan, fundCatalog, todayPK());
+              if (trades.length === 0) throw new Error("No importable rows found in the statement.");
+              updateScannedTrades(trades.map(t => ({
+                  ...t,
+                  price: typeof t.price === 'number' ? t.price : Number(t.price),
+                  brokerId: selectedBrokerId || undefined,
+                  broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker,
+              })));
+              setFundScanHint('Add rows in order: DEPOSIT first, then SUBSCRIBE (BUY) rows, then HISTORY for closed funds. Review fund names match your catalog.');
+              return;
+          }
+
           let trades: ParsedTrade[] = []; 
           if (mode === 'AI_SCAN') { 
               trades = await parseTradeDocument(selectedFile); 
@@ -443,7 +464,35 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       const inBatch = extraBuys.some(t => (t.type === 'BUY' || t.type === 'TRANSFER_IN') && (t.ticker || '').toUpperCase() === norm && (t.date || '') <= d);
       return inExisting || inBatch;
   };
-  const addSingleTrade = (trade: EditableTrade) => { let finalBrokerName = trade.broker; if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; } onAddTransaction({ ticker: trade.ticker, type: trade.type as any, quantity: Number(trade.quantity), price: Number(trade.price), date: trade.date || todayPK(), broker: finalBrokerName, brokerId: trade.brokerId, commission: Number(trade.commission) || 0, tax: Number(trade.tax) || 0, cdcCharges: Number(trade.cdcCharges) || 0, otherFees: Number(trade.otherFees) || 0 }); };
+  const addSingleTrade = (trade: EditableTrade) => {
+      let finalBrokerName = trade.broker;
+      if (trade.brokerId) { const b = brokers.find(br => br.id === trade.brokerId); if (b) finalBrokerName = b.name; }
+      const base = {
+          date: trade.date || todayPK(),
+          broker: finalBrokerName,
+          brokerId: trade.brokerId,
+          commission: Number(trade.commission) || 0,
+          tax: Number(trade.tax) || 0,
+          cdcCharges: Number(trade.cdcCharges) || 0,
+          otherFees: Number(trade.otherFees) || 0,
+          notes: trade.notes,
+      };
+      if (trade.type === 'DEPOSIT') {
+          onAddTransaction({ ...base, ticker: 'CASH', type: 'DEPOSIT', quantity: 1, price: Number(trade.price) });
+          return;
+      }
+      if (trade.type === 'HISTORY') {
+          onAddTransaction({ ...base, ticker: 'PREV-PNL', type: 'HISTORY', quantity: 1, price: Number(trade.price) });
+          return;
+      }
+      onAddTransaction({
+          ...base,
+          ticker: trade.ticker,
+          type: trade.type as 'BUY' | 'SELL',
+          quantity: Number(trade.quantity),
+          price: Number(trade.price),
+      });
+  };
   
   const handleAcceptTrade = (trade: EditableTrade) => { 
       setFormError(null); 
@@ -482,7 +531,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       // gross buy cost alone exceeds available cash.
       const totalBuyCost = selectedTrades.reduce((acc, t) => t.type === 'BUY' ? acc + getTradeCost(t) : acc, 0); 
       const totalSellProceeds = selectedTrades.reduce((acc, t) => t.type === 'SELL' ? acc + getTradeProceeds(t) : acc, 0); 
-      const netCost = totalBuyCost - totalSellProceeds; 
+      const totalDepositInBatch = selectedTrades.reduce((acc, t) => t.type === 'DEPOSIT' ? acc + Number(t.price) : acc, 0);
+      const netCost = totalBuyCost - totalSellProceeds - totalDepositInBatch; 
       if (freeCash !== undefined && !canAfford(netCost, freeCash)) { 
           setFormError(`Insufficient Buying Power! These trades need Rs. ${money2(netCost)} net but you have Rs. ${money2(freeCash)}.`); 
           scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
@@ -507,9 +557,50 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const updateSingleScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...savedScannedTrades]; updated[index] = { ...updated[index], [field]: value }; updateScannedTrades(updated); };
   const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />; if (mode === 'EMAIL_IMPORT') return <Mail size={32} className="text-rose-500" />; return <ScanText size={32} className="text-emerald-500" />; };
   const getThemeColor = () => { if (mode === 'AI_SCAN') return { btn: 'bg-indigo-600 hover:bg-indigo-700', text: 'text-indigo-600 dark:text-indigo-400', shadow: 'shadow-indigo-600/20', bg: 'bg-indigo-50/50 dark:bg-indigo-500/10', border: 'border-indigo-300 dark:border-indigo-500/30' }; if (mode === 'IMPORT') return { btn: 'bg-blue-600 hover:bg-blue-700', text: 'text-blue-600 dark:text-blue-400', shadow: 'shadow-blue-600/20', bg: 'bg-blue-50/50 dark:bg-blue-500/10', border: 'border-blue-300 dark:border-blue-500/30' }; return { btn: 'bg-emerald-600 hover:bg-emerald-700', text: 'text-emerald-600 dark:text-emerald-400', shadow: 'shadow-emerald-600/20', bg: 'bg-emerald-50/50 dark:bg-emerald-500/10', border: 'border-emerald-300 dark:border-emerald-500/30' }; };
+  const scanTypeBadge = (txType: string) => {
+      if (txType === 'BUY') return 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
+      if (txType === 'SELL') return 'bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20';
+      if (txType === 'DEPOSIT') return 'bg-violet-50 text-violet-600 border-violet-200/60 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/20';
+      if (txType === 'HISTORY') return 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20';
+      return 'bg-slate-50 text-slate-600 border-slate-200/60 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20';
+  };
+
   const theme = getThemeColor();
 
-  if (!isOpen) return null;
+  const renderFundImportGuide = () => {
+    if (!isFundPortfolio || editingTransaction) return null;
+    return (
+      <div className="mb-5 border border-violet-200/60 dark:border-violet-500/20 rounded-2xl overflow-hidden shadow-sm">
+        <button
+          type="button"
+          onClick={() => setShowFundGuide(v => !v)}
+          className="w-full flex items-center justify-between gap-3 px-4 py-3.5 bg-violet-50/80 dark:bg-violet-500/10 hover:bg-violet-50 dark:hover:bg-violet-500/15 transition-colors text-left"
+        >
+          <span className="flex items-center gap-2 text-sm font-display font-black text-violet-800 dark:text-violet-200">
+            <BookOpen size={16} /> Import existing AMC portfolio
+          </span>
+          <ChevronDown size={16} className={`text-violet-500 transition-transform ${showFundGuide ? 'rotate-180' : ''}`} />
+        </button>
+        {showFundGuide && (
+          <div className="px-4 py-4 bg-white dark:bg-slate-900/50 text-xs text-slate-600 dark:text-slate-300 space-y-3 border-t border-violet-100 dark:border-violet-500/10">
+            <p className="font-bold text-violet-700 dark:text-violet-300">Start from today — recommended steps</p>
+            <ol className="list-decimal list-inside space-y-2 leading-relaxed">
+              <li><strong>Cash → Deposit</strong> — total <em>Investment Value</em> of all open funds (or use <strong>AI Scan</strong> to auto-fill).</li>
+              <li><strong>Subscribe (Buy)</strong> — one row per fund: today&apos;s date, <em>Units</em> + <em>NAV</em> from your AMC statement.</li>
+              <li><strong>History</strong> — only for <em>fully redeemed</em> funds (0 units), e.g. past profit/loss on MEF.</li>
+            </ol>
+            <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200/60 dark:border-slate-700/60 space-y-1.5">
+              <p className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"><Info size={13} /> Realized vs unrealized</p>
+              <p><strong>Unrealized</strong> = paper gain on units you still hold (tracked automatically after Subscribe).</p>
+              <p><strong>Realized</strong> = gain/loss from redemptions → use <strong>History</strong> or <strong>Redeem</strong> going forward.</p>
+              <p className="text-slate-500 dark:text-slate-400">AMC &quot;Gain To Date&quot; often includes old redemptions — don&apos;t put all of it in History for funds you still hold.</p>
+            </div>
+            <p className="text-violet-600 dark:text-violet-400 font-bold flex items-center gap-1.5"><Sparkles size={13} /> Tip: switch to <strong>AI Scan Statement</strong> and upload your balance summary screenshot.</p>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const renderFormContent = () => {
     if (type === 'TAX') {
@@ -525,7 +616,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (type === 'HISTORY') {
         return (
           <>
-              <div className="bg-blue-50/50 dark:bg-blue-500/10 p-4 rounded-2xl border border-blue-200/60 dark:border-blue-500/20 flex gap-3 items-start shadow-sm"><History className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-blue-700 dark:text-blue-300 font-medium"><p className="font-bold mb-0.5">Record Past Performance</p><p className="opacity-90">Add realized profits/losses from before using this app.</p></div></div>
+              <div className="bg-blue-50/50 dark:bg-blue-500/10 p-4 rounded-2xl border border-blue-200/60 dark:border-blue-500/20 flex gap-3 items-start shadow-sm"><History className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-blue-700 dark:text-blue-300 font-medium"><p className="font-bold mb-0.5">Record Past Realized Gains</p><p className="opacity-90">{isFundPortfolio ? 'Use for profits/losses from funds you already redeemed (e.g. MEF with 0 units). Do not enter full "Gain To Date" for funds you still hold — that mixes realized + unrealized.' : 'Add realized profits/losses from before using this app.'}</p></div></div>
               <div className="grid grid-cols-2 gap-4"> <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={14} /></div></div> <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date Recorded</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> </div>
               <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Realized Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className={`w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums ${Number(histAmount) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`} placeholder="-5000 or 10000"/><span className="absolute right-4 top-4 text-xs font-bold text-slate-400">PKR</span></div></div>
               <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Tax Calculation</label><div className="grid grid-cols-2 gap-3"><label className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border cursor-pointer transition-all font-bold text-xs shadow-sm ${histTaxType === 'AFTER_TAX' ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-700/60 text-slate-500 dark:text-slate-400'}`}><input type="radio" name="taxType" checked={histTaxType === 'AFTER_TAX'} onChange={() => setHistTaxType('AFTER_TAX')} className="hidden" /><span>After Tax (Net)</span></label><label className={`flex items-center justify-center gap-2 p-3.5 rounded-xl border cursor-pointer transition-all font-bold text-xs shadow-sm ${histTaxType === 'BEFORE_TAX' ? 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-200 dark:border-indigo-500/20 text-indigo-700 dark:text-indigo-300' : 'bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-700/60 text-slate-500 dark:text-slate-400'}`}><input type="radio" name="taxType" checked={histTaxType === 'BEFORE_TAX'} onChange={() => setHistTaxType('BEFORE_TAX')} className="hidden" /><span>Before Tax (Gross)</span></label></div></div>
@@ -648,14 +739,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-full transition-colors"><X size={20} /></button>
         </div>
 
-        {!editingTransaction && !isFundPortfolio && (
+        {!editingTransaction && (
             <div className="px-6 pt-6 shrink-0">
                 <div className="flex bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-inner mb-6 overflow-x-auto no-scrollbar">
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'MANUAL' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Keyboard size={16} /> Manual </button>
+                    {!isFundPortfolio && (
+                    <>
                     <button onClick={() => setMode('IMPORT')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'IMPORT' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <FileSpreadsheet size={16} /> Import </button>
-                    <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'AI_SCAN' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Sparkles size={16} /> AI Scan </button>
                     <button onClick={() => setMode('EMAIL_IMPORT')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'EMAIL_IMPORT' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Mail size={16} /> Email </button>
                     <button onClick={() => setMode('OCR_SCAN')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'OCR_SCAN' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <ScanText size={16} /> OCR </button>
+                    </>
+                    )}
+                    <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'AI_SCAN' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Sparkles size={16} /> {isFundPortfolio ? 'AI Scan Statement' : 'AI Scan'} </button>
                 </div>
             </div>
         )}
@@ -665,6 +760,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
             {mode === 'MANUAL' && (
                 <form onSubmit={handleManualSubmit} className="space-y-5">
+
+                    {renderFundImportGuide()}
                     
                     <div className="mb-4">
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Transaction Type</label>
@@ -678,7 +775,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <option value="SELL">{isFundPortfolio ? 'Redeem (Sell Units)' : 'Sell'}</option>
                                 <option value="DIVIDEND">Dividend (DIV)</option>
                                 {!isFundPortfolio && <option value="TAX">Tax (CGT)</option>}
-                                {!isFundPortfolio && <option value="HISTORY">History</option>}
+                                <option value="HISTORY">{isFundPortfolio ? 'History (Past Realized)' : 'History'}</option>
                                 <option value="DEPOSIT">Cash (Deposit / Withdrawal)</option>
                                 <option value="ANNUAL_FEE">Annual Fee</option>
                                 <option value="OTHER">Other</option>
@@ -807,14 +904,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
                     {!isScanning && savedScannedTrades.length === 0 && mode !== 'EMAIL_IMPORT' && (
                         <>
+                             {isFundPortfolio && mode === 'AI_SCAN' && (
+                                 <div className="mb-4 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-500/20 rounded-2xl p-4 text-xs text-indigo-800 dark:text-indigo-200">
+                                     <p className="font-bold mb-1 flex items-center gap-1.5"><Sparkles size={14} /> AMC balance summary scan</p>
+                                     <p>Upload a screenshot or PDF of your fund account statement (Units, NAV, Investment Value, Gain columns). AI will create a <strong>Deposit</strong>, <strong>Subscribe</strong> rows per fund, and <strong>History</strong> for closed (0 unit) funds.</p>
+                                 </div>
+                             )}
                              <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30`} rounded-3xl cursor-pointer hover:bg-white dark:hover:bg-slate-800/50 transition-all group flex flex-col items-center justify-center p-10`}> 
                                  <input ref={fileInputRef} type="file" accept={mode === 'OCR_SCAN' ? "image/*,.pdf" : "image/*,.pdf,.csv,.xlsx,.xls"} onChange={handleFileSelect} className="hidden" />
                                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm border border-slate-200/60 dark:border-slate-700 ${selectedFile ? `${theme.text} bg-white dark:bg-slate-900` : 'bg-white dark:bg-slate-900 text-slate-400'}`}> {getFileIcon()} </div>
                                  <h3 className="text-lg font-display font-black text-slate-900 dark:text-white mb-1 tracking-tight">{selectedFile ? selectedFile.name : 'Click to Upload'}</h3>
-                                 <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest text-center max-w-[240px]">
+                                 <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest text-center max-w-[280px]">
                                      {selectedFile 
                                          ? `${(selectedFile.size / 1024).toFixed(1)} KB - Ready` 
-                                         : mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'
+                                         : mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' && isFundPortfolio ? 'AMC balance summary — screenshot, PDF or Excel' : mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'
                                      }
                                  </p>
                              </div>
@@ -831,9 +934,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     
                     {savedScannedTrades.length > 0 && (
                         <div className="w-full flex-1 flex flex-col overflow-hidden animate-in fade-in">
+                            {fundScanHint && (
+                                <div className="mb-4 bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-2xl p-4 text-xs text-amber-800 dark:text-amber-200 flex gap-2">
+                                    <Info size={16} className="shrink-0 mt-0.5" />
+                                    <p>{fundScanHint}</p>
+                                </div>
+                            )}
                             <div className="flex justify-between items-center mb-4 px-1">
-                                <h3 className="font-display font-black text-slate-900 dark:text-white text-xl tracking-tight">Found {savedScannedTrades.length} Trades</h3>
+                                <h3 className="font-display font-black text-slate-900 dark:text-white text-xl tracking-tight">Found {savedScannedTrades.length} {isFundPortfolio ? 'Rows' : 'Trades'}</h3>
                                 <div className="flex items-center gap-2">
+                                    {!isFundPortfolio && (
                                     <button 
                                         onClick={handleAutoFillFees}
                                         className="text-xs bg-white dark:bg-slate-800 text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 border border-indigo-200/80 dark:border-indigo-500/30 font-bold px-3.5 py-2 rounded-xl flex items-center gap-2 transition-all shadow-sm"
@@ -841,6 +951,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     >
                                         <Calculator size={16} /> Auto-Fill Fees
                                     </button>
+                                    )}
 
                                     {selectedScanIndices.size > 0 && ( <button onClick={handleAcceptSelected} className="text-xs bg-emerald-600 text-white hover:bg-emerald-700 font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20"> <Plus size={16} /> Add Selected ({selectedScanIndices.size}) </button> )}
                                     <button onClick={() => { updateScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1.5 px-3 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"> <RefreshCcw size={14} /> Clear All </button>
@@ -880,7 +991,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                             <th className="px-4 py-3.5 text-center">Action</th> 
                                         </tr> 
                                     </thead>
-                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60"> {savedScannedTrades.map((t, idx) => ( <tr key={idx} className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group ${selectedScanIndices.has(idx) ? 'bg-indigo-50/40 dark:bg-indigo-500/10' : ''}`}> <td className="px-4 py-3 text-center"> <input type="checkbox" checked={selectedScanIndices.has(idx)} onChange={() => toggleScanSelection(idx)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/> </td> <td className="px-4 py-3"><span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border shadow-sm ${t.type === 'BUY' ? 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20' : 'bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20'}`}>{t.type}</span></td> <td className="px-4 py-3"><input type="date" value={t.date || ''} onChange={(e) => updateSingleScannedTrade(idx, 'date', e.target.value)} className="w-28 bg-transparent text-xs font-mono font-medium text-slate-700 dark:text-slate-300 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 transition-all p-1" /></td> <td className="px-4 py-3"><input type="text" value={t.ticker} onChange={(e) => updateSingleScannedTrade(idx, 'ticker', e.target.value.toUpperCase())} className="w-20 bg-transparent text-xs font-display font-black text-slate-900 dark:text-white outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 uppercase transition-all p-1" /></td> <td className="px-4 py-3"><select disabled value={t.brokerId || ''} onChange={(e) => updateSingleScannedTrade(idx, 'brokerId', e.target.value)} className="w-28 bg-transparent text-xs font-bold text-slate-500 dark:text-slate-400 outline-none border-b border-transparent appearance-none truncate cursor-not-allowed bg-slate-100 dark:bg-slate-800 p-1"><option value="">{t.broker || 'Select'}</option>{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></td> <td className="px-4 py-3 text-right"><input type="number" value={t.quantity} onChange={(e) => updateSingleScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-transparent text-xs font-mono font-bold text-slate-900 dark:text-slate-100 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 transition-all text-right tabular-nums p-1" placeholder="0" /></td> <td className="px-4 py-3 text-right"><input type="text" inputMode="decimal" value={t.price} onChange={(e) => updateSingleScannedTrade(idx, 'price', e.target.value)} onBlur={(e) => blurFmt(idx, 'price', e.target.value)} className="w-full bg-transparent text-xs font-mono font-bold text-slate-900 dark:text-slate-100 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 transition-all text-right tabular-nums p-1" placeholder="0.00" /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.commission || ''} onChange={(e) => updateSingleScannedTrade(idx, 'commission', e.target.value)} onBlur={(e) => blurFmt(idx, 'commission', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.tax || ''} onChange={(e) => updateSingleScannedTrade(idx, 'tax', e.target.value)} onBlur={(e) => blurFmt(idx, 'tax', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.cdcCharges || ''} onChange={(e) => updateSingleScannedTrade(idx, 'cdcCharges', e.target.value)} onBlur={(e) => blurFmt(idx, 'cdcCharges', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.otherFees || ''} onChange={(e) => updateSingleScannedTrade(idx, 'otherFees', e.target.value)} onBlur={(e) => blurFmt(idx, 'otherFees', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" /></td> <td className="px-4 py-3 text-center"><button onClick={() => handleAcceptTrade(t)} className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm border border-indigo-200/60 dark:border-indigo-500/20" title="Add Transaction"> <Plus size={16} strokeWidth={3} /> </button></td> </tr> ))} </tbody>
+                                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60"> {savedScannedTrades.map((t, idx) => ( <tr key={idx} className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group ${selectedScanIndices.has(idx) ? 'bg-indigo-50/40 dark:bg-indigo-500/10' : ''}`}> <td className="px-4 py-3 text-center"> <input type="checkbox" checked={selectedScanIndices.has(idx)} onChange={() => toggleScanSelection(idx)} className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 focus:ring-indigo-500 cursor-pointer"/> </td> <td className="px-4 py-3"><span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md border shadow-sm ${scanTypeBadge(t.type)}`}>{t.type}</span></td> <td className="px-4 py-3"><input type="date" value={t.date || ''} onChange={(e) => updateSingleScannedTrade(idx, 'date', e.target.value)} className="w-28 bg-transparent text-xs font-mono font-medium text-slate-700 dark:text-slate-300 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 transition-all p-1" /></td> <td className="px-4 py-3"><input type="text" value={t.ticker} onChange={(e) => updateSingleScannedTrade(idx, 'ticker', isFundTicker(e.target.value) ? e.target.value : e.target.value.toUpperCase())} className={`${isFundTicker(t.ticker) ? 'w-48 normal-case' : 'w-20 uppercase'} bg-transparent text-xs font-display font-black text-slate-900 dark:text-white outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 transition-all p-1`} title={t.notes} /></td> <td className="px-4 py-3"><select disabled value={t.brokerId || ''} onChange={(e) => updateSingleScannedTrade(idx, 'brokerId', e.target.value)} className="w-28 bg-transparent text-xs font-bold text-slate-500 dark:text-slate-400 outline-none border-b border-transparent appearance-none truncate cursor-not-allowed bg-slate-100 dark:bg-slate-800 p-1"><option value="">{t.broker || 'Select'}</option>{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></td> <td className="px-4 py-3 text-right"><input type="number" value={t.quantity} onChange={(e) => updateSingleScannedTrade(idx, 'quantity', Number(e.target.value))} className="w-full bg-transparent text-xs font-mono font-bold text-slate-900 dark:text-slate-100 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 transition-all text-right tabular-nums p-1" placeholder="0" /></td> <td className="px-4 py-3 text-right"><input type="text" inputMode="decimal" value={t.price} onChange={(e) => updateSingleScannedTrade(idx, 'price', e.target.value)} onBlur={(e) => blurFmt(idx, 'price', e.target.value)} className="w-full bg-transparent text-xs font-mono font-bold text-slate-900 dark:text-slate-100 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 transition-all text-right tabular-nums p-1" placeholder="0.00" /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.commission || ''} onChange={(e) => updateSingleScannedTrade(idx, 'commission', e.target.value)} onBlur={(e) => blurFmt(idx, 'commission', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" disabled={t.type === 'DEPOSIT' || t.type === 'HISTORY'} /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.tax || ''} onChange={(e) => updateSingleScannedTrade(idx, 'tax', e.target.value)} onBlur={(e) => blurFmt(idx, 'tax', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" disabled={t.type === 'DEPOSIT' || t.type === 'HISTORY'} /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.cdcCharges || ''} onChange={(e) => updateSingleScannedTrade(idx, 'cdcCharges', e.target.value)} onBlur={(e) => blurFmt(idx, 'cdcCharges', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" disabled={t.type === 'DEPOSIT' || t.type === 'HISTORY'} /></td> <td className="px-3 py-3 text-right"><input type="text" inputMode="decimal" value={t.otherFees || ''} onChange={(e) => updateSingleScannedTrade(idx, 'otherFees', e.target.value)} onBlur={(e) => blurFmt(idx, 'otherFees', e.target.value)} className="w-full bg-transparent text-xs font-mono text-rose-500 dark:text-rose-400 outline-none border-b border-transparent focus:border-indigo-400 focus:bg-white dark:focus:bg-slate-800 placeholder-slate-300 text-right tabular-nums p-1" placeholder="0" disabled={t.type === 'DEPOSIT' || t.type === 'HISTORY'} /></td> <td className="px-4 py-3 text-center"><button onClick={() => handleAcceptTrade(t)} className="p-2 bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all shadow-sm border border-indigo-200/60 dark:border-indigo-500/20" title="Add Transaction"> <Plus size={16} strokeWidth={3} /> </button></td> </tr> ))} </tbody>
                                 </table>
                             </div>
                         </div>

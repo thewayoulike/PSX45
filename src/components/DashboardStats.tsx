@@ -1,5 +1,5 @@
 import React from 'react';
-import { Holding, PortfolioStats } from '../types';
+import { Holding, PortfolioStats, PortfolioType } from '../types';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
   Activity, Coins, Receipt, Building2, FileText, PiggyBank, Scale, TrendingUp, TrendingDown,
@@ -14,6 +14,7 @@ interface DashboardProps {
   trend?: number[];        // portfolio value series
   benchmark?: number[];    // KSE-100 value series
   holdings?: Holding[];
+  portfolioType?: PortfolioType;
 }
 const rs = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // 2-decimals everywhere (kept the name so nothing else has to change)
@@ -229,7 +230,8 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, benchmark, holdings }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, benchmark, holdings, portfolioType = 'PSX' }) => {
+  const isFund = portfolioType === 'MUTUAL_FUND';
   const totalNetWorth = stats.totalValue + stats.freeCash;
   // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
   // Realized Gain). This counts profit you've already withdrawn too, so it no
@@ -287,7 +289,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           <h2 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">
             {userName ? `Welcome back, ${userName}` : 'Your Portfolio'} <span className="align-middle ml-1">👋</span>
           </h2>
-          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">Here's how your investments are performing today.</p>
+          <p className="text-sm font-medium text-slate-500 dark:text-slate-400 mt-1">{isFund ? 'Your mutual fund portfolio at a glance.' : "Here's how your investments are performing today."}</p>
         </div>
         <div className="flex items-center gap-3">
           {onCustomize && (
@@ -385,7 +387,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             sub={stats.reinvestedProfits > 0 ? `Reinvested: ${rs0(stats.reinvestedProfits)}` : undefined}
           />
           <PanelCell
-            label="Stock Value"
+            label={isFund ? 'Fund Value' : 'Stock Value'}
             value={rs0(stats.totalValue)}
             sub="Current Mkt Value"
           />
@@ -393,7 +395,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             label="Cash Balance"
             value={rs0(stats.freeCash)}
             valueClass={stats.freeCash < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-800 dark:text-slate-100'}
-            sub="Available to Trade"
+            sub={isFund ? 'Available to Invest' : 'Available to Trade'}
           />
         </MetricPanel>
         {/* Income Panel */}
@@ -417,10 +419,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             sub="Net Profit/Loss"
           />
           <PanelCell
-            label="Total CGT"
-            value={rs0(stats.totalCGT)}
+            label={isFund ? 'Loads & Fees' : 'Total CGT'}
+            value={rs0(isFund ? stats.totalOtherFees : stats.totalCGT)}
             valueClass="text-slate-800 dark:text-slate-100"
-            sub="Capital Gains Tax"
+            sub={isFund ? 'Sales load / AMC fees' : 'Capital Gains Tax'}
           />
         </MetricPanel>
       </div>
@@ -431,10 +433,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
         <div className="flex-1 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-3">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full">
             {[
-              { label: 'Commission', v: stats.totalCommission, icon: <Receipt size={14} className="text-blue-500" /> },
-              { label: 'Taxes (SST)', v: stats.totalSalesTax, icon: <Building2 size={14} className="text-purple-500" /> },
-              { label: 'CDC Charges', v: stats.totalCDC, icon: <FileText size={14} className="text-orange-500" /> },
-              { label: 'Other Fees', v: stats.totalOtherFees, icon: <Stamp size={14} className="text-slate-400" /> },
+              ...(isFund ? [] : [
+                { label: 'Commission', v: stats.totalCommission, icon: <Receipt size={14} className="text-blue-500" /> },
+                { label: 'Taxes (SST)', v: stats.totalSalesTax, icon: <Building2 size={14} className="text-purple-500" /> },
+                { label: 'CDC Charges', v: stats.totalCDC, icon: <FileText size={14} className="text-orange-500" /> },
+              ]),
+              { label: isFund ? 'Loads / Fees' : 'Other Fees', v: stats.totalOtherFees, icon: <Stamp size={14} className="text-slate-400" /> },
+              ...(isFund ? [
+                { label: 'Tax / WHT', v: stats.totalSalesTax, icon: <Building2 size={14} className="text-purple-500" /> },
+              ] : []),
             ].map((c) => (
               <div key={c.label} className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 flex flex-col justify-center border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm">
                 <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-1">

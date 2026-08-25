@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Holding } from '../types';
+import { Holding, PortfolioType } from '../types';
+import { isFundTicker } from '../utils/fundId';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Sector } from 'recharts';
 import { PieChart as PieChartIcon, Layers } from 'lucide-react';
 
 interface AllocationChartProps {
   holdings: Holding[];
+  portfolioType?: PortfolioType;
+  displayNames?: Record<string, string>;
 }
 
 // Vibrant palette matching the reference style
@@ -16,8 +19,9 @@ const COLORS = [
 
 const RADIAN = Math.PI / 180;
 
-export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) => {
-  const [chartMode, setChartMode] = useState<'asset' | 'sector'>('sector');
+export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, portfolioType = 'PSX', displayNames = {} }) => {
+  const isFund = portfolioType === 'MUTUAL_FUND';
+  const [chartMode, setChartMode] = useState<'asset' | 'sector'>(isFund ? 'asset' : 'sector');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 
@@ -43,7 +47,11 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
             });
         });
         rawData = Array.from(assetMap.entries())
-            .map(([name, data]) => ({ name, value: data.value, quantity: data.quantity }))
+            .map(([name, data]) => ({
+              name: displayNames[name] || (isFundTicker(name) ? name.replace(/^MF:/, '').slice(0, 24) : name),
+              value: data.value,
+              quantity: data.quantity,
+            }))
             .filter(item => item.value > 0);
     } else {
         const sectorMap = new Map<string, { value: number; quantity: number }>();
@@ -199,13 +207,13 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
                 onClick={() => { setChartMode('sector'); setActiveIndex(-1); }} 
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMode === 'sector' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm border border-slate-200/50 dark:border-slate-600' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
-                  <Layers size={14} /> Sector
+                  <Layers size={14} /> {isFund ? 'Category' : 'Sector'}
               </button>
               <button 
                 onClick={() => { setChartMode('asset'); setActiveIndex(-1); }} 
                 className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold transition-all ${chartMode === 'asset' ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow-sm border border-slate-200/50 dark:border-slate-600' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
-                  <PieChartIcon size={14} /> Asset
+                  <PieChartIcon size={14} /> {isFund ? 'Fund' : 'Asset'}
               </button>
           </div>
       </div>
@@ -220,7 +228,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings }) =>
             {displayData.length > 0 && (
                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none z-0">
                    <div className="flex flex-col items-center justify-center mt-2">
-                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-0.5">TOTAL {chartMode === 'sector' ? 'SECTORS' : 'ASSETS'}</span>
+                       <span className="text-slate-400 dark:text-slate-500 font-bold text-[10px] uppercase tracking-widest mb-0.5">TOTAL {chartMode === 'sector' ? (isFund ? 'CATEGORIES' : 'SECTORS') : (isFund ? 'FUNDS' : 'ASSETS')}</span>
                        <span className="text-slate-900 dark:text-white font-display font-black text-4xl md:text-5xl tracking-tighter tabular-nums">{displayData.length}</span>
                    </div>
                </div>

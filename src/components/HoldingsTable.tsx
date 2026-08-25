@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Holding } from '../types';
+import { Holding, PortfolioType } from '../types';
+import { isFundTicker } from '../utils/fundId';
 import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown as ArrowDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
@@ -28,6 +29,7 @@ interface HoldingsTableProps {
   listedInMap?: Record<string, string>;
   displayNames?: Record<string, string>;
   onTickerClick?: (ticker: string) => void;
+  portfolioType?: PortfolioType;
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
@@ -40,7 +42,8 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX' }) => {
+  const isFund = portfolioType === 'MUTUAL_FUND';
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'ticker', direction: 'asc' });
   const [itemsPerPage, setItemsPerPage] = useState<number>(25);
@@ -58,7 +61,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
       let result = holdings;
       if (searchTerm) {
           const term = searchTerm.toLowerCase();
-          result = holdings.filter(h => h.ticker.toLowerCase().includes(term) || h.sector.toLowerCase().includes(term) || (showBroker && h.broker?.toLowerCase().includes(term)));
+          result = holdings.filter(h => {
+              const label = (displayNames[h.ticker] || h.ticker).toLowerCase();
+              return label.includes(term) || h.sector.toLowerCase().includes(term) || (showBroker && h.broker?.toLowerCase().includes(term));
+          });
       }
       return [...result].sort((a, b) => {
           let aValue: any = '', bValue: any = '';
@@ -135,9 +141,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
         <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col gap-5 bg-white dark:bg-slate-900">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
              <div className="flex flex-wrap items-center gap-3">
-                <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Active Holdings</h2>
+                <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">{isFund ? 'Fund Holdings' : 'Active Holdings'}</h2>
                 <div className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200/60 dark:border-slate-700/60 shadow-sm tabular-nums"> 
-                  {filteredAndSortedHoldings.length} Assets 
+                  {filteredAndSortedHoldings.length} {isFund ? 'Funds' : 'Assets'} 
                 </div>
                 {globalLastUpdate && ( 
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-200/60 dark:border-blue-500/20 shadow-sm"> 
@@ -152,7 +158,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   <Search size={16} className="absolute left-4 top-3 text-slate-400" />
                   <input 
                     type="text" 
-                    placeholder="Filter Ticker, Sector or Broker..." 
+                    placeholder={isFund ? 'Filter fund, category or AMC...' : 'Filter Ticker, Sector or Broker...'} 
                     value={searchTerm} 
                     onChange={(e) => setSearchTerm(e.target.value)} 
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-11 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" 
@@ -175,11 +181,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           <table className="w-full text-left whitespace-nowrap min-w-[1000px] border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm border-b border-slate-200 dark:border-slate-800">
               <tr>
-                <Th label="Asset" sortKey="ticker" />
-                {showBroker && <Th label="Broker" sortKey="broker" />}
-                <Th label="Qty" sortKey="quantity" align="right" />
-                <Th label="Avg Price" sortKey="avgPrice" align="right" />
-                <Th label="Current" sortKey="currentPrice" align="right" />
+                <Th label={isFund ? 'Fund' : 'Asset'} sortKey="ticker" />
+                {showBroker && <Th label={isFund ? 'AMC' : 'Broker'} sortKey="broker" />}
+                <Th label={isFund ? 'Units' : 'Qty'} sortKey="quantity" align="right" />
+                <Th label={isFund ? 'Avg NAV' : 'Avg Price'} sortKey="avgPrice" align="right" />
+                <Th label={isFund ? 'NAV' : 'Current'} sortKey="currentPrice" align="right" />
                 <Th label="Total Cost" sortKey="costBasis" align="right" />
                 <Th label="Market Value" sortKey="marketValue" align="right" />
                 <Th label="Daily P&L" sortKey="dailyPL" align="right" />
@@ -217,24 +223,25 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"; 
                   else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"; 
 
-                  // --- EXTRACT ALL LISTED TAGS DYNAMICALLY ---
+                  // --- EXTRACT ALL LISTED TAGS DYNAMICALLY (PSX only) ---
                   const rawListedIn = holding.listedIn || listedInMap[holding.ticker] || "";
                   let tags: string[] = [];
                   
-                  if (rawListedIn) {
-                      tags = rawListedIn.split(',').map(t => t.trim()).filter(t => t);
-                  } else {
-                      // Fallback if data is missing
-                      const cleanTicker = holding.ticker.toUpperCase();
-                      if (FALLBACK_KMI30.has(cleanTicker)) tags.push('KMI30');
-                      if (FALLBACK_KSE100.has(cleanTicker)) tags.push('KSE100');
+                  if (!isFundTicker(holding.ticker)) {
+                    if (rawListedIn) {
+                        tags = rawListedIn.split(',').map(t => t.trim()).filter(t => t);
+                    } else {
+                        const cleanTicker = holding.ticker.toUpperCase();
+                        if (FALLBACK_KMI30.has(cleanTicker)) tags.push('KMI30');
+                        if (FALLBACK_KSE100.has(cleanTicker)) tags.push('KSE100');
+                    }
                   }
 
                   return (
                     <tr 
                       key={`${holding.ticker}-${holding.broker || idx}`} 
-                      className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group cursor-pointer" 
-                      onClick={() => onTickerClick && onTickerClick(holding.ticker)}
+                      className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group ${!isFundTicker(holding.ticker) && onTickerClick ? 'cursor-pointer' : ''}`} 
+                      onClick={() => !isFundTicker(holding.ticker) && onTickerClick && onTickerClick(holding.ticker)}
                     >
                       {/* Asset Column */}
                       <td className="px-4 py-3.5"> 

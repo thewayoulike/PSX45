@@ -1,5 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
+import type { FundBalanceScan } from './fundImport';
 import * as XLSX from 'xlsx';
 
 let userProvidedKey: string | null = null;
@@ -348,6 +349,97 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
   } catch (error: any) {
     console.error("Error parsing document:", error);
     throw new Error(error.message || "Failed to scan document.");
+  }
+};
+
+// ---------------------------------------------------------------------------
+// MUTUAL FUND BALANCE SUMMARY (AMC statement / screenshot)
+// ---------------------------------------------------------------------------
+
+export const parseFundBalanceDocument = async (file: File): Promise<FundBalanceScan> => {
+  try {
+    const ai = getAi();
+    if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
+
+    const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
+    let parts: any[] = [];
+
+    const promptText = `Analyze this Pakistani mutual fund AMC account statement or balance summary (e.g. Al Meezan, Alfalah, NBP, etc.).
+
+Extract EVERY fund row from the holdings table. For each fund capture:
+- fundCode: short ticker/code (e.g. AMMF, KMIF, MDIP)
+- fundName: full fund name if shown
+- units: number of units held (0 if fully redeemed)
+- nav: NAV per unit in PKR
+- investmentValue: current market value in PKR (Units × NAV)
+- gainToDate: lifetime gain/loss column ("Gain To Date", "Gain/(Loss) To Date") — negative if loss
+- gainFytd: fiscal-year gain if shown (optional)
+
+Also extract:
+- statementDate: as-of date in YYYY-MM-DD
+- amc: asset management company name
+
+Rules:
+- Use exact numbers from the document; remove commas.
+- If a fund has 0 units but a non-zero gainToDate, still include it (closed position).
+- Do NOT invent rows not in the document.`;
+
+    if (isSpreadsheet) {
+      const sheetData = await readSpreadsheetAsText(file);
+      parts = [
+        { text: "Mutual fund balance summary spreadsheet:" },
+        { text: sheetData },
+        { text: promptText },
+      ];
+    } else {
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      parts = [
+        { inlineData: { mimeType: file.type, data: base64Data } },
+        { text: promptText },
+      ];
+    }
+
+    const { response } = await generateWithFallback(ai, {
+      contents: { parts },
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            statementDate: { type: Type.STRING, nullable: true },
+            amc: { type: Type.STRING, nullable: true },
+            holdings: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  fundCode: { type: Type.STRING },
+                  fundName: { type: Type.STRING, nullable: true },
+                  units: { type: Type.NUMBER },
+                  nav: { type: Type.NUMBER },
+                  investmentValue: { type: Type.NUMBER },
+                  gainToDate: { type: Type.NUMBER, nullable: true },
+                  gainFytd: { type: Type.NUMBER, nullable: true },
+                },
+                required: ["fundCode", "units", "nav", "investmentValue"],
+              },
+            },
+          },
+          required: ["holdings"],
+        },
+      },
+    });
+
+    if (response.text) return JSON.parse(response.text);
+    return { holdings: [] };
+  } catch (error: any) {
+    console.error("Error parsing fund balance:", error);
+    throw new Error(error.message || "Failed to scan fund statement.");
   }
 };
 

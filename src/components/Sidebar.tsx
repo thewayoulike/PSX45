@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { AppView } from '../types';
+import React, { useState, useEffect, useMemo } from 'react';
+import { AppView, PortfolioType } from '../types';
 import {
   LayoutDashboard, History, Bell, Calculator,
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
@@ -12,6 +12,7 @@ import { Logo } from './ui/Logo';
 interface SidebarProps {
   currentView: AppView;
   onViewChange: (view: AppView) => void;
+  portfolioType?: PortfolioType;
   isOpen: boolean;
   onClose: () => void;
   isSidebarCollapsed: boolean;
@@ -36,11 +37,13 @@ interface NavItem {
 interface NavGroup { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }>; gear?: boolean; items: NavItem[]; }
 
 export const Sidebar: React.FC<SidebarProps> = ({
-  currentView, onViewChange, isOpen, onClose,
+  currentView, onViewChange, portfolioType = 'PSX',
+  isOpen, onClose,
   isSidebarCollapsed, onToggleCollapse, driveUser, authUser, isOwner, onLogin, onLogout, isCloudSyncing, hasApiKeys
 }) => {
 
-  const isProfileView = currentView === 'STOCKS' || currentView === 'SECTOR';
+  const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
+  const isProfileView = !isFundPortfolio && (currentView === 'STOCKS' || currentView === 'SECTOR');
 
   // Which group each view belongs to (so we can auto-open the active one).
   const groupOfView: Record<string, string> = {
@@ -68,44 +71,51 @@ export const Sidebar: React.FC<SidebarProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView, isProfileView]);
 
-  const groups: NavGroup[] = [
-    {
-      key: 'Menu', label: 'Menu', Icon: Compass, items: [
-        { id: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={22} /> },
-        { id: 'HOLDINGS', label: 'Holdings', icon: <FolderOpen size={22} /> },
-        {
-          id: 'PROFILE', label: 'Profile', icon: <ChartCandlestick size={22} />, children: [
-            { id: 'STOCKS', label: 'Stocks', icon: <LineChart size={20} /> },
-            { id: 'SECTOR', label: 'Sector', icon: <Layers size={20} /> },
-          ]
-        },
-      ]
-    },
-    {
-      key: 'Tools', label: 'Tools', Icon: Wrench, items: [
+  const groups: NavGroup[] = useMemo(() => {
+    const menuItems: NavItem[] = [
+      { id: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={22} /> },
+      { id: 'HOLDINGS', label: isFundPortfolio ? 'Fund Holdings' : 'Holdings', icon: <FolderOpen size={22} /> },
+    ];
+    if (!isFundPortfolio) {
+      menuItems.push({
+        id: 'PROFILE', label: 'Profile', icon: <ChartCandlestick size={22} />, children: [
+          { id: 'STOCKS', label: 'Stocks', icon: <LineChart size={20} /> },
+          { id: 'SECTOR', label: 'Sector', icon: <Layers size={20} /> },
+        ]
+      });
+    }
+
+    const toolItems: Leaf[] = [];
+    if (!isFundPortfolio) {
+      toolItems.push(
         { id: 'SIGNALS', label: 'Market Signals', icon: <Radar size={22} /> },
         { id: 'WATCHLIST', label: 'Watchlist', icon: <Star size={22} /> },
         { id: 'ALERTS', label: 'Price Alerts', icon: <Bell size={22} /> },
         { id: 'AI_AGENT', label: 'PSX Assistant', icon: <Sparkles size={22} /> },
         { id: 'SIMULATOR', label: 'Trading Simulator', icon: <TrendingUp size={22} /> },
         { id: 'CALCULATOR', label: 'Fair Value Calc', icon: <Calculator size={22} /> },
-      ]
-    },
-    {
-      key: 'Reports', label: 'Reports', Icon: BarChart3, items: [
-        { id: 'REALIZED', label: 'Realized P&L', icon: <CheckCircle2 size={22} /> },
-        { id: 'HISTORY', label: 'History', icon: <History size={22} /> },
-      ]
-    },
-    {
-      key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
-        { id: 'DASH_CUSTOMIZE', label: 'Dashboard Layout', icon: <LayoutGrid size={22} /> },
-        ...(isOwner ? [{ id: 'ADMIN_USERS' as AppView, label: 'Users', icon: <UsersRound size={22} /> }] : []),
-        { id: 'BROKERS', label: 'Broker Setup', icon: <Briefcase size={22} /> },
-        { id: 'API_KEYS', label: 'API Keys', icon: <Key size={22} />, alert: !hasApiKeys },
-      ]
-    },
-  ];
+      );
+    }
+
+    return [
+      { key: 'Menu', label: 'Menu', Icon: Compass, items: menuItems },
+      ...(toolItems.length > 0 ? [{ key: 'Tools', label: 'Tools', Icon: Wrench, items: toolItems }] : []),
+      {
+        key: 'Reports', label: 'Reports', Icon: BarChart3, items: [
+          { id: 'REALIZED', label: 'Realized P&L', icon: <CheckCircle2 size={22} /> },
+          { id: 'HISTORY', label: 'Transactions', icon: <History size={22} /> },
+        ]
+      },
+      {
+        key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
+          { id: 'DASH_CUSTOMIZE', label: 'Dashboard Layout', icon: <LayoutGrid size={22} /> },
+          ...(isOwner ? [{ id: 'ADMIN_USERS' as AppView, label: 'Users', icon: <UsersRound size={22} /> }] : []),
+          { id: 'BROKERS', label: isFundPortfolio ? 'Bank / Account' : 'Broker Setup', icon: <Briefcase size={22} /> },
+          { id: 'API_KEYS', label: 'API Keys', icon: <Key size={22} />, alert: !hasApiKeys },
+        ]
+      },
+    ];
+  }, [isFundPortfolio, isOwner, hasApiKeys]);
 
   const isCollapsed = isSidebarCollapsed && !isOpen;
 

@@ -18,7 +18,7 @@ import { BoardMeetings } from './BoardMeetings';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardCustomizer } from './DashboardCustomizer';
 import { AdminUsers } from './AdminUsers';
-import { DashboardLayout, normalizeLayout, DEFAULT_LAYOUT } from './dashboard';
+import { DashboardLayout, normalizeLayout, DEFAULT_LAYOUT, applyPortfolioToLayout, PSX_ONLY_CARD_IDS } from './dashboard';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -97,6 +97,8 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', de
 
 const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
   (list || []).map(p => ({ ...p, type: p.type || 'PSX' }));
+
+const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR'];
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
@@ -979,6 +981,13 @@ const App: React.FC = () => {
       }
   }, [portfolios, currentPortfolioId]);
 
+  useEffect(() => {
+      const p = portfolios.find(x => x.id === currentPortfolioId);
+      if (getPortfolioType(p) === 'MUTUAL_FUND' && PSX_ONLY_VIEWS.includes(currentView)) {
+          setCurrentView('DASHBOARD');
+      }
+  }, [portfolios, currentPortfolioId, currentView]);
+
   const portfolioTransactions = useMemo(() => {
       if (isCombinedView) return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       return transactions.filter(t => t.portfolioId === currentPortfolioId);
@@ -1410,6 +1419,11 @@ const App: React.FC = () => {
       return map;
   }, [fundCatalog]);
 
+  const effectiveDashboardLayout = useMemo(() => {
+      const p = portfolios.find(x => x.id === currentPortfolioId);
+      return applyPortfolioToLayout(dashboardLayout, getPortfolioType(p));
+  }, [dashboardLayout, portfolios, currentPortfolioId]);
+
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
           setShowBrokerManager(true);
@@ -1449,6 +1463,7 @@ const App: React.FC = () => {
 
   // Render a single dashboard card by id. Used by the customizable DashboardGrid.
   const renderDashCard = (id: string): React.ReactNode => {
+      if (isFundPortfolio && PSX_ONLY_CARD_IDS.has(id)) return null;
       switch (id) {
           case 'stats': {
               const historyData = performanceHistory[perfKey] || [];
@@ -1465,6 +1480,7 @@ const App: React.FC = () => {
                       onCustomize={() => setCurrentView('DASH_CUSTOMIZE')}
                       trend={trendLine}
                       holdings={holdings}
+                      portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                   />
               );
           }
@@ -1480,7 +1496,7 @@ const App: React.FC = () => {
                   />
               );
           case 'allocation':
-              return <AllocationChart holdings={holdings} />;
+              return <AllocationChart holdings={holdings} portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'} displayNames={fundDisplayNames} />;
           case 'topHoldings':
               return (
                   <TopHoldings
@@ -1488,6 +1504,8 @@ const App: React.FC = () => {
                       stats={stats}
                       onTickerClick={handleTickerClick}
                       onViewAll={() => setCurrentView('HOLDINGS')}
+                      displayNames={fundDisplayNames}
+                      portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                   />
               );
           case 'insights':
@@ -1540,6 +1558,7 @@ const App: React.FC = () => {
           <Sidebar
              currentView={currentView}
              onViewChange={handleSidebarNav}
+             portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
              isOpen={isMobileSidebarOpen}
              onClose={() => setIsMobileSidebarOpen(false)}
              isSidebarCollapsed={isSidebarCollapsed}
@@ -1755,8 +1774,13 @@ const App: React.FC = () => {
                        </div>
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              {isFundPortfolio && (
+                                  <div className="mb-4 flex items-center gap-2 text-xs font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20 rounded-2xl px-4 py-3">
+                                      <LayoutGrid size={14} /> Mutual Fund portfolio — NAV-based tracking (no PSX index, signals, or stock tools)
+                                  </div>
+                              )}
                               <DashboardGrid
-                                  layout={isNarrowViewport ? dashboardLayout.mobile : dashboardLayout.web}
+                                  layout={isNarrowViewport ? effectiveDashboardLayout.mobile : effectiveDashboardLayout.web}
                                   device={isNarrowViewport ? 'mobile' : 'web'}
                                   renderCard={renderDashCard}
                               />
@@ -1765,7 +1789,7 @@ const App: React.FC = () => {
 
                       {currentView === 'DASH_CUSTOMIZE' && (
                           <DashboardCustomizer
-                              layout={dashboardLayout}
+                              layout={effectiveDashboardLayout}
                               renderCard={renderDashCard}
                               onSave={(l) => { setDashboardLayout(l); setCurrentView('DASHBOARD'); }}
                               onCancel={() => setCurrentView('DASHBOARD')}
@@ -1784,6 +1808,7 @@ const App: React.FC = () => {
                                   listedInMap={listedInMap}
                                   displayNames={fundDisplayNames}
                                   onTickerClick={handleTickerClick}
+                                  portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                               />
                           </div>
                       )}

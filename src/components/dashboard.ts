@@ -1,25 +1,40 @@
 // Dashboard layout model + card registry (data only — rendering lives in App.tsx).
 // Layout is a true 2-D grid (react-grid-layout): each card has x, y, w, h.
 
+import type { PortfolioType } from '../types';
+
 export interface CardMeta {
   id: string;
   label: string;
   hint?: string;
   core?: boolean;    // core cards can never be hidden/removed
+  psxOnly?: boolean; // hidden on mutual fund portfolios
 }
 
 export const CARD_META: CardMeta[] = [
   { id: 'stats',       label: 'Portfolio Stats',     hint: 'Net Worth · Total Return · Today’s P&L', core: true },
-  { id: 'benchmark',   label: 'Performance vs Index',hint: 'Your return vs the index' },
+  { id: 'benchmark',   label: 'Performance vs Index',hint: 'Your return vs the index', psxOnly: true },
   { id: 'performance', label: 'Performance Chart',   hint: 'Portfolio value over time' },
   { id: 'allocation',  label: 'Allocation',          hint: 'Sector / holding allocation donut' },
   { id: 'topHoldings', label: 'Top Holdings',        hint: 'Your biggest positions' },
   { id: 'insights',    label: 'Insights',            hint: 'Best / worst movers' },
-  { id: 'dividends',   label: 'Upcoming Dividends',  hint: 'Your holdings’ payouts' },
-  { id: 'topMovers',   label: 'Top Movers',          hint: 'KSE-100 / KMI-30 gainers & losers' },
-  { id: 'boardMeetings', label: 'Board Meetings',    hint: 'Upcoming board meetings' },
+  { id: 'dividends',   label: 'Upcoming Dividends',  hint: 'Your holdings’ payouts', psxOnly: true },
+  { id: 'topMovers',   label: 'Top Movers',          hint: 'KSE-100 / KMI-30 gainers & losers', psxOnly: true },
+  { id: 'boardMeetings', label: 'Board Meetings',    hint: 'Upcoming board meetings', psxOnly: true },
   { id: 'summary',     label: 'Portfolio Summary',   hint: 'Full holdings + realized summary' },
 ];
+
+/** Cards that only apply to PSX stock portfolios — auto-hidden for mutual funds. */
+export const PSX_ONLY_CARD_IDS = new Set(CARD_META.filter(m => m.psxOnly).map(m => m.id));
+
+export const applyPortfolioToLayout = (layout: DashboardLayout, portfolioType: PortfolioType): DashboardLayout => {
+  const isFund = portfolioType === 'MUTUAL_FUND';
+  const patch = (cards: CardLayout[]) => cards.map(c => ({
+    ...c,
+    visible: isFund && PSX_ONLY_CARD_IDS.has(c.id) ? false : (isCore(c.id) ? true : c.visible),
+  }));
+  return { web: patch(layout.web), mobile: patch(layout.mobile) };
+};
 
 export const CORE_IDS = CARD_META.filter(m => m.core).map(m => m.id);
 export const isCore = (id: string) => CORE_IDS.includes(id);
