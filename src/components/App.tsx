@@ -37,7 +37,7 @@ import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
-import { fetchMufapNavCatalog, loadCachedFundCatalog, MutualFundRecord, FUND_CATALOG_STORAGE_KEY } from '../services/mufapData';
+import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { setGeminiApiKey } from '../services/gemini';
 import {
@@ -260,6 +260,13 @@ const App: React.FC = () => {
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
   const [portfolioTypeInput, setPortfolioTypeInput] = useState<PortfolioType>('PSX');
   const [fundCatalog, setFundCatalog] = useState<Record<string, MutualFundRecord>>(() => loadCachedFundCatalog());
+
+  useEffect(() => {
+      if (Object.keys(fundCatalog).length > 0) return;
+      ensureFundCatalogLoaded()
+          .then(catalog => { if (Object.keys(catalog).length > 0) setFundCatalog(catalog); })
+          .catch(() => { /* sync button still works */ });
+  }, [fundCatalog]);
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
@@ -1921,7 +1928,7 @@ const App: React.FC = () => {
                       </div>
                       {portfolioTypeInput === 'MUTUAL_FUND' && (
                           <p className="text-[11px] text-violet-600 dark:text-violet-400 mb-4 -mt-2 leading-snug">
-                              NAV syncs automatically from MUFAP (daily). Add subscribe/redeem transactions with live offer &amp; repurchase prices.
+                              NAV syncs from our fund API (517+ funds). Updated automatically on weekdays via GitHub Actions.
                           </p>
                       )}
 

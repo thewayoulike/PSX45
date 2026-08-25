@@ -531,7 +531,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                               onClick={async () => { setFundNavLoading(true); try { await onRefreshFundCatalog(); } finally { setFundNavLoading(false); } }}
                               className="mb-2 text-[10px] font-bold text-violet-600 dark:text-violet-400 flex items-center gap-1 hover:underline"
                           >
-                              {fundNavLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCcw size={12} />} Load funds from MUFAP
+                              {fundNavLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCcw size={12} />} Refresh fund list
                           </button>
                       )}
                       <FundPicker

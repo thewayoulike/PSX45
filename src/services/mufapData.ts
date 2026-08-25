@@ -1,4 +1,3 @@
-import { fetchUrlWithFallback } from './psxData';
 import { makeFundId } from '../utils/fundId';
 
 export interface MutualFundRecord {
@@ -108,28 +107,77 @@ export const saveFundCatalog = (catalog: Record<string, MutualFundRecord>) => {
   } catch { /* ignore */ }
 };
 
-/** Fetch full MUFAP NAV catalog (automatic sync). */
+type CatalogPayload = {
+  catalog: Record<string, MutualFundRecord>;
+  reportDate?: string | null;
+  updatedAt?: string | null;
+  source?: string;
+  count?: number;
+};
+
+let embeddedCatalogPromise: Promise<CatalogPayload> | null = null;
+
+/** Catalog baked into the JS bundle — works even when /api and /data routes 404. */
+const loadEmbeddedCatalog = (): Promise<CatalogPayload> => {
+  if (!embeddedCatalogPromise) {
+    embeddedCatalogPromise = import('../../data/fund-nav-catalog.json').then(m => m.default as CatalogPayload);
+  }
+  return embeddedCatalogPromise;
+};
+
+/** Preload catalog from localStorage or embedded bundle (no network). */
+export const ensureFundCatalogLoaded = async (): Promise<Record<string, MutualFundRecord>> => {
+  const cached = loadCachedFundCatalog();
+  if (Object.keys(cached).length > 0) return cached;
+  const data = await loadEmbeddedCatalog();
+  saveFundCatalog(data.catalog);
+  return data.catalog;
+};
+
+const parsePayload = (data: CatalogPayload, source?: string) => {
+  if (!data?.catalog || Object.keys(data.catalog).length === 0) {
+    throw new Error('Fund NAV catalog is empty.');
+  }
+  saveFundCatalog(data.catalog);
+  return {
+    catalog: data.catalog,
+    reportDate: data.reportDate || undefined,
+    updatedAt: data.updatedAt || undefined,
+    source: source || data.source || undefined,
+  };
+};
+
+/** Fetch full MUFAP NAV catalog — API → static file → embedded bundle. */
 export const fetchMufapNavCatalog = async (): Promise<{
   catalog: Record<string, MutualFundRecord>;
   reportDate?: string;
+  updatedAt?: string;
+  source?: string;
 }> => {
-  const html = await fetchUrlWithFallback(MUFAP_NAV_URL, 2000);
-  if (!html) throw new Error('Could not reach MUFAP. Try again later or add a Scrape.do key in API Settings.');
-
-  const funds = parseMufapNavHtml(html);
-  if (funds.length === 0) {
-    throw new Error('MUFAP page loaded but no fund rows were found. The site layout may have changed.');
+  // 1) Vercel API (when deployed)
+  for (const url of [`/api/fund-nav?t=${Date.now()}`, `/api/mufap-nav?t=${Date.now()}`]) {
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const ct = res.headers.get('content-type') || '';
+        if (ct.includes('json')) return parsePayload(await res.json(), 'api');
+      }
+    } catch { /* try next */ }
   }
 
-  const catalog: Record<string, MutualFundRecord> = {};
-  funds.forEach(f => { catalog[f.id] = f; });
+  // 2) Static JSON (when public/data is deployed and rewrite allows it)
+  try {
+    const staticRes = await fetch(`/data/fund-nav-catalog.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (staticRes.ok) {
+      const text = await staticRes.text();
+      if (text.trimStart().startsWith('{')) {
+        return parsePayload(JSON.parse(text), 'static');
+      }
+    }
+  } catch { /* fall through */ }
 
-  const dateMatch = html.match(/Report Date:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/i)
-    || html.match(/Report Date[:\s]+([^<\n|]+)/i);
-  const reportDate = dateMatch?.[1]?.trim();
-
-  saveFundCatalog(catalog);
-  return { catalog, reportDate };
+  // 3) Embedded in app bundle — always works after build
+  return parsePayload(await loadEmbeddedCatalog(), 'embedded');
 };
 
 /** NAV prices for held fund ids from catalog (or fresh fetch). */

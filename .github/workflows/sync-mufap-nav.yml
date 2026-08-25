@@ -1,0 +1,38 @@
+name: Sync MUFAP Fund NAV
+
+on:
+  schedule:
+    # Weekdays ~6 PM PKT (13:00 UTC) — after AMCs publish NAV
+    - cron: '0 13 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        run: |
+          npm install playwright
+          npx playwright install chromium
+
+      - name: Sync MUFAP NAV catalog
+        run: node scripts/sync-mufap-nav.mjs
+
+      - name: Commit updated catalog
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: 'chore: sync MUFAP fund NAV catalog'
+          file_pattern: |
+            data/fund-nav-catalog.json
+            public/data/fund-nav-catalog.json

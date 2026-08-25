@@ -93,7 +93,7 @@ export const FundPicker: React.FC<FundPickerProps> = ({ catalog, value, onChange
 
       {open && query && filtered.length === 0 && (
         <div className="absolute z-[80] mt-1 w-full p-3 text-xs text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl">
-          No funds match. Sync NAV from MUFAP first if the catalog is empty.
+          No funds match. Sync NAV to refresh the fund list.
         </div>
       )}
     </div>

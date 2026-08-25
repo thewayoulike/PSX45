@@ -84,12 +84,15 @@ export const fetchUrlWithFallback = async (targetUrl: string, minLength = 500): 
         } catch (e) { /* Try next */ }
     }
 
-    // 3. FALLBACK: Scrape.do
+    // 3. FALLBACK: Scrape.do (HTTPS — required on production; HTTP is blocked as mixed content)
     if (userScrapingKey) {
         try {
-            const premiumUrl = `http://api.scrape.do?token=${userScrapingKey}&url=${encodeURIComponent(targetUrl)}`;
+            const premiumUrl = `https://api.scrape.do/?token=${encodeURIComponent(userScrapingKey)}&url=${encodeURIComponent(targetUrl)}&render=true`;
             const response = await fetchWithTimeout(premiumUrl, {}, 25000);
-            if (response.ok) return await response.text();
+            if (response.ok) {
+                const text = await response.text();
+                if (text && text.length > minLength) return text;
+            }
         } catch (e) {}
     }
 
