@@ -39,6 +39,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
+import { fundAvgForCost } from '../utils/fundFormat';
 import { setGeminiApiKey } from '../services/gemini';
 import {
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
@@ -1008,7 +1009,7 @@ const App: React.FC = () => {
     let totalAdjustments = 0;
     holdings.forEach(h => {
         totalValue += h.quantity * h.currentPrice;
-        const roundedAvg = Math.round(h.avgPrice * 100) / 100;
+        const roundedAvg = isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
         totalCost += h.quantity * roundedAvg;
         const ldcp = ldcpMap[h.ticker] || h.currentPrice;
         dailyPL += (h.currentPrice - ldcp) * h.quantity;

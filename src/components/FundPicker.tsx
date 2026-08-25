@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react';
 import { Search, ChevronDown, Building2 } from 'lucide-react';
 import { MutualFundRecord } from '../services/mufapData';
+import { fmtFundNav } from '../utils/fundFormat';
 
 interface FundPickerProps {
   catalog: Record<string, MutualFundRecord>;
@@ -67,7 +68,7 @@ export const FundPicker: React.FC<FundPickerProps> = ({ catalog, value, onChange
       {selected && (
         <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1.5 ml-1 flex items-center gap-1">
           <Building2 size={12} /> {selected.amc} · {selected.category}
-          {selected.nav > 0 && <span className="ml-1 tabular-nums">· NAV {selected.nav.toFixed(4)}</span>}
+          {selected.nav > 0 && <span className="ml-1 tabular-nums">· NAV {fmtFundNav(selected.nav)}</span>}
         </p>
       )}
 

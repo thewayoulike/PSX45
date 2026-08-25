@@ -2,7 +2,7 @@ import { EditableTrade } from '../types';
 import { MutualFundRecord } from './mufapData';
 import { resolveFundFromScan } from '../utils/fundMatch';
 import { todayPK } from '../utils/dates';
-
+import { roundFundNav, roundFundUnits } from '../utils/fundFormat';
 export interface FundBalanceRow {
   fundCode: string;
   fundName?: string;
@@ -24,8 +24,9 @@ export interface FundScanAdjustments {
   warnings: string[];
 }
 
-const roundUnits = (n: number) => Math.round(n * 1000) / 1000;
+const roundUnits = roundFundUnits;
 const roundMoney = (n: number) => Math.round(n * 100) / 100;
+const roundNav = roundFundNav;
 
 /**
  * AMC statements print Units, NAV, and Investment Value — they must satisfy
@@ -54,7 +55,7 @@ export function normalizeFundScanRow(
         const prevUnits = units;
         const prevNav = nav;
         units = roundUnits(catalogUnits);
-        nav = catalogNav;
+        nav = roundNav(catalogNav);
         inv = roundMoney(units * nav);
         const parts: string[] = [];
         if (prevUnits > 0 && Math.abs(prevUnits - units) / units > 0.005) {
@@ -129,7 +130,7 @@ export function fundScanToTrades(
       ticker: id,
       type: 'BUY',
       quantity: h.units,
-      price: h.nav,
+      price: roundNav(h.nav),
       date,
       broker: record?.amc || scan.amc,
       notes: h.fundCode !== id ? `${h.fundCode}${h.fundName ? ` — ${h.fundName}` : ''}` : h.fundName,

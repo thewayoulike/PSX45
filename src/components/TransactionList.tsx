@@ -10,6 +10,8 @@ import { DividendIcon } from './ui/DividendIcon';
 import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon';
 import { FeeIcon } from './ui/FeeIcon'; 
 import { exportToExcel, exportToCSV } from '../utils/export';
+import { isFundTicker } from '../utils/fundId';
+import { fmtFundNav, fmtFundUnits } from '../utils/fundFormat';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -219,8 +221,8 @@ export const TransactionList: React.FC<TransactionListProps> = ({ transactions, 
                         <td className="px-4 py-3"> <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border shadow-sm ${typeConfig.style}`}> {typeConfig.icon} {typeConfig.label} </span> </td>
                         <td className="px-4 py-3 font-display font-black text-slate-900 dark:text-white"> {tx.ticker} {tx.notes && <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 truncate max-w-[120px]" title={tx.notes}>{tx.notes}</div>} </td>
                         <td className="px-4 py-3 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{tx.broker || (tx.type === 'TAX' ? 'System' : '-')}</td>
-                        <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums"> {tx.quantity.toLocaleString()} {isDiv && <div className="hidden group-hover:block absolute bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg z-20">Check History</div>} </td>
-                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300 font-mono text-xs tabular-nums"> {displayPrice !== 0 ? displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} </td>
+                        <td className="px-4 py-3 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums"> {isFundTicker(tx.ticker) ? fmtFundUnits(tx.quantity) : tx.quantity.toLocaleString()} {isDiv && <div className="hidden group-hover:block absolute bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg z-20">Check History</div>} </td>
+                        <td className="px-4 py-3 text-right text-slate-600 dark:text-slate-300 font-mono text-xs tabular-nums"> {displayPrice !== 0 ? (isFundTicker(tx.ticker) && !['DEPOSIT', 'HISTORY', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) ? fmtFundNav(displayPrice) : displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '-'} </td>
                         <td className="px-2 py-3 text-right text-slate-400 dark:text-slate-500 font-mono text-[10px] tabular-nums"> {(tx.commission || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className="px-2 py-3 text-right text-slate-400 dark:text-slate-500 font-mono text-[10px] tabular-nums"> {(tx.tax || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className={`px-2 py-3 text-right font-mono text-[10px] tabular-nums ${isCDCManual ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayCDC.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>

@@ -10,6 +10,7 @@ import { todayPK, toDatePK } from '../utils/dates';
 import { FundPicker } from './FundPicker';
 import { MutualFundRecord } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
+import { dpFundNav, dpFundUnits, fmtFundNav, roundFundNav, roundFundUnits } from '../utils/fundFormat';
 import * as XLSX from 'xlsx';
 
 interface TransactionFormProps {
@@ -326,6 +327,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       let priceNum = Number(price);
       let resolvedTicker = cleanTicker;
 
+      if (isFundPortfolio && !cashTypes.includes(type as typeof cashTypes[number]) && type !== 'TAX' && type !== 'HISTORY' && type !== 'OTHER') {
+          qtyNum = roundFundUnits(qtyNum);
+          priceNum = roundFundNav(priceNum);
+      }
+
       if (cashTypes.includes(type as typeof cashTypes[number])) {
           qtyNum = 1;
           priceNum = Number(histAmount);
@@ -409,7 +415,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               if (trades.length === 0) throw new Error("No importable rows found in the statement.");
               updateScannedTrades(trades.map(t => ({
                   ...t,
-                  price: typeof t.price === 'number' ? t.price : Number(t.price),
+                  quantity: isFundPortfolio && t.type !== 'DEPOSIT' && t.type !== 'HISTORY'
+                      ? roundFundUnits(Number(t.quantity))
+                      : t.quantity,
+                  price: typeof t.price === 'number'
+                      ? (isFundPortfolio && t.type !== 'DEPOSIT' && t.type !== 'HISTORY' ? Number(dpFundNav(t.price)) : t.price)
+                      : Number(t.price),
                   brokerId: selectedBrokerId || undefined,
                   broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker,
               })));
@@ -458,7 +469,19 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   // Format a money value as a plain 2-decimal string for the scan inputs (0/blank
   // stays blank so zero fees still show a placeholder). Shares are left untouched.
   const dp2 = (v: any): any => { const n = Number(v); return (v === '' || v == null || isNaN(n) || n === 0) ? v : (Math.round(n * 100) / 100).toFixed(2); };
-  const blurFmt = (idx: number, field: keyof EditableTrade, v: string) => { const t = (v || '').trim(); if (t !== '' && !isNaN(Number(t))) updateSingleScannedTrade(idx, field, Number(t).toFixed(2) as any); };
+  const fmtPrice = (v: any) => (isFundPortfolio ? dpFundNav(v) : dp2(v));
+  const fmtQty = (v: any) => (isFundPortfolio ? dpFundUnits(v) : Number(v).toFixed(2));
+  const blurFmt = (idx: number, field: keyof EditableTrade, v: string) => {
+      const t = (v || '').trim();
+      if (t === '' || isNaN(Number(t))) return;
+      if (field === 'quantity') {
+          updateSingleScannedTrade(idx, field, fmtQty(t) as any);
+      } else if (field === 'price' || field === 'commission' || field === 'tax' || field === 'cdcCharges' || field === 'otherFees') {
+          updateSingleScannedTrade(idx, field, fmtPrice(t) as any);
+      } else {
+          updateSingleScannedTrade(idx, field, Number(t).toFixed(2) as any);
+      }
+  };
   // A SELL is only valid if a BUY of the same ticker exists on or before its date,
   // either in saved history or among the buys being added in the same batch.
   const hasPriorBuy = (ticker: string, sellDate: string, extraBuys: EditableTrade[] = []) => {
@@ -493,8 +516,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           ...base,
           ticker: trade.ticker,
           type: trade.type as 'BUY' | 'SELL',
-          quantity: Number(trade.quantity),
-          price: Number(trade.price),
+          quantity: isFundTicker(trade.ticker) ? roundFundUnits(Number(trade.quantity)) : Number(trade.quantity),
+          price: isFundTicker(trade.ticker) ? roundFundNav(Number(trade.price)) : Number(trade.price),
       });
   };
   
@@ -696,8 +719,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               <div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={16} /></div> 
           </div>
           <div className="grid grid-cols-2 gap-4"> 
-              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? (isFundPortfolio ? 'Eligible Units' : 'Eligible Shares') : (isFundPortfolio ? 'Units' : 'Quantity')}</label><input required type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0"/></div> 
-              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : (isFundPortfolio ? (type === 'BUY' ? 'Offer Price (NAV)' : type === 'SELL' ? 'Repurchase Price (NAV)' : 'NAV') : 'Price')}</label><input required type="number" step="any" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0.00"/></div> 
+              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? (isFundPortfolio ? 'Eligible Units' : 'Eligible Shares') : (isFundPortfolio ? 'Units' : 'Quantity')}</label><input required type="number" step="any" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder={isFundPortfolio ? '0.0000' : '0'}/></div> 
+              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : (isFundPortfolio ? (type === 'BUY' ? 'Offer Price (NAV)' : type === 'SELL' ? 'Repurchase Price (NAV)' : 'NAV') : 'Price')}</label><input required type="number" step="any" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder={isFundPortfolio ? '0.0000' : '0.00'}/></div> 
           </div>
           <div className="pt-2">
               <div className="flex items-center justify-between mb-2 ml-1"><label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{isFundPortfolio ? 'Loads & Fees' : 'Fees & Taxes'}</label>{!isFundPortfolio && <button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 transition-all shadow-sm ${isAutoCalc ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}> {!isAutoCalc && <AlertTriangle size={12} />} {isAutoCalc ? 'Auto-Calc On' : 'Manual Mode'} </button>}</div>

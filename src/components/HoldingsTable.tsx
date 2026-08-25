@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Holding, PortfolioType } from '../types';
 import { isFundTicker } from '../utils/fundId';
+import { roundFundNav, fmtFundNav, fmtFundUnits, fundAvgForCost, roundFundUnits } from '../utils/fundFormat';
 import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown as ArrowDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
@@ -69,7 +70,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
       return [...result].sort((a, b) => {
           let aValue: any = '', bValue: any = '';
           const getVal = (h: Holding, key: SortKey) => {
-              const roundedAvg = Math.round(h.avgPrice * 100) / 100;
+              const roundedAvg = isFund ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
               const cost = h.quantity * roundedAvg;
               const mkt = h.quantity * h.currentPrice;
               const ldcp = ldcpMap[h.ticker] || h.currentPrice;
@@ -97,7 +98,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const totals = useMemo(() => {
       return filteredAndSortedHoldings.reduce((acc, h) => {
-          const roundedAvg = Math.round(h.avgPrice * 100) / 100;
+          const roundedAvg = isFund ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
           const cost = h.quantity * roundedAvg;
           const marketVal = h.quantity * h.currentPrice;
           const ldcp = ldcpMap[h.ticker] || h.currentPrice;
@@ -114,8 +115,22 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const handleExport = (type: 'excel' | 'csv') => {
       const data = filteredAndSortedHoldings.map(h => {
-          const roundedAvg = Math.round(h.avgPrice * 100) / 100; const cost = h.quantity * roundedAvg; const marketVal = h.quantity * h.currentPrice;
-          return { Ticker: h.ticker, Sector: h.sector, Broker: h.broker || 'N/A', Quantity: h.quantity, 'Avg Price': roundedAvg, 'Current Price': h.currentPrice, 'Total Cost': cost, 'Market Value': marketVal, 'P&L': marketVal - cost, 'P&L %': cost > 0 ? ((marketVal - cost) / cost) * 100 : 0, 'Last Update': h.lastUpdated ? formatUpdateDate(h.lastUpdated) : '-' };
+          const roundedAvg = isFund ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
+          const cost = h.quantity * roundedAvg;
+          const marketVal = h.quantity * h.currentPrice;
+          return {
+            Ticker: h.ticker,
+            Sector: h.sector,
+            Broker: h.broker || 'N/A',
+            Quantity: isFund ? roundFundUnits(h.quantity) : h.quantity,
+            'Avg Price': isFund ? roundFundNav(roundedAvg) : roundedAvg,
+            'Current Price': isFund ? roundFundNav(h.currentPrice) : h.currentPrice,
+            'Total Cost': cost,
+            'Market Value': marketVal,
+            'P&L': marketVal - cost,
+            'P&L %': cost > 0 ? ((marketVal - cost) / cost) * 100 : 0,
+            'Last Update': h.lastUpdated ? formatUpdateDate(h.lastUpdated) : '-',
+          };
       });
       const filename = `Holdings_Export_${new Date().toISOString().split('T')[0]}`;
       if (type === 'excel') exportToExcel(data, filename); else exportToCSV(data, filename);
@@ -201,7 +216,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 </tr>
               ) : (
                 paginatedHoldings.map((holding, idx) => {
-                  const roundedAvg = Math.round(holding.avgPrice * 100) / 100;
+                  const roundedAvg = isFund ? fundAvgForCost(holding.avgPrice) : Math.round(holding.avgPrice * 100) / 100;
                   const costBasis = holding.quantity * roundedAvg; 
                   const marketValue = holding.quantity * holding.currentPrice; 
                   const pnl = marketValue - costBasis; 
@@ -296,23 +311,31 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       
                       {/* Qty */}
                       <td className="px-4 py-3.5 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums align-middle">
-                        {holding.quantity.toLocaleString()}
+                        {isFund ? fmtFundUnits(holding.quantity) : holding.quantity.toLocaleString()}
                       </td>
                       
                       {/* Avg Price */}
                       <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-bold align-middle">
-                          {roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          {isFund
+                            ? fmtFundNav(roundedAvg)
+                            : roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       
                       {/* Current Price & BE */}
                       <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className="flex flex-col items-end"> 
                             <span className={`tabular-nums font-display font-black text-sm ${isFailed ? "text-amber-500" : "text-slate-900 dark:text-white"}`}> 
-                                {holding.currentPrice > 0 ? holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '-'} 
+                                {holding.currentPrice > 0
+                                  ? (isFund
+                                      ? fmtFundNav(holding.currentPrice)
+                                      : holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+                                  : '-'} 
                             </span> 
                             {holding.quantity > 0 && (
-                                <span className={`text-[9px] font-bold uppercase tracking-widest mt-1 px-1.5 py-0.5 rounded-md border shadow-sm border-transparent ${beColorClass}`} title={`Break-Even: Rs. ${breakEvenPrice.toFixed(4)}`}>
-                                    BE: {breakEvenPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                <span className={`text-[9px] font-bold uppercase tracking-widest mt-1 px-1.5 py-0.5 rounded-md border shadow-sm border-transparent ${beColorClass}`} title={`Break-Even: Rs. ${isFund ? fmtFundNav(breakEvenPrice) : breakEvenPrice.toFixed(4)}`}>
+                                    BE: {isFund
+                                      ? fmtFundNav(breakEvenPrice)
+                                      : breakEvenPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 </span>
                             )}
                         </div> 
