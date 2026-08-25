@@ -366,13 +366,16 @@ export const parseFundBalanceDocument = async (file: File): Promise<FundBalanceS
 
     const promptText = `Analyze this Pakistani mutual fund AMC account statement or balance summary (e.g. Al Meezan, Alfalah, NBP, etc.).
 
+Typical Al Meezan balance summary columns:
+Fund Name | Units | NAV | Investment Value (PKR) | Gain/(Loss) FYTD | Gain/(Loss) To Date
+
 Extract EVERY fund row from the holdings table. For each fund capture:
-- fundCode: short ticker/code (e.g. AMMF, KMIF, MDIP)
+- fundCode: short ticker/code (e.g. AMMF, KMIF, MDIP, MIF, MIIF, MSF)
 - fundName: full fund name if shown
-- units: number of units held (0 if fully redeemed)
-- nav: NAV per unit in PKR
-- investmentValue: current market value in PKR (Units × NAV)
-- gainToDate: lifetime gain/loss column ("Gain To Date", "Gain/(Loss) To Date") — negative if loss
+- units: units held — MUST equal investmentValue ÷ nav (use this formula if the document is ambiguous)
+- nav: the NAV column (current net asset value per unit in PKR). NOT average cost, NOT offer price.
+- investmentValue: "Investment Value (PKR)" column exactly (current market value)
+- gainToDate: lifetime gain/loss ("Gain To Date", "Gain/(Loss) To Date") — negative if loss
 - gainFytd: fiscal-year gain if shown (optional)
 
 Also extract:
@@ -381,6 +384,8 @@ Also extract:
 
 Rules:
 - Use exact numbers from the document; remove commas.
+- Verify each row: units × nav must ≈ investmentValue (within 1%). If columns disagree, trust investmentValue and nav, then set units = investmentValue ÷ nav.
+- Do NOT use average cost, break-even, or historical subscribe price as nav.
 - If a fund has 0 units but a non-zero gainToDate, still include it (closed position).
 - Do NOT invent rows not in the document.`;
 

@@ -37,7 +37,7 @@ import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
-import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav } from '../services/mufapData';
+import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { setGeminiApiKey } from '../services/gemini';
 import {
@@ -878,8 +878,9 @@ const App: React.FC = () => {
       setFailedTickers(new Set());
 
       try {
-          const { catalog } = await fetchMufapNavCatalog();
+          const { catalog, source } = await fetchMufapNavCatalog();
           setFundCatalog(catalog);
+          const liveNav = isLiveFundCatalogSource(source);
 
           const navUpdates: Record<string, number> = {};
           const sectorUpdates: Record<string, string> = {};
@@ -889,21 +890,28 @@ const App: React.FC = () => {
           Object.values(catalog).forEach(f => {
               navUpdates[f.id] = fundValuationNav(f);
               sectorUpdates[f.id] = f.category;
-              timestampUpdates[f.id] = now;
+              if (liveNav) timestampUpdates[f.id] = now;
           });
 
           setManualPrices(prev => {
               const ldcpUpdates: Record<string, number> = {};
+              const next = { ...prev };
+              const heldIds = new Set(holdings.filter(h => isFundTicker(h.ticker)).map(h => h.ticker));
               Object.keys(navUpdates).forEach(id => {
-                  if (prev[id] > 0 && prev[id] !== navUpdates[id]) ldcpUpdates[id] = prev[id];
+                  const nav = navUpdates[id];
+                  if (!(nav > 0)) return;
+                  // Live MUFAP → refresh all catalog prices; stale fallback → held funds only
+                  if (!liveNav && !heldIds.has(id)) return;
+                  if (prev[id] > 0 && prev[id] !== nav) ldcpUpdates[id] = prev[id];
+                  next[id] = nav;
               });
               if (Object.keys(ldcpUpdates).length > 0) {
                   setLdcpMap(p => ({ ...p, ...ldcpUpdates }));
               }
-              return { ...prev, ...navUpdates };
+              return next;
           });
           setSectorOverrides(prev => ({ ...prev, ...sectorUpdates }));
-          setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates }));
+          if (liveNav) setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates }));
 
           const heldFundIds = holdings.filter(h => isFundTicker(h.ticker)).map(h => h.ticker);
           const failed = [...new Set(heldFundIds)].filter(id => !(navUpdates[id] > 0));

@@ -148,7 +148,11 @@ const parsePayload = (data: CatalogPayload, source?: string) => {
 };
 
 const isStaleCatalogSource = (source?: string) =>
-  !source || source === 'bundled' || source === 'embedded' || source === 'static';
+  !source || source === 'bundled' || source === 'embedded' || source === 'static' || source === 'seed';
+
+/** True when NAV prices came from a fresh MUFAP fetch (not bundled/seed file). */
+export const isLiveFundCatalogSource = (source?: string) =>
+  source === 'live' || source === 'browser-live' || source === 'proxy-live';
 
 const isMufapBlockedPage = (html: string): boolean => {
   if (!html || html.length < 1500) return true;

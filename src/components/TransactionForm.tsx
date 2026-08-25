@@ -405,7 +405,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           if (isFundPortfolio && mode === 'AI_SCAN') {
               const scan = await parseFundBalanceDocument(selectedFile);
               if (!scan.holdings?.length) throw new Error("No fund holdings found. Upload your AMC balance summary screenshot or PDF.");
-              const trades = fundScanToTrades(scan, fundCatalog, todayPK());
+              const { trades, warnings } = fundScanToTrades(scan, fundCatalog, todayPK());
               if (trades.length === 0) throw new Error("No importable rows found in the statement.");
               updateScannedTrades(trades.map(t => ({
                   ...t,
@@ -413,7 +413,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                   brokerId: selectedBrokerId || undefined,
                   broker: selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker,
               })));
-              setFundScanHint('Add rows in order: DEPOSIT first, then SUBSCRIBE (BUY) rows, then HISTORY for closed funds. Review fund names match your catalog.');
+              const hintParts = [
+                  'Review rows before saving: DEPOSIT first, then SUBSCRIBE (BUY) per fund.',
+                  warnings.length > 0 ? `Auto-fixed ${warnings.length} row(s): ${warnings.join('; ')}` : null,
+              ].filter(Boolean);
+              setFundScanHint(hintParts.join(' '));
               return;
           }
 
