@@ -12,6 +12,7 @@ import {
 } from 'recharts';
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
+import { formatDatePK } from '../utils/dates';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
 
@@ -72,13 +73,44 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
     return validHoldings;
   };
 
+  const getAvgCostOnDate = (dateStr: string) => {
+    const costAgg: Record<string, { qty: number; cost: number }> = {};
+    const orderedTx = [...transactions]
+      .filter(t => t.date <= dateStr)
+      .sort((a, b) => {
+        const d = a.date.localeCompare(b.date);
+        if (d !== 0) return d;
+        return Date.parse(a.createdAt || '0') - Date.parse(b.createdAt || '0');
+      });
+    orderedTx.forEach(t => {
+      if (t.type === 'BUY' || t.type === 'TRANSFER_IN') {
+        const c = (costAgg[t.ticker] ||= { qty: 0, cost: 0 });
+        const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+        c.qty += t.quantity;
+        c.cost += t.quantity * t.price + fees;
+      } else if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') {
+        const c = costAgg[t.ticker];
+        if (!c || c.qty <= 0) return;
+        const avg = c.cost / c.qty;
+        const q = Math.min(t.quantity, c.qty);
+        c.qty -= q;
+        c.cost -= avg * q;
+      }
+    });
+    const avgCostByTicker: Record<string, number> = {};
+    Object.entries(costAgg).forEach(([tk, c]) => { avgCostByTicker[tk] = c.qty > 0 ? c.cost / c.qty : 0; });
+    return avgCostByTicker;
+  };
+
   const handleFetchAndCalculate = async () => {
     setLoading(true);
     setErrorMsg(null);
 
     try {
       const userTickers = Array.from(new Set(
-          transactions.filter(t => t.type === 'BUY').map(t => t.ticker)
+          transactions
+            .filter(t => t.type === 'BUY' || t.type === 'SELL' || t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT')
+            .map(t => t.ticker)
       ));
 
       // Fetch both KSE100 and KMI30 official indices, plus portfolio stocks
@@ -90,7 +122,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
           if (data && data.length > 1) {
             historyData[ticker] = data.map(d => ({
                 ...d,
-                dateStr: new Date(d.time).toISOString().split('T')[0]
+                dateStr: formatDatePK(new Date(d.time))
             }));
           } else {
             historyData[ticker] = [];
@@ -107,19 +139,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
       if (kseData.length < 2) {
           throw new Error("Unable to fetch KSE100 data. Please try again in a few moments.");
       }
-
-      // Average buy cost per ticker (for cost-basis daily %, matching the Today's P&L card)
-      const costAgg: Record<string, { qty: number; cost: number }> = {};
-      transactions.forEach(t => {
-        if (t.type === 'BUY' || t.type === 'TRANSFER_IN') {
-          const c = (costAgg[t.ticker] ||= { qty: 0, cost: 0 });
-          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-          c.qty += t.quantity;
-          c.cost += t.quantity * t.price + fees;
-        }
-      });
-      const avgCostByTicker: Record<string, number> = {};
-      Object.entries(costAgg).forEach(([tk, c]) => { avgCostByTicker[tk] = c.qty > 0 ? c.cost / c.qty : 0; });
 
       const newChartData = [];
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
@@ -146,6 +165,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         }
         
         const heldBalances = getHeldBalancesOnDate(dateStr);
+        const avgCostByTicker = getAvgCostOnDate(dateStr);
         let yesterdayTotalValue = 0;
         let todayTotalValue = 0;
         let dayCostBasis = 0;

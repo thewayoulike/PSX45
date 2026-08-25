@@ -22,6 +22,7 @@ interface Props {
   onRemove: (ticker: string) => void;
   onSelectTicker?: (ticker: string) => void; // open the stock profile
   seedPrices?: Record<string, number>;        // manualPrices, for an instant first paint
+  canSaveAlerts?: boolean;
 }
 
 const REFRESH_MS = 5 * 60 * 1000; // every 5 minutes while this page is open
@@ -29,7 +30,7 @@ const REFRESH_MS = 5 * 60 * 1000; // every 5 minutes while this page is open
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const vol = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n);
 
-export const Watchlist: React.FC<Props> = ({ watchlist, onAdd, onRemove, onSelectTicker, seedPrices }) => {
+export const Watchlist: React.FC<Props> = ({ watchlist, onAdd, onRemove, onSelectTicker, seedPrices, canSaveAlerts }) => {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({});
   const [loading, setLoading] = useState(false);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -183,7 +184,7 @@ export const Watchlist: React.FC<Props> = ({ watchlist, onAdd, onRemove, onSelec
               >
                 <X size={16} />
               </button>
-              <SetAlert ticker={t} currentPrice={price} />
+              <SetAlert ticker={t} currentPrice={price} canSaveAlerts={canSaveAlerts} />
               <p className="text-[10px] text-slate-400 mt-2 px-1 leading-snug">
                 Price alerts run on the server — they'll notify you even when the app is closed or you're logged out.
               </p>

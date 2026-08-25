@@ -39,6 +39,7 @@ interface TickerProfileProps {
   holding?: Holding;
   listedInMap?: Record<string, string>; // Pass the dynamic tags here
   onClose: () => void;
+  canSaveAlerts?: boolean;
 }
 
 export const TickerProfile: React.FC<TickerProfileProps> = ({
@@ -48,7 +49,8 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
   transactions, 
   holding, 
   listedInMap = {},
-  onClose
+  onClose,
+  canSaveAlerts
 }) => {
 
   const { stats, realizedStats, sortedTransactionsDesc } = useMemo(() => {
@@ -247,7 +249,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         </div>
 
         {/* PRICE ALERT WIDGET */}
-        <SetAlert ticker={ticker} currentPrice={currentPrice} />
+        <SetAlert ticker={ticker} currentPrice={currentPrice} canSaveAlerts={canSaveAlerts} />
 
         {/* STAT CARDS GRID */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

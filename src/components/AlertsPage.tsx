@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Bell, Loader2, CheckCircle2, AlertCircle, Search, Trash2, ArrowUpRight, ArrowDownRight, Plus, X, Pencil, Smartphone } from 'lucide-react';
 import { Holding } from '../types';
 import { Card } from './ui/Card';
+import { getAuthHeaders } from '../services/auth';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -19,9 +20,10 @@ function urlBase64ToUint8Array(base64String: string) {
 interface AlertsPageProps {
   holdings: Holding[];
   currentPrices: Record<string, number>;
+  canSaveAlerts?: boolean;
 }
 
-export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices }) => {
+export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices, canSaveAlerts = false }) => {
   const [ticker, setTicker] = useState<string>('');
   const [tps, setTps] = useState<string[]>(['']);
   const [sls, setSls] = useState<string[]>([]);
@@ -77,6 +79,10 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
   };
 
   const fetchMyAlerts = useCallback(async () => {
+    if (!canSaveAlerts) {
+      setActiveAlerts([]);
+      return;
+    }
     try {
       setLoadingAlerts(true);
       const sub = await getPushSubscription();
@@ -84,7 +90,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
 
       const res = await fetch('/api/get-alerts', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ endpoint: sub.endpoint })
       });
       const data = await res.json();
@@ -94,7 +100,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
     } finally {
       setLoadingAlerts(false);
     }
-  }, []);
+  }, [canSaveAlerts]);
 
   useEffect(() => {
     if ('serviceWorker' in navigator) {
@@ -131,6 +137,9 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
 
   const handleSetAlert = async () => {
     if (!ticker) return;
+    if (!canSaveAlerts) {
+        setStatus('error'); setMessage('Sign in to save alerts. Guest Mode is offline-only.'); return;
+    }
 
     const validTps = tps.filter(val => val !== '').map(price => ({ price: Number(price), direction: 'ABOVE' }));
     const validSls = sls.filter(val => val !== '').map(price => ({ price: Number(price), direction: 'BELOW' }));
@@ -158,7 +167,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
 
       const res = await fetch('/api/save-alert', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({ subscription, ticker, alerts: allAlerts })
       });
 
@@ -181,12 +190,13 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
   };
 
   const handleDeleteAlert = async (id: string) => {
+      if (!canSaveAlerts) return;
       try {
           setActiveAlerts(prev => prev.filter(a => a.id !== id));
           const sub = await getPushSubscription();
           await fetch('/api/delete-alert', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: await getAuthHeaders(),
               body: JSON.stringify({ id, endpoint: sub?.endpoint })
           });
       } catch (e) {
@@ -224,8 +234,13 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
         </div>
         <h2 className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">Price Alerts</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium max-w-md mx-auto leading-relaxed">
-          Get a push notification the moment a stock hits your price — even when the app is closed or you're logged out.
+          Get a push notification the moment a stock hits your price — even when the app is closed.
         </p>
+        {!canSaveAlerts && (
+          <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-xl px-4 py-2.5 inline-block">
+            Sign in with Google or email to save alerts. Guest Mode cannot create them.
+          </p>
+        )}
       </div>
 
       {/* CREATE */}
@@ -376,7 +391,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices 
             <div className="pt-1">
               <button
                 onClick={handleSetAlert}
-                disabled={status === 'loading' || !canSubmit}
+                disabled={status === 'loading' || !canSubmit || !canSaveAlerts}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 disabled:cursor-not-allowed text-white py-3.5 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/20 enabled:hover:-translate-y-0.5 active:translate-y-0"
               >
                 {status === 'loading' ? <Loader2 size={18} className="animate-spin" /> : <Bell size={18} />}

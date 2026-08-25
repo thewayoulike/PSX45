@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { getAuthHeaders } from '../services/auth';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -12,7 +13,7 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPrice: number }) => {
+export const SetAlert = ({ ticker, currentPrice, canSaveAlerts = false }: { ticker: string, currentPrice: number, canSaveAlerts?: boolean }) => {
   const [target, setTarget] = useState<number | ''>('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
@@ -25,6 +26,11 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
 
   const handleSetAlert = async () => {
     if (!target) return;
+    if (!canSaveAlerts) {
+      setStatus('error');
+      setMessage('Sign in to save alerts. Guest Mode is offline-only.');
+      return;
+    }
     if (!VAPID_PUBLIC_KEY) {
       setStatus('error');
       setMessage('VAPID Public Key is missing in environment variables.');
@@ -58,7 +64,7 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
       // FIX: API expects an `alerts` array of { price, direction }
       const res = await fetch('/api/save-alert', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: await getAuthHeaders(),
         body: JSON.stringify({
           subscription,
           ticker,
@@ -110,7 +116,7 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
         </div>
         <button
           onClick={handleSetAlert}
-          disabled={status === 'loading' || !target}
+          disabled={status === 'loading' || !target || !canSaveAlerts}
           className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-6 py-3 rounded-xl text-sm font-bold transition-all flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 hover:-translate-y-0.5 active:translate-y-0 shrink-0"
         >
           {status === 'loading' ? <Loader2 size={18} className="animate-spin" /> : 'Create Alert'}
@@ -128,6 +134,11 @@ export const SetAlert = ({ ticker, currentPrice }: { ticker: string, currentPric
           {status === 'loading' && <Loader2 size={16} className="animate-spin shrink-0" />}
           <span className="leading-snug">{message}</span>
         </div>
+      )}
+      {!canSaveAlerts && (
+        <p className="mt-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">
+          Sign in with Google or email to save alerts. Guest Mode cannot create them.
+        </p>
       )}
     </div>
   );

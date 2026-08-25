@@ -65,6 +65,9 @@ export default defineConfig({
   ],
   // Keeps hot-reloading working locally on Windows/WSL
   server: {
+    port: 3000,
+    strictPort: true,
+    host: true,
     watch: {
       usePolling: true,
     },

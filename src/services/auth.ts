@@ -125,3 +125,21 @@ export const onAuthChange = (cb: (session: Session | null) => void) => {
   const { data } = supabase.auth.onAuthStateChange((_event, session) => cb(session));
   return () => data.subscription.unsubscribe();
 };
+
+/** Headers for APIs that require a signed-in (non-guest) user. */
+export const getAuthHeaders = async (): Promise<Record<string, string>> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  try {
+    const session = await getSession();
+    if (session?.access_token) {
+      headers.Authorization = `Bearer ${session.access_token}`;
+      return headers;
+    }
+  } catch { /* ignore */ }
+  try {
+    const { getValidToken } = await import('./driveStorage');
+    const token = await getValidToken();
+    if (token) headers.Authorization = `Bearer ${token}`;
+  } catch { /* ignore */ }
+  return headers;
+};

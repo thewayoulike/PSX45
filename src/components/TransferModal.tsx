@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Portfolio, Holding } from '../types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Portfolio, Holding, Broker } from '../types';
 import { X, ArrowRightLeft, AlertCircle } from 'lucide-react';
+import { todayPK } from '../utils/dates';
 
 interface TransferModalProps {
   isOpen: boolean;
@@ -8,42 +9,70 @@ interface TransferModalProps {
   currentPortfolioId: string;
   portfolios: Portfolio[];
   holdings: Holding[];
-  onTransfer: (ticker: string, quantity: number, destPortfolioId: string, date: string) => void;
+  brokers?: Broker[];
+  onTransfer: (ticker: string, quantity: number, destPortfolioId: string, date: string, sourceBroker?: string) => void;
 }
 
+/** Earliest broker in the brokers list that still holds this ticker. */
+export const firstBrokerHolding = (ticker: string, holdings: Holding[], brokers: Broker[] = []): Holding | undefined => {
+  const lots = holdings.filter(h => h.ticker === ticker && h.quantity > 0);
+  if (lots.length === 0) return undefined;
+  const orderedBrokers = [...brokers.filter(b => b.isDefault), ...brokers.filter(b => !b.isDefault)];
+  for (const b of orderedBrokers) {
+    const hit = lots.find(h => h.broker === b.name);
+    if (hit) return hit;
+  }
+  return lots[0];
+};
+
 export const TransferModal: React.FC<TransferModalProps> = ({
-  isOpen, onClose, currentPortfolioId, portfolios, holdings, onTransfer
+  isOpen, onClose, currentPortfolioId, portfolios, holdings, brokers = [], onTransfer
 }) => {
   const [ticker, setTicker] = useState('');
   const [quantity, setQuantity] = useState<number | ''>('');
   const [destPortfolioId, setDestPortfolioId] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(todayPK());
+
+  useEffect(() => {
+    if (isOpen) setDate(todayPK());
+  }, [isOpen]);
+
+  const tickerLots = useMemo(() => {
+    const seen = new Set<string>();
+    const lots: Holding[] = [];
+    holdings.forEach(h => {
+      if (h.quantity <= 0 || seen.has(h.ticker)) return;
+      const lot = firstBrokerHolding(h.ticker, holdings, brokers);
+      if (!lot) return;
+      seen.add(h.ticker);
+      lots.push(lot);
+    });
+    return lots;
+  }, [holdings, brokers]);
 
   if (!isOpen) return null;
 
   const availablePortfolios = portfolios.filter(p => p.id !== currentPortfolioId);
-  const selectedHolding = holdings.find(h => h.ticker === ticker);
+  const selectedHolding = ticker ? firstBrokerHolding(ticker, holdings, brokers) : undefined;
   const maxQty = selectedHolding ? selectedHolding.quantity : 0;
+  const buyCost = selectedHolding ? selectedHolding.avgPrice : 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!ticker || !quantity || !destPortfolioId) return;
+    if (!ticker || !quantity || !destPortfolioId || !selectedHolding) return;
     if (Number(quantity) > maxQty) {
         alert("Insufficient quantity to transfer.");
         return;
     }
-    onTransfer(ticker, Number(quantity), destPortfolioId, date);
+    onTransfer(ticker, Number(quantity), destPortfolioId, date, selectedHolding.broker);
     onClose();
-    // Reset form
     setTicker(''); setQuantity(''); setDestPortfolioId('');
   };
 
   return (
-    // MODAL CONTAINER: Top Aligned with glassmorphism
     <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[60] flex items-start justify-center p-4 pt-20 md:pt-24 transition-opacity">
       <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-md overflow-hidden animate-in zoom-in-95 fade-in duration-200">
         
-        {/* Premium Header */}
         <div className="p-6 border-b border-slate-100 dark:border-slate-800/60 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20 shrink-0">
           <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center border border-blue-100 dark:border-blue-500/20 shadow-sm">
@@ -64,7 +93,7 @@ export const TransferModal: React.FC<TransferModalProps> = ({
           <div className="bg-blue-50/80 dark:bg-blue-500/10 p-4 rounded-2xl border border-blue-200/60 dark:border-blue-500/20 flex gap-3 shadow-sm">
              <AlertCircle className="text-blue-500 dark:text-blue-400 shrink-0 mt-0.5" size={18} />
              <p className="text-xs text-blue-800 dark:text-blue-300 leading-relaxed font-medium">
-                Transferring moves the stock at its <strong>current average cost</strong>. It does not trigger realized gains in the source portfolio.
+                Transfer uses the <strong>buy cost of the first broker</strong> that still holds the stock. Other brokers&apos; lots are left in place. No realized gain is booked.
              </p>
           </div>
 
@@ -74,18 +103,26 @@ export const TransferModal: React.FC<TransferModalProps> = ({
                 <select 
                     required 
                     value={ticker} 
-                    onChange={(e) => setTicker(e.target.value)} 
+                    onChange={(e) => { setTicker(e.target.value); setQuantity(''); }} 
                     className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-bold text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-sm appearance-none cursor-pointer transition-all"
                 >
                     <option value="">Select Asset</option>
-                    {holdings.map(h => (
-                        <option key={h.ticker} value={h.ticker}>{h.ticker} (Avail: {h.quantity})</option>
+                    {tickerLots.map(h => (
+                        <option key={`${h.ticker}|${h.broker || ''}`} value={h.ticker}>
+                          {h.ticker}{h.broker ? ` · ${h.broker}` : ''} (Avail: {h.quantity})
+                        </option>
                     ))}
                 </select>
                 <div className="absolute right-4 top-4 text-slate-400 pointer-events-none">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                 </div>
             </div>
+            {selectedHolding && (
+              <p className="mt-1.5 ml-1 text-[11px] font-semibold text-slate-500 dark:text-slate-400">
+                Buy cost: Rs. {buyCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {selectedHolding.broker ? ` at ${selectedHolding.broker}` : ''}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-4">

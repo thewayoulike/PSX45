@@ -28,7 +28,7 @@ import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
 import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
-import { TransferModal } from './TransferModal';
+import { TransferModal, firstBrokerHolding } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
@@ -574,13 +574,17 @@ const App: React.FC = () => {
       setTransactions(prev => [...prev, newTx]);
   };
 
-  const handleTransferStock = (ticker: string, quantity: number, destPortfolioId: string, date: string) => {
+  const handleTransferStock = (ticker: string, quantity: number, destPortfolioId: string, date: string, sourceBroker?: string) => {
       const sourcePortfolio = portfolios.find(p => p.id === currentPortfolioId);
       const destPortfolio = portfolios.find(p => p.id === destPortfolioId);
-      const holding = holdings.find(h => h.ticker === ticker);
+      const holding = (sourceBroker
+          ? holdings.find(h => h.ticker === ticker && h.broker === sourceBroker)
+          : undefined) || firstBrokerHolding(ticker, holdings, brokers);
 
       if (!sourcePortfolio || !destPortfolio || !holding) return;
       const transferPrice = holding.avgPrice;
+      const sourceBrokerName = holding.broker || (sourcePortfolio.defaultBrokerId ? brokers.find(b => b.id === sourcePortfolio.defaultBrokerId)?.name : 'Transfer');
+      const sourceBrokerId = brokers.find(b => b.name === sourceBrokerName)?.id || sourcePortfolio.defaultBrokerId;
       const transferId = Date.now().toString();
       const transferOut: Transaction = {
           id: `tx-out-${transferId}`,
@@ -591,8 +595,8 @@ const App: React.FC = () => {
           quantity,
           price: transferPrice,
           date,
-          broker: sourcePortfolio.defaultBrokerId ? (brokers.find(b => b.id === sourcePortfolio.defaultBrokerId)?.name) : 'Transfer',
-          brokerId: sourcePortfolio.defaultBrokerId,
+          broker: sourceBrokerName,
+          brokerId: sourceBrokerId,
           commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
           notes: `Transfer to ${destPortfolio.name}`
       };
@@ -1616,6 +1620,7 @@ const App: React.FC = () => {
                                   onRemove={handleRemoveFromWatchlist}
                                   onSelectTicker={(t) => setViewTicker(t)}
                                   seedPrices={manualPrices}
+                                  canSaveAlerts={!!driveUser || !!sbUser}
                               />
                           </div>
                       )}
@@ -1654,6 +1659,7 @@ const App: React.FC = () => {
                               <AlertsPage
                                   holdings={holdings}
                                   currentPrices={manualPrices}
+                                  canSaveAlerts={!!driveUser || !!sbUser}
                               />
                           </div>
                       )}
@@ -1762,6 +1768,7 @@ const App: React.FC = () => {
           currentPortfolioId={currentPortfolioId}
           portfolios={portfolios}
           holdings={holdings}
+          brokers={brokers}
           onTransfer={handleTransferStock}
       />
       {viewTicker && (
@@ -1774,6 +1781,7 @@ const App: React.FC = () => {
               realizedTrades={realizedTrades.filter(t => t.ticker === viewTicker)}
               listedInMap={listedInMap}
               onClose={() => setViewTicker(null)}
+              canSaveAlerts={!!driveUser || !!sbUser}
           />
       )}
     </div>
