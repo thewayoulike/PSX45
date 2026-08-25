@@ -25,7 +25,8 @@ interface HoldingsTableProps {
   showBroker?: boolean;
   failedTickers?: Set<string>;
   ldcpMap?: Record<string, number>;
-  listedInMap?: Record<string, string>; 
+  listedInMap?: Record<string, string>;
+  displayNames?: Record<string, string>;
   onTickerClick?: (ticker: string) => void;
 }
 
@@ -39,7 +40,7 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, onTickerClick }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'ticker', direction: 'asc' });
   const [itemsPerPage, setItemsPerPage] = useState<number>(25);
@@ -243,9 +244,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             
                             {/* Ticker Name */}
                             <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5"> 
-                              {holding.ticker} 
+                              {displayNames[holding.ticker] || holding.ticker} 
                               {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" title="Price update failed" />} 
                             </div> 
+                            {displayNames[holding.ticker] && (
+                              <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[220px]">{holding.ticker.replace(/^MF:/, '')}</div>
+                            )}
                             
                             {/* Sector */}
                             <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[200px] mt-0.5">

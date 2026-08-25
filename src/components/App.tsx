@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Broker, FoundDividend, EditableTrade } from '../types';
+import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
 import { AllocationChart } from './AllocationChart';
@@ -37,6 +37,8 @@ import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
+import { fetchMufapNavCatalog, loadCachedFundCatalog, MutualFundRecord, FUND_CATALOG_STORAGE_KEY } from '../services/mufapData';
+import { isFundTicker } from '../utils/fundId';
 import { setGeminiApiKey } from '../services/gemini';
 import {
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
@@ -91,7 +93,12 @@ const DEFAULT_BROKER: Broker = {
   sstRate: 15,
   isDefault: true
 };
-const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01' };
+const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01', type: 'PSX' };
+
+const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
+  (list || []).map(p => ({ ...p, type: p.type || 'PSX' }));
+
+const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
 type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
 
@@ -201,7 +208,7 @@ const App: React.FC = () => {
       if (startEmpty) return [DEFAULT_PORTFOLIO];
       try {
           const saved = localStorage.getItem('psx_portfolios');
-          if (saved) return JSON.parse(saved);
+          if (saved) return normalizePortfolios(JSON.parse(saved));
       } catch (e) {}
       return [DEFAULT_PORTFOLIO];
   });
@@ -251,6 +258,8 @@ const App: React.FC = () => {
   const [editingPortfolioId, setEditingPortfolioId] = useState<string | null>(null);
   const [portfolioNameInput, setPortfolioNameInput] = useState('');
   const [portfolioBrokerIdInput, setPortfolioBrokerIdInput] = useState('');
+  const [portfolioTypeInput, setPortfolioTypeInput] = useState<PortfolioType>('PSX');
+  const [fundCatalog, setFundCatalog] = useState<Record<string, MutualFundRecord>>(() => loadCachedFundCatalog());
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
@@ -347,6 +356,7 @@ const App: React.FC = () => {
 
   const isReadyToSave = useRef(false);
   const initialSyncDone = useRef(false);
+  const initialFundSyncDone = useRef(false);
   const loadedEmailRef = useRef<string | null>(null); // which Google account's data is currently loaded
   // When the user explicitly picks Guest Mode we must ignore any Google session
   // that silently restores afterwards, otherwise it would auto-log them back in.
@@ -372,6 +382,7 @@ const App: React.FC = () => {
       skipPersistRef.current = true;
       isReadyToSave.current = false;
       initialSyncDone.current = false;
+      initialFundSyncDone.current = false;
       loadedEmailRef.current = null;
       setTransactions([]);
       setPortfolios([DEFAULT_PORTFOLIO]);
@@ -557,6 +568,7 @@ const App: React.FC = () => {
           if (loadedEmailRef.current && loadedEmailRef.current !== user.email) {
               isReadyToSave.current = false;
               initialSyncDone.current = false;
+              initialFundSyncDone.current = false;
               setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setCurrentPortfolioId(DEFAULT_PORTFOLIO.id);
               setHoldings([]); setRealizedTrades([]);
               setManualPrices({}); setLdcpMap({}); setListedInMap({}); setPriceTimestamps({});
@@ -575,7 +587,7 @@ const App: React.FC = () => {
           try {
               const cloudData = await loadFromDrive();
               if (cloudData) {
-                  if (cloudData.portfolios) setPortfolios(cloudData.portfolios);
+                  if (cloudData.portfolios) setPortfolios(normalizePortfolios(cloudData.portfolios));
                   if (cloudData.transactions) {
                       const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
                       setTransactions(cleanTx);
@@ -589,7 +601,10 @@ const App: React.FC = () => {
                   if (cloudData.scannerState) setScannerState(cloudData.scannerState);
                   if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
                   if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
-                  if (cloudData.dashboardLayout) setDashboardLayout(normalizeLayout(cloudData.dashboardLayout));
+                  if (cloudData.fundCatalog) {
+                      setFundCatalog(cloudData.fundCatalog);
+                      try { localStorage.setItem(FUND_CATALOG_STORAGE_KEY, JSON.stringify(cloudData.fundCatalog)); } catch { /* ignore */ }
+                  }
 
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
                       setBrokers(cloudData.brokers);
@@ -718,22 +733,45 @@ const App: React.FC = () => {
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
   const handleUpdateTradeScanResults = (results: EditableTrade[]) => { setTradeScanResults(results); };
-  const openCreatePortfolioModal = () => { setEditingPortfolioId(null); setPortfolioNameInput(''); setPortfolioBrokerIdInput(''); setIsPortfolioModalOpen(true); };
-  const openEditPortfolioModal = () => { const current = portfolios.find(p => p.id === currentPortfolioId); if (current) { setEditingPortfolioId(current.id); setPortfolioNameInput(current.name); setPortfolioBrokerIdInput(current.defaultBrokerId); setIsPortfolioModalOpen(true); } };
+  const openCreatePortfolioModal = () => {
+      setEditingPortfolioId(null);
+      setPortfolioNameInput('');
+      setPortfolioBrokerIdInput('');
+      setPortfolioTypeInput('PSX');
+      setIsPortfolioModalOpen(true);
+  };
+  const openEditPortfolioModal = () => {
+      const current = portfolios.find(p => p.id === currentPortfolioId);
+      if (current) {
+          setEditingPortfolioId(current.id);
+          setPortfolioNameInput(current.name);
+          setPortfolioBrokerIdInput(current.defaultBrokerId);
+          setPortfolioTypeInput(getPortfolioType(current));
+          setIsPortfolioModalOpen(true);
+      }
+  };
 
   const handleSavePortfolio = (e: React.FormEvent) => {
       e.preventDefault();
       if (!portfolioNameInput.trim()) { alert("Portfolio Name is required"); return; }
       if (!portfolioBrokerIdInput) { alert("A Default Broker is required for every portfolio."); return; }
       if (editingPortfolioId) {
-          setPortfolios(prev => prev.map(p => p.id === editingPortfolioId ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput } : p));
+          setPortfolios(prev => prev.map(p => p.id === editingPortfolioId
+              ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput, type: portfolioTypeInput }
+              : p));
       } else {
           const newId = Date.now().toString();
-          setPortfolios(prev => [...prev, { id: newId, name: portfolioNameInput.trim(), defaultBrokerId: portfolioBrokerIdInput }]);
+          setPortfolios(prev => [...prev, {
+              id: newId,
+              name: portfolioNameInput.trim(),
+              defaultBrokerId: portfolioBrokerIdInput,
+              type: portfolioTypeInput,
+          }]);
           setCurrentPortfolioId(newId);
       }
       setPortfolioNameInput('');
       setPortfolioBrokerIdInput('');
+      setPortfolioTypeInput('PSX');
       setEditingPortfolioId(null);
       setIsPortfolioModalOpen(false);
   };
@@ -825,8 +863,57 @@ const App: React.FC = () => {
       }
   }, [holdings]);
 
+  const handleSyncFundNav = useCallback(async () => {
+      setIsSyncing(true);
+      setPriceError(false);
+      setFailedTickers(new Set());
+
+      try {
+          const { catalog } = await fetchMufapNavCatalog();
+          setFundCatalog(catalog);
+
+          const navUpdates: Record<string, number> = {};
+          const sectorUpdates: Record<string, string> = {};
+          const now = new Date().toISOString();
+          const timestampUpdates: Record<string, string> = {};
+
+          Object.values(catalog).forEach(f => {
+              navUpdates[f.id] = f.nav;
+              sectorUpdates[f.id] = f.category;
+              timestampUpdates[f.id] = now;
+          });
+
+          setManualPrices(prev => {
+              const ldcpUpdates: Record<string, number> = {};
+              Object.keys(navUpdates).forEach(id => {
+                  if (prev[id] > 0 && prev[id] !== navUpdates[id]) ldcpUpdates[id] = prev[id];
+              });
+              if (Object.keys(ldcpUpdates).length > 0) {
+                  setLdcpMap(p => ({ ...p, ...ldcpUpdates }));
+              }
+              return { ...prev, ...navUpdates };
+          });
+          setSectorOverrides(prev => ({ ...prev, ...sectorUpdates }));
+          setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates }));
+
+          const heldFundIds = holdings.filter(h => isFundTicker(h.ticker)).map(h => h.ticker);
+          const failed = [...new Set(heldFundIds)].filter(id => !(navUpdates[id] > 0));
+          if (failed.length > 0) {
+              setFailedTickers(new Set(failed));
+              setPriceError(true);
+          }
+      } catch (e) {
+          console.error(e);
+          setPriceError(true);
+      } finally {
+          setIsSyncing(false);
+      }
+  }, [holdings]);
+
   useEffect(() => {
       if (!driveUser || holdings.length === 0) return;
+      const psxHoldings = holdings.filter(h => !isFundTicker(h.ticker));
+      if (psxHoldings.length === 0) return;
       if (!initialSyncDone.current) {
           handleSyncPrices();
           initialSyncDone.current = true;
@@ -835,7 +922,21 @@ const App: React.FC = () => {
           handleSyncPrices();
       }, 5 * 60 * 1000);
       return () => clearInterval(interval);
-  }, [driveUser, holdings.length]);
+  }, [driveUser, holdings.length, handleSyncPrices]);
+
+  useEffect(() => {
+      const hasFundHoldings = holdings.some(h => isFundTicker(h.ticker));
+      const hasFundPortfolio = portfolios.some(p => getPortfolioType(p) === 'MUTUAL_FUND');
+      if (!hasFundHoldings && !hasFundPortfolio) return;
+      if (!initialFundSyncDone.current) {
+          handleSyncFundNav();
+          initialFundSyncDone.current = true;
+      }
+      const interval = setInterval(() => {
+          handleSyncFundNav();
+      }, 6 * 60 * 60 * 1000);
+      return () => clearInterval(interval);
+  }, [holdings.length, portfolios.length, handleSyncFundNav]);
 
   useEffect(() => {
       if (brokers.length === 0) return;
@@ -1064,6 +1165,7 @@ const App: React.FC = () => {
           localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps));
           localStorage.setItem('psx_brokers', JSON.stringify(brokers));
           localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
+          localStorage.setItem('psx_fund_catalog', JSON.stringify(fundCatalog));
           localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState));
           localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
           localStorage.setItem('psx_performance_history', JSON.stringify(performanceHistory));
@@ -1088,6 +1190,7 @@ const App: React.FC = () => {
                   fairValueCache,
                   watchlist,
                   dashboardLayout,
+                  fundCatalog,
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
                   webScrapingAIKey: userWebScrapingAIKey
@@ -1100,7 +1203,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayout, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayout, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -1234,7 +1337,9 @@ const App: React.FC = () => {
               const totalTax = lots.reduce((acc, l) => acc + (l.quantity * l.taxPerShare), 0);
               const totalCDC = lots.reduce((acc, l) => acc + (l.quantity * l.cdcPerShare), 0);
               const totalOther = lots.reduce((acc, l) => acc + (l.quantity * l.otherPerShare), 0);
-              const sector = sectorOverrides[ticker] || getSector(ticker);
+              const sector = isFundTicker(ticker)
+                  ? (fundCatalog[ticker]?.category || sectorOverrides[ticker] || 'Mutual Fund')
+                  : (sectorOverrides[ticker] || getSector(ticker));
               const avgPrice = totalCost / totalQty;
               tempHoldings[key] = {
                   ticker,
@@ -1257,9 +1362,10 @@ const App: React.FC = () => {
       });
       setHoldings(finalHoldings);
       setRealizedTrades(tempRealized);
-  }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides]);
+  }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides, fundCatalog]);
 
   const handleTickerClick = (ticker: string) => {
+      if (isFundTicker(ticker)) return;
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
       setCurrentView('STOCKS');
@@ -1291,6 +1397,12 @@ const App: React.FC = () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const fundDisplayNames = useMemo(() => {
+      const map: Record<string, string> = {};
+      Object.values(fundCatalog).forEach(f => { map[f.id] = f.fundName; });
+      return map;
+  }, [fundCatalog]);
+
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
           setShowBrokerManager(true);
@@ -1318,6 +1430,8 @@ const App: React.FC = () => {
   }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
+  const isFundPortfolio = getPortfolioType(currentPortfolio) === 'MUTUAL_FUND';
+  const handleSyncMarket = isFundPortfolio ? handleSyncFundNav : handleSyncPrices;
   const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
 
   // Owner-only admin gate. Matches the signed-in email (Google Drive or Supabase)
@@ -1340,7 +1454,7 @@ const App: React.FC = () => {
                       stats={stats}
                       lastUpdated={lastPriceUpdate}
                       userName={driveUser?.name?.split(' ')[0]}
-                      onRefresh={handleSyncPrices}
+                      onRefresh={handleSyncMarket}
                       onCustomize={() => setCurrentView('DASH_CUSTOMIZE')}
                       trend={trendLine}
                       holdings={holdings}
@@ -1453,7 +1567,11 @@ const App: React.FC = () => {
                                   onChange={(e) => setCurrentPortfolioId(e.target.value)}
                                   className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1.5 pl-2 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
                               >
-                                  {portfolios.map(p => <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">{p.name}</option>)}
+                                  {portfolios.map(p => (
+                                      <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                                          {p.name}{getPortfolioType(p) === 'MUTUAL_FUND' ? ' · Funds' : ''}
+                                      </option>
+                                  ))}
                               </select>
                               <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
                           </div>
@@ -1500,7 +1618,7 @@ const App: React.FC = () => {
                       )}
 
                       <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-4 mb-6 flex flex-col gap-3 bg-slate-50/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-all">
-                          <IndexBar />
+                          {!isFundPortfolio && <IndexBar />}
                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
                           <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
                               <div className="flex items-center justify-between min-w-max gap-6">
@@ -1517,6 +1635,8 @@ const App: React.FC = () => {
                                       >
                                           <ArrowRightLeft size={16} /> Transfer
                                       </button>
+                                      {!isFundPortfolio && (
+                                      <>
                                       <button
                                           onClick={() => setShowDividendScanner(true)}
                                           className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
@@ -1529,6 +1649,8 @@ const App: React.FC = () => {
                                       >
                                           <CalendarClock size={16} /> Future X-Dates
                                       </button>
+                                      </>
+                                      )}
                                   </div>
 
                                   <div className="flex items-center gap-4">
@@ -1555,7 +1677,7 @@ const App: React.FC = () => {
                                                               <button onClick={handleSelectAllPortfolios} className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold hover:underline tracking-widest">Select All</button>
                                                           </div>
                                                           <div className="max-h-60 overflow-y-auto custom-scrollbar space-y-1">
-                                                              {portfolios.map(p => {
+                                                              {portfolios.filter(p => !currentPortfolio || getPortfolioType(p) === getPortfolioType(currentPortfolio)).map(p => {
                                                                   const isSelected = combinedPortfolioIds.has(p.id);
                                                                   return (
                                                                       <div
@@ -1584,6 +1706,12 @@ const App: React.FC = () => {
                                                   onClick={() => {
                                                       const newState = !isCombinedView;
                                                       setIsCombinedView(newState);
+                                                      if (newState && currentPortfolio) {
+                                                          const t = getPortfolioType(currentPortfolio);
+                                                          setCombinedPortfolioIds(new Set(
+                                                              portfolios.filter(p => getPortfolioType(p) === t).map(p => p.id)
+                                                          ));
+                                                      }
                                                   }}
                                                   className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}
                                               >
@@ -1603,11 +1731,11 @@ const App: React.FC = () => {
                                               </button>
                                              <div className="flex items-center gap-2 shrink-0">
                                                   <button
-                                                      onClick={handleSyncPrices}
+                                                      onClick={handleSyncMarket}
                                                       disabled={isSyncing}
                                                       className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm"
                                                   >
-                                                      {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} <span>Sync PSX</span>
+                                                      {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} <span>{isFundPortfolio ? 'Sync NAV' : 'Sync PSX'}</span>
                                                   </button>
                                                   {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
                                               </div>
@@ -1647,6 +1775,7 @@ const App: React.FC = () => {
                                   failedTickers={failedTickers}
                                   ldcpMap={ldcpMap}
                                   listedInMap={listedInMap}
+                                  displayNames={fundDisplayNames}
                                   onTickerClick={handleTickerClick}
                               />
                           </div>
@@ -1771,7 +1900,34 @@ const App: React.FC = () => {
                       <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Portfolio Name <span className="text-rose-500">*</span></label>
                       <input type="text" autoFocus placeholder="e.g. My Savings" value={portfolioNameInput} onChange={(e) => setPortfolioNameInput(e.target.value)} className="w-full glass-input rounded-xl px-4 py-3.5 text-sm mb-5 transition-all shadow-sm" />
 
-                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Default Broker <span className="text-rose-500">*</span></label>
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Portfolio Type</label>
+                      <div className="grid grid-cols-2 gap-2 mb-5">
+                          <button
+                              type="button"
+                              disabled={!!editingPortfolioId}
+                              onClick={() => setPortfolioTypeInput('PSX')}
+                              className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all ${portfolioTypeInput === 'PSX' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'} ${editingPortfolioId ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          >
+                              PSX / Stocks
+                          </button>
+                          <button
+                              type="button"
+                              disabled={!!editingPortfolioId}
+                              onClick={() => setPortfolioTypeInput('MUTUAL_FUND')}
+                              className={`py-3 px-3 rounded-xl text-xs font-bold border transition-all ${portfolioTypeInput === 'MUTUAL_FUND' ? 'bg-violet-600 text-white border-violet-600 shadow-md' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'} ${editingPortfolioId ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          >
+                              Mutual Funds
+                          </button>
+                      </div>
+                      {portfolioTypeInput === 'MUTUAL_FUND' && (
+                          <p className="text-[11px] text-violet-600 dark:text-violet-400 mb-4 -mt-2 leading-snug">
+                              NAV syncs automatically from MUFAP (daily). Add subscribe/redeem transactions with live offer &amp; repurchase prices.
+                          </p>
+                      )}
+
+                      <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">
+                          {portfolioTypeInput === 'MUTUAL_FUND' ? 'Default Bank / Account' : 'Default Broker'} <span className="text-rose-500">*</span>
+                      </label>
                       <div className="relative mb-8">
                           <select
                               required
@@ -1820,6 +1976,9 @@ const App: React.FC = () => {
           brokers={brokers}
           onManageBrokers={() => setShowBrokerManager(true)}
           portfolioDefaultBrokerId={currentPortfolio?.defaultBrokerId}
+          portfolioType={getPortfolioType(currentPortfolio)}
+          fundCatalog={fundCatalog}
+          onRefreshFundCatalog={handleSyncFundNav}
           freeCash={stats.freeCash}
           savedScannedTrades={tradeScanResults}
           onSaveScannedTrades={handleUpdateTradeScanResults}

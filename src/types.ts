@@ -94,10 +94,14 @@ export interface PortfolioStats {
   mwrr: number;
 }
 
+export type PortfolioType = 'PSX' | 'MUTUAL_FUND';
+
 export interface Portfolio {
   id: string;
   name: string;
   defaultBrokerId: string;
+  /** PSX stocks (default) or Pakistani mutual funds */
+  type?: PortfolioType;
 }
 
 export type AppView = 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR' | 'BROKERS' | 'API_KEYS' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';

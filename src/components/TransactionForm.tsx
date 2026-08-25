@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Transaction, Broker, ParsedTrade, EditableTrade } from '../types';
+import { Transaction, Broker, ParsedTrade, EditableTrade, PortfolioType } from '../types';
 import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
 import { parseTradeDocument } from '../services/gemini';
 import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
 import { exportToCSV } from '../utils/export';
 import { todayPK, toDatePK } from '../utils/dates';
+import { FundPicker } from './FundPicker';
+import { MutualFundRecord } from '../services/mufapData';
+import { isFundTicker } from '../utils/fundId';
 import * as XLSX from 'xlsx';
 
 interface TransactionFormProps {
@@ -18,6 +21,9 @@ interface TransactionFormProps {
   editingTransaction?: Transaction | null;
   brokers?: Broker[]; 
   portfolioDefaultBrokerId?: string;
+  portfolioType?: PortfolioType;
+  fundCatalog?: Record<string, MutualFundRecord>;
+  onRefreshFundCatalog?: () => void;
   freeCash?: number;
   savedScannedTrades?: EditableTrade[];
   onSaveScannedTrades?: (trades: EditableTrade[]) => void;
@@ -49,10 +55,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   editingTransaction,
   brokers = [],
   portfolioDefaultBrokerId,
+  portfolioType = 'PSX',
+  fundCatalog = {},
+  onRefreshFundCatalog,
   freeCash,
   savedScannedTrades = [],
   onSaveScannedTrades
 }) => {
+  const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
   
@@ -67,6 +77,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
   const [notes, setNotes] = useState('');
+  const [selectedFund, setSelectedFund] = useState<MutualFundRecord | null>(null);
+  const [fundNavLoading, setFundNavLoading] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -183,16 +195,24 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         
         if (editingTransaction) {
             setMode('MANUAL'); setType(editingTransaction.type); setDate(editingTransaction.date); setTicker(editingTransaction.ticker); setQuantity(editingTransaction.quantity); setPrice(editingTransaction.price); setCommission(editingTransaction.commission); setTax(editingTransaction.tax || 0); setCdcCharges(editingTransaction.cdcCharges || 0); setOtherFees(editingTransaction.otherFees || 0); setNotes(editingTransaction.notes || ''); setIsAutoCalc(false); if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
+            setSelectedFund(isFundTicker(editingTransaction.ticker) ? (fundCatalog[editingTransaction.ticker] || null) : null);
             if (editingTransaction.type === 'TAX') { setPrice(editingTransaction.price); setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'HISTORY') { setHistAmount(editingTransaction.price); setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX'); }
             if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'DIVIDEND_REINVEST'].includes(editingTransaction.type)) { setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'OTHER') { setCategory(editingTransaction.category || 'ADJUSTMENT'); setHistAmount(editingTransaction.price); }
         } else {
-            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(true); setDate(todayPK()); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
+            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); setSelectedFund(null); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(!isFundPortfolio); setDate(todayPK()); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
-  }, [isOpen, editingTransaction, portfolioDefaultBrokerId]); 
+  }, [isOpen, editingTransaction, portfolioDefaultBrokerId, fundCatalog, isFundPortfolio]); 
+
+  useEffect(() => {
+    if (!isFundPortfolio || !selectedFund) return;
+    if (type === 'BUY') setPrice(selectedFund.offer || selectedFund.nav);
+    else if (type === 'SELL') setPrice(selectedFund.repurchase || selectedFund.nav);
+    else if (type === 'DIVIDEND') setPrice(selectedFund.nav);
+  }, [isFundPortfolio, selectedFund, type]);
 
   useEffect(() => {
      if (mode === 'EMAIL_IMPORT') {
@@ -206,7 +226,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   useEffect(() => { setSelectedScanIndices(new Set()); }, [savedScannedTrades, mode]);
 
   useEffect(() => {
-    if (isAutoCalc && mode === 'MANUAL') {
+    if (isAutoCalc && mode === 'MANUAL' && !isFundPortfolio) {
         if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
         else if (type === 'HISTORY' && typeof histAmount === 'number') { setQuantity(1); setTicker('PREV-PNL'); if (histTaxType === 'BEFORE_TAX') { if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0); } else setTax(0); setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0); }
         else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE' || type === 'DIVIDEND_REINVEST') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : type === 'DIVIDEND_REINVEST' ? 'DIV REINVEST' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
@@ -224,11 +244,85 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     }
   }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, histAmount, histTaxType, category]);
 
-  const getHoldingQty = (ticker: string, brokerId: string) => { let qty = 0; const cleanTicker = ticker.toUpperCase(); const brokerObj = brokers.find(b => b.id === brokerId); const brokerName = brokerObj?.name; existingTransactions.forEach(t => { const isSameBroker = t.brokerId === brokerId || (t.broker && brokerName && t.broker === brokerName); if (t.ticker === cleanTicker && isSameBroker) { if (t.type === 'BUY') qty += t.quantity; if (t.type === 'SELL') qty -= t.quantity; } }); return Math.max(0, qty); };
+  const getHoldingQty = (ticker: string, brokerId: string) => {
+      let qty = 0;
+      if (isFundTicker(ticker)) {
+          existingTransactions.forEach(t => {
+              if (t.ticker === ticker) {
+                  if (t.type === 'BUY' || t.type === 'TRANSFER_IN') qty += t.quantity;
+                  if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') qty -= t.quantity;
+              }
+          });
+          return Math.max(0, qty);
+      }
+      const cleanTicker = ticker.toUpperCase();
+      const brokerObj = brokers.find(b => b.id === brokerId);
+      const brokerName = brokerObj?.name;
+      existingTransactions.forEach(t => {
+          const isSameBroker = t.brokerId === brokerId || (t.broker && brokerName && t.broker === brokerName);
+          if (t.ticker === cleanTicker && isSameBroker) {
+              if (t.type === 'BUY') qty += t.quantity;
+              if (t.type === 'SELL') qty -= t.quantity;
+          }
+      });
+      return Math.max(0, qty);
+  };
   
   const handleDownloadTemplate = () => { const templateData = [ { Date: todayPK(), Type: 'BUY', Ticker: 'OGDC', Broker: brokers.length > 0 ? brokers[0].name : 'My Broker', Quantity: 500, Price: 120.50, Commission: 150, Tax: 20, 'CDC Charges': 5, 'Other Fees': 0, Notes: 'Sample Entry (Delete this row)' } ]; exportToCSV(templateData, 'PSX_Tracker_Import_Template'); };
   
-  const handleManualSubmit = (e: React.FormEvent) => { e.preventDefault(); setFormError(null); const cleanTicker = ticker.toUpperCase(); let brokerName = undefined; const b = brokers.find(b => b.id === selectedBrokerId); if (b) brokerName = b.name; const qtyNum = Number(quantity); if (type === 'SELL') { const heldQty = getHoldingQty(cleanTicker, selectedBrokerId); let adjustedQty = heldQty; if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) { adjustedQty += editingTransaction.quantity; } else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) { adjustedQty -= editingTransaction.quantity; } if (qtyNum > adjustedQty) { setFormError(`Insufficient holdings! You only have ${adjustedQty} shares of ${cleanTicker} at ${brokerName || 'this broker'}. If this is a same-day trade, add the BUY first, then record the SELL.`); return; } } if (type === 'BUY' && !editingTransaction && freeCash !== undefined) { const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees); if (totalCost > freeCash) { setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`); return; } } const txData: any = { ticker: cleanTicker, type, quantity: qtyNum, price: Number(price), date, broker: brokerName, brokerId: selectedBrokerId, commission: Number(commission) || 0, tax: Number(tax) || 0, cdcCharges: Number(cdcCharges) || 0, otherFees: Number(otherFees) || 0, category: type === 'OTHER' ? category : undefined, notes: notes.trim() || undefined }; if (type === 'OTHER') { txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE'; } if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData }); else onAddTransaction(txData); onClose(); };
+  const handleManualSubmit = (e: React.FormEvent) => {
+      e.preventDefault();
+      setFormError(null);
+      const cleanTicker = isFundPortfolio ? ticker : ticker.toUpperCase();
+      if (isFundPortfolio && (type === 'BUY' || type === 'SELL' || type === 'DIVIDEND') && !cleanTicker) {
+          setFormError('Please select a mutual fund.');
+          return;
+      }
+      let brokerName = undefined;
+      const b = brokers.find(b => b.id === selectedBrokerId);
+      if (b) brokerName = b.name;
+      if (isFundPortfolio && selectedFund) brokerName = selectedFund.amc;
+      const qtyNum = Number(quantity);
+      const unitLabel = isFundPortfolio ? 'units' : 'shares';
+      if (type === 'SELL') {
+          const heldQty = getHoldingQty(cleanTicker, selectedBrokerId);
+          let adjustedQty = heldQty;
+          if (editingTransaction && editingTransaction.type === 'SELL' && editingTransaction.ticker === cleanTicker) adjustedQty += editingTransaction.quantity;
+          else if (editingTransaction && editingTransaction.type === 'BUY' && editingTransaction.ticker === cleanTicker) adjustedQty -= editingTransaction.quantity;
+          if (qtyNum > adjustedQty) {
+              setFormError(`Insufficient holdings! You only have ${adjustedQty} ${unitLabel} of ${selectedFund?.fundName || cleanTicker}.`);
+              return;
+          }
+      }
+      if (type === 'BUY' && !editingTransaction && freeCash !== undefined) {
+          const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
+          if (totalCost > freeCash) {
+              setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`);
+              return;
+          }
+      }
+      const txData: any = {
+          ticker: cleanTicker,
+          type,
+          quantity: qtyNum,
+          price: Number(price),
+          date,
+          broker: brokerName,
+          brokerId: selectedBrokerId,
+          commission: Number(commission) || 0,
+          tax: Number(tax) || 0,
+          cdcCharges: isFundPortfolio ? 0 : (Number(cdcCharges) || 0),
+          otherFees: Number(otherFees) || 0,
+          category: type === 'OTHER' ? category : undefined,
+          notes: notes.trim() || undefined,
+      };
+      if (type === 'OTHER') {
+          txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE';
+      }
+      if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData });
+      else onAddTransaction(txData);
+      onClose();
+  };
   
   // FIXED: ADDED handleFileSelect FUNCTION BACK
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { 
@@ -428,28 +522,60 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       <>
           <div className="grid grid-cols-2 gap-4"> 
               <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> 
-              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Ticker</label><input required type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-display font-black uppercase dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm" placeholder="e.g. OGDC"/></div> 
+              {isFundPortfolio ? (
+                  <div className="col-span-1">
+                      {Object.keys(fundCatalog).length === 0 && onRefreshFundCatalog && (
+                          <button
+                              type="button"
+                              disabled={fundNavLoading}
+                              onClick={async () => { setFundNavLoading(true); try { await onRefreshFundCatalog(); } finally { setFundNavLoading(false); } }}
+                              className="mb-2 text-[10px] font-bold text-violet-600 dark:text-violet-400 flex items-center gap-1 hover:underline"
+                          >
+                              {fundNavLoading ? <Loader2 size={12} className="animate-spin" /> : <RefreshCcw size={12} />} Load funds from MUFAP
+                          </button>
+                      )}
+                      <FundPicker
+                          catalog={fundCatalog}
+                          value={ticker}
+                          onChange={(id, fund) => { setTicker(id); setSelectedFund(fund); }}
+                      />
+                  </div>
+              ) : (
+                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Ticker</label><input required type="text" value={ticker} onChange={e=>setTicker(e.target.value.toUpperCase())} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-display font-black uppercase dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm" placeholder="e.g. OGDC"/></div>
+              )}
           </div>
           <div className="mb-1"> 
               <div className="flex justify-between items-center mb-1.5 ml-1"> <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest">Broker</label> {type === 'BUY' && !editingTransaction && freeCash !== undefined && ( <span className={`text-[10px] font-bold tabular-nums ${freeCash >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> Buying Power: Rs. {freeCash.toLocaleString()} </span> )} </div> 
               <div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={16} /></div> 
           </div>
           <div className="grid grid-cols-2 gap-4"> 
-              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? 'Eligible Shares' : 'Quantity'}</label><input required type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0"/></div> 
-              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : 'Price'}</label><input required type="number" step="any" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0.00"/></div> 
+              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? (isFundPortfolio ? 'Eligible Units' : 'Eligible Shares') : (isFundPortfolio ? 'Units' : 'Quantity')}</label><input required type="number" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0"/></div> 
+              <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? 'Dividend Amount (DPS)' : (isFundPortfolio ? (type === 'BUY' ? 'Offer Price (NAV)' : type === 'SELL' ? 'Repurchase Price (NAV)' : 'NAV') : 'Price')}</label><input required type="number" step="any" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0.00"/></div> 
           </div>
           <div className="pt-2">
-              <div className="flex items-center justify-between mb-2 ml-1"><label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">Fees & Taxes</label><button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 transition-all shadow-sm ${isAutoCalc ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}> {!isAutoCalc && <AlertTriangle size={12} />} {isAutoCalc ? 'Auto-Calc On' : 'Manual Mode'} </button></div>
-              <div className="grid grid-cols-2 gap-3 bg-slate-50/80 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm">
+              <div className="flex items-center justify-between mb-2 ml-1"><label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest">{isFundPortfolio ? 'Loads & Fees' : 'Fees & Taxes'}</label>{!isFundPortfolio && <button type="button" onClick={() => setIsAutoCalc(!isAutoCalc)} className={`text-[10px] px-2.5 py-1 rounded-lg border font-bold flex items-center gap-1.5 transition-all shadow-sm ${isAutoCalc ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}> {!isAutoCalc && <AlertTriangle size={12} />} {isAutoCalc ? 'Auto-Calc On' : 'Manual Mode'} </button>}</div>
+              <div className={`grid gap-3 bg-slate-50/80 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm ${isFundPortfolio ? 'grid-cols-2' : 'grid-cols-2'}`}>
+                  {!isFundPortfolio && (
+                  <>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Commission</label><input type="number" step="any" value={commission} onChange={e=>setCommission(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 disabled:bg-slate-100 dark:disabled:bg-slate-800 dark:text-slate-200 tabular-nums shadow-sm outline-none"/></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 dark:text-slate-200 tabular-nums shadow-sm outline-none"/></div>
                   <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">CDC Charges</label><input type="number" step="any" value={cdcCharges} onChange={e=>setCdcCharges(Number(e.target.value))} disabled={type === 'DIVIDEND' && isAutoCalc} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 disabled:bg-slate-100 dark:disabled:bg-slate-800 dark:text-slate-200 tabular-nums shadow-sm outline-none"/></div>
+                  </>
+                  )}
+                  {isFundPortfolio && (
+                  <>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Sales Load / Fees</label><input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 dark:text-slate-200 tabular-nums shadow-sm outline-none" placeholder="0"/></div>
+                  <div><label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1">Tax / WHT</label><input type="number" step="any" value={tax} onChange={e=>setTax(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 dark:text-slate-200 tabular-nums shadow-sm outline-none"/></div>
+                  </>
+                  )}
+                  {!isFundPortfolio && (
                   <div> 
                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-1"> 
                           {type === 'DIVIDEND' ? 'Zakat' : 'Other Fees'} 
                       </label> 
                       <input type="number" step="any" value={otherFees} onChange={e=>setOtherFees(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900 font-mono text-xs p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-700/60 dark:text-slate-200 tabular-nums shadow-sm outline-none" /> 
                   </div>
+                  )}
               </div>
           </div>
       </>
@@ -470,7 +596,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-300 rounded-full transition-colors"><X size={20} /></button>
         </div>
 
-        {!editingTransaction && (
+        {!editingTransaction && !isFundPortfolio && (
             <div className="px-6 pt-6 shrink-0">
                 <div className="flex bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-inner mb-6 overflow-x-auto no-scrollbar">
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'MANUAL' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Keyboard size={16} /> Manual </button>
@@ -496,11 +622,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 onChange={(e) => setType(e.target.value as any)}
                                 className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none shadow-sm transition-all"
                             >
-                                <option value="BUY">Buy</option>
-                                <option value="SELL">Sell</option>
+                                <option value="BUY">{isFundPortfolio ? 'Subscribe (Buy Units)' : 'Buy'}</option>
+                                <option value="SELL">{isFundPortfolio ? 'Redeem (Sell Units)' : 'Sell'}</option>
                                 <option value="DIVIDEND">Dividend (DIV)</option>
-                                <option value="TAX">Tax (CGT)</option>
-                                <option value="HISTORY">History</option>
+                                {!isFundPortfolio && <option value="TAX">Tax (CGT)</option>}
+                                {!isFundPortfolio && <option value="HISTORY">History</option>}
                                 <option value="DEPOSIT">Cash (Deposit / Withdrawal)</option>
                                 <option value="ANNUAL_FEE">Annual Fee</option>
                                 <option value="OTHER">Other</option>

@@ -3,6 +3,8 @@ const ALLOWED_HOSTS = new Set([
   'dps.psx.com.pk',
   'www.psx.com.pk',
   'psx.com.pk',
+  'www.mufap.com.pk',
+  'mufap.com.pk',
   'docs.google.com' // public Google Sheets exports (e.g. BoardMeetings CSV)
 ]);
 
