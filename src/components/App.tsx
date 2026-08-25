@@ -37,7 +37,7 @@ import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
-import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY } from '../services/mufapData';
+import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { setGeminiApiKey } from '../services/gemini';
 import {
@@ -887,7 +887,7 @@ const App: React.FC = () => {
           const timestampUpdates: Record<string, string> = {};
 
           Object.values(catalog).forEach(f => {
-              navUpdates[f.id] = f.nav;
+              navUpdates[f.id] = fundValuationNav(f);
               sectorUpdates[f.id] = f.category;
               timestampUpdates[f.id] = now;
           });

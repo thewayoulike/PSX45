@@ -24,8 +24,9 @@ async function fetchWithPlaywright() {
   const browser = await chromium.launch({ headless: true });
   try {
     const page = await browser.newPage();
-    await page.goto(MUFAP_URL, { waitUntil: 'networkidle', timeout: 90000 });
-    await page.waitForSelector('table tbody tr td', { timeout: 60000 }).catch(() => {});
+    await page.goto(MUFAP_URL, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    await page.waitForSelector('table tbody tr td', { timeout: 120000 }).catch(() => {});
+    await page.waitForTimeout(3000);
     const html = await page.content();
     return html;
   } finally {
