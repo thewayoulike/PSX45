@@ -226,23 +226,32 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   useEffect(() => { setSelectedScanIndices(new Set()); }, [savedScannedTrades, mode]);
 
   useEffect(() => {
-    if (isAutoCalc && mode === 'MANUAL' && !isFundPortfolio) {
-        if (type === 'TAX' && typeof histAmount === 'number') { setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); } 
-        else if (type === 'HISTORY' && typeof histAmount === 'number') { setQuantity(1); setTicker('PREV-PNL'); if (histTaxType === 'BEFORE_TAX') { if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0); } else setTax(0); setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0); }
-        else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE' || type === 'DIVIDEND_REINVEST') && typeof histAmount === 'number') { setQuantity(1); setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : type === 'DIVIDEND_REINVEST' ? 'DIV REINVEST' : 'CASH'); setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); }
-        else if (type === 'OTHER' && typeof histAmount === 'number') { 
-            setQuantity(1); 
-            setTicker(category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE'); 
-            setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0); 
-        }
-        else if (typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
-             const fees = calculateFeesForTrade(type, quantity, price, selectedBrokerId);
-             setCommission(fees.commission);
-             setTax(fees.tax);
-             setCdcCharges(fees.cdcCharges);
-        }
+    if (mode !== 'MANUAL') return;
+
+    // Cash / adjustment types — same for PSX and mutual fund portfolios
+    if (type === 'TAX' && typeof histAmount === 'number') {
+        setPrice(histAmount); setQuantity(1); setTicker('CGT'); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
+    } else if (type === 'HISTORY' && typeof histAmount === 'number') {
+        setQuantity(1); setTicker('PREV-PNL');
+        if (histTaxType === 'BEFORE_TAX') {
+            if (histAmount > 0) { const t = histAmount * 0.15; setTax(parseFloat(t.toFixed(2))); } else setTax(0);
+        } else setTax(0);
+        setPrice(histAmount); setCommission(0); setCdcCharges(0); setOtherFees(0);
+    } else if ((type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'ANNUAL_FEE' || type === 'DIVIDEND_REINVEST') && typeof histAmount === 'number') {
+        setQuantity(1);
+        setTicker(type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : type === 'DIVIDEND_REINVEST' ? 'DIV REINVEST' : 'CASH');
+        setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
+    } else if (type === 'OTHER' && typeof histAmount === 'number') {
+        setQuantity(1);
+        setTicker(category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE');
+        setPrice(histAmount); setCommission(0); setTax(0); setCdcCharges(0); setOtherFees(0);
+    } else if (isAutoCalc && !isFundPortfolio && typeof quantity === 'number' && quantity > 0 && typeof price === 'number' && price > 0) {
+        const fees = calculateFeesForTrade(type, quantity, price, selectedBrokerId);
+        setCommission(fees.commission);
+        setTax(fees.tax);
+        setCdcCharges(fees.cdcCharges);
     }
-  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, histAmount, histTaxType, category]);
+  }, [quantity, price, isAutoCalc, mode, editingTransaction, selectedBrokerId, brokers, type, histAmount, histTaxType, category, isFundPortfolio]);
 
   const getHoldingQty = (ticker: string, brokerId: string) => {
       let qty = 0;
@@ -282,7 +291,49 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       const b = brokers.find(b => b.id === selectedBrokerId);
       if (b) brokerName = b.name;
       if (isFundPortfolio && selectedFund) brokerName = selectedFund.amc;
-      const qtyNum = Number(quantity);
+      const cashTypes = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'DIVIDEND_REINVEST'] as const;
+      if (cashTypes.includes(type as typeof cashTypes[number])) {
+          const amt = Number(histAmount);
+          if (!amt || amt <= 0) {
+              setFormError('Please enter an amount greater than zero.');
+              return;
+          }
+      } else if (type === 'OTHER') {
+          const amt = Number(histAmount);
+          if (!amt || amt === 0) {
+              setFormError('Please enter an amount.');
+              return;
+          }
+      } else if (type === 'TAX' || type === 'HISTORY') {
+          const amt = Number(histAmount);
+          if (amt === 0 || histAmount === '') {
+              setFormError('Please enter an amount.');
+              return;
+          }
+      }
+
+      let qtyNum = Number(quantity);
+      let priceNum = Number(price);
+      let resolvedTicker = cleanTicker;
+
+      if (cashTypes.includes(type as typeof cashTypes[number])) {
+          qtyNum = 1;
+          priceNum = Number(histAmount);
+          resolvedTicker = type === 'ANNUAL_FEE' ? 'ANNUAL FEE' : type === 'DIVIDEND_REINVEST' ? 'DIV REINVEST' : 'CASH';
+      } else if (type === 'TAX') {
+          qtyNum = 1;
+          priceNum = Number(histAmount);
+          resolvedTicker = 'CGT';
+      } else if (type === 'HISTORY') {
+          qtyNum = 1;
+          priceNum = Number(histAmount);
+          resolvedTicker = 'PREV-PNL';
+      } else if (type === 'OTHER') {
+          qtyNum = 1;
+          priceNum = Number(histAmount);
+          resolvedTicker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE';
+      }
+
       const unitLabel = isFundPortfolio ? 'units' : 'shares';
       if (type === 'SELL') {
           const heldQty = getHoldingQty(cleanTicker, selectedBrokerId);
@@ -295,17 +346,17 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           }
       }
       if (type === 'BUY' && !editingTransaction && freeCash !== undefined) {
-          const totalCost = (qtyNum * Number(price)) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
+          const totalCost = (qtyNum * priceNum) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
           if (totalCost > freeCash) {
               setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })} but only have Rs. ${freeCash.toLocaleString(undefined, { maximumFractionDigits: 0 })}.`);
               return;
           }
       }
       const txData: any = {
-          ticker: cleanTicker,
+          ticker: resolvedTicker,
           type,
           quantity: qtyNum,
-          price: Number(price),
+          price: priceNum,
           date,
           broker: brokerName,
           brokerId: selectedBrokerId,
@@ -316,9 +367,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           category: type === 'OTHER' ? category : undefined,
           notes: notes.trim() || undefined,
       };
-      if (type === 'OTHER') {
-          txData.ticker = category === 'ADJUSTMENT' ? 'ADJUSTMENT' : category === 'CDC_CHARGE' ? 'CDC CHARGE' : 'OTHER FEE';
-      }
       if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData });
       else onAddTransaction(txData);
       onClose();
