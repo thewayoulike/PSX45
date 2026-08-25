@@ -42,21 +42,22 @@ export interface DashboardLayout {
 }
 
 export const COLS: Record<Device, number> = { web: 12, mobile: 1 };
-export const ROW_HEIGHT = 110;         // px per grid row unit
-export const GRID_MARGIN: [number, number] = [24, 24];
+export const ROW_HEIGHT = 20;          // px per grid row — fine vertical resize
+export const GRID_MARGIN: [number, number] = [20, 20];
+const LEGACY_ROW = 110;                // previous row unit; convert old saved layouts
 
 // Default web layout: [id, x, y, w, h]
 const WEB_BASE: Array<[string, number, number, number, number]> = [
-  ['stats',        0,  0, 12, 3],
-  ['benchmark',    0,  4, 12, 3],
-  ['performance',  0,  7, 12, 4],
-  ['allocation',   0, 11,  8, 4],
-  ['topHoldings',  8, 11,  4, 4],
-  ['insights',     0, 15,  4, 3],
-  ['dividends',    4, 15,  4, 4],
-  ['topMovers',    8, 15,  4, 5],
-  ['boardMeetings',0, 20,  8, 5],
-  ['summary',      0, 25, 12, 4],
+  ['stats',         0,  0, 12, 36],
+  ['benchmark',     0, 36, 12, 16],
+  ['performance',   0, 52, 12, 22],
+  ['allocation',    0, 74,  8, 20],
+  ['topHoldings',   8, 74,  4, 20],
+  ['insights',      0, 94,  4, 16],
+  ['dividends',     4, 94,  4, 20],
+  ['topMovers',     8, 94,  4, 22],
+  ['boardMeetings', 0,116,  8, 22],
+  ['summary',       0,138, 12, 20],
 ];
 
 // Default heights reused for the (single-column) mobile stack.
@@ -64,16 +65,16 @@ const H_BY_ID: Record<string, number> = Object.fromEntries(WEB_BASE.map(([id, , 
 
 // Minimum size per card (cols, rows) so content stays readable when resized.
 const MIN_BY_ID: Record<string, [number, number]> = {
-  stats:        [4, 2],
-  benchmark:    [4, 2],
-  performance:  [4, 3],
-  allocation:   [3, 3],
-  topHoldings:  [3, 2],
-  insights:     [3, 2],
-  dividends:    [3, 2],
-  topMovers:    [3, 3],
-  boardMeetings:[3, 3],
-  summary:      [4, 3],
+  stats:         [4, 10],
+  benchmark:     [4, 8],
+  performance:   [4, 10],
+  allocation:    [3, 8],
+  topHoldings:   [3, 8],
+  insights:      [3, 8],
+  dividends:     [3, 8],
+  topMovers:     [3, 10],
+  boardMeetings: [3, 10],
+  summary:       [4, 10],
 };
 
 export const minFor = (id: string, device: Device): { minW: number; minH: number } => {
@@ -102,14 +103,18 @@ const normalizeDevice = (saved: any[], device: Device): CardLayout[] => {
   const out: CardLayout[] = [];
   let maxY = 0;
 
+  const legacy = savedArr.length > 0 && savedArr.every((c) => !c || num(c.h, 0) <= 12);
+
   savedArr.forEach((c) => {
     if (!c || typeof c.id !== 'string' || !known.has(c.id) || seen.has(c.id)) return;
     seen.add(c.id);
     const { minW, minH } = minFor(c.id, device);
     const w = Math.min(cols, Math.max(minW, num(c.w, device === 'mobile' ? 1 : 4)));
     const x = Math.min(cols - w, Math.max(0, num(c.x, 0)));
-    const y = Math.max(0, num(c.y, maxY));
-    const h = Math.max(minH, num(c.h, H_BY_ID[c.id] ?? 3));
+    const yRaw = Math.max(0, num(c.y, maxY));
+    const y = legacy ? Math.round(yRaw * LEGACY_ROW / ROW_HEIGHT) : yRaw;
+    const hRaw = num(c.h, H_BY_ID[c.id] ?? 16);
+    const h = Math.max(minH, legacy ? Math.round(hRaw * LEGACY_ROW / ROW_HEIGHT) : hRaw);
     out.push({ id: c.id, visible: isCore(c.id) ? true : c.visible !== false, x, y, w, h });
     maxY = Math.max(maxY, y + h);
   });
@@ -117,7 +122,7 @@ const normalizeDevice = (saved: any[], device: Device): CardLayout[] => {
   // Append any registry cards missing from the saved layout, at the bottom.
   CARD_META.forEach((m) => {
     if (seen.has(m.id)) return;
-    const h = H_BY_ID[m.id] ?? 3;
+    const h = H_BY_ID[m.id] ?? 16;
     out.push({ id: m.id, visible: true, x: 0, y: maxY, w: device === 'mobile' ? 1 : Math.min(cols, 4), h });
     maxY += h;
   });

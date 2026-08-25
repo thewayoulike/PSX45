@@ -48,14 +48,30 @@
   left: 50%;
   bottom: 0;
   transform: translateX(-50%);
-  height: 8px;
-  width: 46px;
+  height: 10px;
+  width: 56px;
   margin: 0;
   background: rgba(16, 185, 129, 0.4);
   border-radius: 6px;
   cursor: ns-resize;
 }
 .dash-editor .react-grid-item > .react-resizable-handle-s:hover {
+  background: rgba(16, 185, 129, 0.8);
+}
+
+/* Top edge → height */
+.dash-editor .react-grid-item > .react-resizable-handle-n {
+  left: 50%;
+  top: 0;
+  transform: translateX(-50%);
+  height: 10px;
+  width: 56px;
+  margin: 0;
+  background: rgba(16, 185, 129, 0.4);
+  border-radius: 6px;
+  cursor: ns-resize;
+}
+.dash-editor .react-grid-item > .react-resizable-handle-n:hover {
   background: rgba(16, 185, 129, 0.8);
 }
 
