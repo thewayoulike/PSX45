@@ -1,4 +1,11 @@
-/* Prominent, easy-to-grab resize handles for the dashboard customizer only. */
+/* Live + editor: pin card to the grid cell so FitScale can shrink into it */
+.layout .react-grid-item {
+  overflow: hidden;
+}
+.layout .react-grid-item > .dash-cell {
+  height: 100%;
+  min-height: 0;
+}
 
 .dash-editor .react-grid-item > .react-resizable-handle {
   z-index: 50;

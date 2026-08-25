@@ -5,6 +5,7 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { CardLayout, Device, COLS, ROW_HEIGHT, GRID_MARGIN, visibleOrdered, minFor } from './dashboard';
 import { FitScale } from './FitScale';
+import './dashboard-grid.css';
 
 const RGL: any = WidthProvider(GridLayout as any);
 
@@ -44,7 +45,7 @@ export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard }) =
       compactType="vertical"
     >
       {cards.map(c => (
-        <div key={c.id} className="h-full overflow-hidden">
+        <div key={c.id} className="dash-cell h-full min-h-0 overflow-hidden">
           <FitScale>{renderCard(c.id)}</FitScale>
         </div>
       ))}
