@@ -87,7 +87,7 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
       {/* Card header */}
       <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
         <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
@@ -116,8 +116,8 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
       ) : list.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-10">No data available. Try refreshing during market hours.</p>
       ) : (
-        <div className="overflow-x-auto -mx-1">
-          <table className="w-full text-sm border-collapse">
+        <div className="flex-1 min-h-0 overflow-hidden -mx-1">
+          <table className="w-full h-full text-sm border-collapse">
             <thead>
               <tr className="text-[10px] font-bold uppercase tracking-widest text-slate-400 border-b border-slate-100 dark:border-slate-800">
                 <th className="text-left font-bold py-2 px-1 w-6">#</th>

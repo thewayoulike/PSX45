@@ -27,7 +27,7 @@ export const TopHoldings: React.FC<Props> = ({ holdings, stats, onTickerClick, o
   if (holdings.length === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex flex-col">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex flex-col h-full min-h-0">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest">Top Holdings</h3>
         {onViewAll && <button onClick={onViewAll} className="text-xs font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 px-3 py-1.5 rounded-lg transition-colors">View All</button>}
@@ -37,7 +37,7 @@ export const TopHoldings: React.FC<Props> = ({ holdings, stats, onTickerClick, o
         <span>Holding</span><span className="text-right">Value</span><span className="text-right">Weight</span>
       </div>
 
-      <div className="divide-y divide-slate-50 dark:divide-slate-800/60 flex-1">
+      <div className="divide-y divide-slate-50 dark:divide-slate-800/60 flex-1 flex flex-col justify-evenly min-h-0">
         {data.rows.map(r => (
           <div key={r.ticker} className="grid grid-cols-[1fr_auto_90px] items-center gap-2 py-2.5">
             <button onClick={() => onTickerClick?.(r.ticker)} className="text-left font-display font-black text-slate-800 dark:text-white text-sm hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors truncate">{r.ticker}</button>

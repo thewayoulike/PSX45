@@ -97,7 +97,7 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
   const chip = (active: boolean) => `px-3 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest">
@@ -123,7 +123,7 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
           Generate the performance chart below to unlock this comparison.
         </p>
       ) : (
-        <>
+        <div className="flex-1 flex flex-col justify-between min-h-0">
           {/* Headline */}
           <div className={`flex items-center gap-2 mb-4 p-3 rounded-2xl ${stats.vsKse >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
             {stats.vsKse >= 0 ? <Trophy size={18} className="text-emerald-600 dark:text-emerald-400 shrink-0" /> : <TrendingDown size={18} className="text-rose-500 shrink-0" />}
@@ -151,12 +151,12 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
               <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.vsKse)}`}>{spct(stats.vsKse)}</div>
             </div>
           </div>
-          <p className="text-[10px] text-slate-400 mt-3 leading-snug">
+          <p className="text-[10px] text-slate-400 mt-auto pt-3 leading-snug">
             {win === '1D'
               ? 'Live today: your portfolio move vs the latest KSE-100 / KMI-30 change.'
               : 'Compounded daily returns over the selected window (from your generated history, up to ~1 month).'}
           </p>
-        </>
+        </div>
       )}
     </div>
   );

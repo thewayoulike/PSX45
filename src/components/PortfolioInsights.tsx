@@ -297,18 +297,18 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
   const hidden = list.length - VISIBLE;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-5">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-5 shadow-sm h-full flex flex-col min-h-0">
+      <div className="flex items-center gap-2 mb-4 shrink-0">
         <span className="text-xl">💡</span>
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Insights</h3>
       </div>
 
-      <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800/60">
+      <div className="flex-1 flex flex-col justify-evenly min-h-0 divide-y divide-slate-100 dark:divide-slate-800/60">
         {visible.map((ins) => {
           const t = TONE[ins.tone];
           const Icon = ins.Icon;
           return (
-            <div key={ins.key} className="flex items-start gap-4 py-3.5 first:pt-0">
+            <div key={ins.key} className="flex items-start gap-4 py-2 first:pt-0 flex-1 min-h-0">
               <div className={`w-8 h-8 rounded-full ${t.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
                 <Icon size={16} className={t.fg} />
               </div>
@@ -321,7 +321,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       {hidden > 0 && (
         <button
           onClick={() => setExpanded((v) => !v)}
-          className="w-full mt-3 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors"
+          className="w-full mt-2 py-2 text-xs font-bold text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors shrink-0"
         >
           {expanded ? 'Show less' : `Show ${hidden} more insight${hidden > 1 ? 's' : ''}`}
         </button>

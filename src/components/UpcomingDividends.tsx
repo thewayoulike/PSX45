@@ -53,7 +53,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, days = 30 }) => {
   }, [payouts, heldQty, days]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex flex-col">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <CalendarClock size={16} className="text-indigo-500" /> Upcoming Dividends

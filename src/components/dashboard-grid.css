@@ -1,10 +1,23 @@
-/* Live + editor: pin card to the grid cell so FitScale can shrink into it */
+/* Live + editor: card fills the grid cell; inner flex spreads content (no text upscaling). */
 .layout .react-grid-item {
   overflow: hidden;
 }
 .layout .react-grid-item > .dash-cell {
   height: 100%;
   min-height: 0;
+}
+.dash-card-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.dash-card-shell > * {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .dash-editor .react-grid-item > .react-resizable-handle {
