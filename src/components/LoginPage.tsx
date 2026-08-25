@@ -4,7 +4,7 @@ import {
   User, LayoutDashboard, Radar, BellRing, Coins, Calculator, LineChart,
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
   Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target,
-  Mail, Lock, Loader2, AlertCircle
+  Mail, Lock, Loader2, AlertCircle, Star, Upload, FolderOpen, History, LayoutGrid
 } from 'lucide-react';
 import { signUp, signIn, isAuthConfigured } from '../services/auth';
 
@@ -241,7 +241,7 @@ const Row: React.FC<{ left: React.ReactNode; right: string; up?: boolean }> = ({
 );
 
 const DashboardShot: React.FC = () => (
-  <div className="relative max-w-5xl mx-auto mt-4 text-left">
+  <div className="relative w-full mt-4 text-left">
     <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
       {/* browser chrome */}
       <div className="h-9 flex items-center gap-1.5 px-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
@@ -264,36 +264,36 @@ const DashboardShot: React.FC = () => (
 
         {/* hero stats */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
-          <StatCard label="Total Net Worth" value="Rs. 4,182,650" sub="Invested Rs. 3,532,830" Icon={Wallet} points="0,20 16,17 32,19 48,11 64,13 80,6 100,3" />
-          <StatCard label="Total Return" value="+18.42%" sub="+Rs. 649,820" Icon={TrendingUp} points="0,22 16,19 32,16 48,15 64,9 80,7 100,2" />
-          <StatCard label="Today's P&L" value="+Rs. 12,340" sub="+0.30%" Icon={Activity} points="0,18 16,20 32,12 48,15 64,10 80,12 100,5" />
+          <StatCard label="Total Net Worth" value="Rs. 1,247,850.40" sub="Invested Rs. 1,085,200.00" Icon={Wallet} points="0,20 16,17 32,19 48,11 64,13 80,6 100,3" />
+          <StatCard label="Total Return" value="+14.99%" sub="+Rs. 162,650.40" Icon={TrendingUp} points="0,22 16,19 32,16 48,15 64,9 80,7 100,2" />
+          <StatCard label="Today's P&L" value="+Rs. 8,420.75" sub="+0.68%" Icon={Activity} points="0,18 16,20 32,12 48,15 64,10 80,12 100,5" />
         </div>
 
         {/* performance / capital / income */}
         <div className="grid grid-cols-3 gap-2 sm:gap-3">
           <GroupCard title="Performance" Icon={TrendingUp} tint="text-emerald-600 dark:text-emerald-400" tiles={[
-            { label: 'MWR (XIRR)', value: '+22.6%', sub: 'Annualized', color: 'text-emerald-600 dark:text-emerald-400' },
-            { label: 'ROI', value: '+18.4%', sub: 'Incl. dividends', color: 'text-emerald-600 dark:text-emerald-400' },
-            { label: 'Realized Gain', value: '+Rs. 128,400', sub: 'All time', color: 'text-emerald-600 dark:text-emerald-400' },
-            { label: 'Unrealized Gain', value: '+Rs. 521,420', sub: 'Current open', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'MWR (XIRR)', value: '+19.40%', sub: 'Annualized', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'ROI', value: '+14.99%', sub: 'Incl. dividends', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Realized Gain', value: '+Rs. 84,250.40', sub: 'All time', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Unrealized Gain', value: '+Rs. 78,400.00', sub: 'Current open', color: 'text-emerald-600 dark:text-emerald-400' },
           ]} />
           <GroupCard title="Capital" Icon={Building2} tint="text-blue-600 dark:text-blue-400" tiles={[
-            { label: 'Net Invested', value: 'Rs. 3.53M', sub: 'Peak 3.53M' },
-            { label: 'Cost Basis', value: 'Rs. 3.29M' },
-            { label: 'Stock Value', value: 'Rs. 3.94M', sub: 'Current mkt' },
-            { label: 'Cash Balance', value: 'Rs. 248K', sub: 'Available' },
+            { label: 'Net Invested', value: 'Rs. 1,085,200.00', sub: 'Peak Rs. 1,085,200.00' },
+            { label: 'Cost Basis', value: 'Rs. 1,012,450.25' },
+            { label: 'Stock Value', value: 'Rs. 1,090,850.25', sub: 'Current mkt' },
+            { label: 'Cash Balance', value: 'Rs. 157,000.15', sub: 'Available' },
           ]} />
           <GroupCard title="Income" Icon={Coins} tint="text-violet-600 dark:text-violet-400" tiles={[
-            { label: 'Dividends', value: '+Rs. 84,500', sub: 'Tax Rs. 14.9K', color: 'text-violet-600 dark:text-violet-400' },
-            { label: 'Dividend Yield', value: '2.4%', sub: 'Yield on cost', color: 'text-violet-600 dark:text-violet-400' },
-            { label: 'Total P&L', value: '+Rs. 649,820', sub: 'Net profit', color: 'text-emerald-600 dark:text-emerald-400' },
-            { label: 'Total CGT', value: 'Rs. 9,240', sub: 'Capital gains tax' },
+            { label: 'Dividends', value: '+Rs. 12,480.00', sub: 'Tax Rs. 2,184.00', color: 'text-violet-600 dark:text-violet-400' },
+            { label: 'Dividend Yield', value: '1.15%', sub: 'Yield on cost', color: 'text-violet-600 dark:text-violet-400' },
+            { label: 'Total P&L', value: '+Rs. 162,650.40', sub: 'Net profit', color: 'text-emerald-600 dark:text-emerald-400' },
+            { label: 'Total CGT', value: 'Rs. 8,070.25', sub: 'Capital gains tax' },
           ]} />
         </div>
 
         {/* fees + health strip */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
-          {[['Commission', 'Rs. 42,180'], ['Taxes (SST)', 'Rs. 6,120'], ['CDC Charges', 'Rs. 2,040'], ['Other Fees', 'Rs. 890']].map(([k, v]) => (
+          {[['Commission', 'Rs. 14,280.50'], ['Taxes (SST)', 'Rs. 2,142.08'], ['CDC Charges', 'Rs. 890.40'], ['Other Fees', 'Rs. 125.00']].map(([k, v]) => (
             <div key={k} className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
               <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">{k}</div>
               <div className="text-[11px] sm:text-sm font-display font-black text-slate-800 dark:text-white tabular-nums mt-0.5">{v}</div>
@@ -301,8 +301,8 @@ const DashboardShot: React.FC = () => (
           ))}
           <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
             <div className="flex items-center gap-1.5"><ShieldCheck size={12} className="text-emerald-500" /><span className="text-[8px] sm:text-[9px] font-bold uppercase tracking-widest text-slate-400">Health Score</span></div>
-            <div className="text-[11px] sm:text-sm font-display font-black text-slate-800 dark:text-white tabular-nums mt-0.5">82<span className="text-slate-400 text-[10px]">/100</span> · <span className="text-emerald-600 dark:text-emerald-400">Great</span></div>
-            <div className="h-1.5 mt-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '82%' }} /></div>
+            <div className="text-[11px] sm:text-sm font-display font-black text-slate-800 dark:text-white tabular-nums mt-0.5">78<span className="text-slate-400 text-[10px]">/100</span> · <span className="text-emerald-600 dark:text-emerald-400">Great</span></div>
+            <div className="h-1.5 mt-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: '78%' }} /></div>
           </div>
         </div>
 
@@ -320,10 +320,10 @@ const DashboardShot: React.FC = () => (
             </div>
           </div>
           <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 px-3 py-2 text-[11px] sm:text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-3 flex items-center gap-1.5">
-            <TrendingUp size={13} /> Ahead of KSE-100 by 6.82% this month
+            <TrendingUp size={13} /> Ahead of KSE-100 by 5.28% this month
           </div>
           <div className="grid grid-cols-4 gap-2">
-            {[['Your Portfolio', '+9.49%', 'text-emerald-600 dark:text-emerald-400'], ['KSE-100', '+2.67%', 'text-slate-700 dark:text-slate-200'], ['KMI-30', '+2.94%', 'text-slate-700 dark:text-slate-200'], ['Outperformance', '+6.82%', 'text-emerald-600 dark:text-emerald-400']].map(([k, v, c]) => (
+            {[['Your Portfolio', '+8.40%', 'text-emerald-600 dark:text-emerald-400'], ['KSE-100', '+3.12%', 'text-slate-700 dark:text-slate-200'], ['KMI-30', '+3.48%', 'text-slate-700 dark:text-slate-200'], ['Outperformance', '+5.28%', 'text-emerald-600 dark:text-emerald-400']].map(([k, v, c]) => (
               <div key={k} className="rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 p-2.5">
                 <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">{k}</div>
                 <div className={`text-sm font-display font-black tabular-nums mt-0.5 ${c}`}>{v}</div>
@@ -348,10 +348,10 @@ const DashboardShot: React.FC = () => (
             </div>
           </Panel>
           <Panel title="Top Holdings">
-            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">SYS · 19%</span>} right="+46.8%" />
-            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">MEBL · 14%</span>} right="+28.3%" />
-            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">LUCK · 11%</span>} right="+15.9%" />
-            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">OGDC · 9%</span>} right="+7.2%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">LUCK · 18%</span>} right="+22.4%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">MEBL · 15%</span>} right="+18.1%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">HUBC · 12%</span>} right="+11.6%" />
+            <Row left={<span className="font-bold text-slate-700 dark:text-slate-200">OGDC · 9%</span>} right="+6.8%" />
           </Panel>
         </div>
 
@@ -372,6 +372,183 @@ const DashboardShot: React.FC = () => (
     </div>
   </div>
 );
+
+const KpiMini: React.FC<{ label: string; value: string; sub?: string; tone?: 'up' | 'down' | 'neutral' }> = ({ label, value, sub, tone = 'neutral' }) => (
+  <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-2.5 sm:p-3 shadow-sm min-w-0">
+    <div className="text-[8px] font-bold uppercase tracking-widest text-slate-400 truncate">{label}</div>
+    <div className={`text-[11px] sm:text-sm font-display font-black tabular-nums mt-0.5 ${tone === 'up' ? 'text-emerald-600 dark:text-emerald-400' : tone === 'down' ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>{value}</div>
+    {sub && <div className="text-[8px] text-slate-400 mt-0.5 truncate">{sub}</div>}
+  </div>
+);
+
+const RealizedShot: React.FC = () => (
+  <div className="relative w-full mt-4 text-left">
+    <div className="rounded-2xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-2xl overflow-hidden">
+      <div className="h-9 flex items-center gap-1.5 px-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/60">
+        <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
+        <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+        <span className="ml-3 text-[11px] text-slate-400 font-mono">psx-tracker.com/realized</span>
+      </div>
+
+      <div className="p-4 sm:p-6 bg-slate-50 dark:bg-[#0a0a0a] space-y-3">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-lg sm:text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Realized P&amp;L</div>
+            <div className="text-[10px] sm:text-xs text-slate-400">Track closed positions, CGT, and win rate — not just open holdings.</div>
+          </div>
+          <span className="text-[10px] font-bold text-slate-500 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1">SOLD POSITIONS: 24 / 24</span>
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {['This month', 'This year', 'Last 30d', 'All time'].map((p, i) => (
+            <span key={p} className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${i === 3 ? 'bg-emerald-600 text-white' : 'bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-800'}`}>{p}</span>
+          ))}
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-600 text-white ml-1">All</span>
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-800">Winners</span>
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-800">Losers</span>
+        </div>
+
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+          <KpiMini label="Total Realized P&L" value="Rs. 84,250.40" sub="+7.76%" tone="up" />
+          <KpiMini label="Net After CGT" value="Rs. 76,180.15" sub="CGT −Rs. 8,070.25" />
+          <KpiMini label="Total Trades" value="24" sub="Closed positions" />
+          <KpiMini label="Winning Trades" value="14 (58.3%)" tone="up" />
+          <KpiMini label="Losing Trades" value="10 (41.7%)" tone="down" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
+          <KpiMini label="Average Profit" value="Rs. 9,420.50" tone="up" />
+          <KpiMini label="Average Loss" value="Rs. −4,180.30" tone="down" />
+          <KpiMini label="Profit Factor" value="2.14" sub="gross win ÷ gross loss" />
+          <KpiMini label="Expectancy / Trade" value="+Rs. 3,510.43" sub="avg P&L per trade" tone="up" />
+          <KpiMini label="Win / Loss Ratio" value="2.25" sub="avg win ÷ avg loss" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">P&amp;L over time</div>
+            <svg viewBox="0 0 100 36" preserveAspectRatio="none" className="w-full h-16">
+              <defs><linearGradient id="rpl" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#10b981" stopOpacity="0.3" /><stop offset="1" stopColor="#10b981" stopOpacity="0" /></linearGradient></defs>
+              <path d="M0,28 L12,26 L24,22 L36,24 L48,16 L60,14 L72,10 L84,12 L100,6 L100,36 L0,36 Z" fill="url(#rpl)" />
+              <polyline points="0,28 12,26 24,22 36,24 48,16 60,14 72,10 84,12 100,6" fill="none" stroke="#10b981" strokeWidth="2" />
+            </svg>
+          </div>
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
+            <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">P&amp;L by month</div>
+            <div className="flex items-end gap-1 h-16 px-1">
+              {[40, 18, 8, 55, 28, 35].map((h, i) => (
+                <div key={i} className={`flex-1 rounded-t ${i === 1 ? 'bg-rose-400' : 'bg-emerald-500'}`} style={{ height: `${h}%` }} />
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm flex items-center gap-3">
+            <div className="relative w-14 h-14 rounded-full shrink-0" style={{ background: 'conic-gradient(#10b981 0 34%, #6366f1 34% 56%, #f59e0b 56% 74.5%, #06b6d4 74.5% 87.5%, #94a3b8 87.5% 100%)' }}>
+              <div className="absolute inset-[28%] rounded-full bg-white dark:bg-slate-900 flex items-center justify-center">
+                <span className="text-[8px] font-black text-slate-700 dark:text-slate-200">84k</span>
+              </div>
+            </div>
+            <div className="text-[9px] space-y-0.5 text-slate-500 dark:text-slate-400">
+              <div>LUCK 34.0%</div>
+              <div>MEBL 22.0%</div>
+              <div>HUBC 18.5%</div>
+              <div>OGDC 13.0%</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
+          <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-2">2026 heatmap</div>
+          <div className="grid grid-cols-12 gap-1">
+            {[
+              { m: 'J', v: null }, { m: 'F', v: null }, { m: 'M', v: null },
+              { m: 'A', v: 12400 }, { m: 'M', v: -8200 }, { m: 'J', v: 18650 },
+              { m: 'J', v: 22100 }, { m: 'A', v: 15800 }, { m: 'S', v: null },
+              { m: 'O', v: null }, { m: 'N', v: null }, { m: 'D', v: null },
+            ].map((c) => (
+              <div key={c.m} className={`rounded-md text-center py-1.5 ${c.v == null ? 'bg-slate-100 dark:bg-slate-800' : c.v < 0 ? 'bg-rose-100 dark:bg-rose-500/20' : 'bg-emerald-100 dark:bg-emerald-500/20'}`}>
+                <div className="text-[8px] font-bold text-slate-400">{c.m}</div>
+                {c.v != null && <div className={`text-[8px] font-black tabular-nums ${c.v < 0 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'}`}>{c.v < 0 ? '−8.2K' : `${Math.round(c.v / 1000)}K`}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-[9px] sm:text-[10px]">
+              <thead>
+                <tr className="text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
+                  {['Date', 'Ticker', 'Qty', 'Buy avg', 'Sell', 'P&L %', 'Net profit'].map(h => (
+                    <th key={h} className="text-left font-bold px-2 py-2 whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="tabular-nums">
+                <tr className="border-b border-slate-50 dark:border-slate-800/60">
+                  <td className="px-2 py-2">2026-08-12</td>
+                  <td className="px-2 py-2 font-black text-slate-800 dark:text-white">LUCK</td>
+                  <td className="px-2 py-2">150</td>
+                  <td className="px-2 py-2">780.00</td>
+                  <td className="px-2 py-2">920.00</td>
+                  <td className="px-2 py-2 font-bold text-emerald-600">+17.95%</td>
+                  <td className="px-2 py-2 font-black text-emerald-600">+21,000.00</td>
+                </tr>
+                <tr className="border-b border-slate-50 dark:border-slate-800/60">
+                  <td className="px-2 py-2">2026-07-21</td>
+                  <td className="px-2 py-2 font-black text-slate-800 dark:text-white">MEBL</td>
+                  <td className="px-2 py-2">400</td>
+                  <td className="px-2 py-2">248.50</td>
+                  <td className="px-2 py-2">271.20</td>
+                  <td className="px-2 py-2 font-bold text-emerald-600">+9.13%</td>
+                  <td className="px-2 py-2 font-black text-emerald-600">+9,080.00</td>
+                </tr>
+                <tr>
+                  <td className="px-2 py-2">2026-06-09</td>
+                  <td className="px-2 py-2 font-black text-slate-800 dark:text-white">HUBC</td>
+                  <td className="px-2 py-2">800</td>
+                  <td className="px-2 py-2">142.10</td>
+                  <td className="px-2 py-2">136.40</td>
+                  <td className="px-2 py-2 font-bold text-rose-500">−4.01%</td>
+                  <td className="px-2 py-2 font-black text-rose-500">−4,560.00</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+const AppPreview: React.FC = () => {
+  const [page, setPage] = useState<'dashboard' | 'realized'>('dashboard');
+  return (
+    <div className="mt-4">
+      <div className="flex justify-center mb-3">
+        <div className="inline-flex bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-1 shadow-sm">
+          <button
+            type="button"
+            onClick={() => setPage('dashboard')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${page === 'dashboard' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+          >
+            Dashboard
+          </button>
+          <button
+            type="button"
+            onClick={() => setPage('realized')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${page === 'realized' ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
+          >
+            Realized P&amp;L
+          </button>
+        </div>
+      </div>
+      {page === 'dashboard' ? <DashboardShot /> : <RealizedShot />}
+      <p className="text-[11px] text-slate-400 text-center mt-3 font-medium">
+        {page === 'dashboard' ? 'Live net worth, today\'s P&L, and vs KSE-100 — the home screen.' : 'Closed trades, CGT, win rate, and monthly heatmap — so realized performance is never a guess.'}
+      </p>
+    </div>
+  );
+};
 
 /* ---------- page ---------- */
 
@@ -420,8 +597,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </h1>
 
           <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
-            Live prices, true FIFO cost basis, realized P&amp;L with CGT, dividend tracking,
-            technical buy/sell signals and price alerts — in one fast, private web app.
+            Live prices, true FIFO cost basis, realized P&amp;L with CGT, dividends,
+            market signals, watchlist and price alerts — in one private web app.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
@@ -442,18 +619,24 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
 
           <div className="flex flex-wrap gap-2 justify-center">
             <Pill>Live PSX Prices</Pill>
-            <Pill>Buy / Sell Signals</Pill>
+            <Pill>Holdings &amp; History</Pill>
+            <Pill>Watchlist</Pill>
+            <Pill>Market Signals</Pill>
             <Pill>Price Alerts</Pill>
             <Pill>Dividend Scanner</Pill>
-            <Pill>Watchlist</Pill>
             <Pill>Board Meetings</Pill>
             <Pill>Realized P&amp;L + CGT</Pill>
+            <Pill>Fair Value Calc</Pill>
+            <Pill>Trading Simulator</Pill>
             <Pill>vs KSE-100 &amp; KMI-30</Pill>
+            <Pill>Trade Import</Pill>
             <Pill>Drive Sync</Pill>
+            <Pill>Guest Mode</Pill>
           </div>
+        </div>
 
-          {/* Dashboard screenshot */}
-          <DashboardShot />
+        <div className="relative max-w-6xl mx-auto mt-10">
+          <AppPreview />
         </div>
       </section>
 
@@ -468,39 +651,51 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             <Feature Icon={LayoutDashboard} title="Live Dashboard" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
-              Net worth, today's P&amp;L, total return and a portfolio health score — with KSE-100, KMI-30 and USD/PKR live at the top.
+              Net worth, today's P&amp;L, total return and a portfolio health score — with KSE-100, KMI-30 and USD/PKR at the top. Layout is customizable.
             </Feature>
 
-            <Feature Icon={Radar} title="Market Signal Scanner" tint="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20">
-              Scan the whole market, KSE-100 or KMI-30 for buy and sell signals using SMA, EMA, RSI and MACD — with buy range, stop loss and take-profit levels.
+            <Feature Icon={FolderOpen} title="Holdings &amp; History" tint="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700">
+              Full open positions with avg cost, and a complete ledger of buys, sells, dividends, cash, fees and portfolio transfers.
             </Feature>
 
-            <Feature Icon={BellRing} title="Price Alerts" tint="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-500/20">
-              Set above/below targets and get a push notification the moment a stock hits your price — even when the app is closed.
+            <Feature Icon={Radar} title="Market Signals" tint="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20">
+              Scan the market, KSE-100 or KMI-30 for buy/sell signals using SMA, EMA, RSI and MACD — with buy range, stop loss and take-profit.
+            </Feature>
+
+            <Feature Icon={Star} title="Watchlist" tint="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-500/20">
+              Follow names you don't hold yet. Live PSX quotes, day change, and a one-tap jump into the stock profile.
+            </Feature>
+
+            <Feature Icon={BellRing} title="Price Alerts" tint="bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-500/20">
+              Signed-in users can set above/below targets and get a push when the price hits — even if the app is closed. Guest Mode cannot save alerts.
             </Feature>
 
             <Feature Icon={Coins} title="Dividend Tracking" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
-              Scan for dividends you're eligible for and never miss income. Correct face-value math for Rs. 10, 5, 3.5 and 1 stocks, with WHT handled.
+              Scan for dividends you're eligible for. Face-value math for Rs. 10, 5, 3.5 and 1 stocks, with WHT handled. Upcoming payouts on the dashboard.
             </Feature>
 
             <Feature Icon={Receipt} title="Realized P&amp;L &amp; CGT" tint="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20">
-              True FIFO lot matching with same-day trade squaring. Profit factor, expectancy, win rate, monthly heatmap and net-of-CGT figures.
+              FIFO lot matching with same-day trade squaring. Profit factor, expectancy, win rate, monthly heatmap and net-of-CGT figures.
             </Feature>
 
             <Feature Icon={TrendingUp} title="Benchmark vs Index" tint="bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-500/20">
-              See whether you're beating KSE-100 and KMI-30 today, this week or this month — with a daily return chart.
+              See whether you're beating KSE-100 and KMI-30 today, this week or this month — plus a 30-day daily return chart.
             </Feature>
 
             <Feature Icon={PieChart} title="Allocation &amp; Insights" tint="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/20">
-              Sector and stock allocation, concentration warnings, fee drag, cash drag and ranked insights that tell you what actually matters.
+              Sector and stock allocation, concentration, fee drag, cash drag, and ranked best/worst holdings and sold trades.
             </Feature>
 
-            <Feature Icon={Building2} title="Multi-Broker Support" tint="bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-100 dark:border-cyan-500/20">
-              Per-broker commission slabs, sales tax and CDC charges baked into your cost basis. Transfer stock between brokers cleanly.
+            <Feature Icon={Building2} title="Brokers &amp; Portfolios" tint="bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-100 dark:border-cyan-500/20">
+              Per-broker commission slabs, SST and CDC in your cost basis. Multiple portfolios, with transfers at the first broker's buy cost.
+            </Feature>
+
+            <Feature Icon={Upload} title="Trade Import" tint="bg-lime-50 dark:bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-100 dark:border-lime-500/20">
+              Add trades by hand, Excel/CSV, screenshot OCR, Gemini scan, or Gmail attachments from your broker.
             </Feature>
 
             <Feature Icon={CloudUpload} title="Google Drive Sync" tint="bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-500/20">
-              Your portfolio syncs to your own Google Drive, so you can pick up on any device — or stay fully offline in Guest Mode.
+              Portfolio data syncs to your own Google Drive (and a Sheet). Guest Mode stays on this device only.
             </Feature>
           </div>
         </div>
@@ -515,7 +710,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             sub="Research, value and rehearse your decisions without risking a rupee."
           />
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-sm">
               <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center mb-4">
                 <Calculator size={20} />
@@ -536,7 +731,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Trading Simulator</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Test a trade with real commission maths before committing.</p>
               <ul className="space-y-2">
-                <Check>Real broker charges</Check>
+                <Check>Your broker's charges</Check>
                 <Check>Break-even price</Check>
                 <Check>Profit at target</Check>
               </ul>
@@ -546,12 +741,12 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <div className="w-11 h-11 rounded-2xl bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-100 dark:border-purple-500/20 flex items-center justify-center mb-4">
                 <Target size={20} />
               </div>
-              <h3 className="font-display font-black text-lg tracking-tight mb-2">Stock Analyzer</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Drill into any ticker you hold, lifetime.</p>
+              <h3 className="font-display font-black text-lg tracking-tight mb-2">Stock &amp; Sector Profile</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Drill into any ticker or sector you hold.</p>
               <ul className="space-y-2">
                 <Check>Lifetime return per stock</Check>
                 <Check>Open vs closed split</Check>
-                <Check>Full transaction history</Check>
+                <Check>Sector roll-up</Check>
               </ul>
             </div>
 
@@ -559,12 +754,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <div className="w-11 h-11 rounded-2xl bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-100 dark:border-amber-500/20 flex items-center justify-center mb-4">
                 <Sparkles size={20} />
               </div>
-              <h3 className="font-display font-black text-lg tracking-tight mb-2">PSX AI Assistant</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Ask questions about your portfolio — it looks up live data before answering.</p>
+              <h3 className="font-display font-black text-lg tracking-tight mb-2">PSX Assistant</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Ask about your portfolio — it looks up live data before answering.</p>
               <ul className="space-y-2">
                 <Check>Reads your real holdings</Check>
                 <Check>Live prices &amp; technicals</Check>
-                <Check>Bring your own API key</Check>
+                <Check>Your own Gemini API key</Check>
+              </ul>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-sm">
+              <div className="w-11 h-11 rounded-2xl bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-100 dark:border-rose-500/20 flex items-center justify-center mb-4">
+                <History size={20} />
+              </div>
+              <h3 className="font-display font-black text-lg tracking-tight mb-2">Transaction History</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Every cash and trade event in one searchable list.</p>
+              <ul className="space-y-2">
+                <Check>Buy, sell, dividend, CGT</Check>
+                <Check>Deposits &amp; withdrawals</Check>
+                <Check>Export to Excel / CSV</Check>
+              </ul>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-sm">
+              <div className="w-11 h-11 rounded-2xl bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-100 dark:border-sky-500/20 flex items-center justify-center mb-4">
+                <LayoutGrid size={20} />
+              </div>
+              <h3 className="font-display font-black text-lg tracking-tight mb-2">Dashboard Layout</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Show, hide and resize cards for desktop and mobile.</p>
+              <ul className="space-y-2">
+                <Check>Drag-and-drop grid</Check>
+                <Check>Separate mobile layout</Check>
+                <Check>Top movers &amp; board meetings</Check>
               </ul>
             </div>
           </div>
@@ -586,33 +807,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <Check><strong className="text-slate-700 dark:text-slate-200">Day trades squared off</strong> — same-day buy/sell nets out instead of polluting your average cost.</Check>
               <Check><strong className="text-slate-700 dark:text-slate-200">Fees in cost basis</strong> — commission, sales tax and CDC included per share.</Check>
               <Check><strong className="text-slate-700 dark:text-slate-200">Face-value dividends</strong> — Rs. 10, 5, 3.5 and 1 stocks calculated correctly.</Check>
-              <Check><strong className="text-slate-700 dark:text-slate-200">XIRR &amp; ROI</strong> — money-weighted returns, with and without dividends.</Check>
+              <Check><strong className="text-slate-700 dark:text-slate-200">XIRR &amp; ROI</strong> — money-weighted return and total return vs peak capital invested.</Check>
             </ul>
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-lg">
             <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Sample Holding</div>
             <div className="flex items-baseline justify-between mb-1">
-              <span className="font-display font-black text-2xl">SYS</span>
-              <span className="text-2xl font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+46.80%</span>
+              <span className="font-display font-black text-2xl">LUCK</span>
+              <span className="text-2xl font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+17.95%</span>
             </div>
-            <div className="text-xs text-slate-400 mb-5">300 shares · Avg cost Rs. 620.00</div>
+            <div className="text-xs text-slate-400 mb-5">150 shares · Now Rs. 920.00 · Avg cost Rs. 780.00</div>
             <div className="space-y-3 pt-5 border-t border-slate-100 dark:border-slate-800">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Open position</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+87,300</span>
+                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+Rs. 21,000.00</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Realized (day trade)</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+4,120</span>
+                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+Rs. 2,480.00</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 dark:text-slate-400">Dividends received</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+2,250</span>
+                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+Rs. 3,750.00</span>
               </div>
               <div className="flex justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                 <span className="text-sm font-bold">Lifetime return</span>
-                <span className="font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+50.30%</span>
+                <span className="font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+23.26%</span>
               </div>
             </div>
             <p className="text-[10px] text-slate-400 mt-4 leading-snug">
@@ -628,20 +849,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           <SectionHead
             eyebrow="Your Data, Your Control"
             title="Private by design"
-            sub="No accounts on our servers, no tracking, no ads. Your portfolio belongs to you."
+            sub="Your trades stay with you. We don't run ads or sell portfolio data."
           />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <Feature Icon={ShieldCheck} title="No Middleman" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
-              Data lives in your browser or your own Google Drive — never on a server we own.
+            <Feature Icon={ShieldCheck} title="Your portfolio, your store" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
+              Holdings sync to your Google Drive (or stay in this browser in Guest Mode). We don't keep a copy of your trades on our servers.
             </Feature>
             <Feature Icon={User} title="Guest Mode" tint="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              Start instantly with zero sign-up. Everything stays on this device.
+              Start instantly with zero sign-up. Everything stays on this device. Sign in if you want Drive sync and price alerts.
             </Feature>
             <Feature Icon={Smartphone} title="Installable App" tint="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20">
-              Add to your home screen and it works like a native app, offline included.
+              Add to your home screen and it works like a native app, including offline viewing.
             </Feature>
             <Feature Icon={Wallet} title="15-Day Free Trial" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
-              Try every feature free for 15 days. Keep going with a simple subscription — monthly, yearly, or lifetime.
+              Try the full tracker free for 15 days after approval. Then monthly, yearly, or lifetime.
             </Feature>
           </div>
         </div>
@@ -678,7 +899,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </div>
 
           <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
-            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash (03367580244), email the receipt — your account is activated as soon as it's confirmed.
+            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash, email the receipt — your account is activated as soon as it's confirmed.
           </p>
         </div>
       </section>
