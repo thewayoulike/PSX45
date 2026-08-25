@@ -46,13 +46,42 @@ import {
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, signOutDrive, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler } from '../services/driveStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { Paywall } from './Paywall';
 import { calculateXIRR } from '../utils/finance';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
+const WIPE_FLAG = 'psx_wipe_local_data';
+
+const consumeWipeFlag = () => {
+    try {
+        if (sessionStorage.getItem(WIPE_FLAG) === '1') {
+            sessionStorage.removeItem(WIPE_FLAG);
+            return true;
+        }
+    } catch { /* ignore */ }
+    return false;
+};
+
+const markWipeFlag = () => {
+    try { sessionStorage.setItem(WIPE_FLAG, '1'); } catch { /* ignore */ }
+};
+
+const clearPortfolioLocalStorage = () => {
+    try {
+        const keep = new Set(['psx_theme']);
+        const toRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith('psx_') && !keep.has(k)) toRemove.push(k);
+        }
+        toRemove.forEach(k => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+};
+
+const startEmpty = consumeWipeFlag();
 const DEFAULT_BROKER: Broker = {
   id: 'default_01',
   name: 'Standard Broker',
@@ -147,6 +176,7 @@ const App: React.FC = () => {
   }, [currentView, viewTicker]);
 
   const [brokers, setBrokers] = useState<Broker[]>(() => {
+      if (startEmpty) return [DEFAULT_BROKER];
       try {
           const saved = localStorage.getItem('psx_brokers');
           if (saved) {
@@ -157,6 +187,7 @@ const App: React.FC = () => {
       return [DEFAULT_BROKER];
   });
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
+      if (startEmpty) return INITIAL_TRANSACTIONS as Transaction[];
       try {
           const saved = localStorage.getItem('psx_transactions');
           if (saved) {
@@ -167,6 +198,7 @@ const App: React.FC = () => {
       return INITIAL_TRANSACTIONS as Transaction[];
   });
   const [portfolios, setPortfolios] = useState<Portfolio[]>(() => {
+      if (startEmpty) return [DEFAULT_PORTFOLIO];
       try {
           const saved = localStorage.getItem('psx_portfolios');
           if (saved) return JSON.parse(saved);
@@ -174,9 +206,11 @@ const App: React.FC = () => {
       return [DEFAULT_PORTFOLIO];
   });
   const [currentPortfolioId, setCurrentPortfolioId] = useState<string>(() => {
+      if (startEmpty) return DEFAULT_PORTFOLIO.id;
       return localStorage.getItem('psx_current_portfolio_id') || DEFAULT_PORTFOLIO.id;
   });
   const [scannerState, setScannerState] = useState<Record<string, FoundDividend[]>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_scanner_state');
           if (saved) return JSON.parse(saved);
@@ -184,6 +218,7 @@ const App: React.FC = () => {
       return {};
   });
   const [tradeScanResults, setTradeScanResults] = useState<EditableTrade[]>(() => {
+      if (startEmpty) return [];
       try {
           const saved = localStorage.getItem('psx_trade_scan_results');
           if (saved) return JSON.parse(saved);
@@ -191,6 +226,7 @@ const App: React.FC = () => {
       return [];
   });
   const [performanceHistory, setPerformanceHistory] = useState<Record<string, any[]>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_performance_history');
           if (saved) {
@@ -202,6 +238,7 @@ const App: React.FC = () => {
       return {};
   });
   const [fairValueCache, setFairValueCache] = useState<Record<string, any>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_fair_value_cache');
           if (saved) return JSON.parse(saved);
@@ -217,6 +254,7 @@ const App: React.FC = () => {
   const [isCombinedView, setIsCombinedView] = useState(false);
   const [combinedPortfolioIds, setCombinedPortfolioIds] = useState<Set<string>>(new Set());
   const [manualPrices, setManualPrices] = useState<Record<string, number>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_manual_prices');
           if (saved) return JSON.parse(saved);
@@ -224,6 +262,7 @@ const App: React.FC = () => {
       return {};
   });
   const [watchlist, setWatchlist] = useState<string[]>(() => {
+      if (startEmpty) return [];
       try {
           const saved = localStorage.getItem('psx_watchlist');
           if (saved) return JSON.parse(saved);
@@ -231,6 +270,7 @@ const App: React.FC = () => {
       return [];
   });
   const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(() => {
+      if (startEmpty) return DEFAULT_LAYOUT;
       try {
           const saved = localStorage.getItem('psx_dashboard_layout');
           if (saved) return normalizeLayout(JSON.parse(saved));
@@ -249,9 +289,11 @@ const App: React.FC = () => {
   }, []);
   // Persist dashboard layout locally whenever it changes (works for guests too).
   useEffect(() => {
+      if (skipPersistRef.current) return;
       try { localStorage.setItem('psx_dashboard_layout', JSON.stringify(dashboardLayout)); } catch (e) {}
   }, [dashboardLayout]);
   const [ldcpMap, setLdcpMap] = useState<Record<string, number>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_ldcp_map');
           if (saved) return JSON.parse(saved);
@@ -259,6 +301,7 @@ const App: React.FC = () => {
       return {};
   });
   const [listedInMap, setListedInMap] = useState<Record<string, string>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_listed_in_map');
           if (saved) return JSON.parse(saved);
@@ -266,6 +309,7 @@ const App: React.FC = () => {
       return {};
   });
   const [priceTimestamps, setPriceTimestamps] = useState<Record<string, string>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_price_timestamps');
           if (saved) return JSON.parse(saved);
@@ -273,6 +317,7 @@ const App: React.FC = () => {
       return {};
   });
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, string>>(() => {
+      if (startEmpty) return {};
       try {
           const saved = localStorage.getItem('psx_sector_overrides');
           if (saved) return JSON.parse(saved);
@@ -280,9 +325,9 @@ const App: React.FC = () => {
       return {};
   });
 
-  const [userApiKey, setUserApiKey] = useState<string>(() => localStorage.getItem('psx_gemini_api_key') || '');
-  const [userScraperKey, setUserScraperKey] = useState<string>(() => localStorage.getItem('psx_scraping_api_key') || '');
-  const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => localStorage.getItem('psx_webscraping_ai_key') || '');
+  const [userApiKey, setUserApiKey] = useState<string>(() => startEmpty ? '' : (localStorage.getItem('psx_gemini_api_key') || ''));
+  const [userScraperKey, setUserScraperKey] = useState<string>(() => startEmpty ? '' : (localStorage.getItem('psx_scraping_api_key') || ''));
+  const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => startEmpty ? '' : (localStorage.getItem('psx_webscraping_ai_key') || ''));
 
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
@@ -306,6 +351,7 @@ const App: React.FC = () => {
   // When the user explicitly picks Guest Mode we must ignore any Google session
   // that silently restores afterwards, otherwise it would auto-log them back in.
   const guestModeRef = useRef(false);
+  const skipPersistRef = useRef(false);
 
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
@@ -322,16 +368,53 @@ const App: React.FC = () => {
       return map;
   }, [transactions, sectorOverrides]);
 
-  const performLogout = useCallback(() => {
-      setTransactions([]); setPortfolios([DEFAULT_PORTFOLIO]); setHoldings([]); setRealizedTrades([]);
-      setManualPrices({}); setLdcpMap({}); setListedInMap({}); setPriceTimestamps({}); setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]); setPerformanceHistory({});
-      setFairValueCache({});
-      setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
-      setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
-      setDriveUser(null); setGoogleSheetId(null); localStorage.clear(); signOutDrive();
+  const resetLocalSession = useCallback(() => {
+      skipPersistRef.current = true;
       isReadyToSave.current = false;
       initialSyncDone.current = false;
+      loadedEmailRef.current = null;
+      setTransactions([]);
+      setPortfolios([DEFAULT_PORTFOLIO]);
+      setCurrentPortfolioId(DEFAULT_PORTFOLIO.id);
+      setHoldings([]);
+      setRealizedTrades([]);
+      setManualPrices({});
+      setLdcpMap({});
+      setListedInMap({});
+      setPriceTimestamps({});
+      setSectorOverrides({});
+      setBrokers([DEFAULT_BROKER]);
+      setScannerState({});
+      setTradeScanResults([]);
+      setPerformanceHistory({});
+      setFairValueCache({});
+      setWatchlist([]);
+      setDashboardLayout(DEFAULT_LAYOUT);
+      setUserApiKey('');
+      setUserScraperKey('');
+      setUserWebScrapingAIKey('');
+      setGeminiApiKey(null);
+      setScrapingApiKey(null);
+      setWebScrapingAIKey(null);
+      setDriveUser(null);
+      setGoogleSheetId(null);
+      setSbUser(null);
+      setSbApproved(false);
+      setSbStatus(null);
+      markWipeFlag();
+      clearPortfolioLocalStorage();
+      clearDriveSession();
   }, []);
+
+  const performLogout = useCallback(() => {
+      guestModeRef.current = false;
+      resetLocalSession();
+      void signOutAuth();
+      setShowLogin(true);
+      setIsAuthChecking(false);
+      // Allow Guest Mode persist after the empty state has flushed.
+      setTimeout(() => { skipPersistRef.current = false; }, 0);
+  }, [resetLocalSession]);
 
   // Idle auto-logout window. 12h keeps you signed in through a normal day of
   // intermittent checking (30m was far too aggressive and wiped the Google
@@ -351,9 +434,12 @@ const App: React.FC = () => {
   // Explicit Guest Mode — enter locally and block any silent Google restore.
   const handleGuestLogin = () => {
       guestModeRef.current = true;
+      resetLocalSession();
+      void signOutAuth();
       setDriveUser(null);
       setIsAuthChecking(false);
       setShowLogin(false);
+      setTimeout(() => { skipPersistRef.current = false; }, 0);
   };
 
   // A Google user who authenticated but isn't approved yet (blocks entry).
@@ -388,16 +474,19 @@ const App: React.FC = () => {
 
   const handleAuthSignOut = async () => {
       await signOutAuth();
-      setSbUser(null);
-      setSbApproved(false);
+      resetLocalSession();
       setShowLogin(true);
+      setTimeout(() => { skipPersistRef.current = false; }, 0);
   };
 
   // Full sign-out from the pending screen (clears Google/Drive too).
   const handlePendingSignOut = async () => {
+      guestModeRef.current = false;
+      resetLocalSession();
       await signOutAuth();
       setAccessPendingEmail(null);
-      signOutDrive(); // clears the Drive token and reloads to a clean state
+      setShowLogin(true);
+      setTimeout(() => { skipPersistRef.current = false; }, 0);
   };
 
   // Safety net: never leave the app stuck on the boot spinner. If any auth
@@ -964,6 +1053,7 @@ const App: React.FC = () => {
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]);
 
   useEffect(() => {
+      if (skipPersistRef.current) return;
       if (driveUser || transactions.length > 0) {
           localStorage.setItem('psx_transactions', JSON.stringify(transactions));
           localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));

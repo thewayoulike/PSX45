@@ -154,11 +154,16 @@ export const signInWithDrive = () => {
     tokenClient.requestAccessToken({ prompt: '' });
 };
 
-export const signOutDrive = () => {
+export const clearDriveSession = () => {
     localStorage.removeItem(STORAGE_TOKEN_KEY);
     localStorage.removeItem(STORAGE_USER_KEY);
     localStorage.removeItem(STORAGE_EXPIRY_KEY);
     accessToken = null;
+    tokenExpiryTime = 0;
+};
+
+export const signOutDrive = () => {
+    clearDriveSession();
 
     if (window.google && accessToken) {
         window.google.accounts.oauth2.revoke(accessToken, () => {
