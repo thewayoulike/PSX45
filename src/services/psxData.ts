@@ -1,4 +1,5 @@
 import { SECTOR_CODE_MAP } from './sectors';
+import { formatDatePK } from '../utils/dates';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
@@ -47,15 +48,16 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
     }
 };
 
-export const fetchUrlWithFallback = async (targetUrl: string): Promise<string | null> => {
+export const fetchUrlWithFallback = async (targetUrl: string, minLength = 500): Promise<string | null> => {
     
     // 1. THE ULTIMATE FIX: Try your own Vercel Serverless Proxy first
     try {
-        const vercelProxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
+        const vercelProxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`;
         const response = await fetchWithTimeout(vercelProxyUrl, {}, 10000);
         if (response.ok) {
             const text = await response.text();
-            if (text && text.length > 500) return text;
+            // Ensure we aren't just getting the local Vite index.html fallback
+            if (text && text.length > minLength && !text.includes('<title>PSX Portfolio Tracker</title>')) return text;
         }
     } catch (e) {
         console.log("Vercel proxy failed, falling back to public proxies...");
@@ -150,6 +152,48 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
     console.warn("History fetch failed. Switching to Live Fallback...");
     const liveCandle = await fetchLivePriceData(cleanSymbol);
     return liveCandle ? [liveCandle] : [];
+};
+
+const parsePsxTimeseries = (raw: string): { time: number; price: number }[] => {
+    try {
+        const rawData = JSON.parse(raw);
+        if (!rawData?.data || !Array.isArray(rawData.data)) return [];
+        return rawData.data
+            .map((point: any[]) => {
+                const priceIndex = point.length >= 5 ? 4 : 1;
+                return { time: Number(point[0]) * 1000, price: Number(point[priceIndex]) };
+            })
+            .filter((p: { time: number; price: number }) => p.time > 0 && p.price > 0)
+            .sort((a: { time: number }, b: { time: number }) => a.time - b.time);
+    } catch {
+        return [];
+    }
+};
+
+/** Live index level + today's change vs previous session close. */
+export const fetchIndexQuote = async (symbol: string): Promise<{ value: number; changePct: number | null } | null> => {
+    const clean = symbol.toUpperCase().replace('PSX:', '').trim();
+    const [intRaw, eodRaw] = await Promise.all([
+        fetchUrlWithFallback(`https://dps.psx.com.pk/timeseries/int/${clean}`, 20),
+        fetchUrlWithFallback(`https://dps.psx.com.pk/timeseries/eod/${clean}`, 20),
+    ]);
+    const intra = intRaw ? parsePsxTimeseries(intRaw) : [];
+    const eod = eodRaw ? parsePsxTimeseries(eodRaw) : [];
+    const lastIntra = intra.length ? intra[intra.length - 1] : null;
+    const lastEod = eod.length ? eod[eod.length - 1] : null;
+    const live = lastIntra?.price || lastEod?.price || 0;
+    if (!live) return null;
+
+    let prevClose = 0;
+    if (lastEod && lastIntra) {
+      const sameDay = formatDatePK(new Date(lastEod.time)) === formatDatePK(new Date(lastIntra.time));
+      prevClose = sameDay ? (eod[eod.length - 2]?.price || 0) : lastEod.price;
+    } else if (eod.length >= 2) {
+      prevClose = eod[eod.length - 2].price;
+    }
+
+    const changePct = prevClose > 0 ? ((live - prevClose) / prevClose) * 100 : null;
+    return { value: live, changePct };
 };
 
 // B. FETCH BATCH PRICES (Sync PSX)

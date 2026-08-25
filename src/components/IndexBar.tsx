@@ -1,47 +1,44 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { fetchStockHistory } from '../services/psxData';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { fetchIndexQuote } from '../services/psxData';
+import { isPsxMarketHours } from '../utils/dates';
 
 interface Idx { label: string; value: number; changePct: number | null; }
 
-// Last value + close-to-close change from a fetchStockHistory series.
-const lastChange = (arr: { time: number; price: number }[] | undefined): Idx | null => {
-  if (!arr || arr.length < 2) return null;
-  const a = arr[arr.length - 1].price;
-  const b = arr[arr.length - 2].price;
-  if (!a) return null;
-  return { label: '', value: a, changePct: b > 0 ? ((a - b) / b) * 100 : null };
-};
+const REFRESH_MS = 5 * 60 * 1000;
 
 export const IndexBar: React.FC = () => {
   const [items, setItems] = useState<Idx[]>([]);
+  const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     const collected: Idx[] = [];
 
-    // KSE-100 & KMI-30 from the SAME reliable source your PerformanceChart uses.
     try {
       const [kse, kmi] = await Promise.all([
-        fetchStockHistory('KSE100', '1M'),
-        fetchStockHistory('KMI30', '1M'),
+        fetchIndexQuote('KSE100'),
+        fetchIndexQuote('KMI30'),
       ]);
-      const k = lastChange(kse); if (k) collected.push({ ...k, label: 'KSE-100' });
-      const m = lastChange(kmi); if (m) collected.push({ ...m, label: 'KMI-30' });
+      if (kse) collected.push({ label: 'KSE-100', value: kse.value, changePct: kse.changePct });
+      if (kmi) collected.push({ label: 'KMI-30', value: kmi.value, changePct: kmi.changePct });
     } catch { /* ignore */ }
 
-    // USD/PKR (free forex source; may differ slightly from Google/interbank).
     try {
-      const res = await fetch('https://open.er-api.com/v6/latest/USD');
+      const res = await fetch(`https://open.er-api.com/v6/latest/USD?t=${Date.now()}`);
       const data = await res.json();
       const pkr = data?.rates?.PKR;
       if (pkr) collected.push({ label: 'USD/PKR', value: pkr, changePct: null });
     } catch { /* ignore */ }
 
     if (collected.length) setItems(collected);
+    loadingRef.current = false;
   }, []);
 
   useEffect(() => {
     load();
-    const t = setInterval(load, 5 * 60 * 1000);
+    const tick = () => { if (isPsxMarketHours()) load(); };
+    const t = setInterval(tick, REFRESH_MS);
     return () => clearInterval(t);
   }, [load]);
 
