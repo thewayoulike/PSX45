@@ -233,8 +233,102 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           </div>
         </div>
         
-        {/* Table Container */}
-        <div className="overflow-x-auto flex-1 custom-scrollbar">
+        {/* Mobile cards */}
+        <div className="md:hidden flex-1 px-3 pb-3 space-y-3">
+          {paginatedHoldings.length === 0 ? (
+            <div className="px-4 py-16 text-center text-slate-400 font-medium text-sm">
+              {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'}
+            </div>
+          ) : (
+            paginatedHoldings.map((holding, idx) => {
+              const roundedAvg = isFund ? fundAvgForCost(holding.avgPrice) : Math.round(holding.avgPrice * 100) / 100;
+              const costBasis = holding.quantity * roundedAvg;
+              const marketValue = holding.quantity * holding.currentPrice;
+              const pnl = marketValue - costBasis;
+              const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
+              const isProfit = pnl >= 0;
+              const isFailed = failedTickers.has(holding.ticker);
+              const ldcp = isFund ? fundLdcp(holding) : (ldcpMap[holding.ticker] || holding.currentPrice);
+              const day = isFund
+                ? fundDayPL(holding, ldcp, dayTransactions, today)
+                : { change: (holding.currentPrice - ldcp) * holding.quantity, pct: ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0 };
+              const clickable = !isFundTicker(holding.ticker) && !!onTickerClick;
+              return (
+                <div
+                  key={`${holding.ticker}-${holding.broker || idx}-m`}
+                  role={clickable ? 'button' : undefined}
+                  tabIndex={clickable ? 0 : undefined}
+                  onClick={() => clickable && onTickerClick?.(holding.ticker)}
+                  className={`rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 p-4 active:scale-[0.99] transition-transform ${clickable ? 'cursor-pointer' : ''}`}
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="min-w-0 flex items-start gap-2.5">
+                      <div className="w-1 h-10 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
+                      <div className="min-w-0">
+                        <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5 truncate">
+                          {displayNames[holding.ticker] || holding.ticker}
+                          {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse shrink-0" />}
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate mt-0.5">
+                          {holding.sector}{showBroker && holding.broker ? ` · ${holding.broker}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                    <div className={`text-right shrink-0 ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                      <div className="font-mono font-bold tabular-nums text-sm">{isProfit ? '+' : ''}{pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                      <div className="text-[10px] font-bold tabular-nums">{isProfit ? '+' : ''}{pnlPercent.toFixed(1)}%</div>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'Units' : 'Qty'}</div>
+                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">{isFund ? fmtFundUnits(holding.quantity) : holding.quantity.toLocaleString()}</div>
+                    </div>
+                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'NAV' : 'Price'}</div>
+                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">
+                        {holding.currentPrice > 0 ? (isFund ? fmtFundNav(holding.currentPrice) : holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '—'}
+                      </div>
+                    </div>
+                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Market Value</div>
+                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">{marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                    </div>
+                    <div className={`rounded-xl px-3 py-2 border border-slate-100 dark:border-slate-800 ${day.change >= 0 ? 'bg-emerald-50/80 dark:bg-emerald-500/10' : 'bg-rose-50/80 dark:bg-rose-500/10'}`}>
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Daily P&L</div>
+                      <div className={`font-mono font-bold tabular-nums flex items-center gap-1 ${day.change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
+                        {day.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
+                        {day.change >= 0 ? '+' : ''}{day.change.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                        <span className="text-[10px] opacity-80">({day.pct.toFixed(1)}%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+          {filteredAndSortedHoldings.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/60 p-4">
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Grand Total</div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Market</div>
+                  <div className="font-mono font-black tabular-nums text-slate-900 dark:text-white">{totals.totalMarket.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                </div>
+                <div>
+                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">P&L</div>
+                  <div className={`font-mono font-black tabular-nums ${totals.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                    {totals.pnl >= 0 ? '+' : ''}{totals.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    <span className="text-xs font-bold ml-1">({totalPnlPercent.toFixed(1)}%)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden md:block overflow-x-auto flex-1 custom-scrollbar">
           <table className="w-full text-left whitespace-nowrap min-w-[1000px] border-collapse">
             <thead className="sticky top-0 z-10 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md shadow-sm border-b border-slate-200 dark:border-slate-800">
               <tr>
@@ -283,7 +377,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   if (diff > 0.001) beColorClass = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10"; 
                   else if (diff < -0.001) beColorClass = "text-rose-500 dark:text-rose-400 bg-rose-50 dark:bg-rose-500/10"; 
 
-                  // --- EXTRACT ALL LISTED TAGS DYNAMICALLY (PSX only) ---
                   const rawListedIn = holding.listedIn || listedInMap[holding.ticker] || "";
                   let tags: string[] = [];
                   
@@ -303,13 +396,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group ${!isFundTicker(holding.ticker) && onTickerClick ? 'cursor-pointer' : ''}`} 
                       onClick={() => !isFundTicker(holding.ticker) && onTickerClick && onTickerClick(holding.ticker)}
                     >
-                      {/* Asset Column */}
                       <td className="px-4 py-3.5"> 
                         <div className="flex items-start gap-3"> 
                           <div className="w-1.5 h-[50px] rounded-full shadow-sm mt-0.5" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> 
                           <div className="flex flex-col"> 
-                            
-                            {/* Ticker Name */}
                             <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5"> 
                               {displayNames[holding.ticker] || holding.ticker} 
                               {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" title="Price update failed" />} 
@@ -317,24 +407,18 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             {displayNames[holding.ticker] && (
                               <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[220px]">{holding.ticker.replace(/^MF:/, '')}</div>
                             )}
-                            
-                            {/* Sector */}
                             <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[200px] mt-0.5">
                                 {holding.sector}
                             </div> 
-
-                            {/* --- MULTIPLE TAGS RENDERED UNDER THE SECTOR --- */}
                             {tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1.5 max-w-[220px]">
                                     {tags.map((tag, i) => {
                                         let colorClass = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
-                                        
                                         if (tag.includes('KMI')) {
                                             colorClass = "bg-purple-50 text-purple-600 border-purple-200/60 dark:bg-purple-500/10 dark:text-purple-400 dark:border-purple-500/20";
                                         } else if (tag.includes('KSE')) {
                                             colorClass = "bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20";
                                         }
-
                                         return (
                                             <span 
                                                 key={`${tag}-${i}`} 
@@ -346,27 +430,18 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                                     })}
                                 </div>
                             )}
-
                           </div> 
                         </div> 
                       </td>
-                      
-                      {/* Broker */}
                       {showBroker && <td className="px-4 py-3.5 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400 align-middle">{holding.broker}</td>}
-                      
-                      {/* Qty */}
                       <td className="px-4 py-3.5 text-right text-slate-900 dark:text-slate-100 font-bold tabular-nums align-middle">
                         {isFund ? fmtFundUnits(holding.quantity) : holding.quantity.toLocaleString()}
                       </td>
-                      
-                      {/* Avg Price */}
                       <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-bold align-middle">
                           {isFund
                             ? fmtFundNav(roundedAvg)
                             : roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      
-                      {/* Current Price & BE */}
                       <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className="flex flex-col items-end"> 
                             <span className={`tabular-nums font-display font-black text-sm ${isFailed ? "text-amber-500" : "text-slate-900 dark:text-white"}`}> 
@@ -385,18 +460,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             )}
                         </div> 
                       </td>
-                      
-                      {/* Cost Basis */}
                       <td className="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400 tabular-nums font-mono text-sm font-medium align-middle">
                         {costBasis.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      
-                      {/* Market Value */}
                       <td className="px-4 py-3.5 text-right text-slate-900 dark:text-white font-mono font-black tabular-nums text-sm align-middle">
                         {marketValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
-                      
-                      {/* Daily P&L */}
                       <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className={`flex flex-col items-end ${isDailyProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}> 
                           <span className="font-mono font-bold tabular-nums text-sm">
@@ -408,8 +477,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                           </span> 
                         </div> 
                       </td>
-                      
-                      {/* Total P&L */}
                       <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className={`flex flex-col items-end ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}> 
                           <span className="font-mono font-bold tabular-nums text-base">
@@ -425,8 +492,6 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                 })
               )}
             </tbody>
-            
-            {/* Grand Total Footer */}
             {filteredAndSortedHoldings.length > 0 && (
                 <tfoot className="bg-slate-50/90 dark:bg-slate-800/90 border-t-2 border-slate-200 dark:border-slate-700 shadow-inner">
                     <tr>

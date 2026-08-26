@@ -225,8 +225,91 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         </div>
       </div>
 
-      {/* Table Area */}
-      <div className="overflow-x-auto flex-1 custom-scrollbar">
+      {/* Mobile cards */}
+      <div className="md:hidden flex-1 px-3 pb-3 space-y-2.5">
+        {paginatedTransactions.length === 0 ? (
+          <div className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 font-medium text-sm">
+            {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'}
+          </div>
+        ) : (
+          paginatedTransactions.map((tx) => {
+            const netAmount = getNetAmount(tx);
+            const typeConfig = getTypeConfig(tx);
+            const isSelected = selectedIds.has(tx.id);
+            const txLabel = formatTransactionLabel(tx.ticker, displayNames, tx.notes);
+            const txSub = formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
+            const isCDCManual = tx.type === 'OTHER' && tx.category === 'CDC_CHARGE';
+            const isOtherManual = tx.type === 'OTHER' && tx.category === 'OTHER_TAX';
+            const displayPrice = (isCDCManual || isOtherManual) ? 0 : tx.price;
+            return (
+              <div
+                key={`${tx.id}-m`}
+                className={`rounded-2xl border p-3.5 ${isSelected ? 'border-indigo-300 dark:border-indigo-500/40 bg-indigo-50/70 dark:bg-indigo-500/10' : 'border-slate-200/70 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/25'}`}
+              >
+                <div className="flex items-start gap-3">
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => handleSelectOne(tx.id)}
+                    className="mt-1 w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-emerald-600 focus:ring-emerald-500 cursor-pointer shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div className="min-w-0">
+                        <div className="font-display font-black text-slate-900 dark:text-white truncate">{txLabel}</div>
+                        {txSub && <div className="text-[9px] text-slate-400 font-bold uppercase tracking-widest truncate">{txSub}</div>}
+                      </div>
+                      <div className={`font-mono font-bold tabular-nums text-sm shrink-0 ${netAmount < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>
+                        {netAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${typeConfig.style}`}>
+                        {typeConfig.icon} {typeConfig.label}
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-500 tabular-nums">{tx.date}</span>
+                      {!isFund && tx.broker && (
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{tx.broker}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                      <span className="font-mono tabular-nums">
+                        {isFundTicker(tx.ticker) ? fmtFundUnits(tx.quantity) : tx.quantity.toLocaleString()}
+                        {displayPrice !== 0 && (
+                          <> · {isFundTicker(tx.ticker) && !['DEPOSIT', 'HISTORY', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type)
+                            ? fmtFundNav(displayPrice)
+                            : displayPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</>
+                        )}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEdit(tx)}
+                          className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 p-2 rounded-xl min-h-[40px] min-w-[40px] flex items-center justify-center"
+                          title="Edit"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDelete(tx.id)}
+                          className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 p-2 rounded-xl min-h-[40px] min-w-[40px] flex items-center justify-center"
+                          title="Delete"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block overflow-x-auto flex-1 custom-scrollbar">
         <table className="w-full text-sm min-w-[1000px] whitespace-nowrap border-collapse">
           <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-left sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800"> 
             <tr> 
@@ -252,7 +335,6 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                     const txLabel = formatTransactionLabel(tx.ticker, displayNames, tx.notes);
                     const txSub = formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
                     
-                    // Logic to display manual fees in correct columns
                     const isCDCManual = tx.type === 'OTHER' && tx.category === 'CDC_CHARGE';
                     const isOtherManual = tx.type === 'OTHER' && tx.category === 'OTHER_TAX';
                     
@@ -278,7 +360,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         <td className={`px-2 py-3 text-right font-mono text-[10px] tabular-nums ${isOtherManual ? 'text-slate-900 dark:text-slate-100 font-bold' : 'text-slate-400 dark:text-slate-500'}`}> {displayOther.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className={`px-4 py-3 text-right font-bold font-mono text-sm tabular-nums ${netAmount < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-900 dark:text-slate-100'}`}> {netAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} </td>
                         <td className="px-4 py-3 text-center"> 
-                            <div className="flex items-center justify-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity"> 
+                            <div className="flex items-center justify-center gap-1.5 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity"> 
                                 <button onClick={(e) => { e.stopPropagation(); onEdit(tx); }} className="text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 p-2 rounded-xl transition-all shadow-sm" title="Edit"> <Pencil size={16} /> </button> 
                                 <button onClick={(e) => {e.stopPropagation(); onDelete(tx.id);}} className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-500/10 p-2 rounded-xl transition-all shadow-sm" title="Delete"> <Trash2 size={16} /> </button> 
                             </div> 

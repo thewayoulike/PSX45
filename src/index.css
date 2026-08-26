@@ -3,6 +3,14 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Safe area for notched phones / installed PWA */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+}
+
 /* ---------------------------------------------------------------
    Theme tokens — change the accent or surfaces in ONE place.
    Values are space-separated RGB so they work with /opacity too:
@@ -62,6 +70,15 @@ html.dark {
     outline: none;
     box-shadow: 0 0 0 3px rgb(var(--accent) / 0.35);
     border-radius: 6px;
+  }
+
+  /* Prefer 16px on text fields so iOS doesn’t zoom on focus */
+  @media (max-width: 639px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+    select,
+    textarea {
+      font-size: 16px;
+    }
   }
 
   ::selection {

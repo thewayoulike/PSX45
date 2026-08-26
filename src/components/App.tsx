@@ -1692,7 +1692,7 @@ const App: React.FC = () => {
   })();
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden">
+    <div className="flex flex-col h-[100dvh] bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       {trialBanner}
 
@@ -1726,7 +1726,7 @@ const App: React.FC = () => {
                   <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
 
                       <div className="flex items-center gap-3">
-                         <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                         <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
                             <Menu size={20} />
                          </button>
                       </div>
@@ -1793,50 +1793,64 @@ const App: React.FC = () => {
 
                       <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-4 mb-6 flex flex-col gap-3 bg-slate-50/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-all">
                           {!isFundPortfolio && <IndexBar />}
-                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white/60 dark:bg-slate-900/60 p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
-                          <div className="w-full overflow-x-auto pb-2 custom-scrollbar">
-                              <div className="flex items-center justify-between min-w-max gap-6">
-                                  <div className="flex items-center gap-3">
+                          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-white/60 dark:bg-slate-900/60 p-3 sm:p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
+                          <div className="w-full">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                                       <button
                                           onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
-                                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-lg shadow-emerald-600/20 transition-all transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm dark:shadow-emerald-900/40"
+                                          className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm dark:shadow-emerald-900/40 flex-1 sm:flex-none min-h-[44px]"
                                       >
-                                          <Plus size={18} /> Add Transaction
+                                          <Plus size={18} /> <span>Add</span><span className="hidden sm:inline"> Transaction</span>
+                                      </button>
+                                      <button
+                                          onClick={handleSyncMarket}
+                                          disabled={isSyncing}
+                                          className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-bold shadow-sm transition-all active:scale-[0.98] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm min-h-[44px] flex-1 sm:flex-none justify-center"
+                                      >
+                                          {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                          <span>{isFundPortfolio ? 'Sync NAV' : 'Sync'}</span>
+                                          {priceError && <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />}
                                       </button>
                                       <button
                                           onClick={() => setShowTransferModal(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
+                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
+                                          title="Transfer"
                                       >
-                                          <ArrowRightLeft size={16} /> Transfer
+                                          <ArrowRightLeft size={16} /> <span className="hidden sm:inline">Transfer</span>
                                       </button>
                                       {!isFundPortfolio && (
                                       <>
                                       <button
                                           onClick={() => setShowDividendScanner(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
+                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
                                       >
-                                          <Coins size={16} /> Scan Dividends
+                                          <Coins size={16} /> <span className="hidden md:inline">Scan Dividends</span>
                                       </button>
                                       <button
                                           onClick={() => setShowUpcomingScanner(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-4 md:px-5 py-3 rounded-xl font-display font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 whitespace-nowrap text-sm"
+                                          className="hidden sm:flex bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
                                       >
-                                          <CalendarClock size={16} /> Future X-Dates
+                                          <CalendarClock size={16} /> <span className="hidden md:inline">Future X-Dates</span>
                                       </button>
                                       </>
                                       )}
-                                  </div>
+                                      <button
+                                          onClick={() => setShowPriceEditor(true)}
+                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-bold shadow-sm transition-all active:scale-[0.98] flex items-center gap-2 whitespace-nowrap shrink-0 text-sm min-h-[44px]"
+                                      >
+                                          <Edit3 size={16} /> <span className="hidden md:inline">Manual Prices</span>
+                                      </button>
 
-                                  <div className="flex items-center gap-4">
-                                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800/80 px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm shrink-0">
+                                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800/80 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm shrink-0 ml-auto">
                                           {isCombinedView && (
                                               <Popover.Root>
                                                   <Popover.Trigger asChild>
                                                       <button
-                                                          className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap outline-none"
+                                                          className="flex items-center gap-1.5 px-2 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition-colors whitespace-nowrap outline-none min-h-[36px]"
                                                       >
                                                           <Layers size={14} />
-                                                          <span>Portfolios ({combinedPortfolioIds.size})</span>
+                                                          <span className="hidden sm:inline">Portfolios</span>
+                                                          <span>({combinedPortfolioIds.size})</span>
                                                           <ChevronDown size={14} />
                                                       </button>
                                                   </Popover.Trigger>
@@ -1873,9 +1887,8 @@ const App: React.FC = () => {
                                                   </Popover.Portal>
                                               </Popover.Root>
                                           )}
-                                          <div className="h-5 w-[1px] bg-slate-200 dark:bg-slate-700 mx-1"></div>
                                           <div className="flex items-center gap-2">
-                                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Combined</span>
+                                              <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest whitespace-nowrap">Combo</span>
                                               <button
                                                   onClick={() => {
                                                       const newState = !isCombinedView;
@@ -1888,34 +1901,12 @@ const App: React.FC = () => {
                                                       }
                                                   }}
                                                   className={`w-10 h-5 rounded-full relative transition-colors shrink-0 ${isCombinedView ? 'bg-indigo-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                                                  aria-label="Toggle combined portfolios"
                                               >
                                                   <div className={`w-3 h-3 bg-white rounded-full absolute top-1 transition-all shadow-sm ${isCombinedView ? 'left-6' : 'left-1'}`}></div>
                                               </button>
                                           </div>
                                       </div>
-
-                                      {/* Manual Prices + Sync PSX — always available, on every view */}
-                                      {(
-                                          <>
-                                              <button
-                                                  onClick={() => setShowPriceEditor(true)}
-                                                  className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 px-4 py-3 rounded-xl font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 whitespace-nowrap shrink-0 text-sm"
-                                              >
-                                                  <Edit3 size={16} /> <span>Manual Prices</span>
-                                              </button>
-                                             <div className="flex items-center gap-2 shrink-0">
-                                                  <button
-                                                      onClick={handleSyncMarket}
-                                                      disabled={isSyncing}
-                                                      className="bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/20 hover:bg-emerald-100 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-4 py-3 rounded-xl font-bold shadow-sm transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap text-sm"
-                                                  >
-                                                      {isSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />} <span>{isFundPortfolio ? 'Sync NAV' : 'Sync PSX'}</span>
-                                                  </button>
-                                                  {priceError && <div className="w-3 h-3 rounded-full bg-rose-500 animate-pulse" title="Some prices failed to update. Check list."></div>}
-                                              </div>
-                                          </>
-                                      )}
-                                  </div>
                               </div>
                             </div>
                            </div>

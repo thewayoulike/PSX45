@@ -147,7 +147,7 @@ const pillarText = (s: number) => (s >= 60 ? 'text-emerald-600 dark:text-emerald
 const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: React.ReactNode }> = ({ pillars, score, children }) => (
   <span className="relative group inline-flex cursor-help z-30" tabIndex={0}>
     {children}
-    <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus:opacity-100 group-focus:visible transition-all duration-200 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-card dark:shadow-card-dark p-4 text-left normal-case tracking-normal transform scale-95 group-hover:scale-100 origin-bottom">
+    <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible group-focus:opacity-100 group-focus:visible transition-all duration-200 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-card dark:shadow-card-dark p-4 text-left normal-case tracking-normal transform scale-95 group-hover:scale-100 origin-bottom">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Score Breakdown</span>
         <span className="text-sm font-display font-black text-slate-900 dark:text-white">{score}/100</span>

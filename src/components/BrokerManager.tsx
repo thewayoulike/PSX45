@@ -313,7 +313,7 @@ export const BrokerManager: React.FC<BrokerManagerProps> = ({
                          {b.annualFee ? `Rs. ${b.annualFee.toLocaleString()}` : '-'}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-2 opacity-60 group-hover:opacity-100 transition-opacity">
+                        <div className="flex items-center justify-end gap-2 opacity-100 md:opacity-60 md:group-hover:opacity-100 transition-opacity">
                            <button onClick={() => handleEdit(b)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 hover:text-blue-600 dark:hover:text-blue-400 rounded-lg transition-colors border border-transparent hover:border-blue-200 dark:hover:border-blue-500/20 shadow-sm"><Pencil size={16} /></button>
                            <button onClick={() => onDeleteBroker(b.id)} className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 hover:text-rose-600 dark:hover:text-rose-400 rounded-lg transition-colors border border-transparent hover:border-rose-200 dark:hover:border-rose-500/20 shadow-sm"><Trash2 size={16} /></button>
                         </div>
