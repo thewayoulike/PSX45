@@ -88,6 +88,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [fundNavLoading, setFundNavLoading] = useState(false);
   const [showFundGuide, setShowFundGuide] = useState(true);
   const [fundScanHint, setFundScanHint] = useState<string | null>(null);
+  const [fundScanInstructions, setFundScanInstructions] = useState(() => {
+      try { return localStorage.getItem('psx_fund_scan_instructions') || ''; } catch { return ''; }
+  });
+  const [showFundScanHelp, setShowFundScanHelp] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
@@ -419,24 +423,32 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       
       try { 
           if (isFundPortfolio && mode === 'AI_SCAN') {
-              const scan = await parseFundBalanceDocument(selectedFile);
-              if (!scan.holdings?.length) throw new Error("No fund holdings found. Upload your AMC balance summary screenshot or PDF.");
+              try { localStorage.setItem('psx_fund_scan_instructions', fundScanInstructions); } catch { /* ignore */ }
+              const scan = await parseFundBalanceDocument(selectedFile, { customInstructions: fundScanInstructions });
+              const hasHoldings = (scan.holdings?.length || 0) > 0;
+              const hasFlows = (scan.cashFlows?.length || 0) > 0;
+              if (!hasHoldings && !hasFlows) {
+                  throw new Error("No fund holdings or cash activity found. Upload a balance summary or transaction statement, and add read tips below if the layout is unusual.");
+              }
               const { trades, warnings } = fundScanToTrades(scan, fundCatalog, todayPK());
               if (trades.length === 0) throw new Error("No importable rows found in the statement.");
+              const cashLike = new Set(['DEPOSIT', 'HISTORY', 'WITHDRAWAL', 'TAX', 'DIVIDEND', 'DIVIDEND_REINVEST', 'OTHER']);
               updateScannedTrades(trades.map(t => ({
                   ...t,
-                  quantity: isFundPortfolio && t.type !== 'DEPOSIT' && t.type !== 'HISTORY'
+                  quantity: isFundPortfolio && !cashLike.has(t.type)
                       ? roundFundUnits(Number(t.quantity))
                       : t.quantity,
                   price: typeof t.price === 'number'
-                      ? (isFundPortfolio && t.type !== 'DEPOSIT' && t.type !== 'HISTORY' ? Number(dpFundNav(t.price)) : t.price)
+                      ? (isFundPortfolio && !cashLike.has(t.type) ? Number(dpFundNav(t.price)) : t.price)
                       : Number(t.price),
                   brokerId: isFundPortfolio ? undefined : (selectedBrokerId || undefined),
                   broker: isFundPortfolio ? undefined : (selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker),
               })));
               const hintParts = [
-                  'Review rows before saving: DEPOSIT first, then SUBSCRIBE (BUY) per fund.',
-                  warnings.length > 0 ? `Auto-fixed ${warnings.length} row(s): ${warnings.join('; ')}` : null,
+                  hasFlows
+                      ? 'Activity statement detected — review Deposit / Withdrawal / Subscribe / Redeem / Dividend / Tax rows.'
+                      : 'Balance summary — review Deposit + Subscribe (BUY) per fund.',
+                  warnings.length > 0 ? `Notes: ${warnings.slice(0, 4).join('; ')}${warnings.length > 4 ? '…' : ''}` : null,
               ].filter(Boolean);
               setFundScanHint(hintParts.join(' '));
               return;
@@ -518,8 +530,41 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           onAddTransaction({ ...base, ticker: 'CASH', type: 'DEPOSIT', quantity: 1, price: Number(trade.price) });
           return;
       }
+      if (trade.type === 'WITHDRAWAL') {
+          onAddTransaction({ ...base, ticker: 'CASH', type: 'WITHDRAWAL', quantity: 1, price: Number(trade.price) });
+          return;
+      }
       if (trade.type === 'HISTORY') {
           onAddTransaction({ ...base, ticker: 'PREV-PNL', type: 'HISTORY', quantity: 1, price: Number(trade.price) });
+          return;
+      }
+      if (trade.type === 'TAX') {
+          onAddTransaction({ ...base, ticker: 'CGT', type: 'TAX', quantity: 1, price: Number(trade.price) });
+          return;
+      }
+      if (trade.type === 'DIVIDEND_REINVEST') {
+          onAddTransaction({ ...base, ticker: 'DIV REINVEST', type: 'DIVIDEND_REINVEST', quantity: 1, price: Number(trade.price) });
+          return;
+      }
+      if (trade.type === 'DIVIDEND') {
+          onAddTransaction({
+              ...base,
+              ticker: trade.ticker,
+              type: 'DIVIDEND',
+              quantity: Number(trade.quantity) || 1,
+              price: Number(trade.price),
+          });
+          return;
+      }
+      if (trade.type === 'OTHER') {
+          onAddTransaction({
+              ...base,
+              ticker: 'CASH',
+              type: 'OTHER',
+              quantity: 1,
+              price: Number(trade.price),
+              category: trade.category || 'ADJUSTMENT',
+          });
           return;
       }
       onAddTransaction({
@@ -598,6 +643,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (txType === 'BUY') return 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
       if (txType === 'SELL') return 'bg-blue-50 text-blue-600 border-blue-200/60 dark:bg-blue-500/10 dark:text-blue-400 dark:border-blue-500/20';
       if (txType === 'DEPOSIT') return 'bg-violet-50 text-violet-600 border-violet-200/60 dark:bg-violet-500/10 dark:text-violet-400 dark:border-violet-500/20';
+      if (txType === 'WITHDRAWAL') return 'bg-rose-50 text-rose-600 border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20';
+      if (txType === 'DIVIDEND' || txType === 'DIVIDEND_REINVEST') return 'bg-amber-50 text-amber-700 border-amber-200/60 dark:bg-amber-500/10 dark:text-amber-400 dark:border-amber-500/20';
+      if (txType === 'TAX') return 'bg-orange-50 text-orange-600 border-orange-200/60 dark:bg-orange-500/10 dark:text-orange-400 dark:border-orange-500/20';
       if (txType === 'HISTORY') return 'bg-indigo-50 text-indigo-600 border-indigo-200/60 dark:bg-indigo-500/10 dark:text-indigo-400 dark:border-indigo-500/20';
       return 'bg-slate-50 text-slate-600 border-slate-200/60 dark:bg-slate-500/10 dark:text-slate-400 dark:border-slate-500/20';
   };
@@ -963,9 +1011,37 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     {!isScanning && savedScannedTrades.length === 0 && mode !== 'EMAIL_IMPORT' && (
                         <>
                              {isFundPortfolio && mode === 'AI_SCAN' && (
-                                 <div className="mb-4 bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-500/20 rounded-2xl p-4 text-xs text-indigo-800 dark:text-indigo-200">
-                                     <p className="font-bold mb-1 flex items-center gap-1.5"><Sparkles size={14} /> AMC balance summary scan</p>
-                                     <p>Upload a screenshot or PDF of your fund account statement (Units, NAV, Investment Value, Gain columns). AI will create a <strong>Deposit</strong>, <strong>Subscribe</strong> rows per fund, and <strong>History</strong> for closed (0 unit) funds.</p>
+                                 <div className="mb-4 space-y-3">
+                                     <div className="bg-indigo-50/50 dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-500/20 rounded-2xl p-4 text-xs text-indigo-800 dark:text-indigo-200">
+                                         <p className="font-bold mb-1 flex items-center gap-1.5"><Sparkles size={14} /> AMC / bank statement scan</p>
+                                         <p>Upload a <strong>balance summary</strong> (Units, NAV, Investment Value) or an <strong>activity statement</strong> (cash, subscribe, redeem, dividends, tax). AI can extract both.</p>
+                                     </div>
+                                     <div className="bg-white dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-700/60 rounded-2xl p-4 shadow-sm">
+                                         <button
+                                             type="button"
+                                             onClick={() => setShowFundScanHelp(v => !v)}
+                                             className="w-full flex items-center justify-between gap-2 text-left"
+                                         >
+                                             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                                                 <Info size={13} /> How should AI read this file?
+                                             </span>
+                                             <ChevronDown size={14} className={`text-slate-400 transition-transform ${showFundScanHelp ? 'rotate-180' : ''}`} />
+                                         </button>
+                                         {showFundScanHelp && (
+                                             <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+                                                 Different AMCs/banks use different column names. Tell the AI what to look for — e.g. &quot;Al Meezan: Investment Value is market value; ignore Avg Cost&quot;,
+                                                 &quot;Cash In = Deposit, Purchase = Subscribe, Dividend Reinvested = DIVIDEND_REINVEST&quot;, &quot;WHT column is TAX&quot;.
+                                                 Tips are saved on this device for next scan.
+                                             </p>
+                                         )}
+                                         <textarea
+                                             value={fundScanInstructions}
+                                             onChange={(e) => setFundScanInstructions(e.target.value)}
+                                             rows={4}
+                                             placeholder={`Examples:\n• Al Meezan balance: columns are Fund | Units | NAV | Investment Value | Gain To Date\n• Activity: Credit = Deposit, Debit purchase = Subscribe, WHT = TAX\n• Daily income funds: reinvested dividends increase units — map as DIVIDEND_REINVEST + Subscribe if both shown`}
+                                             className="mt-3 w-full bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3 text-xs font-medium text-slate-800 dark:text-slate-100 placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500/20 outline-none resize-y min-h-[88px]"
+                                         />
+                                     </div>
                                  </div>
                              )}
                              <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30`} rounded-3xl cursor-pointer hover:bg-white dark:hover:bg-slate-800/50 transition-all group flex flex-col items-center justify-center p-10`}> 

@@ -50,7 +50,7 @@ export interface RealizedTrade {
 
 export interface ParsedTrade {
   ticker: string;
-  type: 'BUY' | 'SELL' | 'DEPOSIT' | 'HISTORY';
+  type: 'BUY' | 'SELL' | 'DEPOSIT' | 'HISTORY' | 'WITHDRAWAL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'TAX' | 'OTHER';
   quantity: number;
   price: number;
   date?: string;
@@ -60,6 +60,7 @@ export interface ParsedTrade {
   cdcCharges?: number;
   otherFees?: number;
   notes?: string;
+  category?: 'ADJUSTMENT' | 'OTHER_TAX' | 'CDC_CHARGE';
 }
 
 export interface EditableTrade extends ParsedTrade {

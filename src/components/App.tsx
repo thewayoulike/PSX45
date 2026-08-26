@@ -18,7 +18,7 @@ import { BoardMeetings } from './BoardMeetings';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardCustomizer } from './DashboardCustomizer';
 import { AdminUsers } from './AdminUsers';
-import { DashboardLayout, normalizeLayout, DEFAULT_LAYOUT, applyPortfolioToLayout, PSX_ONLY_CARD_IDS } from './dashboard';
+import { DashboardLayout, DashboardLayoutsByType, normalizeLayoutsByType, DEFAULT_LAYOUTS_BY_TYPE, defaultLayoutFor, applyPortfolioToLayout, PSX_ONLY_CARD_IDS } from './dashboard';
 import { TransactionForm } from './TransactionForm';
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
@@ -289,13 +289,16 @@ const App: React.FC = () => {
       } catch (e) {}
       return [];
   });
-  const [dashboardLayout, setDashboardLayout] = useState<DashboardLayout>(() => {
-      if (startEmpty) return DEFAULT_LAYOUT;
+  const [dashboardLayouts, setDashboardLayouts] = useState<DashboardLayoutsByType>(() => {
+      if (startEmpty) return { ...DEFAULT_LAYOUTS_BY_TYPE };
       try {
-          const saved = localStorage.getItem('psx_dashboard_layout');
-          if (saved) return normalizeLayout(JSON.parse(saved));
+          const dual = localStorage.getItem('psx_dashboard_layouts');
+          if (dual) return normalizeLayoutsByType(JSON.parse(dual));
+          // Migrate legacy single layout → PSX only
+          const legacy = localStorage.getItem('psx_dashboard_layout');
+          if (legacy) return normalizeLayoutsByType(JSON.parse(legacy));
       } catch (e) {}
-      return DEFAULT_LAYOUT;
+      return { ...DEFAULT_LAYOUTS_BY_TYPE };
   });
   // Track whether we're on a narrow (mobile) viewport so the dashboard uses the
   // separately-saved mobile layout.
@@ -307,11 +310,15 @@ const App: React.FC = () => {
       window.addEventListener('resize', onResize);
       return () => window.removeEventListener('resize', onResize);
   }, []);
-  // Persist dashboard layout locally whenever it changes (works for guests too).
+  // Persist both PSX + fund layouts locally (works for guests too).
   useEffect(() => {
       if (skipPersistRef.current) return;
-      try { localStorage.setItem('psx_dashboard_layout', JSON.stringify(dashboardLayout)); } catch (e) {}
-  }, [dashboardLayout]);
+      try {
+          localStorage.setItem('psx_dashboard_layouts', JSON.stringify(dashboardLayouts));
+          // Keep legacy key in sync with PSX layout for older builds
+          localStorage.setItem('psx_dashboard_layout', JSON.stringify(dashboardLayouts.PSX));
+      } catch (e) {}
+  }, [dashboardLayouts]);
   const [ldcpMap, setLdcpMap] = useState<Record<string, number>>(() => {
       if (startEmpty) return {};
       try {
@@ -411,7 +418,7 @@ const App: React.FC = () => {
       setPerformanceHistory({});
       setFairValueCache({});
       setWatchlist([]);
-      setDashboardLayout(DEFAULT_LAYOUT);
+      setDashboardLayouts({ ...DEFAULT_LAYOUTS_BY_TYPE });
       setUserApiKey('');
       setUserScraperKey('');
       setUserWebScrapingAIKey('');
@@ -615,6 +622,11 @@ const App: React.FC = () => {
                   if (cloudData.fundCatalog) {
                       setFundCatalog(cloudData.fundCatalog);
                       try { localStorage.setItem(FUND_CATALOG_STORAGE_KEY, JSON.stringify(cloudData.fundCatalog)); } catch { /* ignore */ }
+                  }
+                  if (cloudData.dashboardLayouts) {
+                      setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayouts));
+                  } else if (cloudData.dashboardLayout) {
+                      setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayout));
                   }
 
                   if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
@@ -916,24 +928,24 @@ const App: React.FC = () => {
                   const old = prev[id];
                   const hadRecentLive = isRecentLiveFundPrice(priceTimestamps[id]);
                   if (old > 0 && Math.abs(old - nav) > 1e-8) {
-                      // True day-over-day only after a recent live NAV; else catalog correction → 0 day P&L
-                      ldcpUpdates[id] = (liveNav && hadRecentLive) ? old : nav;
+                      const drift = Math.abs(nav - old) / old;
+                      // Only keep prior NAV as "yesterday" for small live day moves
+                      ldcpUpdates[id] = (liveNav && hadRecentLive && drift <= 0.02) ? old : nav;
                   }
                   next[id] = nav;
               });
               setLdcpMap(p => {
                   const merged = { ...p, ...ldcpUpdates };
-                  // Clear leftover bogus ldcp (e.g. old 48.65 vs corrected 50.77) when NAV already matches
+                  // Always wipe absurd leftover ldcp (stale catalog vs corrected NAV)
                   heldIds.forEach(id => {
                       const nav = next[id];
                       if (!(nav > 0)) return;
-                      if (ldcpUpdates[id] != null) return;
                       const ldcp = merged[id];
                       if (!(ldcp > 0)) {
                           merged[id] = nav;
                           return;
                       }
-                      if (Math.abs(nav - ldcp) > 1e-6 && !isRecentLiveFundPrice(priceTimestamps[id])) {
+                      if (Math.abs(nav - ldcp) / ldcp > 0.02) {
                           merged[id] = nav;
                       }
                   });
@@ -1276,7 +1288,9 @@ const App: React.FC = () => {
                   performanceHistory,
                   fairValueCache,
                   watchlist,
-                  dashboardLayout,
+                  dashboardLayouts,
+                  // legacy alias for older clients
+                  dashboardLayout: dashboardLayouts.PSX,
                   fundCatalog,
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
@@ -1290,7 +1304,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayout, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -1451,6 +1465,29 @@ const App: React.FC = () => {
       setRealizedTrades(tempRealized);
   }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides, fundCatalog]);
 
+  // Wipe bogus fund "yesterday NAV" left from stale catalog (e.g. 48.65 vs 50.77 → fake +4% day)
+  useEffect(() => {
+      const fundHoldings = holdings.filter(h => isFundTicker(h.ticker) && h.currentPrice > 0);
+      if (fundHoldings.length === 0) return;
+      setLdcpMap(prev => {
+          let changed = false;
+          const next = { ...prev };
+          fundHoldings.forEach(h => {
+              const ldcp = next[h.ticker];
+              if (!(ldcp > 0)) {
+                  next[h.ticker] = h.currentPrice;
+                  changed = true;
+                  return;
+              }
+              if (Math.abs(h.currentPrice - ldcp) / ldcp > 0.02) {
+                  next[h.ticker] = h.currentPrice;
+                  changed = true;
+              }
+          });
+          return changed ? next : prev;
+      });
+  }, [holdings]);
+
   const handleTickerClick = (ticker: string) => {
       if (isFundTicker(ticker)) return;
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
@@ -1492,8 +1529,17 @@ const App: React.FC = () => {
 
   const effectiveDashboardLayout = useMemo(() => {
       const p = portfolios.find(x => x.id === currentPortfolioId);
-      return applyPortfolioToLayout(dashboardLayout, getPortfolioType(p));
-  }, [dashboardLayout, portfolios, currentPortfolioId]);
+      const type = getPortfolioType(p);
+      const base = dashboardLayouts[type] || defaultLayoutFor(type);
+      return applyPortfolioToLayout(base, type);
+  }, [dashboardLayouts, portfolios, currentPortfolioId]);
+
+  const handleSaveDashboardLayout = (layout: DashboardLayout) => {
+      const p = portfolios.find(x => x.id === currentPortfolioId);
+      const type = getPortfolioType(p);
+      setDashboardLayouts(prev => ({ ...prev, [type]: layout }));
+      setCurrentView('DASHBOARD');
+  };
 
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
@@ -1861,8 +1907,9 @@ const App: React.FC = () => {
                       {currentView === 'DASH_CUSTOMIZE' && (
                           <DashboardCustomizer
                               layout={effectiveDashboardLayout}
+                              portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                               renderCard={renderDashCard}
-                              onSave={(l) => { setDashboardLayout(l); setCurrentView('DASHBOARD'); }}
+                              onSave={handleSaveDashboardLayout}
                               onCancel={() => setCurrentView('DASHBOARD')}
                           />
                       )}

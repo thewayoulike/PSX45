@@ -164,9 +164,11 @@ export const isRecentLiveFundPrice = (isoTimestamp?: string, now = Date.now()): 
 };
 
 /**
- * Fund "yesterday NAV" for daily P&L. Catalog corrections (e.g. 48.65 → 50.77) must not
- * look like a huge one-day gain — only use stored ldcp after a recent live sync chain.
+ * Fund "yesterday NAV" for daily P&L.
+ * Large gaps (e.g. stale catalog 48.65 → live 50.77) are corrections, not day moves.
  */
+export const MAX_PLAUSIBLE_FUND_DAY_MOVE = 0.02; // 2%
+
 export const resolveFundDayNav = (
   currentNav: number,
   storedLdcp: number | undefined,
@@ -174,8 +176,9 @@ export const resolveFundDayNav = (
 ): number => {
   if (!(currentNav > 0)) return storedLdcp && storedLdcp > 0 ? storedLdcp : 0;
   if (!(storedLdcp > 0)) return currentNav;
+  const drift = Math.abs(currentNav - storedLdcp) / storedLdcp;
+  if (drift > MAX_PLAUSIBLE_FUND_DAY_MOVE) return currentNav;
   if (isRecentLiveFundPrice(priceTimestamp)) return storedLdcp;
-  // Stale / corrected catalog baseline → no invented day move
   return currentNav;
 };
 

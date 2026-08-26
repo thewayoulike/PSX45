@@ -1,13 +1,14 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 // @ts-ignore - react-grid-layout ships without bundled types
 import GridLayout, { WidthProvider } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import './dashboard-grid.css';
 import {
-  CardLayout, Device, DashboardLayout, DEFAULT_LAYOUT,
-  COLS, ROW_HEIGHT, GRID_MARGIN, metaFor, isCore, minFor,
+  CardLayout, Device, DashboardLayout, defaultLayoutFor,
+  COLS, ROW_HEIGHT, GRID_MARGIN, metaFor, isCore, minFor, PSX_ONLY_CARD_IDS,
 } from './dashboard';
+import { PortfolioType } from '../types';
 import { FitScale } from './FitScale';
 import { GripVertical, RotateCcw, Monitor, Smartphone, Lock, Minus, Plus, Check, LayoutDashboard } from 'lucide-react';
 
@@ -15,17 +16,24 @@ const RGL: any = WidthProvider(GridLayout as any);
 
 interface Props {
   layout: DashboardLayout;
+  portfolioType?: PortfolioType;
   renderCard: (id: string) => React.ReactNode;
   onSave: (layout: DashboardLayout) => void;
   onCancel: () => void;
 }
 
-export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSave, onCancel }) => {
+export const DashboardCustomizer: React.FC<Props> = ({ layout, portfolioType = 'PSX', renderCard, onSave, onCancel }) => {
+  const isFund = portfolioType === 'MUTUAL_FUND';
   const [device, setDevice] = useState<Device>('web');
   const [draft, setDraft] = useState<DashboardLayout>(layout);
   const [dirty, setDirty] = useState(false);
 
-  const list = draft[device];
+  useEffect(() => {
+    setDraft(layout);
+    setDirty(false);
+  }, [layout, portfolioType]);
+
+  const list = draft[device].filter(c => !(isFund && PSX_ONLY_CARD_IDS.has(c.id)));
 
   const rglLayout = useMemo(
     () => list.map(c => {
@@ -59,7 +67,11 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
   const toggle = (id: string) => { if (isCore(id)) return; patch(id, { visible: !list.find(c => c.id === id)?.visible }); setDirty(true); };
   const setWidth = (id: string, w: number) => { patch(id, { w: Math.min(COLS[device], Math.max(minFor(id, device).minW, w)) }); setDirty(true); };
   const setHeight = (id: string, h: number) => { patch(id, { h: Math.max(minFor(id, device).minH, h) }); setDirty(true); };
-  const resetDevice = () => { setDraft(prev => ({ ...prev, [device]: DEFAULT_LAYOUT[device].map(c => ({ ...c })) })); setDirty(true); };
+  const resetDevice = () => {
+    const def = defaultLayoutFor(portfolioType);
+    setDraft(prev => ({ ...prev, [device]: def[device].map(c => ({ ...c })) }));
+    setDirty(true);
+  };
   const save = () => { onSave(draft); setDirty(false); };
 
   const devBtn = (d: Device, Icon: any, label: string) => {
@@ -82,8 +94,18 @@ export const DashboardCustomizer: React.FC<Props> = ({ layout, renderCard, onSav
               <LayoutDashboard size={20} />
             </div>
             <div>
-              <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight">Dashboard Layout</h2>
-              <p className="text-xs text-slate-400 font-medium">Drag ⋮⋮ to move · drag the top or bottom edge to change height (text scales, no scroll) · right edge for width · tick to show/hide. Web &amp; mobile save separately.</p>
+              <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight">
+                Dashboard Layout
+                <span className="ml-2 text-sm font-bold text-slate-400 dark:text-slate-500">
+                  · {isFund ? 'Mutual Funds' : 'PSX'}
+                </span>
+              </h2>
+              <p className="text-xs text-slate-400 font-medium">
+                {isFund
+                  ? 'This layout applies only to mutual fund portfolios. PSX dashboards stay unchanged.'
+                  : 'This layout applies only to PSX stock portfolios. Mutual fund dashboards stay unchanged.'}
+                {' '}Drag ⋮⋮ to move · edges to resize · tick to show/hide. Web &amp; mobile save separately.
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2">

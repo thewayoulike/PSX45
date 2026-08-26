@@ -356,43 +356,69 @@ export const parseTradeDocument = async (file: File): Promise<ParsedTrade[]> => 
 // MUTUAL FUND BALANCE SUMMARY (AMC statement / screenshot)
 // ---------------------------------------------------------------------------
 
-export const parseFundBalanceDocument = async (file: File): Promise<FundBalanceScan> => {
+export const parseFundBalanceDocument = async (
+  file: File,
+  options?: { customInstructions?: string }
+): Promise<FundBalanceScan> => {
   try {
     const ai = getAi();
     if (!ai) throw new Error("API Key missing. Please set your Gemini API Key in Settings.");
 
     const isSpreadsheet = file.name.match(/\.(csv|xlsx|xls)$/i);
     let parts: any[] = [];
+    const userHints = (options?.customInstructions || '').trim();
 
-    const promptText = `Analyze this Pakistani mutual fund AMC account statement or balance summary (e.g. Al Meezan, Alfalah, NBP, etc.).
+    const promptText = `Analyze this Pakistani mutual fund AMC / bank investment statement (e.g. Al Meezan, Alfalah, NBP, HBL, MCB, Atlas, UBL Funds, etc.).
 
-Typical Al Meezan balance summary columns:
-Fund Name | Units | NAV | Investment Value (PKR) | Gain/(Loss) FYTD | Gain/(Loss) To Date
+Document may be either:
+A) Balance summary / holdings snapshot (Units, NAV, Investment Value), OR
+B) Activity / transaction history (cash in/out, subscribe, redeem, dividends, tax/WHT).
 
-Extract EVERY fund row from the holdings table. For each fund capture:
+=== HOLDINGS (balance summary) ===
+For each fund row capture:
 - fundCode: short ticker/code (e.g. AMMF, KMIF, MDIP, MIF, MIIF, MSF)
 - fundName: full fund name if shown
-- units: units held — MUST equal investmentValue ÷ nav (use this formula if the document is ambiguous)
-- nav: the NAV column (current net asset value per unit in PKR). NOT average cost, NOT offer price.
-- investmentValue: "Investment Value (PKR)" column exactly (current market value)
-- gainToDate: lifetime gain/loss ("Gain To Date", "Gain/(Loss) To Date") — negative if loss
+- units: units held — MUST equal investmentValue ÷ nav when ambiguous
+- nav: current NAV per unit in PKR (NOT average cost, NOT offer price unless it is the only price)
+- investmentValue: current market / investment value in PKR
+- gainToDate: lifetime gain/loss if shown (negative if loss)
 - gainFytd: fiscal-year gain if shown (optional)
 
+=== CASH FLOWS / ACTIVITY (transaction ledger) ===
+Extract EVERY money movement into cashFlows when present:
+- DEPOSIT: cash in, bank transfer in, top-up, contribution
+- WITHDRAWAL: cash out, bank transfer out
+- SUBSCRIBE: new investment / purchase of units (include fundCode, units, nav, amount)
+- REDEEM: redemption / sale of units (include fundCode, units, nav, amount)
+- DIVIDEND: cash dividend paid (amount; fundCode if known)
+- DIVIDEND_REINVEST: dividend reinvested into units (amount; fundCode if known)
+- TAX: WHT, capital gains tax, income tax deducted
+- OTHER: fees, zakat, adjustments (signed amount: positive credit / negative debit)
+
+Each cashFlow item:
+- type: one of the values above
+- date: YYYY-MM-DD if shown
+- amount: PKR absolute value for money rows (use signed for OTHER if clearly debit/credit)
+- fundCode / fundName when tied to a fund
+- units / nav for SUBSCRIBE and REDEEM when shown
+- notes: short label from the document
+
 Also extract:
-- statementDate: as-of date in YYYY-MM-DD
-- amc: asset management company name
+- statementDate: as-of or statement date in YYYY-MM-DD
+- amc: asset management company or bank/distributor name
 
 Rules:
 - Use exact numbers from the document; remove commas.
-- Verify each row: units × nav must ≈ investmentValue (within 1%). If columns disagree, trust investmentValue and nav, then set units = investmentValue ÷ nav.
-- Do NOT use average cost, break-even, or historical subscribe price as nav.
-- If a fund has 0 units but a non-zero gainToDate, still include it (closed position).
-- Do NOT invent rows not in the document.`;
+- For holdings: units × nav ≈ investmentValue (within 1%). If disagree, trust investmentValue + nav → units = investmentValue ÷ nav.
+- Do NOT invent rows. Empty holdings is OK if only an activity statement.
+- Prefer both holdings AND cashFlows when the document has both.
+
+${userHints ? `=== USER INSTRUCTIONS (follow carefully — this AMC/bank layout may differ) ===\n${userHints}\n` : ''}`;
 
     if (isSpreadsheet) {
       const sheetData = await readSpreadsheetAsText(file);
       parts = [
-        { text: "Mutual fund balance summary spreadsheet:" },
+        { text: "Mutual fund statement spreadsheet:" },
         { text: sheetData },
         { text: promptText },
       ];
@@ -434,13 +460,43 @@ Rules:
                 required: ["fundCode", "units", "nav", "investmentValue"],
               },
             },
+            cashFlows: {
+              type: Type.ARRAY,
+              nullable: true,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  type: { type: Type.STRING },
+                  date: { type: Type.STRING, nullable: true },
+                  amount: { type: Type.NUMBER },
+                  fundCode: { type: Type.STRING, nullable: true },
+                  fundName: { type: Type.STRING, nullable: true },
+                  units: { type: Type.NUMBER, nullable: true },
+                  nav: { type: Type.NUMBER, nullable: true },
+                  notes: { type: Type.STRING, nullable: true },
+                },
+                required: ["type", "amount"],
+              },
+            },
           },
           required: ["holdings"],
         },
       },
     });
 
-    if (response.text) return JSON.parse(response.text);
+    if (response.text) {
+      const parsed = JSON.parse(response.text) as FundBalanceScan;
+      if (!Array.isArray(parsed.holdings)) parsed.holdings = [];
+      if (parsed.cashFlows && !Array.isArray(parsed.cashFlows)) parsed.cashFlows = [];
+      // Normalize cashFlow types to uppercase known values
+      if (parsed.cashFlows) {
+        parsed.cashFlows = parsed.cashFlows.map(cf => ({
+          ...cf,
+          type: String(cf.type || 'OTHER').toUpperCase().replace(/\s+/g, '_') as any,
+        }));
+      }
+      return parsed;
+    }
     return { holdings: [] };
   } catch (error: any) {
     console.error("Error parsing fund balance:", error);

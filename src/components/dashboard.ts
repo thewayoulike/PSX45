@@ -105,6 +105,72 @@ const buildMobile = (): CardLayout[] =>
 
 export const DEFAULT_LAYOUT: DashboardLayout = { web: buildWeb(), mobile: buildMobile() };
 
+/** Default mutual-fund dashboard — PSX-only cards omitted. */
+const FUND_WEB_BASE: Array<[string, number, number, number, number]> = [
+  ['stats',       0,  0, 12, 36],
+  ['performance', 0, 36, 12, 22],
+  ['allocation',  0, 58,  8, 20],
+  ['topHoldings', 8, 58,  4, 20],
+  ['insights',    0, 78,  6, 16],
+  ['summary',     6, 78,  6, 16],
+];
+
+const buildFundWeb = (): CardLayout[] =>
+  FUND_WEB_BASE.map(([id, x, y, w, h]) => ({ id, visible: true, x, y, w, h }));
+
+const buildFundMobile = (): CardLayout[] =>
+  FUND_WEB_BASE.map(([id], i) => ({
+    id,
+    visible: true,
+    x: 0,
+    y: i * 3,
+    w: 1,
+    h: H_BY_ID[id] ?? 3,
+  }));
+
+export const DEFAULT_FUND_LAYOUT: DashboardLayout = {
+  web: buildFundWeb(),
+  mobile: buildFundMobile(),
+};
+
+export interface DashboardLayoutsByType {
+  PSX: DashboardLayout;
+  MUTUAL_FUND: DashboardLayout;
+}
+
+export const DEFAULT_LAYOUTS_BY_TYPE: DashboardLayoutsByType = {
+  PSX: DEFAULT_LAYOUT,
+  MUTUAL_FUND: DEFAULT_FUND_LAYOUT,
+};
+
+export const defaultLayoutFor = (type: PortfolioType): DashboardLayout =>
+  type === 'MUTUAL_FUND' ? DEFAULT_FUND_LAYOUT : DEFAULT_LAYOUT;
+
+/** Load/migrate saved layouts — supports legacy single-layout blob. */
+export const normalizeLayoutsByType = (saved: any): DashboardLayoutsByType => {
+  if (!saved || typeof saved !== 'object') {
+    return { PSX: DEFAULT_LAYOUT, MUTUAL_FUND: DEFAULT_FUND_LAYOUT };
+  }
+
+  // New shape: { PSX: {...}, MUTUAL_FUND: {...} }
+  if (saved.PSX || saved.MUTUAL_FUND) {
+    return {
+      PSX: normalizeLayout(saved.PSX || DEFAULT_LAYOUT),
+      MUTUAL_FUND: normalizeLayout(saved.MUTUAL_FUND || DEFAULT_FUND_LAYOUT),
+    };
+  }
+
+  // Legacy single layout → PSX; funds get their own default
+  if (saved.web || saved.mobile) {
+    return {
+      PSX: normalizeLayout(saved),
+      MUTUAL_FUND: DEFAULT_FUND_LAYOUT,
+    };
+  }
+
+  return { PSX: DEFAULT_LAYOUT, MUTUAL_FUND: DEFAULT_FUND_LAYOUT };
+};
+
 const num = (v: any, fallback: number) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? n : fallback;
