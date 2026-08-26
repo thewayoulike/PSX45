@@ -156,6 +156,34 @@ export const isLiveFundCatalogSource = (source?: string) =>
 
 const FUND_LDCP_RECENT_MS = 72 * 60 * 60 * 1000;
 
+export const FUND_NAV_DAY_KEY = 'psx_fund_nav_day';
+
+/** Last trusted NAV + MUFAP validity date — used for true day-over-day P&L. */
+export interface FundNavDayMark {
+  nav: number;
+  /** MUFAP validity / report date string, e.g. "Aug 25, 2026" */
+  validityDate: string;
+  syncedAt: string;
+}
+
+export type FundNavDayMap = Record<string, FundNavDayMark>;
+
+export const loadFundNavDayMap = (): FundNavDayMap => {
+  try {
+    const raw = localStorage.getItem(FUND_NAV_DAY_KEY);
+    if (raw) return JSON.parse(raw) as FundNavDayMap;
+  } catch { /* ignore */ }
+  return {};
+};
+
+export const saveFundNavDayMap = (map: FundNavDayMap) => {
+  try { localStorage.setItem(FUND_NAV_DAY_KEY, JSON.stringify(map)); } catch { /* ignore */ }
+};
+
+/** Normalize MUFAP validity strings for comparison. */
+export const normalizeFundValidity = (v?: string): string =>
+  (v || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
 /** Prior NAV was from a recent live sync (safe to use as yesterday for day P&L). */
 export const isRecentLiveFundPrice = (isoTimestamp?: string, now = Date.now()): boolean => {
   if (!isoTimestamp) return false;
@@ -165,20 +193,40 @@ export const isRecentLiveFundPrice = (isoTimestamp?: string, now = Date.now()): 
 
 /**
  * Fund "yesterday NAV" for daily P&L.
- * Large gaps (e.g. stale catalog 48.65 → live 50.77) are corrections, not day moves.
+ * Only trust stored ldcp when we have a day-mark proving a prior MUFAP validity date
+ * (true day-over-day). Catalog corrections must never invent daily P&L.
  */
-export const MAX_PLAUSIBLE_FUND_DAY_MOVE = 0.02; // 2%
-
 export const resolveFundDayNav = (
   currentNav: number,
   storedLdcp: number | undefined,
-  priceTimestamp?: string
+  opts?: {
+    priceTimestamp?: string;
+    dayMark?: FundNavDayMark;
+    currentValidity?: string;
+  }
 ): number => {
   if (!(currentNav > 0)) return storedLdcp && storedLdcp > 0 ? storedLdcp : 0;
   if (!(storedLdcp > 0)) return currentNav;
-  const drift = Math.abs(currentNav - storedLdcp) / storedLdcp;
-  if (drift > MAX_PLAUSIBLE_FUND_DAY_MOVE) return currentNav;
-  if (isRecentLiveFundPrice(priceTimestamp)) return storedLdcp;
+
+  const curV = normalizeFundValidity(opts?.currentValidity);
+  const markV = normalizeFundValidity(opts?.dayMark?.validityDate);
+
+  // Same validity date as last mark → same MUFAP report day → no day move
+  if (curV && markV && curV === markV) return currentNav;
+
+  // Trusted prior close only when day-mark NAV matches stored ldcp and validity differs
+  if (
+    opts?.dayMark &&
+    markV &&
+    curV &&
+    markV !== curV &&
+    Math.abs(opts.dayMark.nav - storedLdcp) < 1e-6 &&
+    isRecentLiveFundPrice(opts.priceTimestamp)
+  ) {
+    return storedLdcp;
+  }
+
+  // No proven day-over-day chain → baseline (fixes ALL stale leftover ldcp at once)
   return currentNav;
 };
 

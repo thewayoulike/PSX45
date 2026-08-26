@@ -37,7 +37,7 @@ import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
-import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav } from '../services/mufapData';
+import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
@@ -343,6 +343,13 @@ const App: React.FC = () => {
       } catch (e) {}
       return {};
   });
+  const [fundNavDayMap, setFundNavDayMap] = useState<FundNavDayMap>(() =>
+      startEmpty ? {} : loadFundNavDayMap()
+  );
+  useEffect(() => {
+      if (skipPersistRef.current) return;
+      saveFundNavDayMap(fundNavDayMap);
+  }, [fundNavDayMap]);
   const [sectorOverrides, setSectorOverrides] = useState<Record<string, string>>(() => {
       if (startEmpty) return {};
       try {
@@ -906,53 +913,73 @@ const App: React.FC = () => {
           const liveNav = isLiveFundCatalogSource(source);
 
           const navUpdates: Record<string, number> = {};
+          const validityById: Record<string, string> = {};
           const sectorUpdates: Record<string, string> = {};
           const now = new Date().toISOString();
           const timestampUpdates: Record<string, string> = {};
 
           Object.values(catalog).forEach(f => {
               navUpdates[f.id] = fundValuationNav(f);
+              validityById[f.id] = f.validityDate || '';
               sectorUpdates[f.id] = f.category;
               if (liveNav) timestampUpdates[f.id] = now;
           });
 
+          const heldIds = new Set(holdings.filter(h => isFundTicker(h.ticker)).map(h => h.ticker));
+          const ldcpUpdates: Record<string, number> = {};
+          const nextDayMarks: FundNavDayMap = { ...fundNavDayMap };
+
           setManualPrices(prev => {
-              const ldcpUpdates: Record<string, number> = {};
               const next = { ...prev };
-              const heldIds = new Set(holdings.filter(h => isFundTicker(h.ticker)).map(h => h.ticker));
               Object.keys(navUpdates).forEach(id => {
                   const nav = navUpdates[id];
                   if (!(nav > 0)) return;
-                  // Live MUFAP → refresh all catalog prices; stale fallback → held funds only
                   if (!liveNav && !heldIds.has(id)) return;
+
                   const old = prev[id];
+                  const newValidity = normalizeFundValidity(validityById[id]);
+                  const prevMark = fundNavDayMap[id];
+                  const prevValidity = normalizeFundValidity(prevMark?.validityDate);
                   const hadRecentLive = isRecentLiveFundPrice(priceTimestamps[id]);
-                  if (old > 0 && Math.abs(old - nav) > 1e-8) {
-                      const drift = Math.abs(nav - old) / old;
-                      // Only keep prior NAV as "yesterday" for small live day moves
-                      ldcpUpdates[id] = (liveNav && hadRecentLive && drift <= 0.02) ? old : nav;
+
+                  // True day P&L only when MUFAP validity date advanced after a recent live sync
+                  const dayRolled =
+                      liveNav &&
+                      hadRecentLive &&
+                      !!prevMark &&
+                      !!prevValidity &&
+                      !!newValidity &&
+                      prevValidity !== newValidity &&
+                      old > 0 &&
+                      Math.abs(old - prevMark.nav) < 1e-4;
+
+                  if (old > 0 && Math.abs(old - nav) > 1e-8 && dayRolled) {
+                      ldcpUpdates[id] = old;
+                  } else {
+                      // Same report day, first sync, or catalog correction → 0 daily for this fund
+                      ldcpUpdates[id] = nav;
                   }
+
                   next[id] = nav;
+                  nextDayMarks[id] = {
+                      nav,
+                      validityDate: validityById[id] || prevMark?.validityDate || '',
+                      syncedAt: now,
+                  };
               });
-              setLdcpMap(p => {
-                  const merged = { ...p, ...ldcpUpdates };
-                  // Always wipe absurd leftover ldcp (stale catalog vs corrected NAV)
-                  heldIds.forEach(id => {
-                      const nav = next[id];
-                      if (!(nav > 0)) return;
-                      const ldcp = merged[id];
-                      if (!(ldcp > 0)) {
-                          merged[id] = nav;
-                          return;
-                      }
-                      if (Math.abs(nav - ldcp) / ldcp > 0.02) {
-                          merged[id] = nav;
-                      }
-                  });
-                  return merged;
+
+              // Held funds: always clear leftover bogus yesterday NAVs in one pass
+              heldIds.forEach(id => {
+                  const nav = next[id] ?? navUpdates[id];
+                  if (!(nav > 0)) return;
+                  if (ldcpUpdates[id] == null) ldcpUpdates[id] = nav;
               });
+
+              setLdcpMap(p => ({ ...p, ...ldcpUpdates }));
               return next;
           });
+
+          setFundNavDayMap(nextDayMarks);
           setSectorOverrides(prev => ({ ...prev, ...sectorUpdates }));
           if (liveNav) setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates }));
 
@@ -968,7 +995,7 @@ const App: React.FC = () => {
       } finally {
           setIsSyncing(false);
       }
-  }, [holdings, priceTimestamps]);
+  }, [holdings, priceTimestamps, fundNavDayMap]);
 
   useEffect(() => {
       if (!driveUser || holdings.length === 0) return;
@@ -1061,7 +1088,11 @@ const App: React.FC = () => {
         totalCost += h.quantity * roundedAvg;
         const ldcpRaw = ldcpMap[h.ticker];
         if (isFundTicker(h.ticker)) {
-            const ldcp = resolveFundDayNav(h.currentPrice, ldcpRaw, priceTimestamps[h.ticker]);
+            const ldcp = resolveFundDayNav(h.currentPrice, ldcpRaw, {
+                priceTimestamp: priceTimestamps[h.ticker],
+                dayMark: fundNavDayMap[h.ticker],
+                currentValidity: fundCatalog[h.ticker]?.validityDate,
+            });
             // Day P&L from yesterday's NAV on units held at start of day (excludes today's subscribe/redeem)
             let netUnitsToday = 0;
             portfolioTransactions.forEach(t => {
@@ -1250,7 +1281,7 @@ const App: React.FC = () => {
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
         netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
     };
-  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, priceTimestamps, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, priceTimestamps, fundNavDayMap, fundCatalog, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
   useEffect(() => {
       if (skipPersistRef.current) return;
@@ -1465,7 +1496,8 @@ const App: React.FC = () => {
       setRealizedTrades(tempRealized);
   }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides, fundCatalog]);
 
-  // Wipe bogus fund "yesterday NAV" left from stale catalog (e.g. 48.65 vs 50.77 → fake +4% day)
+  // Reset ALL fund "yesterday NAV" leftovers in one pass (no per-fund manual fix).
+  // Daily P&L only appears after a real MUFAP validity-date rollover on live sync.
   useEffect(() => {
       const fundHoldings = holdings.filter(h => isFundTicker(h.ticker) && h.currentPrice > 0);
       if (fundHoldings.length === 0) return;
@@ -1473,20 +1505,19 @@ const App: React.FC = () => {
           let changed = false;
           const next = { ...prev };
           fundHoldings.forEach(h => {
-              const ldcp = next[h.ticker];
-              if (!(ldcp > 0)) {
-                  next[h.ticker] = h.currentPrice;
-                  changed = true;
-                  return;
-              }
-              if (Math.abs(h.currentPrice - ldcp) / ldcp > 0.02) {
-                  next[h.ticker] = h.currentPrice;
+              const trusted = resolveFundDayNav(h.currentPrice, next[h.ticker], {
+                  priceTimestamp: priceTimestamps[h.ticker],
+                  dayMark: fundNavDayMap[h.ticker],
+                  currentValidity: fundCatalog[h.ticker]?.validityDate,
+              });
+              if (Math.abs((next[h.ticker] || 0) - trusted) > 1e-8) {
+                  next[h.ticker] = trusted;
                   changed = true;
               }
           });
           return changed ? next : prev;
       });
-  }, [holdings]);
+  }, [holdings, fundNavDayMap, fundCatalog, priceTimestamps]);
 
   const handleTickerClick = (ticker: string) => {
       if (isFundTicker(ticker)) return;
@@ -1929,6 +1960,10 @@ const App: React.FC = () => {
                                   portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                                   dayTransactions={portfolioTransactions}
                                   priceTimestamps={priceTimestamps}
+                                  fundNavDayMap={fundNavDayMap}
+                                  fundValidityById={Object.fromEntries(
+                                      Object.values(fundCatalog).map(f => [f.id, f.validityDate || ''])
+                                  )}
                               />
                           </div>
                       )}
