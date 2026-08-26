@@ -1,11 +1,13 @@
 import React, { useMemo } from 'react';
 import { Holding, PortfolioStats, RealizedTrade } from '../types';
 import { TrendingUp, TrendingDown, Star, PieChart, ShieldCheck, Wallet } from 'lucide-react';
+import { formatFundShortLabel } from '../utils/fundDisplay';
 
 interface Props {
   holdings: Holding[];
   realizedTrades: RealizedTrade[];
   stats: PortfolioStats;
+  displayNames?: Record<string, string>;
 }
 
 const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -24,7 +26,7 @@ const Cell: React.FC<{
   </div>
 );
 
-export const PortfolioSummary: React.FC<Props> = ({ holdings, realizedTrades, stats }) => {
+export const PortfolioSummary: React.FC<Props> = ({ holdings, realizedTrades, stats, displayNames = {} }) => {
   const s = useMemo(() => {
     // best / worst across active + sold
     const agg: Record<string, { profit: number; cost: number }> = {};
@@ -68,20 +70,22 @@ export const PortfolioSummary: React.FC<Props> = ({ holdings, realizedTrades, st
 
   if (holdings.length === 0 && realizedTrades.length === 0) return null;
 
+  const name = (t: string) => formatFundShortLabel(t, displayNames, 28);
+
   return (
     <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5">
       <h3 className="text-sm font-display font-black text-slate-900 dark:text-white mb-4">Portfolio Summary</h3>
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
         <Cell label="Best Performer" icon={<TrendingUp size={15} className="text-emerald-600 dark:text-emerald-400" />} wrap="bg-emerald-50 dark:bg-emerald-500/20"
-          value={s.best ? s.best.t : '—'} valueClass="text-slate-900 dark:text-white"
+          value={s.best ? name(s.best.t) : '—'} valueClass="text-slate-900 dark:text-white text-base"
           sub={s.best ? <span className="text-emerald-600 dark:text-emerald-400">+{rs0(s.best.profit)} ({s.best.ret >= 0 ? '+' : ''}{s.best.ret.toFixed(2)}%)</span> : 'No trades yet'} />
 
         <Cell label="Worst Performer" icon={<TrendingDown size={15} className="text-rose-500" />} wrap="bg-rose-50 dark:bg-rose-500/20"
-          value={s.worst ? s.worst.t : '—'} valueClass="text-slate-900 dark:text-white"
+          value={s.worst ? name(s.worst.t) : '—'} valueClass="text-slate-900 dark:text-white text-base"
           sub={s.worst ? <span className="text-rose-500">{rs0(s.worst.profit)} ({s.worst.ret.toFixed(2)}%)</span> : 'No trades yet'} />
 
         <Cell label="Top Holding" icon={<Star size={15} className="text-blue-600 dark:text-blue-400" />} wrap="bg-blue-50 dark:bg-blue-500/20"
-          value={s.topHolding ? s.topHolding.t : '—'} valueClass="text-slate-900 dark:text-white"
+          value={s.topHolding ? name(s.topHolding.t) : '—'} valueClass="text-slate-900 dark:text-white text-base"
           sub={s.topHolding ? `${s.topHoldingPct.toFixed(2)}% of portfolio` : '—'} />
 
         <Cell label="Top Sector" icon={<PieChart size={15} className="text-purple-600 dark:text-purple-400" />} wrap="bg-purple-50 dark:bg-purple-500/20"

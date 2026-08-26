@@ -40,6 +40,7 @@ import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapi
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { fundAvgForCost } from '../utils/fundFormat';
+import { todayPK } from '../utils/dates';
 import { setGeminiApiKey } from '../services/gemini';
 import {
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
@@ -1016,13 +1017,43 @@ const App: React.FC = () => {
     let operationalExpenses = 0;
     let dailyPL = 0;
     let totalAdjustments = 0;
+    const today = todayPK();
+    const fundPortfolio = portfolios.some(p =>
+      (isCombinedView ? combinedPortfolioIds.has(p.id) : p.id === currentPortfolioId)
+      && getPortfolioType(p) === 'MUTUAL_FUND'
+    );
+
     holdings.forEach(h => {
         totalValue += h.quantity * h.currentPrice;
         const roundedAvg = isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
         totalCost += h.quantity * roundedAvg;
         const ldcp = ldcpMap[h.ticker] || h.currentPrice;
-        dailyPL += (h.currentPrice - ldcp) * h.quantity;
+        if (isFundTicker(h.ticker)) {
+            // Day P&L from yesterday's NAV on units held at start of day (excludes today's subscribe/redeem)
+            let netUnitsToday = 0;
+            portfolioTransactions.forEach(t => {
+                if (t.ticker !== h.ticker || t.date !== today) return;
+                if (t.type === 'BUY' || t.type === 'TRANSFER_IN') netUnitsToday += t.quantity;
+                if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') netUnitsToday -= t.quantity;
+            });
+            const startQty = Math.max(0, h.quantity - netUnitsToday);
+            dailyPL += (h.currentPrice - ldcp) * startQty;
+        } else {
+            dailyPL += (h.currentPrice - ldcp) * h.quantity;
+        }
     });
+
+    // Flat-NAV / daily-income funds: income booked today counts as day P&L (NAV often unchanged)
+    if (fundPortfolio) {
+        portfolioTransactions.forEach(t => {
+            if (t.date !== today) return;
+            if (t.type === 'DIVIDEND') {
+                dailyPL += (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
+            } else if (t.type === 'DIVIDEND_REINVEST') {
+                dailyPL += t.price;
+            }
+        });
+    }
 
     let realizedPL = realizedTrades.reduce((sum, t) => sum + t.profit, 0);
 
@@ -1185,7 +1216,7 @@ const App: React.FC = () => {
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
         netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
     };
-  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap]);
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
   useEffect(() => {
       if (skipPersistRef.current) return;
@@ -1527,7 +1558,7 @@ const App: React.FC = () => {
                   />
               );
           case 'insights':
-              return <PortfolioInsights holdings={holdings} realizedTrades={realizedTrades} stats={stats} />;
+              return <PortfolioInsights holdings={holdings} realizedTrades={realizedTrades} stats={stats} displayNames={fundDisplayNames} />;
           case 'dividends':
               return <UpcomingDividends holdings={holdings} />;
           case 'topMovers':
@@ -1535,7 +1566,7 @@ const App: React.FC = () => {
           case 'boardMeetings':
               return <BoardMeetings holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />;
           case 'summary':
-              return <PortfolioSummary holdings={holdings} realizedTrades={realizedTrades} stats={stats} />;
+              return <PortfolioSummary holdings={holdings} realizedTrades={realizedTrades} stats={stats} displayNames={fundDisplayNames} />;
           default:
               return null;
       }
@@ -1827,6 +1858,7 @@ const App: React.FC = () => {
                                   displayNames={fundDisplayNames}
                                   onTickerClick={handleTickerClick}
                                   portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
+                                  dayTransactions={portfolioTransactions}
                               />
                           </div>
                       )}

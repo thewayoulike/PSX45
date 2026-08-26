@@ -4,12 +4,14 @@ import {
   TrendingUp, TrendingDown, PieChart, Activity, Coins, Layers,
   Wallet, Receipt, Target, Trophy, AlertTriangle, Percent, CalendarDays
 } from 'lucide-react';
+import { formatFundShortLabel } from '../utils/fundDisplay';
 
 interface PortfolioInsightsProps {
   holdings: Holding[];
   realizedTrades: RealizedTrade[];
   stats: PortfolioStats;
   onViewReport?: () => void;
+  displayNames?: Record<string, string>;
 }
 
 type Tone = 'good' | 'warn' | 'info' | 'purple' | 'rose';
@@ -43,11 +45,12 @@ const Badge: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <span className="px-1.5 py-0.5 text-[10px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-500 rounded border border-slate-200 dark:border-slate-700 whitespace-nowrap">{children}</span>
 );
 
-export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, realizedTrades, stats, onViewReport }) => {
+export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, realizedTrades, stats, onViewReport, displayNames = {} }) => {
   const [expanded, setExpanded] = useState(false);
 
   const list = useMemo<Insight[]>(() => {
     const out: Insight[] = [];
+    const label = (t: string) => formatFundShortLabel(t, displayNames);
     const strong = (t: string) => <span className="font-bold text-slate-800 dark:text-slate-100">{t}</span>;
 
     const realTrades = realizedTrades.filter((t) => t.ticker && t.ticker !== 'PREV-PNL');
@@ -94,11 +97,11 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
     const { best: bestM, worst: worstM } = bestWorst(monthAgg);
 
     // A labelled row, e.g.:  HOLDINGS  MEBL  +1,234.00 (12.55%)
-    const splitRow = (label: string, d: { ticker: string; ret: number; profit: number } | null) =>
+    const splitRow = (rowLabel: string, d: { ticker: string; ret: number; profit: number } | null) =>
       d ? (
         <span className="block mt-1 leading-snug">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-2">{label}</span>
-          {strong(d.ticker)}{' '}
+          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-2">{rowLabel}</span>
+          {strong(label(d.ticker))}{' '}
           <span className={`font-bold ${d.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
             {d.profit >= 0 ? '+' : ''}{money(d.profit)} ({pct(d.ret)})
           </span>
@@ -141,7 +144,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
         key: 'bestMonth', tone: 'good', Icon: CalendarDays, score: 905,
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            {strong(bestM.ticker)} is your top performer this month <Badge>{monthName}</Badge>
+            {strong(label(bestM.ticker))} is your top performer this month <Badge>{monthName}</Badge>
             <span className="block mt-0.5 font-bold text-emerald-600 dark:text-emerald-400">+{money(bestM.profit)} ({pct(bestM.ret)})</span>
           </p>
         ),
@@ -152,7 +155,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
         key: 'worstMonth', tone: 'rose', Icon: CalendarDays, score: 904,
         node: (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            {strong(worstM.ticker)} is your biggest drag this month <Badge>{monthName}</Badge>
+            {strong(label(worstM.ticker))} is your biggest drag this month <Badge>{monthName}</Badge>
             <span className="block mt-0.5 font-bold text-rose-500">{money(worstM.profit)} ({pct(worstM.ret)})</span>
           </p>
         ),
@@ -174,11 +177,11 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
         score: 940,
         node: valued.length >= 3 ? (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            Your top 3 — {strong(top3.map((x) => x.ticker).join(', '))} — are {strong(pct(top3Pct))} of the portfolio{heavy ? ' (heavily concentrated)' : ''}
+            Your top 3 — {strong(top3.map((x) => label(x.ticker)).join(', '))} — are {strong(pct(top3Pct))} of the portfolio{heavy ? ' (heavily concentrated)' : ''}
           </p>
         ) : (
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-            {strong(top1.ticker)} is {strong(pct(top1Pct))} of your active portfolio value
+            {strong(label(top1.ticker))} is {strong(pct(top1Pct))} of your active portfolio value
           </p>
         ),
       });
@@ -227,8 +230,8 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
           key: 'extremes', tone: 'info', Icon: Trophy, score: 960,
           node: (
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">
-              Best exit {strong(bestTrade.ticker)} <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{money0(bestTrade.profit)}</span>
-              {worstTrade.profit < 0 && <> · worst {strong(worstTrade.ticker)} <span className="text-rose-500 font-bold">{money0(worstTrade.profit)}</span></>}
+              Best exit {strong(label(bestTrade.ticker))} <span className="text-emerald-600 dark:text-emerald-400 font-bold">+{money0(bestTrade.profit)}</span>
+              {worstTrade.profit < 0 && <> · worst {strong(label(worstTrade.ticker))} <span className="text-rose-500 font-bold">{money0(worstTrade.profit)}</span></>}
             </p>
           ),
         });
@@ -289,7 +292,7 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
     });
 
     return out.sort((a, b) => b.score - a.score);
-  }, [holdings, realizedTrades, stats]);
+  }, [holdings, realizedTrades, stats, displayNames]);
 
   if (list.length === 0) return null;
 

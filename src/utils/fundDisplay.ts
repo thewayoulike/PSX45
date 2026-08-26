@@ -20,7 +20,7 @@ export function formatTransactionLabel(
     if (notes) {
       const dash = notes.match(/^[A-Z0-9-]+\s*[—–-]\s*(.+)$/i);
       if (dash?.[1]) return dash[1].trim();
-      if (/opening balance/i.test(notes)) return 'Opening Balance';
+      if (/opening balance|starting balance|investment value/i.test(notes)) return 'Opening Balance';
     }
     const slug = ticker.replace(/^MF:/, '');
     return slug
@@ -31,6 +31,17 @@ export function formatTransactionLabel(
       .slice(0, 64);
   }
   return ticker;
+}
+
+/** Short label for dashboard cards / insight lines (avoids MF: slug overflow). */
+export function formatFundShortLabel(
+  ticker: string,
+  displayNames: Record<string, string> = {},
+  maxLen = 36
+): string {
+  const name = formatTransactionLabel(ticker, displayNames);
+  if (name.length <= maxLen) return name;
+  return `${name.slice(0, Math.max(1, maxLen - 1))}…`;
 }
 
 /** Subtext under fund name — fund code or notes for cash/history rows. */

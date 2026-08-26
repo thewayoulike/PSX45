@@ -620,19 +620,24 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         </button>
         {showFundGuide && (
           <div className="px-4 py-4 bg-white dark:bg-slate-900/50 text-xs text-slate-600 dark:text-slate-300 space-y-3 border-t border-violet-100 dark:border-violet-500/10">
-            <p className="font-bold text-violet-700 dark:text-violet-300">Start from today — recommended steps</p>
+            <p className="font-bold text-violet-700 dark:text-violet-300">How far back should you go?</p>
+            <div className="space-y-2 leading-relaxed">
+              <p><strong>Option A — Best tracking:</strong> enter every Subscribe / Redeem / Dividend you still have records for (as far back as your statements go).</p>
+              <p><strong>Option B — Start fresh (common):</strong> if the fund is old (e.g. 10 years) but you only have 2–3 years of data — or none — use today&apos;s <em>Investment Value</em> as your <strong>starting balance</strong>. Don&apos;t invent older history.</p>
+            </div>
+            <p className="font-bold text-violet-700 dark:text-violet-300">Start-fresh steps</p>
             <ol className="list-decimal list-inside space-y-2 leading-relaxed">
-              <li><strong>Cash → Deposit</strong> — total <em>Investment Value</em> of all open funds (or use <strong>AI Scan</strong> to auto-fill).</li>
-              <li><strong>Subscribe (Buy)</strong> — one row per fund: today&apos;s date, <em>Units</em> + <em>NAV</em> from your AMC statement.</li>
-              <li><strong>History</strong> — only for <em>fully redeemed</em> funds (0 units), e.g. past profit/loss on MEF.</li>
+              <li><strong>Cash → Deposit</strong> — sum of <em>Investment Value</em> for all open funds (or <strong>AI Scan</strong>).</li>
+              <li><strong>Subscribe (Buy)</strong> — one row per fund: statement date, <em>Units</em> + current <em>NAV</em> (so Units × NAV ≈ Investment Value).</li>
+              <li><strong>History</strong> — only for <em>fully redeemed</em> funds (0 units), e.g. past P&amp;L on MEF. Skip &quot;Gain To Date&quot; on funds you still hold.</li>
             </ol>
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200/60 dark:border-slate-700/60 space-y-1.5">
-              <p className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"><Info size={13} /> Realized vs unrealized</p>
-              <p><strong>Unrealized</strong> = paper gain on units you still hold (tracked automatically after Subscribe).</p>
-              <p><strong>Realized</strong> = gain/loss from redemptions → use <strong>History</strong> or <strong>Redeem</strong> going forward.</p>
-              <p className="text-slate-500 dark:text-slate-400">AMC &quot;Gain To Date&quot; often includes old redemptions — don&apos;t put all of it in History for funds you still hold.</p>
+              <p className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-1.5"><Info size={13} /> After you start</p>
+              <p><strong>Unrealized</strong> = paper gain from NAV moves on units you hold.</p>
+              <p><strong>Daily income funds</strong> (NAV often flat) — record <strong>Dividend</strong> or <strong>Dividend Reinvest</strong> when income/units grow; that income counts toward return even when NAV stays the same.</p>
+              <p><strong>Realized</strong> — use <strong>Redeem</strong> or <strong>History</strong> for closed positions.</p>
             </div>
-            <p className="text-violet-600 dark:text-violet-400 font-bold flex items-center gap-1.5"><Sparkles size={13} /> Tip: switch to <strong>AI Scan Statement</strong> and upload your balance summary screenshot.</p>
+            <p className="text-violet-600 dark:text-violet-400 font-bold flex items-center gap-1.5"><Sparkles size={13} /> Tip: <strong>AI Scan Statement</strong> fills Deposit + Subscribe from your balance screenshot.</p>
           </div>
         )}
       </div>

@@ -120,7 +120,9 @@ export function fundScanToTrades(
       quantity: 1,
       price: roundMoney(totalValue),
       date,
-      notes: scan.amc ? `Opening balance — ${scan.amc}` : 'Opening balance from AMC statement',
+      notes: scan.amc
+        ? `Starting balance (Investment Value) — ${scan.amc}`
+        : 'Starting balance from AMC Investment Value',
     });
   }
 

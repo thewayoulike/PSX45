@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { Holding, PortfolioType } from '../types';
+import { Holding, PortfolioType, Transaction } from '../types';
 import { isFundTicker } from '../utils/fundId';
 import { roundFundNav, fmtFundNav, fmtFundUnits, fundAvgForCost, roundFundUnits } from '../utils/fundFormat';
+import { todayPK } from '../utils/dates';
 import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown as ArrowDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
 
@@ -31,6 +32,8 @@ interface HoldingsTableProps {
   displayNames?: Record<string, string>;
   onTickerClick?: (ticker: string) => void;
   portfolioType?: PortfolioType;
+  /** Used for fund daily P&L (NAV change + today's dividends). */
+  dayTransactions?: Transaction[];
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
@@ -43,8 +46,33 @@ interface SortConfig {
   direction: SortDirection;
 }
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX' }) => {
+const fundDayPL = (
+  h: Holding,
+  ldcp: number,
+  dayTxs: Transaction[],
+  today: string
+): { change: number; pct: number } => {
+  let netUnitsToday = 0;
+  let divToday = 0;
+  dayTxs.forEach(t => {
+    if (t.date !== today) return;
+    if (t.ticker === h.ticker) {
+      if (t.type === 'BUY' || t.type === 'TRANSFER_IN') netUnitsToday += t.quantity;
+      if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') netUnitsToday -= t.quantity;
+      if (t.type === 'DIVIDEND') divToday += (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
+    }
+  });
+  const startQty = Math.max(0, h.quantity - netUnitsToday);
+  const navChange = (h.currentPrice - ldcp) * startQty;
+  const change = navChange + divToday;
+  const base = startQty * (ldcp > 0 ? ldcp : h.currentPrice);
+  const pct = base > 0 ? (change / base) * 100 : 0;
+  return { change, pct };
+};
+
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX', dayTransactions = [] }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
+  const today = todayPK();
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'ticker', direction: 'asc' });
   const [itemsPerPage, setItemsPerPage] = useState<number>(25);
@@ -79,7 +107,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   case 'marketValue': return mkt;
                   case 'pnl': return mkt - cost;
                   case 'pnlPercent': return cost > 0 ? ((mkt - cost) / cost) : 0;
-                  case 'dailyPL': return (h.currentPrice - ldcp) * h.quantity;
+                  case 'dailyPL': return isFund
+                      ? fundDayPL(h, ldcp, dayTransactions, today).change
+                      : (h.currentPrice - ldcp) * h.quantity;
                   default: return h[key as keyof Holding];
               }
           };
@@ -89,7 +119,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
           return 0;
       });
-  }, [holdings, searchTerm, showBroker, sortConfig, ldcpMap]);
+  }, [holdings, searchTerm, showBroker, sortConfig, ldcpMap, isFund, dayTransactions, today]);
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
@@ -102,10 +132,12 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           const cost = h.quantity * roundedAvg;
           const marketVal = h.quantity * h.currentPrice;
           const ldcp = ldcpMap[h.ticker] || h.currentPrice;
-          const dailyChange = (h.currentPrice - ldcp) * h.quantity;
+          const dailyChange = isFund
+              ? fundDayPL(h, ldcp, dayTransactions, today).change
+              : (h.currentPrice - ldcp) * h.quantity;
           return { totalCost: acc.totalCost + cost, totalMarket: acc.totalMarket + marketVal, pnl: acc.pnl + (marketVal - cost), dailyPL: acc.dailyPL + dailyChange };
       }, { totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0 });
-  }, [filteredAndSortedHoldings, ldcpMap]);
+  }, [filteredAndSortedHoldings, ldcpMap, isFund, dayTransactions, today]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
   const totalDailyPercent = totals.totalCost > 0 ? (totals.dailyPL / totals.totalCost) * 100 : 0;
@@ -224,8 +256,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const isProfit = pnl >= 0; 
                   const isFailed = failedTickers.has(holding.ticker); 
                   const ldcp = ldcpMap[holding.ticker] || holding.currentPrice; 
-                  const dailyChange = (holding.currentPrice - ldcp) * holding.quantity; 
-                  const dailyPercent = ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0; 
+                  const day = isFund
+                      ? fundDayPL(holding, ldcp, dayTransactions, today)
+                      : { change: (holding.currentPrice - ldcp) * holding.quantity, pct: ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0 };
+                  const dailyChange = day.change;
+                  const dailyPercent = day.pct;
                   const isDailyProfit = dailyChange >= 0;
 
                   const totalBuyFees = holding.totalCommission + holding.totalTax + holding.totalCDC + holding.totalOtherFees;
