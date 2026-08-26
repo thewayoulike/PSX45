@@ -154,6 +154,31 @@ const isStaleCatalogSource = (source?: string) =>
 export const isLiveFundCatalogSource = (source?: string) =>
   source === 'live' || source === 'browser-live' || source === 'proxy-live';
 
+const FUND_LDCP_RECENT_MS = 72 * 60 * 60 * 1000;
+
+/** Prior NAV was from a recent live sync (safe to use as yesterday for day P&L). */
+export const isRecentLiveFundPrice = (isoTimestamp?: string, now = Date.now()): boolean => {
+  if (!isoTimestamp) return false;
+  const t = Date.parse(isoTimestamp);
+  return !Number.isNaN(t) && now - t >= 0 && now - t < FUND_LDCP_RECENT_MS;
+};
+
+/**
+ * Fund "yesterday NAV" for daily P&L. Catalog corrections (e.g. 48.65 → 50.77) must not
+ * look like a huge one-day gain — only use stored ldcp after a recent live sync chain.
+ */
+export const resolveFundDayNav = (
+  currentNav: number,
+  storedLdcp: number | undefined,
+  priceTimestamp?: string
+): number => {
+  if (!(currentNav > 0)) return storedLdcp && storedLdcp > 0 ? storedLdcp : 0;
+  if (!(storedLdcp > 0)) return currentNav;
+  if (isRecentLiveFundPrice(priceTimestamp)) return storedLdcp;
+  // Stale / corrected catalog baseline → no invented day move
+  return currentNav;
+};
+
 const isMufapBlockedPage = (html: string): boolean => {
   if (!html || html.length < 1500) return true;
   const lower = html.toLowerCase();

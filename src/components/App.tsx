@@ -37,7 +37,7 @@ import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
-import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource } from '../services/mufapData';
+import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
@@ -913,12 +913,32 @@ const App: React.FC = () => {
                   if (!(nav > 0)) return;
                   // Live MUFAP → refresh all catalog prices; stale fallback → held funds only
                   if (!liveNav && !heldIds.has(id)) return;
-                  if (prev[id] > 0 && prev[id] !== nav) ldcpUpdates[id] = prev[id];
+                  const old = prev[id];
+                  const hadRecentLive = isRecentLiveFundPrice(priceTimestamps[id]);
+                  if (old > 0 && Math.abs(old - nav) > 1e-8) {
+                      // True day-over-day only after a recent live NAV; else catalog correction → 0 day P&L
+                      ldcpUpdates[id] = (liveNav && hadRecentLive) ? old : nav;
+                  }
                   next[id] = nav;
               });
-              if (Object.keys(ldcpUpdates).length > 0) {
-                  setLdcpMap(p => ({ ...p, ...ldcpUpdates }));
-              }
+              setLdcpMap(p => {
+                  const merged = { ...p, ...ldcpUpdates };
+                  // Clear leftover bogus ldcp (e.g. old 48.65 vs corrected 50.77) when NAV already matches
+                  heldIds.forEach(id => {
+                      const nav = next[id];
+                      if (!(nav > 0)) return;
+                      if (ldcpUpdates[id] != null) return;
+                      const ldcp = merged[id];
+                      if (!(ldcp > 0)) {
+                          merged[id] = nav;
+                          return;
+                      }
+                      if (Math.abs(nav - ldcp) > 1e-6 && !isRecentLiveFundPrice(priceTimestamps[id])) {
+                          merged[id] = nav;
+                      }
+                  });
+                  return merged;
+              });
               return next;
           });
           setSectorOverrides(prev => ({ ...prev, ...sectorUpdates }));
@@ -936,7 +956,7 @@ const App: React.FC = () => {
       } finally {
           setIsSyncing(false);
       }
-  }, [holdings]);
+  }, [holdings, priceTimestamps]);
 
   useEffect(() => {
       if (!driveUser || holdings.length === 0) return;
@@ -1027,8 +1047,9 @@ const App: React.FC = () => {
         totalValue += h.quantity * h.currentPrice;
         const roundedAvg = isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
         totalCost += h.quantity * roundedAvg;
-        const ldcp = ldcpMap[h.ticker] || h.currentPrice;
+        const ldcpRaw = ldcpMap[h.ticker];
         if (isFundTicker(h.ticker)) {
+            const ldcp = resolveFundDayNav(h.currentPrice, ldcpRaw, priceTimestamps[h.ticker]);
             // Day P&L from yesterday's NAV on units held at start of day (excludes today's subscribe/redeem)
             let netUnitsToday = 0;
             portfolioTransactions.forEach(t => {
@@ -1039,6 +1060,7 @@ const App: React.FC = () => {
             const startQty = Math.max(0, h.quantity - netUnitsToday);
             dailyPL += (h.currentPrice - ldcp) * startQty;
         } else {
+            const ldcp = ldcpRaw || h.currentPrice;
             dailyPL += (h.currentPrice - ldcp) * h.quantity;
         }
     });
@@ -1216,7 +1238,7 @@ const App: React.FC = () => {
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
         netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
     };
-  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, priceTimestamps, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
   useEffect(() => {
       if (skipPersistRef.current) return;
@@ -1859,6 +1881,7 @@ const App: React.FC = () => {
                                   onTickerClick={handleTickerClick}
                                   portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                                   dayTransactions={portfolioTransactions}
+                                  priceTimestamps={priceTimestamps}
                               />
                           </div>
                       )}

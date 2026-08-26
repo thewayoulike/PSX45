@@ -622,13 +622,20 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           <div className="px-4 py-4 bg-white dark:bg-slate-900/50 text-xs text-slate-600 dark:text-slate-300 space-y-3 border-t border-violet-100 dark:border-violet-500/10">
             <p className="font-bold text-violet-700 dark:text-violet-300">How far back should you go?</p>
             <div className="space-y-2 leading-relaxed">
-              <p><strong>Option A — Best tracking:</strong> enter every Subscribe / Redeem / Dividend you still have records for (as far back as your statements go).</p>
-              <p><strong>Option B — Start fresh (common):</strong> if the fund is old (e.g. 10 years) but you only have 2–3 years of data — or none — use today&apos;s <em>Investment Value</em> as your <strong>starting balance</strong>. Don&apos;t invent older history.</p>
+              <p>
+                <strong>Option A — Best tracking:</strong> enter every Subscribe / Redeem / Dividend you still have records for.
+                If the fund is older (e.g. 10 years) but you only have ~2 years of data, start at that 2-year point:
+                use the <em>Investment Value then</em> as your <strong>opening balance</strong> (Deposit + Subscribe at that date&apos;s units/NAV), then add all later transactions. Don&apos;t invent the missing earlier years.
+              </p>
+              <p>
+                <strong>Option B — Start today:</strong> no old statements? Use <em>today&apos;s Investment Value</em> as starting balance (Deposit + Subscribe at current Units/NAV). Profit tracks from today forward.
+              </p>
             </div>
-            <p className="font-bold text-violet-700 dark:text-violet-300">Start-fresh steps</p>
+            <p className="font-bold text-violet-700 dark:text-violet-300">Opening-balance steps</p>
             <ol className="list-decimal list-inside space-y-2 leading-relaxed">
-              <li><strong>Cash → Deposit</strong> — sum of <em>Investment Value</em> for all open funds (or <strong>AI Scan</strong>).</li>
-              <li><strong>Subscribe (Buy)</strong> — one row per fund: statement date, <em>Units</em> + current <em>NAV</em> (so Units × NAV ≈ Investment Value).</li>
+              <li><strong>Cash → Deposit</strong> — <em>Investment Value</em> at your start date (oldest statement, or today if starting fresh). Or use <strong>AI Scan</strong>.</li>
+              <li><strong>Subscribe (Buy)</strong> — one row per fund on that same date: <em>Units</em> + <em>NAV</em> (Units × NAV ≈ Investment Value).</li>
+              <li><strong>Then</strong> add later Subscribe / Redeem / Dividend rows as you have them.</li>
               <li><strong>History</strong> — only for <em>fully redeemed</em> funds (0 units), e.g. past P&amp;L on MEF. Skip &quot;Gain To Date&quot; on funds you still hold.</li>
             </ol>
             <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-3 border border-slate-200/60 dark:border-slate-700/60 space-y-1.5">
