@@ -2,6 +2,22 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchOHLCV, fetchStockHistory, fetchChartAnalysis, OhlcBar, ChartAnalysisPoint } from '../services/psxData';
 import { computeChartAnalysisFromBars } from '../utils/chartAnalysis';
 import {
+  computeAwaisOverlays,
+  DEFAULT_AWAIS_LAYERS,
+  AwaisLayers,
+  AwaisOverlayData,
+  BbKey,
+  hasAnyBb,
+  hasAnyPivot,
+  hasAnySupertrend,
+  IchimokuKey,
+  isMaPeriodEnabled,
+  MaPeriod,
+  PivotLabel,
+  SupertrendKey,
+} from '../utils/awaisIndicators';
+import { AwaisPanelDropdown, AwaisSvgOverlays } from './AwaisChartOverlays';
+import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, ReferenceLine, Bar, Cell,
 } from 'recharts';
@@ -92,18 +108,12 @@ type ChartMode = 'candle' | 'line' | 'technical';
 
 interface ChartLayers {
   volume: boolean;
-  upperBand: boolean;
-  sma: boolean;
-  lowerBand: boolean;
   rsi: boolean;
   macd: boolean;
 }
 
 const DEFAULT_LAYERS: ChartLayers = {
   volume: true,
-  upperBand: true,
-  sma: true,
-  lowerBand: true,
   rsi: true,
   macd: true,
 };
@@ -136,21 +146,13 @@ const LayerToggleBar: React.FC<{
   layers: ChartLayers;
   onToggle: (key: keyof ChartLayers) => void;
   hasVolume: boolean;
-  hasAnalysis: boolean;
   hasMacd: boolean;
-}> = ({ layers, onToggle, hasVolume, hasAnalysis, hasMacd }) => (
-  <div className="flex flex-wrap items-center gap-1.5 mb-3 px-1">
-    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Overlays</span>
+}> = ({ layers, onToggle, hasVolume, hasMacd }) => (
+  <div className="flex flex-wrap items-center gap-1.5 mb-1 px-1">
+    <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Panels</span>
     <LayerToggle label="Volume" color="#6366f1" active={layers.volume} onClick={() => onToggle('volume')} disabled={!hasVolume} />
-    {hasAnalysis && (
-      <>
-        <LayerToggle label="Upper BB" color="#ef4444" active={layers.upperBand} onClick={() => onToggle('upperBand')} />
-        <LayerToggle label="SMA" color="#3b82f6" active={layers.sma} onClick={() => onToggle('sma')} />
-        <LayerToggle label="Lower BB" color="#10b981" active={layers.lowerBand} onClick={() => onToggle('lowerBand')} />
-        <LayerToggle label="RSI" color="#9333ea" active={layers.rsi} onClick={() => onToggle('rsi')} />
-        <LayerToggle label="MACD" color="#2563eb" active={layers.macd} onClick={() => onToggle('macd')} disabled={!hasMacd} />
-      </>
-    )}
+    <LayerToggle label="RSI" color="#9333ea" active={layers.rsi} onClick={() => onToggle('rsi')} />
+    <LayerToggle label="MACD" color="#2563eb" active={layers.macd} onClick={() => onToggle('macd')} disabled={!hasMacd} />
   </div>
 );
 
@@ -222,9 +224,9 @@ const BollingerRsiChart: React.FC<{
       <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 px-3 py-2 text-[11px] shadow-sm tabular-nums">
         <div className="font-bold text-slate-700 dark:text-slate-200 mb-1">{label}</div>
         <div>Close <span className="font-bold">{rs(row.close)}</span></div>
-        {layers.upperBand && <div className="text-rose-500">Upper {rs(row.upper)}</div>}
-        {layers.sma && <div className="text-blue-500">SMA {rs(row.middle)}</div>}
-        {layers.lowerBand && <div className="text-emerald-600">Lower {rs(row.lower)}</div>}
+        <div className="text-rose-500">Upper {rs(row.upper)}</div>
+        <div className="text-blue-500">SMA {rs(row.middle)}</div>
+        <div className="text-emerald-600">Lower {rs(row.lower)}</div>
         {layers.rsi && <div className="text-purple-600 font-bold mt-1">RSI {row.rsi.toFixed(1)}</div>}
         {layers.macd && hasMacd && Number.isFinite(row.macd) && (
           <>
@@ -240,7 +242,7 @@ const BollingerRsiChart: React.FC<{
     );
   };
 
-  const showAnyBand = layers.upperBand || layers.sma || layers.lowerBand;
+  const showAnyBand = true;
 
   return (
     <div className="space-y-2">
@@ -252,15 +254,9 @@ const BollingerRsiChart: React.FC<{
             <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
             <Tooltip content={tip} />
             <Line type="monotone" dataKey="close" name="Close" stroke="#0f172a" strokeWidth={1.5} dot={false} isAnimationActive={false} />
-            {layers.upperBand && (
-              <Line type="monotone" dataKey="upper" name="Upper Band" stroke="#ef4444" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
-            )}
-            {layers.sma && (
-              <Line type="monotone" dataKey="middle" name="Middle (SMA)" stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
-            )}
-            {layers.lowerBand && (
-              <Line type="monotone" dataKey="lower" name="Lower Band" stroke="#10b981" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
-            )}
+            <Line type="monotone" dataKey="upper" name="Upper Band" stroke="#ef4444" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="middle" name="Middle (SMA)" stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="lower" name="Lower Band" stroke="#10b981" strokeWidth={1} strokeDasharray="4 3" dot={false} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -311,7 +307,7 @@ const BollingerRsiChart: React.FC<{
       {!showAnyBand && !layers.rsi && !layers.macd && !(layers.volume && hasVolume) && (
         <p className="text-[10px] text-slate-400 px-1">Enable overlays above to show indicators.</p>
       )}
-      <p className="text-[10px] text-slate-400 px-1">{symbol} — pypsx_toolkit analysis</p>
+      <p className="text-[10px] text-slate-400 px-1">{symbol} — indicators from OHLC</p>
     </div>
   );
 };
@@ -585,10 +581,29 @@ const VolumeMiniChart: React.FC<{
   );
 };
 
+function sliceAwaisData(data: AwaisOverlayData, startIdx: number, count: number): AwaisOverlayData {
+  const slice = <T,>(arr: T[]) => arr.slice(startIdx, startIdx + count);
+  return {
+    maLines: data.maLines.map((m) => ({ ...m, values: slice(m.values) })),
+    bb: { upper: slice(data.bb.upper), middle: slice(data.bb.middle), lower: slice(data.bb.lower) },
+    supertrend: { up: slice(data.supertrend.up), down: slice(data.supertrend.down) },
+    ichimoku: {
+      conversion: slice(data.ichimoku.conversion),
+      base: slice(data.ichimoku.base),
+      spanA: slice(data.ichimoku.spanA),
+      spanB: slice(data.ichimoku.spanB),
+      displacement: data.ichimoku.displacement,
+    },
+    pivots: data.pivots,
+  };
+}
+
 const CandleChart: React.FC<{
   bars: OhlcBar[];
   analysis?: ChartAnalysisPoint[];
   layers: ChartLayers;
+  awaisLayers: AwaisLayers;
+  awaisData?: AwaisOverlayData | null;
   candleInterval?: CandleInterval;
   height?: number;
   panning?: boolean;
@@ -597,6 +612,8 @@ const CandleChart: React.FC<{
   bars,
   analysis = [],
   layers,
+  awaisLayers,
+  awaisData = null,
   candleInterval = 'day',
   height = 320,
   panning = false,
@@ -623,29 +640,48 @@ const CandleChart: React.FC<{
 
   const display = bars;
   const showOverlay = analysis.length > 0;
-  const showBands = showOverlay && (layers.upperBand || layers.sma || layers.lowerBand);
   const aligned = useMemo(
     () => (showOverlay ? alignAnalysisToBars(display, analysis) : []),
     [display, analysis, showOverlay]
   );
-  const hasVolume = bars.some((b) => b.volume > 0);
-  const showVolume = layers.volume && hasVolume;
+  const hasAwais = awaisData != null;
   const showRsi = layers.rsi && showOverlay && aligned.some(Boolean);
   const showMacd = layers.macd && showOverlay && aligned.some((p) => p && Number.isFinite(p.macd));
+  const showVolume = layers.volume && bars.some((b) => b.volume > 0);
   const showBottomX = showVolume || showRsi || showMacd;
 
   let minP = Math.min(...display.map((b) => b.low));
   let maxP = Math.max(...display.map((b) => b.high));
-  if (showBands) {
-    aligned.forEach((p, i) => {
-      if (!p) return;
-      if (layers.upperBand) maxP = Math.max(maxP, p.upper);
-      if (layers.lowerBand) minP = Math.min(minP, p.lower);
-      if (layers.sma) {
-        minP = Math.min(minP, p.middle);
-        maxP = Math.max(maxP, p.middle);
+  if (awaisData && hasAwais) {
+    const n = display.length;
+    const push = (v: number | null | undefined) => {
+      if (v != null && Number.isFinite(v)) {
+        minP = Math.min(minP, v);
+        maxP = Math.max(maxP, v);
       }
+    };
+    if (hasAnyPivot(awaisLayers.pivot)) {
+      awaisData.pivots.forEach((p) => {
+        if (awaisLayers.pivot[p.label as PivotLabel]) push(p.value);
+      });
+    }
+    if (hasAnyBb(awaisLayers.bb)) {
+      for (let i = 0; i < n; i++) {
+        if (awaisLayers.bb.upper) push(awaisData.bb.upper[i]);
+        if (awaisLayers.bb.middle) push(awaisData.bb.middle[i]);
+        if (awaisLayers.bb.lower) push(awaisData.bb.lower[i]);
+      }
+    }
+    awaisData.maLines.forEach((m) => {
+      if (!isMaPeriodEnabled(awaisLayers.maLines, m.period)) return;
+      for (let i = 0; i < n; i++) push(m.values[i]);
     });
+    if (hasAnySupertrend(awaisLayers.supertrend)) {
+      for (let i = 0; i < n; i++) {
+        if (awaisLayers.supertrend.up) push(awaisData.supertrend.up[i]);
+        if (awaisLayers.supertrend.down) push(awaisData.supertrend.down[i]);
+      }
+    }
   }
   const span = maxP - minP || maxP * 0.02 || 1;
   const yMin = minP - span * 0.04;
@@ -663,10 +699,6 @@ const CandleChart: React.FC<{
   const hiAnalysis = hover != null && aligned[hover] ? aligned[hover] : null;
   const xAt = (i: number) => plotOffset + i * slot + slot / 2;
 
-  const upperPath = showBands && layers.upperBand ? polylinePath(aligned.map((p) => p?.upper), xAt, yScale) : '';
-  const middlePath = showBands && layers.sma ? polylinePath(aligned.map((p) => p?.middle), xAt, yScale) : '';
-  const lowerPath = showBands && layers.lowerBand ? polylinePath(aligned.map((p) => p?.lower), xAt, yScale) : '';
-
   return (
     <div ref={wrapRef} className={`relative w-full select-none ${canPan ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}>
       {hi && (
@@ -679,20 +711,7 @@ const CandleChart: React.FC<{
           <span className="text-slate-500 ml-1.5">L {rs(hi.low)}</span>
           <span className={`ml-1.5 font-bold ${hi.close >= hi.open ? 'text-emerald-600' : 'text-rose-500'}`}>C {rs(hi.close)}</span>
           {hi.volume > 0 && <span className="text-slate-400 ml-1.5">V {fmtVol(hi.volume)}</span>}
-          {hiAnalysis && (
-            <>
-              {layers.upperBand && <span className="text-rose-500 ml-2">Upper {rs(hiAnalysis.upper)}</span>}
-              {layers.sma && <span className="text-blue-500 ml-1.5">SMA {rs(hiAnalysis.middle)}</span>}
-              {layers.lowerBand && <span className="text-emerald-600 ml-1.5">Lower {rs(hiAnalysis.lower)}</span>}
-              {layers.rsi && <span className="text-purple-600 font-bold ml-1.5">RSI {hiAnalysis.rsi.toFixed(1)}</span>}
-              {layers.macd && Number.isFinite(hiAnalysis.macd) && (
-                <>
-                  <span className="text-blue-600 ml-1.5">MACD {hiAnalysis.macd!.toFixed(2)}</span>
-                  <span className="text-orange-500 ml-1">Sig {hiAnalysis.macdSignal!.toFixed(2)}</span>
-                </>
-              )}
-            </>
-          )}
+          {hiAnalysis && layers.rsi && <span className="text-purple-600 font-bold ml-1.5">RSI {hiAnalysis.rsi.toFixed(1)}</span>}
         </div>
       )}
       <svg width={w} height={h} className="overflow-visible">
@@ -707,14 +726,17 @@ const CandleChart: React.FC<{
             </g>
           );
         })}
-        {showBands && upperPath && (
-          <path d={upperPath} fill="none" stroke="#ef4444" strokeWidth={1} strokeDasharray="4 3" strokeLinejoin="round" />
-        )}
-        {showBands && middlePath && (
-          <path d={middlePath} fill="none" stroke="#3b82f6" strokeWidth={1} strokeDasharray="4 3" strokeLinejoin="round" />
-        )}
-        {showBands && lowerPath && (
-          <path d={lowerPath} fill="none" stroke="#10b981" strokeWidth={1} strokeDasharray="4 3" strokeLinejoin="round" />
+        {hasAwais && awaisData && (
+          <AwaisSvgOverlays
+            data={awaisData}
+            layers={awaisLayers}
+            barCount={display.length}
+            xAt={xAt}
+            yScale={yScale}
+            plotOffset={plotOffset}
+            width={w}
+            padRight={pad.r}
+          />
         )}
         {display.map((b, i) => {
           const x = xAt(i);
@@ -768,22 +790,53 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const [lineFallback, setLineFallback] = useState<{ time: number; price: number }[]>([]);
   const [analysis, setAnalysis] = useState<ChartAnalysisPoint[]>([]);
   const [loading, setLoading] = useState(false);
-  const [analysisLoading, setAnalysisLoading] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [range, setRange] = useState('3M');
   const [mode, setMode] = useState<ChartMode>('candle');
   const [candleInterval, setCandleInterval] = useState<CandleInterval>('day');
   const [err, setErr] = useState('');
-  const [analysisErr, setAnalysisErr] = useState('');
   const [zoomIdx, setZoomIdx] = useState(0);
   const [viewStart, setViewStart] = useState(0);
   const [panning, setPanning] = useState(false);
   const [layers, setLayers] = useState<ChartLayers>(DEFAULT_LAYERS);
+  const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(DEFAULT_AWAIS_LAYERS);
   const chartAreaRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{ x: number; start: number } | null>(null);
 
   const toggleLayer = (key: keyof ChartLayers) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const toggleAwaisMa = (period: MaPeriod) => {
+    setAwaisLayers((prev) => ({
+      ...prev,
+      maLines: { ...prev.maLines, [period]: !prev.maLines[period] },
+    }));
+  };
+
+  const toggleAwaisBb = (key: BbKey) => {
+    setAwaisLayers((prev) => ({ ...prev, bb: { ...prev.bb, [key]: !prev.bb[key] } }));
+  };
+
+  const toggleAwaisSupertrend = (key: SupertrendKey) => {
+    setAwaisLayers((prev) => ({
+      ...prev,
+      supertrend: { ...prev.supertrend, [key]: !prev.supertrend[key] },
+    }));
+  };
+
+  const toggleAwaisPivot = (label: PivotLabel) => {
+    setAwaisLayers((prev) => ({
+      ...prev,
+      pivot: { ...prev.pivot, [label]: !prev.pivot[label] },
+    }));
+  };
+
+  const toggleAwaisIchimoku = (key: IchimokuKey) => {
+    setAwaisLayers((prev) => ({
+      ...prev,
+      ichimoku: { ...prev.ichimoku, [key]: !prev.ichimoku[key] },
+    }));
   };
 
   const rangeMeta = RANGES.find((x) => x.k === range) ?? RANGES[1];
@@ -818,38 +871,18 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     }
   };
 
-  const loadAnalysis = async () => {
-    if (!symbol) return;
-    // Production has no Python/pypsx — indicators come from clientAnalysis (OHLC).
-    if (import.meta.env.PROD) {
-      setAnalysis([]);
-      setAnalysisErr('');
-      return;
-    }
-    setAnalysisLoading(true);
-    setAnalysisErr('');
-    try {
-      const points = await fetchChartAnalysis(symbol, rangeMeta.period);
-      setAnalysis(points);
-      if (!points.length) setAnalysisErr('');
-    } catch (e) {
-      console.warn('Chart analysis API unavailable, using client-side indicators', e);
-      setAnalysis([]);
-      setAnalysisErr('');
-    } finally {
-      setAnalysisLoading(false);
-    }
-  };
+  useEffect(() => {
+    if (!symbol || import.meta.env.PROD) return;
+    fetchChartAnalysis(symbol, rangeMeta.period)
+      .then((points) => { if (points.length) setAnalysis(points); })
+      .catch(() => setAnalysis([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, range, mode]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol]);
-
-  useEffect(() => {
-    if (symbol) loadAnalysis();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, symbol, range]);
 
   const filteredOhlc = useMemo(() => {
     const r = RANGES.find((x) => x.k === range);
@@ -1016,8 +1049,20 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   }, [showCandle, candleInterval, visibleOhlc, monthlyAnalysis, visibleAnalysis]);
 
   const analysisForLayers = showCandle && candleInterval === 'month' ? monthlyAnalysis : visibleAnalysis;
-  const hasAnalysis = analysisForLayers.length > 0;
   const hasMacd = analysisForLayers.some((p) => Number.isFinite(p.macd));
+
+  const awaisFull = useMemo(
+    () => computeAwaisOverlays(showCandle ? candleOhlc : filteredOhlc),
+    [showCandle, candleOhlc, filteredOhlc]
+  );
+
+  const awaisVisible = useMemo(() => {
+    if (!awaisFull || !visibleOhlc.length) return null;
+    const full = showCandle ? candleOhlc : filteredOhlc;
+    const startIdx = full.findIndex((b) => b.time === visibleOhlc[0].time);
+    if (startIdx < 0) return awaisFull;
+    return sliceAwaisData(awaisFull, startIdx, visibleOhlc.length);
+  }, [awaisFull, visibleOhlc, showCandle, candleOhlc, filteredOhlc]);
 
   const visibleRangeLabel = useMemo(() => {
     const pick = showTechnical
@@ -1099,7 +1144,11 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
 
   const refresh = () => {
     load();
-    if (mode === 'technical' || mode === 'candle') loadAnalysis();
+    if (!import.meta.env.PROD && symbol) {
+      fetchChartAnalysis(symbol, rangeMeta.period)
+        .then((points) => { if (points.length) setAnalysis(points); })
+        .catch(() => setAnalysis([]));
+    }
   };
 
   return (
@@ -1184,8 +1233,8 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
           {canZoom && (
             <ZoomControls zoomIdx={zoomIdx} onZoomIn={zoomIn} onZoomOut={zoomOut} onReset={resetZoom} />
           )}
-          <button onClick={refresh} disabled={loading || analysisLoading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh">
-            <RefreshCw size={15} className={loading || analysisLoading ? 'animate-spin' : ''} />
+          <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
         </div>
       </div>
@@ -1198,23 +1247,30 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        {(showCandle || showTechnical || mode === 'line') && !loading && (hasVolume || hasAnalysis) && (
+        {!loading && (showCandle || showTechnical || mode === 'line') && (
           <LayerToggleBar
             layers={layers}
             onToggle={toggleLayer}
             hasVolume={hasVolume}
-            hasAnalysis={hasAnalysis}
             hasMacd={hasMacd}
           />
         )}
+        {showCandle && !loading && filteredOhlc.length >= 3 && (
+          <AwaisPanelDropdown
+            layers={awaisLayers}
+            onToggleMa={toggleAwaisMa}
+            onToggleBb={toggleAwaisBb}
+            onToggleSupertrend={toggleAwaisSupertrend}
+            onTogglePivot={toggleAwaisPivot}
+            onToggleIchimoku={toggleAwaisIchimoku}
+          />
+        )}
         {showTechnical ? (
-          analysisLoading && analysis.length === 0 ? (
+          loading && filteredAnalysis.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 text-slate-400">
               <Loader2 size={22} className="animate-spin mb-2" />
-              <span className="text-xs font-medium">Computing Bollinger Bands, RSI & MACD for {symbol}…</span>
+              <span className="text-xs font-medium">Loading price history for {symbol}…</span>
             </div>
-          ) : analysisErr && analysis.length === 0 && clientAnalysis.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-28">{analysisErr}</p>
           ) : filteredAnalysis.length < 2 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-28">Not enough data for technical analysis.</p>
           ) : (
@@ -1235,15 +1291,12 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
           <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-28">{err}</p>
         ) : showCandle ? (
           <div className="space-y-1">
-            {analysisLoading && filteredAnalysis.length === 0 && (
-              <div className="flex items-center gap-2 text-[11px] text-slate-400 px-1 pb-1">
-                <Loader2 size={14} className="animate-spin" /> Loading Bollinger, RSI & MACD…
-              </div>
-            )}
             <CandleChart
               bars={visibleOhlc}
               analysis={candleAnalysis}
               layers={layers}
+              awaisLayers={awaisLayers}
+              awaisData={awaisVisible}
               candleInterval={candleInterval}
               height={320}
               panning={panning}
@@ -1290,7 +1343,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             {layers.volume && hasVolume && visibleOhlc.length > 0 && (
               <LineVolumePanel bars={visibleOhlc} />
             )}
-            {!filteredAnalysis.length && !analysisLoading && mode === 'line' && filteredLine.length < 3 && (
+            {!filteredAnalysis.length && mode === 'line' && filteredLine.length < 3 && (
               <p className="text-[10px] text-slate-400 px-1">Not enough price history for indicator overlays.</p>
             )}
           </div>
