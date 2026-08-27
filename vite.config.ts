@@ -2,18 +2,54 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-/** Local /api/proxy?ohlc= and legacy /api/ohlc so candle charts work in `npm run dev`. */
-function localOhlcApi(): Plugin {
+/** Local /api/proxy?ohlc= / ?company= and legacy /api/ohlc for dev without Vercel. */
+function localPsxApi(): Plugin {
   return {
-    name: 'local-ohlc-api',
+    name: 'local-psx-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
         const isLegacy = url.startsWith('/api/ohlc');
         const isProxyOhlc = url.startsWith('/api/proxy') && (url.includes('ohlc=') || url.includes('mode=ohlc'));
-        if (!isLegacy && !isProxyOhlc) return next();
+        const isProxyCompany = url.startsWith('/api/proxy') && (url.includes('company=') || url.includes('mode=company'));
+        const isProxyAnalysis = url.startsWith('/api/proxy') && (url.includes('analysis=') || url.includes('mode=analysis'));
+        if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis) return next();
         try {
           const u = new URL(url, 'http://localhost');
+          if (isProxyAnalysis) {
+            const analysis = u.searchParams.get('analysis') || '';
+            const period = u.searchParams.get('period') || '6mo';
+            if (!analysis) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'analysis symbol is required' }));
+              return;
+            }
+            const { fetchPypsxChartAnalysis } = await import('./lib/pypsxChartAnalysis.js');
+            const payload = await fetchPypsxChartAnalysis(analysis, period);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Cache-Control', 'no-store');
+            res.end(JSON.stringify(payload));
+            return;
+          }
+          if (isProxyCompany) {
+            const company = u.searchParams.get('company') || '';
+            if (!company) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'company symbol is required' }));
+              return;
+            }
+            const { fetchPypsxCompanyInfo } = await import('./lib/pypsxCompanyInfo.js');
+            const payload = await fetchPypsxCompanyInfo(company);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Cache-Control', 'no-store');
+            res.end(JSON.stringify(payload));
+            return;
+          }
+
           const symbol = u.searchParams.get('ohlc') || u.searchParams.get('symbol') || '';
           if (!symbol) {
             res.statusCode = 400;
@@ -30,7 +66,7 @@ function localOhlcApi(): Plugin {
         } catch (e: any) {
           res.statusCode = 502;
           res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ error: e?.message || 'OHLC fetch failed' }));
+          res.end(JSON.stringify({ error: e?.message || 'PSX API fetch failed' }));
         }
       });
     },
@@ -39,7 +75,7 @@ function localOhlcApi(): Plugin {
 
 export default defineConfig({
   plugins: [
-    localOhlcApi(),
+    localPsxApi(),
     react(),
     VitePWA({
       strategies: 'injectManifest',

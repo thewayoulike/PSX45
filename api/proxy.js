@@ -1,6 +1,8 @@
 // Only allow proxying to trusted hosts.
 // Also serves OHLCV via ?ohlc=SYMBOL (keeps Hobby plan under the 12-function limit).
 import { fetchPsxOhlc } from '../lib/psxOhlc.js';
+import { fetchPypsxCompanyInfo } from '../lib/pypsxCompanyInfo.js';
+import { fetchPypsxChartAnalysis } from '../lib/pypsxChartAnalysis.js';
 
 const ALLOWED_HOSTS = new Set([
   'dps.psx.com.pk',
@@ -41,6 +43,37 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     } catch (e) {
       return res.status(502).json({ error: e.message || 'OHLC fetch failed' });
+    }
+  }
+
+  // --- Company info via pypsx_toolkit (Python on host) ---
+  const companySymbol = String(req.query.company || '').trim();
+  const wantsCompany = Boolean(req.query.company) || String(req.query.mode || '') === 'company';
+  if (wantsCompany) {
+    if (!companySymbol) return res.status(400).json({ error: 'company symbol is required' });
+    try {
+      const payload = await fetchPypsxCompanyInfo(companySymbol);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
+      return res.status(200).json(payload);
+    } catch (e) {
+      return res.status(502).json({ error: e.message || 'Company info fetch failed' });
+    }
+  }
+
+  // --- Chart analysis: Bollinger + RSI via pypsx_toolkit (Python on host) ---
+  const analysisSymbol = String(req.query.analysis || '').trim();
+  const wantsAnalysis = Boolean(req.query.analysis) || String(req.query.mode || '') === 'analysis';
+  if (wantsAnalysis) {
+    if (!analysisSymbol) return res.status(400).json({ error: 'analysis symbol is required' });
+    const period = String(req.query.period || '6mo').trim().toLowerCase();
+    try {
+      const payload = await fetchPypsxChartAnalysis(analysisSymbol, period);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600');
+      return res.status(200).json(payload);
+    } catch (e) {
+      return res.status(502).json({ error: e.message || 'Chart analysis fetch failed' });
     }
   }
 

@@ -36,6 +36,41 @@ export interface FundamentalsData {
     };
 }
 
+export interface LatestDividendInfo {
+    dividendYield: string;
+    annualDividend: string;
+    exDividendDate: string;
+    payoutFrequency: string;
+    payoutRatio: string;
+    dividendGrowth: string;
+}
+
+export interface DividendHistoryRow {
+    exDividendDate: string;
+    cashAmount: string;
+    recordDate: string;
+    payDate: string;
+}
+
+export interface CompanyFundamentalItem {
+    label: string;
+    value: string;
+}
+
+export interface CompanyFundamentalSection {
+    category: string;
+    items: CompanyFundamentalItem[];
+}
+
+export interface CompanyInfoData {
+    symbol: string;
+    businessDescription: string;
+    fundamentals: CompanyFundamentalSection[];
+    latestDividend: LatestDividendInfo | null;
+    dividendHistory: DividendHistoryRow[];
+    source?: string;
+}
+
 // --- 1. Fetch Company Fundamentals (PSX Scraping) ---
 export const fetchCompanyFundamentals = async (ticker: string): Promise<FundamentalsData | null> => {
   const targetUrl = `https://dps.psx.com.pk/company/${ticker.toUpperCase()}`;
@@ -139,6 +174,29 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
     }
   }
   return null;
+};
+
+/** Company profile + dividends via pypsx_toolkit (Python on server). */
+export const fetchCompanyInfo = async (ticker: string): Promise<CompanyInfoData | null> => {
+  const clean = ticker.toUpperCase().replace('PSX:', '').trim();
+  if (!clean) return null;
+
+  try {
+    const res = await fetch(`/api/proxy?company=${encodeURIComponent(clean)}&t=${Date.now()}`);
+    if (!res.ok) {
+      console.warn(`Company info fetch failed for ${clean}:`, res.status);
+      return null;
+    }
+    const json = await res.json();
+    if (json?.error) {
+      console.warn(`Company info error for ${clean}:`, json.error);
+      return null;
+    }
+    return json as CompanyInfoData;
+  } catch (e) {
+    console.warn(`Company info fetch failed for ${clean}`, e);
+    return null;
+  }
 };
 
 // --- 2. Fetch Market Wide Dividends from Google Sheet ---

@@ -201,6 +201,60 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
     }
 };
 
+export interface ChartAnalysisPoint {
+    time: number;
+    close: number;
+    upper: number;
+    middle: number;
+    lower: number;
+    rsi: number;
+    macd?: number;
+    macdSignal?: number;
+    macdHist?: number;
+}
+
+/** Bollinger Bands + RSI + MACD via pypsx_toolkit (Python). */
+export const fetchChartAnalysis = async (
+    symbol: string,
+    period: string = '6mo'
+): Promise<ChartAnalysisPoint[]> => {
+    const clean = symbol.toUpperCase().replace('PSX:', '').trim();
+    if (!clean) return [];
+    try {
+        const res = await fetchWithTimeout(
+            `/api/proxy?analysis=${encodeURIComponent(clean)}&period=${encodeURIComponent(period)}&t=${Date.now()}`,
+            {},
+            60000
+        );
+        if (!res.ok) throw new Error(`analysis ${res.status}`);
+        const json = await res.json();
+        if (json?.error) throw new Error(json.error);
+        const points = Array.isArray(json?.points) ? json.points : [];
+        return points
+            .map((p: any) => ({
+                time: Number(p.time),
+                close: Number(p.close),
+                upper: Number(p.upper),
+                middle: Number(p.middle),
+                lower: Number(p.lower),
+                rsi: Number(p.rsi),
+                macd: p.macd != null ? Number(p.macd) : undefined,
+                macdSignal: p.macdSignal != null ? Number(p.macdSignal) : undefined,
+                macdHist: p.macdHist != null ? Number(p.macdHist) : undefined,
+            }))
+            .filter(
+                (p: ChartAnalysisPoint) =>
+                    p.time > 0 &&
+                    p.close > 0 &&
+                    (Number.isFinite(p.rsi) || Number.isFinite(p.macd))
+            )
+            .sort((a: ChartAnalysisPoint, b: ChartAnalysisPoint) => a.time - b.time);
+    } catch (e) {
+        console.warn('fetchChartAnalysis failed', e);
+        return [];
+    }
+};
+
 const parsePsxTimeseries = (raw: string): { time: number; price: number }[] => {
     try {
         const rawData = JSON.parse(raw);

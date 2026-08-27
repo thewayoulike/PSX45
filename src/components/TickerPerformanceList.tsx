@@ -24,13 +24,14 @@ import {
   FileText,
   RefreshCw,
   Clock,
+  Building2,
   AlertCircle, AlertTriangle
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { StockAnnouncements } from './StockAnnouncements';
 import { StockChart } from './StockChart';
 import { exportToCSV } from '../utils/export';
-import { fetchCompanyFundamentals, FundamentalsData } from '../services/financials';
+import { fetchCompanyFundamentals, fetchCompanyInfo, FundamentalsData, CompanyInfoData } from '../services/financials';
 
 // --- HYBRID FALLBACK: Static Lists ---
 const FALLBACK_KMI30 = new Set([
@@ -141,7 +142,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       try { localStorage.setItem('psx_watch_stocks', JSON.stringify(extraTickers)); } catch {}
   }, [extraTickers]);
 
-  const [detailTab, setDetailTab] = useState<'position' | 'chart' | 'financials' | 'announcements'>('position');
+  const [detailTab, setDetailTab] = useState<'position' | 'chart' | 'companyInfo' | 'financials' | 'announcements'>('companyInfo');
 
   const [selectedSector, setSelectedSector] = useState<string | null>(() => {
       return localStorage.getItem('psx_last_analyzed_sector') || null;
@@ -160,16 +161,24 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [activityRowsPerPage, setActivityRowsPerPage] = useState<number>(25);
 
   const [fundamentals, setFundamentals] = useState<FundamentalsData | null>(null);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfoData | null>(null);
   const [loadingFundamentals, setLoadingFundamentals] = useState(false);
   const [financialPeriod, setFinancialPeriod] = useState<'Annual' | 'Quarterly'>('Annual');
+  const [descExpanded, setDescExpanded] = useState(false);
 
   const loadFundamentals = useCallback(async () => {
       if (analysisMode === 'STOCK' && selectedTicker) {
           setLoadingFundamentals(true);
-          setFundamentals(null); 
+          setFundamentals(null);
+          setCompanyInfo(null);
+          setDescExpanded(false);
           try {
-              const data = await fetchCompanyFundamentals(selectedTicker);
+              const [data, info] = await Promise.all([
+                  fetchCompanyFundamentals(selectedTicker),
+                  fetchCompanyInfo(selectedTicker),
+              ]);
               setFundamentals(data);
+              setCompanyInfo(info);
           } catch (err) {
               console.error("Failed to fetch fundamentals", err);
           } finally {
@@ -177,6 +186,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           }
       } else {
           setFundamentals(null);
+          setCompanyInfo(null);
       }
   }, [selectedTicker, analysisMode]);
 
@@ -651,7 +661,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* --- STOCK DETAIL TABS --- */}
                 <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-2xl p-1.5 overflow-x-auto shadow-sm">
-                    {([['position', 'Position & Gains'], ['chart', 'Chart'], ['financials', 'Financials'], ['announcements', 'Announcements']] as const).map(([id, label]) => (
+                    {([['companyInfo', 'Company Info'], ['position', 'Position & Gains'], ['financials', 'Financials'], ['chart', 'Chart'], ['announcements', 'Announcements']] as const).map(([id, label]) => (
                         <button
                           key={id}
                           onClick={() => setDetailTab(id)}
@@ -734,6 +744,74 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 </>)}
 
+                {detailTab === 'companyInfo' && (<>
+                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
+                    <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                              <Building2 size={20} />
+                            </div>
+                            <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Company Info</h3>
+                        </div>
+                        <button onClick={loadFundamentals} disabled={loadingFundamentals} className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                            <RefreshCw size={16} className={loadingFundamentals ? "animate-spin" : ""} />
+                        </button>
+                    </div>
+
+                    {loadingFundamentals && (
+                        <div className="p-12 flex items-center justify-center gap-3 text-slate-400 font-medium text-sm">
+                            <Loader2 size={18} className="animate-spin" /> Loading company info…
+                        </div>
+                    )}
+
+                    {!loadingFundamentals && !companyInfo?.businessDescription && !(companyInfo?.fundamentals?.length) && (
+                        <div className="p-12 text-center text-slate-400 font-medium text-sm">No company info available. Ensure pypsx-toolkit is installed locally.</div>
+                    )}
+
+                    {!loadingFundamentals && companyInfo && (companyInfo.businessDescription || (companyInfo.fundamentals?.length ?? 0) > 0) && (
+                        <div className="p-6 space-y-8 animate-in fade-in duration-300">
+                            {companyInfo.businessDescription && (
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Business Description</h4>
+                                    <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-5">
+                                        <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                                            {descExpanded || companyInfo.businessDescription.length <= 420
+                                                ? companyInfo.businessDescription
+                                                : `${companyInfo.businessDescription.slice(0, 420).trim()}…`}
+                                        </p>
+                                        {companyInfo.businessDescription.length > 420 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setDescExpanded((v) => !v)}
+                                                className="mt-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                            >
+                                                {descExpanded ? 'Show less' : 'Read more'}
+                                            </button>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {(companyInfo.fundamentals ?? []).map((section) => (
+                                <div key={section.category}>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">{section.category}</h4>
+                                    <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
+                                        <dl className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                                            {section.items.map((item) => (
+                                                <div key={`${section.category}-${item.label}`} className="grid grid-cols-1 sm:grid-cols-[minmax(140px,34%)_1fr] gap-1 sm:gap-4 px-5 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                    <dt className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{item.label}</dt>
+                                                    <dd className="text-sm font-medium text-slate-800 dark:text-slate-200 break-words">{item.value}</dd>
+                                                </div>
+                                            ))}
+                                        </dl>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                </>)}
+
                 {detailTab === 'financials' && (<>
                 {/* --- COMPANY FINANCIALS --- */}
                 <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
@@ -753,11 +831,62 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     </div>
                     
-                    {!displayFinancials && !loadingFundamentals && ( <div className="p-12 text-center text-slate-400 font-medium text-sm">No {financialPeriod.toLowerCase()} data available for this company.</div> )}
+                    {!displayFinancials && !companyInfo?.latestDividend && !(companyInfo?.dividendHistory?.length) && !loadingFundamentals && ( <div className="p-12 text-center text-slate-400 font-medium text-sm">No {financialPeriod.toLowerCase()} data available for this company.</div> )}
 
-                    {displayFinancials && (
+                    {(displayFinancials || companyInfo?.latestDividend || (companyInfo?.dividendHistory?.length ?? 0) > 0) && (
                         <div className="p-6 space-y-8 animate-in fade-in duration-300">
-                            {displayFinancials.financials.length > 0 && (
+                            {companyInfo?.latestDividend && (
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Latest Dividend</h4>
+                                    <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-500/30 bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-500/10 dark:to-slate-900 p-5">
+                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                                            {([
+                                                ['Yield', companyInfo.latestDividend.dividendYield],
+                                                ['Annual', companyInfo.latestDividend.annualDividend],
+                                                ['Ex-date', companyInfo.latestDividend.exDividendDate],
+                                                ['Frequency', companyInfo.latestDividend.payoutFrequency],
+                                                ['Payout ratio', companyInfo.latestDividend.payoutRatio],
+                                                ['Growth', companyInfo.latestDividend.dividendGrowth],
+                                            ] as const).map(([label, value]) => (
+                                                <div key={label}>
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700/70 dark:text-emerald-400/70">{label}</div>
+                                                    <div className="mt-1 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value || '—'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {companyInfo && companyInfo.dividendHistory.length > 0 && (
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Dividend History</h4>
+                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                                        <table className="w-full text-sm text-left whitespace-nowrap">
+                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                                <tr>
+                                                    <th className="px-5 py-3.5">Ex-dividend date</th>
+                                                    <th className="px-5 py-3.5 text-right">Cash amount</th>
+                                                    <th className="px-5 py-3.5">Record date</th>
+                                                    <th className="px-5 py-3.5">Pay date</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
+                                                {companyInfo.dividendHistory.map((row, i) => (
+                                                    <tr key={`${row.exDividendDate}-${i}`} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${i === 0 ? 'bg-emerald-50/40 dark:bg-emerald-500/5' : ''}`}>
+                                                        <td className="px-5 py-3.5 font-medium">{row.exDividendDate}</td>
+                                                        <td className="px-5 py-3.5 text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{row.cashAmount}</td>
+                                                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{row.recordDate}</td>
+                                                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{row.payDate}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+
+                            {displayFinancials && displayFinancials.financials.length > 0 && (
                                 <div>
                                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">{financialPeriod} Results (000's)</h4>
                                     <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
@@ -775,7 +904,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     </div>
                                 </div>
                             )}
-                            {displayFinancials.ratios.length > 0 && (
+                            {displayFinancials && displayFinancials.ratios.length > 0 && (
                                 <div>
                                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Key Ratios</h4>
                                     <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
