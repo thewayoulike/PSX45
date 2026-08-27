@@ -3,6 +3,7 @@
 // Google Drive stays the data store — this only controls WHO can get in.
 
 import { createClient, Session } from '@supabase/supabase-js';
+import { getValidToken } from './driveStorage';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -137,7 +138,6 @@ export const getAuthHeaders = async (): Promise<Record<string, string>> => {
     }
   } catch { /* ignore */ }
   try {
-    const { getValidToken } = await import('./driveStorage');
     const token = await getValidToken();
     if (token) headers.Authorization = `Bearer ${token}`;
   } catch { /* ignore */ }
