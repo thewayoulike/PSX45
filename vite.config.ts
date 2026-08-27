@@ -13,9 +13,48 @@ function localPsxApi(): Plugin {
         const isProxyOhlc = url.startsWith('/api/proxy') && (url.includes('ohlc=') || url.includes('mode=ohlc'));
         const isProxyCompany = url.startsWith('/api/proxy') && (url.includes('company=') || url.includes('mode=company'));
         const isProxyAnalysis = url.startsWith('/api/proxy') && (url.includes('analysis=') || url.includes('mode=analysis'));
-        if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis) return next();
+        const isPypsx = url.startsWith('/api/pypsx');
+        if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis && !isPypsx) return next();
         try {
           const u = new URL(url, 'http://localhost');
+          if (isPypsx) {
+            const mode = u.searchParams.get('mode') || '';
+            if (mode === 'company') {
+              const symbol = u.searchParams.get('symbol') || u.searchParams.get('company') || '';
+              if (!symbol) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'symbol required' }));
+                return;
+              }
+              const { fetchPypsxToolkit } = await import('./lib/pypsxFetch.js');
+              const payload = await fetchPypsxToolkit('company', { symbol });
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(payload));
+              return;
+            }
+            if (mode === 'analysis') {
+              const symbol = u.searchParams.get('symbol') || u.searchParams.get('analysis') || '';
+              const period = u.searchParams.get('period') || '6mo';
+              if (!symbol) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'symbol required' }));
+                return;
+              }
+              const { fetchPypsxToolkit } = await import('./lib/pypsxFetch.js');
+              const payload = await fetchPypsxToolkit('analysis', { symbol, period });
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(payload));
+              return;
+            }
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'mode required: company|analysis' }));
+            return;
+          }
           if (isProxyAnalysis) {
             const analysis = u.searchParams.get('analysis') || '';
             const period = u.searchParams.get('period') || '6mo';

@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Company info via PSX web (Node — works on Vercel) ---
+  // --- Company info via pypsx-toolkit (Python on Vercel /api/pypsx) ---
   const companySymbol = String(req.query.company || '').trim();
   const wantsCompany = Boolean(req.query.company) || String(req.query.mode || '') === 'company';
   if (wantsCompany) {
@@ -61,7 +61,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Chart analysis: Bollinger + RSI via pypsx_toolkit (Python on host) ---
+  // --- Chart analysis via pypsx-toolkit (Python on Vercel /api/pypsx) ---
   const analysisSymbol = String(req.query.analysis || '').trim();
   const wantsAnalysis = Boolean(req.query.analysis) || String(req.query.mode || '') === 'analysis';
   if (wantsAnalysis) {
