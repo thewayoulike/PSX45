@@ -14,9 +14,18 @@ import {
   setAllMomentumEnabled,
 } from '../utils/momentumIndicators';
 
-export const MOMENTUM_PANEL_HEIGHT = 175;
-export const MOMENTUM_MACD_HEIGHT = 190;
-export const VOLUME_PANEL_HEIGHT = 130;
+export const MOMENTUM_PANEL_HEIGHT = 210;
+export const MOMENTUM_MACD_HEIGHT = 220;
+export const VOLUME_PANEL_HEIGHT = 145;
+
+function makeOscillatorScale(domainMin: number, domainMax: number, top: number, innerH: number) {
+  const span = domainMax - domainMin || 1;
+  return (v: number) => top + ((domainMax - v) / span) * innerH;
+}
+
+function oscillatorDomain(lo: number, hi: number, pad = 10): { min: number; max: number } {
+  return { min: Math.max(0, lo - pad), max: Math.min(100, hi + pad) };
+}
 
 type PanelTab = 'inputs' | 'style';
 
@@ -312,26 +321,30 @@ export const MomentumMiniChart: React.FC<{
   type: MomentumIndicatorType;
   bars: OhlcBar[];
   config: MomentumConfig;
+  series?: ReturnType<typeof computeMomentumSeries>;
   slot: number;
   padL: number;
   width: number;
   height?: number;
   showXLabels?: boolean;
-}> = ({ type, bars, config, slot, padL, width, height, showXLabels = false }) => {
-  const series = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);
+}> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false }) => {
+  const computed = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);
+  const series = seriesProp ?? computed;
   const panelHeight = height ?? (type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT);
-  const pad = { t: 10, r: 12, b: 22, l: 52 };
+  const pad = { t: 12, r: 12, b: 24, l: 52 };
   const innerH = panelHeight - pad.t - pad.b;
   const xAt = (i: number) => padL + i * slot + slot / 2;
   const label = momentumPanelLabel(config, type);
 
   if (type === 'RSI') {
-    const yRsi = (v: number) => pad.t + ((100 - v) / 100) * innerH;
-    const lines = [
-      { lvl: config.rsi.overbought, color: '#ef4444' },
-      { lvl: 50, color: '#94a3b8', dotted: true },
-      { lvl: config.rsi.oversold, color: '#22c55e' },
-    ];
+    const { min: yMin, max: yMax } = oscillatorDomain(config.rsi.oversold, config.rsi.overbought, 12);
+    const yRsi = makeOscillatorScale(yMin, yMax, pad.t, innerH);
+    const refLevels = [config.rsi.overbought, 50, config.rsi.oversold].filter((lvl) => lvl >= yMin && lvl <= yMax);
+    const lines = refLevels.map((lvl) => ({
+      lvl,
+      color: lvl === config.rsi.overbought ? '#ef4444' : lvl === config.rsi.oversold ? '#22c55e' : '#94a3b8',
+      dotted: lvl === 50,
+    }));
     return (
       <div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
@@ -352,12 +365,13 @@ export const MomentumMiniChart: React.FC<{
   }
 
   if (type === 'Stochastic') {
-    const ySt = (v: number) => pad.t + ((100 - v) / 100) * innerH;
+    const { min: yMin, max: yMax } = oscillatorDomain(config.stochastic.oversold, config.stochastic.overbought, 12);
+    const ySt = makeOscillatorScale(yMin, yMax, pad.t, innerH);
     return (
       <div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
         <svg width={width} height={panelHeight} className="overflow-visible">
-          {[config.stochastic.overbought, config.stochastic.oversold].map((lvl) => (
+          {[config.stochastic.overbought, config.stochastic.oversold].filter((lvl) => lvl >= yMin && lvl <= yMax).map((lvl) => (
             <g key={lvl}>
               <line x1={padL} x2={width - pad.r} y1={ySt(lvl)} y2={ySt(lvl)} stroke={lvl >= 50 ? '#ef4444' : '#22c55e'} strokeOpacity={0.85} strokeDasharray="4 3" strokeWidth={1} />
               <text x={padL - 6} y={ySt(lvl) + 3} textAnchor="end" fontSize={10} fill="#94a3b8" fontWeight={600}>{lvl}</text>
@@ -371,13 +385,15 @@ export const MomentumMiniChart: React.FC<{
   }
 
   if (type === 'ADX') {
-    const yAdx = (v: number) => pad.t + ((100 - v) / 100) * innerH;
+    const yMax = Math.min(100, Math.max(config.adx.threshold * 2, 50));
+    const yAdx = makeOscillatorScale(0, yMax, pad.t, innerH);
     return (
       <div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
         <svg width={width} height={panelHeight} className="overflow-visible">
           <line x1={padL} x2={width - pad.r} y1={yAdx(config.adx.threshold)} y2={yAdx(config.adx.threshold)} stroke={config.adx.color} strokeOpacity={0.85} strokeDasharray="4 3" strokeWidth={1} />
           <text x={padL - 6} y={yAdx(config.adx.threshold) + 3} textAnchor="end" fontSize={10} fill="#94a3b8" fontWeight={600}>{config.adx.threshold}</text>
+          <text x={padL - 6} y={pad.t + 4} textAnchor="end" fontSize={9} fill="#94a3b8" fontWeight={600}>{yMax}</text>
           <path d={polylinePath(series.map((p) => p.adx), xAt, yAdx)} fill="none" stroke={config.adx.color} strokeWidth={2} />
         </svg>
       </div>

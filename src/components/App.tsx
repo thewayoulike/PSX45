@@ -52,6 +52,7 @@ import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler } from '../services/driveStorage';
+import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { Paywall } from './Paywall';
@@ -389,6 +390,13 @@ const App: React.FC = () => {
   // that silently restores afterwards, otherwise it would auto-log them back in.
   const guestModeRef = useRef(false);
   const skipPersistRef = useRef(false);
+  const [chartSettingsTick, setChartSettingsTick] = useState(0);
+
+  useEffect(() => {
+    const bump = () => setChartSettingsTick((t) => t + 1);
+    window.addEventListener(CHART_SETTINGS_CHANGED_EVENT, bump);
+    return () => window.removeEventListener(CHART_SETTINGS_CHANGED_EVENT, bump);
+  }, []);
 
   const lastPriceUpdate = useMemo(() => {
       const times = Object.values(priceTimestamps);
@@ -658,6 +666,9 @@ const App: React.FC = () => {
                       setWebScrapingAIKey(cloudData.webScrapingAIKey);
                       localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
                   }
+                  if (cloudData.chartSettings) {
+                      applyCloudChartSettings(cloudData.chartSettings);
+                  }
               }
           } catch (e) {
               console.error("Drive Load Error", e);
@@ -678,7 +689,8 @@ const App: React.FC = () => {
       if (driveUser) {
           saveToDrive({
               transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers,
-              sectorOverrides, scannerState, performanceHistory, fairValueCache, watchlist, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey
+              sectorOverrides, scannerState, performanceHistory, fairValueCache, watchlist, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey,
+              chartSettings: loadChartSettings(),
           });
       }
   };
@@ -1348,7 +1360,8 @@ const App: React.FC = () => {
                   fundCatalog,
                   geminiApiKey: userApiKey,
                   scrapingApiKey: userScraperKey,
-                  webScrapingAIKey: userWebScrapingAIKey
+                  webScrapingAIKey: userWebScrapingAIKey,
+                  chartSettings: loadChartSettings(),
               });
               if (transactions.length > 0) {
                   await syncTransactionsToSheet(transactions, portfolios);
@@ -1358,7 +1371,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => clearTimeout(timer);
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId, chartSettingsTick]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};

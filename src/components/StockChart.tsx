@@ -6,6 +6,7 @@ import {
   DEFAULT_AWAIS_LAYERS,
   AwaisLayers,
   AwaisOverlayData,
+  cloneAwaisLayers,
   hasAnyBb,
   hasAnyPivot,
   hasAnySupertrend,
@@ -26,8 +27,16 @@ import {
   countMomentumEnabled,
   DEFAULT_MOMENTUM_CONFIG,
   MomentumConfig,
+  cloneMomentumConfig,
   computeMomentumSeries,
+  sliceMomentumSeries,
 } from '../utils/momentumIndicators';
+import {
+  loadChartSettings,
+  persistChartSettings,
+  CHART_SETTINGS_EVENT,
+  type ChartUserSettings,
+} from '../services/chartSettingsStorage';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, ReferenceLine, Bar, Cell,
@@ -504,8 +513,9 @@ const LineVolumePanel: React.FC<{ bars: OhlcBar[] }> = ({ bars }) => {
 const LineMomentumPanel: React.FC<{
   bars: OhlcBar[];
   config: MomentumConfig;
+  momentumSeries: ReturnType<typeof computeMomentumSeries>;
   showVolume: boolean;
-}> = ({ bars, config, showVolume }) => {
+}> = ({ bars, config, momentumSeries, showVolume }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   const active = useMemo(() => activeMomentumTypes(config), [config]);
@@ -530,6 +540,7 @@ const LineMomentumPanel: React.FC<{
           type={type}
           bars={bars}
           config={config}
+          series={momentumSeries}
           slot={slot}
           padL={52}
           width={width}
@@ -816,6 +827,7 @@ const CandleChart: React.FC<{
   analysis?: ChartAnalysisPoint[];
   layers: ChartLayers;
   momentumConfig: MomentumConfig;
+  momentumSeries: ReturnType<typeof computeMomentumSeries>;
   awaisLayers: AwaisLayers;
   awaisData?: AwaisOverlayData | null;
   candleInterval?: CandleInterval;
@@ -832,6 +844,7 @@ const CandleChart: React.FC<{
   analysis = [],
   layers,
   momentumConfig,
+  momentumSeries,
   awaisLayers,
   awaisData = null,
   candleInterval = 'day',
@@ -870,7 +883,6 @@ const CandleChart: React.FC<{
     () => (showOverlay ? alignAnalysisToBars(display, analysis) : []),
     [display, analysis, showOverlay]
   );
-  const momentumSeries = useMemo(() => computeMomentumSeries(display, momentumConfig), [display, momentumConfig]);
   const activeMomentum = useMemo(() => activeMomentumTypes(momentumConfig), [momentumConfig]);
   const hasAwais = awaisData != null;
   const showMomentum = layers.momentum && display.length >= 3 && activeMomentum.length > 0;
@@ -999,6 +1011,7 @@ const CandleChart: React.FC<{
           type={type}
           bars={display}
           config={momentumConfig}
+          series={momentumSeries}
           slot={slot}
           padL={plotOffset}
           width={w}
@@ -1037,9 +1050,9 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const [pricePanOffset, setPricePanOffset] = useState(0);
   const [priceFitAll, setPriceFitAll] = useState(false);
   const [panning, setPanning] = useState(false);
-  const [layers, setLayers] = useState<ChartLayers>(DEFAULT_LAYERS);
-  const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(DEFAULT_AWAIS_LAYERS);
-  const [momentumConfig, setMomentumConfig] = useState<MomentumConfig>(DEFAULT_MOMENTUM_CONFIG);
+  const [layers, setLayers] = useState<ChartLayers>(() => loadChartSettings().layers);
+  const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(() => cloneAwaisLayers(loadChartSettings().awaisLayers));
+  const [momentumConfig, setMomentumConfig] = useState<MomentumConfig>(() => cloneMomentumConfig(loadChartSettings().momentumConfig));
   const chartPanRef = useRef<HTMLDivElement>(null);
   const candlePlotRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{
@@ -1059,6 +1072,22 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const toggleLayer = (key: keyof ChartLayers) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
   };
+
+  useEffect(() => {
+    persistChartSettings({ layers, awaisLayers, momentumConfig });
+  }, [layers, awaisLayers, momentumConfig]);
+
+  useEffect(() => {
+    const onCloudSettings = (e: Event) => {
+      const detail = (e as CustomEvent<ChartUserSettings>).detail;
+      if (!detail) return;
+      setLayers({ ...detail.layers });
+      setAwaisLayers(cloneAwaisLayers(detail.awaisLayers));
+      setMomentumConfig(cloneMomentumConfig(detail.momentumConfig));
+    };
+    window.addEventListener(CHART_SETTINGS_EVENT, onCloudSettings);
+    return () => window.removeEventListener(CHART_SETTINGS_EVENT, onCloudSettings);
+  }, []);
 
   const rangeMeta = RANGES.find((x) => x.k === range) ?? RANGES[1];
 
@@ -1305,6 +1334,34 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     if (startIdx < 0) return awaisFull;
     return sliceAwaisData(awaisFull, startIdx, visibleOhlc.length);
   }, [awaisFull, visibleOhlc, showCandle, candleOhlc, filteredOhlc]);
+
+  const momentumBars = useMemo((): OhlcBar[] => {
+    if (candleOhlc.length >= 3) return candleOhlc;
+    if (filteredOhlc.length >= 3) return filteredOhlc;
+    return filteredLine.map((p) => ({
+      time: p.time,
+      open: p.price,
+      high: p.price,
+      low: p.price,
+      close: p.price,
+      volume: 0,
+    }));
+  }, [candleOhlc, filteredOhlc, filteredLine]);
+
+  const momentumSeriesFull = useMemo(
+    () => (momentumBars.length >= 3 ? computeMomentumSeries(momentumBars, momentumConfig) : []),
+    [momentumBars, momentumConfig]
+  );
+
+  const momentumVisibleBars = useMemo((): OhlcBar[] => {
+    if (visibleOhlc.length >= 3) return visibleOhlc;
+    return applyViewport(momentumBars, viewStart, viewCount);
+  }, [visibleOhlc, momentumBars, viewStart, viewCount]);
+
+  const momentumSeriesVisible = useMemo(
+    () => sliceMomentumSeries(momentumSeriesFull, momentumBars, momentumVisibleBars),
+    [momentumSeriesFull, momentumBars, momentumVisibleBars]
+  );
 
   const pricePanLimits = useMemo(
     () => computePricePanLimits(visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll),
@@ -1638,6 +1695,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               analysis={candleAnalysis}
               layers={layers}
               momentumConfig={momentumConfig}
+              momentumSeries={momentumSeriesVisible}
               awaisLayers={awaisLayers}
               awaisData={awaisVisible}
               candleInterval={candleInterval}
@@ -1682,22 +1740,14 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-            {layers.momentum && (() => {
-              const momBars = visibleOhlc.length >= 3
-                ? visibleOhlc
-                : visibleChartData.map((p) => ({
-                    time: p.t,
-                    open: p.price,
-                    high: p.price,
-                    low: p.price,
-                    close: p.price,
-                    volume: 0,
-                  }));
-              if (momBars.length < 3) return null;
-              return (
-                <LineMomentumPanel bars={momBars} config={momentumConfig} showVolume={layers.volume && hasVolume} />
-              );
-            })()}
+            {layers.momentum && momentumVisibleBars.length >= 3 && (
+              <LineMomentumPanel
+                bars={momentumVisibleBars}
+                config={momentumConfig}
+                momentumSeries={momentumSeriesVisible}
+                showVolume={layers.volume && hasVolume}
+              />
+            )}
             {layers.volume && hasVolume && visibleOhlc.length > 0 && (
               <LineVolumePanel bars={visibleOhlc} />
             )}

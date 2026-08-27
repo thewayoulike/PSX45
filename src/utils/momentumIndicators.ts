@@ -331,6 +331,18 @@ export function computeMomentumSeries(bars: OhlcBar[], config: MomentumConfig): 
   }));
 }
 
+/** Align precomputed momentum with a visible OHLC window (fixes zoom when warmup > visible bars). */
+export function sliceMomentumSeries(
+  fullSeries: MomentumBar[],
+  allBars: OhlcBar[],
+  visibleBars: OhlcBar[]
+): MomentumBar[] {
+  if (!visibleBars.length) return [];
+  const startIdx = allBars.findIndex((b) => b.time === visibleBars[0].time);
+  if (startIdx < 0) return fullSeries.slice(0, visibleBars.length);
+  return fullSeries.slice(startIdx, startIdx + visibleBars.length);
+}
+
 export function momentumPanelLabel(config: MomentumConfig, type: MomentumIndicatorType): string {
   switch (type) {
     case 'RSI':
