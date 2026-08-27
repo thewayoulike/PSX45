@@ -1,9 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useId } from 'react';
 import { fetchOHLCV, fetchStockHistory, fetchChartAnalysis, OhlcBar, ChartAnalysisPoint } from '../services/psxData';
 import { computeChartAnalysisFromBars } from '../utils/chartAnalysis';
 import {
   computeAwaisOverlays,
   DEFAULT_AWAIS_LAYERS,
+  AwaisLayerGroup,
   AwaisLayers,
   AwaisOverlayData,
   BbKey,
@@ -14,6 +15,7 @@ import {
   isMaPeriodEnabled,
   MaPeriod,
   PivotLabel,
+  setAwaisGroupEnabled,
   SupertrendKey,
 } from '../utils/awaisIndicators';
 import { AwaisPanelDropdown, AwaisSvgOverlays } from './AwaisChartOverlays';
@@ -27,6 +29,79 @@ interface Props { symbol: string | null; }
 
 const ZOOM_STEPS = [1, 1.25, 1.5, 2, 3, 4, 6, 8, 12] as const;
 const MIN_WINDOW = 12;
+const PRICE_ZOOM_MIN = -5;
+const PRICE_ZOOM_MAX = 4;
+const PRICE_PAN_LIMIT = 1;
+
+function priceSpanMultiplier(zoomIdx: number): number {
+  if (zoomIdx === 0) return 1;
+  if (zoomIdx < 0) return Math.pow(0.85, -zoomIdx);
+  return Math.pow(1.28, zoomIdx);
+}
+
+function clampPricePanOffset(offset: number): number {
+  return Math.max(-PRICE_PAN_LIMIT, Math.min(PRICE_PAN_LIMIT, offset));
+}
+
+function formatHorizZoomLabel(zoomIdx: number): string {
+  if (zoomIdx <= 0) return '100%';
+  return `${Math.round((1 / (ZOOM_STEPS[zoomIdx] ?? 1)) * 100)}%`;
+}
+
+function formatPriceZoomLabel(zoomIdx: number, fitAll: boolean): string {
+  if (zoomIdx === 0) return fitAll ? 'All' : 'Auto';
+  return `${Math.round(priceSpanMultiplier(zoomIdx) * 100)}%`;
+}
+
+function computePriceYRange(
+  bars: OhlcBar[],
+  awaisData: AwaisOverlayData | null,
+  awaisLayers: AwaisLayers,
+  opts: { zoomIdx: number; panOffset: number; fitAll: boolean }
+): { yMin: number; yMax: number } {
+  if (!bars.length) return { yMin: 0, yMax: 1 };
+
+  let minP = Math.min(...bars.map((b) => b.low));
+  let maxP = Math.max(...bars.map((b) => b.high));
+  const n = bars.length;
+  const push = (v: number | null | undefined) => {
+    if (v != null && Number.isFinite(v)) {
+      minP = Math.min(minP, v);
+      maxP = Math.max(maxP, v);
+    }
+  };
+
+  if (awaisData) {
+    if (opts.fitAll && hasAnyPivot(awaisLayers.pivot)) {
+      awaisData.pivots.forEach((p) => {
+        if (awaisLayers.pivot[p.label as PivotLabel]) push(p.value);
+      });
+    }
+    if (hasAnyBb(awaisLayers.bb)) {
+      for (let i = 0; i < n; i++) {
+        if (awaisLayers.bb.upper) push(awaisData.bb.upper[i]);
+        if (awaisLayers.bb.middle) push(awaisData.bb.middle[i]);
+        if (awaisLayers.bb.lower) push(awaisData.bb.lower[i]);
+      }
+    }
+    awaisData.maLines.forEach((m) => {
+      if (!isMaPeriodEnabled(awaisLayers.maLines, m.period)) return;
+      for (let i = 0; i < n; i++) push(m.values[i]);
+    });
+    if (hasAnySupertrend(awaisLayers.supertrend)) {
+      for (let i = 0; i < n; i++) {
+        if (awaisLayers.supertrend.up) push(awaisData.supertrend.up[i]);
+        if (awaisLayers.supertrend.down) push(awaisData.supertrend.down[i]);
+      }
+    }
+  }
+
+  const span = maxP - minP || maxP * 0.02 || 1;
+  const half = (span / 2) * (opts.fitAll ? 1.12 : 1.06) * priceSpanMultiplier(opts.zoomIdx);
+  const panOffset = clampPricePanOffset(opts.panOffset);
+  const center = (minP + maxP) / 2 + panOffset * half;
+  return { yMin: center - half, yMax: center + half };
+}
 
 function windowCount(total: number, zoomIdx: number): number {
   if (zoomIdx <= 0 || total === 0) return total;
@@ -40,52 +115,71 @@ function applyViewport<T>(arr: T[], start: number, count: number): T[] {
   return arr.slice(s, s + count);
 }
 
-const ZoomControls: React.FC<{
+const AxisZoomControls: React.FC<{
+  axis: 'H' | 'Y';
   zoomIdx: number;
+  minIdx: number;
+  maxIdx: number;
+  label: string;
+  isDefault: boolean;
   onZoomIn: () => void;
   onZoomOut: () => void;
   onReset: () => void;
-}> = ({ zoomIdx, onZoomIn, onZoomOut, onReset }) => {
-  const atMin = zoomIdx <= 0;
-  const atMax = zoomIdx >= ZOOM_STEPS.length - 1;
-  const pct = Math.round((1 / (ZOOM_STEPS[zoomIdx] ?? 1)) * 100);
+  onFitAll?: () => void;
+}> = ({ axis, zoomIdx, minIdx, maxIdx, label, isDefault, onZoomIn, onZoomOut, onReset, onFitAll }) => {
+  const atMin = zoomIdx <= minIdx;
+  const atMax = zoomIdx >= maxIdx;
   return (
-    <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 gap-0.5">
+    <div
+      className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 gap-0.5"
+      title={axis === 'H' ? 'Horizontal (time) zoom' : 'Vertical (price) zoom'}
+    >
+      <span className="px-1.5 text-[9px] font-black text-slate-400 uppercase tracking-wider">{axis}</span>
       <button
         type="button"
         onClick={onZoomOut}
         disabled={atMin}
         className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        title="Zoom out"
+        title={axis === 'H' ? 'Zoom out (more bars)' : 'Zoom out (wider price range)'}
       >
         <ZoomOut size={14} />
       </button>
       <button
         type="button"
         onClick={onReset}
-        disabled={atMin}
+        disabled={isDefault}
         className="px-2 py-1.5 rounded-lg text-[10px] font-bold tabular-nums text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors min-w-[44px]"
-        title="Reset zoom"
+        title="Reset axis"
       >
-        {atMin ? '100%' : `${pct}%`}
+        {label}
       </button>
       <button
         type="button"
         onClick={onZoomIn}
         disabled={atMax}
         className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white dark:hover:bg-slate-900 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        title="Zoom in"
+        title={axis === 'H' ? 'Zoom in (fewer bars)' : 'Zoom in (tighter price range)'}
       >
         <ZoomIn size={14} />
       </button>
-      {!atMin && (
+      {!isDefault && (
         <button
           type="button"
           onClick={onReset}
           className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 hover:bg-white dark:hover:bg-slate-900 transition-colors"
-          title="Fit all"
+          title="Reset axis"
         >
           <Maximize2 size={13} />
+        </button>
+      )}
+      {onFitAll && (
+        <button
+          type="button"
+          onClick={onFitAll}
+          className="px-2 py-1.5 rounded-lg text-[9px] font-bold text-orange-500 hover:bg-white dark:hover:bg-slate-900 transition-colors"
+          title="Fit pivot targets into view"
+        >
+          Targets
         </button>
       )}
     </div>
@@ -148,7 +242,10 @@ const LayerToggleBar: React.FC<{
   hasVolume: boolean;
   hasMacd: boolean;
 }> = ({ layers, onToggle, hasVolume, hasMacd }) => (
-  <div className="flex flex-wrap items-center gap-1.5 mb-1 px-1">
+  <div
+    className="flex flex-wrap items-center gap-1.5 mb-1 px-1 relative z-20"
+    onPointerDown={(e) => e.stopPropagation()}
+  >
     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Panels</span>
     <LayerToggle label="Volume" color="#6366f1" active={layers.volume} onClick={() => onToggle('volume')} disabled={!hasVolume} />
     <LayerToggle label="RSI" color="#9333ea" active={layers.rsi} onClick={() => onToggle('rsi')} />
@@ -608,6 +705,9 @@ const CandleChart: React.FC<{
   height?: number;
   panning?: boolean;
   canPan?: boolean;
+  priceZoomIdx?: number;
+  pricePanOffset?: number;
+  priceFitAll?: boolean;
 }> = ({
   bars,
   analysis = [],
@@ -618,10 +718,14 @@ const CandleChart: React.FC<{
   height = 320,
   panning = false,
   canPan = false,
+  priceZoomIdx = 0,
+  pricePanOffset = 0,
+  priceFitAll = false,
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   const [hover, setHover] = useState<number | null>(null);
+  const plotClipId = useId().replace(/:/g, '');
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -650,42 +754,15 @@ const CandleChart: React.FC<{
   const showVolume = layers.volume && bars.some((b) => b.volume > 0);
   const showBottomX = showVolume || showRsi || showMacd;
 
-  let minP = Math.min(...display.map((b) => b.low));
-  let maxP = Math.max(...display.map((b) => b.high));
-  if (awaisData && hasAwais) {
-    const n = display.length;
-    const push = (v: number | null | undefined) => {
-      if (v != null && Number.isFinite(v)) {
-        minP = Math.min(minP, v);
-        maxP = Math.max(maxP, v);
-      }
-    };
-    if (hasAnyPivot(awaisLayers.pivot)) {
-      awaisData.pivots.forEach((p) => {
-        if (awaisLayers.pivot[p.label as PivotLabel]) push(p.value);
-      });
-    }
-    if (hasAnyBb(awaisLayers.bb)) {
-      for (let i = 0; i < n; i++) {
-        if (awaisLayers.bb.upper) push(awaisData.bb.upper[i]);
-        if (awaisLayers.bb.middle) push(awaisData.bb.middle[i]);
-        if (awaisLayers.bb.lower) push(awaisData.bb.lower[i]);
-      }
-    }
-    awaisData.maLines.forEach((m) => {
-      if (!isMaPeriodEnabled(awaisLayers.maLines, m.period)) return;
-      for (let i = 0; i < n; i++) push(m.values[i]);
-    });
-    if (hasAnySupertrend(awaisLayers.supertrend)) {
-      for (let i = 0; i < n; i++) {
-        if (awaisLayers.supertrend.up) push(awaisData.supertrend.up[i]);
-        if (awaisLayers.supertrend.down) push(awaisData.supertrend.down[i]);
-      }
-    }
-  }
-  const span = maxP - minP || maxP * 0.02 || 1;
-  const yMin = minP - span * 0.04;
-  const yMax = maxP + span * 0.04;
+  const { yMin, yMax } = useMemo(
+    () =>
+      computePriceYRange(bars, awaisData, awaisLayers, {
+        zoomIdx: priceZoomIdx,
+        panOffset: pricePanOffset,
+        fitAll: priceFitAll,
+      }),
+    [bars, awaisData, awaisLayers, priceZoomIdx, pricePanOffset, priceFitAll]
+  );
   const yScale = (p: number) => pad.t + ((yMax - p) / (yMax - yMin)) * innerH;
   const plotInnerW =
     candleInterval === 'month' && display.length <= 24
@@ -700,7 +777,7 @@ const CandleChart: React.FC<{
   const xAt = (i: number) => plotOffset + i * slot + slot / 2;
 
   return (
-    <div ref={wrapRef} className={`relative w-full select-none ${canPan ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}>
+    <div ref={wrapRef} className={`relative w-full select-none ${canPan || panning ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}>
       {hi && (
         <div className="absolute top-1 left-14 z-10 pointer-events-none rounded-lg bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-[11px] shadow-sm tabular-nums">
           <span className="font-bold text-slate-700 dark:text-slate-200">
@@ -714,7 +791,12 @@ const CandleChart: React.FC<{
           {hiAnalysis && layers.rsi && <span className="text-purple-600 font-bold ml-1.5">RSI {hiAnalysis.rsi.toFixed(1)}</span>}
         </div>
       )}
-      <svg width={w} height={h} className="overflow-visible">
+      <svg width={w} height={h} className="overflow-hidden">
+        <defs>
+          <clipPath id={plotClipId}>
+            <rect x={pad.l} y={pad.t} width={innerW} height={innerH} />
+          </clipPath>
+        </defs>
         {/* grid */}
         {[0, 0.25, 0.5, 0.75, 1].map((t) => {
           const y = pad.t + t * innerH;
@@ -726,6 +808,7 @@ const CandleChart: React.FC<{
             </g>
           );
         })}
+        <g clipPath={`url(#${plotClipId})`}>
         {hasAwais && awaisData && (
           <AwaisSvgOverlays
             data={awaisData}
@@ -761,6 +844,7 @@ const CandleChart: React.FC<{
             </g>
           );
         })}
+        </g>
         {/* x labels — only when no sub-panel below */}
         {!showBottomX && display.length > 0 && [0, Math.floor(display.length / 2), display.length - 1].map((i) => {
           const b = display[i];
@@ -797,11 +881,19 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const [err, setErr] = useState('');
   const [zoomIdx, setZoomIdx] = useState(0);
   const [viewStart, setViewStart] = useState(0);
+  const [priceZoomIdx, setPriceZoomIdx] = useState(0);
+  const [pricePanOffset, setPricePanOffset] = useState(0);
+  const [priceFitAll, setPriceFitAll] = useState(false);
   const [panning, setPanning] = useState(false);
   const [layers, setLayers] = useState<ChartLayers>(DEFAULT_LAYERS);
   const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(DEFAULT_AWAIS_LAYERS);
-  const chartAreaRef = useRef<HTMLDivElement>(null);
-  const panRef = useRef<{ x: number; start: number } | null>(null);
+  const chartPanRef = useRef<HTMLDivElement>(null);
+  const panRef = useRef<{
+    x: number;
+    y: number;
+    startView: number;
+    startPricePan: number;
+  } | null>(null);
 
   const toggleLayer = (key: keyof ChartLayers) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -839,11 +931,18 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     }));
   };
 
+  const setAwaisGroup = (group: AwaisLayerGroup, enabled: boolean) => {
+    setAwaisLayers((prev) => setAwaisGroupEnabled(prev, group, enabled));
+  };
+
   const rangeMeta = RANGES.find((x) => x.k === range) ?? RANGES[1];
 
   useEffect(() => {
     setZoomIdx(0);
     setViewStart(0);
+    setPriceZoomIdx(0);
+    setPricePanOffset(0);
+    setPriceFitAll(false);
   }, [symbol, range, mode, candleInterval]);
 
   const load = async () => {
@@ -968,6 +1067,10 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     setViewStart((s) => Math.min(s, maxViewStart));
   }, [maxViewStart]);
 
+  useEffect(() => {
+    setPricePanOffset((p) => clampPricePanOffset(p));
+  }, [priceZoomIdx]);
+
   const snapToRecent = (nextZoomIdx: number) => {
     const cnt = windowCount(primaryLen, nextZoomIdx);
     setViewStart(Math.max(0, primaryLen - cnt));
@@ -985,6 +1088,21 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     setZoomIdx(0);
     setViewStart(0);
   };
+
+  const priceZoomIn = () => setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
+  const priceZoomOut = () => setPriceZoomIdx((z) => Math.min(PRICE_ZOOM_MAX, z + 1));
+  const resetPriceZoom = () => {
+    setPriceZoomIdx(0);
+    setPricePanOffset(0);
+    setPriceFitAll(false);
+  };
+  const fitAllPrice = () => {
+    setPriceFitAll(true);
+    setPriceZoomIdx(0);
+    setPricePanOffset(0);
+  };
+
+  const priceZoomActive = priceZoomIdx !== 0 || pricePanOffset !== 0 || priceFitAll;
 
   const visibleOhlc = useMemo(
     () => applyViewport(candleOhlc, viewStart, viewCount),
@@ -1077,19 +1195,37 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     return `${fmt(t0)} – ${fmt(t1)}`;
   }, [showTechnical, showCandle, visibleAnalysis, visibleOhlc, visibleChartData]);
 
-  const onPanStart = (clientX: number) => {
-    if (!canPan) return;
-    panRef.current = { x: clientX, start: viewStart };
+  const canPanH = canPan;
+  const canPanV = showCandle && visibleOhlc.length >= 3;
+  const canPanChart = canPanH || canPanV;
+
+  const onPanStart = (clientX: number, clientY: number) => {
+    if (!canPanChart) return;
+    panRef.current = {
+      x: clientX,
+      y: clientY,
+      startView: viewStart,
+      startPricePan: pricePanOffset,
+    };
     setPanning(true);
   };
 
-  const onPanMove = (clientX: number) => {
-    if (!panRef.current || !canPan) return;
-    const width = chartAreaRef.current?.clientWidth ?? 640;
-    const chartWidth = Math.max(width - 64, 120);
-    const dx = clientX - panRef.current.x;
-    const barShift = Math.round(-dx * (viewCount / chartWidth));
-    setViewStart(Math.max(0, Math.min(maxViewStart, panRef.current.start + barShift)));
+  const onPanMove = (clientX: number, clientY: number) => {
+    if (!panRef.current) return;
+    if (canPanV) {
+      const height = chartPanRef.current?.clientHeight ?? 400;
+      const chartHeight = Math.max(height - 40, 200);
+      const dy = clientY - panRef.current.y;
+      const delta = (dy / chartHeight) * 2.5;
+      setPricePanOffset(clampPricePanOffset(panRef.current.startPricePan + delta));
+    }
+    if (canPanH) {
+      const width = chartPanRef.current?.clientWidth ?? 640;
+      const chartWidth = Math.max(width - 64, 120);
+      const dx = clientX - panRef.current.x;
+      const barShift = Math.round(-dx * (viewCount / chartWidth));
+      setViewStart(Math.max(0, Math.min(maxViewStart, panRef.current.startView + barShift)));
+    }
   };
 
   const onPanEnd = () => {
@@ -1098,14 +1234,14 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (!canPan || e.button !== 0) return;
+    if (e.button !== 0 || !canPanChart) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    onPanStart(e.clientX);
+    onPanStart(e.clientX, e.clientY);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!panRef.current) return;
-    onPanMove(e.clientX);
+    onPanMove(e.clientX, e.clientY);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -1115,10 +1251,16 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   };
 
   useEffect(() => {
-    const el = chartAreaRef.current;
-    if (!el || !canZoom) return;
+    const el = chartPanRef.current;
+    if (!el) return;
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
+      if (showCandle && e.shiftKey) {
+        if (e.deltaY < 0) setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
+        else if (e.deltaY > 0) setPriceZoomIdx((z) => Math.min(PRICE_ZOOM_MAX, z + 1));
+        return;
+      }
+      if (!canZoom) return;
       if (e.deltaY < 0) {
         setZoomIdx((z) => {
           const next = Math.min(ZOOM_STEPS.length - 1, z + 1);
@@ -1134,7 +1276,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [canZoom, primaryLen]);
+  }, [canZoom, primaryLen, showCandle]);
 
   const first = filteredOhlc[0]?.close ?? chartData[0]?.price ?? 0;
   const last = filteredOhlc[filteredOhlc.length - 1]?.close ?? chartData[chartData.length - 1]?.price ?? 0;
@@ -1231,7 +1373,31 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             ))}
           </div>
           {canZoom && (
-            <ZoomControls zoomIdx={zoomIdx} onZoomIn={zoomIn} onZoomOut={zoomOut} onReset={resetZoom} />
+            <AxisZoomControls
+              axis="H"
+              zoomIdx={zoomIdx}
+              minIdx={0}
+              maxIdx={ZOOM_STEPS.length - 1}
+              label={formatHorizZoomLabel(zoomIdx)}
+              isDefault={zoomIdx === 0}
+              onZoomIn={zoomIn}
+              onZoomOut={zoomOut}
+              onReset={resetZoom}
+            />
+          )}
+          {showCandle && visibleOhlc.length >= 3 && (
+            <AxisZoomControls
+              axis="Y"
+              zoomIdx={priceZoomIdx}
+              minIdx={PRICE_ZOOM_MIN}
+              maxIdx={PRICE_ZOOM_MAX}
+              label={formatPriceZoomLabel(priceZoomIdx, priceFitAll)}
+              isDefault={!priceZoomActive}
+              onZoomIn={priceZoomIn}
+              onZoomOut={priceZoomOut}
+              onReset={resetPriceZoom}
+              onFitAll={fitAllPrice}
+            />
           )}
           <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
@@ -1239,14 +1405,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
         </div>
       </div>
 
-      <div
-        className={`p-4 ${canPan ? (panning ? 'cursor-grabbing touch-none' : 'cursor-grab touch-none') : ''}`}
-        ref={chartAreaRef}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-      >
+      <div className="p-4">
         {!loading && (showCandle || showTechnical || mode === 'line') && (
           <LayerToggleBar
             layers={layers}
@@ -1263,8 +1422,17 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             onToggleSupertrend={toggleAwaisSupertrend}
             onTogglePivot={toggleAwaisPivot}
             onToggleIchimoku={toggleAwaisIchimoku}
+            onSetGroup={setAwaisGroup}
           />
         )}
+        <div
+          className={`${canPanChart ? (panning ? 'cursor-grabbing touch-none' : 'cursor-grab touch-none') : ''}`}
+          ref={chartPanRef}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
         {showTechnical ? (
           loading && filteredAnalysis.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 text-slate-400">
@@ -1300,7 +1468,10 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               candleInterval={candleInterval}
               height={320}
               panning={panning}
-              canPan={canPan}
+              canPan={canPanChart}
+              priceZoomIdx={priceZoomIdx}
+              pricePanOffset={pricePanOffset}
+              priceFitAll={priceFitAll}
             />
             {!candleAnalysis.length && candleInterval === 'day' && visibleOhlc.length >= 3 && (
               <p className="text-[10px] text-slate-400 px-1">Not enough data for indicator overlays in this range.</p>
@@ -1348,6 +1519,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             )}
           </div>
         )}
+        </div>
         {!showTechnical && !showCandle && (
         <p className="text-[10px] text-slate-400 mt-2 px-1">
           {canCandle
@@ -1355,7 +1527,14 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             : 'Close-only fallback from PSX timeseries. Candles need OHLCV from /api/proxy?ohlc=.'}
         </p>
         )}
-        {canPan && (
+        {showCandle && canPanChart && (
+          <p className="text-[10px] text-slate-400 mt-2 px-1">
+            Drag to pan time and price · Scroll zoom time · Shift+scroll zoom price
+            {hasAnyPivot(awaisLayers.pivot) && ' · Y Targets fits pivot levels'}
+            {canPanH && visibleRangeLabel ? ` · ${visibleRangeLabel}` : ''}
+          </p>
+        )}
+        {!showCandle && canPan && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
             Drag left/right to pan · scroll or +/- to zoom · {visibleRangeLabel}
           </p>

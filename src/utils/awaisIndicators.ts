@@ -149,6 +149,39 @@ export function countAwaisActiveLayers(layers: AwaisLayers): { active: number; t
   return { active, total };
 }
 
+export type AwaisLayerGroup = 'ma' | 'bb' | 'supertrend' | 'pivot' | 'ichimoku' | 'all';
+
+function fillRecord<K extends string>(keys: readonly K[], enabled: boolean): Record<K, boolean> {
+  return keys.reduce((acc, k) => {
+    acc[k] = enabled;
+    return acc;
+  }, {} as Record<K, boolean>);
+}
+
+/** Turn every item in a group (or all groups) on or off. */
+export function setAwaisGroupEnabled(layers: AwaisLayers, group: AwaisLayerGroup, enabled: boolean): AwaisLayers {
+  switch (group) {
+    case 'ma':
+      return { ...layers, maLines: fillRecord(MA_PERIODS, enabled) };
+    case 'bb':
+      return { ...layers, bb: fillRecord(AWAIS_BB_OPTIONS.map((o) => o.key), enabled) };
+    case 'supertrend':
+      return { ...layers, supertrend: fillRecord(AWAIS_SUPERTREND_OPTIONS.map((o) => o.key), enabled) };
+    case 'pivot':
+      return { ...layers, pivot: fillRecord(PIVOT_LABELS, enabled) };
+    case 'ichimoku':
+      return { ...layers, ichimoku: fillRecord(AWAIS_ICHI_OPTIONS.map((o) => o.key), enabled) };
+    case 'all':
+      return {
+        maLines: fillRecord(MA_PERIODS, enabled),
+        bb: fillRecord(AWAIS_BB_OPTIONS.map((o) => o.key), enabled),
+        supertrend: fillRecord(AWAIS_SUPERTREND_OPTIONS.map((o) => o.key), enabled),
+        pivot: fillRecord(PIVOT_LABELS, enabled),
+        ichimoku: fillRecord(AWAIS_ICHI_OPTIONS.map((o) => o.key), enabled),
+      };
+  }
+}
+
 export interface MaLineSeries {
   period: number;
   color: string;

@@ -6,6 +6,7 @@ import {
   AWAIS_MA_LINES,
   AWAIS_PIVOT_OPTIONS,
   AWAIS_SUPERTREND_OPTIONS,
+  AwaisLayerGroup,
   AwaisLayers,
   AwaisOverlayData,
   BbKey,
@@ -17,24 +18,59 @@ import {
   ichimokuPlottedSpans,
 } from '../utils/awaisIndicators';
 
+function BulkToggleButtons({
+  onSelectAll,
+  onSelectNone,
+}: {
+  onSelectAll: () => void;
+  onSelectNone: () => void;
+}) {
+  return (
+    <span className="inline-flex items-center gap-1 shrink-0">
+      <button
+        type="button"
+        onClick={onSelectAll}
+        className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-500/10 transition-colors"
+      >
+        All
+      </button>
+      <span className="text-slate-300 dark:text-slate-600">·</span>
+      <button
+        type="button"
+        onClick={onSelectNone}
+        className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+      >
+        None
+      </button>
+    </span>
+  );
+}
+
 function PanelSection({
   title,
   children,
   bordered,
+  onSelectAll,
+  onSelectNone,
 }: {
   title: string;
   children: React.ReactNode;
   bordered?: boolean;
+  onSelectAll?: () => void;
+  onSelectNone?: () => void;
 }) {
   return (
     <>
-      <p
-        className={`text-[10px] font-bold uppercase tracking-widest text-slate-400 px-2 pt-2 pb-1 ${
+      <div
+        className={`flex items-center justify-between gap-2 px-2 pt-2 pb-1 ${
           bordered ? 'border-t border-slate-100 dark:border-slate-800 mt-1' : ''
         }`}
       >
-        {title}
-      </p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{title}</p>
+        {onSelectAll && onSelectNone && (
+          <BulkToggleButtons onSelectAll={onSelectAll} onSelectNone={onSelectNone} />
+        )}
+      </div>
       {children}
     </>
   );
@@ -72,8 +108,9 @@ export const AwaisPanelDropdown: React.FC<{
   onToggleSupertrend: (key: SupertrendKey) => void;
   onTogglePivot: (label: PivotLabel) => void;
   onToggleIchimoku: (key: IchimokuKey) => void;
+  onSetGroup: (group: AwaisLayerGroup, enabled: boolean) => void;
   disabled?: boolean;
-}> = ({ layers, onToggleMa, onToggleBb, onToggleSupertrend, onTogglePivot, onToggleIchimoku, disabled }) => {
+}> = ({ layers, onToggleMa, onToggleBb, onToggleSupertrend, onTogglePivot, onToggleIchimoku, onSetGroup, disabled }) => {
   const { active, total } = countAwaisActiveLayers(layers);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -88,11 +125,16 @@ export const AwaisPanelDropdown: React.FC<{
   }, [open]);
 
   return (
-    <div className="relative mb-3 px-1" ref={ref}>
+    <div
+      className="relative mb-3 px-1 z-20"
+      ref={ref}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
       <button
         type="button"
         disabled={disabled}
         onClick={() => setOpen((v) => !v)}
+        onPointerDown={(e) => e.stopPropagation()}
         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 shadow-sm hover:border-teal-300 dark:hover:border-teal-600 transition-colors disabled:opacity-40"
       >
         <Layers size={14} className="text-teal-600" />
@@ -103,10 +145,20 @@ export const AwaisPanelDropdown: React.FC<{
         <ChevronDown size={14} className="text-slate-400" />
       </button>
       {open && (
-        <div className="absolute left-1 top-full mt-1 z-30 min-w-[260px] max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 px-2 py-1">Control Panel</p>
+        <div className="absolute left-1 top-full mt-1 z-50 min-w-[260px] max-h-[70vh] overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-lg p-2">
+          <div className="flex items-center justify-between gap-2 px-2 py-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Indicators</p>
+            <BulkToggleButtons
+              onSelectAll={() => onSetGroup('all', true)}
+              onSelectNone={() => onSetGroup('all', false)}
+            />
+          </div>
 
-          <PanelSection title="MA / EMA Lines">
+          <PanelSection
+            title="MA / EMA Lines"
+            onSelectAll={() => onSetGroup('ma', true)}
+            onSelectNone={() => onSetGroup('ma', false)}
+          >
             {AWAIS_MA_LINES.map((ma) => (
               <PanelCheckbox
                 key={ma.period}
@@ -118,7 +170,12 @@ export const AwaisPanelDropdown: React.FC<{
             ))}
           </PanelSection>
 
-          <PanelSection title="Bollinger Bands" bordered>
+          <PanelSection
+            title="Bollinger Bands"
+            bordered
+            onSelectAll={() => onSetGroup('bb', true)}
+            onSelectNone={() => onSetGroup('bb', false)}
+          >
             {AWAIS_BB_OPTIONS.map((opt) => (
               <PanelCheckbox
                 key={opt.key}
@@ -130,7 +187,12 @@ export const AwaisPanelDropdown: React.FC<{
             ))}
           </PanelSection>
 
-          <PanelSection title="Supertrend" bordered>
+          <PanelSection
+            title="Supertrend"
+            bordered
+            onSelectAll={() => onSetGroup('supertrend', true)}
+            onSelectNone={() => onSetGroup('supertrend', false)}
+          >
             {AWAIS_SUPERTREND_OPTIONS.map((opt) => (
               <PanelCheckbox
                 key={opt.key}
@@ -142,7 +204,12 @@ export const AwaisPanelDropdown: React.FC<{
             ))}
           </PanelSection>
 
-          <PanelSection title="Pivot Levels" bordered>
+          <PanelSection
+            title="Pivot Levels"
+            bordered
+            onSelectAll={() => onSetGroup('pivot', true)}
+            onSelectNone={() => onSetGroup('pivot', false)}
+          >
             {AWAIS_PIVOT_OPTIONS.map((opt) => (
               <PanelCheckbox
                 key={opt.key}
@@ -154,7 +221,12 @@ export const AwaisPanelDropdown: React.FC<{
             ))}
           </PanelSection>
 
-          <PanelSection title="Ichimoku Cloud" bordered>
+          <PanelSection
+            title="Ichimoku Cloud"
+            bordered
+            onSelectAll={() => onSetGroup('ichimoku', true)}
+            onSelectNone={() => onSetGroup('ichimoku', false)}
+          >
             {AWAIS_ICHI_OPTIONS.map((opt) => (
               <PanelCheckbox
                 key={opt.key}
