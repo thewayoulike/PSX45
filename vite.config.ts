@@ -1,9 +1,43 @@
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/** Local /api/ohlc so candle charts work in `npm run dev` (same as Vercel function). */
+function localOhlcApi(): Plugin {
+  return {
+    name: 'local-ohlc-api',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const url = req.url || '';
+        if (!url.startsWith('/api/ohlc')) return next();
+        try {
+          const u = new URL(url, 'http://localhost');
+          const symbol = u.searchParams.get('symbol') || '';
+          if (!symbol) {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: 'symbol is required' }));
+            return;
+          }
+          const { fetchPsxOhlc } = await import('./lib/psxOhlc.js');
+          const payload = await fetchPsxOhlc(symbol);
+          res.statusCode = 200;
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(payload));
+        } catch (e: any) {
+          res.statusCode = 502;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ error: e?.message || 'OHLC fetch failed' }));
+        }
+      });
+    },
+  };
+}
+
 export default defineConfig({
   plugins: [
+    localOhlcApi(),
     react(),
     VitePWA({
       strategies: 'injectManifest',

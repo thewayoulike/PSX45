@@ -7,11 +7,10 @@ import {
   Briefcase, 
   History, 
   Coins, 
-  BarChart3,
   CheckCircle
 } from 'lucide-react';
 
-import PSXChart from './PSXChart';
+import { StockChart } from './StockChart';
 import { SetAlert } from './SetAlert';
 
 // --- HYBRID FALLBACK: Static Lists ---
@@ -233,20 +232,8 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
 
       <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
 
-        {/* LIVE MARKET CHART */}
-        <div className="bg-white dark:bg-slate-900 p-1.5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
-          <div className="p-5 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between bg-white dark:bg-slate-900">
-            <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20 shadow-sm">
-                <BarChart3 size={20} />
-              </div>
-              Live Market Chart
-            </h3>
-          </div>
-          <div className="w-full">
-            <PSXChart symbol={ticker} height={600} />
-          </div>
-        </div>
+        {/* OHLCV CANDLE / PRICE CHART */}
+        <StockChart symbol={ticker} />
 
         {/* PRICE ALERT WIDGET */}
         <SetAlert ticker={ticker} currentPrice={currentPrice} canSaveAlerts={canSaveAlerts} />

@@ -161,6 +161,46 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
     return liveCandle ? [liveCandle] : [];
 };
 
+/** Daily OHLCV bar (same fields as pypsx_toolkit.download). */
+export interface OhlcBar {
+    time: number;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+}
+
+/**
+ * Full historical OHLCV via /api/ohlc → PSX POST /historical
+ * (equivalent of: pypsx_toolkit.download(symbol, period="1y")).
+ */
+export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
+    const clean = symbol.toUpperCase().replace('PSX:', '').trim();
+    if (!clean) return [];
+    try {
+        const res = await fetchWithTimeout(`/api/ohlc?symbol=${encodeURIComponent(clean)}&t=${Date.now()}`, {}, 45000);
+        if (!res.ok) throw new Error(`ohlc ${res.status}`);
+        const json = await res.json();
+        if (json?.error) throw new Error(json.error);
+        const bars = Array.isArray(json?.bars) ? json.bars : [];
+        return bars
+            .map((b: any) => ({
+                time: Number(b.time),
+                open: Number(b.open),
+                high: Number(b.high),
+                low: Number(b.low),
+                close: Number(b.close),
+                volume: Number(b.volume) || 0,
+            }))
+            .filter((b: OhlcBar) => b.time > 0 && b.close > 0 && b.high > 0 && b.low > 0 && b.open > 0)
+            .sort((a: OhlcBar, b: OhlcBar) => a.time - b.time);
+    } catch (e) {
+        console.warn('fetchOHLCV failed', e);
+        return [];
+    }
+};
+
 const parsePsxTimeseries = (raw: string): { time: number; price: number }[] => {
     try {
         const rawData = JSON.parse(raw);
