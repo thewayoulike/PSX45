@@ -96,7 +96,7 @@ export const AwaisPanelDropdown: React.FC<{
         className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 shadow-sm hover:border-teal-300 dark:hover:border-teal-600 transition-colors disabled:opacity-40"
       >
         <Layers size={14} className="text-teal-600" />
-        Awais Panel
+        Indicators
         <span className="text-[10px] font-bold text-slate-400 tabular-nums">
           {active}/{total}
         </span>
