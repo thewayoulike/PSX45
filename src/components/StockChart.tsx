@@ -57,7 +57,14 @@ import {
 } from 'recharts';
 import { LineChart as LineIcon, CandlestickChart as CandleIcon, Activity, Loader2, RefreshCw, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 
-interface Props { symbol: string | null; }
+interface Props { symbol: string | null; layout?: 'default' | 'focus'; }
+
+const PRICE_SCALE_MIN = 0.06;
+const PRICE_SCALE_MAX = 16;
+
+function clampPriceScaleMul(m: number): number {
+  return Math.max(PRICE_SCALE_MIN, Math.min(PRICE_SCALE_MAX, m));
+}
 
 const ZOOM_STEPS = [1, 1.25, 1.5, 2, 3, 4, 6, 8, 12] as const;
 const MIN_WINDOW = 12;
@@ -136,16 +143,18 @@ function computePricePanLimits(
   awaisData: AwaisOverlayData | null,
   awaisLayers: AwaisLayers,
   zoomIdx: number,
-  fitAll: boolean
+  fitAll: boolean,
+  scaleMul = 1
 ): { min: number; max: number } {
+  const scale = Math.max(0.06, scaleMul);
   const candle = collectCandleBounds(bars);
   const center0 = (candle.minP + candle.maxP) / 2;
-  const half = (candle.span / 2) * 1.08 * priceSpanMultiplier(zoomIdx);
+  const half = ((candle.span / 2) * 1.08 * priceSpanMultiplier(zoomIdx)) / scale;
   if (half <= 0) return { min: -2, max: 2 };
 
   if (fitAll) {
     const full = collectPriceBounds(bars, awaisData, awaisLayers, true);
-    const fullHalf = (full.span / 2) * 1.1 * priceSpanMultiplier(zoomIdx);
+    const fullHalf = ((full.span / 2) * 1.1 * priceSpanMultiplier(zoomIdx)) / scale;
     const fullCenter = (full.minP + full.maxP) / 2;
     return {
       min: (full.minP - fullHalf * 0.04 + fullHalf - fullCenter) / fullHalf,
@@ -166,31 +175,33 @@ function formatHorizZoomLabel(zoomIdx: number): string {
   return `${Math.round((1 / (ZOOM_STEPS[zoomIdx] ?? 1)) * 100)}%`;
 }
 
-function formatPriceZoomLabel(zoomIdx: number, fitAll: boolean): string {
-  if (zoomIdx === 0) return fitAll ? 'All' : 'Auto';
-  return `${Math.round(priceSpanMultiplier(zoomIdx) * 100)}%`;
+function formatPriceZoomLabel(zoomIdx: number, fitAll: boolean, scaleMul = 1): string {
+  const scale = Math.max(0.06, scaleMul);
+  if (zoomIdx === 0 && Math.abs(scale - 1) < 0.02) return fitAll ? 'All' : 'Auto';
+  return `${Math.round(priceSpanMultiplier(zoomIdx) * scale * 100)}%`;
 }
 
 function computePriceYRange(
   bars: OhlcBar[],
   awaisData: AwaisOverlayData | null,
   awaisLayers: AwaisLayers,
-  opts: { zoomIdx: number; panOffset: number; fitAll: boolean; panLimits: { min: number; max: number } }
+  opts: { zoomIdx: number; panOffset: number; fitAll: boolean; panLimits: { min: number; max: number }; scaleMul?: number }
 ): { yMin: number; yMax: number } {
   if (!bars.length) return { yMin: 0, yMax: 1 };
 
   const panOffset = clampPanOffset(opts.panOffset, opts.panLimits);
+  const scale = Math.max(0.06, opts.scaleMul ?? 1);
 
   if (opts.fitAll) {
     const full = collectPriceBounds(bars, awaisData, awaisLayers, true);
-    const half = (full.span / 2) * 1.1 * priceSpanMultiplier(opts.zoomIdx);
+    const half = ((full.span / 2) * 1.1 * priceSpanMultiplier(opts.zoomIdx)) / scale;
     const center0 = (full.minP + full.maxP) / 2;
     const center = center0 + panOffset * half;
     return { yMin: center - half, yMax: center + half };
   }
 
   const candle = collectCandleBounds(bars);
-  const half = (candle.span / 2) * 1.08 * priceSpanMultiplier(opts.zoomIdx);
+  const half = ((candle.span / 2) * 1.08 * priceSpanMultiplier(opts.zoomIdx)) / scale;
   const center0 = (candle.minP + candle.maxP) / 2;
   const center = center0 + panOffset * half;
   return { yMin: center - half, yMax: center + half };
@@ -290,6 +301,49 @@ const RANGES: { k: string; days: number; period: string }[] = [
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtVol = (n: number) =>
   n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : `${Math.round(n)}`;
+
+/** Pick a human-friendly tick step (1, 2, 5, 10, 20, …) like TradingView. */
+function nicePriceStep(rawStep: number): number {
+  if (rawStep <= 0 || !Number.isFinite(rawStep)) return 1;
+  const exp = Math.floor(Math.log10(rawStep));
+  const mag = Math.pow(10, exp);
+  const base = rawStep / mag;
+  let nice = 10;
+  if (base <= 1) nice = 1;
+  else if (base <= 2) nice = 2;
+  else if (base <= 2.5) nice = 2.5;
+  else if (base <= 5) nice = 5;
+  return nice * mag;
+}
+
+function formatPriceTick(price: number, step: number): string {
+  if (step >= 10) return price.toFixed(0);
+  if (step >= 1) return price.toFixed(1);
+  if (step >= 0.1) return price.toFixed(2);
+  return price.toFixed(3);
+}
+
+/** Build Y-axis ticks with spacing that scales with zoom and panel height. */
+function computePriceAxisTicks(
+  yMin: number,
+  yMax: number,
+  plotHeight: number,
+  minGapPx = 42
+): { ticks: number[]; step: number } {
+  const span = yMax - yMin;
+  if (span <= 0 || plotHeight <= 0) return { ticks: [yMin, yMax], step: span || 1 };
+
+  const maxTicks = Math.max(3, Math.min(14, Math.floor(plotHeight / minGapPx)));
+  const step = nicePriceStep(span / maxTicks);
+  const start = Math.ceil(yMin / step) * step;
+  const ticks: number[] = [];
+  for (let p = start; p <= yMax + step * 0.0001; p += step) {
+    ticks.push(Number(p.toFixed(8)));
+    if (ticks.length > 20) break;
+  }
+  if (ticks.length < 2) return { ticks: [yMin, yMax], step: span };
+  return { ticks, step };
+}
 
 /** Close-to-close % change vs the prior candle in the series. */
 function candleChangeFromPrev(current: OhlcBar, prev: OhlcBar | null | undefined): number | null {
@@ -963,6 +1017,9 @@ const CandleChart: React.FC<{
   priceZoomIdx?: number;
   pricePanOffset?: number;
   priceFitAll?: boolean;
+  priceScaleMul?: number;
+  onPriceScaleZoom?: (factor: number) => void;
+  onPriceAxisReset?: () => void;
   pricePanLimits?: { min: number; max: number };
   plotRef?: React.RefObject<HTMLDivElement | null>;
   drawTool?: DrawTool;
@@ -987,6 +1044,9 @@ const CandleChart: React.FC<{
   priceZoomIdx = 0,
   pricePanOffset = 0,
   priceFitAll = false,
+  priceScaleMul = 1,
+  onPriceScaleZoom,
+  onPriceAxisReset,
   pricePanLimits = { min: -2, max: 2 },
   plotRef,
   drawTool = 'pan',
@@ -1037,10 +1097,15 @@ const CandleChart: React.FC<{
         panOffset: pricePanOffset,
         fitAll: priceFitAll,
         panLimits: pricePanLimits,
+        scaleMul: priceScaleMul,
       }),
-    [bars, awaisData, awaisLayers, priceZoomIdx, pricePanOffset, priceFitAll, pricePanLimits]
+    [bars, awaisData, awaisLayers, priceZoomIdx, pricePanOffset, priceFitAll, pricePanLimits, priceScaleMul]
   );
   const yScale = (p: number) => pad.t + ((yMax - p) / (yMax - yMin)) * innerH;
+  const priceAxis = useMemo(
+    () => computePriceAxisTicks(yMin, yMax, innerH),
+    [yMin, yMax, innerH]
+  );
   const plotInnerW =
     candleInterval === 'month' && display.length <= 24
       ? Math.min(innerW, display.length * 44)
@@ -1083,6 +1148,37 @@ const CandleChart: React.FC<{
   const drawingActive = drawTool !== 'pan' && drawTool !== 'crosshair' && drawTool !== 'select';
   const plotOverlayActive = drawTool !== 'pan';
   const trendPendingRef = useRef(false);
+  const priceAxisDragRef = useRef<{ y: number } | null>(null);
+
+  const handlePriceAxisPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
+    if (drawTool !== 'pan' || !onPriceScaleZoom) return;
+    e.stopPropagation();
+    e.preventDefault();
+    priceAxisDragRef.current = { y: e.clientY };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  };
+
+  const handlePriceAxisPointerMove = (e: React.PointerEvent<SVGRectElement>) => {
+    const drag = priceAxisDragRef.current;
+    if (!drag || !onPriceScaleZoom) return;
+    const dy = e.clientY - drag.y;
+    if (Math.abs(dy) < 0.5) return;
+    drag.y = e.clientY;
+    onPriceScaleZoom(Math.exp(-dy * 0.014));
+  };
+
+  const handlePriceAxisPointerUp = (e: React.PointerEvent<SVGRectElement>) => {
+    priceAxisDragRef.current = null;
+    try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+  };
+
+  const handlePriceAxisWheel = (e: React.WheelEvent<SVGRectElement>) => {
+    if (drawTool !== 'pan' || !onPriceScaleZoom) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    onPriceScaleZoom(factor);
+  };
 
   useEffect(() => {
     trendPendingRef.current = false;
@@ -1243,14 +1339,16 @@ const CandleChart: React.FC<{
             <rect x={0} y={pad.t - 2} width={w} height={innerH + 4} />
           </clipPath>
         </defs>
-        {/* grid */}
-        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
-          const y = pad.t + t * innerH;
-          const price = yMax - t * (yMax - yMin);
+        {/* grid — tick density follows zoom (TradingView-style) */}
+        {priceAxis.ticks.map((price) => {
+          const y = yScale(price);
+          if (y < pad.t - 2 || y > pad.t + innerH + 2) return null;
           return (
-            <g key={t}>
+            <g key={price}>
               <line x1={pad.l} x2={w - pad.r} y1={y} y2={y} stroke="#e2e8f0" strokeOpacity={0.45} strokeDasharray="3 3" />
-              <text x={w - 8} y={y + 4} textAnchor="end" fontSize={11} fill={AXIS_LABEL} fontWeight={700}>{price.toFixed(1)}</text>
+              <text x={w - 8} y={y + 4} textAnchor="end" fontSize={11} fill={AXIS_LABEL} fontWeight={700}>
+                {formatPriceTick(price, priceAxis.step)}
+              </text>
             </g>
           );
         })}
@@ -1311,6 +1409,25 @@ const CandleChart: React.FC<{
             onPointerDown={handleDrawPointerDown}
             onPointerMove={handleDrawPointerMove}
             onPointerUp={handleDrawPointerUp}
+          />
+        )}
+        {drawTool === 'pan' && onPriceScaleZoom && (
+          <rect
+            x={w - pad.r}
+            y={pad.t}
+            width={pad.r}
+            height={innerH}
+            fill="transparent"
+            className="cursor-ns-resize"
+            onPointerDown={handlePriceAxisPointerDown}
+            onPointerMove={handlePriceAxisPointerMove}
+            onPointerUp={handlePriceAxisPointerUp}
+            onPointerLeave={handlePriceAxisPointerUp}
+            onWheel={handlePriceAxisWheel}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onPriceAxisReset?.();
+            }}
           />
         )}
         {crosshairX != null && (drawTool === 'crosshair' || drawTool === 'pan') && (
@@ -1407,7 +1524,8 @@ const CandleChart: React.FC<{
   );
 };
 
-export const StockChart: React.FC<Props> = ({ symbol }) => {
+export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
+  const isFocus = layout === 'focus';
   const [ohlc, setOhlc] = useState<OhlcBar[]>([]);
   const [lineFallback, setLineFallback] = useState<{ time: number; price: number }[]>([]);
   const [analysis, setAnalysis] = useState<ChartAnalysisPoint[]>([]);
@@ -1422,11 +1540,13 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const [priceZoomIdx, setPriceZoomIdx] = useState(0);
   const [pricePanOffset, setPricePanOffset] = useState(0);
   const [priceFitAll, setPriceFitAll] = useState(false);
+  const [priceScaleMul, setPriceScaleMul] = useState(1);
   const [panning, setPanning] = useState(false);
   const [drawTool, setDrawTool] = useState<DrawTool>('pan');
   const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
   const [draftDrawing, setDraftDrawing] = useState<ChartDrawing | null>(null);
   const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
+  const [focusCandleHeight, setFocusCandleHeight] = useState(CANDLE_CHART_HEIGHT);
   const [layers, setLayers] = useState<ChartLayers>(() => loadChartSettings().layers);
   const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(() => cloneAwaisLayers(loadChartSettings().awaisLayers));
   const [momentumConfig, setMomentumConfig] = useState<MomentumConfig>(() => cloneMomentumConfig(loadChartSettings().momentumConfig));
@@ -1445,6 +1565,19 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     panRef.current = null;
     setPanning(false);
   }, []);
+
+  useEffect(() => {
+    if (!isFocus) {
+      setFocusCandleHeight(CANDLE_CHART_HEIGHT);
+      return;
+    }
+    const update = () => {
+      setFocusCandleHeight(Math.max(440, Math.min(window.innerHeight - 260, 960)));
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [isFocus]);
 
   const toggleLayer = (key: keyof ChartLayers) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -1474,6 +1607,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     setPriceZoomIdx(0);
     setPricePanOffset(0);
     setPriceFitAll(false);
+    setPriceScaleMul(1);
     setDraftDrawing(null);
     setSelectedDrawingId(null);
   }, [symbol, range, mode, candleInterval]);
@@ -1658,6 +1792,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     setPriceZoomIdx(0);
     setPricePanOffset(0);
     setPriceFitAll(false);
+    setPriceScaleMul(1);
   };
   const fitAllPrice = () => {
     endPan();
@@ -1666,7 +1801,12 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     setPricePanOffset(0);
   };
 
-  const priceZoomActive = priceZoomIdx !== 0 || pricePanOffset !== 0 || priceFitAll;
+  const priceZoomActive = priceZoomIdx !== 0 || pricePanOffset !== 0 || priceFitAll || Math.abs(priceScaleMul - 1) > 0.02;
+
+  const handlePriceScaleZoom = useCallback((factor: number) => {
+    setPriceFitAll(false);
+    setPriceScaleMul((m) => clampPriceScaleMul(m * factor));
+  }, []);
 
   const visibleOhlc = useMemo(
     () => applyViewport(candleOhlc, viewStart, viewCount),
@@ -1798,8 +1938,8 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   );
 
   const pricePanLimits = useMemo(
-    () => computePricePanLimits(visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll),
-    [visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll]
+    () => computePricePanLimits(visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll, priceScaleMul),
+    [visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll, priceScaleMul]
   );
 
   useEffect(() => {
@@ -1956,30 +2096,44 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
-      <div className="p-5 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-3">
+    <div
+      className={
+        isFocus
+          ? 'bg-white dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800/50 overflow-hidden flex flex-col min-h-0 h-full'
+          : 'bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden'
+      }
+    >
+      <div
+        className={
+          isFocus
+            ? 'px-2 py-2 sm:px-3 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-2 flex-wrap shrink-0'
+            : 'p-5 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between gap-4 flex-wrap'
+        }
+      >
+        <div className={`flex items-center gap-3 ${isFocus ? 'min-w-0' : ''}`}>
+          {!isFocus && (
           <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
             {showTechnical ? <Activity size={18} /> : showCandle ? <CandleIcon size={18} /> : <LineIcon size={18} />}
           </div>
-          <div>
-            <h3 className="font-display font-black text-lg text-slate-900 dark:text-white tracking-tight">
+          )}
+          <div className="min-w-0">
+            <h3 className={`font-display font-black text-slate-900 dark:text-white tracking-tight ${isFocus ? 'text-sm sm:text-base truncate' : 'text-lg'}`}>
               {symbol} · {modeLabel}
             </h3>
             {(filteredOhlc.length > 1 || chartData.length > 1) && (
-              <div className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
+              <div className={`text-slate-400 flex items-center gap-2 flex-wrap ${isFocus ? 'text-[10px]' : 'text-xs'}`}>
                 Rs. {rs(last)}{' '}
                 <span className={`font-bold ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
                   {up ? '+' : ''}{changePct.toFixed(2)}% · {range}
                 </span>
-                {canPan && visibleRangeLabel && (
+                {!isFocus && canPan && visibleRangeLabel && (
                   <span className="text-[10px] font-medium text-slate-400">{visibleRangeLabel}</span>
                 )}
               </div>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className={`flex items-center gap-1.5 flex-wrap ${isFocus ? 'justify-end' : 'gap-2'}`}>
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
             {canCandle && (
               <button
@@ -2060,7 +2214,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               zoomIdx={priceZoomIdx}
               minIdx={PRICE_ZOOM_MIN}
               maxIdx={PRICE_ZOOM_MAX}
-              label={formatPriceZoomLabel(priceZoomIdx, priceFitAll)}
+              label={formatPriceZoomLabel(priceZoomIdx, priceFitAll, priceScaleMul)}
               isDefault={!priceZoomActive}
               onZoomIn={priceZoomIn}
               onZoomOut={priceZoomOut}
@@ -2103,7 +2257,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
         </div>
       </div>
 
-      <div className="p-4">
+      <div className={isFocus ? 'p-1 sm:p-2 flex-1 min-h-0 overflow-auto' : 'p-4'}>
         {!loading && (showCandle || showTechnical || mode === 'line') && (
           <LayerToggleBar
             layers={layers}
@@ -2163,12 +2317,15 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               awaisLayers={awaisLayers}
               awaisData={awaisVisible}
               candleInterval={candleInterval}
-              height={CANDLE_CHART_HEIGHT}
+              height={isFocus ? focusCandleHeight : CANDLE_CHART_HEIGHT}
               panning={panning}
               canPan={canPanChart && drawTool === 'pan'}
               priceZoomIdx={priceZoomIdx}
               pricePanOffset={pricePanOffset}
               priceFitAll={priceFitAll}
+              priceScaleMul={priceScaleMul}
+              onPriceScaleZoom={handlePriceScaleZoom}
+              onPriceAxisReset={resetPriceZoom}
               pricePanLimits={pricePanLimits}
               plotRef={candlePlotRef}
               drawTool={drawTool}
@@ -2230,21 +2387,21 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
           </div>
         )}
         </div>
-        {!showTechnical && !showCandle && (
+        {!isFocus && !showTechnical && !showCandle && (
         <p className="text-[10px] text-slate-400 mt-2 px-1">
           {canCandle
             ? 'Daily OHLCV from PSX historical (same source as pypsx_toolkit.download) — open, high, low, close, volume.'
             : 'Close-only fallback from PSX timeseries. Candles need OHLCV from /api/proxy?ohlc=.'}
         </p>
         )}
-        {showCandle && canPanChart && (
+        {!isFocus && showCandle && canPanChart && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
-            Drag to pan (Pan tool) · Draw toolbar: trend, fib, H/V lines, box · Del removes selected · Scroll zoom time · Shift+scroll zoom price
+            Drag to pan (Pan tool) · Drag/scroll price axis to zoom · Double-click axis to reset · Draw toolbar · Del removes selected · Shift+scroll zoom price
             {hasAnyPivot(awaisLayers) && ' · Y Targets fits pivot levels'}
             {canPanH && visibleRangeLabel ? ` · ${visibleRangeLabel}` : ''}
           </p>
         )}
-        {!showCandle && canPan && (
+        {!isFocus && !showCandle && canPan && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
             Drag left/right to pan · scroll or +/- to zoom · {visibleRangeLabel}
           </p>

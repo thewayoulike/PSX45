@@ -1707,6 +1707,8 @@ const App: React.FC = () => {
       }
   };
 
+  const isChartsView = currentView === 'CHARTS';
+
   const trialBanner = (() => {
       const st = sbStatus;
       if (!st) return null;
@@ -1756,9 +1758,10 @@ const App: React.FC = () => {
              hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 
-          <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
-              <div className="w-full min-w-0 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-6 pb-20">
+          <div className={`flex-1 flex flex-col relative z-10 ${isChartsView ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}>
+              <div className={`w-full min-w-0 ${isChartsView ? 'px-1 sm:px-2 pt-1 pb-2 h-full flex flex-col min-h-0' : 'px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-6 pb-20'}`}>
 
+                  {!isChartsView && (
                   <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
 
                       <div className="flex items-center gap-3">
@@ -1792,11 +1795,25 @@ const App: React.FC = () => {
                           </div>
                       </div>
                   </header>
+                  )}
 
-                  <main className="animate-in fade-in slide-in-from-bottom-5 duration-700">
+                  <main className={`${isChartsView ? 'flex-1 min-h-0 flex flex-col' : 'animate-in fade-in slide-in-from-bottom-5 duration-700'}`}>
+
+                      {isChartsView && (
+                        <header className="flex lg:hidden items-center justify-between mb-1 px-1 shrink-0">
+                          <button
+                            onClick={() => setIsMobileSidebarOpen(true)}
+                            className="p-2 min-h-[40px] min-w-[40px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700"
+                            aria-label="Open menu"
+                          >
+                            <Menu size={18} />
+                          </button>
+                          <ThemeToggle />
+                        </header>
+                      )}
 
                       {/* Connect Google Drive prompt — for signed-in users whose data isn't syncing yet. */}
-                      {sbUser && !driveUser && !driveBannerDismissed && (
+                      {!isChartsView && sbUser && !driveUser && !driveBannerDismissed && (
                           <div className="mb-6 rounded-3xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
                               <div className="flex items-start gap-3 flex-1 min-w-0">
                                   <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -1827,6 +1844,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
+                      {!isChartsView && (
                       <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-4 mb-6 flex flex-col gap-3 bg-slate-50/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-all">
                           {!isFundPortfolio && <IndexBar />}
                           <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-white/60 dark:bg-slate-900/60 p-3 sm:p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
@@ -1947,6 +1965,7 @@ const App: React.FC = () => {
                             </div>
                            </div>
                        </div>
+                      )}
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               {isFundPortfolio && (
