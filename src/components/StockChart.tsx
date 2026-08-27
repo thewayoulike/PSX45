@@ -1,24 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState, useId } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useId } from 'react';
 import { fetchOHLCV, fetchStockHistory, fetchChartAnalysis, OhlcBar, ChartAnalysisPoint } from '../services/psxData';
 import { computeChartAnalysisFromBars } from '../utils/chartAnalysis';
 import {
   computeAwaisOverlays,
   DEFAULT_AWAIS_LAYERS,
-  AwaisLayerGroup,
   AwaisLayers,
   AwaisOverlayData,
-  BbKey,
   hasAnyBb,
   hasAnyPivot,
   hasAnySupertrend,
-  IchimokuKey,
-  isMaPeriodEnabled,
-  MaPeriod,
+  isMaSeriesVisible,
   PivotLabel,
-  setAwaisGroupEnabled,
-  SupertrendKey,
 } from '../utils/awaisIndicators';
-import { AwaisPanelDropdown, AwaisSvgOverlays } from './AwaisChartOverlays';
+import { IndicatorsPanel, AwaisSvgOverlays, AwaisPivotLabels } from './AwaisChartOverlays';
+import { MomentumPanel, MomentumMiniChart, momentumHoverText } from './MomentumPanel';
+import { DEFAULT_MOMENTUM_CONFIG, MomentumConfig, computeMomentumSeries } from '../utils/momentumIndicators';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, ReferenceLine, Bar, Cell,
@@ -31,7 +27,6 @@ const ZOOM_STEPS = [1, 1.25, 1.5, 2, 3, 4, 6, 8, 12] as const;
 const MIN_WINDOW = 12;
 const PRICE_ZOOM_MIN = -5;
 const PRICE_ZOOM_MAX = 4;
-const PRICE_PAN_LIMIT = 1;
 
 function priceSpanMultiplier(zoomIdx: number): number {
   if (zoomIdx === 0) return 1;
@@ -39,8 +34,95 @@ function priceSpanMultiplier(zoomIdx: number): number {
   return Math.pow(1.28, zoomIdx);
 }
 
-function clampPricePanOffset(offset: number): number {
-  return Math.max(-PRICE_PAN_LIMIT, Math.min(PRICE_PAN_LIMIT, offset));
+function clampPanOffset(offset: number, limits: { min: number; max: number }): number {
+  const lo = Math.min(limits.min, limits.max);
+  const hi = Math.max(limits.min, limits.max);
+  return Math.max(lo, Math.min(hi, offset));
+}
+
+function collectCandleBounds(bars: OhlcBar[]): { minP: number; maxP: number; span: number } {
+  if (!bars.length) return { minP: 0, maxP: 1, span: 1 };
+  const minP = Math.min(...bars.map((b) => b.low));
+  const maxP = Math.max(...bars.map((b) => b.high));
+  const span = maxP - minP || maxP * 0.02 || 1;
+  return { minP, maxP, span };
+}
+
+function collectPriceBounds(
+  bars: OhlcBar[],
+  awaisData: AwaisOverlayData | null,
+  awaisLayers: AwaisLayers,
+  includePivots: boolean
+): { minP: number; maxP: number; span: number } {
+  const candle = collectCandleBounds(bars);
+  if (!awaisData) return candle;
+
+  let minP = candle.minP;
+  let maxP = candle.maxP;
+  const n = bars.length;
+  const push = (v: number | null | undefined) => {
+    if (v != null && Number.isFinite(v)) {
+      minP = Math.min(minP, v);
+      maxP = Math.max(maxP, v);
+    }
+  };
+
+  if (includePivots && hasAnyPivot(awaisLayers)) {
+    awaisData.pivots.forEach((p) => {
+      if (awaisLayers.pivot[p.label as PivotLabel]) push(p.value);
+    });
+  }
+  if (hasAnyBb(awaisLayers)) {
+    for (let i = 0; i < n; i++) {
+      if (awaisLayers.bb.upper) push(awaisData.bb.upper[i]);
+      if (awaisLayers.bb.middle) push(awaisData.bb.middle[i]);
+      if (awaisLayers.bb.lower) push(awaisData.bb.lower[i]);
+    }
+  }
+  awaisData.maLines.forEach((m) => {
+    if (!isMaSeriesVisible(awaisLayers, m.slot)) return;
+    for (let i = 0; i < n; i++) push(m.values[i]);
+  });
+  if (hasAnySupertrend(awaisLayers)) {
+    for (let i = 0; i < n; i++) {
+      if (awaisLayers.supertrend.up) push(awaisData.supertrend.up[i]);
+      if (awaisLayers.supertrend.down) push(awaisData.supertrend.down[i]);
+    }
+  }
+
+  const span = maxP - minP || maxP * 0.02 || 1;
+  return { minP, maxP, span };
+}
+
+/** How far the user can pan up/down (in units of visible half-span) to reach pivots etc. */
+function computePricePanLimits(
+  bars: OhlcBar[],
+  awaisData: AwaisOverlayData | null,
+  awaisLayers: AwaisLayers,
+  zoomIdx: number,
+  fitAll: boolean
+): { min: number; max: number } {
+  const candle = collectCandleBounds(bars);
+  const center0 = (candle.minP + candle.maxP) / 2;
+  const half = (candle.span / 2) * 1.08 * priceSpanMultiplier(zoomIdx);
+  if (half <= 0) return { min: -2, max: 2 };
+
+  if (fitAll) {
+    const full = collectPriceBounds(bars, awaisData, awaisLayers, true);
+    const fullHalf = (full.span / 2) * 1.1 * priceSpanMultiplier(zoomIdx);
+    const fullCenter = (full.minP + full.maxP) / 2;
+    return {
+      min: (full.minP - fullHalf * 0.04 + fullHalf - fullCenter) / fullHalf,
+      max: (full.maxP + fullHalf * 0.04 - fullHalf - fullCenter) / fullHalf,
+    };
+  }
+
+  const extent = collectPriceBounds(bars, awaisData, awaisLayers, true);
+  const margin = half * 0.05;
+  const panMax = (extent.maxP + margin - half - center0) / half;
+  const panMin = (extent.minP - margin + half - center0) / half;
+
+  return { min: panMin, max: panMax };
 }
 
 function formatHorizZoomLabel(zoomIdx: number): string {
@@ -57,49 +139,24 @@ function computePriceYRange(
   bars: OhlcBar[],
   awaisData: AwaisOverlayData | null,
   awaisLayers: AwaisLayers,
-  opts: { zoomIdx: number; panOffset: number; fitAll: boolean }
+  opts: { zoomIdx: number; panOffset: number; fitAll: boolean; panLimits: { min: number; max: number } }
 ): { yMin: number; yMax: number } {
   if (!bars.length) return { yMin: 0, yMax: 1 };
 
-  let minP = Math.min(...bars.map((b) => b.low));
-  let maxP = Math.max(...bars.map((b) => b.high));
-  const n = bars.length;
-  const push = (v: number | null | undefined) => {
-    if (v != null && Number.isFinite(v)) {
-      minP = Math.min(minP, v);
-      maxP = Math.max(maxP, v);
-    }
-  };
+  const panOffset = clampPanOffset(opts.panOffset, opts.panLimits);
 
-  if (awaisData) {
-    if (opts.fitAll && hasAnyPivot(awaisLayers.pivot)) {
-      awaisData.pivots.forEach((p) => {
-        if (awaisLayers.pivot[p.label as PivotLabel]) push(p.value);
-      });
-    }
-    if (hasAnyBb(awaisLayers.bb)) {
-      for (let i = 0; i < n; i++) {
-        if (awaisLayers.bb.upper) push(awaisData.bb.upper[i]);
-        if (awaisLayers.bb.middle) push(awaisData.bb.middle[i]);
-        if (awaisLayers.bb.lower) push(awaisData.bb.lower[i]);
-      }
-    }
-    awaisData.maLines.forEach((m) => {
-      if (!isMaPeriodEnabled(awaisLayers.maLines, m.period)) return;
-      for (let i = 0; i < n; i++) push(m.values[i]);
-    });
-    if (hasAnySupertrend(awaisLayers.supertrend)) {
-      for (let i = 0; i < n; i++) {
-        if (awaisLayers.supertrend.up) push(awaisData.supertrend.up[i]);
-        if (awaisLayers.supertrend.down) push(awaisData.supertrend.down[i]);
-      }
-    }
+  if (opts.fitAll) {
+    const full = collectPriceBounds(bars, awaisData, awaisLayers, true);
+    const half = (full.span / 2) * 1.1 * priceSpanMultiplier(opts.zoomIdx);
+    const center0 = (full.minP + full.maxP) / 2;
+    const center = center0 + panOffset * half;
+    return { yMin: center - half, yMax: center + half };
   }
 
-  const span = maxP - minP || maxP * 0.02 || 1;
-  const half = (span / 2) * (opts.fitAll ? 1.12 : 1.06) * priceSpanMultiplier(opts.zoomIdx);
-  const panOffset = clampPricePanOffset(opts.panOffset);
-  const center = (minP + maxP) / 2 + panOffset * half;
+  const candle = collectCandleBounds(bars);
+  const half = (candle.span / 2) * 1.08 * priceSpanMultiplier(opts.zoomIdx);
+  const center0 = (candle.minP + candle.maxP) / 2;
+  const center = center0 + panOffset * half;
   return { yMin: center - half, yMax: center + half };
 }
 
@@ -202,14 +259,12 @@ type ChartMode = 'candle' | 'line' | 'technical';
 
 interface ChartLayers {
   volume: boolean;
-  rsi: boolean;
-  macd: boolean;
+  momentum: boolean;
 }
 
 const DEFAULT_LAYERS: ChartLayers = {
   volume: true,
-  rsi: true,
-  macd: true,
+  momentum: true,
 };
 
 const LayerToggle: React.FC<{
@@ -240,16 +295,15 @@ const LayerToggleBar: React.FC<{
   layers: ChartLayers;
   onToggle: (key: keyof ChartLayers) => void;
   hasVolume: boolean;
-  hasMacd: boolean;
-}> = ({ layers, onToggle, hasVolume, hasMacd }) => (
+  momentumLabel: string;
+}> = ({ layers, onToggle, hasVolume, momentumLabel }) => (
   <div
     className="flex flex-wrap items-center gap-1.5 mb-1 px-1 relative z-20"
     onPointerDown={(e) => e.stopPropagation()}
   >
     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Panels</span>
     <LayerToggle label="Volume" color="#6366f1" active={layers.volume} onClick={() => onToggle('volume')} disabled={!hasVolume} />
-    <LayerToggle label="RSI" color="#9333ea" active={layers.rsi} onClick={() => onToggle('rsi')} />
-    <LayerToggle label="MACD" color="#2563eb" active={layers.macd} onClick={() => onToggle('macd')} disabled={!hasMacd} />
+    <LayerToggle label={momentumLabel} color="#9333ea" active={layers.momentum} onClick={() => onToggle('momentum')} />
   </div>
 );
 
@@ -299,9 +353,10 @@ const BollingerRsiChart: React.FC<{
   points: AnalysisPointWithVol[];
   symbol: string;
   layers: ChartLayers;
+  momentumConfig: MomentumConfig;
   hasVolume: boolean;
   hasMacd: boolean;
-}> = ({ points, symbol, layers, hasVolume, hasMacd }) => {
+}> = ({ points, symbol, layers, momentumConfig, hasVolume, hasMacd }) => {
   const data = useMemo(
     () =>
       points.map((p, i, arr) => ({
@@ -324,8 +379,10 @@ const BollingerRsiChart: React.FC<{
         <div className="text-rose-500">Upper {rs(row.upper)}</div>
         <div className="text-blue-500">SMA {rs(row.middle)}</div>
         <div className="text-emerald-600">Lower {rs(row.lower)}</div>
-        {layers.rsi && <div className="text-purple-600 font-bold mt-1">RSI {row.rsi.toFixed(1)}</div>}
-        {layers.macd && hasMacd && Number.isFinite(row.macd) && (
+        {layers.momentum && momentumConfig.indicatorType === 'RSI' && (
+          <div className="text-purple-600 font-bold mt-1">RSI {row.rsi.toFixed(1)}</div>
+        )}
+        {layers.momentum && momentumConfig.indicatorType === 'MACD' && hasMacd && Number.isFinite(row.macd) && (
           <>
             <div className="text-blue-600">MACD {(row.macd ?? 0).toFixed(3)}</div>
             <div className="text-orange-500">Signal {(row.macdSignal ?? 0).toFixed(3)}</div>
@@ -347,7 +404,7 @@ const BollingerRsiChart: React.FC<{
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.35} vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={48} hide={layers.rsi || layers.macd || (layers.volume && hasVolume)} />
+            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={48} hide={layers.momentum || (layers.volume && hasVolume)} />
             <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
             <Tooltip content={tip} />
             <Line type="monotone" dataKey="close" name="Close" stroke="#0f172a" strokeWidth={1.5} dot={false} isAnimationActive={false} />
@@ -357,27 +414,27 @@ const BollingerRsiChart: React.FC<{
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {layers.rsi && (
+      {layers.momentum && momentumConfig.indicatorType === 'RSI' && (
       <div className="h-[110px] sm:h-[120px]">
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">RSI (14)</div>
+        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">RSI ({momentumConfig.rsi.length})</div>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.35} vertical={false} />
-            <XAxis dataKey="label" hide={!(layers.volume && hasVolume) && !(layers.macd && hasMacd)} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={48} />
-            <YAxis domain={[0, 100]} ticks={[30, 50, 70]} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
-            <ReferenceLine y={70} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1} />
-            <ReferenceLine y={30} stroke="#10b981" strokeDasharray="4 3" strokeWidth={1} />
+            <XAxis dataKey="label" hide={!(layers.volume && hasVolume)} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={48} />
+            <YAxis domain={[0, 100]} ticks={[momentumConfig.rsi.oversold, 50, momentumConfig.rsi.overbought]} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
+            <ReferenceLine y={momentumConfig.rsi.overbought} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1} />
+            <ReferenceLine y={momentumConfig.rsi.oversold} stroke="#10b981" strokeDasharray="4 3" strokeWidth={1} />
             <Tooltip
               contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 11 }}
               formatter={(v: any) => [Number(v).toFixed(1), 'RSI']}
               labelFormatter={(l) => l}
             />
-            <Line type="monotone" dataKey="rsi" stroke="#9333ea" strokeWidth={1.5} dot={false} isAnimationActive={false} />
+            <Line type="monotone" dataKey="rsi" stroke={momentumConfig.rsi.color} strokeWidth={1.5} dot={false} isAnimationActive={false} />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
       )}
-      {layers.macd && hasMacd && (
+      {layers.momentum && momentumConfig.indicatorType === 'MACD' && hasMacd && (
         <MacdRechartsPanel data={data} showXAxis={!(layers.volume && hasVolume)} />
       )}
       {layers.volume && hasVolume && (
@@ -401,7 +458,7 @@ const BollingerRsiChart: React.FC<{
         </ResponsiveContainer>
       </div>
       )}
-      {!showAnyBand && !layers.rsi && !layers.macd && !(layers.volume && hasVolume) && (
+      {!showAnyBand && !layers.momentum && !(layers.volume && hasVolume) && (
         <p className="text-[10px] text-slate-400 px-1">Enable overlays above to show indicators.</p>
       )}
       <p className="text-[10px] text-slate-400 px-1">{symbol} — indicators from OHLC</p>
@@ -427,6 +484,32 @@ const LineVolumePanel: React.FC<{ bars: OhlcBar[] }> = ({ bars }) => {
   return (
     <div ref={ref} className="w-full">
       <VolumeMiniChart bars={bars} slot={slot} padL={52} width={width} />
+    </div>
+  );
+};
+
+const LineMomentumPanel: React.FC<{
+  bars: OhlcBar[];
+  config: MomentumConfig;
+  showVolume: boolean;
+}> = ({ bars, config, showVolume }) => {
+  const ref = useRef<HTMLDivElement>(null);
+  const [width, setWidth] = useState(640);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () => setWidth(el.clientWidth || 640);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const slot = Math.max(4, (width - 64) / Math.max(bars.length, 1));
+  return (
+    <div ref={ref} className="w-full">
+      <MomentumMiniChart bars={bars} config={config} slot={slot} padL={52} width={width} showXLabels={!showVolume} />
     </div>
   );
 };
@@ -632,8 +715,8 @@ const VolumeMiniChart: React.FC<{
   height?: number;
   candleInterval?: CandleInterval;
   barW?: number;
-}> = ({ bars, slot, padL, width, height = 72, candleInterval = 'day', barW: barWProp }) => {
-  const pad = { t: 4, r: 12, b: 22, l: 52 };
+}> = ({ bars, slot, padL, width, height = 100, candleInterval = 'day', barW: barWProp }) => {
+  const pad = { t: 6, r: 12, b: 24, l: 52 };
   const innerH = height - pad.t - pad.b;
   const maxV = Math.max(...bars.map((b) => b.volume), 1);
   const yVol = (v: number) => pad.t + innerH - (v / maxV) * innerH;
@@ -699,6 +782,7 @@ const CandleChart: React.FC<{
   bars: OhlcBar[];
   analysis?: ChartAnalysisPoint[];
   layers: ChartLayers;
+  momentumConfig: MomentumConfig;
   awaisLayers: AwaisLayers;
   awaisData?: AwaisOverlayData | null;
   candleInterval?: CandleInterval;
@@ -708,10 +792,13 @@ const CandleChart: React.FC<{
   priceZoomIdx?: number;
   pricePanOffset?: number;
   priceFitAll?: boolean;
+  pricePanLimits?: { min: number; max: number };
+  plotRef?: React.RefObject<HTMLDivElement | null>;
 }> = ({
   bars,
   analysis = [],
   layers,
+  momentumConfig,
   awaisLayers,
   awaisData = null,
   candleInterval = 'day',
@@ -721,6 +808,8 @@ const CandleChart: React.FC<{
   priceZoomIdx = 0,
   pricePanOffset = 0,
   priceFitAll = false,
+  pricePanLimits = { min: -2, max: 2 },
+  plotRef,
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
@@ -748,11 +837,11 @@ const CandleChart: React.FC<{
     () => (showOverlay ? alignAnalysisToBars(display, analysis) : []),
     [display, analysis, showOverlay]
   );
+  const momentumSeries = useMemo(() => computeMomentumSeries(display, momentumConfig), [display, momentumConfig]);
   const hasAwais = awaisData != null;
-  const showRsi = layers.rsi && showOverlay && aligned.some(Boolean);
-  const showMacd = layers.macd && showOverlay && aligned.some((p) => p && Number.isFinite(p.macd));
+  const showMomentum = layers.momentum && display.length >= 3;
   const showVolume = layers.volume && bars.some((b) => b.volume > 0);
-  const showBottomX = showVolume || showRsi || showMacd;
+  const showBottomX = showVolume || showMomentum;
 
   const { yMin, yMax } = useMemo(
     () =>
@@ -760,8 +849,9 @@ const CandleChart: React.FC<{
         zoomIdx: priceZoomIdx,
         panOffset: pricePanOffset,
         fitAll: priceFitAll,
+        panLimits: pricePanLimits,
       }),
-    [bars, awaisData, awaisLayers, priceZoomIdx, pricePanOffset, priceFitAll]
+    [bars, awaisData, awaisLayers, priceZoomIdx, pricePanOffset, priceFitAll, pricePanLimits]
   );
   const yScale = (p: number) => pad.t + ((yMax - p) / (yMax - yMin)) * innerH;
   const plotInnerW =
@@ -773,7 +863,8 @@ const CandleChart: React.FC<{
   const { bodyW, barW } = chartBarMetrics(slot, display.length, candleInterval);
 
   const hi = hover != null ? display[hover] : null;
-  const hiAnalysis = hover != null && aligned[hover] ? aligned[hover] : null;
+  const hiMomentum = hover != null ? momentumSeries[hover] : null;
+  const momentumTip = momentumHoverText(momentumConfig, hiMomentum ?? undefined);
   const xAt = (i: number) => plotOffset + i * slot + slot / 2;
 
   return (
@@ -788,10 +879,11 @@ const CandleChart: React.FC<{
           <span className="text-slate-500 ml-1.5">L {rs(hi.low)}</span>
           <span className={`ml-1.5 font-bold ${hi.close >= hi.open ? 'text-emerald-600' : 'text-rose-500'}`}>C {rs(hi.close)}</span>
           {hi.volume > 0 && <span className="text-slate-400 ml-1.5">V {fmtVol(hi.volume)}</span>}
-          {hiAnalysis && layers.rsi && <span className="text-purple-600 font-bold ml-1.5">RSI {hiAnalysis.rsi.toFixed(1)}</span>}
+          {showMomentum && momentumTip && <span className="text-purple-600 font-bold ml-1.5">{momentumTip}</span>}
         </div>
       )}
-      <svg width={w} height={h} className="overflow-hidden">
+      <div ref={plotRef}>
+      <svg width={w} height={h} className="overflow-visible">
         <defs>
           <clipPath id={plotClipId}>
             <rect x={pad.l} y={pad.t} width={innerW} height={innerH} />
@@ -819,6 +911,7 @@ const CandleChart: React.FC<{
             plotOffset={plotOffset}
             width={w}
             padRight={pad.r}
+            hidePivotLabels
           />
         )}
         {display.map((b, i) => {
@@ -845,6 +938,15 @@ const CandleChart: React.FC<{
           );
         })}
         </g>
+        {hasAwais && awaisData && (
+          <AwaisPivotLabels
+            data={awaisData}
+            layers={awaisLayers}
+            yScale={yScale}
+            width={w}
+            padRight={pad.r}
+          />
+        )}
         {/* x labels — only when no sub-panel below */}
         {!showBottomX && display.length > 0 && [0, Math.floor(display.length / 2), display.length - 1].map((i) => {
           const b = display[i];
@@ -856,14 +958,28 @@ const CandleChart: React.FC<{
           );
         })}
       </svg>
-      {showRsi && (
-        <RsiMiniChart aligned={aligned} slot={slot} padL={plotOffset} width={w} showXLabels={!showVolume && !showMacd} />
-      )}
-      {showMacd && (
-        <MacdMiniChart aligned={aligned} slot={slot} padL={plotOffset} width={w} showXLabels={!showVolume} />
+      </div>
+      {showMomentum && (
+        <MomentumMiniChart
+          bars={display}
+          config={momentumConfig}
+          slot={slot}
+          padL={plotOffset}
+          width={w}
+          height={150}
+          showXLabels={!showVolume}
+        />
       )}
       {showVolume && (
-        <VolumeMiniChart bars={display} slot={slot} padL={plotOffset} width={w} candleInterval={candleInterval} barW={barW} />
+        <VolumeMiniChart
+          bars={display}
+          slot={slot}
+          padL={plotOffset}
+          width={w}
+          height={100}
+          candleInterval={candleInterval}
+          barW={barW}
+        />
       )}
     </div>
   );
@@ -887,52 +1003,25 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const [panning, setPanning] = useState(false);
   const [layers, setLayers] = useState<ChartLayers>(DEFAULT_LAYERS);
   const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(DEFAULT_AWAIS_LAYERS);
+  const [momentumConfig, setMomentumConfig] = useState<MomentumConfig>(DEFAULT_MOMENTUM_CONFIG);
   const chartPanRef = useRef<HTMLDivElement>(null);
+  const candlePlotRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{
     x: number;
     y: number;
     startView: number;
     startPricePan: number;
+    panH: boolean;
+    panV: boolean;
   } | null>(null);
+
+  const endPan = useCallback(() => {
+    panRef.current = null;
+    setPanning(false);
+  }, []);
 
   const toggleLayer = (key: keyof ChartLayers) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  const toggleAwaisMa = (period: MaPeriod) => {
-    setAwaisLayers((prev) => ({
-      ...prev,
-      maLines: { ...prev.maLines, [period]: !prev.maLines[period] },
-    }));
-  };
-
-  const toggleAwaisBb = (key: BbKey) => {
-    setAwaisLayers((prev) => ({ ...prev, bb: { ...prev.bb, [key]: !prev.bb[key] } }));
-  };
-
-  const toggleAwaisSupertrend = (key: SupertrendKey) => {
-    setAwaisLayers((prev) => ({
-      ...prev,
-      supertrend: { ...prev.supertrend, [key]: !prev.supertrend[key] },
-    }));
-  };
-
-  const toggleAwaisPivot = (label: PivotLabel) => {
-    setAwaisLayers((prev) => ({
-      ...prev,
-      pivot: { ...prev.pivot, [label]: !prev.pivot[label] },
-    }));
-  };
-
-  const toggleAwaisIchimoku = (key: IchimokuKey) => {
-    setAwaisLayers((prev) => ({
-      ...prev,
-      ichimoku: { ...prev.ichimoku, [key]: !prev.ichimoku[key] },
-    }));
-  };
-
-  const setAwaisGroup = (group: AwaisLayerGroup, enabled: boolean) => {
-    setAwaisLayers((prev) => setAwaisGroupEnabled(prev, group, enabled));
   };
 
   const rangeMeta = RANGES.find((x) => x.k === range) ?? RANGES[1];
@@ -1067,10 +1156,6 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     setViewStart((s) => Math.min(s, maxViewStart));
   }, [maxViewStart]);
 
-  useEffect(() => {
-    setPricePanOffset((p) => clampPricePanOffset(p));
-  }, [priceZoomIdx]);
-
   const snapToRecent = (nextZoomIdx: number) => {
     const cnt = windowCount(primaryLen, nextZoomIdx);
     setViewStart(Math.max(0, primaryLen - cnt));
@@ -1085,6 +1170,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   };
   const zoomOut = () => setZoomIdx((z) => Math.max(0, z - 1));
   const resetZoom = () => {
+    endPan();
     setZoomIdx(0);
     setViewStart(0);
   };
@@ -1092,11 +1178,13 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const priceZoomIn = () => setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
   const priceZoomOut = () => setPriceZoomIdx((z) => Math.min(PRICE_ZOOM_MAX, z + 1));
   const resetPriceZoom = () => {
+    endPan();
     setPriceZoomIdx(0);
     setPricePanOffset(0);
     setPriceFitAll(false);
   };
   const fitAllPrice = () => {
+    endPan();
     setPriceFitAll(true);
     setPriceZoomIdx(0);
     setPricePanOffset(0);
@@ -1170,8 +1258,8 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const hasMacd = analysisForLayers.some((p) => Number.isFinite(p.macd));
 
   const awaisFull = useMemo(
-    () => computeAwaisOverlays(showCandle ? candleOhlc : filteredOhlc),
-    [showCandle, candleOhlc, filteredOhlc]
+    () => computeAwaisOverlays(showCandle ? candleOhlc : filteredOhlc, awaisLayers),
+    [showCandle, candleOhlc, filteredOhlc, awaisLayers]
   );
 
   const awaisVisible = useMemo(() => {
@@ -1181,6 +1269,15 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     if (startIdx < 0) return awaisFull;
     return sliceAwaisData(awaisFull, startIdx, visibleOhlc.length);
   }, [awaisFull, visibleOhlc, showCandle, candleOhlc, filteredOhlc]);
+
+  const pricePanLimits = useMemo(
+    () => computePricePanLimits(visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll),
+    [visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll]
+  );
+
+  useEffect(() => {
+    setPricePanOffset((p) => clampPanOffset(p, pricePanLimits));
+  }, [priceZoomIdx, pricePanLimits]);
 
   const visibleRangeLabel = useMemo(() => {
     const pick = showTechnical
@@ -1199,6 +1296,33 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const canPanV = showCandle && visibleOhlc.length >= 3;
   const canPanChart = canPanH || canPanV;
 
+  const pricePanLimitsRef = useRef(pricePanLimits);
+  pricePanLimitsRef.current = pricePanLimits;
+  const maxViewStartRef = useRef(maxViewStart);
+  maxViewStartRef.current = maxViewStart;
+  const viewCountRef = useRef(viewCount);
+  viewCountRef.current = viewCount;
+
+  const applyPanMove = useCallback((clientX: number, clientY: number) => {
+    const pan = panRef.current;
+    if (!pan) return;
+    const limits = pricePanLimitsRef.current;
+    if (pan.panV) {
+      const plotH = candlePlotRef.current?.clientHeight ?? chartPanRef.current?.clientHeight ?? 400;
+      const chartHeight = Math.max(plotH, 120);
+      const dy = clientY - pan.y;
+      const delta = (dy / chartHeight) * 1.6;
+      setPricePanOffset(clampPanOffset(pan.startPricePan + delta, limits));
+    }
+    if (pan.panH) {
+      const width = chartPanRef.current?.clientWidth ?? 640;
+      const chartWidth = Math.max(width - 64, 120);
+      const dx = clientX - pan.x;
+      const barShift = Math.round(-dx * (viewCountRef.current / chartWidth));
+      setViewStart(Math.max(0, Math.min(maxViewStartRef.current, pan.startView + barShift)));
+    }
+  }, []);
+
   const onPanStart = (clientX: number, clientY: number) => {
     if (!canPanChart) return;
     panRef.current = {
@@ -1206,49 +1330,60 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
       y: clientY,
       startView: viewStart,
       startPricePan: pricePanOffset,
+      panH: canPanH,
+      panV: canPanV,
     };
     setPanning(true);
   };
 
-  const onPanMove = (clientX: number, clientY: number) => {
-    if (!panRef.current) return;
-    if (canPanV) {
-      const height = chartPanRef.current?.clientHeight ?? 400;
-      const chartHeight = Math.max(height - 40, 200);
-      const dy = clientY - panRef.current.y;
-      const delta = (dy / chartHeight) * 2.5;
-      setPricePanOffset(clampPricePanOffset(panRef.current.startPricePan + delta));
-    }
-    if (canPanH) {
-      const width = chartPanRef.current?.clientWidth ?? 640;
-      const chartWidth = Math.max(width - 64, 120);
-      const dx = clientX - panRef.current.x;
-      const barShift = Math.round(-dx * (viewCount / chartWidth));
-      setViewStart(Math.max(0, Math.min(maxViewStart, panRef.current.startView + barShift)));
-    }
-  };
-
-  const onPanEnd = () => {
-    panRef.current = null;
-    setPanning(false);
-  };
-
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || !canPanChart) return;
+    e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     onPanStart(e.clientX, e.clientY);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
     if (!panRef.current) return;
-    onPanMove(e.clientX, e.clientY);
+    if (!(e.buttons & 1)) {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      endPan();
+      return;
+    }
+    applyPanMove(e.clientX, e.clientY);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
-    if (!panRef.current) return;
     try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-    onPanEnd();
+    endPan();
   };
+
+  const onLostPointerCapture = () => {
+    endPan();
+  };
+
+  useEffect(() => {
+    if (!panning) return;
+    const finish = () => endPan();
+    const move = (e: PointerEvent) => {
+      if (!panRef.current) return;
+      if (!(e.buttons & 1)) {
+        finish();
+        return;
+      }
+      applyPanMove(e.clientX, e.clientY);
+    };
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    window.addEventListener('blur', finish);
+    window.addEventListener('pointermove', move);
+    return () => {
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      window.removeEventListener('blur', finish);
+      window.removeEventListener('pointermove', move);
+    };
+  }, [panning, endPan, applyPanMove]);
 
   useEffect(() => {
     const el = chartPanRef.current;
@@ -1399,6 +1534,12 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               onFitAll={fitAllPrice}
             />
           )}
+          {showCandle && visibleOhlc.length >= 3 && (
+            <IndicatorsPanel layers={awaisLayers} onApply={setAwaisLayers} disabled={loading} />
+          )}
+          {(showCandle || showTechnical || mode === 'line') && (
+            <MomentumPanel config={momentumConfig} onApply={setMomentumConfig} disabled={loading} />
+          )}
           <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh">
             <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -1411,18 +1552,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             layers={layers}
             onToggle={toggleLayer}
             hasVolume={hasVolume}
-            hasMacd={hasMacd}
-          />
-        )}
-        {showCandle && !loading && filteredOhlc.length >= 3 && (
-          <AwaisPanelDropdown
-            layers={awaisLayers}
-            onToggleMa={toggleAwaisMa}
-            onToggleBb={toggleAwaisBb}
-            onToggleSupertrend={toggleAwaisSupertrend}
-            onTogglePivot={toggleAwaisPivot}
-            onToggleIchimoku={toggleAwaisIchimoku}
-            onSetGroup={setAwaisGroup}
+            momentumLabel={momentumConfig.indicatorType}
           />
         )}
         <div
@@ -1432,6 +1562,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          onLostPointerCapture={onLostPointerCapture}
         >
         {showTechnical ? (
           loading && filteredAnalysis.length === 0 ? (
@@ -1446,6 +1577,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               points={visibleAnalysisWithVol}
               symbol={symbol || ''}
               layers={layers}
+              momentumConfig={momentumConfig}
               hasVolume={hasVolume}
               hasMacd={hasMacd}
             />
@@ -1463,15 +1595,18 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               bars={visibleOhlc}
               analysis={candleAnalysis}
               layers={layers}
+              momentumConfig={momentumConfig}
               awaisLayers={awaisLayers}
               awaisData={awaisVisible}
               candleInterval={candleInterval}
-              height={320}
+              height={440}
               panning={panning}
               canPan={canPanChart}
               priceZoomIdx={priceZoomIdx}
               pricePanOffset={pricePanOffset}
               priceFitAll={priceFitAll}
+              pricePanLimits={pricePanLimits}
+              plotRef={candlePlotRef}
             />
             {!candleAnalysis.length && candleInterval === 'day' && visibleOhlc.length >= 3 && (
               <p className="text-[10px] text-slate-400 px-1">Not enough data for indicator overlays in this range.</p>
@@ -1494,7 +1629,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.4} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={40} hide={(layers.volume && hasVolume) || (layers.macd && hasMacd)} />
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={40} hide={(layers.volume && hasVolume) || layers.momentum} />
                   <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => `${v}`} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
@@ -1505,12 +1640,22 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
                 </AreaChart>
               </ResponsiveContainer>
             </div>
-            {layers.macd && hasMacd && visibleAnalysisWithVol.length > 0 && (
-              <MacdRechartsPanel
-                data={visibleAnalysisWithVol}
-                showXAxis={!(layers.volume && hasVolume)}
-              />
-            )}
+            {layers.momentum && (() => {
+              const momBars = visibleOhlc.length >= 3
+                ? visibleOhlc
+                : visibleChartData.map((p) => ({
+                    time: p.t,
+                    open: p.price,
+                    high: p.price,
+                    low: p.price,
+                    close: p.price,
+                    volume: 0,
+                  }));
+              if (momBars.length < 3) return null;
+              return (
+                <LineMomentumPanel bars={momBars} config={momentumConfig} showVolume={layers.volume && hasVolume} />
+              );
+            })()}
             {layers.volume && hasVolume && visibleOhlc.length > 0 && (
               <LineVolumePanel bars={visibleOhlc} />
             )}
@@ -1530,7 +1675,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
         {showCandle && canPanChart && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
             Drag to pan time and price · Scroll zoom time · Shift+scroll zoom price
-            {hasAnyPivot(awaisLayers.pivot) && ' · Y Targets fits pivot levels'}
+            {hasAnyPivot(awaisLayers) && ' · Y Targets fits pivot levels'}
             {canPanH && visibleRangeLabel ? ` · ${visibleRangeLabel}` : ''}
           </p>
         )}

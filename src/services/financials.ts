@@ -206,7 +206,10 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
   try {
     const token = await getValidToken();
-    if (!token) throw new Error("Authentication required for Google Sheets");
+    if (!token) {
+      console.warn('Upcoming dividends: sign in with Google to load the dividend sheet.');
+      return [];
+    }
 
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}`;
     const response = await fetch(url, {
@@ -264,7 +267,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     });
 
   } catch (e) {
-    console.error("Google Sheet Fetch Failed:", e);
+    console.warn('Google Sheet fetch failed:', e);
     return [];
   }
 };

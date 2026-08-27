@@ -1,16 +1,47 @@
 import type { OhlcBar } from '../services/psxData';
 
+export const MA_SLOTS = ['ma1', 'ma2', 'ma3', 'ma4', 'ma5'] as const;
+export type MaSlot = (typeof MA_SLOTS)[number];
+
+/** @deprecated use MaSlot */
 export const MA_PERIODS = [5, 10, 50, 100, 200] as const;
+/** @deprecated use MaSlot */
 export type MaPeriod = (typeof MA_PERIODS)[number];
 
-export type MaLineSelection = Record<MaPeriod, boolean>;
+export type MaType = 'RMA' | 'SMA' | 'EMA' | 'WMA' | 'HMA' | 'VWMA';
+export const MA_TYPES: MaType[] = ['RMA', 'SMA', 'EMA', 'WMA', 'HMA', 'VWMA'];
 
-export const DEFAULT_MA_SELECTION: MaLineSelection = {
-  5: true,
-  10: true,
-  50: true,
-  100: true,
-  200: true,
+export interface MaLineConfig {
+  enabled: boolean;
+  period: number;
+  type: MaType;
+  color: string;
+}
+
+export type MaLineMap = Record<MaSlot, MaLineConfig>;
+
+export interface AwaisGroupToggles {
+  ema: boolean;
+  bb: boolean;
+  supertrend: boolean;
+  pivot: boolean;
+  ichimoku: boolean;
+}
+
+export const DEFAULT_MA_LINES: MaLineMap = {
+  ma1: { enabled: true, period: 5, type: 'SMA', color: '#97F592' },
+  ma2: { enabled: true, period: 10, type: 'SMA', color: '#15A24B' },
+  ma3: { enabled: true, period: 50, type: 'SMA', color: '#f22828' },
+  ma4: { enabled: true, period: 100, type: 'SMA', color: '#e6b00c' },
+  ma5: { enabled: true, period: 200, type: 'SMA', color: '#7b49e7' },
+};
+
+export const DEFAULT_GROUPS: AwaisGroupToggles = {
+  ema: true,
+  bb: true,
+  supertrend: true,
+  pivot: true,
+  ichimoku: false,
 };
 
 export type BbKey = 'fill' | 'upper' | 'middle' | 'lower';
@@ -27,7 +58,8 @@ export type IchimokuKey = 'cloud' | 'conversion' | 'base' | 'spanA' | 'spanB';
 export type IchimokuSelection = Record<IchimokuKey, boolean>;
 
 export interface AwaisLayers {
-  maLines: MaLineSelection;
+  groups: AwaisGroupToggles;
+  maLines: MaLineMap;
   bb: BbSelection;
   supertrend: SupertrendSelection;
   pivot: PivotSelection;
@@ -65,7 +97,14 @@ export const DEFAULT_ICHI_SELECTION: IchimokuSelection = {
 };
 
 export const DEFAULT_AWAIS_LAYERS: AwaisLayers = {
-  maLines: { ...DEFAULT_MA_SELECTION },
+  groups: { ...DEFAULT_GROUPS },
+  maLines: {
+    ma1: { ...DEFAULT_MA_LINES.ma1 },
+    ma2: { ...DEFAULT_MA_LINES.ma2 },
+    ma3: { ...DEFAULT_MA_LINES.ma3 },
+    ma4: { ...DEFAULT_MA_LINES.ma4 },
+    ma5: { ...DEFAULT_MA_LINES.ma5 },
+  },
   bb: { ...DEFAULT_BB_SELECTION },
   supertrend: { ...DEFAULT_SUPERTREND_SELECTION },
   pivot: { ...DEFAULT_PIVOT_SELECTION },
@@ -102,54 +141,55 @@ export const AWAIS_ICHI_OPTIONS: { key: IchimokuKey; label: string; color: strin
   { key: 'spanB', label: 'Senkou Span B', color: '#EF9A9A' },
 ];
 
-export const AWAIS_MA_LINES: { period: MaPeriod; type: 'SMA'; color: string; label: string }[] = [
-  { period: 5, type: 'SMA', color: '#97F592', label: 'MA 5' },
-  { period: 10, type: 'SMA', color: '#15A24B', label: 'MA 10' },
-  { period: 50, type: 'SMA', color: '#f22828', label: 'MA 50' },
-  { period: 100, type: 'SMA', color: '#e6b00c', label: 'MA 100' },
-  { period: 200, type: 'SMA', color: '#7b49e7', label: 'MA 200' },
-];
-
-export function hasAnyMaLine(maLines: MaLineSelection): boolean {
-  return MA_PERIODS.some((p) => maLines[p]);
+export function maSlotLabel(slot: MaSlot): string {
+  return `MA ${MA_SLOTS.indexOf(slot) + 1}`;
 }
 
-export function isMaPeriodEnabled(maLines: MaLineSelection, period: number): boolean {
-  return MA_PERIODS.includes(period as MaPeriod) && maLines[period as MaPeriod];
+export function cloneAwaisLayers(layers: AwaisLayers): AwaisLayers {
+  return JSON.parse(JSON.stringify(layers)) as AwaisLayers;
 }
 
-export function hasAnyBb(bb: BbSelection): boolean {
-  return Object.values(bb).some(Boolean);
+export function hasAnyMaLine(layers: AwaisLayers): boolean {
+  return layers.groups.ema && MA_SLOTS.some((s) => layers.maLines[s].enabled);
 }
 
-export function hasAnySupertrend(st: SupertrendSelection): boolean {
-  return st.up || st.down;
+export function isMaSlotActive(layers: AwaisLayers, slot: MaSlot): boolean {
+  return layers.groups.ema && layers.maLines[slot].enabled;
 }
 
-export function hasAnyPivot(pivot: PivotSelection): boolean {
-  return PIVOT_LABELS.some((k) => pivot[k]);
+export function isMaSeriesVisible(layers: AwaisLayers, slot: MaSlot): boolean {
+  return isMaSlotActive(layers, slot);
 }
 
-export function hasAnyIchimoku(ichi: IchimokuSelection): boolean {
-  return Object.values(ichi).some(Boolean);
+export function hasAnyBb(layers: AwaisLayers): boolean {
+  return layers.groups.bb && Object.values(layers.bb).some(Boolean);
+}
+
+export function hasAnySupertrend(layers: AwaisLayers): boolean {
+  return layers.groups.supertrend && (layers.supertrend.up || layers.supertrend.down);
+}
+
+export function hasAnyPivot(layers: AwaisLayers): boolean {
+  return layers.groups.pivot && PIVOT_LABELS.some((k) => layers.pivot[k]);
+}
+
+export function hasAnyIchimoku(layers: AwaisLayers): boolean {
+  return layers.groups.ichimoku && Object.values(layers.ichimoku).some(Boolean);
 }
 
 export function countAwaisActiveLayers(layers: AwaisLayers): { active: number; total: number } {
-  const total =
-    MA_PERIODS.length +
-    AWAIS_BB_OPTIONS.length +
-    AWAIS_SUPERTREND_OPTIONS.length +
-    AWAIS_PIVOT_OPTIONS.length +
-    AWAIS_ICHI_OPTIONS.length;
-  let active = MA_PERIODS.filter((p) => layers.maLines[p]).length;
-  active += AWAIS_BB_OPTIONS.filter((o) => layers.bb[o.key]).length;
-  active += AWAIS_SUPERTREND_OPTIONS.filter((o) => layers.supertrend[o.key]).length;
-  active += AWAIS_PIVOT_OPTIONS.filter((o) => layers.pivot[o.key]).length;
-  active += AWAIS_ICHI_OPTIONS.filter((o) => layers.ichimoku[o.key]).length;
+  const total = 5 + AWAIS_BB_OPTIONS.length + AWAIS_SUPERTREND_OPTIONS.length + AWAIS_PIVOT_OPTIONS.length + AWAIS_ICHI_OPTIONS.length;
+  let active = layers.groups.ema ? MA_SLOTS.filter((s) => layers.maLines[s].enabled).length : 0;
+  if (layers.groups.bb) active += AWAIS_BB_OPTIONS.filter((o) => layers.bb[o.key]).length;
+  if (layers.groups.supertrend) active += AWAIS_SUPERTREND_OPTIONS.filter((o) => layers.supertrend[o.key]).length;
+  if (layers.groups.pivot) active += AWAIS_PIVOT_OPTIONS.filter((o) => layers.pivot[o.key]).length;
+  if (layers.groups.ichimoku) active += AWAIS_ICHI_OPTIONS.filter((o) => layers.ichimoku[o.key]).length;
   return { active, total };
 }
 
-export type AwaisLayerGroup = 'ma' | 'bb' | 'supertrend' | 'pivot' | 'ichimoku' | 'all';
+export type AwaisLayerGroup = 'ema' | 'bb' | 'supertrend' | 'pivot' | 'ichimoku' | 'all';
+
+export type AwaisGroupKey = keyof AwaisGroupToggles;
 
 function fillRecord<K extends string>(keys: readonly K[], enabled: boolean): Record<K, boolean> {
   return keys.reduce((acc, k) => {
@@ -161,19 +201,46 @@ function fillRecord<K extends string>(keys: readonly K[], enabled: boolean): Rec
 /** Turn every item in a group (or all groups) on or off. */
 export function setAwaisGroupEnabled(layers: AwaisLayers, group: AwaisLayerGroup, enabled: boolean): AwaisLayers {
   switch (group) {
-    case 'ma':
-      return { ...layers, maLines: fillRecord(MA_PERIODS, enabled) };
+    case 'ema':
+      return {
+        ...layers,
+        groups: { ...layers.groups, ema: enabled },
+        maLines: MA_SLOTS.reduce((acc, slot) => {
+          acc[slot] = { ...layers.maLines[slot], enabled };
+          return acc;
+        }, {} as MaLineMap),
+      };
     case 'bb':
-      return { ...layers, bb: fillRecord(AWAIS_BB_OPTIONS.map((o) => o.key), enabled) };
+      return {
+        ...layers,
+        groups: { ...layers.groups, bb: enabled },
+        bb: fillRecord(AWAIS_BB_OPTIONS.map((o) => o.key), enabled),
+      };
     case 'supertrend':
-      return { ...layers, supertrend: fillRecord(AWAIS_SUPERTREND_OPTIONS.map((o) => o.key), enabled) };
+      return {
+        ...layers,
+        groups: { ...layers.groups, supertrend: enabled },
+        supertrend: fillRecord(AWAIS_SUPERTREND_OPTIONS.map((o) => o.key), enabled),
+      };
     case 'pivot':
-      return { ...layers, pivot: fillRecord(PIVOT_LABELS, enabled) };
+      return {
+        ...layers,
+        groups: { ...layers.groups, pivot: enabled },
+        pivot: fillRecord(PIVOT_LABELS, enabled),
+      };
     case 'ichimoku':
-      return { ...layers, ichimoku: fillRecord(AWAIS_ICHI_OPTIONS.map((o) => o.key), enabled) };
+      return {
+        ...layers,
+        groups: { ...layers.groups, ichimoku: enabled },
+        ichimoku: fillRecord(AWAIS_ICHI_OPTIONS.map((o) => o.key), enabled),
+      };
     case 'all':
       return {
-        maLines: fillRecord(MA_PERIODS, enabled),
+        groups: { ema: enabled, bb: enabled, supertrend: enabled, pivot: enabled, ichimoku: enabled },
+        maLines: MA_SLOTS.reduce((acc, slot) => {
+          acc[slot] = { ...layers.maLines[slot], enabled };
+          return acc;
+        }, {} as MaLineMap),
         bb: fillRecord(AWAIS_BB_OPTIONS.map((o) => o.key), enabled),
         supertrend: fillRecord(AWAIS_SUPERTREND_OPTIONS.map((o) => o.key), enabled),
         pivot: fillRecord(PIVOT_LABELS, enabled),
@@ -183,6 +250,7 @@ export function setAwaisGroupEnabled(layers: AwaisLayers, group: AwaisLayerGroup
 }
 
 export interface MaLineSeries {
+  slot: MaSlot;
   period: number;
   color: string;
   values: (number | null)[];
@@ -253,12 +321,51 @@ function rmaSeries(values: number[], period: number): (number | null)[] {
   return out;
 }
 
-function maSeries(values: number[], period: number, type: 'SMA' | 'EMA' | 'WMA' | 'RMA'): (number | null)[] {
+function hmaSeries(values: number[], period: number): (number | null)[] {
+  const half = Math.max(1, Math.floor(period / 2));
+  const sqrt = Math.max(1, Math.floor(Math.sqrt(period)));
+  const wmaHalf = wmaSeries(values, half);
+  const wmaFull = wmaSeries(values, period);
+  const hull: number[] = values.map((_, i) => {
+    const a = wmaHalf[i];
+    const b = wmaFull[i];
+    return a != null && b != null ? 2 * a - b : NaN;
+  });
+  const out = wmaSeries(
+    hull.map((v) => (Number.isFinite(v) ? v : 0)),
+    sqrt
+  );
+  return out.map((v, i) => (Number.isFinite(hull[i]) ? v : null));
+}
+
+function vwmaSeries(closes: number[], volumes: number[], period: number): (number | null)[] {
+  const out: (number | null)[] = new Array(closes.length).fill(null);
+  for (let i = period - 1; i < closes.length; i++) {
+    let num = 0;
+    let den = 0;
+    for (let j = i - period + 1; j <= i; j++) {
+      num += closes[j] * volumes[j];
+      den += volumes[j];
+    }
+    out[i] = den > 0 ? num / den : null;
+  }
+  return out;
+}
+
+function maSeries(values: number[], period: number, type: MaType, volumes?: number[]): (number | null)[] {
   switch (type) {
-    case 'EMA': return emaSeries(values, period);
-    case 'WMA': return wmaSeries(values, period);
-    case 'RMA': return rmaSeries(values, period);
-    default: return smaSeries(values, period);
+    case 'EMA':
+      return emaSeries(values, period);
+    case 'WMA':
+      return wmaSeries(values, period);
+    case 'RMA':
+      return rmaSeries(values, period);
+    case 'HMA':
+      return hmaSeries(values, period);
+    case 'VWMA':
+      return volumes ? vwmaSeries(values, volumes, period) : smaSeries(values, period);
+    default:
+      return smaSeries(values, period);
   }
 }
 
@@ -311,16 +418,26 @@ function traditionalPivots(h: number, l: number, c: number): PivotLevel[] {
 }
 
 /** Awais Custom Indicator Panel — MA, BB, Supertrend, Pivots, Ichimoku. */
-export function computeAwaisOverlays(bars: OhlcBar[]): AwaisOverlayData | null {
+export function computeAwaisOverlays(bars: OhlcBar[], layers: AwaisLayers): AwaisOverlayData | null {
   if (bars.length < 3) return null;
   const closes = bars.map((b) => b.close);
+  const volumes = bars.map((b) => b.volume);
   const n = bars.length;
 
-  const maLines: MaLineSeries[] = AWAIS_MA_LINES.map((m) => ({
-    period: m.period,
-    color: m.color,
-    values: maSeries(closes, m.period, m.type),
-  }));
+  const maLines: MaLineSeries[] = [];
+  if (layers.groups.ema) {
+    for (const slot of MA_SLOTS) {
+      const cfg = layers.maLines[slot];
+      if (!cfg.enabled) continue;
+      const period = Math.min(500, Math.max(1, Math.round(cfg.period)));
+      maLines.push({
+        slot,
+        period,
+        color: cfg.color,
+        values: maSeries(closes, period, cfg.type, volumes),
+      });
+    }
+  }
 
   const bbLen = 20;
   const bbMult = 2;

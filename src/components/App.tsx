@@ -33,6 +33,7 @@ import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
+import { ChartsExplorer } from './ChartsExplorer';
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
@@ -100,11 +101,11 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', de
 const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
   (list || []).map(p => ({ ...p, type: p.type || 'PSX' }));
 
-const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR'];
+const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS'];
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
@@ -120,6 +121,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   AI_AGENT: '/assistant',
   SIMULATOR: '/simulator',
   CALCULATOR: '/calculator',
+  CHARTS: '/charts',
   DASH_CUSTOMIZE: '/dashboard/customize',
   ADMIN_USERS: '/admin/users',
   BROKERS: '/settings/brokers',
@@ -2013,6 +2015,9 @@ const App: React.FC = () => {
 
                       {currentView === 'SIGNALS' && (
                           <MarketSignalScanner onSymbolClick={(t) => setViewTicker(t)} />
+                      )}
+                      {currentView === 'CHARTS' && (
+                          <ChartsExplorer onSymbolClick={(t) => setViewTicker(t)} />
                       )}
                       {currentView === 'REALIZED' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

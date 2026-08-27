@@ -1188,7 +1188,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                             })}
                         </tbody>
                         <tfoot className="bg-slate-50/90 dark:bg-slate-800/90 text-xs font-bold text-slate-900 dark:text-slate-100 border-t-2 border-slate-200 dark:border-slate-700 shadow-inner">
-                            <tr> <td colSpan={10} className="px-6 py-4 text-right text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Grand Total (Visible)</td> <td className={`px-6 py-4 text-right font-mono tabular-nums ${getColorClass(activityTotals.netAmount)}`}> {formatGain(activityTotals.netAmount)} </td> <td className={`px-6 py-4 text-right font-mono tabular-nums ${getColorClass(activityTotals.realized)}`}> {formatGain(activityTotals.realized)} </td> <td className={`px-6 py-3 text-right font-mono tabular-nums ${getColorClass(activityTotals.unrealized)}`}> {formatGain(activityTotals.unrealized)} </td> </tr>
+                            <tr>
+                              <td colSpan={10} className="px-6 py-4 text-right text-[10px] uppercase tracking-widest text-slate-500 dark:text-slate-400">Grand Total (Visible)</td>
+                              <td className={`px-6 py-4 text-right font-mono tabular-nums ${getColorClass(activityTotals.netAmount)}`}>{formatGain(activityTotals.netAmount)}</td>
+                              <td className={`px-6 py-4 text-right font-mono tabular-nums ${getColorClass(activityTotals.realized)}`}>{formatGain(activityTotals.realized)}</td>
+                              <td className={`px-6 py-3 text-right font-mono tabular-nums ${getColorClass(activityTotals.unrealized)}`}>{formatGain(activityTotals.unrealized)}</td>
+                            </tr>
                         </tfoot>
                     </table>
                 </div>
