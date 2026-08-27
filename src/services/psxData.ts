@@ -13,9 +13,13 @@ export const setScrapingApiKey = (key: string | null) => {
     userScrapingKey = key ? key.trim() : null;
 };
 
+export const getScrapingApiKey = () => userScrapingKey;
+
 export const setWebScrapingAIKey = (key: string | null) => {
     userWebScrapingAIKey = key ? key.trim() : null;
 };
+
+export const getWebScrapingAIKey = () => userWebScrapingAIKey;
 
 // FREE PROXIES (Tried First)
 const FREE_PROXIES = [

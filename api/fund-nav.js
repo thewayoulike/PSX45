@@ -72,6 +72,7 @@ async function tryRelayMufap() {
     (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
     (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
     (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+    (u) => `https://r.jina.ai/http://${u.replace(/^https?:\/\//, '')}`,
   ];
 
   for (const build of relays) {
@@ -90,8 +91,22 @@ async function tryRelayMufap() {
   return null;
 }
 
+/** Optional: set SCRAPE_DO_TOKEN (or SCRAPING_API_KEY) in Vercel env for reliable live NAV. */
+async function tryScrapeDoMufap() {
+  const token = process.env.SCRAPE_DO_TOKEN || process.env.SCRAPING_API_KEY;
+  if (!token) return null;
+  const url = `https://api.scrape.do/?token=${encodeURIComponent(token)}&url=${encodeURIComponent(MUFAP_NAV_URL)}&render=true`;
+  const res = await fetch(url, { redirect: 'follow' });
+  if (!res.ok) return null;
+  return catalogFromHtml(await res.text(), 'live');
+}
+
 async function tryLiveMufapFetch() {
-  return (await tryDirectMufap().catch(() => null)) || (await tryRelayMufap().catch(() => null));
+  return (
+    (await tryDirectMufap().catch(() => null)) ||
+    (await tryScrapeDoMufap().catch(() => null)) ||
+    (await tryRelayMufap().catch(() => null))
+  );
 }
 
 export default async function handler(req, res) {

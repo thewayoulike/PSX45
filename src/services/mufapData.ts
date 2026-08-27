@@ -1,4 +1,5 @@
 import { makeFundId } from '../utils/fundId';
+import { getScrapingApiKey, getWebScrapingAIKey } from './psxData';
 
 export interface MutualFundRecord {
   id: string;
@@ -282,28 +283,38 @@ const extractProxyHtml = (text: string, via: string): string | null => {
   return text;
 };
 
+const parseLiveHtml = (html: string | null, source: string): CatalogPayload | null => {
+  if (!html || isMufapBlockedPage(html)) return null;
+  const funds = parseMufapNavHtml(html);
+  if (funds.length < 50) return null;
+  return buildCatalogFromFunds(funds, html, source);
+};
+
 /**
  * Public CORS relays (same hosts already used for PSX).
- * Vercel /api/proxy is often 403'd by MUFAP Cloudflare — these use other IPs.
+ * Do NOT use /api/proxy for MUFAP — Vercel IPs are Cloudflare-blocked (always 502).
  */
 const CORS_RELAYS = [
+  (url: string) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}&t=${Date.now()}`,
   (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`,
   (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&t=${Date.now()}`,
   (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}&_t=${Date.now()}`,
+  (url: string) => `https://r.jina.ai/http://${url.replace(/^https?:\/\//, '')}`,
 ];
 
 const fetchLiveMufapViaCors = async (): Promise<CatalogPayload | null> => {
   for (const build of CORS_RELAYS) {
     try {
       const proxyUrl = build(MUFAP_NAV_URL);
-      const res = await fetch(proxyUrl, { cache: 'no-store' });
+      const controller = new AbortController();
+      const timer = window.setTimeout(() => controller.abort(), 12000);
+      const res = await fetch(proxyUrl, { cache: 'no-store', signal: controller.signal });
+      window.clearTimeout(timer);
       if (!res.ok) continue;
       const raw = await res.text();
       const html = extractProxyHtml(raw, proxyUrl);
-      if (!html || isMufapBlockedPage(html)) continue;
-      const funds = parseMufapNavHtml(html);
-      if (funds.length < 50) continue;
-      return buildCatalogFromFunds(funds, html, 'cors-live');
+      const parsed = parseLiveHtml(html, 'cors-live');
+      if (parsed) return parsed;
     } catch {
       /* try next */
     }
@@ -311,44 +322,57 @@ const fetchLiveMufapViaCors = async (): Promise<CatalogPayload | null> => {
   return null;
 };
 
-/** Last-resort: our Vercel proxy (often blocked by Cloudflare for MUFAP). */
-const fetchLiveMufapViaProxy = async (): Promise<CatalogPayload | null> => {
-  try {
-    const proxyUrl = `/api/proxy?url=${encodeURIComponent(MUFAP_NAV_URL)}&t=${Date.now()}`;
-    const res = await fetch(proxyUrl, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const html = await res.text();
-    if (html.trimStart().startsWith('{') || isMufapBlockedPage(html)) return null;
-    const funds = parseMufapNavHtml(html);
-    if (funds.length < 50) return null;
-    return buildCatalogFromFunds(funds, html, 'proxy-live');
-  } catch {
-    return null;
+/** Paid scrapers (user API keys) — best chance past Cloudflare. */
+const fetchLiveMufapViaScrapers = async (): Promise<CatalogPayload | null> => {
+  const scrapeDo = getScrapingApiKey();
+  if (scrapeDo) {
+    try {
+      const url = `https://api.scrape.do/?token=${encodeURIComponent(scrapeDo)}&url=${encodeURIComponent(MUFAP_NAV_URL)}&render=true`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const parsed = parseLiveHtml(await res.text(), 'cors-live');
+        if (parsed) return parsed;
+      }
+    } catch { /* fall through */ }
   }
+
+  const webAi = getWebScrapingAIKey();
+  if (webAi) {
+    try {
+      const url = `https://api.webscraping.ai/html?api_key=${encodeURIComponent(webAi)}&url=${encodeURIComponent(MUFAP_NAV_URL)}&js=true`;
+      const res = await fetch(url, { cache: 'no-store' });
+      if (res.ok) {
+        const parsed = parseLiveHtml(await res.text(), 'cors-live');
+        if (parsed) return parsed;
+      }
+    } catch { /* fall through */ }
+  }
+
+  return null;
 };
 
-/** Try live MUFAP sources in order of reliability when Cloudflare blocks Vercel. */
+/** Live MUFAP without hitting Vercel→MUFAP (always Cloudflare 403/502). */
 const fetchAnyLiveMufap = async (): Promise<CatalogPayload | null> =>
   (await fetchLiveMufapFromBrowser()) ||
-  (await fetchLiveMufapViaCors()) ||
-  (await fetchLiveMufapViaProxy());
+  (await fetchLiveMufapViaScrapers()) ||
+  (await fetchLiveMufapViaCors());
 
 /** Repurchase / NAV column — what holders receive on redemption (MUFAP "NAV" column). */
 export const fundValuationNav = (f: MutualFundRecord): number =>
   f.repurchase > 0 ? f.repurchase : f.nav;
 
-/** Fetch full MUFAP NAV catalog — browser → CORS → API → Vercel proxy → static → embedded. */
+/** Fetch full MUFAP NAV catalog — browser → scrapers → CORS → API → static → embedded. */
 export const fetchMufapNavCatalog = async (): Promise<{
   catalog: Record<string, MutualFundRecord>;
   reportDate?: string;
   updatedAt?: string;
   source?: string;
 }> => {
-  // 1) Live paths that bypass Vercel→MUFAP Cloudflare blocks
+  // 1) Client-side live (never uses /api/proxy — that path is blocked for MUFAP)
   const earlyLive = await fetchAnyLiveMufap();
   if (earlyLive) return parsePayload(earlyLive, earlyLive.source);
 
-  // 2) Vercel API (now also tries public relays server-side)
+  // 2) Vercel API (server may use relays / SCRAPE_DO_TOKEN)
   for (const url of [`/api/fund-nav?t=${Date.now()}`, `/api/mufap-nav?t=${Date.now()}`]) {
     try {
       const res = await fetch(url, { cache: 'no-store' });
@@ -358,7 +382,6 @@ export const fetchMufapNavCatalog = async (): Promise<{
           const data = await res.json() as CatalogPayload;
           const source = data.source || 'api';
           if (isLiveFundCatalogSource(source)) return parsePayload(data, source);
-          // Stale/bundled — one more live attempt, then accept seed
           const live = await fetchAnyLiveMufap();
           if (live) return parsePayload(live, live.source);
           return parsePayload(data, source);
