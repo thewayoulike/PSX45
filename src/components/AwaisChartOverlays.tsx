@@ -5,6 +5,7 @@ import {
   AWAIS_ICHI_OPTIONS,
   AWAIS_PIVOT_OPTIONS,
   AWAIS_SUPERTREND_OPTIONS,
+  PIVOT_ANCHORS,
   DEFAULT_AWAIS_LAYERS,
   MA_SLOTS,
   MA_TYPES,
@@ -15,6 +16,7 @@ import {
   IchimokuKey,
   MaSlot,
   MaType,
+  PivotAnchor,
   PivotLabel,
   SupertrendKey,
   cloneAwaisLayers,
@@ -332,6 +334,22 @@ function IndicatorsPanelContent({
         onSelectAll={() => setGroup('pivot', true)}
         onSelectNone={() => setGroup('pivot', false)}
       >
+        <label className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
+          <span className="text-slate-500 dark:text-slate-400">Pivots Timeframe</span>
+          <select
+            value={draft.pivotAnchor ?? 'Auto'}
+            onChange={(e) =>
+              setDraft((prev) => ({ ...prev, pivotAnchor: e.target.value as PivotAnchor }))
+            }
+            className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-1.5 py-0.5 text-[11px] font-medium"
+          >
+            {PIVOT_ANCHORS.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+          </select>
+        </label>
         {AWAIS_PIVOT_OPTIONS.map((opt) => (
           <PanelCheckbox
             key={opt.key}

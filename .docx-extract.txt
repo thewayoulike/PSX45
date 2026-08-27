@@ -1,0 +1,419 @@
+==============================
+C:\Users\Aftab\Downloads\Momentum Panel Selector.docx
+==============================
+
+//@version=5
+indicator("Momentum Panel Selector", shorttitle="Momentum Selector", overlay=false)
+
+// Indicator Selection
+indicator_type = input.string("RSI", "Select Indicator", options=["RSI", "MACD", "Stochastic", "ADX"])
+
+// ===== RSI Settings =====
+rsi_settings = input.bool(true, "───── RSI Settings ─────", tooltip="RSI Settings")
+rsi_length = input.int(14, "RSI Length", minval=1, group="RSI Settings")
+rsi_overbought = input.int(60, "RSI Overbought", group="RSI Settings")
+rsi_oversold = input.int(40, "RSI Oversold", group="RSI Settings")
+rsi_color = input.color(color.green, "RSI Line Color", group="RSI Settings")
+show_smoothing = input.bool(true, "Show Smoothing MA", group="RSI Settings")
+smoothing_type = input.string("SMA", "Smoothing Type", options=["SMA", "EMA"], group="RSI Settings")
+smoothing_length = input.int(9, "Smoothing Length", minval=1, group="RSI Settings")
+
+// ===== MACD Settings =====
+macd_settings = input.bool(true, "───── MACD Settings ─────", tooltip="MACD Settings")
+macd_fast = input.int(12, "MACD Fast Length", group="MACD Settings")
+macd_slow = input.int(26, "MACD Slow Length", group="MACD Settings")
+macd_signal = input.int(9, "MACD Signal Length", group="MACD Settings")
+hist_above_rising = input.color(color.green, "Above Zero - Rising", group="MACD Settings")
+hist_above_falling = input.color(color.rgb(151, 211, 153), "Above Zero - Falling", group="MACD Settings")
+hist_below_rising = input.color(color.rgb(234, 185, 185), "Below Zero - Rising", group="MACD Settings")
+hist_below_falling = input.color(color.red, "Below Zero - Falling", group="MACD Settings")
+
+// ===== Stochastic Settings =====
+stoch_settings = input.bool(true, "───── Stochastic Settings ─────", tooltip="Stochastic Settings")
+stoch_k = input.int(14, "Stochastic %K Length", group="Stochastic Settings")
+stoch_d = input.int(3, "Stochastic %D Length", group="Stochastic Settings")
+stoch_smooth = input.int(3, "Stochastic Smoothing", group="Stochastic Settings")
+stoch_overbought = input.int(80, "Stochastic Overbought", group="Stochastic Settings")
+stoch_oversold = input.int(20, "Stochastic Oversold", group="Stochastic Settings")
+k_color = input.color(color.green, "Stochastic %K Color", group="Stochastic Settings")
+
+// ===== ADX Settings =====
+adx_settings = input.bool(true, "───── ADX Settings ─────", tooltip="ADX Settings")
+adx_length = input.int(14, "ADX Length", group="ADX Settings")
+di_length = input.int(14, "DI Length", group="ADX Settings")
+adx_threshold = input.int(25, "ADX Trend Threshold", group="ADX Settings")
+adx_color = input.color(color.purple, "ADX Line Color", group="ADX Settings")
+
+// ===== Calculations =====
+// RSI Calculation
+rsi = ta.rsi(close, rsi_length)
+smooth_line = smoothing_type == "SMA" ? ta.sma(rsi, smoothing_length) : ta.ema(rsi, smoothing_length)
+
+// MACD Calculation
+[macd_line, signal_line, hist_line] = ta.macd(close, macd_fast, macd_slow, macd_signal)
+hist_color = hist_line > 0 ? 
+             (hist_line > hist_line[1] ? hist_above_rising : hist_above_falling) :
+             (hist_line > hist_line[1] ? hist_below_rising : hist_below_falling)
+
+// Stochastic Calculation
+k = ta.sma(ta.stoch(close, high, low, stoch_k), stoch_smooth)
+d = ta.sma(k, stoch_d)
+
+// ADX Calculation
+[dip, din, adx] = ta.dmi(di_length, adx_length)
+
+// ===== Plotting Based on Selection =====
+// RSI Plots
+plot(indicator_type == "RSI" ? rsi : na, "RSI", color=rsi_color, linewidth=2)
+plot(indicator_type == "RSI" and show_smoothing ? smooth_line : na, "Smoothing MA", color=color.rgb(241, 17, 17), linewidth=1)
+
+// MACD Plots
+plot(indicator_type == "MACD" ? macd_line : na, "MACD Line", color=color.green, linewidth=2)
+plot(indicator_type == "MACD" ? signal_line : na, "Signal Line", color=color.red, linewidth=1)
+plot(indicator_type == "MACD" ? hist_line : na, "MACD Histogram", color=hist_color, style=plot.style_columns)
+
+// Stochastic Plots
+plot(indicator_type == "Stochastic" ? k : na, "%K", color=k_color, linewidth=2)
+plot(indicator_type == "Stochastic" ? d : na, "%D", color=color.red, linewidth=1)
+
+// ADX Plot
+plot(indicator_type == "ADX" ? adx : na, "ADX", color=adx_color, linewidth=2)
+
+// ===== Horizontal Lines =====
+// RSI Lines
+hline(indicator_type == "RSI" ? rsi_overbought : na, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(indicator_type == "RSI" ? rsi_oversold : na, "Oversold", color=color.green, linestyle=hline.style_dashed)
+hline(indicator_type == "RSI" ? 50 : na, "Midline", color=color.gray, linestyle=hline.style_dotted)
+
+// MACD Zero Line
+hline(indicator_type == "MACD" ? 0 : na, "Zero Line", color=color.gray)
+
+// Stochastic Lines
+hline(indicator_type == "Stochastic" ? stoch_overbought : na, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(indicator_type == "Stochastic" ? stoch_oversold : na, "Oversold", color=color.green, linestyle=hline.style_dashed)
+
+// ADX Line
+hline(indicator_type == "ADX" ? adx_threshold : na, "Trend Threshold", color=color.purple, linestyle=hline.style_dashed)
+
+
+==============================
+C:\Users\Aftab\Downloads\Awais Custom Indicator Panel V1.docx
+==============================
+
+//@version=5
+indicator(title='Awais Custom Indicator Panel', shorttitle="Awais Custom Indicator Panel", overlay=true)
+
+// =============== SWITCH BOARD ===============
+switchboard_group = "████ Control Panel (Turn On/Off Indicators) ████"
+switch_ema = input.bool(true, "EMA", group=switchboard_group, inline='Switch1')
+switch_bb = input.bool(true, "Bollinger Band", group=switchboard_group, inline='Switch1')
+switch_supertrend = input.bool(true, "Supertrend", group=switchboard_group, inline='Switch1')
+switch_pivot = input.bool(true, "Pivot Levels", group=switchboard_group, inline='Switch2')
+switch_ichi = input.bool(true, "Ichimoku Cloud", group=switchboard_group, inline='Switch2')
+
+// =============== EMA PLOTTING ===============
+ma_group = "██████████ EMA Lines ██████████"
+len1bool = input.bool(true, '', group=ma_group, inline='len1')
+len1 = input.int(5, title='MA 1', group=ma_group, inline='len1')
+string ma_1_type = input.string(defval='SMA', title='Type', options=['RMA', 'SMA', 'EMA', 'WMA','HMA','VWMA'], inline='len1', group=ma_group)
+color ma_1_colour = input.color(color.rgb(151, 245, 146), '', inline='len1', group=ma_group)
+
+len2bool = input.bool(true, '', group=ma_group, inline='len2')
+len2 = input.int(10, minval=1, title='MA 2', group=ma_group, inline='len2')
+string ma_2_type = input.string(defval='SMA', title='Type', options=['RMA', 'SMA', 'EMA', 'WMA','HMA','VWMA'], inline='len2', group=ma_group)
+color ma_2_colour = input.color(color.rgb(21, 162, 75), '', inline='len2', group=ma_group)
+
+len3bool = input.bool(false, '', group=ma_group, inline='len3')
+len3 = input.int(20, minval=1, title='MA 3', group=ma_group, inline='len3')
+string ma_3_type = input.string(defval='SMA', title='Type', options=['RMA', 'SMA', 'EMA', 'WMA','HMA','VWMA'], inline='len3', group=ma_group)
+color ma_3_colour = input.color(color.new(#100c09, 0), '', inline='len3', group=ma_group)
+
+len4bool = input.bool(true, '', group=ma_group, inline='len4')
+len4 = input.int(50, minval=1, title='MA 4', group=ma_group, inline='len4')
+string ma_4_type = input.string(defval='SMA', title='Type', options=['RMA', 'SMA', 'EMA', 'WMA','HMA','VWMA'], inline='len4', group=ma_group)
+color ma_4_colour = input.color(color.new(#f22828, 0), '', inline='len4', group=ma_group)
+
+len5bool = input.bool(true, '', group=ma_group, inline='len5')
+len5 = input.int(100, minval=1, title='MA 5', group=ma_group, inline='len5')
+string ma_5_type = input.string(defval='SMA', title='Type', options=['RMA', 'SMA', 'EMA', 'WMA','HMA','VWMA'], inline='len5', group=ma_group)
+color ma_5_colour = input.color(color.new(#e6b00c, 0), '', inline='len5', group=ma_group)
+
+len6bool = input.bool(true, '', group=ma_group, inline='len6')
+len6 = input.int(200, minval=1, title='MA 6', group=ma_group, inline='len6')
+string ma_6_type = input.string(defval='SMA', title='Type', options=['RMA', 'SMA', 'EMA', 'WMA','HMA','VWMA'], inline='len6', group=ma_group)
+color ma_6_colour = input.color(color.new(#7b49e7, 0), '', inline='len6', group=ma_group)
+
+// EMA Calculation Function
+ma_function(source, length, type) =>
+    if type == 'RMA'
+        ta.rma(source, length)
+    else if type == 'SMA'
+        ta.sma(source, length)
+    else if type == 'EMA'
+        ta.ema(source, length)
+    else if type == 'WMA'
+        ta.wma(source, length)
+    else if type == 'HMA'
+        if(length < 2)
+            ta.hma(source, 2)
+        else
+            ta.hma(source, length)
+    else 
+        ta.vwma(source, length)
+
+// Calculate EMAs - FIXED: Remove security calls to keep sync with candles
+ema1 = ma_function(close, len1, ma_1_type)
+ema2 = ma_function(close, len2, ma_2_type)
+ema3 = ma_function(close, len3, ma_3_type)
+ema4 = ma_function(close, len4, ma_4_type)
+ema5 = ma_function(close, len5, ma_5_type)
+ema6 = ma_function(close, len6, ma_6_type)
+
+// Plot EMAs with switch control
+plot(switch_ema and len1bool ? ema1 : na, color=ma_1_colour, linewidth=2, title='EMA 1')
+plot(switch_ema and len2bool ? ema2 : na, color=ma_2_colour, linewidth=2, title='EMA 2')
+plot(switch_ema and len3bool ? ema3 : na, color=ma_3_colour, linewidth=2, title='EMA 3')
+plot(switch_ema and len4bool ? ema4 : na, color=ma_4_colour, linewidth=2, title='EMA 4')
+plot(switch_ema and len5bool ? ema5 : na, color=ma_5_colour, linewidth=2, title='EMA 5')
+plot(switch_ema and len6bool ? ema6 : na, color=ma_6_colour, linewidth=2, title='EMA 6')
+
+// =============== BOLLINGER BANDS ===============
+bb_group = "██████████ Bollinger Band ██████████"
+bb_length = input.int(20, minval=1, title="Length", group=bb_group)
+bb_src = input(close, title="Source", group=bb_group)
+bb_mult = input.float(2.0, minval=0.001, maxval=50, title="StdDev", group=bb_group)
+bb_offset = input.int(0, "Offset", minval=-500, maxval=500, group=bb_group)
+
+bb_basis = ta.sma(bb_src, bb_length)
+bb_dev = bb_mult * ta.stdev(bb_src, bb_length)
+bb_upper = bb_basis + bb_dev
+bb_lower = bb_basis - bb_dev       
+
+// Plot Bollinger Bands with switch control
+plot(switch_bb ? bb_basis : na, "Basis", color=#100c09, offset=bb_offset)
+bb_upper_plot = plot(switch_bb ? bb_upper : na, "Upper", color=#2962FF, offset=bb_offset)
+bb_lower_plot = plot(switch_bb ? bb_lower : na, "Lower", color=#2962FF, offset=bb_offset)
+fill(bb_upper_plot, bb_lower_plot, title="BB Background", color=color.rgb(249, 249, 249, 95))
+
+// =============== SUPERTREND ===============
+st_group = "██████████ SuperTrend ██████████"
+st_periods = input(title='ATR Period', defval=10, group=st_group)
+st_src = input(hl2, title='Source', group=st_group)
+st_multiplier = input.float(title='ATR Multiplier', step=0.1, defval=3.0, group=st_group)
+st_change_atr = input(title='Change ATR Calculation Method ?', defval=true, group=st_group)
+
+st_atr2 = ta.sma(ta.tr, st_periods)
+st_atr = st_change_atr ? ta.atr(st_periods) : st_atr2
+st_up = st_src - st_multiplier * st_atr
+up1 = nz(st_up[1], st_up)
+st_up := close[1] > up1 ? math.max(st_up, up1) : st_up
+st_dn = st_src + st_multiplier * st_atr
+dn1 = nz(st_dn[1], st_dn)
+st_dn := close[1] < dn1 ? math.min(st_dn, dn1) : st_dn
+st_trend = 1
+st_trend := nz(st_trend[1], st_trend)
+st_trend := st_trend == -1 and close > dn1 ? 1 : st_trend == 1 and close < up1 ? -1 : st_trend
+
+// Plot Supertrend with switch control
+up_plot = plot(switch_supertrend and st_trend == 1 ? st_up : na, title='Up Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.green, 0))
+st_buy_signal = st_trend == 1 and st_trend[1] == -1
+plotshape(switch_supertrend and st_buy_signal ? st_up : na, title='UpTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.green, 0))
+
+dn_plot = plot(switch_supertrend and st_trend == -1 ? st_dn : na, title='Down Trend', style=plot.style_linebr, linewidth=2, color=color.new(color.red, 0))
+st_sell_signal = st_trend == -1 and st_trend[1] == 1
+plotshape(switch_supertrend and st_sell_signal ? st_dn : na, title='DownTrend Begins', location=location.absolute, style=shape.circle, size=size.tiny, color=color.new(color.red, 0))
+
+// =============== PIVOT LEVELS ===============
+/////////////////////////////////////////////////////////////////////////
+// Pivots
+//////////////////////////////////////////////////////////////////////////
+
+pivot_group = '██████████ Pivot Levels ██████████'
+pivotTypeInput = input.string(title="Type", defval="Traditional", options=["Traditional", "Fibonacci", "Woodie", "Classic", "DM", "Camarilla"],group=pivot_group)
+pivotAnchorInput = input.string(title="Pivots Timeframe", defval="Auto", options=["Auto", "Daily", "Weekly", "Monthly", "Quarterly", "Yearly", "Biyearly", "Triyearly", "Quinquennially", "Decennially"],group=pivot_group)
+maxHistoricalPivotsInput = input.int(title="Number of Pivots Back", defval=1, minval=1, maxval=200, display = display.data_window,group=pivot_group)
+isDailyBasedInput = input.bool(title="Use Daily-based Values", defval=true,group=pivot_group, display = display.data_window, tooltip="When this option is unchecked, Pivot Points will use intraday data while calculating on intraday charts. If Extended Hours are displayed on the chart, they will be taken into account during the pivot level calculation. If intraday OHLC values are different from daily-based values (normal for stocks), the pivot levels will also differ.")
+showLabelsInput = input.bool(title="Show Labels", defval=true,group=pivot_group, display = display.data_window)
+showPricesInput = input.bool(title="Show Prices", defval=true,group=pivot_group, display = display.data_window)
+positionLabelsInput = input.string("Left", "Labels Position", options=["Left", "Right"],group=pivot_group, display = display.data_window)
+linewidthInput = input.int(title="Line Width", defval=1, minval=1, maxval=100,group=pivot_group, display = display.data_window)
+
+DEFAULT_COLOR = #FB8C00
+pColorInput = input.color(DEFAULT_COLOR, "P‏  ‏  ‏", inline="P",group=pivot_group, display = display.data_window)
+pShowInput = input.bool(true, "", inline="P",group=pivot_group, display = display.data_window)
+s1ColorInput = input.color(DEFAULT_COLOR, "S1", inline="S1/R1" ,group=pivot_group, display = display.data_window)
+s1ShowInput = input.bool(true, "", inline="S1/R1",group=pivot_group, display = display.data_window)
+r1ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R1", inline="S1/R1",group=pivot_group, display = display.data_window)
+r1ShowInput = input.bool(true, "", inline="S1/R1",group=pivot_group, display = display.data_window)
+s2ColorInput = input.color(DEFAULT_COLOR, "S2", inline="S2/R2",group=pivot_group, display = display.data_window)
+s2ShowInput = input.bool(true, "", inline="S2/R2",group=pivot_group, display = display.data_window)
+r2ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R2", inline="S2/R2",group=pivot_group, display = display.data_window)
+r2ShowInput = input.bool(true, "", inline="S2/R2",group=pivot_group, tooltip = "Not applicable to DM", display = display.data_window)
+s3ColorInput = input.color(DEFAULT_COLOR, "S3", inline="S3/R3",group=pivot_group, display = display.data_window)
+s3ShowInput = input.bool(true, "", inline="S3/R3",group=pivot_group, display = display.data_window)
+r3ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R3", inline="S3/R3",group=pivot_group, display = display.data_window)
+r3ShowInput = input.bool(true, "", inline="S3/R3",group=pivot_group, tooltip = "Not applicable to DM", display = display.data_window)
+s4ColorInput = input.color(DEFAULT_COLOR, "S4", inline="S4/R4",group=pivot_group, display = display.data_window)
+s4ShowInput = input.bool(true, "", inline="S4/R4",group=pivot_group, display = display.data_window)
+r4ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R4", inline="S4/R4",group=pivot_group, display = display.data_window)
+r4ShowInput = input.bool(true, "", inline="S4/R4",group=pivot_group, tooltip = "Not applicable to: Fibonacci, DM", display = display.data_window)
+s5ColorInput = input.color(DEFAULT_COLOR, "S5", inline="S5/R5",group=pivot_group, display = display.data_window)
+s5ShowInput = input.bool(true, "", inline="S5/R5",group=pivot_group, display = display.data_window)
+r5ColorInput = input.color(DEFAULT_COLOR, "‏  ‏  ‏  ‏  ‏  ‏  ‏  ‏R5", inline="S5/R5",group=pivot_group, display = display.data_window)
+r5ShowInput = input.bool(true, "", inline="S5/R5",group=pivot_group, tooltip = "Not applicable to: Fibonacci, Woodie, Classic, DM", display = display.data_window)
+
+type graphicSettings
+    string levelName
+    color levelColor
+    bool showLevel
+
+var graphicSettingsArray = array.from(
+      graphicSettings.new(" P", pColorInput, pShowInput),
+      graphicSettings.new("R1", r1ColorInput, r1ShowInput), graphicSettings.new("S1", s1ColorInput, s1ShowInput),
+      graphicSettings.new("R2", r2ColorInput, r2ShowInput), graphicSettings.new("S2", s2ColorInput, s2ShowInput),
+      graphicSettings.new("R3", r3ColorInput, r3ShowInput), graphicSettings.new("S3", s3ColorInput, s3ShowInput),
+      graphicSettings.new("R4", r4ColorInput, r4ShowInput), graphicSettings.new("S4", s4ColorInput, s4ShowInput),
+      graphicSettings.new("R5", r5ColorInput, r5ShowInput), graphicSettings.new("S5", s5ColorInput, s5ShowInput))
+
+autoAnchor = switch
+    timeframe.isintraday => timeframe.multiplier <= 15 ? "1D" : "1W"
+    timeframe.isdaily    => "1M"
+    => "12M"
+
+pivotTimeframe = switch pivotAnchorInput
+    "Auto"      => autoAnchor
+    "Daily"     => "1D"
+    "Weekly"    => "1W"
+    "Monthly"   => "1M"
+    "Quarterly" => "3M"
+    => "12M"
+
+//@variable The number of years in the selected Pivot period
+pivotYearMultiplier = switch pivotAnchorInput
+    "Biyearly"       => 2
+    "Triyearly"      => 3
+    "Quinquennially" => 5
+    "Decennially"    => 10
+    => 1
+
+//@variable The number of values in the pivots of the selected type
+numOfPivotLevels = switch pivotTypeInput
+    "Traditional" => 11
+    "Camarilla"   => 11
+    "Woodie"      => 9
+    "Classic"     => 9
+    "Fibonacci"   => 7
+    "DM"          => 3
+
+type pivotGraphic
+    line pivotLine
+    label pivotLabel
+
+method delete(pivotGraphic graphic) =>
+    graphic.pivotLine.delete()
+    graphic.pivotLabel.delete()
+
+var drawnGraphics = matrix.new<pivotGraphic>()
+
+localPivotTimeframeChange = timeframe.change(pivotTimeframe) and year % pivotYearMultiplier == 0
+securityPivotTimeframeChange = timeframe.change(timeframe.period) and year % pivotYearMultiplier == 0
+
+pivotTimeframeChangeCounter(condition) => 
+    var count = 0
+    if condition and bar_index > 0
+        count += 1
+    count
+
+localPivots = ta.pivot_point_levels(pivotTypeInput, localPivotTimeframeChange)
+securityPivotPointsArray = ta.pivot_point_levels(pivotTypeInput, securityPivotTimeframeChange)
+
+securityTimeframe = timeframe.isintraday ? "1D" : timeframe.period
+[securityPivots, securityPivotCounter] = request.security(syminfo.tickerid, pivotTimeframe, [securityPivotPointsArray, pivotTimeframeChangeCounter(securityPivotTimeframeChange)], lookahead = barmerge.lookahead_on)
+pivotPointsArray = isDailyBasedInput ? securityPivots : localPivots
+
+//@function Sets the ending points of the currently active pivots to `endTime`.
+affixOldPivots(endTime) =>
+    if drawnGraphics.rows() > 0
+        lastGraphics = drawnGraphics.row(drawnGraphics.rows() - 1)
+
+        for graphic in lastGraphics
+            graphic.pivotLine.set_x2(endTime)
+            if positionLabelsInput == "Right"
+                graphic.pivotLabel.set_x(endTime)
+
+//@function Draws pivot lines and labels from `startTime` to the approximate end of the period.
+drawNewPivots(startTime) =>
+    
+    newGraphics = array.new<pivotGraphic>()
+
+    for [index, coord] in pivotPointsArray
+        levelSettings = graphicSettingsArray.get(index)
+        if not na(coord) and levelSettings.showLevel and switch_pivot
+            lineEndTime = startTime + timeframe.in_seconds(pivotTimeframe) * 1000 * pivotYearMultiplier
+            pivotLine = line.new(startTime, coord, lineEndTime, coord, xloc = xloc.bar_time, color=levelSettings.levelColor, width=linewidthInput)
+            pivotLabel = label.new(x = positionLabelsInput == "Left" ? startTime : lineEndTime,
+                               y = coord,
+                               text = (showLabelsInput ? levelSettings.levelName + " " : "") + (showPricesInput ? "(" + str.tostring(coord, format.mintick) + ")" : ""),
+                               style = positionLabelsInput == "Left" ? label.style_label_right : label.style_label_left,
+                               textcolor = levelSettings.levelColor,
+                               color = #00000000,
+                               xloc=xloc.bar_time)
+            
+            newGraphics.push(pivotGraphic.new(pivotLine, pivotLabel))
+    
+    drawnGraphics.add_row(array_id = newGraphics)
+
+    if drawnGraphics.rows() > maxHistoricalPivotsInput
+        oldGraphics = drawnGraphics.remove_row(0)
+        
+        for graphic in oldGraphics
+            graphic.delete()
+
+localPivotDrawConditionStatic = not isDailyBasedInput and localPivotTimeframeChange
+securityPivotDrawConditionStatic = isDailyBasedInput and securityPivotCounter != securityPivotCounter[1]
+
+var isMultiYearly = array.from("Biyearly", "Triyearly", "Quinquennially", "Decennially").includes(pivotAnchorInput)
+localPivotDrawConditionDeveloping = not isDailyBasedInput and time_close == time_close(pivotTimeframe) and not isMultiYearly 
+securityPivotDrawConditionDeveloping = false
+
+if (switch_pivot and (securityPivotDrawConditionStatic or localPivotDrawConditionStatic))
+    affixOldPivots(time)
+    drawNewPivots(time)
+
+// If possible, draw pivots from the beginning of the chart if none were found
+var FIRST_BAR_TIME = time
+if (barstate.islastconfirmedhistory and drawnGraphics.columns() == 0 and switch_pivot)
+
+    if not na(securityPivots) and securityPivotCounter > 0
+        if isDailyBasedInput
+            drawNewPivots(FIRST_BAR_TIME)
+        else 
+            runtime.error("Not enough intraday data to calculate Pivot Points. Lower the Pivots Timeframe or turn on the 'Use Daily-based Values' option in the indicator settings.")
+    else
+        runtime.error("Not enough data to calculate Pivot Points. Lower the Pivots Timeframe in the indicator settings.")
+
+// =============== ICHIMOKU CLOUD ===============
+ichi_group = "██████████ Ichimoku Cloud ██████████"
+conversion_periods = input.int(9, minval=1, title="Conversion Line Length", group=ichi_group)
+base_periods = input.int(26, minval=1, title="Base Line Length", group=ichi_group)
+lagging_span2_periods = input.int(52, minval=1, title="Leading Span B Length", group=ichi_group)
+displacement = input.int(26, minval=1, title="Lagging Span", group=ichi_group)
+
+donchian(len) => math.avg(ta.lowest(len), ta.highest(len))
+
+conversion_line = donchian(conversion_periods)
+base_line = donchian(base_periods)
+lead_line1 = math.avg(conversion_line, base_line)
+lead_line2 = donchian(lagging_span2_periods)
+
+// Plot Ichimoku Cloud with switch control
+plot(switch_ichi ? conversion_line : na, color=#2962FF, title="Conversion Line", linewidth=1)
+plot(switch_ichi ? base_line : na, color=#B71C1C, title="Base Line", linewidth=1)
+plot(switch_ichi ? close : na, offset=-displacement + 1, color=#43A047, title="Lagging Span")
+
+p1 = plot(switch_ichi ? lead_line1 : na, offset=displacement - 1, color=#A5D6A7, title="Leading Span A")
+p2 = plot(switch_ichi ? lead_line2 : na, offset=displacement - 1, color=#EF9A9A, title="Leading Span B")
+
+fill(p1, p2, color=switch_ichi ? (lead_line1 > lead_line2 ? color.rgb(67, 160, 71, 70) : color.rgb(244, 67, 54, 70)) : na)
+
+

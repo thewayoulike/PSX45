@@ -1,0 +1,92 @@
+//@version=5
+indicator("Momentum Panel Selector", shorttitle="Momentum Selector", overlay=false)
+
+// Indicator Selection
+indicator_type = input.string("RSI", "Select Indicator", options=["RSI", "MACD", "Stochastic", "ADX"])
+
+// ===== RSI Settings =====
+rsi_settings = input.bool(true, "───── RSI Settings ─────", tooltip="RSI Settings")
+rsi_length = input.int(14, "RSI Length", minval=1, group="RSI Settings")
+rsi_overbought = input.int(60, "RSI Overbought", group="RSI Settings")
+rsi_oversold = input.int(40, "RSI Oversold", group="RSI Settings")
+rsi_color = input.color(color.green, "RSI Line Color", group="RSI Settings")
+show_smoothing = input.bool(true, "Show Smoothing MA", group="RSI Settings")
+smoothing_type = input.string("SMA", "Smoothing Type", options=["SMA", "EMA"], group="RSI Settings")
+smoothing_length = input.int(9, "Smoothing Length", minval=1, group="RSI Settings")
+
+// ===== MACD Settings =====
+macd_settings = input.bool(true, "───── MACD Settings ─────", tooltip="MACD Settings")
+macd_fast = input.int(12, "MACD Fast Length", group="MACD Settings")
+macd_slow = input.int(26, "MACD Slow Length", group="MACD Settings")
+macd_signal = input.int(9, "MACD Signal Length", group="MACD Settings")
+hist_above_rising = input.color(color.green, "Above Zero - Rising", group="MACD Settings")
+hist_above_falling = input.color(color.rgb(151, 211, 153), "Above Zero - Falling", group="MACD Settings")
+hist_below_rising = input.color(color.rgb(234, 185, 185), "Below Zero - Rising", group="MACD Settings")
+hist_below_falling = input.color(color.red, "Below Zero - Falling", group="MACD Settings")
+
+// ===== Stochastic Settings =====
+stoch_settings = input.bool(true, "───── Stochastic Settings ─────", tooltip="Stochastic Settings")
+stoch_k = input.int(14, "Stochastic %K Length", group="Stochastic Settings")
+stoch_d = input.int(3, "Stochastic %D Length", group="Stochastic Settings")
+stoch_smooth = input.int(3, "Stochastic Smoothing", group="Stochastic Settings")
+stoch_overbought = input.int(80, "Stochastic Overbought", group="Stochastic Settings")
+stoch_oversold = input.int(20, "Stochastic Oversold", group="Stochastic Settings")
+k_color = input.color(color.green, "Stochastic %K Color", group="Stochastic Settings")
+
+// ===== ADX Settings =====
+adx_settings = input.bool(true, "───── ADX Settings ─────", tooltip="ADX Settings")
+adx_length = input.int(14, "ADX Length", group="ADX Settings")
+di_length = input.int(14, "DI Length", group="ADX Settings")
+adx_threshold = input.int(25, "ADX Trend Threshold", group="ADX Settings")
+adx_color = input.color(color.purple, "ADX Line Color", group="ADX Settings")
+
+// ===== Calculations =====
+// RSI Calculation
+rsi = ta.rsi(close, rsi_length)
+smooth_line = smoothing_type == "SMA" ? ta.sma(rsi, smoothing_length) : ta.ema(rsi, smoothing_length)
+
+// MACD Calculation
+[macd_line, signal_line, hist_line] = ta.macd(close, macd_fast, macd_slow, macd_signal)
+hist_color = hist_line &gt; 0 ? 
+             (hist_line &gt; hist_line[1] ? hist_above_rising : hist_above_falling) :
+             (hist_line &gt; hist_line[1] ? hist_below_rising : hist_below_falling)
+
+// Stochastic Calculation
+k = ta.sma(ta.stoch(close, high, low, stoch_k), stoch_smooth)
+d = ta.sma(k, stoch_d)
+
+// ADX Calculation
+[dip, din, adx] = ta.dmi(di_length, adx_length)
+
+// ===== Plotting Based on Selection =====
+// RSI Plots
+plot(indicator_type == "RSI" ? rsi : na, "RSI", color=rsi_color, linewidth=2)
+plot(indicator_type == "RSI" and show_smoothing ? smooth_line : na, "Smoothing MA", color=color.rgb(241, 17, 17), linewidth=1)
+
+// MACD Plots
+plot(indicator_type == "MACD" ? macd_line : na, "MACD Line", color=color.green, linewidth=2)
+plot(indicator_type == "MACD" ? signal_line : na, "Signal Line", color=color.red, linewidth=1)
+plot(indicator_type == "MACD" ? hist_line : na, "MACD Histogram", color=hist_color, style=plot.style_columns)
+
+// Stochastic Plots
+plot(indicator_type == "Stochastic" ? k : na, "%K", color=k_color, linewidth=2)
+plot(indicator_type == "Stochastic" ? d : na, "%D", color=color.red, linewidth=1)
+
+// ADX Plot
+plot(indicator_type == "ADX" ? adx : na, "ADX", color=adx_color, linewidth=2)
+
+// ===== Horizontal Lines =====
+// RSI Lines
+hline(indicator_type == "RSI" ? rsi_overbought : na, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(indicator_type == "RSI" ? rsi_oversold : na, "Oversold", color=color.green, linestyle=hline.style_dashed)
+hline(indicator_type == "RSI" ? 50 : na, "Midline", color=color.gray, linestyle=hline.style_dotted)
+
+// MACD Zero Line
+hline(indicator_type == "MACD" ? 0 : na, "Zero Line", color=color.gray)
+
+// Stochastic Lines
+hline(indicator_type == "Stochastic" ? stoch_overbought : na, "Overbought", color=color.red, linestyle=hline.style_dashed)
+hline(indicator_type == "Stochastic" ? stoch_oversold : na, "Oversold", color=color.green, linestyle=hline.style_dashed)
+
+// ADX Line
+hline(indicator_type == "ADX" ? adx_threshold : na, "Trend Threshold", color=color.purple, linestyle=hline.style_dashed)

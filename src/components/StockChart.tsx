@@ -11,6 +11,7 @@ import {
   hasAnyPivot,
   hasAnySupertrend,
   isMaSeriesVisible,
+  ChartTimeframe,
   PivotLabel,
 } from '../utils/awaisIndicators';
 import { IndicatorsPanel, AwaisSvgOverlays, AwaisPivotLabels } from './AwaisChartOverlays';
@@ -1322,9 +1323,21 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const analysisForLayers = showCandle && candleInterval === 'month' ? monthlyAnalysis : visibleAnalysis;
   const hasMacd = analysisForLayers.some((p) => Number.isFinite(p.macd));
 
+  const pivotTimeframe: ChartTimeframe = showCandle && candleInterval === 'month' ? 'month' : 'day';
+
+  /** Pivots need whole anchor periods, so feed them unfiltered history, not the visible range. */
+  const pivotBars = useMemo(
+    () => (pivotTimeframe === 'month' ? aggregateMonthly(ohlc) : ohlc),
+    [ohlc, pivotTimeframe]
+  );
+
   const awaisFull = useMemo(
-    () => computeAwaisOverlays(showCandle ? candleOhlc : filteredOhlc, awaisLayers),
-    [showCandle, candleOhlc, filteredOhlc, awaisLayers]
+    () =>
+      computeAwaisOverlays(showCandle ? candleOhlc : filteredOhlc, awaisLayers, {
+        pivotBars,
+        timeframe: pivotTimeframe,
+      }),
+    [showCandle, candleOhlc, filteredOhlc, awaisLayers, pivotBars, pivotTimeframe]
   );
 
   const awaisVisible = useMemo(() => {

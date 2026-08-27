@@ -50,9 +50,18 @@ export type BbSelection = Record<BbKey, boolean>;
 export type SupertrendKey = 'up' | 'down';
 export type SupertrendSelection = Record<SupertrendKey, boolean>;
 
-export const PIVOT_LABELS = ['P', 'R1', 'R2', 'R3', 'S1', 'S2', 'S3'] as const;
+export const PIVOT_LABELS = [
+  'P',
+  'R1', 'R2', 'R3', 'R4', 'R5',
+  'S1', 'S2', 'S3', 'S4', 'S5',
+] as const;
 export type PivotLabel = (typeof PIVOT_LABELS)[number];
 export type PivotSelection = Record<PivotLabel, boolean>;
+
+/** Pivot anchor period. "Auto" follows the Pine script: daily chart -> Monthly, monthly chart -> Yearly. */
+export const PIVOT_ANCHORS = ['Auto', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'Yearly'] as const;
+export type PivotAnchor = (typeof PIVOT_ANCHORS)[number];
+export type ChartTimeframe = 'day' | 'month';
 
 export type IchimokuKey = 'cloud' | 'conversion' | 'base' | 'spanA' | 'spanB';
 export type IchimokuSelection = Record<IchimokuKey, boolean>;
@@ -63,6 +72,7 @@ export interface AwaisLayers {
   bb: BbSelection;
   supertrend: SupertrendSelection;
   pivot: PivotSelection;
+  pivotAnchor: PivotAnchor;
   ichimoku: IchimokuSelection;
 }
 
@@ -83,9 +93,13 @@ export const DEFAULT_PIVOT_SELECTION: PivotSelection = {
   R1: true,
   R2: true,
   R3: true,
+  R4: true,
+  R5: true,
   S1: true,
   S2: true,
   S3: true,
+  S4: true,
+  S5: true,
 };
 
 export const DEFAULT_ICHI_SELECTION: IchimokuSelection = {
@@ -108,6 +122,7 @@ export const DEFAULT_AWAIS_LAYERS: AwaisLayers = {
   bb: { ...DEFAULT_BB_SELECTION },
   supertrend: { ...DEFAULT_SUPERTREND_SELECTION },
   pivot: { ...DEFAULT_PIVOT_SELECTION },
+  pivotAnchor: 'Auto',
   ichimoku: { ...DEFAULT_ICHI_SELECTION },
 };
 
@@ -128,9 +143,13 @@ export const AWAIS_PIVOT_OPTIONS: { key: PivotLabel; label: string; color: strin
   { key: 'R1', label: 'Resistance 1', color: '#FB8C00' },
   { key: 'R2', label: 'Resistance 2', color: '#FB8C00' },
   { key: 'R3', label: 'Resistance 3', color: '#FB8C00' },
+  { key: 'R4', label: 'Resistance 4', color: '#FB8C00' },
+  { key: 'R5', label: 'Resistance 5', color: '#FB8C00' },
   { key: 'S1', label: 'Support 1', color: '#FB8C00' },
   { key: 'S2', label: 'Support 2', color: '#FB8C00' },
   { key: 'S3', label: 'Support 3', color: '#FB8C00' },
+  { key: 'S4', label: 'Support 4', color: '#FB8C00' },
+  { key: 'S5', label: 'Support 5', color: '#FB8C00' },
 ];
 
 export const AWAIS_ICHI_OPTIONS: { key: IchimokuKey; label: string; color: string }[] = [
@@ -146,7 +165,14 @@ export function maSlotLabel(slot: MaSlot): string {
 }
 
 export function cloneAwaisLayers(layers: AwaisLayers): AwaisLayers {
-  return JSON.parse(JSON.stringify(layers)) as AwaisLayers;
+  const c = JSON.parse(JSON.stringify(layers)) as AwaisLayers;
+  c.pivot = c.pivot ?? { ...DEFAULT_PIVOT_SELECTION };
+  // Settings saved before R4/R5/S4/S5 existed default them on, matching the Pine script.
+  for (const label of PIVOT_LABELS) {
+    if (c.pivot[label] == null) c.pivot[label] = true;
+  }
+  if (!PIVOT_ANCHORS.includes(c.pivotAnchor)) c.pivotAnchor = 'Auto';
+  return c;
 }
 
 export function hasAnyMaLine(layers: AwaisLayers): boolean {
@@ -403,6 +429,7 @@ function donchianMid(bars: OhlcBar[], i: number, len: number): number | null {
   return (lo + hi) / 2;
 }
 
+/** TradingView "Traditional" pivots: P plus R1–R5 / S1–S5. */
 function traditionalPivots(h: number, l: number, c: number): PivotLevel[] {
   const p = (h + l + c) / 3;
   const r = h - l;
@@ -412,13 +439,89 @@ function traditionalPivots(h: number, l: number, c: number): PivotLevel[] {
     { label: 'S1', value: 2 * p - h },
     { label: 'R2', value: p + r },
     { label: 'S2', value: p - r },
-    { label: 'R3', value: h + 2 * (p - l) },
-    { label: 'S3', value: l - 2 * (h - p) },
+    { label: 'R3', value: 2 * p + (h - 2 * l) },
+    { label: 'S3', value: 2 * p - (2 * h - l) },
+    { label: 'R4', value: 3 * p + (h - 3 * l) },
+    { label: 'S4', value: 3 * p - (3 * h - l) },
+    { label: 'R5', value: 4 * p + (h - 4 * l) },
+    { label: 'S5', value: 4 * p - (4 * h - l) },
   ];
 }
 
+/** Pine `autoAnchor`: daily chart anchors to Monthly, monthly chart to Yearly. */
+export function resolvePivotAnchor(
+  anchor: PivotAnchor,
+  timeframe: ChartTimeframe
+): Exclude<PivotAnchor, 'Auto'> {
+  if (anchor !== 'Auto') return anchor;
+  return timeframe === 'month' ? 'Yearly' : 'Monthly';
+}
+
+function periodKey(time: number, anchor: Exclude<PivotAnchor, 'Auto'>): string {
+  const d = new Date(time);
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth();
+  switch (anchor) {
+    case 'Daily':
+      return `${y}-${m}-${d.getUTCDate()}`;
+    case 'Weekly': {
+      // Anchor to the Monday starting the week containing this bar.
+      const monday = Date.UTC(y, m, d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+      return `W${monday}`;
+    }
+    case 'Monthly':
+      return `${y}-${m}`;
+    case 'Quarterly':
+      return `${y}-Q${Math.floor(m / 3)}`;
+    case 'Yearly':
+      return `${y}`;
+  }
+}
+
+/**
+ * High/low/close of the last *completed* anchor period, which is what pivot
+ * levels are drawn from. Falls back to the previous bar when history is too
+ * short to contain a finished period.
+ */
+function pivotSourceOhlc(
+  bars: OhlcBar[],
+  anchor: Exclude<PivotAnchor, 'Auto'>
+): { high: number; low: number; close: number } | null {
+  const n = bars.length;
+  if (!n) return null;
+
+  const currentKey = periodKey(bars[n - 1].time, anchor);
+  let i = n - 1;
+  while (i >= 0 && periodKey(bars[i].time, anchor) === currentKey) i--;
+
+  if (i < 0) {
+    const prev = bars[n - 2] ?? bars[n - 1];
+    return { high: prev.high, low: prev.low, close: prev.close };
+  }
+
+  const prevKey = periodKey(bars[i].time, anchor);
+  const close = bars[i].close;
+  let high = -Infinity;
+  let low = Infinity;
+  for (; i >= 0 && periodKey(bars[i].time, anchor) === prevKey; i--) {
+    high = Math.max(high, bars[i].high);
+    low = Math.min(low, bars[i].low);
+  }
+  return { high, low, close };
+}
+
+export interface AwaisOverlayOptions {
+  /** Full unfiltered history; the visible range rarely covers a whole anchor period. */
+  pivotBars?: OhlcBar[];
+  timeframe?: ChartTimeframe;
+}
+
 /** Awais Custom Indicator Panel — MA, BB, Supertrend, Pivots, Ichimoku. */
-export function computeAwaisOverlays(bars: OhlcBar[], layers: AwaisLayers): AwaisOverlayData | null {
+export function computeAwaisOverlays(
+  bars: OhlcBar[],
+  layers: AwaisLayers,
+  options: AwaisOverlayOptions = {}
+): AwaisOverlayData | null {
   if (bars.length < 3) return null;
   const closes = bars.map((b) => b.close);
   const volumes = bars.map((b) => b.volume);
@@ -496,8 +599,11 @@ export function computeAwaisOverlays(bars: OhlcBar[], layers: AwaisLayers): Awai
     spanB[i] = sb;
   }
 
-  const prev = bars[n - 2] ?? bars[n - 1];
-  const pivots = traditionalPivots(prev.high, prev.low, prev.close);
+  const timeframe = options.timeframe ?? 'day';
+  const anchor = resolvePivotAnchor(layers.pivotAnchor ?? 'Auto', timeframe);
+  const pivotBars = options.pivotBars?.length ? options.pivotBars : bars;
+  const src = pivotSourceOhlc(pivotBars, anchor);
+  const pivots = src ? traditionalPivots(src.high, src.low, src.close) : [];
 
   return {
     maLines,
