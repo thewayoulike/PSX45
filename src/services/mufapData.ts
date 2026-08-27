@@ -17,7 +17,16 @@ export interface MutualFundRecord {
   validityDate: string;
   frontEndLoad: number;
   backEndLoad: number;
+  /** Yesterday's valuation NAV when catalog was synced with a 2-day pull. */
+  prevNav?: number;
+  prevValidityDate?: string;
 }
+
+export type FundPreviousNav = {
+  nav: number;
+  repurchase?: number;
+  validityDate: string;
+};
 
 export const MUFAP_NAV_URL = 'https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=3';
 export const FUND_CATALOG_STORAGE_KEY = 'psx_fund_catalog';
@@ -47,9 +56,13 @@ export const saveFundCatalog = (catalog: Record<string, MutualFundRecord>) => {
 type CatalogPayload = {
   catalog: Record<string, MutualFundRecord>;
   reportDate?: string | null;
+  previousReportDate?: string | null;
   updatedAt?: string | null;
   source?: string;
   count?: number;
+  previousNavs?: Record<string, FundPreviousNav>;
+  today?: string;
+  yesterday?: string;
 };
 
 let embeddedCatalogPromise: Promise<CatalogPayload> | null = null;
@@ -79,8 +92,10 @@ const parsePayload = (data: CatalogPayload, source?: string) => {
   return {
     catalog: data.catalog,
     reportDate: data.reportDate || undefined,
+    previousReportDate: data.previousReportDate || undefined,
     updatedAt: data.updatedAt || undefined,
     source: source || data.source || undefined,
+    previousNavs: data.previousNavs || undefined,
   };
 };
 
@@ -314,8 +329,10 @@ export const fundValuationNav = (f: MutualFundRecord): number =>
 export const fetchMufapNavCatalog = async (): Promise<{
   catalog: Record<string, MutualFundRecord>;
   reportDate?: string;
+  previousReportDate?: string;
   updatedAt?: string;
   source?: string;
+  previousNavs?: Record<string, FundPreviousNav>;
 }> => {
   let apiFallback: CatalogPayload | null = null;
 

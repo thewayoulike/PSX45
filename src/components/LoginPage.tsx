@@ -152,10 +152,23 @@ const Feature: React.FC<{
   title: string;
   children: React.ReactNode;
   tint: string;
-}> = ({ Icon, title, children, tint }) => (
-  <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all">
-    <div className={`w-11 h-11 rounded-2xl flex items-center justify-center mb-4 border ${tint}`}>
-      <Icon size={20} />
+  badge?: string;
+  highlight?: boolean;
+}> = ({ Icon, title, children, tint, badge, highlight }) => (
+  <div className={`rounded-2xl border p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all ${
+    highlight
+      ? 'bg-gradient-to-br from-teal-50 via-white to-emerald-50 dark:from-teal-500/15 dark:via-slate-900 dark:to-emerald-500/10 border-teal-300/80 dark:border-teal-500/40 ring-1 ring-teal-200/60 dark:ring-teal-500/20'
+      : 'bg-white dark:bg-slate-900 border-slate-200/70 dark:border-slate-800/70'
+  }`}>
+    <div className="flex items-start justify-between gap-2 mb-4">
+      <div className={`w-11 h-11 rounded-2xl flex items-center justify-center border ${tint}`}>
+        <Icon size={20} />
+      </div>
+      {badge && (
+        <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-teal-600 text-white shadow-sm shadow-teal-600/30">
+          {badge}
+        </span>
+      )}
     </div>
     <h3 className="text-base font-display font-black text-slate-900 dark:text-white mb-1.5 tracking-tight">{title}</h3>
     <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{children}</p>
@@ -597,8 +610,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </h1>
 
           <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
-            Live prices, true FIFO cost basis, realized P&amp;L with CGT, dividends,
-            market signals, watchlist and price alerts — in one private web app.
+            Live PSX prices, true FIFO cost basis, realized P&amp;L with CGT, dividends,
+            and market tools — plus full <span className="font-bold text-teal-700 dark:text-teal-400">mutual fund tracking</span> with MUFAP NAVs and daily P&amp;L.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
@@ -617,8 +630,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </div>
           <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-12">✓ 15-day free trial · no card required</p>
 
-          <div className="flex flex-wrap gap-2 justify-center">
+          <div className="flex flex-wrap gap-2 justify-center mb-8">
             <Pill>Live PSX Prices</Pill>
+            <span className="px-3 py-1.5 rounded-full bg-teal-600 text-white text-[11px] font-black tracking-wide shadow-md shadow-teal-600/25 whitespace-nowrap">
+              ★ Mutual Funds · Extra
+            </span>
             <Pill>Holdings &amp; History</Pill>
             <Pill>Watchlist</Pill>
             <Pill>Market Signals</Pill>
@@ -632,6 +648,23 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             <Pill>Trade Import</Pill>
             <Pill>Drive Sync</Pill>
             <Pill>Guest Mode</Pill>
+          </div>
+
+          <div className="max-w-2xl mx-auto rounded-2xl border border-teal-200/80 dark:border-teal-500/30 bg-gradient-to-r from-teal-50/90 to-emerald-50/80 dark:from-teal-500/10 dark:to-emerald-500/10 px-5 py-4 text-left shadow-sm">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-teal-600/30">
+                <Wallet size={18} />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="text-sm font-display font-black text-slate-900 dark:text-white tracking-tight">Mutual Fund Portfolios</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-teal-600 text-white">Extra Feature</span>
+                </div>
+                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Track open-end funds alongside stocks — MUFAP NAV sync, units &amp; cost basis, and true day-over-day fund P&amp;L from today vs yesterday NAV.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -650,6 +683,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           />
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            <Feature
+              Icon={Wallet}
+              title="Mutual Fund Tracking"
+              tint="bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-500/30"
+              badge="Extra"
+              highlight
+            >
+              Dedicated fund portfolios with MUFAP NAV sync, units &amp; average cost, and daily P&amp;L from today vs yesterday NAV — not just stock tracking.
+            </Feature>
+
             <Feature Icon={LayoutDashboard} title="Live Dashboard" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
               Net worth, today's P&amp;L, total return and a portfolio health score — with KSE-100, KMI-30 and USD/PKR at the top. Layout is customizable.
             </Feature>

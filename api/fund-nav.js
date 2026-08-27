@@ -37,7 +37,11 @@ function toResponse(catalogObj, source) {
     catalog,
     count,
     reportDate: catalogObj.reportDate || null,
+    previousReportDate: catalogObj.previousReportDate || null,
     updatedAt: catalogObj.updatedAt || null,
+    previousNavs: catalogObj.previousNavs || null,
+    today: catalogObj.today || null,
+    yesterday: catalogObj.yesterday || null,
     source,
   };
 }

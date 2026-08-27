@@ -908,7 +908,7 @@ const App: React.FC = () => {
       setFailedTickers(new Set());
 
       try {
-          const { catalog, source } = await fetchMufapNavCatalog();
+          const { catalog, source, previousNavs } = await fetchMufapNavCatalog();
           setFundCatalog(catalog);
           const liveNav = isLiveFundCatalogSource(source);
 
@@ -941,29 +941,50 @@ const App: React.FC = () => {
                   const prevMark = fundNavDayMap[id];
                   const prevValidity = normalizeFundValidity(prevMark?.validityDate);
                   const hadRecentLive = isRecentLiveFundPrice(priceTimestamps[id]);
+                  const syncedPrev = previousNavs?.[id] || (
+                      catalog[id]?.prevNav && catalog[id]?.prevValidityDate
+                          ? { nav: catalog[id].prevNav!, validityDate: catalog[id].prevValidityDate! }
+                          : null
+                  );
+                  const syncedPrevValidity = normalizeFundValidity(syncedPrev?.validityDate);
 
-                  // True day P&L only when MUFAP validity date advanced after a recent live sync
-                  const dayRolled =
+                  // Best: catalog includes explicit yesterday NAV with a different validity date
+                  if (
                       liveNav &&
-                      hadRecentLive &&
-                      !!prevMark &&
-                      !!prevValidity &&
-                      !!newValidity &&
-                      prevValidity !== newValidity &&
-                      old > 0 &&
-                      Math.abs(old - prevMark.nav) < 1e-4;
-
-                  if (old > 0 && Math.abs(old - nav) > 1e-8 && dayRolled) {
-                      ldcpUpdates[id] = old;
+                      syncedPrev &&
+                      syncedPrev.nav > 0 &&
+                      syncedPrevValidity &&
+                      newValidity &&
+                      syncedPrevValidity !== newValidity
+                  ) {
+                      ldcpUpdates[id] = syncedPrev.nav;
                   } else {
-                      // Same report day, first sync, or catalog correction → 0 daily for this fund
-                      ldcpUpdates[id] = nav;
+                      // True day P&L only when MUFAP validity date advanced after a recent live sync
+                      const dayRolled =
+                          liveNav &&
+                          hadRecentLive &&
+                          !!prevMark &&
+                          !!prevValidity &&
+                          !!newValidity &&
+                          prevValidity !== newValidity &&
+                          old > 0 &&
+                          Math.abs(old - prevMark.nav) < 1e-4;
+
+                      if (old > 0 && Math.abs(old - nav) > 1e-8 && dayRolled) {
+                          ldcpUpdates[id] = old;
+                      } else {
+                          // Same report day, first sync, or catalog correction → 0 daily for this fund
+                          ldcpUpdates[id] = nav;
+                      }
                   }
 
                   next[id] = nav;
                   nextDayMarks[id] = {
-                      nav,
-                      validityDate: validityById[id] || prevMark?.validityDate || '',
+                      nav: syncedPrev && syncedPrevValidity !== newValidity ? syncedPrev.nav : nav,
+                      validityDate:
+                          syncedPrev && syncedPrevValidity !== newValidity
+                              ? syncedPrev.validityDate
+                              : (validityById[id] || prevMark?.validityDate || ''),
                       syncedAt: now,
                   };
               });
