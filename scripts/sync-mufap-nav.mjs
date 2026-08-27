@@ -40,6 +40,47 @@ async function fetchDirect() {
   return res.text();
 }
 
+/** Free public relays — used when Playwright/direct are Cloudflare-blocked. No API keys. */
+async function fetchViaRelays() {
+  const relays = [
+    { name: 'jina', url: () => `https://r.jina.ai/http://${MUFAP_URL.replace(/^https?:\/\//, '')}` },
+    { name: 'allorigins', url: () => `https://api.allorigins.win/raw?url=${encodeURIComponent(MUFAP_URL)}` },
+    { name: 'codetabs', url: () => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(MUFAP_URL)}` },
+  ];
+
+  for (const r of relays) {
+    try {
+      console.log(`[sync-mufap] Trying relay: ${r.name}…`);
+      const res = await fetch(r.url(), {
+        headers: {
+          Accept: 'text/html,text/plain,*/*',
+          // jina rejects some Chrome UAs with 403 — keep this minimal
+          'User-Agent': 'PSX45-FundSync/1.0',
+        },
+        redirect: 'follow',
+      });
+      if (!res.ok) {
+        console.warn(`[sync-mufap] ${r.name} HTTP ${res.status}`);
+        continue;
+      }
+      const html = await res.text();
+      if (isMufapBlockedPage(html)) {
+        console.warn(`[sync-mufap] ${r.name} returned challenge page`);
+        continue;
+      }
+      const funds = parseMufapNavHtml(html);
+      if (funds.length < 50) {
+        console.warn(`[sync-mufap] ${r.name} only parsed ${funds.length} funds`);
+        continue;
+      }
+      return { html, method: `relay:${r.name}` };
+    } catch (e) {
+      console.warn(`[sync-mufap] ${r.name} failed:`, e.message);
+    }
+  }
+  return null;
+}
+
 async function fetchHtml() {
   if (process.env.USE_PLAYWRIGHT !== '0') {
     try {
@@ -51,9 +92,18 @@ async function fetchHtml() {
     }
   }
 
-  const html = await fetchDirect();
-  if (isMufapBlockedPage(html)) throw new Error('MUFAP returned Cloudflare challenge (direct fetch blocked)');
-  return { html, method: 'direct' };
+  try {
+    const html = await fetchDirect();
+    if (!isMufapBlockedPage(html)) return { html, method: 'direct' };
+    console.warn('[sync-mufap] Direct fetch blocked by Cloudflare…');
+  } catch (e) {
+    console.warn('[sync-mufap] Direct fetch failed:', e.message);
+  }
+
+  const relay = await fetchViaRelays();
+  if (relay) return relay;
+
+  throw new Error('MUFAP unreachable (Cloudflare). Relays also failed — retry later or run from GitHub Actions.');
 }
 
 function buildCatalog(funds, html, method) {

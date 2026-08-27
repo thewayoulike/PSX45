@@ -1,5 +1,8 @@
-import { makeFundId } from '../utils/fundId';
 import { getScrapingApiKey, getWebScrapingAIKey } from './psxData';
+import {
+  parseMufapNavHtml as parseMufapNavHtmlShared,
+  isMufapBlockedPage as isMufapBlockedPageShared,
+} from '../../lib/mufapParse.js';
 
 export interface MutualFundRecord {
   id: string;
@@ -20,78 +23,11 @@ export const MUFAP_NAV_URL = 'https://www.mufap.com.pk/Industry/IndustryStatDail
 export const FUND_CATALOG_STORAGE_KEY = 'psx_fund_catalog';
 export const FUND_CATALOG_UPDATED_KEY = 'psx_fund_catalog_updated';
 
-const parseNum = (raw: string): number => {
-  const n = parseFloat((raw || '').replace(/,/g, '').trim());
-  return Number.isFinite(n) ? n : 0;
-};
+/** Parse HTML or markdown NAV tables (shared with server sync /api). */
+export const parseMufapNavHtml = (html: string): MutualFundRecord[] =>
+  parseMufapNavHtmlShared(html) as MutualFundRecord[];
 
-/** Parse a MUFAP NAV table row (14 columns). */
-const rowToFund = (cells: string[]): MutualFundRecord | null => {
-  if (cells.length < 8) return null;
-  const sector = (cells[0] || '').trim();
-  const amc = (cells[1] || '').trim();
-  const fundName = (cells[2] || '').trim();
-  const category = (cells[3] || '').trim();
-  if (!amc || !fundName || sector === 'Sector') return null;
-
-  const offer = parseNum(cells[5] || '');
-  const repurchase = parseNum(cells[6] || '');
-  const nav = parseNum(cells[7] || '') || repurchase || offer;
-  if (nav <= 0) return null;
-
-  return {
-    id: makeFundId(amc, fundName, category),
-    sector,
-    amc,
-    fundName,
-    category,
-    inceptionDate: (cells[4] || '').trim() || undefined,
-    offer: offer || nav,
-    repurchase: repurchase || nav,
-    nav,
-    validityDate: (cells[8] || '').trim(),
-    frontEndLoad: parseNum(cells[9] || ''),
-    backEndLoad: parseNum(cells[10] || ''),
-  };
-};
-
-/** Parse HTML table from MUFAP NAV page. */
-export const parseMufapNavHtml = (html: string): MutualFundRecord[] => {
-  const funds: MutualFundRecord[] = [];
-  const seen = new Set<string>();
-
-  try {
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    doc.querySelectorAll('table tr').forEach(tr => {
-      const cells = Array.from(tr.querySelectorAll('td, th')).map(el => el.textContent?.trim() || '');
-      if (cells.length < 8) return;
-      const fund = rowToFund(cells);
-      if (fund && !seen.has(fund.id)) {
-        seen.add(fund.id);
-        funds.push(fund);
-      }
-    });
-  } catch {
-    /* fall through to pipe-table parser */
-  }
-
-  if (funds.length > 0) return funds;
-
-  // Markdown / pipe-delimited fallback (some proxies strip tags)
-  const lines = html.split(/\r?\n/);
-  for (const line of lines) {
-    if (!line.includes('|')) continue;
-    const cells = line.split('|').map(c => c.trim()).filter(Boolean);
-    if (cells.length < 8) continue;
-    const fund = rowToFund(cells);
-    if (fund && !seen.has(fund.id)) {
-      seen.add(fund.id);
-      funds.push(fund);
-    }
-  }
-
-  return funds;
-};
+const isMufapBlockedPage = (html: string): boolean => isMufapBlockedPageShared(html);
 
 export const loadCachedFundCatalog = (): Record<string, MutualFundRecord> => {
   try {
@@ -151,9 +87,23 @@ const parsePayload = (data: CatalogPayload, source?: string) => {
 const isStaleCatalogSource = (source?: string) =>
   !source || source === 'bundled' || source === 'embedded' || source === 'static' || source === 'seed';
 
-/** True when NAV prices came from a fresh MUFAP fetch (not bundled/seed file). */
+/** Fresh enough to use for Sync NAV without paid scraper keys. */
 export const isLiveFundCatalogSource = (source?: string) =>
-  source === 'live' || source === 'browser-live' || source === 'proxy-live' || source === 'cors-live';
+  source === 'live' ||
+  source === 'browser-live' ||
+  source === 'proxy-live' ||
+  source === 'cors-live' ||
+  source === 'synced' ||
+  source === 'playwright' ||
+  source === 'direct' ||
+  source === 'api' ||
+  !!source?.startsWith('relay:');
+
+const isRecentCatalog = (updatedAt?: string | null, maxAgeMs = 48 * 60 * 60 * 1000) => {
+  if (!updatedAt) return false;
+  const t = Date.parse(updatedAt);
+  return !Number.isNaN(t) && Date.now() - t >= 0 && Date.now() - t < maxAgeMs;
+};
 
 const FUND_LDCP_RECENT_MS = 72 * 60 * 60 * 1000;
 
@@ -229,17 +179,6 @@ export const resolveFundDayNav = (
 
   // No proven day-over-day chain → baseline (fixes ALL stale leftover ldcp at once)
   return currentNav;
-};
-
-const isMufapBlockedPage = (html: string): boolean => {
-  if (!html || html.length < 1500) return true;
-  const lower = html.toLowerCase();
-  return (
-    lower.includes('just a moment') ||
-    lower.includes('cf-chl') ||
-    lower.includes('challenge-platform') ||
-    lower.includes('enable javascript and cookies')
-  );
 };
 
 const buildCatalogFromFunds = (funds: MutualFundRecord[], html: string, source: string) => {
@@ -351,68 +290,75 @@ const fetchLiveMufapViaScrapers = async (): Promise<CatalogPayload | null> => {
   return null;
 };
 
-/** Live MUFAP without hitting Vercel→MUFAP (always Cloudflare 403/502). */
-const fetchAnyLiveMufap = async (): Promise<CatalogPayload | null> =>
-  (await fetchLiveMufapFromBrowser()) ||
-  (await fetchLiveMufapViaScrapers()) ||
-  (await fetchLiveMufapViaCors());
+/** Live browser/CORS attempts — skip paid scrapers unless keys exist. */
+const fetchAnyLiveMufap = async (): Promise<CatalogPayload | null> => {
+  const browser = await fetchLiveMufapFromBrowser();
+  if (browser) return browser;
+  // Only hit paid scrapers if the user actually configured keys
+  if (getScrapingApiKey() || getWebScrapingAIKey()) {
+    const scraped = await fetchLiveMufapViaScrapers();
+    if (scraped) return scraped;
+  }
+  return fetchLiveMufapViaCors();
+};
 
 /** Repurchase / NAV column — what holders receive on redemption (MUFAP "NAV" column). */
 export const fundValuationNav = (f: MutualFundRecord): number =>
   f.repurchase > 0 ? f.repurchase : f.nav;
 
-/** Fetch full MUFAP NAV catalog — browser → scrapers → CORS → API → static → embedded. */
+/**
+ * Fetch full MUFAP NAV catalog.
+ * Default (no user keys): our `/api/fund-nav` first (Playwright/GH-synced catalog).
+ * Live browser/CORS are bonuses when Cloudflare allows.
+ */
 export const fetchMufapNavCatalog = async (): Promise<{
   catalog: Record<string, MutualFundRecord>;
   reportDate?: string;
   updatedAt?: string;
   source?: string;
 }> => {
-  // 1) Client-side live (never uses /api/proxy — that path is blocked for MUFAP)
-  const earlyLive = await fetchAnyLiveMufap();
-  if (earlyLive) return parsePayload(earlyLive, earlyLive.source);
+  let apiFallback: CatalogPayload | null = null;
 
-  // 2) Vercel API (server may use relays / SCRAPE_DO_TOKEN)
+  // 1) Our API — no keys required (synced catalog from GH Actions / deploy)
   for (const url of [`/api/fund-nav?t=${Date.now()}`, `/api/mufap-nav?t=${Date.now()}`]) {
     try {
       const res = await fetch(url, { cache: 'no-store' });
-      if (res.ok) {
-        const ct = res.headers.get('content-type') || '';
-        if (ct.includes('json')) {
-          const data = await res.json() as CatalogPayload;
-          const source = data.source || 'api';
-          if (isLiveFundCatalogSource(source)) return parsePayload(data, source);
-          const live = await fetchAnyLiveMufap();
-          if (live) return parsePayload(live, live.source);
-          return parsePayload(data, source);
-        }
+      if (!res.ok) continue;
+      const ct = res.headers.get('content-type') || '';
+      if (!ct.includes('json')) continue;
+      const data = await res.json() as CatalogPayload;
+      const source = data.source || 'api';
+      if (isLiveFundCatalogSource(source) || isRecentCatalog(data.updatedAt)) {
+        return parsePayload(data, isLiveFundCatalogSource(source) ? source : 'synced');
       }
+      apiFallback = data;
     } catch { /* try next */ }
   }
 
-  // 3) Static JSON (when public/data is deployed)
+  // 2) Live from the user's browser / free CORS (still no paid keys)
+  const live = await fetchAnyLiveMufap();
+  if (live) return parsePayload(live, live.source);
+
+  // 3) Accept whatever /api/fund-nav returned even if marked seed
+  if (apiFallback) {
+    return parsePayload(apiFallback, apiFallback.source || 'api');
+  }
+
+  // 4) Static JSON
   try {
     const staticRes = await fetch(`/data/fund-nav-catalog.json?t=${Date.now()}`, { cache: 'no-store' });
     if (staticRes.ok) {
       const text = await staticRes.text();
       if (text.trimStart().startsWith('{')) {
         const data = JSON.parse(text) as CatalogPayload;
-        if (isStaleCatalogSource(data.source)) {
-          const live = await fetchAnyLiveMufap();
-          if (live) return parsePayload(live, live.source);
-        }
-        return parsePayload(data, 'static');
+        return parsePayload(data, data.source || 'static');
       }
     }
   } catch { /* fall through */ }
 
-  // 4) Embedded in app bundle — last resort
+  // 5) Embedded bundle
   const embedded = await loadEmbeddedCatalog();
-  if (isStaleCatalogSource(embedded.source)) {
-    const live = await fetchAnyLiveMufap();
-    if (live) return parsePayload(live, live.source);
-  }
-  return parsePayload(embedded, 'embedded');
+  return parsePayload(embedded, embedded.source || 'embedded');
 };
 
 /** NAV prices for held fund ids from catalog (or fresh fetch). */
