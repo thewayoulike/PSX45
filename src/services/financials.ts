@@ -176,7 +176,7 @@ export const fetchCompanyFundamentals = async (ticker: string): Promise<Fundamen
   return null;
 };
 
-/** Company profile + dividends via pypsx_toolkit (Python on server). */
+/** Company profile + dividends via PSX web API (works on production without Python). */
 export const fetchCompanyInfo = async (ticker: string): Promise<CompanyInfoData | null> => {
   const clean = ticker.toUpperCase().replace('PSX:', '').trim();
   if (!clean) return null;

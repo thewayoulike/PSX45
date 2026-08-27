@@ -765,7 +765,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     )}
 
                     {!loadingFundamentals && !companyInfo?.businessDescription && !(companyInfo?.fundamentals?.length) && (
-                        <div className="p-12 text-center text-slate-400 font-medium text-sm">No company info available. Ensure pypsx-toolkit is installed locally.</div>
+                        <div className="p-12 text-center text-slate-400 font-medium text-sm">No company info available for this symbol right now. PSX data may be temporarily unavailable.</div>
                     )}
 
                     {!loadingFundamentals && companyInfo && (companyInfo.businessDescription || (companyInfo.fundamentals?.length ?? 0) > 0) && (

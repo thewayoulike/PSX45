@@ -46,7 +46,7 @@ export default async function handler(req, res) {
     }
   }
 
-  // --- Company info via pypsx_toolkit (Python on host) ---
+  // --- Company info via PSX web (Node — works on Vercel) ---
   const companySymbol = String(req.query.company || '').trim();
   const wantsCompany = Boolean(req.query.company) || String(req.query.mode || '') === 'company';
   if (wantsCompany) {
