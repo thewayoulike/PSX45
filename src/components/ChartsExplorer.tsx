@@ -29,26 +29,35 @@ export interface PsxStockRow {
 
 interface Props {
   onSymbolClick?: (ticker: string) => void;
+  /** Login-page preview: fixed height, no URL/localStorage side effects. */
+  previewMode?: boolean;
+  defaultSymbol?: string;
 }
 
 const rs = (n: number) =>
   n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const ChartsExplorer: React.FC<Props> = ({ onSymbolClick }) => {
+export const ChartsExplorer: React.FC<Props> = ({
+  onSymbolClick,
+  previewMode = false,
+  defaultSymbol = 'OGDC',
+}) => {
   const [rows, setRows] = useState<PsxStockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState('ALL');
   const [listOpen, setListOpen] = useState(() => {
+    if (previewMode) return false;
     if (typeof window === 'undefined') return false;
     return localStorage.getItem(LIST_OPEN_KEY) === '1';
   });
   const [selected, setSelected] = useState(() => {
-    if (typeof window === 'undefined') return 'OGDC';
+    if (previewMode) return defaultSymbol.toUpperCase();
+    if (typeof window === 'undefined') return defaultSymbol.toUpperCase();
     const q = new URLSearchParams(window.location.search).get('symbol');
     if (q) return q.toUpperCase();
-    return localStorage.getItem(LAST_SYMBOL_KEY) || 'OGDC';
+    return localStorage.getItem(LAST_SYMBOL_KEY) || defaultSymbol.toUpperCase();
   });
 
   const load = async () => {
@@ -90,7 +99,7 @@ export const ChartsExplorer: React.FC<Props> = ({ onSymbolClick }) => {
   }, []);
 
   useEffect(() => {
-    if (!selected) return;
+    if (previewMode || !selected) return;
     localStorage.setItem(LAST_SYMBOL_KEY, selected);
     const url = new URL(window.location.href);
     url.searchParams.set('symbol', selected);
@@ -98,11 +107,12 @@ export const ChartsExplorer: React.FC<Props> = ({ onSymbolClick }) => {
     if (`${window.location.pathname}${window.location.search}` !== next) {
       window.history.replaceState({}, '', next);
     }
-  }, [selected]);
+  }, [selected, previewMode]);
 
   useEffect(() => {
+    if (previewMode) return;
     localStorage.setItem(LIST_OPEN_KEY, listOpen ? '1' : '0');
-  }, [listOpen]);
+  }, [listOpen, previewMode]);
 
   const sectors = useMemo(() => {
     const set = new Set(rows.map((r) => r.sector).filter(Boolean));
@@ -121,7 +131,11 @@ export const ChartsExplorer: React.FC<Props> = ({ onSymbolClick }) => {
   const active = rows.find((r) => r.symbol === selected);
 
   return (
-    <div className="flex flex-col min-h-0 h-[calc(100dvh-3.5rem)] lg:h-[calc(100dvh-2.5rem)] w-full animate-in fade-in duration-300">
+    <div
+      className={`flex flex-col min-h-0 w-full animate-in fade-in duration-300 ${
+        previewMode ? 'h-full' : 'h-[calc(100dvh-3.5rem)] lg:h-[calc(100dvh-2.5rem)]'
+      }`}
+    >
       <div className="flex items-center gap-2 mb-2 shrink-0 flex-wrap">
         <button
           type="button"
