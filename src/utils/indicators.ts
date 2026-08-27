@@ -198,3 +198,168 @@ export const computeTradePlan = (rawCloses: number[], refPrice?: number): TradeP
 
   return { entryLow, entryHigh, stop, targets, riskPct, rewardPct, atr, support, resistance };
 };
+
+/** Fixed-exit plan used by the RSI &lt; 30 mean-reversion preset (−1.5% stop / +4% TP). */
+export const computeRsiOversoldPlan = (price: number): TradePlan | null => {
+  if (!(price > 0)) return null;
+  const stopPct = 1.5;
+  const tpPct = 4;
+  const stop = price * (1 - stopPct / 100);
+  const tp = price * (1 + tpPct / 100);
+  return {
+    entryLow: price,
+    entryHigh: price,
+    stop,
+    targets: [tp, price * (1 + (tpPct * 1.5) / 100), price * (1 + (tpPct * 2) / 100)],
+    riskPct: stopPct,
+    rewardPct: [tpPct, tpPct * 1.5, tpPct * 2],
+    atr: price * 0.015,
+    support: stop,
+    resistance: tp,
+  };
+};
+
+export interface RsiOversoldTrade {
+  entryIdx: number;
+  exitIdx: number;
+  entry: number;
+  exit: number;
+  retPct: number;
+  reason: 'tp' | 'sl' | 'eod';
+}
+
+export interface RsiOversoldBacktest {
+  trades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  avgReturnPct: number;
+  totalReturnPct: number; // sum of per-trade % (not compounded)
+  expectancyPct: number;
+  maxDrawdownPct: number; // on equity curve of +1 starting capital, simple compound of trade returns
+  samples: RsiOversoldTrade[];
+}
+
+/**
+ * Walk-forward RSI &lt; 30 mean-reversion on one symbol's close series.
+ * Entry at next bar after signal (or same close); exit at +tpPct / −stopPct or series end.
+ */
+export const backtestRsiOversold = (
+  rawCloses: number[],
+  opts?: { rsiPeriod?: number; threshold?: number; stopPct?: number; takeProfitPct?: number; commissionPct?: number }
+): RsiOversoldBacktest => {
+  const rsiPeriod = opts?.rsiPeriod ?? 14;
+  const threshold = opts?.threshold ?? 30;
+  const stopPct = opts?.stopPct ?? 1.5;
+  const takeProfitPct = opts?.takeProfitPct ?? 4;
+  const commissionPct = opts?.commissionPct ?? 0.1; // round-trip approx split on entry+exit
+
+  const closes = rawCloses.filter((n) => Number.isFinite(n) && n > 0);
+  const empty: RsiOversoldBacktest = {
+    trades: 0, wins: 0, losses: 0, winRate: 0, avgReturnPct: 0, totalReturnPct: 0, expectancyPct: 0, maxDrawdownPct: 0, samples: [],
+  };
+  if (closes.length < rsiPeriod + 5) return empty;
+
+  // Precompute RSI at each index (Wilder, same as rsi())
+  const rsiAt: number[] = new Array(closes.length).fill(NaN);
+  {
+    let gains = 0;
+    let losses = 0;
+    for (let i = 1; i <= rsiPeriod; i++) {
+      const d = closes[i] - closes[i - 1];
+      if (d >= 0) gains += d;
+      else losses -= d;
+    }
+    let avgG = gains / rsiPeriod;
+    let avgL = losses / rsiPeriod;
+    rsiAt[rsiPeriod] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+    for (let i = rsiPeriod + 1; i < closes.length; i++) {
+      const d = closes[i] - closes[i - 1];
+      const g = d > 0 ? d : 0;
+      const l = d < 0 ? -d : 0;
+      avgG = (avgG * (rsiPeriod - 1) + g) / rsiPeriod;
+      avgL = (avgL * (rsiPeriod - 1) + l) / rsiPeriod;
+      rsiAt[i] = avgL === 0 ? 100 : 100 - 100 / (1 + avgG / avgL);
+    }
+  }
+
+  const trades: RsiOversoldTrade[] = [];
+  let i = rsiPeriod;
+  while (i < closes.length - 1) {
+    if (!(rsiAt[i] < threshold)) { i++; continue; }
+    const entryIdx = i;
+    const entry = closes[entryIdx];
+    const tp = entry * (1 + takeProfitPct / 100);
+    const sl = entry * (1 - stopPct / 100);
+    let exitIdx = closes.length - 1;
+    let exit = closes[exitIdx];
+    let reason: RsiOversoldTrade['reason'] = 'eod';
+    for (let j = entryIdx + 1; j < closes.length; j++) {
+      const p = closes[j];
+      // Check stop before TP on same bar (conservative)
+      if (p <= sl) { exitIdx = j; exit = sl; reason = 'sl'; break; }
+      if (p >= tp) { exitIdx = j; exit = tp; reason = 'tp'; break; }
+    }
+    const gross = ((exit - entry) / entry) * 100;
+    const retPct = gross - commissionPct; // subtract round-trip commission
+    trades.push({ entryIdx, exitIdx, entry, exit, retPct, reason });
+    i = exitIdx + 1; // no overlapping positions
+  }
+
+  if (!trades.length) return empty;
+
+  const wins = trades.filter((t) => t.retPct > 0).length;
+  const losses = trades.length - wins;
+  const totalReturnPct = trades.reduce((s, t) => s + t.retPct, 0);
+  const avgReturnPct = totalReturnPct / trades.length;
+  const winRate = (wins / trades.length) * 100;
+
+  // Simple equity curve for max drawdown
+  let equity = 1;
+  let peak = 1;
+  let maxDd = 0;
+  for (const t of trades) {
+    equity *= 1 + t.retPct / 100;
+    if (equity > peak) peak = equity;
+    const dd = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
+    if (dd > maxDd) maxDd = dd;
+  }
+
+  return {
+    trades: trades.length,
+    wins,
+    losses,
+    winRate,
+    avgReturnPct,
+    totalReturnPct,
+    expectancyPct: avgReturnPct,
+    maxDrawdownPct: maxDd,
+    samples: trades.slice(0, 8),
+  };
+};
+
+/** Merge per-symbol RSI oversold backtests into one summary. */
+export const mergeRsiOversoldBacktests = (parts: RsiOversoldBacktest[]): RsiOversoldBacktest => {
+  const tradeLists = parts.filter((p) => p.trades > 0);
+  const trades = tradeLists.reduce((s, p) => s + p.trades, 0);
+  if (!trades) {
+    return { trades: 0, wins: 0, losses: 0, winRate: 0, avgReturnPct: 0, totalReturnPct: 0, expectancyPct: 0, maxDrawdownPct: 0, samples: [] };
+  }
+  const wins = tradeLists.reduce((s, p) => s + p.wins, 0);
+  const losses = tradeLists.reduce((s, p) => s + p.losses, 0);
+  const totalReturnPct = tradeLists.reduce((s, p) => s + p.totalReturnPct, 0);
+  const avgReturnPct = totalReturnPct / trades;
+  const maxDrawdownPct = Math.max(...tradeLists.map((p) => p.maxDrawdownPct), 0);
+  const samples = tradeLists.flatMap((p) => p.samples).slice(0, 12);
+  return {
+    trades,
+    wins,
+    losses,
+    winRate: (wins / trades) * 100,
+    avgReturnPct,
+    totalReturnPct,
+    expectancyPct: avgReturnPct,
+    maxDrawdownPct,
+    samples,
+  };
+};

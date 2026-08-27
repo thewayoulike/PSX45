@@ -1,13 +1,31 @@
-import React, { useState, useCallback } from 'react';
-import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon } from 'lucide-react';
+import React, { useState, useCallback, useEffect } from 'react';
+import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair } from 'lucide-react';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
-import { computeSignal, computeTradePlan, SignalSummary, TradePlan, Signal, Verdict } from '../utils/indicators';
+import {
+  computeSignal,
+  computeTradePlan,
+  computeRsiOversoldPlan,
+  backtestRsiOversold,
+  mergeRsiOversoldBacktests,
+  SignalSummary,
+  TradePlan,
+  Signal,
+  Verdict,
+  RsiOversoldBacktest,
+} from '../utils/indicators';
 import { KSE100_SET, KMI30_SET } from '../services/indices';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'INDEX', 'KSE'];
 
+type StrategyMode = 'composite' | 'rsi_oversold';
+
 interface Candidate { symbol: string; current: number; ldcp: number; changePct: number; volume: number; }
-interface Result extends Candidate { summary: SignalSummary; plan: TradePlan | null; }
+interface Result extends Candidate {
+  summary: SignalSummary;
+  plan: TradePlan | null;
+  strategy?: StrategyMode;
+  backtest?: RsiOversoldBacktest;
+}
 
 const numv = (s?: string | null) => {
   const v = parseFloat((s || '').replace(/,/g, '').trim());
@@ -97,23 +115,32 @@ const chip = (s: Signal) =>
 
 // ---------- Detailed card ----------
 const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = ({ result, onClick }) => {
-  const { symbol, current, changePct, summary, plan } = result;
+  const { symbol, current, changePct, summary, plan, strategy, backtest } = result;
   const style = VERDICT_STYLE[summary.verdict];
   const markerPct = ((summary.score + 1) / 2) * 100;
   const up = changePct >= 0;
+  const isRsi = strategy === 'rsi_oversold';
 
   return (
-    <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300 group">
+    <div className={`bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border rounded-3xl shadow-card dark:shadow-card-dark overflow-hidden hover:shadow-card-hover hover:-translate-y-1 transition-all duration-300 group ${
+      isRsi ? 'border-teal-200/80 dark:border-teal-500/30' : 'border-slate-200/60 dark:border-slate-800/60'
+    }`}>
       <div className="flex items-center justify-between p-5 border-b border-slate-100 dark:border-slate-800/60 bg-slate-50/50 dark:bg-slate-800/20">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 flex items-center justify-center bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl border border-indigo-100 dark:border-indigo-500/20 shadow-sm shrink-0">
-            <Activity size={20} className="text-indigo-600 dark:text-indigo-400" />
+          <div className={`w-12 h-12 flex items-center justify-center rounded-2xl border shadow-sm shrink-0 ${
+            isRsi
+              ? 'bg-teal-50 dark:bg-teal-500/10 border-teal-100 dark:border-teal-500/20'
+              : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
+          }`}>
+            {isRsi ? <Crosshair size={20} className="text-teal-600 dark:text-teal-400" /> : <Activity size={20} className="text-indigo-600 dark:text-indigo-400" />}
           </div>
           <div>
             <button onClick={() => onClick?.(symbol)} className="text-lg font-display font-black text-slate-900 dark:text-slate-100 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors tracking-tight">
               {symbol}
             </button>
-            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">1Y Technicals</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-widest font-bold">
+              {isRsi ? 'RSI Oversold · −1.5% / +4%' : '1Y Technicals'}
+            </p>
           </div>
         </div>
         <div className="text-right">
@@ -127,35 +154,47 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
       <div className="p-5">
         <div className="flex flex-col items-center text-center mb-5">
           <div className={`px-6 py-2.5 rounded-2xl text-lg font-display font-black uppercase tracking-widest border shadow-sm ${style.bg} ${style.text} ${style.border}`}>
-            {summary.verdict}
+            {isRsi ? 'RSI BUY' : summary.verdict}
           </div>
-          <div className="flex gap-4 mt-3 text-xs font-bold uppercase tracking-widest tabular-nums">
-            <span className="text-emerald-600 dark:text-emerald-400">{summary.buys} Buy</span>
-            <span className="text-slate-400">{summary.neutrals} Neut</span>
-            <span className="text-rose-500 dark:text-rose-400">{summary.sells} Sell</span>
-          </div>
+          {isRsi ? (
+            <div className="mt-3 text-xs font-bold uppercase tracking-widest tabular-nums text-teal-600 dark:text-teal-400">
+              RSI 14 = {fmt(summary.rsi, 1)}
+            </div>
+          ) : (
+            <div className="flex gap-4 mt-3 text-xs font-bold uppercase tracking-widest tabular-nums">
+              <span className="text-emerald-600 dark:text-emerald-400">{summary.buys} Buy</span>
+              <span className="text-slate-400">{summary.neutrals} Neut</span>
+              <span className="text-rose-500 dark:text-rose-400">{summary.sells} Sell</span>
+            </div>
+          )}
         </div>
 
-        <div className="relative mb-6 px-1">
-          <div className="h-3 rounded-full overflow-hidden flex shadow-inner">
-            <div className="flex-1 bg-rose-500/90" />
-            <div className="flex-1 bg-rose-400/70" />
-            <div className="flex-1 bg-slate-200 dark:bg-slate-700/80" />
-            <div className="flex-1 bg-emerald-400/70" />
-            <div className="flex-1 bg-emerald-500/90" />
+        {!isRsi && (
+          <div className="relative mb-6 px-1">
+            <div className="h-3 rounded-full overflow-hidden flex shadow-inner">
+              <div className="flex-1 bg-rose-500/90" />
+              <div className="flex-1 bg-rose-400/70" />
+              <div className="flex-1 bg-slate-200 dark:bg-slate-700/80" />
+              <div className="flex-1 bg-emerald-400/70" />
+              <div className="flex-1 bg-emerald-500/90" />
+            </div>
+            <div className="absolute top-[-5px] w-2 h-5 bg-white dark:bg-slate-200 rounded-full shadow-md border border-slate-300 dark:border-slate-500 -translate-x-1/2 transition-all duration-700 ease-out" style={{ left: `${markerPct}%` }} />
+            <div className="flex justify-between text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-widest opacity-80">
+              <span>Strong Sell</span><span>Neutral</span><span>Strong Buy</span>
+            </div>
           </div>
-          <div className="absolute top-[-5px] w-2 h-5 bg-white dark:bg-slate-200 rounded-full shadow-md border border-slate-300 dark:border-slate-500 -translate-x-1/2 transition-all duration-700 ease-out" style={{ left: `${markerPct}%` }} />
-          <div className="flex justify-between text-[9px] text-slate-400 mt-2 font-bold uppercase tracking-widest opacity-80">
-            <span>Strong Sell</span><span>Neutral</span><span>Strong Buy</span>
-          </div>
-        </div>
+        )}
 
         {plan && (
           <div className="mb-5">
             <div className="grid grid-cols-2 gap-3 mb-3">
               <div className="rounded-2xl bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800/50 p-3 shadow-sm">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 mb-1">Buy Range</div>
-                <div className="font-mono font-bold text-sm text-emerald-900 dark:text-emerald-100 tabular-nums">{fmt(plan.entryLow)} – {fmt(plan.entryHigh)}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-500 mb-1">
+                  {isRsi ? 'Entry' : 'Buy Range'}
+                </div>
+                <div className="font-mono font-bold text-sm text-emerald-900 dark:text-emerald-100 tabular-nums">
+                  {isRsi ? fmt(plan.entryHigh) : `${fmt(plan.entryLow)} – ${fmt(plan.entryHigh)}`}
+                </div>
               </div>
               <div className="rounded-2xl bg-rose-50/50 dark:bg-rose-900/10 border border-rose-100 dark:border-rose-800/50 p-3 shadow-sm">
                 <div className="text-[10px] font-bold uppercase tracking-widest text-rose-600 dark:text-rose-500 mb-1">Stop Loss</div>
@@ -167,7 +206,9 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
             <div className="grid grid-cols-3 gap-2.5">
               {plan.targets.map((t, i) => (
                 <div key={i} className="rounded-xl bg-white dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 p-2.5 text-center shadow-sm">
-                  <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Target {i + 1}</div>
+                  <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">
+                    {isRsi && i === 0 ? 'Take Profit' : `Target ${i + 1}`}
+                  </div>
                   <div className="font-mono font-bold text-sm text-emerald-600 dark:text-emerald-400 tabular-nums">{fmt(t)}</div>
                   <div className="text-[9px] font-bold text-slate-400 tabular-nums">+{fmt(plan.rewardPct[i])}%</div>
                 </div>
@@ -176,35 +217,48 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
           </div>
         )}
 
-        <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden shadow-sm bg-white dark:bg-slate-900/50">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50/80 dark:bg-slate-800/50 text-left border-b border-slate-100 dark:border-slate-800">
-              <tr>
-                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Indicator</th>
-                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-right">Value</th>
-                <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Signal</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50 dark:divide-slate-800/60">
-              {summary.indicators.map((row) => (
-                <tr key={row.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                  <td className="px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300 font-bold">{row.name}</td>
-                  <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums font-medium">{row.value}</td>
-                  <td className="px-4 py-2.5 text-center">
-                    <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold shadow-sm ${chip(row.signal)}`}>{row.signal}</span>
-                  </td>
+        {isRsi && backtest && backtest.trades > 0 && (
+          <div className="mb-5 rounded-2xl border border-teal-100 dark:border-teal-500/20 bg-teal-50/40 dark:bg-teal-500/5 p-3 text-xs">
+            <div className="font-bold uppercase tracking-widest text-teal-700 dark:text-teal-400 mb-2 text-[10px]">1Y backtest (this symbol)</div>
+            <div className="grid grid-cols-3 gap-2 tabular-nums">
+              <div><span className="text-slate-400">Trades</span><div className="font-black text-slate-800 dark:text-slate-100">{backtest.trades}</div></div>
+              <div><span className="text-slate-400">Win %</span><div className="font-black text-emerald-600 dark:text-emerald-400">{fmt(backtest.winRate, 0)}%</div></div>
+              <div><span className="text-slate-400">Avg</span><div className={`font-black ${backtest.avgReturnPct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{backtest.avgReturnPct >= 0 ? '+' : ''}{fmt(backtest.avgReturnPct)}%</div></div>
+            </div>
+          </div>
+        )}
+
+        {!isRsi && (
+          <div className="rounded-2xl border border-slate-200/60 dark:border-slate-700/60 overflow-hidden shadow-sm bg-white dark:bg-slate-900/50">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50/80 dark:bg-slate-800/50 text-left border-b border-slate-100 dark:border-slate-800">
+                <tr>
+                  <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Indicator</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-right">Value</th>
+                  <th className="px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 text-center">Signal</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-50 dark:divide-slate-800/60">
+                {summary.indicators.map((row) => (
+                  <tr key={row.name} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                    <td className="px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300 font-bold">{row.name}</td>
+                    <td className="px-4 py-2.5 text-right font-mono text-xs text-slate-500 dark:text-slate-400 tabular-nums font-medium">{row.value}</td>
+                    <td className="px-4 py-2.5 text-center">
+                      <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold shadow-sm ${chip(row.signal)}`}>{row.signal}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
 // ---------- Compact table (screener style) ----------
-const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void }> = ({ rows, onClick }) => {
+const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void; rsiMode?: boolean }> = ({ rows, onClick, rsiMode }) => {
   const Th = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
     <th className={`px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 ${className}`}>{children}</th>
   );
@@ -219,9 +273,9 @@ const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void }>
             <Th className="text-right">SMA 20</Th>
             <Th className="text-right">SMA 50</Th>
             <Th className="text-right">RSI 14</Th>
-            <Th className="text-right">Buy zone</Th>
-            <Th className="text-right">Sell zone</Th>
-            <Th className="text-center">Signal</Th>
+            <Th className="text-right">{rsiMode ? 'Stop −1.5%' : 'Buy zone'}</Th>
+            <Th className="text-right">{rsiMode ? 'TP +4%' : 'Sell zone'}</Th>
+            <Th className="text-center">{rsiMode ? '1Y Win%' : 'Signal'}</Th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -243,10 +297,20 @@ const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void }>
                 <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{fmt(r.summary.sma20)}</td>
                 <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{fmt(r.summary.sma50)}</td>
                 <td className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${rsiColor}`}>{fmt(r.summary.rsi, 1)}</td>
-                <td className="px-4 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">{r.plan ? fmt(r.plan.support) : '—'}</td>
-                <td className="px-4 py-3 text-right font-mono text-rose-500 dark:text-rose-400 font-bold tabular-nums">{r.plan ? fmt(r.plan.resistance) : '—'}</td>
+                <td className="px-4 py-3 text-right font-mono text-rose-500 dark:text-rose-400 font-bold tabular-nums">
+                  {r.plan ? fmt(rsiMode ? r.plan.stop : r.plan.support) : '—'}
+                </td>
+                <td className="px-4 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
+                  {r.plan ? fmt(rsiMode ? r.plan.targets[0] : r.plan.resistance) : '—'}
+                </td>
                 <td className="px-4 py-3 text-center">
-                  <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold border shadow-sm ${vs.bg} ${vs.text} ${vs.border}`}>{r.summary.verdict}</span>
+                  {rsiMode ? (
+                    <span className="font-mono font-bold tabular-nums text-teal-700 dark:text-teal-400">
+                      {r.backtest && r.backtest.trades > 0 ? `${fmt(r.backtest.winRate, 0)}%` : '—'}
+                    </span>
+                  ) : (
+                    <span className={`inline-block px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider font-bold border shadow-sm ${vs.bg} ${vs.text} ${vs.border}`}>{r.summary.verdict}</span>
+                  )}
                 </td>
               </tr>
             );
@@ -257,46 +321,113 @@ const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void }>
   );
 };
 
+const BacktestSummary: React.FC<{ bt: RsiOversoldBacktest; symbols: number }> = ({ bt, symbols }) => (
+  <div className="rounded-3xl border border-teal-200/80 dark:border-teal-500/30 bg-gradient-to-br from-teal-50/90 via-white to-emerald-50/70 dark:from-teal-500/10 dark:via-slate-900 dark:to-emerald-500/10 p-5 shadow-sm">
+    <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+      <div>
+        <div className="text-[10px] font-black uppercase tracking-[0.2em] text-teal-700 dark:text-teal-400 mb-1">RSI Oversold · 1Y Backtest</div>
+        <h3 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight">
+          Entry RSI &lt; 30 · Exit +4% / −1.5%
+        </h3>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+          Across {symbols} scanned names · ~0.1% round-trip commission · educational only
+        </p>
+      </div>
+    </div>
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      {[
+        { label: 'Trades', value: String(bt.trades) },
+        { label: 'Win rate', value: `${fmt(bt.winRate, 1)}%` },
+        { label: 'Wins / Losses', value: `${bt.wins} / ${bt.losses}` },
+        { label: 'Avg / trade', value: `${bt.avgReturnPct >= 0 ? '+' : ''}${fmt(bt.avgReturnPct)}%` },
+        { label: 'Sum of trades', value: `${bt.totalReturnPct >= 0 ? '+' : ''}${fmt(bt.totalReturnPct)}%` },
+        { label: 'Max DD (trades)', value: `−${fmt(bt.maxDrawdownPct)}%` },
+      ].map((s) => (
+        <div key={s.label} className="rounded-2xl bg-white/80 dark:bg-slate-900/60 border border-teal-100/80 dark:border-teal-500/20 p-3">
+          <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1">{s.label}</div>
+          <div className="text-base font-display font-black text-slate-900 dark:text-white tabular-nums">{s.value}</div>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void }> = ({ onSymbolClick }) => {
   const [status, setStatus] = useState<'idle' | 'scanning' | 'done'>('idle');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState('');
-  const [universe, setUniverse] = useState<string>('40');
+  const [universe, setUniverse] = useState<string>('KSE100');
+  const [strategy, setStrategy] = useState<StrategyMode>('composite');
   const [buyOnly, setBuyOnly] = useState(true);
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [copied, setCopied] = useState(false);
   const [scannedAt, setScannedAt] = useState<Date | null>(null);
+  const [aggBacktest, setAggBacktest] = useState<RsiOversoldBacktest | null>(null);
+
+  // RSI oversold works best on liquid index names — nudge universe when switching mode.
+  useEffect(() => {
+    if (strategy === 'rsi_oversold' && universe !== 'KSE100' && universe !== 'KMI30') {
+      setUniverse('KSE100');
+    }
+  }, [strategy, universe]);
 
   const runScan = useCallback(async () => {
     setStatus('scanning');
     setError('');
     setResults([]);
+    setAggBacktest(null);
     setProgress({ done: 0, total: 0 });
+    const rsiMode = strategy === 'rsi_oversold';
     try {
       const html = await fetchUrlWithFallback('https://dps.psx.com.pk/market-watch');
       if (!html || html.length < 500) throw new Error('Could not fetch the market snapshot. Try again in a moment.');
 
-      const candidates = buildUniverse(parseCandidates(html), universe);
+      const scanUniverse = rsiMode && universe !== 'KSE100' && universe !== 'KMI30' ? 'KSE100' : universe;
+      const candidates = buildUniverse(parseCandidates(html), scanUniverse);
       if (candidates.length === 0) throw new Error('No matching stocks found. If you scanned an index, check the constituent list in indices.ts.');
 
-      // Bigger scans get more concurrency; auto-switch to the compact table.
       const concurrency = candidates.length > 80 ? 8 : 6;
       if (candidates.length > 40) setView('table');
 
       setProgress({ done: 0, total: candidates.length });
 
       const collected: Result[] = [];
+      const btParts: RsiOversoldBacktest[] = [];
+
       await mapPool(candidates, concurrency, async (c) => {
         const history = await fetchStockHistory(c.symbol, '1Y');
         const closes = history.map((h) => h.price);
         if (closes.length < 35) return;
         const summary = computeSignal(closes);
+
+        if (rsiMode) {
+          const bt = backtestRsiOversold(closes);
+          btParts.push(bt);
+          // Live signal: only keep names currently RSI < 30
+          if (!(summary.rsi < 30)) return;
+          const plan = computeRsiOversoldPlan(c.current);
+          collected.push({
+            ...c,
+            summary: { ...summary, verdict: 'BUY' },
+            plan,
+            strategy: 'rsi_oversold',
+            backtest: bt,
+          });
+          return;
+        }
+
         const plan = computeTradePlan(closes, c.current);
-        collected.push({ ...c, summary, plan });
+        collected.push({ ...c, summary, plan, strategy: 'composite' });
       }, (done) => setProgress((p) => ({ ...p, done })));
 
-      collected.sort((a, b) => b.summary.score - a.summary.score || b.volume - a.volume);
+      if (rsiMode) {
+        collected.sort((a, b) => a.summary.rsi - b.summary.rsi || b.volume - a.volume);
+        setAggBacktest(mergeRsiOversoldBacktests(btParts));
+      } else {
+        collected.sort((a, b) => b.summary.score - a.summary.score || b.volume - a.volume);
+      }
+
       setResults(collected);
       setScannedAt(new Date());
       setStatus('done');
@@ -304,16 +435,23 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
       setError(e.message || 'Scan failed.');
       setStatus('idle');
     }
-  }, [universe]);
+  }, [universe, strategy]);
 
-  const shown = results.filter((r) =>
-    buyOnly ? (r.summary.verdict === 'BUY' || r.summary.verdict === 'STRONG BUY') : true
-  );
+  const rsiMode = strategy === 'rsi_oversold';
+
+  const shown = results.filter((r) => {
+    if (rsiMode) return true; // already RSI < 30
+    return buyOnly ? (r.summary.verdict === 'BUY' || r.summary.verdict === 'STRONG BUY') : true;
+  });
 
   const copyAll = async () => {
-    const header = 'SYMBOL\tPRICE\tCHG %\tSMA20\tSMA50\tRSI14\tBUY ZONE\tSELL ZONE\tSIGNAL';
+    const header = rsiMode
+      ? 'SYMBOL\tPRICE\tCHG %\tRSI14\tSTOP\tTP\t1Y_WIN%\t1Y_TRADES\tSIGNAL'
+      : 'SYMBOL\tPRICE\tCHG %\tSMA20\tSMA50\tRSI14\tBUY ZONE\tSELL ZONE\tSIGNAL';
     const body = shown.map((r) =>
-      `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.sma20)}\t${fmt(r.summary.sma50)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.summary.verdict}`
+      rsiMode
+        ? `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.stop) : ''}\t${r.plan ? fmt(r.plan.targets[0]) : ''}\t${r.backtest ? fmt(r.backtest.winRate, 1) : ''}\t${r.backtest?.trades ?? ''}\tRSI_OVERSOLD`
+        : `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.sma20)}\t${fmt(r.summary.sma50)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.summary.verdict}`
     ).join('\n');
     await navigator.clipboard.writeText(`${header}\n${body}`);
     setCopied(true);
@@ -329,19 +467,49 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 shadow-sm shrink-0">
-              <Radar size={24} className="text-indigo-600 dark:text-indigo-400" />
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${
+              rsiMode
+                ? 'bg-teal-50 dark:bg-teal-500/10 border-teal-100 dark:border-teal-500/20'
+                : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
+            }`}>
+              {rsiMode
+                ? <Crosshair size={24} className="text-teal-600 dark:text-teal-400" />
+                : <Radar size={24} className="text-indigo-600 dark:text-indigo-400" />}
             </div>
             <div>
-              <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Buy Signal Scanner</h2>
+              <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">
+                {rsiMode ? 'RSI Oversold Scanner' : 'Buy Signal Scanner'}
+              </h2>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
-                {scannedAt ? `Scanned ${scannedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Found ${shown.length} signals` : 'Automated technical scans across PSX listings'}
+                {scannedAt
+                  ? `Scanned ${scannedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Found ${shown.length} ${rsiMode ? 'oversold' : 'signals'}`
+                  : rsiMode
+                    ? 'RSI < 30 entries with fixed −1.5% stop / +4% take-profit'
+                    : 'Automated technical scans across PSX listings'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {/* View toggle */}
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <button
+                type="button"
+                onClick={() => setStrategy('composite')}
+                disabled={status === 'scanning'}
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'composite' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                Multi-indicator
+              </button>
+              <button
+                type="button"
+                onClick={() => setStrategy('rsi_oversold')}
+                disabled={status === 'scanning'}
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'rsi_oversold' ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                RSI Oversold
+              </button>
+            </div>
+
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
               <button onClick={() => setView('cards')} title="Card view" className={`p-2 rounded-lg transition-all ${view === 'cards' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
                 <LayoutGrid size={16} />
@@ -350,7 +518,7 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
                 <TableIcon size={16} />
               </button>
             </div>
-            
+
             <div className="relative">
                 <select
                 value={universe}
@@ -360,37 +528,53 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
                 >
                 <option value="KSE100">KSE-100 index</option>
                 <option value="KMI30">KMI-30 index</option>
-                <option value="20">Top 20 by volume</option>
-                <option value="40">Top 40 by volume</option>
-                <option value="60">Top 60 by volume</option>
-                <option value="100">Top 100 by volume</option>
-                <option value="ALL">All market (slow)</option>
+                {!rsiMode && <option value="20">Top 20 by volume</option>}
+                {!rsiMode && <option value="40">Top 40 by volume</option>}
+                {!rsiMode && <option value="60">Top 60 by volume</option>}
+                {!rsiMode && <option value="100">Top 100 by volume</option>}
+                {!rsiMode && <option value="ALL">All market (slow)</option>}
                 </select>
             </div>
 
-            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
-              <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300" />
-              Buys Only
-            </label>
-            
+            {!rsiMode && (
+              <label className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+                <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300" />
+                Buys Only
+              </label>
+            )}
+
             {results.length > 0 && (
               <button onClick={copyAll} className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:-translate-y-0.5 active:translate-y-0 shrink-0">
                 {copied ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Copy size={16} />} Copy
               </button>
             )}
-            
+
             <button
               onClick={runScan}
               disabled={status === 'scanning'}
-              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md shadow-emerald-600/20 hover:-translate-y-0.5 active:translate-y-0 shrink-0"
+              className={`flex items-center gap-2 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
+                rsiMode
+                  ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'
+                  : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+              }`}
             >
-              {status === 'scanning' ? <Loader2 size={18} className="animate-spin" /> : <Radar size={18} />}
-              {status === 'scanning' ? 'Scanning…' : 'Scan Market'}
+              {status === 'scanning' ? <Loader2 size={18} className="animate-spin" /> : rsiMode ? <Crosshair size={18} /> : <Radar size={18} />}
+              {status === 'scanning' ? 'Scanning…' : rsiMode ? 'Scan RSI < 30' : 'Scan Market'}
             </button>
           </div>
         </div>
 
-        {isAll && status !== 'scanning' && (
+        {rsiMode && status !== 'scanning' && (
+          <div className="mt-4 p-3 bg-teal-50/80 dark:bg-teal-500/10 border border-teal-200/60 dark:border-teal-500/20 rounded-xl text-xs font-medium text-teal-800 dark:text-teal-300 flex items-start gap-2 shadow-sm">
+            <Info size={16} className="shrink-0 mt-0.5" />
+            <p>
+              Preset: buy when 14-day RSI drops below 30; plan uses a fixed <strong>−1.5% stop</strong> and <strong>+4% take-profit</strong>.
+              Scan also runs a 1-year walk-forward backtest on the same rule (with ~0.1% commission). Educational only — not investment advice.
+            </p>
+          </div>
+        )}
+
+        {isAll && status !== 'scanning' && !rsiMode && (
           <div className="mt-4 p-3 bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 flex items-start gap-2 shadow-sm">
             <Info size={16} className="shrink-0 mt-0.5" />
             <p>Full-market scan downloads a year of daily prices for every listed stock. This can take several minutes, and highly illiquid/thin stocks will be automatically skipped.</p>
@@ -400,11 +584,11 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
         {status === 'scanning' && (
           <div className="mt-5 px-2 pb-2">
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-              <span>Analyzing {progress.total} stocks…</span>
+              <span>{rsiMode ? 'Scanning + backtesting' : 'Analyzing'} {progress.total} stocks…</span>
               <span className="tabular-nums">{progress.done} / {progress.total}</span>
             </div>
             <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
-              <div className="h-full bg-emerald-500 transition-all duration-300 ease-out" style={{ width: `${pct}%` }} />
+              <div className={`h-full transition-all duration-300 ease-out ${rsiMode ? 'bg-teal-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
             </div>
           </div>
         )}
@@ -416,15 +600,25 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
         </div>
       )}
 
+      {rsiMode && aggBacktest && aggBacktest.trades > 0 && status === 'done' && (
+        <BacktestSummary bt={aggBacktest} symbols={progress.total || results.length} />
+      )}
+
       {status === 'idle' && results.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center py-20 text-center px-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-900/30">
           <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-5 shadow-inner">
              <TrendingUp size={36} className="text-slate-400 dark:text-slate-500" />
           </div>
           <h3 className="text-xl font-display font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">Ready to Scan</h3>
-          <p className="text-slate-500 dark:text-slate-400 font-medium mb-6">Hit “Scan Market” to find stocks flashing a technical buy signal.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-medium mb-6">
+            {rsiMode
+              ? 'Hit “Scan RSI < 30” to find oversold KSE-100 / KMI-30 names and see a 1Y backtest.'
+              : 'Hit “Scan Market” to find stocks flashing a technical buy signal.'}
+          </p>
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-4 rounded-xl text-xs text-slate-500 dark:text-slate-400 max-w-md shadow-sm leading-relaxed">
-             Pick a universe — KSE-100, KMI-30, or top movers — and the engine runs moving averages, RSI, MACD, and momentum on each to build an automated buy range, stop loss, and target prices.
+            {rsiMode
+              ? 'Universe defaults to KSE-100. Live hits require RSI < 30; each name also gets a walk-forward +4% / −1.5% backtest on ~1 year of daily closes.'
+              : 'Pick a universe — KSE-100, KMI-30, or top movers — and the engine runs moving averages, RSI, MACD, and momentum on each to build an automated buy range, stop loss, and target prices.'}
           </div>
         </div>
       )}
@@ -432,7 +626,7 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
       {/* Results */}
       {shown.length > 0 && view === 'table' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-           <ScreenerTable rows={shown} onClick={onSymbolClick} />
+           <ScreenerTable rows={shown} onClick={onSymbolClick} rsiMode={rsiMode} />
         </div>
       )}
       {shown.length > 0 && view === 'cards' && (
@@ -445,18 +639,27 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
 
       {status === 'done' && shown.length === 0 && !error && (
         <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl p-16 text-center shadow-sm">
-          <p className="text-slate-500 dark:text-slate-400 font-bold text-lg">No buy signals in this batch.</p>
-          <p className="text-slate-400 text-sm mt-2">Try scanning a larger universe or uncheck “Buys only” to see neutral and sell ratings.</p>
+          <p className="text-slate-500 dark:text-slate-400 font-bold text-lg">
+            {rsiMode ? 'No names with RSI below 30 right now.' : 'No buy signals in this batch.'}
+          </p>
+          <p className="text-slate-400 text-sm mt-2">
+            {rsiMode
+              ? 'Try KMI-30, or check the backtest summary above for how the rule performed over the past year even when the market isn’t oversold today.'
+              : 'Try scanning a larger universe or uncheck “Buys only” to see neutral and sell ratings.'}
+          </p>
         </div>
       )}
 
       {/* Disclaimer */}
-      {results.length > 0 && (
+      {(results.length > 0 || (rsiMode && aggBacktest)) && (
         <div className="flex items-start gap-3 bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed shadow-sm">
           <Info size={16} className="mt-0.5 shrink-0 text-slate-400" />
           <p>
-            <strong className="text-slate-700 dark:text-slate-300">Disclaimer:</strong> Mechanical technical signals and auto-calculated levels are generated for educational purposes only and do not constitute investment advice. Buy/sell
-            zones, stops, and targets are derived from recent historical volatility and simple SMA/RSI heuristic algorithms; they are estimates and are prone to error in unpredictable market conditions. Data is unofficial and may be delayed. Always perform your own due diligence.
+            <strong className="text-slate-700 dark:text-slate-300">Disclaimer:</strong> Mechanical technical signals, fixed RSI exits, and backtests are for educational purposes only and do not constitute investment advice.
+            {rsiMode
+              ? ' The RSI < 30 / +4% / −1.5% rule is a common mean-reversion heuristic; 1Y walk-forward results use unofficial EOD closes and approximate commissions — past results are not a guarantee of future performance.'
+              : ' Buy/sell zones, stops, and targets are derived from recent historical volatility and simple SMA/RSI heuristic algorithms; they are estimates and are prone to error in unpredictable market conditions.'}
+            {' '}Data is unofficial and may be delayed. Always perform your own due diligence.
           </p>
         </div>
       )}
