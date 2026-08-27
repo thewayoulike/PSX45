@@ -152,7 +152,7 @@ const isStaleCatalogSource = (source?: string) =>
 
 /** True when NAV prices came from a fresh MUFAP fetch (not bundled/seed file). */
 export const isLiveFundCatalogSource = (source?: string) =>
-  source === 'live' || source === 'browser-live' || source === 'proxy-live';
+  source === 'live' || source === 'browser-live' || source === 'proxy-live' || source === 'cors-live';
 
 const FUND_LDCP_RECENT_MS = 72 * 60 * 60 * 1000;
 
@@ -269,14 +269,56 @@ const fetchLiveMufapFromBrowser = async (): Promise<CatalogPayload | null> => {
   }
 };
 
-/** Fetch MUFAP HTML via /api/proxy and parse live NAV table in the browser. */
+const extractProxyHtml = (text: string, via: string): string | null => {
+  if (!text) return null;
+  if (via.includes('allorigins') && text.trimStart().startsWith('{')) {
+    try {
+      const json = JSON.parse(text) as { contents?: string };
+      return json.contents || null;
+    } catch {
+      return null;
+    }
+  }
+  return text;
+};
+
+/**
+ * Public CORS relays (same hosts already used for PSX).
+ * Vercel /api/proxy is often 403'd by MUFAP Cloudflare — these use other IPs.
+ */
+const CORS_RELAYS = [
+  (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`,
+  (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&t=${Date.now()}`,
+  (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}&_t=${Date.now()}`,
+];
+
+const fetchLiveMufapViaCors = async (): Promise<CatalogPayload | null> => {
+  for (const build of CORS_RELAYS) {
+    try {
+      const proxyUrl = build(MUFAP_NAV_URL);
+      const res = await fetch(proxyUrl, { cache: 'no-store' });
+      if (!res.ok) continue;
+      const raw = await res.text();
+      const html = extractProxyHtml(raw, proxyUrl);
+      if (!html || isMufapBlockedPage(html)) continue;
+      const funds = parseMufapNavHtml(html);
+      if (funds.length < 50) continue;
+      return buildCatalogFromFunds(funds, html, 'cors-live');
+    } catch {
+      /* try next */
+    }
+  }
+  return null;
+};
+
+/** Last-resort: our Vercel proxy (often blocked by Cloudflare for MUFAP). */
 const fetchLiveMufapViaProxy = async (): Promise<CatalogPayload | null> => {
   try {
     const proxyUrl = `/api/proxy?url=${encodeURIComponent(MUFAP_NAV_URL)}&t=${Date.now()}`;
     const res = await fetch(proxyUrl, { cache: 'no-store' });
     if (!res.ok) return null;
     const html = await res.text();
-    if (isMufapBlockedPage(html)) return null;
+    if (html.trimStart().startsWith('{') || isMufapBlockedPage(html)) return null;
     const funds = parseMufapNavHtml(html);
     if (funds.length < 50) return null;
     return buildCatalogFromFunds(funds, html, 'proxy-live');
@@ -285,22 +327,28 @@ const fetchLiveMufapViaProxy = async (): Promise<CatalogPayload | null> => {
   }
 };
 
+/** Try live MUFAP sources in order of reliability when Cloudflare blocks Vercel. */
+const fetchAnyLiveMufap = async (): Promise<CatalogPayload | null> =>
+  (await fetchLiveMufapFromBrowser()) ||
+  (await fetchLiveMufapViaCors()) ||
+  (await fetchLiveMufapViaProxy());
+
 /** Repurchase / NAV column — what holders receive on redemption (MUFAP "NAV" column). */
 export const fundValuationNav = (f: MutualFundRecord): number =>
   f.repurchase > 0 ? f.repurchase : f.nav;
 
-/** Fetch full MUFAP NAV catalog — browser live → API → proxy → static → embedded. */
+/** Fetch full MUFAP NAV catalog — browser → CORS → API → Vercel proxy → static → embedded. */
 export const fetchMufapNavCatalog = async (): Promise<{
   catalog: Record<string, MutualFundRecord>;
   reportDate?: string;
   updatedAt?: string;
   source?: string;
 }> => {
-  // 1) Direct from MUFAP in the user's browser (works when server-side fetch is blocked)
-  const browserLive = await fetchLiveMufapFromBrowser();
-  if (browserLive) return parsePayload(browserLive, browserLive.source);
+  // 1) Live paths that bypass Vercel→MUFAP Cloudflare blocks
+  const earlyLive = await fetchAnyLiveMufap();
+  if (earlyLive) return parsePayload(earlyLive, earlyLive.source);
 
-  // 2) Vercel API (live MUFAP fetch when Cloudflare allows)
+  // 2) Vercel API (now also tries public relays server-side)
   for (const url of [`/api/fund-nav?t=${Date.now()}`, `/api/mufap-nav?t=${Date.now()}`]) {
     try {
       const res = await fetch(url, { cache: 'no-store' });
@@ -309,9 +357,9 @@ export const fetchMufapNavCatalog = async (): Promise<{
         if (ct.includes('json')) {
           const data = await res.json() as CatalogPayload;
           const source = data.source || 'api';
-          if (source === 'live') return parsePayload(data, source);
-          // API returned bundled/stale catalog — try live fetches before accepting it
-          const live = (await fetchLiveMufapFromBrowser()) || (await fetchLiveMufapViaProxy());
+          if (isLiveFundCatalogSource(source)) return parsePayload(data, source);
+          // Stale/bundled — one more live attempt, then accept seed
+          const live = await fetchAnyLiveMufap();
           if (live) return parsePayload(live, live.source);
           return parsePayload(data, source);
         }
@@ -319,11 +367,7 @@ export const fetchMufapNavCatalog = async (): Promise<{
     } catch { /* try next */ }
   }
 
-  // 3) Live MUFAP via proxy (works when /api/fund-nav is missing)
-  const proxyLive = await fetchLiveMufapViaProxy();
-  if (proxyLive) return parsePayload(proxyLive, proxyLive.source);
-
-  // 4) Static JSON (when public/data is deployed)
+  // 3) Static JSON (when public/data is deployed)
   try {
     const staticRes = await fetch(`/data/fund-nav-catalog.json?t=${Date.now()}`, { cache: 'no-store' });
     if (staticRes.ok) {
@@ -331,7 +375,7 @@ export const fetchMufapNavCatalog = async (): Promise<{
       if (text.trimStart().startsWith('{')) {
         const data = JSON.parse(text) as CatalogPayload;
         if (isStaleCatalogSource(data.source)) {
-          const live = (await fetchLiveMufapFromBrowser()) || (await fetchLiveMufapViaProxy());
+          const live = await fetchAnyLiveMufap();
           if (live) return parsePayload(live, live.source);
         }
         return parsePayload(data, 'static');
@@ -339,10 +383,10 @@ export const fetchMufapNavCatalog = async (): Promise<{
     }
   } catch { /* fall through */ }
 
-  // 5) Embedded in app bundle — last resort
+  // 4) Embedded in app bundle — last resort
   const embedded = await loadEmbeddedCatalog();
   if (isStaleCatalogSource(embedded.source)) {
-    const live = (await fetchLiveMufapFromBrowser()) || (await fetchLiveMufapViaProxy());
+    const live = await fetchAnyLiveMufap();
     if (live) return parsePayload(live, live.source);
   }
   return parsePayload(embedded, 'embedded');

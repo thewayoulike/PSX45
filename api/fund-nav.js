@@ -38,12 +38,8 @@ function toResponse(catalogObj, source) {
   };
 }
 
-async function tryLiveMufapFetch() {
-  const res = await fetch(MUFAP_NAV_URL, { headers: BROWSER_HEADERS });
-  if (!res.ok) return null;
-  const html = await res.text();
+function catalogFromHtml(html, source) {
   if (isMufapBlockedPage(html)) return null;
-
   const funds = parseMufapNavHtml(html);
   if (funds.length < 50) return null;
 
@@ -56,8 +52,46 @@ async function tryLiveMufapFetch() {
     count: funds.length,
     reportDate: dateMatch?.[1]?.trim() || null,
     updatedAt: new Date().toISOString(),
-    source: 'live',
+    source,
   };
+}
+
+/** Direct MUFAP fetch — often 403 from Vercel/Cloudflare. */
+async function tryDirectMufap() {
+  const res = await fetch(MUFAP_NAV_URL, { headers: BROWSER_HEADERS, redirect: 'follow' });
+  if (!res.ok) return null;
+  return catalogFromHtml(await res.text(), 'live');
+}
+
+/**
+ * Fetch MUFAP via public relay hosts (different IPs than Vercel).
+ * Cloudflare blocks many serverless ranges; these relays often still work.
+ */
+async function tryRelayMufap() {
+  const relays = [
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+  ];
+
+  for (const build of relays) {
+    try {
+      const res = await fetch(build(MUFAP_NAV_URL), {
+        headers: { Accept: 'text/html,*/*', 'User-Agent': BROWSER_HEADERS['User-Agent'] },
+        redirect: 'follow',
+      });
+      if (!res.ok) continue;
+      const parsed = catalogFromHtml(await res.text(), 'live');
+      if (parsed) return parsed;
+    } catch {
+      /* try next relay */
+    }
+  }
+  return null;
+}
+
+async function tryLiveMufapFetch() {
+  return (await tryDirectMufap().catch(() => null)) || (await tryRelayMufap().catch(() => null));
 }
 
 export default async function handler(req, res) {
