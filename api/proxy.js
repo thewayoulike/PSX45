@@ -1,4 +1,7 @@
 // Only allow proxying to trusted hosts.
+// Also serves OHLCV via ?ohlc=SYMBOL (keeps Hobby plan under the 12-function limit).
+import { fetchPsxOhlc } from '../lib/psxOhlc.js';
+
 const ALLOWED_HOSTS = new Set([
   'dps.psx.com.pk',
   'www.psx.com.pk',
@@ -20,6 +23,27 @@ const isCloudflareChallenge = (html) => {
 };
 
 export default async function handler(req, res) {
+  if (req.method === 'OPTIONS') {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
+    return res.status(204).end();
+  }
+
+  // --- OHLCV mode (same as former /api/ohlc) ---
+  const ohlcSymbol = String(req.query.ohlc || req.query.symbol || '').trim();
+  const wantsOhlc = Boolean(req.query.ohlc) || String(req.query.mode || '') === 'ohlc';
+  if (wantsOhlc) {
+    if (!ohlcSymbol) return res.status(400).json({ error: 'ohlc symbol is required' });
+    try {
+      const payload = await fetchPsxOhlc(ohlcSymbol);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600');
+      return res.status(200).json(payload);
+    } catch (e) {
+      return res.status(502).json({ error: e.message || 'OHLC fetch failed' });
+    }
+  }
+
   const { url } = req.query;
   if (!url) return res.status(400).json({ error: 'URL is required' });
 

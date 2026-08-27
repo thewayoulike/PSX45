@@ -172,14 +172,14 @@ export interface OhlcBar {
 }
 
 /**
- * Full historical OHLCV via /api/ohlc → PSX POST /historical
+ * Full historical OHLCV via /api/proxy?ohlc=SYMBOL → PSX POST /historical
  * (equivalent of: pypsx_toolkit.download(symbol, period="1y")).
  */
 export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
     const clean = symbol.toUpperCase().replace('PSX:', '').trim();
     if (!clean) return [];
     try {
-        const res = await fetchWithTimeout(`/api/ohlc?symbol=${encodeURIComponent(clean)}&t=${Date.now()}`, {}, 45000);
+        const res = await fetchWithTimeout(`/api/proxy?ohlc=${encodeURIComponent(clean)}&t=${Date.now()}`, {}, 45000);
         if (!res.ok) throw new Error(`ohlc ${res.status}`);
         const json = await res.json();
         if (json?.error) throw new Error(json.error);

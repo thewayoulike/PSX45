@@ -2,21 +2,23 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-/** Local /api/ohlc so candle charts work in `npm run dev` (same as Vercel function). */
+/** Local /api/proxy?ohlc= and legacy /api/ohlc so candle charts work in `npm run dev`. */
 function localOhlcApi(): Plugin {
   return {
     name: 'local-ohlc-api',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const url = req.url || '';
-        if (!url.startsWith('/api/ohlc')) return next();
+        const isLegacy = url.startsWith('/api/ohlc');
+        const isProxyOhlc = url.startsWith('/api/proxy') && (url.includes('ohlc=') || url.includes('mode=ohlc'));
+        if (!isLegacy && !isProxyOhlc) return next();
         try {
           const u = new URL(url, 'http://localhost');
-          const symbol = u.searchParams.get('symbol') || '';
+          const symbol = u.searchParams.get('ohlc') || u.searchParams.get('symbol') || '';
           if (!symbol) {
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'symbol is required' }));
+            res.end(JSON.stringify({ error: 'ohlc symbol is required' }));
             return;
           }
           const { fetchPsxOhlc } = await import('./lib/psxOhlc.js');

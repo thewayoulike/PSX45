@@ -319,7 +319,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
         <p className="text-[10px] text-slate-400 mt-2 px-1">
           {canCandle
             ? 'Daily OHLCV from PSX historical (same source as pypsx_toolkit.download) — open, high, low, close, volume.'
-            : 'Close-only fallback from PSX timeseries. Candles need OHLCV from /api/ohlc.'}
+            : 'Close-only fallback from PSX timeseries. Candles need OHLCV from /api/proxy?ohlc=.'}
         </p>
       </div>
     </div>
