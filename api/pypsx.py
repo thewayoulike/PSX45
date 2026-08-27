@@ -2,9 +2,32 @@
 
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
+import importlib.util
 import json
+from pathlib import Path
 
-from pypsx_lib import get_chart_analysis, get_company_info
+_LIB = None
+
+
+def _load_lib():
+    """Lazy-load pypsx_lib (Vercel may not resolve sibling imports at module init)."""
+    global _LIB
+    if _LIB is not None:
+        return _LIB
+    try:
+        from pypsx_lib import get_chart_analysis, get_company_info
+
+        _LIB = (get_company_info, get_chart_analysis)
+        return _LIB
+    except ImportError:
+        lib_file = Path(__file__).with_name("pypsx_lib.py")
+        spec = importlib.util.spec_from_file_location("pypsx_lib", lib_file)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Cannot load pypsx_lib from {lib_file}")
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        _LIB = (mod.get_company_info, mod.get_chart_analysis)
+        return _LIB
 
 
 class handler(BaseHTTPRequestHandler):
@@ -21,6 +44,7 @@ class handler(BaseHTTPRequestHandler):
         mode = (q.get("mode") or [""])[0].strip().lower()
 
         try:
+            get_company_info, get_chart_analysis = _load_lib()
             if mode == "company":
                 symbol = (q.get("symbol") or q.get("company") or [""])[0]
                 payload = get_company_info(symbol)

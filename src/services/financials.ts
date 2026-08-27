@@ -182,7 +182,9 @@ export const fetchCompanyInfo = async (ticker: string): Promise<CompanyInfoData 
   if (!clean) return null;
 
   try {
-    const res = await fetch(`/api/proxy?company=${encodeURIComponent(clean)}&t=${Date.now()}`);
+    const res = await fetch(
+      `/api/pypsx?mode=company&symbol=${encodeURIComponent(clean)}&t=${Date.now()}`
+    );
     if (!res.ok) {
       console.warn(`Company info fetch failed for ${clean}:`, res.status);
       return null;
