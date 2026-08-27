@@ -3,8 +3,10 @@ import type { OhlcBar } from '../services/psxData';
 export type MomentumIndicatorType = 'RSI' | 'MACD' | 'Stochastic' | 'ADX';
 export const MOMENTUM_TYPES: MomentumIndicatorType[] = ['RSI', 'MACD', 'Stochastic', 'ADX'];
 
+export type MomentumEnabled = Record<MomentumIndicatorType, boolean>;
+
 export interface MomentumConfig {
-  indicatorType: MomentumIndicatorType;
+  enabled: MomentumEnabled;
   rsi: {
     length: number;
     overbought: number;
@@ -44,7 +46,7 @@ export interface MomentumConfig {
 }
 
 export const DEFAULT_MOMENTUM_CONFIG: MomentumConfig = {
-  indicatorType: 'RSI',
+  enabled: { RSI: true, MACD: false, Stochastic: false, ADX: false },
   rsi: {
     length: 14,
     overbought: 60,
@@ -96,7 +98,31 @@ export interface MomentumBar {
 }
 
 export function cloneMomentumConfig(config: MomentumConfig): MomentumConfig {
-  return JSON.parse(JSON.stringify(config)) as MomentumConfig;
+  const c = JSON.parse(JSON.stringify(config)) as MomentumConfig & { indicatorType?: MomentumIndicatorType };
+  if (!c.enabled) {
+    const legacy = c.indicatorType ?? 'RSI';
+    c.enabled = { RSI: false, MACD: false, Stochastic: false, ADX: false, [legacy]: true };
+  }
+  for (const t of MOMENTUM_TYPES) {
+    if (c.enabled[t] == null) c.enabled[t] = false;
+  }
+  return c;
+}
+
+export function activeMomentumTypes(config: MomentumConfig): MomentumIndicatorType[] {
+  return MOMENTUM_TYPES.filter((t) => config.enabled[t]);
+}
+
+export function countMomentumEnabled(config: MomentumConfig): { active: number; total: number } {
+  const active = activeMomentumTypes(config).length;
+  return { active, total: MOMENTUM_TYPES.length };
+}
+
+export function setAllMomentumEnabled(enabled: boolean): MomentumEnabled {
+  return MOMENTUM_TYPES.reduce((acc, t) => {
+    acc[t] = enabled;
+    return acc;
+  }, {} as MomentumEnabled);
 }
 
 function smaSeries(values: (number | null)[], period: number): (number | null)[] {
@@ -305,9 +331,8 @@ export function computeMomentumSeries(bars: OhlcBar[], config: MomentumConfig): 
   }));
 }
 
-export function momentumPanelLabel(config: MomentumConfig): string {
-  const t = config.indicatorType;
-  switch (t) {
+export function momentumPanelLabel(config: MomentumConfig, type: MomentumIndicatorType): string {
+  switch (type) {
     case 'RSI':
       return `RSI (${config.rsi.length})`;
     case 'MACD':

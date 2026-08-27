@@ -13,8 +13,21 @@ import {
   PivotLabel,
 } from '../utils/awaisIndicators';
 import { IndicatorsPanel, AwaisSvgOverlays, AwaisPivotLabels } from './AwaisChartOverlays';
-import { MomentumPanel, MomentumMiniChart, momentumHoverText } from './MomentumPanel';
-import { DEFAULT_MOMENTUM_CONFIG, MomentumConfig, computeMomentumSeries } from '../utils/momentumIndicators';
+import {
+  MomentumPanel,
+  MomentumMiniChart,
+  momentumHoverText,
+  MOMENTUM_PANEL_HEIGHT,
+  MOMENTUM_MACD_HEIGHT,
+  VOLUME_PANEL_HEIGHT,
+} from './MomentumPanel';
+import {
+  activeMomentumTypes,
+  countMomentumEnabled,
+  DEFAULT_MOMENTUM_CONFIG,
+  MomentumConfig,
+  computeMomentumSeries,
+} from '../utils/momentumIndicators';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, ReferenceLine, Bar, Cell,
@@ -379,10 +392,10 @@ const BollingerRsiChart: React.FC<{
         <div className="text-rose-500">Upper {rs(row.upper)}</div>
         <div className="text-blue-500">SMA {rs(row.middle)}</div>
         <div className="text-emerald-600">Lower {rs(row.lower)}</div>
-        {layers.momentum && momentumConfig.indicatorType === 'RSI' && (
+        {layers.momentum && momentumConfig.enabled.RSI && (
           <div className="text-purple-600 font-bold mt-1">RSI {row.rsi.toFixed(1)}</div>
         )}
-        {layers.momentum && momentumConfig.indicatorType === 'MACD' && hasMacd && Number.isFinite(row.macd) && (
+        {layers.momentum && momentumConfig.enabled.MACD && hasMacd && Number.isFinite(row.macd) && (
           <>
             <div className="text-blue-600">MACD {(row.macd ?? 0).toFixed(3)}</div>
             <div className="text-orange-500">Signal {(row.macdSignal ?? 0).toFixed(3)}</div>
@@ -414,8 +427,8 @@ const BollingerRsiChart: React.FC<{
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      {layers.momentum && momentumConfig.indicatorType === 'RSI' && (
-      <div className="h-[110px] sm:h-[120px]">
+      {layers.momentum && momentumConfig.enabled.RSI && (
+      <div className="h-[140px] sm:h-[150px]">
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">RSI ({momentumConfig.rsi.length})</div>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
@@ -434,11 +447,11 @@ const BollingerRsiChart: React.FC<{
         </ResponsiveContainer>
       </div>
       )}
-      {layers.momentum && momentumConfig.indicatorType === 'MACD' && hasMacd && (
+      {layers.momentum && momentumConfig.enabled.MACD && hasMacd && (
         <MacdRechartsPanel data={data} showXAxis={!(layers.volume && hasVolume)} />
       )}
       {layers.volume && hasVolume && (
-      <div className="h-[72px] sm:h-[80px]">
+      <div className="h-[100px] sm:h-[110px]">
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">Volume</div>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
@@ -483,7 +496,7 @@ const LineVolumePanel: React.FC<{ bars: OhlcBar[] }> = ({ bars }) => {
   const slot = Math.max(4, (width - 64) / Math.max(bars.length, 1));
   return (
     <div ref={ref} className="w-full">
-      <VolumeMiniChart bars={bars} slot={slot} padL={52} width={width} />
+      <VolumeMiniChart bars={bars} slot={slot} padL={52} width={width} height={VOLUME_PANEL_HEIGHT} />
     </div>
   );
 };
@@ -495,6 +508,7 @@ const LineMomentumPanel: React.FC<{
 }> = ({ bars, config, showVolume }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
+  const active = useMemo(() => activeMomentumTypes(config), [config]);
 
   useEffect(() => {
     const el = ref.current;
@@ -507,9 +521,21 @@ const LineMomentumPanel: React.FC<{
   }, []);
 
   const slot = Math.max(4, (width - 64) / Math.max(bars.length, 1));
+  if (!active.length) return null;
   return (
-    <div ref={ref} className="w-full">
-      <MomentumMiniChart bars={bars} config={config} slot={slot} padL={52} width={width} showXLabels={!showVolume} />
+    <div ref={ref} className="w-full space-y-1">
+      {active.map((type, idx) => (
+        <MomentumMiniChart
+          key={type}
+          type={type}
+          bars={bars}
+          config={config}
+          slot={slot}
+          padL={52}
+          width={width}
+          showXLabels={!showVolume && idx === active.length - 1}
+        />
+      ))}
     </div>
   );
 };
@@ -707,6 +733,13 @@ const MacdMiniChart: React.FC<{
   );
 };
 
+function volumeScaleMax(volumes: number[], percentile = 0.92): number {
+  const sorted = volumes.filter((v) => v > 0).sort((a, b) => a - b);
+  if (!sorted.length) return 1;
+  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * percentile));
+  return Math.max(sorted[idx], 1);
+}
+
 const VolumeMiniChart: React.FC<{
   bars: OhlcBar[];
   slot: number;
@@ -715,11 +748,11 @@ const VolumeMiniChart: React.FC<{
   height?: number;
   candleInterval?: CandleInterval;
   barW?: number;
-}> = ({ bars, slot, padL, width, height = 100, candleInterval = 'day', barW: barWProp }) => {
-  const pad = { t: 6, r: 12, b: 24, l: 52 };
+}> = ({ bars, slot, padL, width, height = VOLUME_PANEL_HEIGHT, candleInterval = 'day', barW: barWProp }) => {
+  const pad = { t: 8, r: 12, b: 24, l: 52 };
   const innerH = height - pad.t - pad.b;
-  const maxV = Math.max(...bars.map((b) => b.volume), 1);
-  const yVol = (v: number) => pad.t + innerH - (v / maxV) * innerH;
+  const maxV = volumeScaleMax(bars.map((b) => b.volume));
+  const yVol = (v: number) => pad.t + innerH - (Math.min(v, maxV) / maxV) * innerH;
   const xAt = (i: number) => padL + i * slot + slot / 2;
   const barW = barWProp ?? chartBarMetrics(slot, bars.length, candleInterval).barW;
 
@@ -838,8 +871,9 @@ const CandleChart: React.FC<{
     [display, analysis, showOverlay]
   );
   const momentumSeries = useMemo(() => computeMomentumSeries(display, momentumConfig), [display, momentumConfig]);
+  const activeMomentum = useMemo(() => activeMomentumTypes(momentumConfig), [momentumConfig]);
   const hasAwais = awaisData != null;
-  const showMomentum = layers.momentum && display.length >= 3;
+  const showMomentum = layers.momentum && display.length >= 3 && activeMomentum.length > 0;
   const showVolume = layers.volume && bars.some((b) => b.volume > 0);
   const showBottomX = showVolume || showMomentum;
 
@@ -959,24 +993,26 @@ const CandleChart: React.FC<{
         })}
       </svg>
       </div>
-      {showMomentum && (
+      {showMomentum && activeMomentum.map((type, idx) => (
         <MomentumMiniChart
+          key={type}
+          type={type}
           bars={display}
           config={momentumConfig}
           slot={slot}
           padL={plotOffset}
           width={w}
-          height={150}
-          showXLabels={!showVolume}
+          height={type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT}
+          showXLabels={!showVolume && idx === activeMomentum.length - 1}
         />
-      )}
+      ))}
       {showVolume && (
         <VolumeMiniChart
           bars={display}
           slot={slot}
           padL={plotOffset}
           width={w}
-          height={100}
+          height={VOLUME_PANEL_HEIGHT}
           candleInterval={candleInterval}
           barW={barW}
         />
@@ -1552,7 +1588,13 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             layers={layers}
             onToggle={toggleLayer}
             hasVolume={hasVolume}
-            momentumLabel={momentumConfig.indicatorType}
+            momentumLabel={(() => {
+              const { active, total } = countMomentumEnabled(momentumConfig);
+              if (active === 0) return 'Momentum';
+              if (active === 1) return activeMomentumTypes(momentumConfig)[0];
+              if (active === total) return 'All';
+              return `${active}/${total}`;
+            })()}
           />
         )}
         <div

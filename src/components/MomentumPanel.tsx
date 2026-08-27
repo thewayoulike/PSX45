@@ -6,10 +6,17 @@ import {
   MOMENTUM_TYPES,
   MomentumConfig,
   MomentumIndicatorType,
+  activeMomentumTypes,
   cloneMomentumConfig,
   computeMomentumSeries,
+  countMomentumEnabled,
   momentumPanelLabel,
+  setAllMomentumEnabled,
 } from '../utils/momentumIndicators';
+
+export const MOMENTUM_PANEL_HEIGHT = 175;
+export const MOMENTUM_MACD_HEIGHT = 190;
+export const VOLUME_PANEL_HEIGHT = 130;
 
 type PanelTab = 'inputs' | 'style';
 
@@ -76,46 +83,46 @@ function MomentumPanelContent({
   const patch = <K extends keyof MomentumConfig>(key: K, value: MomentumConfig[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
 
+  const toggleType = (type: MomentumIndicatorType) => {
+    setDraft((prev) => ({
+      ...prev,
+      enabled: { ...prev.enabled, [type]: !prev.enabled[type] },
+    }));
+  };
+
   if (tab === 'inputs') {
     return (
       <div className="space-y-3">
-        <label className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/60 text-[11px]">
-          <span className="font-bold text-slate-700 dark:text-slate-200">Select Indicator</span>
-          <select
-            value={draft.indicatorType}
-            onChange={(e) => patch('indicatorType', e.target.value as MomentumIndicatorType)}
-            className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold"
-          >
-            {MOMENTUM_TYPES.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-        </label>
+        <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-slate-100 dark:border-slate-800">
+          <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Show on chart</p>
+          <span className="inline-flex items-center gap-1">
+            <button type="button" onClick={() => patch('enabled', setAllMomentumEnabled(true))} className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-500/10">All</button>
+            <span className="text-slate-300">·</span>
+            <button type="button" onClick={() => patch('enabled', setAllMomentumEnabled(false))} className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800">None</button>
+          </span>
+        </div>
+        {MOMENTUM_TYPES.map((type) => (
+          <label key={type} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+            <input type="checkbox" checked={draft.enabled[type]} onChange={() => toggleType(type)} className="rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
+            {type}
+          </label>
+        ))}
 
-        {draft.indicatorType === 'RSI' && (
+        {draft.enabled.RSI && (
           <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
             <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">RSI Settings</p>
             <NumberInput label="RSI Length" value={draft.rsi.length} onChange={(v) => patch('rsi', { ...draft.rsi, length: v })} />
             <NumberInput label="Overbought" value={draft.rsi.overbought} onChange={(v) => patch('rsi', { ...draft.rsi, overbought: v })} min={1} max={100} />
             <NumberInput label="Oversold" value={draft.rsi.oversold} onChange={(v) => patch('rsi', { ...draft.rsi, oversold: v })} min={1} max={100} />
             <label className="flex items-center gap-2 px-2 py-1.5 text-[11px] font-semibold text-slate-700 dark:text-slate-200">
-              <input
-                type="checkbox"
-                checked={draft.rsi.showSmoothing}
-                onChange={() => patch('rsi', { ...draft.rsi, showSmoothing: !draft.rsi.showSmoothing })}
-                className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-              />
+              <input type="checkbox" checked={draft.rsi.showSmoothing} onChange={() => patch('rsi', { ...draft.rsi, showSmoothing: !draft.rsi.showSmoothing })} className="rounded border-slate-300 text-purple-600 focus:ring-purple-500" />
               Show Smoothing MA
             </label>
             {draft.rsi.showSmoothing && (
               <>
                 <label className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
                   <span className="font-semibold text-slate-600 dark:text-slate-300">Smoothing Type</span>
-                  <select
-                    value={draft.rsi.smoothingType}
-                    onChange={(e) => patch('rsi', { ...draft.rsi, smoothingType: e.target.value as 'SMA' | 'EMA' })}
-                    className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold"
-                  >
+                  <select value={draft.rsi.smoothingType} onChange={(e) => patch('rsi', { ...draft.rsi, smoothingType: e.target.value as 'SMA' | 'EMA' })} className="px-2 py-1 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold">
                     <option value="SMA">SMA</option>
                     <option value="EMA">EMA</option>
                   </select>
@@ -126,7 +133,7 @@ function MomentumPanelContent({
           </div>
         )}
 
-        {draft.indicatorType === 'MACD' && (
+        {draft.enabled.MACD && (
           <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
             <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">MACD Settings</p>
             <NumberInput label="Fast Length" value={draft.macd.fast} onChange={(v) => patch('macd', { ...draft.macd, fast: v })} />
@@ -135,7 +142,7 @@ function MomentumPanelContent({
           </div>
         )}
 
-        {draft.indicatorType === 'Stochastic' && (
+        {draft.enabled.Stochastic && (
           <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
             <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Stochastic Settings</p>
             <NumberInput label="%K Length" value={draft.stochastic.kLength} onChange={(v) => patch('stochastic', { ...draft.stochastic, kLength: v })} />
@@ -146,7 +153,7 @@ function MomentumPanelContent({
           </div>
         )}
 
-        {draft.indicatorType === 'ADX' && (
+        {draft.enabled.ADX && (
           <div className="border-t border-slate-100 dark:border-slate-800 pt-2">
             <p className="px-2 pb-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">ADX Settings</p>
             <NumberInput label="ADX Length" value={draft.adx.adxLength} onChange={(v) => patch('adx', { ...draft.adx, adxLength: v })} />
@@ -158,18 +165,25 @@ function MomentumPanelContent({
     );
   }
 
+  const enabled = activeMomentumTypes(draft);
+  if (!enabled.length) {
+    return <p className="px-2 py-4 text-[11px] text-slate-400">Enable at least one indicator on the Inputs tab.</p>;
+  }
+
   return (
     <div className="space-y-3">
-      {draft.indicatorType === 'RSI' && (
+      {draft.enabled.RSI && (
         <>
+          <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">RSI</p>
           <ColorInput label="RSI Line" value={draft.rsi.color} onChange={(v) => patch('rsi', { ...draft.rsi, color: v })} />
           {draft.rsi.showSmoothing && (
             <ColorInput label="Smoothing MA" value={draft.rsi.smoothingColor} onChange={(v) => patch('rsi', { ...draft.rsi, smoothingColor: v })} />
           )}
         </>
       )}
-      {draft.indicatorType === 'MACD' && (
+      {draft.enabled.MACD && (
         <>
+          <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">MACD</p>
           <ColorInput label="MACD Line" value={draft.macd.lineColor} onChange={(v) => patch('macd', { ...draft.macd, lineColor: v })} />
           <ColorInput label="Signal Line" value={draft.macd.signalColor} onChange={(v) => patch('macd', { ...draft.macd, signalColor: v })} />
           <ColorInput label="Above Zero - Rising" value={draft.macd.histAboveRising} onChange={(v) => patch('macd', { ...draft.macd, histAboveRising: v })} />
@@ -178,14 +192,18 @@ function MomentumPanelContent({
           <ColorInput label="Below Zero - Falling" value={draft.macd.histBelowFalling} onChange={(v) => patch('macd', { ...draft.macd, histBelowFalling: v })} />
         </>
       )}
-      {draft.indicatorType === 'Stochastic' && (
+      {draft.enabled.Stochastic && (
         <>
+          <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Stochastic</p>
           <ColorInput label="%K Color" value={draft.stochastic.kColor} onChange={(v) => patch('stochastic', { ...draft.stochastic, kColor: v })} />
           <ColorInput label="%D Color" value={draft.stochastic.dColor} onChange={(v) => patch('stochastic', { ...draft.stochastic, dColor: v })} />
         </>
       )}
-      {draft.indicatorType === 'ADX' && (
-        <ColorInput label="ADX Line" value={draft.adx.color} onChange={(v) => patch('adx', { ...draft.adx, color: v })} />
+      {draft.enabled.ADX && (
+        <>
+          <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">ADX</p>
+          <ColorInput label="ADX Line" value={draft.adx.color} onChange={(v) => patch('adx', { ...draft.adx, color: v })} />
+        </>
       )}
     </div>
   );
@@ -196,6 +214,7 @@ export const MomentumPanel: React.FC<{
   onApply: (config: MomentumConfig) => void;
   disabled?: boolean;
 }> = ({ config, onApply, disabled }) => {
+  const { active, total } = countMomentumEnabled(config);
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<PanelTab>('inputs');
   const [draft, setDraft] = useState(() => cloneMomentumConfig(config));
@@ -230,7 +249,7 @@ export const MomentumPanel: React.FC<{
       >
         <Activity size={14} className="text-purple-600" />
         Momentum
-        <span className="text-[10px] font-bold text-slate-400">{config.indicatorType}</span>
+        <span className="text-[10px] font-bold text-slate-400 tabular-nums">{active}/{total}</span>
       </button>
 
       {open && (
@@ -290,6 +309,7 @@ export const MomentumPanel: React.FC<{
 };
 
 export const MomentumMiniChart: React.FC<{
+  type: MomentumIndicatorType;
   bars: OhlcBar[];
   config: MomentumConfig;
   slot: number;
@@ -297,15 +317,15 @@ export const MomentumMiniChart: React.FC<{
   width: number;
   height?: number;
   showXLabels?: boolean;
-}> = ({ bars, config, slot, padL, width, height, showXLabels = false }) => {
+}> = ({ type, bars, config, slot, padL, width, height, showXLabels = false }) => {
   const series = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);
-  const panelHeight = height ?? (config.indicatorType === 'MACD' ? 155 : 150);
-  const pad = { t: 8, r: 12, b: 20, l: 52 };
+  const panelHeight = height ?? (type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT);
+  const pad = { t: 10, r: 12, b: 22, l: 52 };
   const innerH = panelHeight - pad.t - pad.b;
   const xAt = (i: number) => padL + i * slot + slot / 2;
-  const label = momentumPanelLabel(config);
+  const label = momentumPanelLabel(config, type);
 
-  if (config.indicatorType === 'RSI') {
+  if (type === 'RSI') {
     const yRsi = (v: number) => pad.t + ((100 - v) / 100) * innerH;
     const lines = [
       { lvl: config.rsi.overbought, color: '#ef4444' },
@@ -331,7 +351,7 @@ export const MomentumMiniChart: React.FC<{
     );
   }
 
-  if (config.indicatorType === 'Stochastic') {
+  if (type === 'Stochastic') {
     const ySt = (v: number) => pad.t + ((100 - v) / 100) * innerH;
     return (
       <div>
@@ -350,7 +370,7 @@ export const MomentumMiniChart: React.FC<{
     );
   }
 
-  if (config.indicatorType === 'ADX') {
+  if (type === 'ADX') {
     const yAdx = (v: number) => pad.t + ((100 - v) / 100) * innerH;
     return (
       <div>
@@ -407,14 +427,10 @@ export const MomentumMiniChart: React.FC<{
 
 export function momentumHoverText(config: MomentumConfig, point: ReturnType<typeof computeMomentumSeries>[number] | undefined): string | null {
   if (!point) return null;
-  switch (config.indicatorType) {
-    case 'RSI':
-      return point.rsi != null ? `RSI ${point.rsi.toFixed(1)}` : null;
-    case 'MACD':
-      return point.macd != null ? `MACD ${point.macd.toFixed(3)}` : null;
-    case 'Stochastic':
-      return point.stochK != null ? `Stoch ${point.stochK.toFixed(1)}` : null;
-    case 'ADX':
-      return point.adx != null ? `ADX ${point.adx.toFixed(1)}` : null;
-  }
+  const parts: string[] = [];
+  if (config.enabled.RSI && point.rsi != null) parts.push(`RSI ${point.rsi.toFixed(1)}`);
+  if (config.enabled.MACD && point.macd != null) parts.push(`MACD ${point.macd.toFixed(3)}`);
+  if (config.enabled.Stochastic && point.stochK != null) parts.push(`Stoch ${point.stochK.toFixed(1)}`);
+  if (config.enabled.ADX && point.adx != null) parts.push(`ADX ${point.adx.toFixed(1)}`);
+  return parts.length ? parts.join(' · ') : null;
 }
