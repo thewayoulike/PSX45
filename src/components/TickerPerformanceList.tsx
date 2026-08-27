@@ -650,9 +650,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 </div>
 
                 {/* --- STOCK DETAIL TABS --- */}
-                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800/60 rounded-2xl p-1 overflow-x-auto">
+                <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-2xl p-1.5 overflow-x-auto shadow-sm">
                     {([['position', 'Position & Gains'], ['chart', 'Chart'], ['financials', 'Financials'], ['announcements', 'Announcements']] as const).map(([id, label]) => (
-                        <button key={id} onClick={() => setDetailTab(id)} className={`flex-1 whitespace-nowrap px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${detailTab === id ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}>{label}</button>
+                        <button
+                          key={id}
+                          onClick={() => setDetailTab(id)}
+                          className={`flex-1 whitespace-nowrap px-4 py-3 rounded-xl text-sm font-black tracking-tight transition-all ${
+                            detailTab === id
+                              ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25'
+                              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white'
+                          }`}
+                        >
+                          {label}
+                        </button>
                     ))}
                 </div>
 
