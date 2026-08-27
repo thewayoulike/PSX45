@@ -668,10 +668,10 @@ export const AwaisSvgOverlays: React.FC<{
                 x2={width - padRight}
                 y1={yScale(pv.value)}
                 y2={yScale(pv.value)}
-                stroke="#FB8C00"
+                stroke="#EA580C"
                 strokeWidth={1}
                 strokeDasharray="6 4"
-                strokeOpacity={0.85}
+                strokeOpacity={0.9}
               />
               {!hidePivotLabels && (
               <text
@@ -697,7 +697,9 @@ export const AwaisPivotLabels: React.FC<{
   yScale: (v: number) => number;
   width: number;
   padRight: number;
-}> = ({ data, layers, yScale, width, padRight }) => {
+  plotTop?: number;
+  plotBottom?: number;
+}> = ({ data, layers, yScale, width, padRight, plotTop = 0, plotBottom = Infinity }) => {
   if (!layers.groups.pivot) return null;
   return (
     <>
@@ -705,18 +707,33 @@ export const AwaisPivotLabels: React.FC<{
         .filter((pv) => layers.pivot[pv.label as PivotLabel])
         .map((pv) => {
           const y = yScale(pv.value);
+          if (y < plotTop - 2 || y > plotBottom + 2) return null;
+          const label = `${pv.label} ${pv.value.toFixed(2)}`;
+          const pillW = label.length * 5.8 + 10;
+          const pillX = width - padRight - 6 - pillW;
           return (
-            <text
-              key={pv.label}
-              x={width - padRight - 4}
-              y={y - 3}
-              textAnchor="end"
-              fontSize={9}
-              fill="#FB8C00"
-              fontWeight={700}
-            >
-              {pv.label} {pv.value.toFixed(2)}
-            </text>
+            <g key={pv.label}>
+              <rect
+                x={pillX}
+                y={y - 12}
+                width={pillW}
+                height={15}
+                rx={3}
+                fill="rgba(255,255,255,0.94)"
+                stroke="#EA580C"
+                strokeWidth={0.75}
+              />
+              <text
+                x={pillX + pillW - 5}
+                y={y - 1}
+                textAnchor="end"
+                fontSize={10}
+                fill="#9A3412"
+                fontWeight={800}
+              >
+                {label}
+              </text>
+            </g>
           );
         })}
     </>

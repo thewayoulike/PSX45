@@ -197,7 +197,7 @@ export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache,
   }, [inputs]);
 
   return (
-    <div className="space-y-6 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 w-full min-w-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
       
       {/* -------------------------------------------------------- */}
       {/* SECTION B: EVALUATIONS METHODS (COMPACT DESIGN) */}

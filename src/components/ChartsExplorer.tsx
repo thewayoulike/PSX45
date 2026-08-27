@@ -103,7 +103,7 @@ export const ChartsExplorer: React.FC<Props> = ({ onSymbolClick }) => {
   const active = rows.find((r) => r.symbol === selected);
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 max-w-[1600px] mx-auto">
+    <div className="animate-in fade-in slide-in-from-bottom-2 duration-500 w-full min-w-0">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-4">
         <div>
           <h1 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2">

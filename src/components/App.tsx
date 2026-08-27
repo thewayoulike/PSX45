@@ -1757,7 +1757,7 @@ const App: React.FC = () => {
           />
 
           <div className="flex-1 flex flex-col relative z-10 overflow-y-auto">
-              <div className="max-w-[1600px] mx-auto w-full px-4 sm:px-6 lg:px-8 pt-6 pb-20">
+              <div className="w-full min-w-0 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-6 pb-20">
 
                   <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
 

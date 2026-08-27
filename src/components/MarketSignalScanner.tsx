@@ -462,7 +462,7 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
   const isAll = universe === 'ALL';
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 max-w-[1600px] mx-auto">
+    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 w-full min-w-0">
       {/* Header / controls */}
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">

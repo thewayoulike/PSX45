@@ -558,7 +558,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   }
 
   return (
-    <div className="max-w-[1600px] mx-auto mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+    <div className="w-full min-w-0 mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
       
       {/* HEADER SECTION with TOGGLE */}
       <div className="relative z-30 bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl p-8 shadow-card dark:shadow-card-dark flex flex-col items-center justify-center text-center">
@@ -686,7 +686,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 </div>
 
                 {/* 2. STATS GRID */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-3 mb-6"> <div className="w-10 h-10 bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 rounded-2xl flex items-center justify-center border border-blue-100 dark:border-blue-500/20 shadow-sm shrink-0"><Wallet size={18} /></div> <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Position & Gains</h3> </div>
                         <div className="space-y-6">
@@ -957,7 +957,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 </div>
 
                 {/* 2. STATS GRID */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                     {/* Sector Overview */}
                     <Card className="md:col-span-1">
                         <div className="flex items-center gap-3 mb-6">

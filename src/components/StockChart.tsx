@@ -22,6 +22,7 @@ import {
   MOMENTUM_PANEL_HEIGHT,
   MOMENTUM_MACD_HEIGHT,
   VOLUME_PANEL_HEIGHT,
+  CANDLE_CHART_HEIGHT,
 } from './MomentumPanel';
 import {
   activeMomentumTypes,
@@ -277,6 +278,62 @@ const RANGES: { k: string; days: number; period: string }[] = [
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtVol = (n: number) =>
   n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : `${Math.round(n)}`;
+
+/** Close-to-close % change vs the prior candle in the series. */
+function candleChangeFromPrev(current: OhlcBar, prev: OhlcBar | null | undefined): number | null {
+  if (!prev || prev.close <= 0) return null;
+  return ((current.close - prev.close) / prev.close) * 100;
+}
+
+function barIndexAtX(x: number, plotOffset: number, slot: number, count: number): number | null {
+  if (count <= 0 || slot <= 0 || x < plotOffset || x > plotOffset + count * slot) return null;
+  return Math.min(count - 1, Math.max(0, Math.floor((x - plotOffset) / slot)));
+}
+
+type PlotHoverState = { idx: number | null; x: number | null; y: number | null };
+
+function plotMouseHandlers(
+  plotOffset: number,
+  slot: number,
+  count: number,
+  plotTop: number,
+  plotBottom: number,
+  setHover: (v: PlotHoverState) => void,
+  panning: boolean,
+  trackY = false
+) {
+  const plotRight = plotOffset + count * slot;
+  return {
+    onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => {
+      if (panning) return;
+      const x = e.nativeEvent.offsetX;
+      const y = e.nativeEvent.offsetY;
+      setHover((prev) => {
+        const next: PlotHoverState = { ...prev, idx: barIndexAtX(x, plotOffset, slot, count) };
+        if (x >= plotOffset && x <= plotRight) next.x = x;
+        if (trackY && y >= plotTop && y <= plotBottom) next.y = y;
+        return next;
+      });
+    },
+  };
+}
+
+const AXIS_LABEL = '#334155';
+const MUTED_LABEL = '#64748b';
+
+const CrosshairVertical: React.FC<{ x: number; top: number; bottom: number }> = ({ x, top, bottom }) => (
+  <line
+    x1={x}
+    x2={x}
+    y1={top}
+    y2={bottom}
+    stroke="#94a3b8"
+    strokeWidth={1}
+    strokeDasharray="4 4"
+    opacity={0.85}
+    pointerEvents="none"
+  />
+);
 
 type ChartMode = 'candle' | 'line' | 'technical';
 
@@ -552,7 +609,37 @@ const LineMomentumPanel: React.FC<{
   );
 };
 
-type CandleInterval = 'day' | 'month';
+type CandleInterval = 'day' | 'week' | 'month';
+
+function weekBucketKey(time: number): string {
+  const d = new Date(time);
+  const monday = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return `W${monday}`;
+}
+
+/** Aggregate daily OHLCV bars into weekly candles (Monday–Sunday). */
+function aggregateWeekly(bars: OhlcBar[]): OhlcBar[] {
+  if (bars.length < 2) return bars;
+  const out: OhlcBar[] = [];
+  let bucket: OhlcBar | null = null;
+  let weekKey = '';
+  for (const b of bars) {
+    const wk = weekBucketKey(b.time);
+    if (!bucket || wk !== weekKey) {
+      if (bucket) out.push(bucket);
+      weekKey = wk;
+      bucket = { ...b };
+    } else {
+      bucket.high = Math.max(bucket.high, b.high);
+      bucket.low = Math.min(bucket.low, b.low);
+      bucket.close = b.close;
+      bucket.volume += b.volume;
+      bucket.time = b.time;
+    }
+  }
+  if (bucket) out.push(bucket);
+  return out;
+}
 
 /** Aggregate daily OHLCV bars into monthly candles. */
 function aggregateMonthly(bars: OhlcBar[]): OhlcBar[] {
@@ -583,14 +670,18 @@ function fmtCandleDate(ms: number, interval: CandleInterval): string {
   if (interval === 'month') {
     return new Date(ms).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
   }
+  if (interval === 'week') {
+    return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  }
   return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-/** Wider bars when the series is sparse (e.g. monthly 1Y ≈ 12 candles). */
+/** Wider bars when the series is sparse (e.g. weekly/monthly views). */
 function chartBarMetrics(slot: number, barCount: number, interval: CandleInterval) {
-  const sparse = barCount <= 36 || interval === 'month';
+  const sparse = barCount <= 36 || interval === 'month' || interval === 'week';
   if (sparse) {
-    const w = Math.max(6, Math.min(slot * 0.74, interval === 'month' ? 52 : 22));
+    const cap = interval === 'month' ? 52 : interval === 'week' ? 34 : 22;
+    const w = Math.max(6, Math.min(slot * 0.74, cap));
     return { bodyW: w, barW: w };
   }
   return {
@@ -745,11 +836,11 @@ const MacdMiniChart: React.FC<{
   );
 };
 
-function volumeScaleMax(volumes: number[], percentile = 0.92): number {
-  const sorted = volumes.filter((v) => v > 0).sort((a, b) => a - b);
-  if (!sorted.length) return 1;
-  const idx = Math.min(sorted.length - 1, Math.floor(sorted.length * percentile));
-  return Math.max(sorted[idx], 1);
+function volumeScaleMax(volumes: number[]): number {
+  let max = 0;
+  for (const v of volumes) if (v > max) max = v;
+  // Small headroom so the tallest bar does not touch the panel edge.
+  return max > 0 ? max * 1.06 : 1;
 }
 
 const VolumeMiniChart: React.FC<{
@@ -760,20 +851,24 @@ const VolumeMiniChart: React.FC<{
   height?: number;
   candleInterval?: CandleInterval;
   barW?: number;
-}> = ({ bars, slot, padL, width, height = VOLUME_PANEL_HEIGHT, candleInterval = 'day', barW: barWProp }) => {
-  const pad = { t: 8, r: 12, b: 24, l: 52 };
+  hoverX?: number | null;
+  hoverIdx?: number | null;
+  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
+}> = ({ bars, slot, padL, width, height = VOLUME_PANEL_HEIGHT, candleInterval = 'day', barW: barWProp, hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
+  const pad = { t: 8, r: 56, b: 24, l: 52 };
   const innerH = height - pad.t - pad.b;
   const maxV = volumeScaleMax(bars.map((b) => b.volume));
-  const yVol = (v: number) => pad.t + innerH - (Math.min(v, maxV) / maxV) * innerH;
+  const peakV = bars.reduce((m, b) => Math.max(m, b.volume), 0);
+  const yVol = (v: number) => pad.t + innerH - (v / maxV) * innerH;
   const xAt = (i: number) => padL + i * slot + slot / 2;
   const barW = barWProp ?? chartBarMetrics(slot, bars.length, candleInterval).barW;
 
   return (
     <div>
       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">Volume</div>
-      <svg width={width} height={height} className="overflow-visible">
+      <svg width={width} height={height} className="overflow-visible" {...plotMouseHandlers}>
         <line x1={padL} x2={width - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke="#e2e8f0" strokeOpacity={0.5} />
-        <text x={padL - 6} y={pad.t + 4} textAnchor="end" fontSize={9} fill="#94a3b8" fontWeight={600}>{fmtVol(maxV)}</text>
+        <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={10} fill={MUTED_LABEL} fontWeight={700}>{fmtVol(peakV)}</text>
         {bars.map((b, i) => {
           const x = xAt(i);
           const top = yVol(b.volume);
@@ -792,6 +887,15 @@ const VolumeMiniChart: React.FC<{
             />
           );
         })}
+        {hoverX != null && <CrosshairVertical x={hoverX} top={pad.t} bottom={pad.t + innerH} />}
+        {hoverIdx != null && bars[hoverIdx]?.volume > 0 && (
+          <>
+            <rect x={width - 46} y={yVol(bars[hoverIdx].volume) - 10} width={40} height={16} rx={4} fill="#1e293b" />
+            <text x={width - 8} y={yVol(bars[hoverIdx].volume) + 4} textAnchor="end" fontSize={9} fill="#f8fafc" fontWeight={700}>
+              {fmtVol(bars[hoverIdx].volume)}
+            </text>
+          </>
+        )}
         {bars.length > 0 && [0, Math.floor(bars.length / 2), bars.length - 1].map((i) => {
           const b = bars[i];
           if (!b) return null;
@@ -860,8 +964,9 @@ const CandleChart: React.FC<{
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
-  const [hover, setHover] = useState<number | null>(null);
+  const [plotHover, setPlotHover] = useState<PlotHoverState>({ idx: null, x: null, y: null });
   const plotClipId = useId().replace(/:/g, '');
+  const labelClipId = useId().replace(/:/g, '');
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -872,7 +977,7 @@ const CandleChart: React.FC<{
     return () => ro.disconnect();
   }, []);
 
-  const pad = { t: 16, r: 12, b: 28, l: 52 };
+  const pad = { t: 16, r: 56, b: 28, l: 52 };
   const w = Math.max(280, width);
   const h = height;
   const innerW = w - pad.l - pad.r;
@@ -904,36 +1009,69 @@ const CandleChart: React.FC<{
   const plotInnerW =
     candleInterval === 'month' && display.length <= 24
       ? Math.min(innerW, display.length * 44)
-      : innerW;
+      : candleInterval === 'week' && display.length <= 52
+        ? Math.min(innerW, display.length * 34)
+        : innerW;
   const slot = plotInnerW / Math.max(display.length, 1);
   const plotOffset = pad.l + (innerW - plotInnerW) / 2;
   const { bodyW, barW } = chartBarMetrics(slot, display.length, candleInterval);
 
-  const hi = hover != null ? display[hover] : null;
-  const hiMomentum = hover != null ? momentumSeries[hover] : null;
+  const hi = plotHover.idx != null ? display[plotHover.idx] : null;
+  const prevBar = plotHover.idx != null && plotHover.idx > 0 ? display[plotHover.idx - 1] : null;
+  const barChangePct = hi ? candleChangeFromPrev(hi, prevBar) : null;
+  const hiMomentum = plotHover.idx != null ? momentumSeries[plotHover.idx] : null;
   const momentumTip = momentumHoverText(momentumConfig, hiMomentum ?? undefined);
   const xAt = (i: number) => plotOffset + i * slot + slot / 2;
+  const crosshairX = plotHover.x;
+  const crosshairY = plotHover.y;
+  const cursorPrice =
+    crosshairY != null && innerH > 0 ? yMax - ((crosshairY - pad.t) / innerH) * (yMax - yMin) : null;
+
+  useEffect(() => {
+    if (panning) setPlotHover({ idx: null, x: null, y: null });
+  }, [panning]);
+
+  const mainMouseHandlers = useMemo(
+    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, true),
+    [plotOffset, slot, display.length, pad.t, innerH, panning]
+  );
+  const subMouseHandlers = useMemo(
+    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, false),
+    [plotOffset, slot, display.length, pad.t, innerH, panning]
+  );
 
   return (
-    <div ref={wrapRef} className={`relative w-full select-none ${canPan || panning ? (panning ? 'cursor-grabbing' : 'cursor-grab') : ''}`}>
+    <div
+      ref={wrapRef}
+      className={`relative w-full select-none ${canPan || panning ? (panning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'}`}
+      onMouseLeave={() => setPlotHover({ idx: null, x: null, y: null })}
+    >
       {hi && (
-        <div className="absolute top-1 left-14 z-10 pointer-events-none rounded-lg bg-white/95 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-[11px] shadow-sm tabular-nums">
-          <span className="font-bold text-slate-700 dark:text-slate-200">
+        <div className="absolute top-1 right-2 z-10 pointer-events-none rounded-lg bg-white/98 dark:bg-slate-900/98 border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-[11px] shadow-md tabular-nums max-w-[calc(100%-1rem)]">
+          <span className="font-bold text-slate-800 dark:text-slate-100">
             {fmtCandleDate(hi.time, candleInterval)}
           </span>
-          <span className="text-slate-500 ml-2">O {rs(hi.open)}</span>
-          <span className="text-slate-500 ml-1.5">H {rs(hi.high)}</span>
-          <span className="text-slate-500 ml-1.5">L {rs(hi.low)}</span>
-          <span className={`ml-1.5 font-bold ${hi.close >= hi.open ? 'text-emerald-600' : 'text-rose-500'}`}>C {rs(hi.close)}</span>
-          {hi.volume > 0 && <span className="text-slate-400 ml-1.5">V {fmtVol(hi.volume)}</span>}
-          {showMomentum && momentumTip && <span className="text-purple-600 font-bold ml-1.5">{momentumTip}</span>}
+          <span className="text-slate-600 dark:text-slate-300 ml-2">O {rs(hi.open)}</span>
+          <span className="text-slate-600 dark:text-slate-300 ml-1.5">H {rs(hi.high)}</span>
+          <span className="text-slate-600 dark:text-slate-300 ml-1.5">L {rs(hi.low)}</span>
+          <span className={`ml-1.5 font-bold ${hi.close >= hi.open ? 'text-emerald-700' : 'text-rose-600'}`}>C {rs(hi.close)}</span>
+          {barChangePct != null && (
+            <span className={`ml-1.5 font-bold ${barChangePct >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+              ({barChangePct >= 0 ? '+' : ''}{barChangePct.toFixed(2)}%)
+            </span>
+          )}
+          {hi.volume > 0 && <span className="text-slate-600 dark:text-slate-300 ml-1.5">V {fmtVol(hi.volume)}</span>}
+          {showMomentum && momentumTip && <span className="text-purple-700 dark:text-purple-300 font-bold ml-1.5">{momentumTip}</span>}
         </div>
       )}
-      <div ref={plotRef}>
-      <svg width={w} height={h} className="overflow-visible">
+      <div ref={plotRef} className="overflow-hidden">
+      <svg width={w} height={h} className="overflow-hidden" {...mainMouseHandlers}>
         <defs>
           <clipPath id={plotClipId}>
             <rect x={pad.l} y={pad.t} width={innerW} height={innerH} />
+          </clipPath>
+          <clipPath id={labelClipId}>
+            <rect x={0} y={pad.t - 2} width={w} height={innerH + 4} />
           </clipPath>
         </defs>
         {/* grid */}
@@ -943,7 +1081,7 @@ const CandleChart: React.FC<{
           return (
             <g key={t}>
               <line x1={pad.l} x2={w - pad.r} y1={y} y2={y} stroke="#e2e8f0" strokeOpacity={0.45} strokeDasharray="3 3" />
-              <text x={pad.l - 6} y={y + 3} textAnchor="end" fontSize={10} fill="#94a3b8" fontWeight={600}>{price.toFixed(1)}</text>
+              <text x={w - 8} y={y + 4} textAnchor="end" fontSize={11} fill={AXIS_LABEL} fontWeight={700}>{price.toFixed(1)}</text>
             </g>
           );
         })}
@@ -972,27 +1110,57 @@ const CandleChart: React.FC<{
           const top = Math.min(yO, yC);
           const bodyH = Math.max(1.5, Math.abs(yC - yO));
           return (
-            <g
-              key={b.time}
-              onMouseEnter={() => setHover(i)}
-              onMouseLeave={() => setHover(null)}
-              className="cursor-crosshair"
-            >
-              <rect x={x - slot / 2} y={pad.t} width={slot} height={innerH} fill="transparent" />
+            <g key={b.time}>
+              <rect x={x - slot / 2} y={pad.t} width={slot} height={innerH} fill="transparent" pointerEvents="none" />
               <line x1={x} x2={x} y1={yH} y2={yL} stroke={color} strokeWidth={1.25} />
               <rect x={x - bodyW / 2} y={top} width={bodyW} height={bodyH} fill={color} rx={0.5} />
             </g>
           );
         })}
         </g>
+        {crosshairX != null && (
+          <g pointerEvents="none">
+            <CrosshairVertical x={crosshairX} top={pad.t} bottom={pad.t + innerH} />
+            {crosshairY != null && cursorPrice != null && (
+              <>
+                <line
+                  x1={pad.l}
+                  x2={w - pad.r}
+                  y1={crosshairY}
+                  y2={crosshairY}
+                  stroke="#94a3b8"
+                  strokeWidth={1}
+                  strokeDasharray="4 4"
+                  opacity={0.85}
+                />
+                <rect x={w - 54} y={crosshairY - 10} width={50} height={18} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={0.5} />
+                <text x={w - 8} y={crosshairY + 4} textAnchor="end" fontSize={10} fill="#f8fafc" fontWeight={700}>
+                  {rs(cursorPrice)}
+                </text>
+              </>
+            )}
+            {!showBottomX && hi && (
+              <>
+                <rect x={crosshairX - 42} y={pad.t + innerH + 4} width={84} height={16} rx={4} fill="#475569" />
+                <text x={crosshairX} y={pad.t + innerH + 15} textAnchor="middle" fontSize={9} fill="#f8fafc" fontWeight={600}>
+                  {fmtCandleDate(hi.time, candleInterval)}
+                </text>
+              </>
+            )}
+          </g>
+        )}
         {hasAwais && awaisData && (
-          <AwaisPivotLabels
-            data={awaisData}
-            layers={awaisLayers}
-            yScale={yScale}
-            width={w}
-            padRight={pad.r}
-          />
+          <g clipPath={`url(#${labelClipId})`}>
+            <AwaisPivotLabels
+              data={awaisData}
+              layers={awaisLayers}
+              yScale={yScale}
+              width={w}
+              padRight={pad.r}
+              plotTop={pad.t}
+              plotBottom={pad.t + innerH}
+            />
+          </g>
         )}
         {/* x labels — only when no sub-panel below */}
         {!showBottomX && display.length > 0 && [0, Math.floor(display.length / 2), display.length - 1].map((i) => {
@@ -1007,8 +1175,8 @@ const CandleChart: React.FC<{
       </svg>
       </div>
       {showMomentum && activeMomentum.map((type, idx) => (
+        <div key={type} className="mt-3 pt-2 border-t border-slate-200/80 dark:border-slate-700/80">
         <MomentumMiniChart
-          key={type}
           type={type}
           bars={display}
           config={momentumConfig}
@@ -1018,9 +1186,14 @@ const CandleChart: React.FC<{
           width={w}
           height={type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT}
           showXLabels={!showVolume && idx === activeMomentum.length - 1}
+          hoverX={crosshairX}
+          hoverIdx={plotHover.idx}
+          plotMouseHandlers={subMouseHandlers}
         />
+        </div>
       ))}
       {showVolume && (
+        <div className="mt-3 pt-2 border-t border-slate-200/80 dark:border-slate-700/80">
         <VolumeMiniChart
           bars={display}
           slot={slot}
@@ -1029,7 +1202,11 @@ const CandleChart: React.FC<{
           height={VOLUME_PANEL_HEIGHT}
           candleInterval={candleInterval}
           barW={barW}
+          hoverX={crosshairX}
+          hoverIdx={plotHover.idx}
+          plotMouseHandlers={subMouseHandlers}
         />
+        </div>
       )}
     </div>
   );
@@ -1198,6 +1375,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const candleOhlc = useMemo(() => {
     if (!showCandle) return filteredOhlc;
     if (candleInterval === 'month') return aggregateMonthly(filteredOhlc);
+    if (candleInterval === 'week') return aggregateWeekly(filteredOhlc);
     return filteredOhlc;
   }, [filteredOhlc, candleInterval, showCandle]);
   const modeLabel = showTechnical
@@ -1205,7 +1383,9 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     : showCandle
       ? candleInterval === 'month'
         ? 'Candles · Monthly'
-        : 'Candles · Daily'
+        : candleInterval === 'week'
+          ? 'Candles · Weekly'
+          : 'Candles · Daily'
       : 'Price';
 
   const primaryLen = showCandle
@@ -1304,26 +1484,37 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
 
   const hasVolume = visibleOhlc.some((b) => b.volume > 0);
 
-  const monthlyAnalysis = useMemo(
-    () => (showCandle && candleInterval === 'month' ? computeChartAnalysisFromBars(candleOhlc, { monthly: true }) : []),
+  const sparseCandleAnalysis = useMemo(
+    () =>
+      showCandle && (candleInterval === 'month' || candleInterval === 'week')
+        ? computeChartAnalysisFromBars(candleOhlc, { monthly: true })
+        : [],
     [candleOhlc, showCandle, candleInterval]
   );
 
   const candleAnalysis = useMemo(() => {
     if (!showCandle) return [];
-    if (candleInterval === 'month') {
+    if (candleInterval === 'month' || candleInterval === 'week') {
       if (!visibleOhlc.length) return [];
       const t0 = visibleOhlc[0].time;
       const t1 = visibleOhlc[visibleOhlc.length - 1].time;
-      return monthlyAnalysis.filter((p) => p.time >= t0 && p.time <= t1);
+      return sparseCandleAnalysis.filter((p) => p.time >= t0 && p.time <= t1);
     }
     return visibleAnalysis;
-  }, [showCandle, candleInterval, visibleOhlc, monthlyAnalysis, visibleAnalysis]);
+  }, [showCandle, candleInterval, visibleOhlc, sparseCandleAnalysis, visibleAnalysis]);
 
-  const analysisForLayers = showCandle && candleInterval === 'month' ? monthlyAnalysis : visibleAnalysis;
+  const analysisForLayers =
+    showCandle && (candleInterval === 'month' || candleInterval === 'week')
+      ? sparseCandleAnalysis
+      : visibleAnalysis;
   const hasMacd = analysisForLayers.some((p) => Number.isFinite(p.macd));
 
-  const pivotTimeframe: ChartTimeframe = showCandle && candleInterval === 'month' ? 'month' : 'day';
+  const pivotTimeframe: ChartTimeframe =
+    showCandle && candleInterval === 'month'
+      ? 'month'
+      : showCandle && candleInterval === 'week'
+        ? 'week'
+        : 'day';
 
   /** Pivots need whole anchor periods, so feed them unfiltered history, not the visible range. */
   const pivotBars = useMemo(
@@ -1595,6 +1786,13 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               </button>
               <button
                 type="button"
+                onClick={() => setCandleInterval('week')}
+                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${candleInterval === 'week' ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500'}`}
+              >
+                Week
+              </button>
+              <button
+                type="button"
                 onClick={() => setCandleInterval('month')}
                 className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${candleInterval === 'month' ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500'}`}
               >
@@ -1712,7 +1910,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               awaisLayers={awaisLayers}
               awaisData={awaisVisible}
               candleInterval={candleInterval}
-              height={440}
+              height={CANDLE_CHART_HEIGHT}
               panning={panning}
               canPan={canPanChart}
               priceZoomIdx={priceZoomIdx}
@@ -1724,8 +1922,10 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             {!candleAnalysis.length && candleInterval === 'day' && visibleOhlc.length >= 3 && (
               <p className="text-[10px] text-slate-400 px-1">Not enough data for indicator overlays in this range.</p>
             )}
-            {!candleAnalysis.length && candleInterval === 'month' && visibleOhlc.length >= 3 && (
-              <p className="text-[10px] text-slate-400 px-1">Need more monthly bars for indicator overlays.</p>
+            {!candleAnalysis.length && (candleInterval === 'month' || candleInterval === 'week') && visibleOhlc.length >= 3 && (
+              <p className="text-[10px] text-slate-400 px-1">
+                Need more {candleInterval === 'week' ? 'weekly' : 'monthly'} bars for indicator overlays.
+              </p>
             )}
           </div>
         ) : chartData.length < 2 && loaded ? (

@@ -225,7 +225,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
   const canSubmit = !!ticker && (tps.filter(t => t).length > 0 || sls.filter(s => s).length > 0);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 mb-10">
+    <div className="w-full min-w-0 space-y-6 mb-10">
 
       {/* Hero */}
       <div className="text-center animate-fade-in-up">

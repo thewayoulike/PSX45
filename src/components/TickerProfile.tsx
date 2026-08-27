@@ -167,7 +167,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
     <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-[#0a0a0a] overflow-y-auto animate-in slide-in-from-right duration-300">
 
       {/* HEADER */}
-      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200/60 dark:border-slate-800/60 px-6 py-4 flex items-center justify-between shadow-sm">
+      <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200/60 dark:border-slate-800/60 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-start gap-4">
           <button 
             onClick={onClose} 
@@ -230,7 +230,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         </div>
       </div>
 
-      <div className="max-w-[1600px] mx-auto p-6 md:p-8 space-y-8">
+      <div className="w-full min-w-0 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-6 md:py-8 space-y-8">
 
         {/* OHLCV CANDLE / PRICE CHART */}
         <StockChart symbol={ticker} />
@@ -239,7 +239,7 @@ export const TickerProfile: React.FC<TickerProfileProps> = ({
         <SetAlert ticker={ticker} currentPrice={currentPrice} canSaveAlerts={canSaveAlerts} />
 
         {/* STAT CARDS GRID */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           
           {/* 1. UNREALIZED HOLDING */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark relative overflow-hidden">

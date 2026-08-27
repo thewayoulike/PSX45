@@ -226,7 +226,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
   }, [buyPositions, sellPositions, activeHolding, broker, historicalState, targetPrice]);
 
   return (
-    <div className="space-y-8 max-w-[1600px] mx-auto animate-in fade-in slide-in-from-bottom-5 duration-700">
+    <div className="space-y-8 w-full min-w-0 animate-in fade-in slide-in-from-bottom-5 duration-700">
       
       {/* HEADER: SELECTOR & TARGET PRICE */}
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark transition-all">

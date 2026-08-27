@@ -14,9 +14,10 @@ import {
   setAllMomentumEnabled,
 } from '../utils/momentumIndicators';
 
-export const MOMENTUM_PANEL_HEIGHT = 210;
-export const MOMENTUM_MACD_HEIGHT = 220;
-export const VOLUME_PANEL_HEIGHT = 145;
+export const CANDLE_CHART_HEIGHT = 520;
+export const MOMENTUM_PANEL_HEIGHT = 168;
+export const MOMENTUM_MACD_HEIGHT = 188;
+export const VOLUME_PANEL_HEIGHT = 148;
 
 function makeOscillatorScale(domainMin: number, domainMax: number, top: number, innerH: number) {
   const span = domainMax - domainMin || 1;
@@ -327,14 +328,20 @@ export const MomentumMiniChart: React.FC<{
   width: number;
   height?: number;
   showXLabels?: boolean;
-}> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false }) => {
+  hoverX?: number | null;
+  hoverIdx?: number | null;
+  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
+}> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false, hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
   const computed = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);
   const series = seriesProp ?? computed;
   const panelHeight = height ?? (type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT);
-  const pad = { t: 12, r: 12, b: 24, l: 52 };
+  const pad = { t: 12, r: 56, b: 24, l: 52 };
   const innerH = panelHeight - pad.t - pad.b;
   const xAt = (i: number) => padL + i * slot + slot / 2;
   const label = momentumPanelLabel(config, type);
+  const crosshair = hoverX != null ? (
+    <line x1={hoverX} x2={hoverX} y1={pad.t} y2={pad.t + innerH} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 4" opacity={0.85} pointerEvents="none" />
+  ) : null;
 
   if (type === 'RSI') {
     const { min: yMin, max: yMax } = oscillatorDomain(config.rsi.oversold, config.rsi.overbought, 12);
@@ -348,16 +355,25 @@ export const MomentumMiniChart: React.FC<{
     return (
       <div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
-        <svg width={width} height={panelHeight} className="overflow-visible">
+        <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
           {lines.map(({ lvl, color, dotted }) => (
             <g key={lvl}>
               <line x1={padL} x2={width - pad.r} y1={yRsi(lvl)} y2={yRsi(lvl)} stroke={color} strokeOpacity={lvl === 50 ? 0.35 : 0.85} strokeDasharray={dotted ? '2 4' : '4 3'} strokeWidth={1} />
-              <text x={padL - 6} y={yRsi(lvl) + 3} textAnchor="end" fontSize={10} fill="#94a3b8" fontWeight={600}>{lvl}</text>
+              <text x={width - 8} y={yRsi(lvl) + 3} textAnchor="end" fontSize={10} fill="#475569" fontWeight={700}>{lvl}</text>
             </g>
           ))}
           <path d={polylinePath(series.map((p) => p.rsi), xAt, yRsi)} fill="none" stroke={config.rsi.color} strokeWidth={2} />
           {config.rsi.showSmoothing && (
             <path d={polylinePath(series.map((p) => p.rsiSmooth), xAt, yRsi)} fill="none" stroke={config.rsi.smoothingColor} strokeWidth={1} />
+          )}
+          {crosshair}
+          {hoverIdx != null && series[hoverIdx]?.rsi != null && (
+            <>
+              <rect x={width - 44} y={yRsi(series[hoverIdx]!.rsi!) - 10} width={38} height={16} rx={4} fill="#1e293b" />
+              <text x={width - 8} y={yRsi(series[hoverIdx]!.rsi!) + 4} textAnchor="end" fontSize={9} fill="#f8fafc" fontWeight={700}>
+                {series[hoverIdx]!.rsi!.toFixed(1)}
+              </text>
+            </>
           )}
         </svg>
       </div>
@@ -370,15 +386,16 @@ export const MomentumMiniChart: React.FC<{
     return (
       <div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
-        <svg width={width} height={panelHeight} className="overflow-visible">
+        <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
           {[config.stochastic.overbought, config.stochastic.oversold].filter((lvl) => lvl >= yMin && lvl <= yMax).map((lvl) => (
             <g key={lvl}>
               <line x1={padL} x2={width - pad.r} y1={ySt(lvl)} y2={ySt(lvl)} stroke={lvl >= 50 ? '#ef4444' : '#22c55e'} strokeOpacity={0.85} strokeDasharray="4 3" strokeWidth={1} />
-              <text x={padL - 6} y={ySt(lvl) + 3} textAnchor="end" fontSize={10} fill="#94a3b8" fontWeight={600}>{lvl}</text>
+              <text x={width - 8} y={ySt(lvl) + 3} textAnchor="end" fontSize={10} fill="#475569" fontWeight={700}>{lvl}</text>
             </g>
           ))}
           <path d={polylinePath(series.map((p) => p.stochK), xAt, ySt)} fill="none" stroke={config.stochastic.kColor} strokeWidth={2} />
           <path d={polylinePath(series.map((p) => p.stochD), xAt, ySt)} fill="none" stroke={config.stochastic.dColor} strokeWidth={1} />
+          {crosshair}
         </svg>
       </div>
     );
@@ -390,11 +407,12 @@ export const MomentumMiniChart: React.FC<{
     return (
       <div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
-        <svg width={width} height={panelHeight} className="overflow-visible">
+        <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
           <line x1={padL} x2={width - pad.r} y1={yAdx(config.adx.threshold)} y2={yAdx(config.adx.threshold)} stroke={config.adx.color} strokeOpacity={0.85} strokeDasharray="4 3" strokeWidth={1} />
-          <text x={padL - 6} y={yAdx(config.adx.threshold) + 3} textAnchor="end" fontSize={10} fill="#94a3b8" fontWeight={600}>{config.adx.threshold}</text>
-          <text x={padL - 6} y={pad.t + 4} textAnchor="end" fontSize={9} fill="#94a3b8" fontWeight={600}>{yMax}</text>
+          <text x={width - 8} y={yAdx(config.adx.threshold) + 3} textAnchor="end" fontSize={10} fill="#475569" fontWeight={700}>{config.adx.threshold}</text>
+          <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={9} fill="#475569" fontWeight={700}>{yMax}</text>
           <path d={polylinePath(series.map((p) => p.adx), xAt, yAdx)} fill="none" stroke={config.adx.color} strokeWidth={2} />
+          {crosshair}
         </svg>
       </div>
     );
@@ -419,7 +437,7 @@ export const MomentumMiniChart: React.FC<{
   return (
     <div>
       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
-      <svg width={width} height={panelHeight} className="overflow-visible">
+      <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
         <line x1={padL} x2={width - pad.r} y1={zeroY} y2={zeroY} stroke="#94a3b8" strokeOpacity={0.6} strokeWidth={0.5} />
         {series.map((p, i) => {
           if (p.macdHist == null) return null;
@@ -431,6 +449,7 @@ export const MomentumMiniChart: React.FC<{
         })}
         <path d={polylinePath(series.map((p) => p.macd), xAt, yScale)} fill="none" stroke={config.macd.lineColor} strokeWidth={2} />
         <path d={polylinePath(series.map((p) => p.macdSignal), xAt, yScale)} fill="none" stroke={config.macd.signalColor} strokeWidth={1} />
+        {crosshair}
         {showXLabels && bars.length > 0 && [0, Math.floor(bars.length / 2), bars.length - 1].map((i) => (
           <text key={i} x={xAt(i)} y={panelHeight - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
             {new Date(bars[i].time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}

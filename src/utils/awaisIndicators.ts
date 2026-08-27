@@ -58,10 +58,10 @@ export const PIVOT_LABELS = [
 export type PivotLabel = (typeof PIVOT_LABELS)[number];
 export type PivotSelection = Record<PivotLabel, boolean>;
 
-/** Pivot anchor period. "Auto" follows the Pine script: daily chart -> Monthly, monthly chart -> Yearly. */
+/** Pivot anchor period. "Auto" follows the Pine script: daily -> Monthly, weekly/monthly -> Yearly. */
 export const PIVOT_ANCHORS = ['Auto', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'Yearly'] as const;
 export type PivotAnchor = (typeof PIVOT_ANCHORS)[number];
-export type ChartTimeframe = 'day' | 'month';
+export type ChartTimeframe = 'day' | 'week' | 'month';
 
 export type IchimokuKey = 'cloud' | 'conversion' | 'base' | 'spanA' | 'spanB';
 export type IchimokuSelection = Record<IchimokuKey, boolean>;
@@ -448,13 +448,13 @@ function traditionalPivots(h: number, l: number, c: number): PivotLevel[] {
   ];
 }
 
-/** Pine `autoAnchor`: daily chart anchors to Monthly, monthly chart to Yearly. */
+/** Pine `autoAnchor`: daily chart anchors to Monthly, weekly/monthly charts to Yearly. */
 export function resolvePivotAnchor(
   anchor: PivotAnchor,
   timeframe: ChartTimeframe
 ): Exclude<PivotAnchor, 'Auto'> {
   if (anchor !== 'Auto') return anchor;
-  return timeframe === 'month' ? 'Yearly' : 'Monthly';
+  return timeframe === 'day' ? 'Monthly' : 'Yearly';
 }
 
 function periodKey(time: number, anchor: Exclude<PivotAnchor, 'Auto'>): string {
