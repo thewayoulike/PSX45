@@ -40,6 +40,18 @@ import {
   type ChartUserSettings,
 } from '../services/chartSettingsStorage';
 import {
+  ChartDrawing,
+  DrawTool,
+  DEFAULT_DRAW_COLOR,
+  hitTestDrawings,
+  loadDrawings,
+  newDrawingId,
+  pointFromPixel,
+  saveDrawings,
+  type DrawRenderCoords,
+} from '../utils/chartDrawings';
+import { ChartDrawingsLayer, DrawToolsToolbar } from './ChartDrawings';
+import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   ComposedChart, Line, ReferenceLine, Bar, Cell,
 } from 'recharts';
@@ -292,6 +304,14 @@ function barIndexAtX(x: number, plotOffset: number, slot: number, count: number)
 
 type PlotHoverState = { idx: number | null; x: number | null; y: number | null };
 
+function plotCoordsFromOverlay(
+  e: React.PointerEvent<SVGRectElement> | React.MouseEvent<SVGRectElement>,
+  padLeft: number,
+  padTop: number
+) {
+  return { x: padLeft + e.nativeEvent.offsetX, y: padTop + e.nativeEvent.offsetY };
+}
+
 function plotMouseHandlers(
   plotOffset: number,
   slot: number,
@@ -300,12 +320,13 @@ function plotMouseHandlers(
   plotBottom: number,
   setHover: (v: PlotHoverState) => void,
   panning: boolean,
-  trackY = false
+  trackY = false,
+  disabled = false
 ) {
   const plotRight = plotOffset + count * slot;
   return {
     onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => {
-      if (panning) return;
+      if (panning || disabled) return;
       const x = e.nativeEvent.offsetX;
       const y = e.nativeEvent.offsetY;
       setHover((prev) => {
@@ -944,6 +965,13 @@ const CandleChart: React.FC<{
   priceFitAll?: boolean;
   pricePanLimits?: { min: number; max: number };
   plotRef?: React.RefObject<HTMLDivElement | null>;
+  drawTool?: DrawTool;
+  drawings?: ChartDrawing[];
+  draftDrawing?: ChartDrawing | null;
+  selectedDrawingId?: string | null;
+  onDrawingsChange?: (next: ChartDrawing[]) => void;
+  onDraftChange?: (next: ChartDrawing | null) => void;
+  onSelectDrawing?: (id: string | null) => void;
 }> = ({
   bars,
   analysis = [],
@@ -961,6 +989,13 @@ const CandleChart: React.FC<{
   priceFitAll = false,
   pricePanLimits = { min: -2, max: 2 },
   plotRef,
+  drawTool = 'pan',
+  drawings = [],
+  draftDrawing = null,
+  selectedDrawingId = null,
+  onDrawingsChange,
+  onDraftChange,
+  onSelectDrawing,
 }) => {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
@@ -1027,23 +1062,157 @@ const CandleChart: React.FC<{
   const cursorPrice =
     crosshairY != null && innerH > 0 ? yMax - ((crosshairY - pad.t) / innerH) * (yMax - yMin) : null;
 
+  const barTimes = useMemo(() => display.map((b) => b.time), [display]);
+  const drawCoords: DrawRenderCoords = useMemo(
+    () => ({
+      barTimes,
+      plotOffset,
+      slot,
+      plotLeft: pad.l,
+      plotRight: w - pad.r,
+      plotTop: pad.t,
+      plotBottom: pad.t + innerH,
+      yMin,
+      yMax,
+      padTop: pad.t,
+      innerH,
+    }),
+    [barTimes, plotOffset, slot, pad.l, pad.r, pad.t, innerH, w, yMin, yMax]
+  );
+
+  const drawingActive = drawTool !== 'pan' && drawTool !== 'crosshair' && drawTool !== 'select';
+  const plotOverlayActive = drawTool !== 'pan';
+  const trendPendingRef = useRef(false);
+
+  useEffect(() => {
+    trendPendingRef.current = false;
+  }, [drawTool]);
+
+  const commitDrawing = useCallback(
+    (d: ChartDrawing) => {
+      onDrawingsChange?.([...drawings, d]);
+      onDraftChange?.(null);
+      onSelectDrawing?.(d.id);
+      trendPendingRef.current = false;
+    },
+    [drawings, onDrawingsChange, onDraftChange, onSelectDrawing]
+  );
+
+  const updatePlotHover = useCallback(
+    (x: number, y: number) => {
+      const plotRight = plotOffset + display.length * slot;
+      setPlotHover({
+        idx: barIndexAtX(x, plotOffset, slot, display.length),
+        x: x >= plotOffset && x <= plotRight ? x : null,
+        y: y >= pad.t && y <= pad.t + innerH ? y : null,
+      });
+    },
+    [plotOffset, slot, display.length, pad.t, innerH]
+  );
+
+  const handleDrawPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
+    e.stopPropagation();
+    const { x, y } = plotCoordsFromOverlay(e, pad.l, pad.t);
+
+    if (drawTool === 'crosshair') {
+      updatePlotHover(x, y);
+      return;
+    }
+
+    if (drawTool === 'select') {
+      e.preventDefault();
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+      const hit = hitTestDrawings(x, y, drawings, drawCoords, 10);
+      onSelectDrawing?.(hit);
+      return;
+    }
+
+    if (!drawingActive || !onDrawingsChange) return;
+    e.preventDefault();
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    const pt = pointFromPixel(x, y, display, plotOffset, slot, yMin, yMax, pad.t, innerH);
+    if (!pt) return;
+    if (drawTool === 'hline') {
+      commitDrawing({ id: newDrawingId(), type: 'hline', price: pt.price, color: DEFAULT_DRAW_COLOR });
+      return;
+    }
+    if (drawTool === 'vline') {
+      commitDrawing({ id: newDrawingId(), type: 'vline', time: pt.time, color: DEFAULT_DRAW_COLOR });
+      return;
+    }
+    if (drawTool === 'trendline' || drawTool === 'fib') {
+      if (!trendPendingRef.current || !draftDrawing || draftDrawing.type !== drawTool) {
+        trendPendingRef.current = true;
+        onDraftChange?.({
+          id: newDrawingId(),
+          type: drawTool,
+          p1: pt,
+          p2: pt,
+          color: DEFAULT_DRAW_COLOR,
+        });
+      } else {
+        commitDrawing({ ...draftDrawing, p2: pt });
+      }
+      return;
+    }
+    if (drawTool === 'rect') {
+      onDraftChange?.({ id: newDrawingId(), type: 'rect', p1: pt, p2: pt, color: DEFAULT_DRAW_COLOR });
+    }
+  };
+
+  const handleDrawPointerMove = (e: React.PointerEvent<SVGRectElement>) => {
+    const { x, y } = plotCoordsFromOverlay(e, pad.l, pad.t);
+
+    if (drawTool === 'crosshair') {
+      updatePlotHover(x, y);
+      return;
+    }
+
+    if (!drawingActive) return;
+    const pt = pointFromPixel(x, y, display, plotOffset, slot, yMin, yMax, pad.t, innerH);
+    if (!pt || !draftDrawing) return;
+    if (draftDrawing.type === 'trendline' || draftDrawing.type === 'rect' || draftDrawing.type === 'fib') {
+      onDraftChange?.({ ...draftDrawing, p2: pt });
+    }
+  };
+
+  const handleDrawPointerUp = (e: React.PointerEvent<SVGRectElement>) => {
+    try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (drawTool === 'rect' && draftDrawing?.type === 'rect') {
+      commitDrawing(draftDrawing);
+    }
+  };
+
   useEffect(() => {
     if (panning) setPlotHover({ idx: null, x: null, y: null });
   }, [panning]);
 
   const mainMouseHandlers = useMemo(
-    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, true),
-    [plotOffset, slot, display.length, pad.t, innerH, panning]
+    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, true, plotOverlayActive),
+    [plotOffset, slot, display.length, pad.t, innerH, panning, plotOverlayActive]
   );
   const subMouseHandlers = useMemo(
-    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, false),
-    [plotOffset, slot, display.length, pad.t, innerH, panning]
+    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, false, plotOverlayActive),
+    [plotOffset, slot, display.length, pad.t, innerH, panning, plotOverlayActive]
   );
+
+  const wrapCursor =
+    drawTool === 'crosshair'
+      ? 'cursor-crosshair'
+      : drawTool === 'pan'
+        ? canPan || panning
+          ? panning
+            ? 'cursor-grabbing'
+            : 'cursor-grab'
+          : 'cursor-crosshair'
+        : drawTool === 'select'
+          ? 'cursor-pointer'
+          : 'cursor-crosshair';
 
   return (
     <div
       ref={wrapRef}
-      className={`relative w-full select-none ${canPan || panning ? (panning ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair'}`}
+      className={`relative w-full select-none ${wrapCursor}`}
       onMouseLeave={() => setPlotHover({ idx: null, x: null, y: null })}
     >
       {hi && (
@@ -1117,8 +1286,34 @@ const CandleChart: React.FC<{
             </g>
           );
         })}
+        {(drawings.length > 0 || draftDrawing) && (
+          <g pointerEvents="none">
+            <ChartDrawingsLayer
+              drawings={drawings}
+              draft={draftDrawing}
+              selectedId={selectedDrawingId}
+              coords={drawCoords}
+            />
+          </g>
+        )}
         </g>
-        {crosshairX != null && (
+        {plotOverlayActive && (
+          <rect
+            x={pad.l}
+            y={pad.t}
+            width={innerW}
+            height={innerH}
+            fill="transparent"
+            style={{
+              cursor:
+                drawTool === 'select' ? 'pointer' : drawTool === 'crosshair' ? 'crosshair' : 'crosshair',
+            }}
+            onPointerDown={handleDrawPointerDown}
+            onPointerMove={handleDrawPointerMove}
+            onPointerUp={handleDrawPointerUp}
+          />
+        )}
+        {crosshairX != null && (drawTool === 'crosshair' || drawTool === 'pan') && (
           <g pointerEvents="none">
             <CrosshairVertical x={crosshairX} top={pad.t} bottom={pad.t + innerH} />
             {crosshairY != null && cursorPrice != null && (
@@ -1228,6 +1423,10 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   const [pricePanOffset, setPricePanOffset] = useState(0);
   const [priceFitAll, setPriceFitAll] = useState(false);
   const [panning, setPanning] = useState(false);
+  const [drawTool, setDrawTool] = useState<DrawTool>('pan');
+  const [drawings, setDrawings] = useState<ChartDrawing[]>([]);
+  const [draftDrawing, setDraftDrawing] = useState<ChartDrawing | null>(null);
+  const [selectedDrawingId, setSelectedDrawingId] = useState<string | null>(null);
   const [layers, setLayers] = useState<ChartLayers>(() => loadChartSettings().layers);
   const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(() => cloneAwaisLayers(loadChartSettings().awaisLayers));
   const [momentumConfig, setMomentumConfig] = useState<MomentumConfig>(() => cloneMomentumConfig(loadChartSettings().momentumConfig));
@@ -1275,7 +1474,38 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     setPriceZoomIdx(0);
     setPricePanOffset(0);
     setPriceFitAll(false);
+    setDraftDrawing(null);
+    setSelectedDrawingId(null);
   }, [symbol, range, mode, candleInterval]);
+
+  useEffect(() => {
+    if (!symbol) {
+      setDrawings([]);
+      return;
+    }
+    setDrawings(loadDrawings(symbol));
+    setDraftDrawing(null);
+    setSelectedDrawingId(null);
+  }, [symbol]);
+
+  useEffect(() => {
+    if (!symbol) return;
+    saveDrawings(symbol, drawings);
+  }, [symbol, drawings]);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = e.target as HTMLElement | null;
+      if (t?.closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (!selectedDrawingId) return;
+      e.preventDefault();
+      setDrawings((prev) => prev.filter((d) => d.id !== selectedDrawingId));
+      setSelectedDrawingId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [selectedDrawingId]);
 
   const load = async () => {
     if (!symbol) return;
@@ -1634,7 +1864,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || !canPanChart) return;
+    if (e.button !== 0 || !canPanChart || drawTool !== 'pan') return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     onPanStart(e.clientX, e.clientY);
@@ -1839,6 +2069,29 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             />
           )}
           {showCandle && visibleOhlc.length >= 3 && (
+            <DrawToolsToolbar
+              tool={drawTool}
+              onToolChange={(t) => {
+                setDrawTool(t);
+                setDraftDrawing(null);
+                if (t !== 'select') setSelectedDrawingId(null);
+              }}
+              drawingCount={drawings.length}
+              hasSelection={!!selectedDrawingId}
+              onDeleteSelected={() => {
+                if (!selectedDrawingId) return;
+                setDrawings((prev) => prev.filter((d) => d.id !== selectedDrawingId));
+                setSelectedDrawingId(null);
+              }}
+              onClearAll={() => {
+                setDrawings([]);
+                setSelectedDrawingId(null);
+                setDraftDrawing(null);
+              }}
+              disabled={loading}
+            />
+          )}
+          {showCandle && visibleOhlc.length >= 3 && (
             <IndicatorsPanel layers={awaisLayers} onApply={setAwaisLayers} disabled={loading} />
           )}
           {(showCandle || showTechnical || mode === 'line') && (
@@ -1866,7 +2119,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
           />
         )}
         <div
-          className={`${canPanChart ? (panning ? 'cursor-grabbing touch-none' : 'cursor-grab touch-none') : ''}`}
+          className={`${canPanChart && drawTool === 'pan' ? (panning ? 'cursor-grabbing touch-none' : 'cursor-grab touch-none') : ''}`}
           ref={chartPanRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -1912,12 +2165,19 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               candleInterval={candleInterval}
               height={CANDLE_CHART_HEIGHT}
               panning={panning}
-              canPan={canPanChart}
+              canPan={canPanChart && drawTool === 'pan'}
               priceZoomIdx={priceZoomIdx}
               pricePanOffset={pricePanOffset}
               priceFitAll={priceFitAll}
               pricePanLimits={pricePanLimits}
               plotRef={candlePlotRef}
+              drawTool={drawTool}
+              drawings={drawings}
+              draftDrawing={draftDrawing}
+              selectedDrawingId={selectedDrawingId}
+              onDrawingsChange={setDrawings}
+              onDraftChange={setDraftDrawing}
+              onSelectDrawing={setSelectedDrawingId}
             />
             {!candleAnalysis.length && candleInterval === 'day' && visibleOhlc.length >= 3 && (
               <p className="text-[10px] text-slate-400 px-1">Not enough data for indicator overlays in this range.</p>
@@ -1979,7 +2239,7 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
         )}
         {showCandle && canPanChart && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
-            Drag to pan time and price · Scroll zoom time · Shift+scroll zoom price
+            Drag to pan (Pan tool) · Draw toolbar: trend, fib, H/V lines, box · Del removes selected · Scroll zoom time · Shift+scroll zoom price
             {hasAnyPivot(awaisLayers) && ' · Y Targets fits pivot levels'}
             {canPanH && visibleRangeLabel ? ` · ${visibleRangeLabel}` : ''}
           </p>
