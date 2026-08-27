@@ -820,16 +820,22 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
 
   const loadAnalysis = async () => {
     if (!symbol) return;
+    // Production has no Python/pypsx — indicators come from clientAnalysis (OHLC).
+    if (import.meta.env.PROD) {
+      setAnalysis([]);
+      setAnalysisErr('');
+      return;
+    }
     setAnalysisLoading(true);
     setAnalysisErr('');
     try {
       const points = await fetchChartAnalysis(symbol, rangeMeta.period);
       setAnalysis(points);
-      if (!points.length) setAnalysisErr('No analysis data — install pypsx-toolkit locally.');
+      if (!points.length) setAnalysisErr('');
     } catch (e) {
-      console.error('Chart analysis load failed', e);
+      console.warn('Chart analysis API unavailable, using client-side indicators', e);
       setAnalysis([]);
-      setAnalysisErr('Failed to load Bollinger/RSI analysis.');
+      setAnalysisErr('');
     } finally {
       setAnalysisLoading(false);
     }
@@ -844,13 +850,6 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     if (symbol) loadAnalysis();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, symbol, range]);
-
-  const filteredAnalysis = useMemo(() => {
-    const r = RANGES.find((x) => x.k === range);
-    if (!r || r.days === 0) return analysis;
-    const cutoff = Date.now() - r.days * 86400000;
-    return analysis.filter((p) => p.time >= cutoff);
-  }, [analysis, range]);
 
   const filteredOhlc = useMemo(() => {
     const r = RANGES.find((x) => x.k === range);
@@ -868,6 +867,34 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
     const cutoff = Date.now() - r.days * 86400000;
     return src.filter((p) => p.time >= cutoff);
   }, [ohlc, lineFallback, range]);
+
+  /** Browser-side BB/RSI/MACD from OHLC — works on production without Python. */
+  const clientAnalysis = useMemo(() => {
+    if (filteredOhlc.length >= 3) {
+      return computeChartAnalysisFromBars(filteredOhlc);
+    }
+    if (filteredLine.length >= 3) {
+      return computeChartAnalysisFromBars(
+        filteredLine.map((p) => ({
+          time: p.time,
+          open: p.price,
+          high: p.price,
+          low: p.price,
+          close: p.price,
+          volume: 0,
+        }))
+      );
+    }
+    return [];
+  }, [filteredOhlc, filteredLine]);
+
+  const filteredAnalysis = useMemo(() => {
+    const src = analysis.length > 0 ? analysis : clientAnalysis;
+    const r = RANGES.find((x) => x.k === range);
+    if (!r || r.days === 0) return src;
+    const cutoff = Date.now() - r.days * 86400000;
+    return src.filter((p) => p.time >= cutoff);
+  }, [analysis, clientAnalysis, range]);
 
   const chartData = useMemo(
     () => filteredLine.map((p) => ({
@@ -1186,9 +1213,9 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               <Loader2 size={22} className="animate-spin mb-2" />
               <span className="text-xs font-medium">Computing Bollinger Bands, RSI & MACD for {symbol}…</span>
             </div>
-          ) : analysisErr && analysis.length === 0 ? (
+          ) : analysisErr && analysis.length === 0 && clientAnalysis.length === 0 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-28">{analysisErr}</p>
-          ) : analysis.length < 2 ? (
+          ) : filteredAnalysis.length < 2 ? (
             <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-28">Not enough data for technical analysis.</p>
           ) : (
             <BollingerRsiChart
@@ -1222,8 +1249,8 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
               panning={panning}
               canPan={canPan}
             />
-            {!candleAnalysis.length && !analysisLoading && candleInterval === 'day' && (
-              <p className="text-[10px] text-slate-400 px-1">BB/RSI/MACD overlay needs pypsx-toolkit locally.</p>
+            {!candleAnalysis.length && candleInterval === 'day' && visibleOhlc.length >= 3 && (
+              <p className="text-[10px] text-slate-400 px-1">Not enough data for indicator overlays in this range.</p>
             )}
             {!candleAnalysis.length && candleInterval === 'month' && visibleOhlc.length >= 3 && (
               <p className="text-[10px] text-slate-400 px-1">Need more monthly bars for indicator overlays.</p>
@@ -1263,8 +1290,8 @@ export const StockChart: React.FC<Props> = ({ symbol }) => {
             {layers.volume && hasVolume && visibleOhlc.length > 0 && (
               <LineVolumePanel bars={visibleOhlc} />
             )}
-            {!filteredAnalysis.length && !analysisLoading && mode === 'line' && (
-              <p className="text-[10px] text-slate-400 px-1">MACD/RSI overlays need pypsx-toolkit locally.</p>
+            {!filteredAnalysis.length && !analysisLoading && mode === 'line' && filteredLine.length < 3 && (
+              <p className="text-[10px] text-slate-400 px-1">Not enough price history for indicator overlays.</p>
             )}
           </div>
         )}
