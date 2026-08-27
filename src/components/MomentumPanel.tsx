@@ -13,6 +13,7 @@ import {
   momentumPanelLabel,
   setAllMomentumEnabled,
 } from '../utils/momentumIndicators';
+import { fmtChartAxisDate, pickChartXTickIndices, type CandleInterval } from '../utils/chartAxis';
 
 export const CANDLE_CHART_HEIGHT = 520;
 export const MOMENTUM_PANEL_HEIGHT = 168;
@@ -328,20 +329,33 @@ export const MomentumMiniChart: React.FC<{
   width: number;
   height?: number;
   showXLabels?: boolean;
+  candleInterval?: CandleInterval;
   hoverX?: number | null;
   hoverIdx?: number | null;
   plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
-}> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false, hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
+}> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false, candleInterval = 'day', hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
   const computed = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);
   const series = seriesProp ?? computed;
   const panelHeight = height ?? (type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT);
   const pad = { t: 12, r: 56, b: 24, l: 52 };
   const innerH = panelHeight - pad.t - pad.b;
   const xAt = (i: number) => padL + i * slot + slot / 2;
+  const xTickIndices = useMemo(() => pickChartXTickIndices(bars.length, slot), [bars.length, slot]);
   const label = momentumPanelLabel(config, type);
   const crosshair = hoverX != null ? (
     <line x1={hoverX} x2={hoverX} y1={pad.t} y2={pad.t + innerH} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 4" opacity={0.85} pointerEvents="none" />
   ) : null;
+
+  const xAxisLabels = showXLabels && bars.length > 0
+    ? xTickIndices.map((i) => (
+        <g key={`x-${i}`}>
+          <line x1={xAt(i)} x2={xAt(i)} y1={pad.t} y2={pad.t + innerH} stroke="#e2e8f0" strokeOpacity={0.35} strokeDasharray="3 3" />
+          <text x={xAt(i)} y={panelHeight - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
+            {fmtChartAxisDate(bars[i].time, candleInterval)}
+          </text>
+        </g>
+      ))
+    : null;
 
   if (type === 'RSI') {
     const { min: yMin, max: yMax } = oscillatorDomain(config.rsi.oversold, config.rsi.overbought, 12);
@@ -375,6 +389,7 @@ export const MomentumMiniChart: React.FC<{
               </text>
             </>
           )}
+          {xAxisLabels}
         </svg>
       </div>
     );
@@ -396,6 +411,7 @@ export const MomentumMiniChart: React.FC<{
           <path d={polylinePath(series.map((p) => p.stochK), xAt, ySt)} fill="none" stroke={config.stochastic.kColor} strokeWidth={2} />
           <path d={polylinePath(series.map((p) => p.stochD), xAt, ySt)} fill="none" stroke={config.stochastic.dColor} strokeWidth={1} />
           {crosshair}
+          {xAxisLabels}
         </svg>
       </div>
     );
@@ -413,6 +429,7 @@ export const MomentumMiniChart: React.FC<{
           <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={9} fill="#475569" fontWeight={700}>{yMax}</text>
           <path d={polylinePath(series.map((p) => p.adx), xAt, yAdx)} fill="none" stroke={config.adx.color} strokeWidth={2} />
           {crosshair}
+          {xAxisLabels}
         </svg>
       </div>
     );
@@ -450,11 +467,7 @@ export const MomentumMiniChart: React.FC<{
         <path d={polylinePath(series.map((p) => p.macd), xAt, yScale)} fill="none" stroke={config.macd.lineColor} strokeWidth={2} />
         <path d={polylinePath(series.map((p) => p.macdSignal), xAt, yScale)} fill="none" stroke={config.macd.signalColor} strokeWidth={1} />
         {crosshair}
-        {showXLabels && bars.length > 0 && [0, Math.floor(bars.length / 2), bars.length - 1].map((i) => (
-          <text key={i} x={xAt(i)} y={panelHeight - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
-            {new Date(bars[i].time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-          </text>
-        ))}
+        {xAxisLabels}
       </svg>
     </div>
   );

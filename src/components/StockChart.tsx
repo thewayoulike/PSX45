@@ -50,6 +50,7 @@ import {
   saveDrawings,
   type DrawRenderCoords,
 } from '../utils/chartDrawings';
+import { fmtChartAxisDate, pickChartXTickIndices, rechartsSparseTickLabels, type CandleInterval } from '../utils/chartAxis';
 import { ChartDrawingsLayer, DrawToolsToolbar } from './ChartDrawings';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -467,7 +468,8 @@ type AnalysisPointWithVol = ChartAnalysisPoint & { volume?: number; label?: stri
 const MacdRechartsPanel: React.FC<{
   data: AnalysisPointWithVol[];
   showXAxis?: boolean;
-}> = ({ data, showXAxis = true }) => (
+  xTickLabels?: string[];
+}> = ({ data, showXAxis = true, xTickLabels }) => (
   <div className="h-[110px] sm:h-[120px]">
     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">MACD (12, 26, 9)</div>
     <ResponsiveContainer width="100%" height="100%">
@@ -475,11 +477,12 @@ const MacdRechartsPanel: React.FC<{
         <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.35} vertical={false} />
         <XAxis
           dataKey="label"
+          ticks={xTickLabels}
           hide={!showXAxis}
           tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }}
           axisLine={false}
           tickLine={false}
-          minTickGap={48}
+          minTickGap={88}
         />
         <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
         <ReferenceLine y={0} stroke="#0f172a" strokeWidth={0.5} strokeOpacity={0.6} />
@@ -516,12 +519,18 @@ const BollingerRsiChart: React.FC<{
     () =>
       points.map((p, i, arr) => ({
         ...p,
-        label: new Date(p.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        label: fmtChartAxisDate(p.time, 'day'),
         volume: p.volume ?? 0,
         volUp: i === 0 ? p.close >= (arr[i]?.close ?? p.close) : p.close >= arr[i - 1].close,
       })),
     [points]
   );
+
+  const xTickLabels = useMemo(() => {
+    const times = points.map((p) => p.time);
+    const slot = 640 / Math.max(times.length, 1);
+    return rechartsSparseTickLabels(times, 'day', slot);
+  }, [points]);
 
   const tip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
@@ -559,7 +568,7 @@ const BollingerRsiChart: React.FC<{
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.35} vertical={false} />
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={48} hide={layers.momentum || (layers.volume && hasVolume)} />
+            <XAxis dataKey="label" ticks={xTickLabels} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={88} />
             <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
             <Tooltip content={tip} />
             <Line type="monotone" dataKey="close" name="Close" stroke="#0f172a" strokeWidth={1.5} dot={false} isAnimationActive={false} />
@@ -575,7 +584,7 @@ const BollingerRsiChart: React.FC<{
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.35} vertical={false} />
-            <XAxis dataKey="label" hide={!(layers.volume && hasVolume)} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={48} />
+            <XAxis dataKey="label" ticks={xTickLabels} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={88} />
             <YAxis domain={[0, 100]} ticks={[momentumConfig.rsi.oversold, 50, momentumConfig.rsi.overbought]} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
             <ReferenceLine y={momentumConfig.rsi.overbought} stroke="#ef4444" strokeDasharray="4 3" strokeWidth={1} />
             <ReferenceLine y={momentumConfig.rsi.oversold} stroke="#10b981" strokeDasharray="4 3" strokeWidth={1} />
@@ -590,14 +599,14 @@ const BollingerRsiChart: React.FC<{
       </div>
       )}
       {layers.momentum && momentumConfig.enabled.MACD && hasMacd && (
-        <MacdRechartsPanel data={data} showXAxis={!(layers.volume && hasVolume)} />
+        <MacdRechartsPanel data={data} showXAxis xTickLabels={xTickLabels} />
       )}
       {layers.volume && hasVolume && (
       <div className="h-[100px] sm:h-[110px]">
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">Volume</div>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={data} margin={{ top: 2, right: 8, left: 0, bottom: 0 }}>
-            <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={48} />
+            <XAxis dataKey="label" ticks={xTickLabels} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={88} />
             <YAxis hide domain={[0, 'auto']} />
             <Tooltip
               contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 11 }}
@@ -621,7 +630,7 @@ const BollingerRsiChart: React.FC<{
   );
 };
 
-const LineVolumePanel: React.FC<{ bars: OhlcBar[] }> = ({ bars }) => {
+const LineVolumePanel: React.FC<{ bars: OhlcBar[]; candleInterval?: CandleInterval }> = ({ bars, candleInterval = 'day' }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
 
@@ -638,7 +647,7 @@ const LineVolumePanel: React.FC<{ bars: OhlcBar[] }> = ({ bars }) => {
   const slot = Math.max(4, (width - 64) / Math.max(bars.length, 1));
   return (
     <div ref={ref} className="w-full">
-      <VolumeMiniChart bars={bars} slot={slot} padL={52} width={width} height={VOLUME_PANEL_HEIGHT} />
+      <VolumeMiniChart bars={bars} slot={slot} padL={52} width={width} height={VOLUME_PANEL_HEIGHT} candleInterval={candleInterval} />
     </div>
   );
 };
@@ -648,7 +657,8 @@ const LineMomentumPanel: React.FC<{
   config: MomentumConfig;
   momentumSeries: ReturnType<typeof computeMomentumSeries>;
   showVolume: boolean;
-}> = ({ bars, config, momentumSeries, showVolume }) => {
+  candleInterval?: CandleInterval;
+}> = ({ bars, config, momentumSeries, showVolume, candleInterval = 'day' }) => {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   const active = useMemo(() => activeMomentumTypes(config), [config]);
@@ -677,14 +687,13 @@ const LineMomentumPanel: React.FC<{
           slot={slot}
           padL={52}
           width={width}
-          showXLabels={!showVolume && idx === active.length - 1}
+          showXLabels
+          candleInterval={candleInterval}
         />
       ))}
     </div>
   );
 };
-
-type CandleInterval = 'day' | 'week' | 'month';
 
 function weekBucketKey(time: number): string {
   const d = new Date(time);
@@ -739,16 +748,6 @@ function aggregateMonthly(bars: OhlcBar[]): OhlcBar[] {
   }
   if (bucket) out.push(bucket);
   return out;
-}
-
-function fmtCandleDate(ms: number, interval: CandleInterval): string {
-  if (interval === 'month') {
-    return new Date(ms).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-  }
-  if (interval === 'week') {
-    return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-  }
-  return new Date(ms).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 /** Wider bars when the series is sparse (e.g. weekly/monthly views). */
@@ -821,13 +820,13 @@ const RsiMiniChart: React.FC<{
         {rsiPath && (
           <path d={rsiPath} fill="none" stroke="#9333ea" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {showXLabels && aligned.length > 0 && [0, Math.floor(aligned.length / 2), aligned.length - 1].map((i) => {
+        {showXLabels && aligned.length > 0 && pickChartXTickIndices(aligned.length, slot).map((i) => {
           const pt = aligned[i];
           if (!pt) return null;
           const x = xAt(i);
           return (
             <text key={`rsi-x-${i}`} x={x} y={height - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
-              {new Date(pt.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              {fmtChartAxisDate(pt.time, 'day')}
             </text>
           );
         })}
@@ -897,12 +896,12 @@ const MacdMiniChart: React.FC<{
         {signalPath && (
           <path d={signalPath} fill="none" stroke="#f97316" strokeWidth={1.25} strokeLinejoin="round" strokeLinecap="round" />
         )}
-        {showXLabels && aligned.length > 0 && [0, Math.floor(aligned.length / 2), aligned.length - 1].map((i) => {
+        {showXLabels && aligned.length > 0 && pickChartXTickIndices(aligned.length, slot).map((i) => {
           const pt = aligned[i];
           if (!pt) return null;
           return (
             <text key={`macd-x-${i}`} x={xAt(i)} y={height - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
-              {new Date(pt.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+              {fmtChartAxisDate(pt.time, 'day')}
             </text>
           );
         })}
@@ -937,6 +936,7 @@ const VolumeMiniChart: React.FC<{
   const yVol = (v: number) => pad.t + innerH - (v / maxV) * innerH;
   const xAt = (i: number) => padL + i * slot + slot / 2;
   const barW = barWProp ?? chartBarMetrics(slot, bars.length, candleInterval).barW;
+  const xTickIndices = useMemo(() => pickChartXTickIndices(bars.length, slot), [bars.length, slot]);
 
   return (
     <div>
@@ -971,12 +971,27 @@ const VolumeMiniChart: React.FC<{
             </text>
           </>
         )}
-        {bars.length > 0 && [0, Math.floor(bars.length / 2), bars.length - 1].map((i) => {
+        {xTickIndices.map((i) => {
+          const x = xAt(i);
+          return (
+            <line
+              key={`vol-grid-${i}`}
+              x1={x}
+              x2={x}
+              y1={pad.t}
+              y2={pad.t + innerH}
+              stroke="#e2e8f0"
+              strokeOpacity={0.35}
+              strokeDasharray="3 3"
+            />
+          );
+        })}
+        {xTickIndices.map((i) => {
           const b = bars[i];
           if (!b) return null;
           return (
             <text key={`vol-x-${i}`} x={xAt(i)} y={height - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
-              {fmtCandleDate(b.time, candleInterval)}
+              {fmtChartAxisDate(b.time, candleInterval)}
             </text>
           );
         })}
@@ -1088,7 +1103,6 @@ const CandleChart: React.FC<{
   const hasAwais = awaisData != null;
   const showMomentum = layers.momentum && display.length >= 3 && activeMomentum.length > 0;
   const showVolume = layers.volume && bars.some((b) => b.volume > 0);
-  const showBottomX = showVolume || showMomentum;
 
   const { yMin, yMax } = useMemo(
     () =>
@@ -1115,6 +1129,7 @@ const CandleChart: React.FC<{
   const slot = plotInnerW / Math.max(display.length, 1);
   const plotOffset = pad.l + (innerW - plotInnerW) / 2;
   const { bodyW, barW } = chartBarMetrics(slot, display.length, candleInterval);
+  const xTickIndices = useMemo(() => pickChartXTickIndices(display.length, slot), [display.length, slot]);
 
   const hi = plotHover.idx != null ? display[plotHover.idx] : null;
   const prevBar = plotHover.idx != null && plotHover.idx > 0 ? display[plotHover.idx - 1] : null;
@@ -1314,7 +1329,7 @@ const CandleChart: React.FC<{
       {hi && (
         <div className="absolute top-1 right-2 z-10 pointer-events-none rounded-lg bg-white/98 dark:bg-slate-900/98 border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-[11px] shadow-md tabular-nums max-w-[calc(100%-1rem)]">
           <span className="font-bold text-slate-800 dark:text-slate-100">
-            {fmtCandleDate(hi.time, candleInterval)}
+            {fmtChartAxisDate(hi.time, candleInterval)}
           </span>
           <span className="text-slate-600 dark:text-slate-300 ml-2">O {rs(hi.open)}</span>
           <span className="text-slate-600 dark:text-slate-300 ml-1.5">H {rs(hi.high)}</span>
@@ -1451,11 +1466,11 @@ const CandleChart: React.FC<{
                 </text>
               </>
             )}
-            {!showBottomX && hi && (
+            {hi && (
               <>
                 <rect x={crosshairX - 42} y={pad.t + innerH + 4} width={84} height={16} rx={4} fill="#475569" />
                 <text x={crosshairX} y={pad.t + innerH + 15} textAnchor="middle" fontSize={9} fill="#f8fafc" fontWeight={600}>
-                  {fmtCandleDate(hi.time, candleInterval)}
+                  {fmtChartAxisDate(hi.time, candleInterval)}
                 </text>
               </>
             )}
@@ -1474,14 +1489,18 @@ const CandleChart: React.FC<{
             />
           </g>
         )}
-        {/* x labels — only when no sub-panel below */}
-        {!showBottomX && display.length > 0 && [0, Math.floor(display.length / 2), display.length - 1].map((i) => {
+        {/* x labels — each panel gets its own axis; main chart always shows dates */}
+        {display.length > 0 && xTickIndices.map((i) => {
           const b = display[i];
           if (!b) return null;
+          const x = xAt(i);
           return (
-            <text key={`x-${i}`} x={xAt(i)} y={h - 8} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
-              {fmtCandleDate(b.time, candleInterval)}
-            </text>
+            <g key={`x-${i}`}>
+              <line x1={x} x2={x} y1={pad.t} y2={pad.t + innerH} stroke="#e2e8f0" strokeOpacity={0.35} strokeDasharray="3 3" />
+              <text x={x} y={h - 8} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
+                {fmtChartAxisDate(b.time, candleInterval)}
+              </text>
+            </g>
           );
         })}
       </svg>
@@ -1497,7 +1516,8 @@ const CandleChart: React.FC<{
           padL={plotOffset}
           width={w}
           height={type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT}
-          showXLabels={!showVolume && idx === activeMomentum.length - 1}
+          showXLabels
+          candleInterval={candleInterval}
           hoverX={crosshairX}
           hoverIdx={plotHover.idx}
           plotMouseHandlers={subMouseHandlers}
@@ -1728,7 +1748,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     () => filteredLine.map((p) => ({
       t: p.time,
       price: p.price,
-      label: new Date(p.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      label: fmtChartAxisDate(p.time, 'day'),
     })),
     [filteredLine]
   );
@@ -1845,7 +1865,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     () =>
       visibleAnalysis.map((p, i, arr) => ({
         ...p,
-        label: new Date(p.time).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        label: fmtChartAxisDate(p.time, 'day'),
         volume: volByDay.get(new Date(p.time).toISOString().slice(0, 10)) ?? 0,
         volUp: i === 0 ? p.close >= p.close : p.close >= arr[i - 1].close,
       })),
@@ -1955,9 +1975,15 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     if (pick.length < 2) return '';
     const t0 = (pick[0] as { time?: number; t?: number }).time ?? (pick[0] as { t: number }).t;
     const t1 = (pick[pick.length - 1] as { time?: number; t?: number }).time ?? (pick[pick.length - 1] as { t: number }).t;
-    const fmt = (ms: number) => new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-    return `${fmt(t0)} – ${fmt(t1)}`;
-  }, [showTechnical, showCandle, visibleAnalysis, visibleOhlc, visibleChartData]);
+    const iv: CandleInterval = showCandle ? candleInterval : 'day';
+    return `${fmtChartAxisDate(t0, iv)} – ${fmtChartAxisDate(t1, iv)}`;
+  }, [showTechnical, showCandle, candleInterval, visibleAnalysis, visibleOhlc, visibleChartData]);
+
+  const lineXTickLabels = useMemo(() => {
+    const times = visibleChartData.map((d) => d.t);
+    const slot = 640 / Math.max(times.length, 1);
+    return rechartsSparseTickLabels(times, 'day', slot);
+  }, [visibleChartData]);
 
   const canPanH = canPan;
   const canPanV = showCandle && visibleOhlc.length >= 3;
@@ -2359,7 +2385,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" strokeOpacity={0.4} vertical={false} />
-                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={40} hide={(layers.volume && hasVolume) || layers.momentum} />
+                  <XAxis dataKey="label" ticks={lineXTickLabels} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} minTickGap={88} />
                   <YAxis domain={['auto', 'auto']} tickFormatter={(v: number) => `${v}`} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={44} />
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,0.08)' }}
