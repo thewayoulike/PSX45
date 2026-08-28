@@ -5,7 +5,7 @@ import {
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  Compass, Wrench, BarChart3, LayoutGrid, UsersRound
+  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 
@@ -48,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Which group each view belongs to (so we can auto-open the active one).
   const groupOfView: Record<string, string> = {
     DASHBOARD: 'Menu', HOLDINGS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
-    SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools',
+    SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
     BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings',
   };
@@ -89,6 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (!isFundPortfolio) {
       toolItems.push(
         { id: 'SIGNALS', label: 'Market Signals', icon: <Radar size={22} /> },
+        { id: 'BACKTEST', label: 'Strategy Backtest', icon: <FlaskConical size={22} /> },
         { id: 'CHARTS', label: 'Charts', icon: <ChartCandlestick size={22} /> },
         { id: 'WATCHLIST', label: 'Watchlist', icon: <Star size={22} /> },
         { id: 'ALERTS', label: 'Price Alerts', icon: <Bell size={22} /> },
