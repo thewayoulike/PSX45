@@ -1,9 +1,11 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Holding, PortfolioStats, RealizedTrade, Transaction } from '../types';
-import { fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks } from './psxData';
+import { fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks, fetchOHLCV } from './psxData';
 import { fetchCompanyFundamentals, fetchDividendsForScan } from './financials';
 import { fetchBalanceSheetViaSearch, BalanceSheetYear, generateWithFallback } from './gemini';
 import { computeSignal, computeTradePlan } from '../utils/indicators';
+import { formatDailyScanForAgent, loadDailyScan } from './scanBot';
+import { runStrategyBacktest, filterBarsByLookback, STRATEGY_LABELS, BacktestStrategy } from '../utils/strategyBacktest';
 
 /* =============================================================================
    PSX AI AGENT
@@ -33,6 +35,9 @@ You have tools to read the user's real portfolio and fetch live PSX market data.
 ALWAYS call the relevant tool before answering questions about the user's holdings,
 prices, signals, dividends or fundamentals. Never guess a number you could look up,
 and never invent a price, ticker or figure. If a tool returns nothing useful, say so plainly.
+
+For Daily Scan summaries, call get_daily_scan first. For backtest questions on a single
+symbol, use run_strategy_backtest. These tools use deterministic PSX data — no guessing.
 
 STYLE
 - Be concise and specific. Lead with the answer, then the reasoning.
@@ -148,6 +153,27 @@ const functionDeclarations = [
     name: "get_market_movers",
     description: "Today's most actively traded PSX stocks by volume, with price and change %.",
     parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "get_daily_scan",
+    description: "Latest Daily Scan Bot results: automated multi-indicator or RSI-oversold hits from the user's most recent scan (KSE-100, KMI-30, or watchlist). No Gemini needed to run the scan — this reads stored results. Call before summarizing scan hits or comparing names to the user's watchlist.",
+    parameters: { type: Type.OBJECT, properties: {} },
+  },
+  {
+    name: "run_strategy_backtest",
+    description: "Walk-forward backtest on PSX daily OHLC for one symbol. Returns trade count, win rate, compounded return, buy-and-hold comparison, and max drawdown. Uses deterministic rules — not live trading.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        symbol: { type: Type.STRING, description: "PSX ticker, e.g. OGDC" },
+        strategy: {
+          type: Type.STRING,
+          description: "rsi_oversold | sma_cross | macd_cross | composite_buy. Default rsi_oversold.",
+        },
+        lookback_days: { type: Type.NUMBER, description: "Days of history, default 365." },
+      },
+      required: ["symbol"],
+    },
   },
 ];
 
@@ -427,6 +453,44 @@ const executeTool = async (name: string, args: any, ctx: AgentContext): Promise<
       };
     }
 
+    case "get_daily_scan":
+      return formatDailyScanForAgent(loadDailyScan());
+
+    case "run_strategy_backtest": {
+      const sym = String(args?.symbol || '').trim().toUpperCase();
+      if (!sym) return { error: "symbol is required" };
+      const strat = (String(args?.strategy || 'rsi_oversold').trim().toLowerCase()) as BacktestStrategy;
+      const valid: BacktestStrategy[] = ['rsi_oversold', 'sma_cross', 'macd_cross', 'composite_buy'];
+      const strategy = valid.includes(strat) ? strat : 'rsi_oversold';
+      const lookbackDays = Math.min(730, Math.max(90, Number(args?.lookback_days) || 365));
+      const bars = await fetchOHLCV(sym);
+      if (bars.length < 40) return { error: `Not enough OHLC history for ${sym}.` };
+      const filtered = filterBarsByLookback(bars, lookbackDays);
+      const bt = runStrategyBacktest(sym, filtered, { strategy, commissionPct: 0.1 });
+      return {
+        symbol: sym,
+        strategy: STRATEGY_LABELS[strategy],
+        lookback_days: lookbackDays,
+        bar_count: bt.barCount,
+        from: bt.fromTime ? new Date(bt.fromTime).toISOString().slice(0, 10) : null,
+        to: bt.toTime ? new Date(bt.toTime).toISOString().slice(0, 10) : null,
+        trades: bt.metrics.trades,
+        win_rate_percent: r2(bt.metrics.winRate),
+        compounded_return_percent: r2(bt.metrics.compoundedReturnPct),
+        buy_hold_return_percent: r2(bt.metrics.buyHoldReturnPct),
+        alpha_vs_buy_hold_percent: r2(bt.metrics.alphaVsBuyHoldPct),
+        max_drawdown_percent: r2(bt.metrics.maxDrawdownPct),
+        avg_return_per_trade_percent: r2(bt.metrics.avgReturnPct),
+        recent_trades: bt.trades.slice(-5).map(t => ({
+          entry_date: new Date(t.entryTime).toISOString().slice(0, 10),
+          exit_date: new Date(t.exitTime).toISOString().slice(0, 10),
+          return_percent: r2(t.retPct),
+          reason: t.reason,
+        })),
+        disclaimer: "Historical simulation on daily OHLC — not investment advice.",
+      };
+    }
+
     default:
       return { error: `Unknown tool: ${name}` };
   }
@@ -510,9 +574,9 @@ export const runAgent = async (
 /** Suggested starter prompts shown in the empty state. */
 export const SUGGESTED_PROMPTS = [
   "How is my portfolio doing overall?",
+  "Summarize my latest Daily Scan and highlight the best 3 names.",
   "Which of my holdings looks weakest right now?",
-  "What do the technicals say about my biggest position?",
-  "Am I too concentrated in any sector?",
+  "Backtest RSI oversold on OGDC for the past year.",
   "Any dividends coming up for my stocks?",
   "How does my performance compare to the KSE-100?",
 ];

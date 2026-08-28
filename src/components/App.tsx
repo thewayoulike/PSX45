@@ -34,6 +34,7 @@ import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
 import { StrategyBacktest } from './StrategyBacktest';
+import { DailyScanBot } from './DailyScanBot';
 import { ChartsExplorer } from './ChartsExplorer';
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
@@ -103,11 +104,11 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', de
 const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
   (list || []).map(p => ({ ...p, type: p.type || 'PSX' }));
 
-const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST'];
+const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST', 'DAILY_SCAN'];
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
@@ -125,6 +126,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   CALCULATOR: '/calculator',
   CHARTS: '/charts',
   BACKTEST: '/backtest',
+  DAILY_SCAN: '/daily-scan',
   DASH_CUSTOMIZE: '/dashboard/customize',
   ADMIN_USERS: '/admin/users',
   BROKERS: '/settings/brokers',
@@ -174,6 +176,7 @@ const App: React.FC = () => {
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [agentSeedPrompt, setAgentSeedPrompt] = useState<string | null>(null);
 
   const [viewTicker, setViewTicker] = useState<string | null>(() => {
       if (typeof window === 'undefined') return null;
@@ -2053,6 +2056,16 @@ const App: React.FC = () => {
                       {currentView === 'BACKTEST' && (
                           <StrategyBacktest onSymbolClick={(t) => setViewTicker(t)} />
                       )}
+                      {currentView === 'DAILY_SCAN' && (
+                          <DailyScanBot
+                              watchlist={watchlist}
+                              onSymbolClick={(t) => setViewTicker(t)}
+                              onAskAssistant={(prompt) => {
+                                  setAgentSeedPrompt(prompt);
+                                  setCurrentView('AI_AGENT');
+                              }}
+                          />
+                      )}
                       {currentView === 'CHARTS' && (
                           <ChartsExplorer onSymbolClick={(t) => setViewTicker(t)} />
                       )}
@@ -2095,6 +2108,8 @@ const App: React.FC = () => {
                                   transactions={portfolioTransactions}
                                   apiKey={userApiKey}
                                   onOpenApiKeys={() => setCurrentView('API_KEYS' as AppView)}
+                                  seedPrompt={agentSeedPrompt}
+                                  onSeedPromptConsumed={() => setAgentSeedPrompt(null)}
                               />
                           </div>
                       )}

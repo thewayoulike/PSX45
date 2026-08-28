@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { Holding, PortfolioStats, RealizedTrade, Transaction } from '../types';
 import { runAgent, AgentMessage, SUGGESTED_PROMPTS } from '../services/psxAgent';
 import {
@@ -12,6 +12,9 @@ interface Props {
   transactions: Transaction[];
   apiKey: string;
   onOpenApiKeys?: () => void;
+  /** Auto-send once when navigating from Daily Scan (uses user's Gemini key). */
+  seedPrompt?: string | null;
+  onSeedPromptConsumed?: () => void;
 }
 
 /** Human labels for the tool trace chips. */
@@ -27,6 +30,8 @@ const TOOL_LABEL: Record<string, string> = {
   get_upcoming_dividends: 'Dividends',
   get_company_fundamentals: 'Fundamentals',
   get_market_movers: 'Market movers',
+  get_daily_scan: 'Daily scan',
+  run_strategy_backtest: 'Strategy backtest',
 };
 
 /** Minimal, safe markdown-ish renderer: **bold**, bullets, and paragraphs. */
@@ -63,7 +68,8 @@ const RichText: React.FC<{ text: string }> = ({ text }) => {
 };
 
 export const AiAgent: React.FC<Props> = ({
-  holdings, stats, realizedTrades, transactions, apiKey, onOpenApiKeys
+  holdings, stats, realizedTrades, transactions, apiKey, onOpenApiKeys,
+  seedPrompt, onSeedPromptConsumed,
 }) => {
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [input, setInput] = useState('');
@@ -82,7 +88,7 @@ export const AiAgent: React.FC<Props> = ({
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, busy, activeTool]);
 
-  const send = async (text: string) => {
+  const send = useCallback(async (text: string) => {
     const q = text.trim();
     if (!q || busy) return;
     setError(null);
@@ -91,7 +97,6 @@ export const AiAgent: React.FC<Props> = ({
     setMessages(prev => [...prev, { role: 'user', text: q }]);
     setBusy(true);
     setActiveTool(null);
-
     try {
       const res = await runAgent(apiKey, history, q, ctx, (tool) => setActiveTool(tool));
       setMessages(prev => [...prev, { role: 'model', text: res.text, toolsUsed: Array.from(new Set(res.toolsUsed)) }]);
@@ -101,7 +106,19 @@ export const AiAgent: React.FC<Props> = ({
       setBusy(false);
       setActiveTool(null);
     }
-  };
+  }, [apiKey, busy, ctx, messages]);
+
+  const seedSent = useRef(false);
+  useEffect(() => {
+    if (!seedPrompt?.trim()) {
+      seedSent.current = false;
+      return;
+    }
+    if (!apiKey || seedSent.current) return;
+    seedSent.current = true;
+    onSeedPromptConsumed?.();
+    void send(seedPrompt);
+  }, [seedPrompt, apiKey, send, onSeedPromptConsumed]);
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(input); }
