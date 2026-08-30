@@ -53,7 +53,7 @@ import {
 import { fmtChartAxisDate, pickChartXTickIndices, rechartsSparseTickLabels, type CandleInterval } from '../utils/chartAxis';
 import { useChartTheme } from '../utils/chartTheme';
 import { PaneLegend } from './ChartPaneLegend';
-import { saveChartAlert, directionForPrice } from '../services/chartAlerts';
+import { ChartAlertDialog } from './ChartAlertDialog';
 import { ChartDrawingsLayer, DrawToolsToolbar } from './ChartDrawings';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -1195,7 +1195,9 @@ const CandleChart: React.FC<{
 
   const handlePriceAxisWheel = (e: React.WheelEvent<SVGRectElement>) => {
     if (drawTool !== 'pan' || !onPriceScaleZoom) return;
-    e.preventDefault();
+    // No preventDefault here: React attaches wheel listeners passively, so it would
+    // only log a warning. Page scrolling is already blocked by the non-passive
+    // wheel listener on the chart container.
     e.stopPropagation();
     const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
     onPriceScaleZoom(factor);
@@ -1513,10 +1515,7 @@ const CandleChart: React.FC<{
         {onAddAlert && crosshairY != null && cursorPrice != null && (drawTool === 'crosshair' || drawTool === 'pan') && (
           <g
             className="cursor-pointer"
-            onPointerDown={(e) => {
-              e.stopPropagation();
-              e.preventDefault();
-            }}
+            onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               onAddAlert(cursorPrice);
@@ -1617,7 +1616,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const [err, setErr] = useState('');
   const [zoomIdx, setZoomIdx] = useState(0);
   const [viewStart, setViewStart] = useState(0);
-  const [alertToast, setAlertToast] = useState<{ tone: 'info' | 'ok' | 'err'; text: string } | null>(null);
+  const [alertToast, setAlertToast] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
+  const [alertDraftPrice, setAlertDraftPrice] = useState<number | null>(null);
   const [priceZoomIdx, setPriceZoomIdx] = useState(0);
   const [pricePanOffset, setPricePanOffset] = useState(0);
   const [priceFitAll, setPriceFitAll] = useState(false);
@@ -1890,27 +1890,13 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     setPriceScaleMul((m) => clampPriceScaleMul(m * factor));
   }, []);
 
-  const handleAddAlert = useCallback(
-    async (price: number) => {
-      if (!symbol) return;
-      const current = ohlc.length ? ohlc[ohlc.length - 1].close : price;
-      setAlertToast({ tone: 'info', text: `Setting alert at ${rs(price)}…` });
-      try {
-        const msg = await saveChartAlert({
-          ticker: symbol,
-          price,
-          direction: directionForPrice(price, current),
-        });
-        setAlertToast({ tone: 'ok', text: msg });
-      } catch (e: any) {
-        setAlertToast({ tone: 'err', text: e?.message || 'Could not save alert.' });
-      }
-    },
-    [symbol, ohlc]
-  );
+  const handleAddAlert = useCallback((price: number) => {
+    if (!symbol) return;
+    setAlertDraftPrice(price);
+  }, [symbol]);
 
   useEffect(() => {
-    if (!alertToast || alertToast.tone === 'info') return;
+    if (!alertToast) return;
     const t = setTimeout(() => setAlertToast(null), 4000);
     return () => clearTimeout(t);
   }, [alertToast]);
@@ -2399,13 +2385,20 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
             className={`absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-lg border ${
               alertToast.tone === 'ok'
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-300'
-                : alertToast.tone === 'err'
-                  ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-500/15 dark:border-rose-500/30 dark:text-rose-300'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                : 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-500/15 dark:border-rose-500/30 dark:text-rose-300'
             }`}
           >
             {alertToast.text}
           </div>
+        )}
+        {alertDraftPrice != null && symbol && (
+          <ChartAlertDialog
+            symbol={symbol}
+            price={alertDraftPrice}
+            currentPrice={last || alertDraftPrice}
+            onClose={() => setAlertDraftPrice(null)}
+            onSaved={(msg) => setAlertToast({ tone: 'ok', text: msg })}
+          />
         )}
         {showTechnical ? (
           loading && filteredAnalysis.length === 0 ? (

@@ -13,8 +13,31 @@ function urlBase64ToUint8Array(base64String: string) {
   return outputArray;
 }
 
-export const SetAlert = ({ ticker, currentPrice, canSaveAlerts = false }: { ticker: string, currentPrice: number, canSaveAlerts?: boolean }) => {
-  const [target, setTarget] = useState<number | ''>('');
+interface SetAlertProps {
+  ticker: string;
+  currentPrice: number;
+  canSaveAlerts?: boolean;
+  /** Pre-fills the target price, e.g. when opened from a chart click. */
+  initialTarget?: number;
+  /** 'bare' drops the card chrome so it can sit inside a dialog. */
+  variant?: 'card' | 'bare';
+  onSaved?: (message: string) => void;
+  /** Lets a wrapper mirror the live target, e.g. to show above/below hints. */
+  onTargetChange?: (target: number | '') => void;
+}
+
+export const SetAlert = ({
+  ticker,
+  currentPrice,
+  canSaveAlerts = false,
+  initialTarget,
+  variant = 'card',
+  onSaved,
+  onTargetChange,
+}: SetAlertProps) => {
+  const [target, setTarget] = useState<number | ''>(
+    initialTarget != null && Number.isFinite(initialTarget) ? Number(initialTarget.toFixed(2)) : ''
+  );
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
 
@@ -75,9 +98,11 @@ export const SetAlert = ({ ticker, currentPrice, canSaveAlerts = false }: { tick
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
+        const okMsg = `Alert set! We'll notify you when it hits Rs. ${target}.`;
         setStatus('success');
-        setMessage(`Alert set! We'll notify you when it hits Rs. ${target}.`);
+        setMessage(okMsg);
         setTarget('');
+        onSaved?.(okMsg);
       } else {
         setStatus('error');
         setMessage(data.error || 'Failed to save alert to database.');
@@ -89,15 +114,23 @@ export const SetAlert = ({ ticker, currentPrice, canSaveAlerts = false }: { tick
   };
 
   return (
-    <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 w-full shadow-sm transition-all duration-300">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 shadow-sm shrink-0">
-          <Bell size={18} className="text-indigo-600 dark:text-indigo-400" />
+    <div
+      className={
+        variant === 'bare'
+          ? 'w-full'
+          : 'bg-white/60 dark:bg-slate-900/60 backdrop-blur-md p-6 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 w-full shadow-sm transition-all duration-300'
+      }
+    >
+      {variant === 'card' && (
+        <div className="flex items-center gap-3 mb-5">
+          <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl flex items-center justify-center border border-indigo-100 dark:border-indigo-500/20 shadow-sm shrink-0">
+            <Bell size={18} className="text-indigo-600 dark:text-indigo-400" />
+          </div>
+          <h4 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight">
+            Set Price Alert
+          </h4>
         </div>
-        <h4 className="text-lg font-display font-black text-slate-900 dark:text-white tracking-tight">
-          Set Price Alert
-        </h4>
-      </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
@@ -107,7 +140,9 @@ export const SetAlert = ({ ticker, currentPrice, canSaveAlerts = false }: { tick
             step="any"
             value={target}
             onChange={(e) => {
-                setTarget(e.target.value === '' ? '' : Number(e.target.value));
+                const next = e.target.value === '' ? '' : Number(e.target.value);
+                setTarget(next);
+                onTargetChange?.(next);
                 if (status !== 'idle') { setStatus('idle'); setMessage(''); }
             }}
             placeholder={`${currentPrice ? (currentPrice * 1.05).toFixed(2) : '150'}`}
