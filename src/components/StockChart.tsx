@@ -51,6 +51,9 @@ import {
   type DrawRenderCoords,
 } from '../utils/chartDrawings';
 import { fmtChartAxisDate, pickChartXTickIndices, rechartsSparseTickLabels, type CandleInterval } from '../utils/chartAxis';
+import { useChartTheme } from '../utils/chartTheme';
+import { PaneLegend } from './ChartPaneLegend';
+import { saveChartAlert, directionForPrice } from '../services/chartAlerts';
 import { ChartDrawingsLayer, DrawToolsToolbar } from './ChartDrawings';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -394,22 +397,22 @@ function plotMouseHandlers(
   };
 }
 
-const AXIS_LABEL = '#334155';
-const MUTED_LABEL = '#64748b';
+const CrosshairVertical: React.FC<{ x: number; top: number; bottom: number }> = ({ x, top, bottom }) => {
+  const theme = useChartTheme();
+  return (
+    <line
+      x1={x}
+      x2={x}
+      y1={top}
+      y2={bottom}
+      stroke={theme.crosshair}
+      strokeWidth={1}
+      strokeDasharray="4 4"
+      pointerEvents="none"
+    />
+  );
+};
 
-const CrosshairVertical: React.FC<{ x: number; top: number; bottom: number }> = ({ x, top, bottom }) => (
-  <line
-    x1={x}
-    x2={x}
-    y1={top}
-    y2={bottom}
-    stroke="#94a3b8"
-    strokeWidth={1}
-    strokeDasharray="4 4"
-    opacity={0.85}
-    pointerEvents="none"
-  />
-);
 
 type ChartMode = 'candle' | 'line' | 'technical';
 
@@ -929,6 +932,7 @@ const VolumeMiniChart: React.FC<{
   hoverIdx?: number | null;
   plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
 }> = ({ bars, slot, padL, width, height = VOLUME_PANEL_HEIGHT, candleInterval = 'day', barW: barWProp, hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
+  const theme = useChartTheme();
   const pad = { t: 8, r: 56, b: 24, l: 52 };
   const innerH = height - pad.t - pad.b;
   const maxV = volumeScaleMax(bars.map((b) => b.volume));
@@ -937,13 +941,25 @@ const VolumeMiniChart: React.FC<{
   const xAt = (i: number) => padL + i * slot + slot / 2;
   const barW = barWProp ?? chartBarMetrics(slot, bars.length, candleInterval).barW;
   const xTickIndices = useMemo(() => pickChartXTickIndices(bars.length, slot), [bars.length, slot]);
+  const hoverBar = hoverIdx != null ? bars[hoverIdx] : null;
 
   return (
-    <div>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">Volume</div>
+    <div className="relative">
+      <PaneLegend items={[{ label: 'Volume', color: theme.mutedText, value: hoverBar ? fmtVol(hoverBar.volume) : fmtVol(peakV) }]} />
       <svg width={width} height={height} className="overflow-visible" {...plotMouseHandlers}>
-        <line x1={padL} x2={width - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke="#e2e8f0" strokeOpacity={0.5} />
-        <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={10} fill={MUTED_LABEL} fontWeight={700}>{fmtVol(peakV)}</text>
+        {xTickIndices.map((i) => (
+          <line
+            key={`vol-grid-${i}`}
+            x1={xAt(i)}
+            x2={xAt(i)}
+            y1={pad.t}
+            y2={pad.t + innerH}
+            stroke={theme.grid}
+          />
+        ))}
+        <line x1={padL} x2={width - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke={theme.border} />
+        <line x1={width - pad.r} x2={width - pad.r} y1={pad.t} y2={pad.t + innerH} stroke={theme.border} />
+        <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={10} fill={theme.mutedText} fontWeight={600}>{fmtVol(peakV)}</text>
         {bars.map((b, i) => {
           const x = xAt(i);
           const top = yVol(b.volume);
@@ -956,41 +972,24 @@ const VolumeMiniChart: React.FC<{
               y={top}
               width={barW}
               height={Math.max(1, h)}
-              fill={up ? '#10b981' : '#f43f5e'}
-              fillOpacity={0.85}
-              rx={0.5}
+              fill={up ? theme.volUp : theme.volDown}
             />
           );
         })}
         {hoverX != null && <CrosshairVertical x={hoverX} top={pad.t} bottom={pad.t + innerH} />}
-        {hoverIdx != null && bars[hoverIdx]?.volume > 0 && (
+        {hoverBar && hoverBar.volume > 0 && (
           <>
-            <rect x={width - 46} y={yVol(bars[hoverIdx].volume) - 10} width={40} height={16} rx={4} fill="#1e293b" />
-            <text x={width - 8} y={yVol(bars[hoverIdx].volume) + 4} textAnchor="end" fontSize={9} fill="#f8fafc" fontWeight={700}>
-              {fmtVol(bars[hoverIdx].volume)}
+            <rect x={width - pad.r + 1} y={yVol(hoverBar.volume) - 9} width={pad.r - 2} height={18} fill={theme.badgeBg} />
+            <text x={width - 8} y={yVol(hoverBar.volume) + 4} textAnchor="end" fontSize={10} fill={theme.badgeText} fontWeight={600}>
+              {fmtVol(hoverBar.volume)}
             </text>
           </>
         )}
         {xTickIndices.map((i) => {
-          const x = xAt(i);
-          return (
-            <line
-              key={`vol-grid-${i}`}
-              x1={x}
-              x2={x}
-              y1={pad.t}
-              y2={pad.t + innerH}
-              stroke="#e2e8f0"
-              strokeOpacity={0.35}
-              strokeDasharray="3 3"
-            />
-          );
-        })}
-        {xTickIndices.map((i) => {
           const b = bars[i];
           if (!b) return null;
           return (
-            <text key={`vol-x-${i}`} x={xAt(i)} y={height - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
+            <text key={`vol-x-${i}`} x={xAt(i)} y={height - 6} textAnchor="middle" fontSize={11} fill={theme.mutedText}>
               {fmtChartAxisDate(b.time, candleInterval)}
             </text>
           );
@@ -1044,6 +1043,7 @@ const CandleChart: React.FC<{
   onDrawingsChange?: (next: ChartDrawing[]) => void;
   onDraftChange?: (next: ChartDrawing | null) => void;
   onSelectDrawing?: (id: string | null) => void;
+  onAddAlert?: (price: number) => void;
 }> = ({
   bars,
   analysis = [],
@@ -1071,7 +1071,9 @@ const CandleChart: React.FC<{
   onDrawingsChange,
   onDraftChange,
   onSelectDrawing,
+  onAddAlert,
 }) => {
+  const theme = useChartTheme();
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
   const [plotHover, setPlotHover] = useState<PlotHoverState>({ idx: null, x: null, y: null });
@@ -1132,8 +1134,12 @@ const CandleChart: React.FC<{
   const xTickIndices = useMemo(() => pickChartXTickIndices(display.length, slot), [display.length, slot]);
 
   const hi = plotHover.idx != null ? display[plotHover.idx] : null;
-  const prevBar = plotHover.idx != null && plotHover.idx > 0 ? display[plotHover.idx - 1] : null;
-  const barChangePct = hi ? candleChangeFromPrev(hi, prevBar) : null;
+
+  // TradingView keeps the OHLC legend pinned top-left, falling back to the last bar when idle.
+  const legendIdx = plotHover.idx ?? (display.length ? display.length - 1 : null);
+  const legendBar = legendIdx != null ? display[legendIdx] : null;
+  const legendPrev = legendIdx != null && legendIdx > 0 ? display[legendIdx - 1] : null;
+  const legendChangePct = legendBar ? candleChangeFromPrev(legendBar, legendPrev) : null;
   const hiMomentum = plotHover.idx != null ? momentumSeries[plotHover.idx] : null;
   const momentumTip = momentumHoverText(momentumConfig, hiMomentum ?? undefined);
   const xAt = (i: number) => plotOffset + i * slot + slot / 2;
@@ -1326,24 +1332,47 @@ const CandleChart: React.FC<{
       className={`relative w-full select-none ${wrapCursor}`}
       onMouseLeave={() => setPlotHover({ idx: null, x: null, y: null })}
     >
-      {hi && (
-        <div className="absolute top-1 right-2 z-10 pointer-events-none rounded-lg bg-white/98 dark:bg-slate-900/98 border border-slate-300 dark:border-slate-600 px-2.5 py-1.5 text-[11px] shadow-md tabular-nums max-w-[calc(100%-1rem)]">
-          <span className="font-bold text-slate-800 dark:text-slate-100">
-            {fmtChartAxisDate(hi.time, candleInterval)}
-          </span>
-          <span className="text-slate-600 dark:text-slate-300 ml-2">O {rs(hi.open)}</span>
-          <span className="text-slate-600 dark:text-slate-300 ml-1.5">H {rs(hi.high)}</span>
-          <span className="text-slate-600 dark:text-slate-300 ml-1.5">L {rs(hi.low)}</span>
-          <span className={`ml-1.5 font-bold ${hi.close >= hi.open ? 'text-emerald-700' : 'text-rose-600'}`}>C {rs(hi.close)}</span>
-          {barChangePct != null && (
-            <span className={`ml-1.5 font-bold ${barChangePct >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-              ({barChangePct >= 0 ? '+' : ''}{barChangePct.toFixed(2)}%)
+      {legendBar && (() => {
+        const barUp = legendBar.close >= legendBar.open;
+        const ohlcColor = barUp ? theme.up : theme.down;
+        return (
+          <div className="absolute top-0.5 left-2 z-10 pointer-events-none flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] leading-none tabular-nums max-w-[calc(100%-4rem)]">
+            <span className="font-semibold text-slate-500 dark:text-slate-400">
+              {fmtChartAxisDate(legendBar.time, candleInterval)}
             </span>
-          )}
-          {hi.volume > 0 && <span className="text-slate-600 dark:text-slate-300 ml-1.5">V {fmtVol(hi.volume)}</span>}
-          {showMomentum && momentumTip && <span className="text-purple-700 dark:text-purple-300 font-bold ml-1.5">{momentumTip}</span>}
-        </div>
-      )}
+            <span className="flex items-center gap-1">
+              <span className="text-slate-400">O</span>
+              <span className="font-semibold" style={{ color: ohlcColor }}>{rs(legendBar.open)}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="text-slate-400">H</span>
+              <span className="font-semibold" style={{ color: ohlcColor }}>{rs(legendBar.high)}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="text-slate-400">L</span>
+              <span className="font-semibold" style={{ color: ohlcColor }}>{rs(legendBar.low)}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="text-slate-400">C</span>
+              <span className="font-semibold" style={{ color: ohlcColor }}>{rs(legendBar.close)}</span>
+            </span>
+            {legendChangePct != null && (
+              <span className="font-semibold" style={{ color: ohlcColor }}>
+                {legendChangePct >= 0 ? '+' : ''}{legendChangePct.toFixed(2)}%
+              </span>
+            )}
+            {legendBar.volume > 0 && (
+              <span className="flex items-center gap-1">
+                <span className="text-slate-400">V</span>
+                <span className="font-semibold" style={{ color: ohlcColor }}>{fmtVol(legendBar.volume)}</span>
+              </span>
+            )}
+            {showMomentum && momentumTip && (
+              <span className="font-semibold text-purple-600 dark:text-purple-300">{momentumTip}</span>
+            )}
+          </div>
+        );
+      })()}
       <div ref={plotRef} className="overflow-hidden">
       <svg width={w} height={h} className="overflow-hidden" {...mainMouseHandlers}>
         <defs>
@@ -1354,19 +1383,32 @@ const CandleChart: React.FC<{
             <rect x={0} y={pad.t - 2} width={w} height={innerH + 4} />
           </clipPath>
         </defs>
-        {/* grid — tick density follows zoom (TradingView-style) */}
+        {/* grid — solid hairlines both ways, like TradingView */}
+        {display.length > 0 && xTickIndices.map((i) => (
+          <line
+            key={`vgrid-${i}`}
+            x1={xAt(i)}
+            x2={xAt(i)}
+            y1={pad.t}
+            y2={pad.t + innerH}
+            stroke={theme.grid}
+          />
+        ))}
         {priceAxis.ticks.map((price) => {
           const y = yScale(price);
           if (y < pad.t - 2 || y > pad.t + innerH + 2) return null;
           return (
             <g key={price}>
-              <line x1={pad.l} x2={w - pad.r} y1={y} y2={y} stroke="#e2e8f0" strokeOpacity={0.45} strokeDasharray="3 3" />
-              <text x={w - 8} y={y + 4} textAnchor="end" fontSize={11} fill={AXIS_LABEL} fontWeight={700}>
+              <line x1={pad.l} x2={w - pad.r} y1={y} y2={y} stroke={theme.grid} />
+              <text x={w - 8} y={y + 4} textAnchor="end" fontSize={11} fill={theme.axisText}>
                 {formatPriceTick(price, priceAxis.step)}
               </text>
             </g>
           );
         })}
+        {/* axis separators */}
+        <line x1={w - pad.r} x2={w - pad.r} y1={pad.t} y2={pad.t + innerH} stroke={theme.border} />
+        <line x1={pad.l} x2={w - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke={theme.border} />
         <g clipPath={`url(#${plotClipId})`}>
         {hasAwais && awaisData && (
           <AwaisSvgOverlays
@@ -1384,18 +1426,18 @@ const CandleChart: React.FC<{
         {display.map((b, i) => {
           const x = xAt(i);
           const up = b.close >= b.open;
-          const color = up ? '#10b981' : '#f43f5e';
+          const color = up ? theme.up : theme.down;
           const yO = yScale(b.open);
           const yC = yScale(b.close);
           const yH = yScale(b.high);
           const yL = yScale(b.low);
           const top = Math.min(yO, yC);
-          const bodyH = Math.max(1.5, Math.abs(yC - yO));
+          const bodyH = Math.max(1, Math.abs(yC - yO));
           return (
             <g key={b.time}>
               <rect x={x - slot / 2} y={pad.t} width={slot} height={innerH} fill="transparent" pointerEvents="none" />
-              <line x1={x} x2={x} y1={yH} y2={yL} stroke={color} strokeWidth={1.25} />
-              <rect x={x - bodyW / 2} y={top} width={bodyW} height={bodyH} fill={color} rx={0.5} />
+              <line x1={x} x2={x} y1={yH} y2={yL} stroke={color} strokeWidth={1} />
+              <rect x={x - bodyW / 2} y={top} width={bodyW} height={bodyH} fill={color} stroke={color} strokeWidth={0.5} />
             </g>
           );
         })}
@@ -1455,21 +1497,43 @@ const CandleChart: React.FC<{
                   x2={w - pad.r}
                   y1={crosshairY}
                   y2={crosshairY}
-                  stroke="#94a3b8"
+                  stroke={theme.crosshair}
                   strokeWidth={1}
                   strokeDasharray="4 4"
-                  opacity={0.85}
                 />
-                <rect x={w - 54} y={crosshairY - 10} width={50} height={18} rx={4} fill="#1e293b" stroke="#475569" strokeWidth={0.5} />
-                <text x={w - 8} y={crosshairY + 4} textAnchor="end" fontSize={10} fill="#f8fafc" fontWeight={700}>
+                <rect x={w - pad.r + 1} y={crosshairY - 9} width={pad.r - 2} height={18} fill={theme.badgeBg} />
+                <text x={w - 8} y={crosshairY + 4} textAnchor="end" fontSize={11} fill={theme.badgeText} fontWeight={600}>
                   {rs(cursorPrice)}
                 </text>
               </>
             )}
+          </g>
+        )}
+        {/* add-alert button, TradingView-style, sits just left of the price badge */}
+        {onAddAlert && crosshairY != null && cursorPrice != null && (drawTool === 'crosshair' || drawTool === 'pan') && (
+          <g
+            className="cursor-pointer"
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              onAddAlert(cursorPrice);
+            }}
+          >
+            <title>Add price alert at {rs(cursorPrice)}</title>
+            <circle cx={w - pad.r - 11} cy={crosshairY} r={8} fill={theme.bg} stroke={theme.crosshair} strokeWidth={1} />
+            <line x1={w - pad.r - 15} x2={w - pad.r - 7} y1={crosshairY} y2={crosshairY} stroke={theme.axisText} strokeWidth={1.5} />
+            <line x1={w - pad.r - 11} x2={w - pad.r - 11} y1={crosshairY - 4} y2={crosshairY + 4} stroke={theme.axisText} strokeWidth={1.5} />
+          </g>
+        )}
+        {crosshairX != null && (drawTool === 'crosshair' || drawTool === 'pan') && (
+          <g pointerEvents="none">
             {hi && (
               <>
-                <rect x={crosshairX - 42} y={pad.t + innerH + 4} width={84} height={16} rx={4} fill="#475569" />
-                <text x={crosshairX} y={pad.t + innerH + 15} textAnchor="middle" fontSize={9} fill="#f8fafc" fontWeight={600}>
+                <rect x={crosshairX - 44} y={pad.t + innerH + 1} width={88} height={18} fill={theme.badgeBg} />
+                <text x={crosshairX} y={pad.t + innerH + 14} textAnchor="middle" fontSize={11} fill={theme.badgeText} fontWeight={600}>
                   {fmtChartAxisDate(hi.time, candleInterval)}
                 </text>
               </>
@@ -1493,20 +1557,16 @@ const CandleChart: React.FC<{
         {display.length > 0 && xTickIndices.map((i) => {
           const b = display[i];
           if (!b) return null;
-          const x = xAt(i);
           return (
-            <g key={`x-${i}`}>
-              <line x1={x} x2={x} y1={pad.t} y2={pad.t + innerH} stroke="#e2e8f0" strokeOpacity={0.35} strokeDasharray="3 3" />
-              <text x={x} y={h - 8} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
-                {fmtChartAxisDate(b.time, candleInterval)}
-              </text>
-            </g>
+            <text key={`x-${i}`} x={xAt(i)} y={h - 8} textAnchor="middle" fontSize={11} fill={theme.mutedText}>
+              {fmtChartAxisDate(b.time, candleInterval)}
+            </text>
           );
         })}
       </svg>
       </div>
       {showMomentum && activeMomentum.map((type, idx) => (
-        <div key={type} className="mt-3 pt-2 border-t border-slate-200/80 dark:border-slate-700/80">
+        <div key={type} className="mt-0 border-t" style={{ borderColor: theme.border }}>
         <MomentumMiniChart
           type={type}
           bars={display}
@@ -1525,7 +1585,7 @@ const CandleChart: React.FC<{
         </div>
       ))}
       {showVolume && (
-        <div className="mt-3 pt-2 border-t border-slate-200/80 dark:border-slate-700/80">
+        <div className="mt-0 border-t" style={{ borderColor: theme.border }}>
         <VolumeMiniChart
           bars={display}
           slot={slot}
@@ -1557,6 +1617,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const [err, setErr] = useState('');
   const [zoomIdx, setZoomIdx] = useState(0);
   const [viewStart, setViewStart] = useState(0);
+  const [alertToast, setAlertToast] = useState<{ tone: 'info' | 'ok' | 'err'; text: string } | null>(null);
   const [priceZoomIdx, setPriceZoomIdx] = useState(0);
   const [pricePanOffset, setPricePanOffset] = useState(0);
   const [priceFitAll, setPriceFitAll] = useState(false);
@@ -1777,6 +1838,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     : showTechnical
       ? filteredAnalysis.length
       : chartData.length;
+
   const viewCount = windowCount(primaryLen, zoomIdx);
   const maxViewStart = Math.max(0, primaryLen - viewCount);
   const canZoom = primaryLen >= MIN_WINDOW;
@@ -1827,6 +1889,31 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     setPriceFitAll(false);
     setPriceScaleMul((m) => clampPriceScaleMul(m * factor));
   }, []);
+
+  const handleAddAlert = useCallback(
+    async (price: number) => {
+      if (!symbol) return;
+      const current = ohlc.length ? ohlc[ohlc.length - 1].close : price;
+      setAlertToast({ tone: 'info', text: `Setting alert at ${rs(price)}…` });
+      try {
+        const msg = await saveChartAlert({
+          ticker: symbol,
+          price,
+          direction: directionForPrice(price, current),
+        });
+        setAlertToast({ tone: 'ok', text: msg });
+      } catch (e: any) {
+        setAlertToast({ tone: 'err', text: e?.message || 'Could not save alert.' });
+      }
+    },
+    [symbol, ohlc]
+  );
+
+  useEffect(() => {
+    if (!alertToast || alertToast.tone === 'info') return;
+    const t = setTimeout(() => setAlertToast(null), 4000);
+    return () => clearTimeout(t);
+  }, [alertToast]);
 
   const visibleOhlc = useMemo(
     () => applyViewport(candleOhlc, viewStart, viewCount),
@@ -2307,6 +2394,19 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           onPointerCancel={onPointerUp}
           onLostPointerCapture={onLostPointerCapture}
         >
+        {alertToast && (
+          <div
+            className={`absolute top-2 left-1/2 -translate-x-1/2 z-30 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-lg border ${
+              alertToast.tone === 'ok'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/30 dark:text-emerald-300'
+                : alertToast.tone === 'err'
+                  ? 'bg-rose-50 border-rose-200 text-rose-700 dark:bg-rose-500/15 dark:border-rose-500/30 dark:text-rose-300'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+            }`}
+          >
+            {alertToast.text}
+          </div>
+        )}
         {showTechnical ? (
           loading && filteredAnalysis.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 text-slate-400">
@@ -2361,6 +2461,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               onDrawingsChange={setDrawings}
               onDraftChange={setDraftDrawing}
               onSelectDrawing={setSelectedDrawingId}
+              onAddAlert={handleAddAlert}
             />
             {!candleAnalysis.length && candleInterval === 'day' && visibleOhlc.length >= 3 && (
               <p className="text-[10px] text-slate-400 px-1">Not enough data for indicator overlays in this range.</p>

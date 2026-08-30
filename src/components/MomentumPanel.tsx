@@ -14,6 +14,8 @@ import {
   setAllMomentumEnabled,
 } from '../utils/momentumIndicators';
 import { fmtChartAxisDate, pickChartXTickIndices, type CandleInterval } from '../utils/chartAxis';
+import { useChartTheme } from '../utils/chartTheme';
+import { PaneLegend } from './ChartPaneLegend';
 
 export const CANDLE_CHART_HEIGHT = 520;
 export const MOMENTUM_PANEL_HEIGHT = 168;
@@ -334,61 +336,84 @@ export const MomentumMiniChart: React.FC<{
   hoverIdx?: number | null;
   plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
 }> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false, candleInterval = 'day', hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
+  const theme = useChartTheme();
   const computed = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);
   const series = seriesProp ?? computed;
   const panelHeight = height ?? (type === 'MACD' ? MOMENTUM_MACD_HEIGHT : MOMENTUM_PANEL_HEIGHT);
-  const pad = { t: 12, r: 56, b: 24, l: 52 };
+  const pad = { t: 16, r: 56, b: 24, l: 52 };
   const innerH = panelHeight - pad.t - pad.b;
   const xAt = (i: number) => padL + i * slot + slot / 2;
   const xTickIndices = useMemo(() => pickChartXTickIndices(bars.length, slot), [bars.length, slot]);
   const label = momentumPanelLabel(config, type);
+  const hovered = hoverIdx != null ? series[hoverIdx] : undefined;
   const crosshair = hoverX != null ? (
-    <line x1={hoverX} x2={hoverX} y1={pad.t} y2={pad.t + innerH} stroke="#94a3b8" strokeWidth={1} strokeDasharray="4 4" opacity={0.85} pointerEvents="none" />
+    <line x1={hoverX} x2={hoverX} y1={pad.t} y2={pad.t + innerH} stroke={theme.crosshair} strokeWidth={1} strokeDasharray="4 4" pointerEvents="none" />
   ) : null;
+
+  /** Solid vertical hairlines + right/bottom axis separators, TradingView-style. */
+  const frame = (
+    <>
+      {bars.length > 0 && xTickIndices.map((i) => (
+        <line key={`vg-${i}`} x1={xAt(i)} x2={xAt(i)} y1={pad.t} y2={pad.t + innerH} stroke={theme.grid} />
+      ))}
+      <line x1={width - pad.r} x2={width - pad.r} y1={pad.t} y2={pad.t + innerH} stroke={theme.border} />
+      <line x1={padL} x2={width - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke={theme.border} />
+    </>
+  );
 
   const xAxisLabels = showXLabels && bars.length > 0
     ? xTickIndices.map((i) => (
-        <g key={`x-${i}`}>
-          <line x1={xAt(i)} x2={xAt(i)} y1={pad.t} y2={pad.t + innerH} stroke="#e2e8f0" strokeOpacity={0.35} strokeDasharray="3 3" />
-          <text x={xAt(i)} y={panelHeight - 4} textAnchor="middle" fontSize={10} fill="#94a3b8" fontWeight={600}>
-            {fmtChartAxisDate(bars[i].time, candleInterval)}
-          </text>
-        </g>
+        <text key={`x-${i}`} x={xAt(i)} y={panelHeight - 6} textAnchor="middle" fontSize={11} fill={theme.mutedText}>
+          {fmtChartAxisDate(bars[i].time, candleInterval)}
+        </text>
       ))
     : null;
+
+  const valueBadge = (y: number, text: string) => (
+    <>
+      <rect x={width - pad.r + 1} y={y - 9} width={pad.r - 2} height={18} fill={theme.badgeBg} />
+      <text x={width - 8} y={y + 4} textAnchor="end" fontSize={10} fill={theme.badgeText} fontWeight={600}>{text}</text>
+    </>
+  );
 
   if (type === 'RSI') {
     const { min: yMin, max: yMax } = oscillatorDomain(config.rsi.oversold, config.rsi.overbought, 12);
     const yRsi = makeOscillatorScale(yMin, yMax, pad.t, innerH);
     const refLevels = [config.rsi.overbought, 50, config.rsi.oversold].filter((lvl) => lvl >= yMin && lvl <= yMax);
-    const lines = refLevels.map((lvl) => ({
-      lvl,
-      color: lvl === config.rsi.overbought ? '#ef4444' : lvl === config.rsi.oversold ? '#22c55e' : '#94a3b8',
-      dotted: lvl === 50,
-    }));
+    const bandTop = yRsi(config.rsi.overbought);
+    const bandBottom = yRsi(config.rsi.oversold);
     return (
-      <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
+      <div className="relative">
+        <PaneLegend
+          items={[
+            { label, color: config.rsi.color, value: hovered?.rsi != null ? hovered.rsi.toFixed(2) : undefined },
+          ]}
+        />
         <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
-          {lines.map(({ lvl, color, dotted }) => (
+          {/* shaded overbought/oversold zone */}
+          <rect x={padL} y={bandTop} width={Math.max(0, width - pad.r - padL)} height={Math.max(0, bandBottom - bandTop)} fill={theme.rsiBand} />
+          {frame}
+          {refLevels.map((lvl) => (
             <g key={lvl}>
-              <line x1={padL} x2={width - pad.r} y1={yRsi(lvl)} y2={yRsi(lvl)} stroke={color} strokeOpacity={lvl === 50 ? 0.35 : 0.85} strokeDasharray={dotted ? '2 4' : '4 3'} strokeWidth={1} />
-              <text x={width - 8} y={yRsi(lvl) + 3} textAnchor="end" fontSize={10} fill="#475569" fontWeight={700}>{lvl}</text>
+              <line
+                x1={padL}
+                x2={width - pad.r}
+                y1={yRsi(lvl)}
+                y2={yRsi(lvl)}
+                stroke={lvl === 50 ? theme.grid : config.rsi.color}
+                strokeOpacity={lvl === 50 ? 1 : 0.5}
+                strokeDasharray={lvl === 50 ? undefined : '2 2'}
+                strokeWidth={1}
+              />
+              <text x={width - 8} y={yRsi(lvl) + 3} textAnchor="end" fontSize={10} fill={theme.mutedText}>{lvl}</text>
             </g>
           ))}
-          <path d={polylinePath(series.map((p) => p.rsi), xAt, yRsi)} fill="none" stroke={config.rsi.color} strokeWidth={2} />
+          <path d={polylinePath(series.map((p) => p.rsi), xAt, yRsi)} fill="none" stroke={config.rsi.color} strokeWidth={1.5} />
           {config.rsi.showSmoothing && (
             <path d={polylinePath(series.map((p) => p.rsiSmooth), xAt, yRsi)} fill="none" stroke={config.rsi.smoothingColor} strokeWidth={1} />
           )}
           {crosshair}
-          {hoverIdx != null && series[hoverIdx]?.rsi != null && (
-            <>
-              <rect x={width - 44} y={yRsi(series[hoverIdx]!.rsi!) - 10} width={38} height={16} rx={4} fill="#1e293b" />
-              <text x={width - 8} y={yRsi(series[hoverIdx]!.rsi!) + 4} textAnchor="end" fontSize={9} fill="#f8fafc" fontWeight={700}>
-                {series[hoverIdx]!.rsi!.toFixed(1)}
-              </text>
-            </>
-          )}
+          {hovered?.rsi != null && valueBadge(yRsi(hovered.rsi), hovered.rsi.toFixed(2))}
           {xAxisLabels}
         </svg>
       </div>
@@ -398,19 +423,29 @@ export const MomentumMiniChart: React.FC<{
   if (type === 'Stochastic') {
     const { min: yMin, max: yMax } = oscillatorDomain(config.stochastic.oversold, config.stochastic.overbought, 12);
     const ySt = makeOscillatorScale(yMin, yMax, pad.t, innerH);
+    const bandTop = ySt(config.stochastic.overbought);
+    const bandBottom = ySt(config.stochastic.oversold);
     return (
-      <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
+      <div className="relative">
+        <PaneLegend
+          items={[
+            { label, color: config.stochastic.kColor, value: hovered?.stochK != null ? hovered.stochK.toFixed(2) : undefined },
+            { label: 'D', color: config.stochastic.dColor, value: hovered?.stochD != null ? hovered.stochD.toFixed(2) : undefined },
+          ]}
+        />
         <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
+          <rect x={padL} y={bandTop} width={Math.max(0, width - pad.r - padL)} height={Math.max(0, bandBottom - bandTop)} fill={theme.stochBand} />
+          {frame}
           {[config.stochastic.overbought, config.stochastic.oversold].filter((lvl) => lvl >= yMin && lvl <= yMax).map((lvl) => (
             <g key={lvl}>
-              <line x1={padL} x2={width - pad.r} y1={ySt(lvl)} y2={ySt(lvl)} stroke={lvl >= 50 ? '#ef4444' : '#22c55e'} strokeOpacity={0.85} strokeDasharray="4 3" strokeWidth={1} />
-              <text x={width - 8} y={ySt(lvl) + 3} textAnchor="end" fontSize={10} fill="#475569" fontWeight={700}>{lvl}</text>
+              <line x1={padL} x2={width - pad.r} y1={ySt(lvl)} y2={ySt(lvl)} stroke={theme.mutedText} strokeOpacity={0.5} strokeDasharray="2 2" strokeWidth={1} />
+              <text x={width - 8} y={ySt(lvl) + 3} textAnchor="end" fontSize={10} fill={theme.mutedText}>{lvl}</text>
             </g>
           ))}
-          <path d={polylinePath(series.map((p) => p.stochK), xAt, ySt)} fill="none" stroke={config.stochastic.kColor} strokeWidth={2} />
+          <path d={polylinePath(series.map((p) => p.stochK), xAt, ySt)} fill="none" stroke={config.stochastic.kColor} strokeWidth={1.5} />
           <path d={polylinePath(series.map((p) => p.stochD), xAt, ySt)} fill="none" stroke={config.stochastic.dColor} strokeWidth={1} />
           {crosshair}
+          {hovered?.stochK != null && valueBadge(ySt(hovered.stochK), hovered.stochK.toFixed(2))}
           {xAxisLabels}
         </svg>
       </div>
@@ -421,14 +456,18 @@ export const MomentumMiniChart: React.FC<{
     const yMax = Math.min(100, Math.max(config.adx.threshold * 2, 50));
     const yAdx = makeOscillatorScale(0, yMax, pad.t, innerH);
     return (
-      <div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
+      <div className="relative">
+        <PaneLegend
+          items={[{ label, color: config.adx.color, value: hovered?.adx != null ? hovered.adx.toFixed(2) : undefined }]}
+        />
         <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
-          <line x1={padL} x2={width - pad.r} y1={yAdx(config.adx.threshold)} y2={yAdx(config.adx.threshold)} stroke={config.adx.color} strokeOpacity={0.85} strokeDasharray="4 3" strokeWidth={1} />
-          <text x={width - 8} y={yAdx(config.adx.threshold) + 3} textAnchor="end" fontSize={10} fill="#475569" fontWeight={700}>{config.adx.threshold}</text>
-          <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={9} fill="#475569" fontWeight={700}>{yMax}</text>
-          <path d={polylinePath(series.map((p) => p.adx), xAt, yAdx)} fill="none" stroke={config.adx.color} strokeWidth={2} />
+          {frame}
+          <line x1={padL} x2={width - pad.r} y1={yAdx(config.adx.threshold)} y2={yAdx(config.adx.threshold)} stroke={config.adx.color} strokeOpacity={0.5} strokeDasharray="2 2" strokeWidth={1} />
+          <text x={width - 8} y={yAdx(config.adx.threshold) + 3} textAnchor="end" fontSize={10} fill={theme.mutedText}>{config.adx.threshold}</text>
+          <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={10} fill={theme.mutedText}>{yMax}</text>
+          <path d={polylinePath(series.map((p) => p.adx), xAt, yAdx)} fill="none" stroke={config.adx.color} strokeWidth={1.5} />
           {crosshair}
+          {hovered?.adx != null && valueBadge(yAdx(hovered.adx), hovered.adx.toFixed(2))}
           {xAxisLabels}
         </svg>
       </div>
@@ -452,21 +491,37 @@ export const MomentumMiniChart: React.FC<{
   const zeroY = yScale(0);
 
   return (
-    <div>
-      <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-1 px-1">{label}</div>
+    <div className="relative">
+      <PaneLegend
+        items={[
+          { label, color: config.macd.lineColor, value: hovered?.macd != null ? hovered.macd.toFixed(2) : undefined },
+          { label: 'Signal', color: config.macd.signalColor, value: hovered?.macdSignal != null ? hovered.macdSignal.toFixed(2) : undefined },
+        ]}
+      />
       <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
-        <line x1={padL} x2={width - pad.r} y1={zeroY} y2={zeroY} stroke="#94a3b8" strokeOpacity={0.6} strokeWidth={0.5} />
+        {frame}
+        <line x1={padL} x2={width - pad.r} y1={zeroY} y2={zeroY} stroke={theme.mutedText} strokeOpacity={0.6} strokeWidth={1} />
         {series.map((p, i) => {
           if (p.macdHist == null) return null;
           const x = xAt(i);
           const y = yScale(p.macdHist);
           const top = Math.min(y, zeroY);
           const h = Math.max(1, Math.abs(y - zeroY));
-          return <rect key={i} x={x - barW / 2} y={top} width={barW} height={h} fill={p.macdHistColor ?? '#64748b'} rx={0.5} />;
+          return (
+            <rect
+              key={i}
+              x={x - barW / 2}
+              y={top}
+              width={barW}
+              height={h}
+              fill={p.macdHistColor ?? (p.macdHist >= 0 ? theme.macdHistUp : theme.macdHistDown)}
+            />
+          );
         })}
-        <path d={polylinePath(series.map((p) => p.macd), xAt, yScale)} fill="none" stroke={config.macd.lineColor} strokeWidth={2} />
+        <path d={polylinePath(series.map((p) => p.macd), xAt, yScale)} fill="none" stroke={config.macd.lineColor} strokeWidth={1.5} />
         <path d={polylinePath(series.map((p) => p.macdSignal), xAt, yScale)} fill="none" stroke={config.macd.signalColor} strokeWidth={1} />
         {crosshair}
+        {hovered?.macd != null && valueBadge(yScale(hovered.macd), hovered.macd.toFixed(2))}
         {xAxisLabels}
       </svg>
     </div>
