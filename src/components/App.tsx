@@ -1293,6 +1293,9 @@ const App: React.FC = () => {
             const amt = reinvestAmount(t);
             totalReinvest += amt;
             dividendSum += amt;
+            // Fund AMCs withhold tax before issuing the units, so it never passes
+            // through the cash balance — it is income tax, not a cost of the units.
+            if (isUnitReinvest(t)) divTaxSum += (t.tax || 0);
             events.push({ date: t.date, type: 'IN', amount: amt, originalIndex: idx, kind: 'reinvest' });
         }
         else if (t.type === 'TAX') {
@@ -1366,7 +1369,8 @@ const App: React.FC = () => {
         if (t.type === 'BUY') tradingCashFlow -= (val + fees);
         else if (t.type === 'SELL') tradingCashFlow += (val - fees);
         // Units bought with the dividend: cancels the cash the reinvest added.
-        else if (isUnitReinvest(t)) tradingCashFlow -= (val + fees);
+        // Tax was withheld at source, so only the units' value moves.
+        else if (isUnitReinvest(t)) tradingCashFlow -= val;
     });
 
     let cashIn = totalDeposits + totalReinvest;
@@ -1523,6 +1527,16 @@ const App: React.FC = () => {
           // the real sequence in which trades were entered.
           const ordVal = (t: Transaction) => (t.createdAt ? Date.parse(t.createdAt) : 0);
           const makeLot = (t: Transaction): Lot => {
+              // Reinvested units cost exactly the dividend that bought them; the tax
+              // withheld on that dividend is income tax and stays out of the basis.
+              if (isUnitReinvest(t)) {
+                  return {
+                      quantity: t.quantity,
+                      costPerShare: t.price,
+                      date: t.date,
+                      commPerShare: 0, taxPerShare: 0, cdcPerShare: 0, otherPerShare: 0,
+                  };
+              }
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
               const costPerShare = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
               return {
