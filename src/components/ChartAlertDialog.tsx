@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, X } from 'lucide-react';
-import { getSession } from '../services/auth';
+import { getCanSaveAlerts, subscribeCanSaveAlerts } from '../services/alertAccess';
 import { SetAlert } from './SetAlert';
 
 interface Props {
@@ -17,27 +17,19 @@ interface Props {
 const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const ChartAlertDialog: React.FC<Props> = ({ symbol, price, currentPrice, onClose, onSaved }) => {
-  const [canSaveAlerts, setCanSaveAlerts] = useState(false);
+  const [canSaveAlerts, setCanSave] = useState(getCanSaveAlerts);
   const [target, setTarget] = useState<number | ''>(price);
 
-  useEffect(() => {
-    let alive = true;
-    getSession()
-      .then((s) => { if (alive) setCanSaveAlerts(!!s); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, []);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+
+  useEffect(() => subscribeCanSaveAlerts(setCanSave), []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeRef.current(); };
     window.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prevOverflow;
-    };
-  }, [onClose]);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const effective = typeof target === 'number' && Number.isFinite(target) && target > 0 ? target : price;
   const above = currentPrice > 0 && effective > currentPrice;

@@ -15,6 +15,14 @@ export interface Transaction {
   notes?: string; 
   category?: 'ADJUSTMENT' | 'OTHER_TAX' | 'CDC_CHARGE'; 
   createdAt?: string; // ISO time the row was added; used to order same-day trades deterministically
+  /**
+   * Shared id joining a fund trade with the cash row that funded it (a DEPOSIT
+   * before a subscribe, a WITHDRAWAL after a redemption). Both rows carry the
+   * same value so edits and deletes can keep the pair consistent.
+   */
+  linkId?: string;
+  /** True on the cash half of a linked pair, i.e. the row the app created itself. */
+  autoCash?: boolean;
 }
 
 export interface Holding {

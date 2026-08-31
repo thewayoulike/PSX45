@@ -84,7 +84,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
   const [notes, setNotes] = useState('');
+  /**
+   * Fund subscriptions/redemptions usually move money to or from the bank, so by
+   * default we book the matching cash row too. Unticked, the trade settles
+   * against cash already in the portfolio — e.g. a switch between two funds.
+   */
+  const [pairCash, setPairCash] = useState(true);
   const [selectedFund, setSelectedFund] = useState<MutualFundRecord | null>(null);
+
+  // Net cash the paired row would move: cost including fees on a buy, proceeds after fees on a sell.
+  const pairAmount = (() => {
+    const gross = (Number(quantity) || 0) * (Number(price) || 0);
+    if (gross <= 0) return 0;
+    const fees = (Number(commission) || 0) + (Number(tax) || 0) + (Number(cdcCharges) || 0) + (Number(otherFees) || 0);
+    return Math.max(0, type === 'SELL' ? gross - fees : gross + fees);
+  })();
   const [fundNavLoading, setFundNavLoading] = useState(false);
   const [showFundGuide, setShowFundGuide] = useState(true);
   const [fundScanHint, setFundScanHint] = useState<string | null>(null);
@@ -375,7 +389,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               return;
           }
       }
-      if (type === 'BUY' && !editingTransaction && freeCash !== undefined) {
+      // A paired deposit funds the purchase itself, so existing cash is irrelevant.
+      const pairsCash = isFundPortfolio && pairCash && (type === 'BUY' || type === 'SELL');
+      if (type === 'BUY' && !editingTransaction && freeCash !== undefined && !pairsCash) {
           const totalCost = (qtyNum * priceNum) + Number(commission) + Number(tax) + Number(cdcCharges) + Number(otherFees);
           if (!canAfford(totalCost, freeCash)) {
               setFormError(`Insufficient Buying Power! You need Rs. ${totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} but only have Rs. ${freeCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`);
@@ -396,6 +412,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           otherFees: Number(otherFees) || 0,
           category: type === 'OTHER' ? category : undefined,
           notes: notes.trim() || undefined,
+          pairCash: pairsCash || undefined,
       };
       if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData });
       else onAddTransaction(txData);
@@ -673,16 +690,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               <p>
                 <strong>Option A — Best tracking:</strong> enter every Subscribe / Redeem / Dividend you still have records for.
                 If the fund is older (e.g. 10 years) but you only have ~2 years of data, start at that 2-year point:
-                use the <em>Investment Value then</em> as your <strong>opening balance</strong> (Deposit + Subscribe at that date&apos;s units/NAV), then add all later transactions. Don&apos;t invent the missing earlier years.
+                use the <em>Investment Value then</em> as your <strong>opening balance</strong> (a Subscribe at that date&apos;s units/NAV), then add all later transactions. Don&apos;t invent the missing earlier years.
               </p>
               <p>
-                <strong>Option B — Start today:</strong> no old statements? Use <em>today&apos;s Investment Value</em> as starting balance (Deposit + Subscribe at current Units/NAV). Profit tracks from today forward.
+                <strong>Option B — Start today:</strong> no old statements? Use <em>today&apos;s Investment Value</em> as starting balance (a Subscribe at current Units/NAV). Profit tracks from today forward.
               </p>
             </div>
             <p className="font-bold text-violet-700 dark:text-violet-300">Opening-balance steps</p>
             <ol className="list-decimal list-inside space-y-2 leading-relaxed">
-              <li><strong>Cash → Deposit</strong> — <em>Investment Value</em> at your start date (oldest statement, or today if starting fresh). Or use <strong>AI Scan</strong>.</li>
-              <li><strong>Subscribe (Buy)</strong> — one row per fund on that same date: <em>Units</em> + <em>NAV</em> (Units × NAV ≈ Investment Value).</li>
+              <li><strong>Subscribe (Buy)</strong> — one row per fund: <em>Units</em> + <em>NAV</em> on your start date. Leave <strong>Paid directly from bank</strong> ticked and the matching cash deposit is added for you, so you no longer need a separate Deposit row.</li>
+              <li><strong>Switching funds?</strong> Untick that box on both the Redeem and the Subscribe — the money then stays as cash inside the portfolio and moves straight from one fund to the other.</li>
               <li><strong>Then</strong> add later Subscribe / Redeem / Dividend rows as you have them.</li>
               <li><strong>History</strong> — only for <em>fully redeemed</em> funds (0 units), e.g. past P&amp;L on MEF. Skip &quot;Gain To Date&quot; on funds you still hold.</li>
             </ol>
@@ -790,12 +807,32 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               <div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={16} /></div> 
           </div>
           )}
-          {isFundPortfolio && type === 'BUY' && !editingTransaction && freeCash !== undefined && (
+          {isFundPortfolio && type === 'BUY' && !editingTransaction && freeCash !== undefined && !pairCash && (
               <div className="flex justify-end mb-1">
                   <span className={`text-[10px] font-bold tabular-nums ${freeCash >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                       Available to Invest: Rs. {freeCash.toLocaleString()}
                   </span>
               </div>
+          )}
+          {isFundPortfolio && (type === 'BUY' || type === 'SELL') && !editingTransaction && (
+              <label className="flex items-start gap-3 mb-1 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-slate-50/70 dark:bg-slate-800/40 cursor-pointer">
+                  <input
+                      type="checkbox"
+                      checked={pairCash}
+                      onChange={(e) => setPairCash(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 rounded accent-emerald-600 shrink-0"
+                  />
+                  <span className="text-[11px] leading-snug">
+                      <span className="font-bold text-slate-700 dark:text-slate-200 block">
+                          {type === 'BUY' ? 'Paid directly from bank' : 'Proceeds withdrawn to bank'}
+                      </span>
+                      <span className="text-slate-500 dark:text-slate-400">
+                          {type === 'BUY'
+                              ? `Also records a matching cash deposit${pairAmount > 0 ? ` of Rs. ${pairAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}, so this investment counts towards your principal instead of pushing cash negative.`
+                              : `Also records a matching cash withdrawal${pairAmount > 0 ? ` of Rs. ${pairAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}. Untick it when you are switching into another fund and the money stays in the portfolio.`}
+                      </span>
+                  </span>
+              </label>
           )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4"> 
               <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{type === 'DIVIDEND' ? (isFundPortfolio ? 'Eligible Units' : 'Eligible Shares') : (isFundPortfolio ? 'Units' : 'Quantity')}</label><input required type="number" step="any" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder={isFundPortfolio ? '0.0000' : '0'}/></div> 

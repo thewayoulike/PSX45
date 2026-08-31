@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
+import { setCanSaveAlerts } from '../services/alertAccess';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
 import { AllocationChart } from './AllocationChart';
@@ -42,6 +43,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
+import { buildPairedCashTx, cashAmountForTrade, isPairableFundTrade, makeLinkId } from '../utils/fundCash';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
 import { setGeminiApiKey } from '../services/gemini';
@@ -732,7 +734,57 @@ const App: React.FC = () => {
           broker: isFund ? undefined : (txData.broker ?? brokerToUse?.name ?? 'Unknown'),
           createdAt: nextCreatedAt(),
       };
-      setTransactions(prev => [...prev, newTx]);
+
+      // Fund subscribe/redeem settled against the bank: book the matching cash row
+      // so principal and ROI see the money, instead of cash going negative.
+      const { pairCash, ...rest } = newTx as Transaction & { pairCash?: boolean };
+      if (isFund && pairCash) {
+          const trade = rest as Transaction;
+          const linkId = makeLinkId();
+          const pairId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${newId}-cash`;
+          const isBuy = trade.type === 'BUY';
+          // A deposit must land before the buy it funds, a withdrawal after the sell.
+          const cashCreatedAt = isBuy ? new Date(new Date(trade.createdAt!).getTime() - 1).toISOString() : nextCreatedAt();
+          const cashTx = buildPairedCashTx({ ...trade, linkId }, { id: pairId, linkId, createdAt: cashCreatedAt });
+          if (cashTx) {
+              setTransactions(prev => [...prev, ...(isBuy ? [cashTx, { ...trade, linkId }] : [{ ...trade, linkId }, cashTx])]);
+              return;
+          }
+      }
+      setTransactions(prev => [...prev, rest as Transaction]);
+  };
+
+  /**
+   * Fund trades entered before paired cash existed have no DEPOSIT/WITHDRAWAL behind
+   * them, so principal reads zero and cash drifts negative. This books the missing
+   * halves in one go. Trades that already carry a linkId are left alone.
+   */
+  const handleBackfillFundCash = (unpairedFundTrades: Transaction[]) => {
+      if (!unpairedFundTrades.length) return;
+      const deposits = unpairedFundTrades.filter(t => t.type === 'BUY').length;
+      const withdrawals = unpairedFundTrades.length - deposits;
+      const ok = window.confirm(
+          `Add the missing cash entries for ${unpairedFundTrades.length} fund transaction${unpairedFundTrades.length === 1 ? '' : 's'}?\n\n` +
+          `This creates ${deposits} deposit${deposits === 1 ? '' : 's'} and ${withdrawals} withdrawal${withdrawals === 1 ? '' : 's'} so your cash balance and invested principal balance out. ` +
+          `Existing transactions are not changed, and you can delete any of the new rows afterwards.`
+      );
+      if (!ok) return;
+
+      const targets = new Map(unpairedFundTrades.map(t => [t.id, makeLinkId()]));
+      const additions: Transaction[] = [];
+      unpairedFundTrades.forEach(trade => {
+          const linkId = targets.get(trade.id)!;
+          const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${trade.id}-cash`;
+          const base = trade.createdAt ? new Date(trade.createdAt).getTime() : Date.now();
+          const createdAt = new Date(trade.type === 'BUY' ? base - 1 : base + 1).toISOString();
+          const cashTx = buildPairedCashTx({ ...trade, linkId }, { id, linkId, createdAt });
+          if (cashTx) additions.push(cashTx);
+      });
+
+      setTransactions(prev => [
+          ...prev.map(t => (targets.has(t.id) ? { ...t, linkId: targets.get(t.id) } : t)),
+          ...additions,
+      ]);
   };
 
   const handleTransferStock = (ticker: string, quantity: number, destPortfolioId: string, date: string, sourceBroker?: string) => {
@@ -778,14 +830,47 @@ const App: React.FC = () => {
       setTransactions(prev => [...prev, transferOut, transferIn]);
   };
 
-  const handleUpdateTransaction = (updatedTx: Transaction) => { setTransactions(prev => prev.map(t => t.id === updatedTx.id ? updatedTx : t)); setEditingTransaction(null); };
+  const handleUpdateTransaction = (updatedTx: Transaction) => {
+      setTransactions(prev => prev.map(t => {
+          if (t.id === updatedTx.id) return updatedTx;
+          // Re-sync the auto cash row so an edited amount or date stays balanced.
+          if (updatedTx.linkId && t.linkId === updatedTx.linkId && t.autoCash) {
+              const amount = cashAmountForTrade(updatedTx);
+              return amount > 0 ? { ...t, price: amount, date: updatedTx.date } : t;
+          }
+          return t;
+      }));
+      setEditingTransaction(null);
+  };
   // Fix an out-of-sequence same-day SELL: stamp it 'now' so it sorts after every
   // same-day BUY (which have earlier/blank timestamps), resolving the warning.
   const handleFixSequence = (txId: string) => {
       setTransactions(prev => prev.map(t => t.id === txId ? { ...t, createdAt: nextCreatedAt() } : t));
   };
-  const handleDeleteTransaction = (id: string) => { if (window.confirm("Are you sure you want to delete this transaction?")) { setTransactions(prev => prev.filter(t => t.id !== id)); } };
-  const handleDeleteTransactions = (ids: string[]) => { if (window.confirm(`Are you sure you want to delete ${ids.length} selected transactions?`)) { setTransactions(prev => prev.filter(t => !ids.includes(t.id))); } };
+  // Deleting either half of a linked fund pair removes the auto-created cash row too,
+  // otherwise an orphan deposit would silently inflate the portfolio's principal.
+  const linkedIdsFor = (ids: string[], all: Transaction[]) => {
+      const links = new Set(all.filter(t => ids.includes(t.id) && t.linkId).map(t => t.linkId));
+      const out = new Set(ids);
+      if (links.size) all.forEach(t => { if (t.linkId && links.has(t.linkId) && t.autoCash) out.add(t.id); });
+      return out;
+  };
+  const handleDeleteTransaction = (id: string) => {
+      const doomed = linkedIdsFor([id], transactions);
+      const extra = doomed.size - 1;
+      const msg = extra > 0
+          ? "Delete this transaction and the linked cash entry that was created with it?"
+          : "Are you sure you want to delete this transaction?";
+      if (window.confirm(msg)) setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
+  };
+  const handleDeleteTransactions = (ids: string[]) => {
+      const doomed = linkedIdsFor(ids, transactions);
+      const extra = doomed.size - ids.length;
+      const msg = extra > 0
+          ? `Delete ${ids.length} selected transactions and ${extra} linked cash ${extra === 1 ? 'entry' : 'entries'}?`
+          : `Are you sure you want to delete ${ids.length} selected transactions?`;
+      if (window.confirm(msg)) setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
+  };
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
@@ -1641,6 +1726,12 @@ const App: React.FC = () => {
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
   const isFundPortfolio = getPortfolioType(currentPortfolio) === 'MUTUAL_FUND';
+  const unpairedFundTrades = useMemo(
+      () => (isFundPortfolio
+          ? portfolioTransactions.filter(t => isPairableFundTrade(t) && !t.linkId && isFundTicker(t.ticker))
+          : []),
+      [isFundPortfolio, portfolioTransactions]
+  );
   const handleSyncMarket = isFundPortfolio ? handleSyncFundNav : handleSyncPrices;
   const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
 
@@ -1649,6 +1740,9 @@ const App: React.FC = () => {
   const OWNER_EMAIL = ((import.meta as any).env?.VITE_OWNER_EMAIL || 'itruth2011@gmail.com').toLowerCase();
   const isOwner = [driveUser?.email, sbUser?.email]
     .some(e => (e || '').toLowerCase() === OWNER_EMAIL);
+
+  const canSaveAlerts = !!driveUser || !!sbUser;
+  useEffect(() => { setCanSaveAlerts(canSaveAlerts); }, [canSaveAlerts]);
 
   // Render a single dashboard card by id. Used by the customizable DashboardGrid.
   const renderDashCard = (id: string): React.ReactNode => {
@@ -2076,6 +2170,24 @@ const App: React.FC = () => {
                       )}
                       {currentView === 'HISTORY' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              {unpairedFundTrades.length > 0 && (
+                                  <div className="mb-4 p-4 rounded-2xl border border-amber-200/70 dark:border-amber-500/25 bg-amber-50/80 dark:bg-amber-500/10 flex flex-col sm:flex-row sm:items-center gap-3">
+                                      <div className="flex-1">
+                                          <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+                                              {unpairedFundTrades.length} fund transaction{unpairedFundTrades.length === 1 ? '' : 's'} {unpairedFundTrades.length === 1 ? 'has' : 'have'} no matching cash entry
+                                          </p>
+                                          <p className="text-xs text-amber-700/80 dark:text-amber-400/80 mt-0.5 leading-snug">
+                                              Subscriptions recorded without a deposit push your cash balance negative and leave invested principal at zero, which makes ROI and XIRR meaningless. Adding the missing entries balances the ledger.
+                                          </p>
+                                      </div>
+                                      <button
+                                          onClick={() => handleBackfillFundCash(unpairedFundTrades)}
+                                          className="shrink-0 px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 transition-all"
+                                      >
+                                          Add missing cash entries
+                                      </button>
+                                  </div>
+                              )}
                               <TransactionList
                                   transactions={portfolioTransactions}
                                   onDelete={handleDeleteTransaction}
