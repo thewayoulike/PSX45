@@ -1,4 +1,18 @@
 import type { Transaction } from '../types';
+import { isFundTicker } from './fundId';
+
+/**
+ * A fund dividend reinvestment issues new units at that day's NAV rather than
+ * paying cash out, so for fund portfolios the row carries the fund ticker, units
+ * and NAV. PSX rows keep the older shape (ticker 'DIV REINVEST', quantity 1,
+ * price = rupee amount), so the two are told apart by the ticker.
+ */
+export const isUnitReinvest = (t: Pick<Transaction, 'type' | 'ticker'>) =>
+  t.type === 'DIVIDEND_REINVEST' && isFundTicker(t.ticker);
+
+/** Rupee value of a reinvestment, whichever shape the row uses. */
+export const reinvestAmount = (t: Pick<Transaction, 'type' | 'ticker' | 'quantity' | 'price'>) =>
+  isUnitReinvest(t) ? (t.quantity || 0) * (t.price || 0) : t.price;
 
 /**
  * Mutual fund subscriptions and redemptions are normally settled straight

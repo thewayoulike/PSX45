@@ -43,7 +43,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
-import { buildPairedCashTx, cashAmountForTrade, isPairableFundTrade, makeLinkId } from '../utils/fundCash';
+import { buildPairedCashTx, cashAmountForTrade, isPairableFundTrade, isUnitReinvest, makeLinkId, reinvestAmount } from '../utils/fundCash';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
 import { setGeminiApiKey } from '../services/gemini';
@@ -1222,7 +1222,7 @@ const App: React.FC = () => {
             let netUnitsToday = 0;
             portfolioTransactions.forEach(t => {
                 if (t.ticker !== h.ticker || t.date !== today) return;
-                if (t.type === 'BUY' || t.type === 'TRANSFER_IN') netUnitsToday += t.quantity;
+                if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitReinvest(t)) netUnitsToday += t.quantity;
                 if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') netUnitsToday -= t.quantity;
             });
             const startQty = Math.max(0, h.quantity - netUnitsToday);
@@ -1240,7 +1240,7 @@ const App: React.FC = () => {
             if (t.type === 'DIVIDEND') {
                 dailyPL += (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
             } else if (t.type === 'DIVIDEND_REINVEST') {
-                dailyPL += t.price;
+                dailyPL += reinvestAmount(t);
             }
         });
     }
@@ -1288,7 +1288,9 @@ const App: React.FC = () => {
         else if (t.type === 'DIVIDEND_REINVEST') {
             // A dividend kept in the portfolio: still counts as dividend income,
             // adds spendable cash, and is added to the invested base (reinvest bucket).
-            const amt = t.price;
+            // For funds the dividend buys units, so the cash it adds is spent again
+            // in tradingCashFlow below and the net effect on the balance is zero.
+            const amt = reinvestAmount(t);
             totalReinvest += amt;
             dividendSum += amt;
             events.push({ date: t.date, type: 'IN', amount: amt, originalIndex: idx, kind: 'reinvest' });
@@ -1363,6 +1365,8 @@ const App: React.FC = () => {
         const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
         if (t.type === 'BUY') tradingCashFlow -= (val + fees);
         else if (t.type === 'SELL') tradingCashFlow += (val - fees);
+        // Units bought with the dividend: cancels the cash the reinvest added.
+        else if (isUnitReinvest(t)) tradingCashFlow -= (val + fees);
     });
 
     let cashIn = totalDeposits + totalReinvest;
@@ -1470,7 +1474,9 @@ const App: React.FC = () => {
       const txsByKey: Record<string, Transaction[]> = {};
       portfolioTransactions.forEach(tx => {
           if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return;
-          if (tx.type === 'DIVIDEND' || tx.type === 'DIVIDEND_REINVEST' || tx.type === 'TAX') return;
+          // Fund reinvestments carry units and NAV, so they build lots like a buy.
+          if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return;
+          if (tx.type === 'DIVIDEND_REINVEST' && !isUnitReinvest(tx)) return;
           if (tx.type === 'HISTORY') {
               tempRealized.push({
                   id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1,
@@ -1537,7 +1543,7 @@ const App: React.FC = () => {
               // prevents phantom "held" shares when a sell was recorded before its
               // covering buy. The lot that stays held still follows createdAt order.
               const dayBuyLots: Lot[] = dayTxs
-                  .filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN')
+                  .filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitReinvest(t))
                   .map(makeLot);
               const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
               daySells.forEach(sellTx => {
