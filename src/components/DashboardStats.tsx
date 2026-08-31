@@ -419,10 +419,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             sub="Net Profit/Loss"
           />
           <PanelCell
-            label={isFund ? 'Loads & Fees' : 'Total CGT'}
-            value={rs0(isFund ? stats.totalOtherFees : stats.totalCGT)}
+            label="Total CGT"
+            value={rs0(stats.totalCGT)}
             valueClass="text-slate-800 dark:text-slate-100"
-            sub={isFund ? 'Sales load / AMC fees' : 'Capital Gains Tax'}
+            sub={isFund ? 'Incl. tax withheld on dividends' : 'Capital Gains Tax'}
           />
         </MetricPanel>
       </div>

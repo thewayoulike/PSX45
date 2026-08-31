@@ -1199,6 +1199,8 @@ const App: React.FC = () => {
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0; let totalReinvest = 0;
     let operationalExpenses = 0;
+    let fundReinvestIncome = 0;
+    let fundTaxWithheld = 0;
     let dailyPL = 0;
     let totalAdjustments = 0;
     const today = todayPK();
@@ -1280,9 +1282,15 @@ const App: React.FC = () => {
             }
         }
         else if (t.type === 'DIVIDEND') {
-            const netDiv = (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
+            // On funds the withholding is treated as capital gains tax, so the gross
+            // payout is the income and the tax is booked as CGT instead of netting off.
+            const fundDiv = isFundTicker(t.ticker);
+            const netDiv = fundDiv
+                ? (t.quantity * t.price) - (t.otherFees || 0)
+                : (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
             dividendSum += netDiv;
             divTaxSum += (t.tax || 0);
+            if (fundDiv) { totalCGT += (t.tax || 0); fundTaxWithheld += (t.tax || 0); }
             if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv, originalIndex: idx });
         }
         else if (t.type === 'DIVIDEND_REINVEST') {
@@ -1293,9 +1301,17 @@ const App: React.FC = () => {
             const amt = reinvestAmount(t);
             totalReinvest += amt;
             dividendSum += amt;
-            // Fund AMCs withhold tax before issuing the units, so it never passes
-            // through the cash balance — it is income tax, not a cost of the units.
-            if (isUnitReinvest(t)) divTaxSum += (t.tax || 0);
+            // The units these bought carry zero cost, so their value already appears
+            // as unrealized gain. Tracked separately so Total Return counts it once
+            // while the Dividends figure still reports the income received.
+            if (isUnitReinvest(t)) fundReinvestIncome += amt;
+            // Withheld by the AMC before the units were issued: never passes through
+            // the cash balance, and on funds it counts as capital gains tax.
+            if (isUnitReinvest(t)) {
+                divTaxSum += (t.tax || 0);
+                totalCGT += (t.tax || 0);
+                fundTaxWithheld += (t.tax || 0);
+            }
             events.push({ date: t.date, type: 'IN', amount: amt, originalIndex: idx, kind: 'reinvest' });
         }
         else if (t.type === 'TAX') {
@@ -1378,10 +1394,12 @@ const App: React.FC = () => {
     });
 
     let cashIn = totalDeposits + totalReinvest;
-    let cashOut = totalWithdrawals + totalCGT + operationalExpenses;
+    // Fund withholding is deducted at source, so it reduces CGT and return but was
+    // never money sitting in the portfolio to pay out.
+    let cashOut = totalWithdrawals + (totalCGT - fundTaxWithheld) + operationalExpenses;
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL + totalAdjustments;
 
-    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + dividendSum - operationalExpenses + totalAdjustments;
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + (dividendSum - fundReinvestIncome) - operationalExpenses + totalAdjustments;
 
     // Total Return / ROI are measured against PEAK capital (the most you ever had
     // invested), so cashing out gains/capital doesn't inflate the percentage.
@@ -1531,14 +1549,14 @@ const App: React.FC = () => {
           // the real sequence in which trades were entered.
           const ordVal = (t: Transaction) => (t.createdAt ? Date.parse(t.createdAt) : 0);
           const makeLot = (t: Transaction): Lot => {
-              // Reinvested units cost exactly the dividend that bought them; the tax
-              // withheld on that dividend is income tax and stays out of the basis.
-              // Refund-of-capital units are issued free, so their basis is zero and
-              // their full redemption value will be a capital gain.
+              // Units that arrived without you paying in carry no cost. Reinvested
+              // dividends and refund-of-capital units are both profit that stayed in
+              // the fund, so Total Cost stays your own capital and the units' whole
+              // value shows up as gain.
               if (isUnitInflow(t)) {
                   return {
                       quantity: t.quantity,
-                      costPerShare: isRefundOfCapital(t) ? 0 : t.price,
+                      costPerShare: 0,
                       date: t.date,
                       commPerShare: 0, taxPerShare: 0, cdcPerShare: 0, otherPerShare: 0,
                   };
