@@ -1201,7 +1201,6 @@ const App: React.FC = () => {
     let operationalExpenses = 0;
     let fundReinvestIncome = 0;
     let fundTaxWithheld = 0;
-    let fundReinvestTax = 0;
     let dailyPL = 0;
     let totalAdjustments = 0;
     const today = todayPK();
@@ -1283,12 +1282,8 @@ const App: React.FC = () => {
             }
         }
         else if (t.type === 'DIVIDEND') {
-            // On funds the withholding is treated as capital gains tax, so the gross
-            // payout is the income and the tax is booked as CGT instead of netting off.
             const fundDiv = isFundTicker(t.ticker);
-            const netDiv = fundDiv
-                ? (t.quantity * t.price) - (t.otherFees || 0)
-                : (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
+            const netDiv = (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
             dividendSum += netDiv;
             divTaxSum += (t.tax || 0);
             if (fundDiv) { totalCGT += (t.tax || 0); fundTaxWithheld += (t.tax || 0); }
@@ -1312,7 +1307,6 @@ const App: React.FC = () => {
                 divTaxSum += (t.tax || 0);
                 totalCGT += (t.tax || 0);
                 fundTaxWithheld += (t.tax || 0);
-                fundReinvestTax += (t.tax || 0);
             }
             events.push({ date: t.date, type: 'IN', amount: amt, originalIndex: idx, kind: 'reinvest' });
         }
@@ -1348,7 +1342,10 @@ const App: React.FC = () => {
         if (dateDiff !== 0) return dateDiff;
         return a.originalIndex - b.originalIndex;
     });
-    const netRealizedPL = realizedPL - totalCGT;
+    // Realized Gain is profit from selling, so only CGT charged on disposals belongs
+    // here. Fund withholding deducted from a dividend is reported under Total CGT but
+    // must not show up as a realized loss on a position you never sold.
+    const netRealizedPL = realizedPL - (totalCGT - fundTaxWithheld);
     let runningCapital = 0;
     let runningReinvest = 0;
     let peakInvested = 0;
@@ -1401,11 +1398,10 @@ const App: React.FC = () => {
     let cashOut = totalWithdrawals + (totalCGT - fundTaxWithheld) + operationalExpenses;
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL + totalAdjustments;
 
-    // A reinvestment's income is recognised NET, as the value of the zero-cost units
-    // it issued. netRealizedPL already subtracts its withholding as CGT, so the tax
-    // is added back here to avoid deducting it twice — leaving the net units as the
-    // profit. Cash dividends need no add-back: they book gross income against CGT.
-    const totalNetReturn = netRealizedPL + fundReinvestTax + (totalValue - totalCost) + (dividendSum - fundReinvestIncome) - operationalExpenses + totalAdjustments;
+    // Fund dividend withholding is already netted out of the income it was taken
+    // from — cash dividends record the net payout, and reinvested units are issued
+    // net — so it is reported under Total CGT without being deducted again here.
+    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + (dividendSum - fundReinvestIncome) - operationalExpenses + totalAdjustments;
 
     // Total Return / ROI are measured against PEAK capital (the most you ever had
     // invested), so cashing out gains/capital doesn't inflate the percentage.
