@@ -1698,6 +1698,11 @@ const App: React.FC = () => {
       setCurrentView('DASHBOARD');
   };
 
+  // Published so deeply nested widgets (e.g. the chart's alert dialog) can read it
+  // without the flag being drilled through unrelated components.
+  const canSaveAlerts = !!driveUser || !!sbUser;
+  useEffect(() => { setCanSaveAlerts(canSaveAlerts); }, [canSaveAlerts]);
+
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
           setShowBrokerManager(true);
@@ -1726,12 +1731,11 @@ const App: React.FC = () => {
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
   const isFundPortfolio = getPortfolioType(currentPortfolio) === 'MUTUAL_FUND';
-  const unpairedFundTrades = useMemo(
-      () => (isFundPortfolio
-          ? portfolioTransactions.filter(t => isPairableFundTrade(t) && !t.linkId && isFundTicker(t.ticker))
-          : []),
-      [isFundPortfolio, portfolioTransactions]
-  );
+  // Plain computation, not a useMemo: this runs after the auth early-returns above,
+  // so a hook here would change hook order between renders (React error #310).
+  const unpairedFundTrades = isFundPortfolio
+      ? portfolioTransactions.filter(t => isPairableFundTrade(t) && !t.linkId && isFundTicker(t.ticker))
+      : [];
   const handleSyncMarket = isFundPortfolio ? handleSyncFundNav : handleSyncPrices;
   const perfKey = isCombinedView ? 'combined' : currentPortfolioId;
 
@@ -1741,8 +1745,6 @@ const App: React.FC = () => {
   const isOwner = [driveUser?.email, sbUser?.email]
     .some(e => (e || '').toLowerCase() === OWNER_EMAIL);
 
-  const canSaveAlerts = !!driveUser || !!sbUser;
-  useEffect(() => { setCanSaveAlerts(canSaveAlerts); }, [canSaveAlerts]);
 
   // Render a single dashboard card by id. Used by the customizable DashboardGrid.
   const renderDashCard = (id: string): React.ReactNode => {
