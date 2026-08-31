@@ -11,7 +11,7 @@ import { FundPicker } from './FundPicker';
 import { MutualFundRecord } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { formatTransactionLabel } from '../utils/fundDisplay';
-import { dpFundNav, dpFundUnits, roundFundNav, roundFundUnits } from '../utils/fundFormat';
+import { dpFundNav, dpFundUnits, fmtFundNav, fmtFundUnits, roundFundNav, roundFundUnits } from '../utils/fundFormat';
 import * as XLSX from 'xlsx';
 
 interface TransactionFormProps {
@@ -327,15 +327,21 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       e.preventDefault();
       setFormError(null);
       const cleanTicker = isFundPortfolio ? ticker : ticker.toUpperCase();
-      if (isFundPortfolio && (type === 'BUY' || type === 'SELL' || type === 'DIVIDEND') && !cleanTicker) {
+      // Every fund row that carries units needs a fund attached to it.
+      const needsFund = isFundPortfolio && (type === 'BUY' || type === 'SELL' || type === 'DIVIDEND' || fundUnitReinvest || type === 'REFUND_OF_CAPITAL');
+      if (needsFund && !cleanTicker) {
           setFormError('Please select a mutual fund.');
+          return;
+      }
+      if ((fundUnitReinvest || type === 'REFUND_OF_CAPITAL') && (!(Number(quantity) > 0) || !(Number(price) > 0))) {
+          setFormError('Please enter the units issued and the NAV.');
           return;
       }
       let brokerName: string | undefined;
       const b = brokers.find(b => b.id === selectedBrokerId);
       if (!isFundPortfolio && b) brokerName = b.name;
       const cashTypes = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'DIVIDEND_REINVEST'] as const;
-      if (cashTypes.includes(type as typeof cashTypes[number])) {
+      if (!fundUnitReinvest && cashTypes.includes(type as typeof cashTypes[number])) {
           const amt = Number(histAmount);
           if (!amt || amt <= 0) {
               setFormError('Please enter an amount greater than zero.');
@@ -782,19 +788,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'DIVIDEND_REINVEST') {
         return (
           <>
-              <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-200/60 dark:border-emerald-500/20 flex gap-3 items-start shadow-sm"><Wallet className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium"><p className="font-bold mb-0.5">Cash Management</p><p className="opacity-90">{type === 'DIVIDEND_REINVEST' ? (fundUnitReinvest ? 'The dividend is paid out as extra units at that day\u2019s NAV. Enter the units issued and the NAV — the income is counted and the units are added to your holding, with no separate buy needed.' : 'Reinvested dividends count as income and are added to your invested base. Withdrawals draw these down first. Record the buy separately.') : 'Track deposits and withdrawals for accurate principal calculation.'}</p></div></div>
+              <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-200/60 dark:border-emerald-500/20 flex gap-3 items-start shadow-sm"><Wallet className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium"><p className="font-bold mb-0.5">{fundUnitReinvest ? 'Dividend Reinvestment' : 'Cash Management'}</p><p className="opacity-90">{type === 'DIVIDEND_REINVEST' ? (fundUnitReinvest ? 'The dividend is paid out as extra units at that day\u2019s NAV. Enter the units issued and the NAV — the income is counted and the units are added to your holding, with no separate buy needed.' : 'Reinvested dividends count as income and are added to your invested base. Withdrawals draw these down first. Record the buy separately.') : 'Track deposits and withdrawals for accurate principal calculation.'}</p></div></div>
               {fundUnitReinvest && renderFundDividendModeSwitch()}<div className={`${fundUnitReinvest ? 'hidden' : 'flex'} bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl mb-3 shadow-inner gap-1`}><button type="button" onClick={() => setType('DEPOSIT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'DEPOSIT' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <Plus size={14} strokeWidth={3} /> Add Funds </button><button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'WITHDRAWAL' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw </button><button type="button" onClick={() => setType('DIVIDEND_REINVEST')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'DIVIDEND_REINVEST' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <Coins size={14} strokeWidth={3} /> Reinvest Div </button></div>
               <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4`}> {!isFundPortfolio && <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={14} /></div></div>} <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> </div>
               {fundUnitReinvest ? (
                   <>
-                      <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Fund</label>
-                          <FundPicker
-                              catalog={fundCatalog}
-                              value={ticker}
-                              onChange={(id, fund) => { setTicker(id); setSelectedFund(fund); }}
-                          />
-                      </div>
+                      <FundPicker
+                          catalog={fundCatalog}
+                          value={ticker}
+                          onChange={(id, fund) => { setTicker(id); setSelectedFund(fund); }}
+                      />
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
                               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Units Issued</label>
@@ -821,7 +824,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                   <div className="flex flex-col">
                                       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Units received</span>
                                       <span className="text-[10px] text-slate-400 tabular-nums">
-                                          {(Number(quantity) || 0).toLocaleString()} × {money(Number(price) || 0)}{t > 0 ? ` · gross ${money(net + t)}` : ''}
+                                          {fmtFundUnits(Number(quantity) || 0)} × Rs. {fmtFundNav(Number(price) || 0)}{t > 0 ? ` · gross ${money(net + t)}` : ''}
                                       </span>
                                   </div>
                                   <span className="text-lg font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">{money(net)}</span>
@@ -852,10 +855,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div>
-                  <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Mutual Fund</label>
-                      <FundPicker catalog={fundCatalog} value={ticker} onChange={(id, fund) => { setTicker(id); setSelectedFund(fund); }} />
-                  </div>
+                  <FundPicker catalog={fundCatalog} value={ticker} onChange={(id, fund) => { setTicker(id); setSelectedFund(fund); }} />
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
@@ -870,7 +870,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl px-4 py-3">
                   <div className="flex flex-col">
                       <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Capital restored</span>
-                      <span className="text-[10px] text-slate-400 tabular-nums">{units.toLocaleString()} units · cost basis Rs. 0.00</span>
+                      <span className="text-[10px] text-slate-400 tabular-nums">{fmtFundUnits(units)} units × Rs. {fmtFundNav(nav)} · cost basis Rs. 0.00</span>
                   </div>
                   <span className="text-lg font-display font-black tabular-nums text-sky-600 dark:text-sky-400">
                       Rs. {(units * nav).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -1042,7 +1042,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Transaction Type</label>
                         <div className="relative">
                             <select
-                                value={type === 'WITHDRAWAL' || type === 'DIVIDEND_REINVEST' ? 'DEPOSIT' : type}
+                                // A fund reinvestment is a dividend, so it sits under Dividend rather than Cash.
+                                value={fundUnitReinvest ? 'DIVIDEND' : (type === 'WITHDRAWAL' || type === 'DIVIDEND_REINVEST' ? 'DEPOSIT' : type)}
                                 onChange={(e) => setType(e.target.value as any)}
                                 className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-bold text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 appearance-none shadow-sm transition-all"
                             >
@@ -1075,7 +1076,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             <div className="mt-4 flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl px-4 py-3">
                                 <div className="flex flex-col">
                                     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">{label}</span>
-                                    <span className="text-[10px] text-slate-400 tabular-nums">{q.toLocaleString()} × {money(p)}{feeSum > 0 ? ` ${type === 'SELL' ? '−' : type === 'DIVIDEND' ? '−' : '+'} ${money(type === 'DIVIDEND' ? (Number(tax) || 0) + (Number(otherFees) || 0) : feeSum)} fees` : ''}</span>
+                                    <span className="text-[10px] text-slate-400 tabular-nums">{isFundPortfolio ? `${fmtFundUnits(q)} × Rs. ${fmtFundNav(p)}` : `${q.toLocaleString()} × ${money(p)}`}{feeSum > 0 ? ` ${type === 'SELL' ? '−' : type === 'DIVIDEND' ? '−' : '+'} ${money(type === 'DIVIDEND' ? (Number(tax) || 0) + (Number(otherFees) || 0) : feeSum)} fees` : ''}</span>
                                 </div>
                                 <span className={`text-lg font-display font-black tabular-nums ${type === 'BUY' ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>{money(total)}</span>
                             </div>
