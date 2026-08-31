@@ -1201,6 +1201,7 @@ const App: React.FC = () => {
     let operationalExpenses = 0;
     let fundReinvestIncome = 0;
     let fundTaxWithheld = 0;
+    let fundReinvestTax = 0;
     let dailyPL = 0;
     let totalAdjustments = 0;
     const today = todayPK();
@@ -1311,6 +1312,7 @@ const App: React.FC = () => {
                 divTaxSum += (t.tax || 0);
                 totalCGT += (t.tax || 0);
                 fundTaxWithheld += (t.tax || 0);
+                fundReinvestTax += (t.tax || 0);
             }
             events.push({ date: t.date, type: 'IN', amount: amt, originalIndex: idx, kind: 'reinvest' });
         }
@@ -1399,7 +1401,11 @@ const App: React.FC = () => {
     let cashOut = totalWithdrawals + (totalCGT - fundTaxWithheld) + operationalExpenses;
     const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL + totalAdjustments;
 
-    const totalNetReturn = netRealizedPL + (totalValue - totalCost) + (dividendSum - fundReinvestIncome) - operationalExpenses + totalAdjustments;
+    // A reinvestment's income is recognised NET, as the value of the zero-cost units
+    // it issued. netRealizedPL already subtracts its withholding as CGT, so the tax
+    // is added back here to avoid deducting it twice — leaving the net units as the
+    // profit. Cash dividends need no add-back: they book gross income against CGT.
+    const totalNetReturn = netRealizedPL + fundReinvestTax + (totalValue - totalCost) + (dividendSum - fundReinvestIncome) - operationalExpenses + totalAdjustments;
 
     // Total Return / ROI are measured against PEAK capital (the most you ever had
     // invested), so cashing out gains/capital doesn't inflate the percentage.
