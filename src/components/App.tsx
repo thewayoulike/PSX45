@@ -1338,7 +1338,9 @@ const App: React.FC = () => {
         if (e.type === 'IN') {
             if (e.kind === 'reinvest') runningReinvest += e.amount;
             else runningCapital += e.amount;
-            const total = runningCapital + runningReinvest;
+            // In a fund the reinvested dividend is profit that stayed invested, not
+            // capital you put in, so it must not inflate the ROI denominator.
+            const total = fundPortfolio ? runningCapital : runningCapital + runningReinvest;
             if (total > peakInvested) peakInvested = total;
         }
         else if (e.type === 'OUT') {
@@ -1359,7 +1361,9 @@ const App: React.FC = () => {
     wLeft -= reinvestUsed;                                           // then reinvested dividends
     const capitalRemaining = totalDeposits - wLeft;                 // then capital
     const reinvestRemaining = Math.max(0, totalReinvest - reinvestUsed);
-    const netPrincipal = Math.max(0, capitalRemaining + reinvestRemaining);
+    // Withdrawals still draw down reinvested profit before capital above; funds just
+    // never count that profit as principal in the first place.
+    const netPrincipal = Math.max(0, fundPortfolio ? capitalRemaining : capitalRemaining + reinvestRemaining);
     const peakNetPrincipal = peakInvested;
     const dividendReinvested = reinvestRemaining;
     let tradingCashFlow = 0;
