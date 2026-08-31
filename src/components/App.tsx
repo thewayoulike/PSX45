@@ -43,7 +43,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
-import { buildPairedCashTx, cashAmountForTrade, isPairableFundTrade, isUnitReinvest, makeLinkId, reinvestAmount } from '../utils/fundCash';
+import { buildPairedCashTx, cashAmountForTrade, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount } from '../utils/fundCash';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
 import { setGeminiApiKey } from '../services/gemini';
@@ -1222,7 +1222,7 @@ const App: React.FC = () => {
             let netUnitsToday = 0;
             portfolioTransactions.forEach(t => {
                 if (t.ticker !== h.ticker || t.date !== today) return;
-                if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitReinvest(t)) netUnitsToday += t.quantity;
+                if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t)) netUnitsToday += t.quantity;
                 if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') netUnitsToday -= t.quantity;
             });
             const startQty = Math.max(0, h.quantity - netUnitsToday);
@@ -1478,7 +1478,7 @@ const App: React.FC = () => {
       const txsByKey: Record<string, Transaction[]> = {};
       portfolioTransactions.forEach(tx => {
           if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return;
-          // Fund reinvestments carry units and NAV, so they build lots like a buy.
+          // Fund reinvestments and refunds of capital carry units, so they build lots.
           if (tx.type === 'DIVIDEND' || tx.type === 'TAX') return;
           if (tx.type === 'DIVIDEND_REINVEST' && !isUnitReinvest(tx)) return;
           if (tx.type === 'HISTORY') {
@@ -1529,10 +1529,12 @@ const App: React.FC = () => {
           const makeLot = (t: Transaction): Lot => {
               // Reinvested units cost exactly the dividend that bought them; the tax
               // withheld on that dividend is income tax and stays out of the basis.
-              if (isUnitReinvest(t)) {
+              // Refund-of-capital units are issued free, so their basis is zero and
+              // their full redemption value will be a capital gain.
+              if (isUnitInflow(t)) {
                   return {
                       quantity: t.quantity,
-                      costPerShare: t.price,
+                      costPerShare: isRefundOfCapital(t) ? 0 : t.price,
                       date: t.date,
                       commPerShare: 0, taxPerShare: 0, cdcPerShare: 0, otherPerShare: 0,
                   };
@@ -1557,7 +1559,7 @@ const App: React.FC = () => {
               // prevents phantom "held" shares when a sell was recorded before its
               // covering buy. The lot that stays held still follows createdAt order.
               const dayBuyLots: Lot[] = dayTxs
-                  .filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitReinvest(t))
+                  .filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t))
                   .map(makeLot);
               const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
               daySells.forEach(sellTx => {

@@ -10,6 +10,17 @@ import { isFundTicker } from './fundId';
 export const isUnitReinvest = (t: Pick<Transaction, 'type' | 'ticker'>) =>
   t.type === 'DIVIDEND_REINVEST' && isFundTicker(t.ticker);
 
+/**
+ * Bonus units issued to keep your principal whole after a distribution knocks the
+ * NAV down. No cash moves, nothing is taxed at issue, and the units are free — so
+ * their whole value becomes a capital gain when they are eventually redeemed.
+ */
+export const isRefundOfCapital = (t: Pick<Transaction, 'type'>) => t.type === 'REFUND_OF_CAPITAL';
+
+/** Units that arrive without a cash purchase and therefore build lots. */
+export const isUnitInflow = (t: Pick<Transaction, 'type' | 'ticker'>) =>
+  isUnitReinvest(t) || isRefundOfCapital(t);
+
 /** Rupee value of a reinvestment, whichever shape the row uses. */
 export const reinvestAmount = (t: Pick<Transaction, 'type' | 'ticker' | 'quantity' | 'price'>) =>
   isUnitReinvest(t) ? (t.quantity || 0) * (t.price || 0) : t.price;

@@ -71,7 +71,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 }) => {
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
+  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'REFUND_OF_CAPITAL' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
   
   const [date, setDate] = useState(todayPK());
   const [ticker, setTicker] = useState('');
@@ -245,7 +245,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (!isFundPortfolio || !selectedFund) return;
     if (type === 'BUY') setPrice(selectedFund.offer || selectedFund.nav);
     else if (type === 'SELL') setPrice(selectedFund.repurchase || selectedFund.nav);
-    else if (type === 'DIVIDEND' || type === 'DIVIDEND_REINVEST') setPrice(selectedFund.nav);
+    else if (type === 'DIVIDEND' || type === 'DIVIDEND_REINVEST' || type === 'REFUND_OF_CAPITAL') setPrice(selectedFund.nav);
   }, [isFundPortfolio, selectedFund, type]);
 
   useEffect(() => {
@@ -292,7 +292,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (isFundTicker(ticker)) {
           existingTransactions.forEach(t => {
               if (t.ticker === ticker) {
-                  if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'DIVIDEND_REINVEST') qty += t.quantity;
+                  if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'DIVIDEND_REINVEST' || t.type === 'REFUND_OF_CAPITAL') qty += t.quantity;
                   if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') qty -= t.quantity;
               }
           });
@@ -359,7 +359,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       let priceNum = Number(price);
       let resolvedTicker = cleanTicker;
 
-      if (isFundPortfolio && (fundUnitReinvest || (!cashTypes.includes(type as typeof cashTypes[number]) && type !== 'TAX' && type !== 'HISTORY' && type !== 'OTHER'))) {
+      if (isFundPortfolio && (fundUnitReinvest || type === 'REFUND_OF_CAPITAL' || (!cashTypes.includes(type as typeof cashTypes[number]) && type !== 'TAX' && type !== 'HISTORY' && type !== 'OTHER'))) {
           qtyNum = roundFundUnits(qtyNum);
           priceNum = roundFundNav(priceNum);
       }
@@ -713,6 +713,22 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               <p><strong>Daily income funds</strong> (NAV often flat) — record <strong>Dividend</strong> or <strong>Dividend Reinvest</strong> when income/units grow; that income counts toward return even when NAV stays the same.</p>
               <p><strong>Realized</strong> — use <strong>Redeem</strong> or <strong>History</strong> for closed positions.</p>
             </div>
+            <p className="font-bold text-violet-700 dark:text-violet-300">Payout day: three separate rows</p>
+            <div className="space-y-2 leading-relaxed">
+              <p>
+                When a fund distributes, its NAV drops by roughly the payout (e.g. 58.3787 → 51.9209). Your statement usually shows these together, and they are <em>not</em> the same thing:
+              </p>
+              <ol className="list-decimal list-inside space-y-1.5">
+                <li><strong>Dividend</strong> — the gross payout, e.g. 58,897.</li>
+                <li><strong>Reinvested in units</strong> — the net after withholding tax, e.g. 44,173 after 25% (14,724), buying units at the post-drop NAV.</li>
+                <li><strong>Refund of Capital</strong> — free bonus units restoring the principal the NAV drop took away, e.g. 57,116 as 1,100.0611 units. Untaxed, because it is your own capital coming back.</li>
+              </ol>
+            </div>
+            <div className="bg-amber-50/70 dark:bg-amber-500/10 rounded-xl p-3 border border-amber-200/60 dark:border-amber-500/20 space-y-1.5 text-amber-800 dark:text-amber-300">
+              <p className="font-bold flex items-center gap-1.5"><AlertTriangle size={13} /> Tax to plan for</p>
+              <p>Refund-of-capital units are issued at <strong>zero cost</strong>, so their entire value is taxable gain when you redeem — the tax is deferred, not avoided.</p>
+              <p>Dividend withholding is charged on whoever holds units on the announcement date. Investors who move out of an income fund into, say, a money-market fund before the annual announcement and back afterwards receive NAV growth as capital gain instead of a taxed dividend. Rates and treatment differ by fund category and filer status, so confirm with your tax adviser before acting on it.</p>
+            </div>
             <p className="text-violet-600 dark:text-violet-400 font-bold flex items-center gap-1.5"><Sparkles size={13} /> Tip: <strong>AI Scan Statement</strong> fills Deposit + Subscribe from your balance screenshot.</p>
           </div>
         )}
@@ -816,6 +832,50 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               ) : (
                   <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Amount</label><div className="relative"><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:text-slate-100 tabular-nums" placeholder="50000"/><span className="absolute right-4 top-4 text-xs font-bold text-slate-400">PKR</span></div></div>
               )}
+          </>
+        );
+    }
+
+    if (type === 'REFUND_OF_CAPITAL') {
+        const units = Number(quantity) || 0;
+        const nav = Number(price) || 0;
+        return (
+          <>
+              <div className="bg-sky-50/60 dark:bg-sky-500/10 p-4 rounded-2xl border border-sky-200/60 dark:border-sky-500/20 flex gap-3 items-start shadow-sm">
+                  <Coins className="text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" size={18} />
+                  <div className="text-xs text-sky-700 dark:text-sky-300 font-medium">
+                      <p className="font-bold mb-0.5">Refund of Capital</p>
+                      <p className="opacity-90 leading-relaxed">
+                          Bonus units the AMC issues to offset the NAV drop that follows a distribution. It returns your own capital, so it is not income and no tax is withheld. The units are free, which means their full value counts as capital gain when you redeem them.
+                      </p>
+                  </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div>
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Mutual Fund</label>
+                      <FundPicker catalog={fundCatalog} value={ticker} onChange={(id, fund) => { setTicker(id); setSelectedFund(fund); }} />
+                  </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Bonus Units Issued</label>
+                      <input required type="number" step="any" value={quantity} onChange={e=>setQuantity(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0.0000"/>
+                  </div>
+                  <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">NAV After Drop</label>
+                      <input required type="number" step="any" value={price} onChange={e=>setPrice(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0.0000"/>
+                  </div>
+              </div>
+              <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl px-4 py-3">
+                  <div className="flex flex-col">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Capital restored</span>
+                      <span className="text-[10px] text-slate-400 tabular-nums">{units.toLocaleString()} units · cost basis Rs. 0.00</span>
+                  </div>
+                  <span className="text-lg font-display font-black tabular-nums text-sky-600 dark:text-sky-400">
+                      Rs. {(units * nav).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+              </div>
           </>
         );
     }
@@ -989,6 +1049,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <option value="BUY">{isFundPortfolio ? 'Subscribe (Buy Units)' : 'Buy'}</option>
                                 <option value="SELL">{isFundPortfolio ? 'Redeem (Sell Units)' : 'Sell'}</option>
                                 <option value="DIVIDEND">Dividend (DIV)</option>
+                                {isFundPortfolio && <option value="REFUND_OF_CAPITAL">Refund of Capital (Bonus Units)</option>}
                                 {!isFundPortfolio && <option value="TAX">Tax (CGT)</option>}
                                 <option value="HISTORY">{isFundPortfolio ? 'History (Past Realized)' : 'History'}</option>
                                 <option value="DEPOSIT">Cash (Deposit / Withdrawal)</option>

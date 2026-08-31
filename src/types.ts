@@ -1,7 +1,12 @@
 export interface Transaction {
   id: string;
   portfolioId: string;
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER' | 'TRANSFER_IN' | 'TRANSFER_OUT';
+  /**
+   * REFUND_OF_CAPITAL: bonus units a fund issues to offset the NAV drop that
+   * follows a distribution. It is a return of your own capital, not income, so it
+   * is untaxed at issue and the units carry a zero cost basis.
+   */
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'REFUND_OF_CAPITAL' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER' | 'TRANSFER_IN' | 'TRANSFER_OUT';
   ticker: string;
   quantity: number;
   price: number;
