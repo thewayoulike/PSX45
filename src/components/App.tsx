@@ -1641,6 +1641,99 @@ const App: React.FC = () => {
           const ticker = key.slice(0, sep);
           const brokerName = key.slice(sep + 1);
 
+          // Mutual funds use AVERAGE COST, not FIFO. Reinvested/bonus units carry
+          // zero cost, so they blend the whole holding's cost down; a redemption or
+          // convert-out then realizes gain against that blended NAV (matches AMC
+          // statements and the fund profile). Stocks keep the FIFO engine below.
+          if (isFundTicker(ticker)) {
+              const ordered = [...txs].sort((a, b) => {
+                  const d = new Date(a.date).getTime() - new Date(b.date).getTime();
+                  if (d !== 0) return d;
+                  const ca = a.createdAt ? Date.parse(a.createdAt) : 0;
+                  const cb = b.createdAt ? Date.parse(b.createdAt) : 0;
+                  return ca - cb;
+              });
+              let poolUnits = 0;
+              let poolCost = 0;
+              let heldComm = 0, heldTax = 0, heldCDC = 0, heldOther = 0;
+              let firstBuyDate: string | undefined;
+              let fundSeq = 0;
+              for (const t of ordered) {
+                  const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+                  if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t)) {
+                      const cost = isUnitInflow(t) ? 0 : (t.quantity * t.price) + fees;
+                      poolUnits += t.quantity;
+                      poolCost += cost;
+                      if (!firstBuyDate) firstBuyDate = t.date;
+                      if (!isUnitInflow(t)) {
+                          heldComm += (t.commission || 0);
+                          heldTax += (t.tax || 0);
+                          heldCDC += (t.cdcCharges || 0);
+                          heldOther += (t.otherFees || 0);
+                      }
+                  } else if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') {
+                      const convertOut = isFundConvertOut(t, fundConversionMap);
+                      const avgCost = poolUnits > 0 ? poolCost / poolUnits : 0;
+                      const matched = Math.min(t.quantity, poolUnits);
+                      const ratio = t.quantity > 0 ? matched / t.quantity : 0;
+                      const cost = matched * avgCost;
+                      const proceeds = (matched * t.price) - (fees * ratio);
+                      const holdDays = firstBuyDate
+                          ? Math.max(0, Math.round((new Date(t.date).getTime() - new Date(firstBuyDate).getTime()) / 86400000))
+                          : undefined;
+                      if (matched > 0.0001) {
+                          tempRealized.push({
+                              id: `${t.id}-m${fundSeq++}`,
+                              ticker,
+                              broker: brokerName,
+                              quantity: matched,
+                              buyAvg: avgCost,
+                              sellPrice: t.price,
+                              date: t.date,
+                              profit: proceeds - cost,
+                              fees: fees * ratio,
+                              commission: (t.commission || 0) * ratio,
+                              tax: (t.tax || 0) * ratio,
+                              cdcCharges: (t.cdcCharges || 0) * ratio,
+                              otherFees: (t.otherFees || 0) * ratio,
+                              eventType: isFundPort ? (convertOut ? 'convert' : 'redemption') : undefined,
+                              holdDays,
+                          });
+                      }
+                      const before = poolUnits;
+                      poolUnits -= matched;
+                      poolCost -= cost;
+                      // Buy-side fees ride with the units still held.
+                      if (before > 0) {
+                          const keepFrac = Math.max(0, poolUnits) / before;
+                          heldComm *= keepFrac; heldTax *= keepFrac; heldCDC *= keepFrac; heldOther *= keepFrac;
+                      }
+                      if (poolUnits < 0.0001) { poolUnits = 0; poolCost = 0; firstBuyDate = undefined; }
+                      if (t.quantity - matched > 0.0001) {
+                          console.warn(
+                              `[PSX45] ${convertOut ? 'Convert out' : 'Redeem'} on ${ticker} (${t.date}): ` +
+                              `${(t.quantity - matched).toFixed(4)} units had no cost basis — holdings may be short.`
+                          );
+                      }
+                  }
+              }
+              if (poolUnits > 0.0001) {
+                  tempHoldings[key] = {
+                      ticker,
+                      sector: fundCatalog[ticker]?.category || sectorOverrides[ticker] || 'Mutual Fund',
+                      broker: fundCatalog[ticker]?.amc || '',
+                      quantity: poolUnits,
+                      avgPrice: poolCost / poolUnits,
+                      currentPrice: 0,
+                      totalCommission: heldComm,
+                      totalTax: heldTax,
+                      totalCDC: heldCDC,
+                      totalOtherFees: heldOther,
+                  };
+              }
+              return;
+          }
+
           interface Lot {
               quantity: number;
               costPerShare: number;
