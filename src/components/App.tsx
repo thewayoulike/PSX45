@@ -1612,6 +1612,8 @@ const App: React.FC = () => {
       });
       const fundCanonFinal = buildFundTickerCanonicalMap(portfolioTransactions, fundCatalog, displayNamesForCanon);
       const fundConversionMap = buildFundConversionMap(portfolioTransactions);
+      const activePortfolio = portfolios.find(p => p.id === currentPortfolioId);
+      const isFundPort = getPortfolioType(activePortfolio) === 'MUTUAL_FUND';
 
       const txsByKey: Record<string, Transaction[]> = {};
       portfolioTransactions.forEach(tx => {
@@ -1713,7 +1715,6 @@ const App: React.FC = () => {
                   const convertOut = isFundConvertOut(sellTx, fundConversionMap);
                   const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
                   const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
-                  const isFundPort = getPortfolioType(currentPortfolio) === 'MUTUAL_FUND';
                   const pushRealized = (lotCost: number, matched: number, lotDate?: string) => {
                       const revenue = matched * sellTx.price;
                       const cost = matched * lotCost;
@@ -1798,7 +1799,7 @@ const App: React.FC = () => {
       });
       setHoldings(finalHoldings);
       setRealizedTrades(tempRealized);
-  }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides, fundCatalog]);
+  }, [portfolioTransactions, manualPrices, priceTimestamps, sectorOverrides, fundCatalog, portfolios, currentPortfolioId]);
 
   // Reset ALL fund "yesterday NAV" leftovers in one pass (no per-fund manual fix).
   // Daily P&L only appears after a real MUFAP validity-date rollover on live sync.
