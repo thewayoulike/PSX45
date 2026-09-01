@@ -253,7 +253,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               const day = isFund
                 ? fundDayPL(holding, ldcp, dayTransactions, today)
                 : { change: (holding.currentPrice - ldcp) * holding.quantity, pct: ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0 };
-              const clickable = !isFundTicker(holding.ticker) && !!onTickerClick;
+              const clickable = !!onTickerClick;
               return (
                 <div
                   key={`${holding.ticker}-${holding.broker || idx}-m`}
@@ -394,8 +394,8 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   return (
                     <tr 
                       key={`${holding.ticker}-${holding.broker || idx}`} 
-                      className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group ${!isFundTicker(holding.ticker) && onTickerClick ? 'cursor-pointer' : ''}`} 
-                      onClick={() => !isFundTicker(holding.ticker) && onTickerClick && onTickerClick(holding.ticker)}
+                      className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group ${onTickerClick ? 'cursor-pointer' : ''}`} 
+                      onClick={() => onTickerClick && onTickerClick(holding.ticker)}
                     >
                       <td className="px-4 py-3.5"> 
                         <div className="flex items-start gap-3"> 

@@ -29,6 +29,7 @@ import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
 import { TickerPerformanceList } from './TickerPerformanceList';
 import { TickerProfile } from './TickerProfile';
+import { FundProfile } from './FundProfile';
 import { TransferModal, firstBrokerHolding } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
 import { FairValueCalculator } from './FairValueCalculator';
@@ -182,6 +183,7 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [agentSeedPrompt, setAgentSeedPrompt] = useState<string | null>(null);
+  const [viewFundTicker, setViewFundTicker] = useState<string | null>(null);
 
   const [viewTicker, setViewTicker] = useState<string | null>(() => {
       if (typeof window === 'undefined') return null;
@@ -1829,7 +1831,7 @@ const App: React.FC = () => {
   }, [holdings, fundNavDayMap, fundCatalog, priceTimestamps]);
 
   const handleTickerClick = (ticker: string) => {
-      if (isFundTicker(ticker)) return;
+      if (isFundTicker(ticker)) { setViewFundTicker(canonicalFundTicker(ticker, fundCanonMap)); return; }
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
       localStorage.setItem('psx_last_analyzed_ticker', ticker);
       setCurrentView('STOCKS');
@@ -1871,6 +1873,34 @@ const App: React.FC = () => {
       });
       return map;
   }, [fundCatalog, portfolioTransactions]);
+
+  const fundCanonMap = useMemo(
+      () => buildFundTickerCanonicalMap(portfolioTransactions, fundCatalog, fundDisplayNames),
+      [portfolioTransactions, fundCatalog, fundDisplayNames]
+  );
+  const fundConversionMapForView = useMemo(
+      () => buildFundConversionMap(portfolioTransactions),
+      [portfolioTransactions]
+  );
+  const fundProfileData = useMemo(() => {
+      if (!viewFundTicker) return null;
+      const canon = canonicalFundTicker(viewFundTicker, fundCanonMap);
+      const txns = portfolioTransactions.filter(t =>
+          isFundTicker(t.ticker) && canonicalFundTicker(t.ticker, fundCanonMap) === canon
+      );
+      const holding = holdings.find(h => canonicalFundTicker(h.ticker, fundCanonMap) === canon);
+      const rec = fundCatalog[canon];
+      return {
+          canon,
+          txns,
+          holding,
+          fundName: fundDisplayNames[canon] || formatTransactionLabel(canon, fundDisplayNames),
+          amc: rec?.amc,
+          category: rec?.category,
+          currentNav: manualPrices[canon] || holding?.currentPrice || rec?.repurchase || rec?.nav || 0,
+          lastUpdated: priceTimestamps[canon],
+      };
+  }, [viewFundTicker, fundCanonMap, portfolioTransactions, holdings, fundCatalog, fundDisplayNames, manualPrices, priceTimestamps]);
 
   const effectiveDashboardLayout = useMemo(() => {
       const p = portfolios.find(x => x.id === currentPortfolioId);
@@ -2605,6 +2635,21 @@ const App: React.FC = () => {
               listedInMap={listedInMap}
               onClose={() => setViewTicker(null)}
               canSaveAlerts={!!driveUser || !!sbUser}
+          />
+      )}
+      {fundProfileData && (
+          <FundProfile
+              ticker={fundProfileData.canon}
+              fundName={fundProfileData.fundName}
+              amc={fundProfileData.amc}
+              category={fundProfileData.category}
+              currentNav={fundProfileData.currentNav}
+              transactions={fundProfileData.txns}
+              holding={fundProfileData.holding}
+              displayNames={fundDisplayNames}
+              conversionMap={fundConversionMapForView}
+              lastUpdated={fundProfileData.lastUpdated}
+              onClose={() => setViewFundTicker(null)}
           />
       )}
     </div>
