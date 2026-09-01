@@ -1,6 +1,7 @@
 import { isFundTicker, makeFundId } from './fundId';
 import type { Holding } from '../types';
 import { MutualFundRecord } from '../services/mufapData';
+import { formatTransactionLabel } from './fundDisplay';
 
 /** AMC statement short codes → keywords to match catalog fund names. */
 const FUND_CODE_HINTS: Record<string, string[]> = {
@@ -49,6 +50,26 @@ export function resolveFundFromScan(
   return { id: `MF:${code.toLowerCase()}`, record: null };
 }
 
+const matchCatalogByLabel = (
+  label: string,
+  catalog: Record<string, MutualFundRecord>
+): string | undefined => {
+  const nl = norm(label);
+  if (!nl) return undefined;
+  const exact = Object.values(catalog).find(f => norm(f.fundName) === nl);
+  if (exact) return exact.id;
+  let best: MutualFundRecord | undefined;
+  let bestLen = 0;
+  for (const f of Object.values(catalog)) {
+    const fn = norm(f.fundName);
+    if (fn.includes(nl) || nl.includes(fn)) {
+      const score = Math.min(fn.length, nl.length);
+      if (score > bestLen) { bestLen = score; best = f; }
+    }
+  }
+  return best?.id;
+};
+
 /** Prefer an existing holding ticker so converts merge with legacy import ids. */
 export function resolveHeldFundTicker(
   catalogId: string,
@@ -63,6 +84,39 @@ export function resolveHeldFundTicker(
     if (!isFundTicker(h.ticker) || h.quantity <= 0) continue;
     const cat = catalog[h.ticker];
     if (cat && norm(cat.fundName) === target) return h.ticker;
+    const label = formatTransactionLabel(h.ticker, {}, undefined);
+    if (norm(label) === target || norm(label).includes(target) || target.includes(norm(label))) return h.ticker;
+  }
+  const byLabel = matchCatalogByLabel(rec.fundName, catalog);
+  if (byLabel) {
+    const held = holdings.find(h => h.ticker === byLabel && h.quantity > 0);
+    if (held) return held.ticker;
   }
   return catalogId;
+}
+
+/** Map legacy/import tickers to catalog ids so holdings stay on one row per fund. */
+export function buildFundTickerCanonicalMap(
+  transactions: { ticker: string; notes?: string }[],
+  catalog: Record<string, MutualFundRecord>,
+  displayNames: Record<string, string> = {}
+): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const id of Object.keys(catalog)) map.set(id, id);
+
+  const tickers = new Set<string>();
+  transactions.forEach(t => { if (isFundTicker(t.ticker)) tickers.add(t.ticker); });
+
+  for (const ticker of tickers) {
+    if (map.get(ticker) === ticker) continue;
+    const notes = transactions.find(t => t.ticker === ticker)?.notes;
+    const label = displayNames[ticker] || formatTransactionLabel(ticker, displayNames, notes);
+    map.set(ticker, matchCatalogByLabel(label, catalog) || ticker);
+  }
+  return map;
+}
+
+export function canonicalFundTicker(ticker: string, map: Map<string, string>): string {
+  if (!isFundTicker(ticker)) return ticker;
+  return map.get(ticker) || ticker;
 }

@@ -152,6 +152,8 @@ export type FundConvertParams = {
   buyNav: number;
   /** Units issued in the destination fund — may differ from units redeemed. */
   destQuantity: number;
+  /** CGT / WHT withheld on the redemption (convert out leg). */
+  tax?: number;
 };
 
 export function isFundConversionPair(transactions: Transaction[], linkId: string): boolean {

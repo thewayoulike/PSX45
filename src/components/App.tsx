@@ -44,7 +44,7 @@ import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapi
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { buildPairedCashTx, cashAmountForTrade, isFundConversionPair, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
-import { resolveHeldFundTicker } from '../utils/fundMatch';
+import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
 import { roundFundNav, roundFundUnits, fmtFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
@@ -834,8 +834,11 @@ const App: React.FC = () => {
 
   /** Switch units from one fund to another inside the same portfolio (redeem + subscribe). */
   const handleConvertFunds = (params: FundConvertParams): boolean => {
-      const { fromTicker, quantity, toTicker: toCatalogId, date, sellNav, buyNav, destQuantity } = params;
-      const toTicker = resolveHeldFundTicker(toCatalogId, fundCatalog, holdings);
+      const { fromTicker, quantity, toTicker: toCatalogId, date, sellNav, buyNav, destQuantity, tax = 0 } = params;
+      const toTicker = canonicalFundTicker(
+          resolveHeldFundTicker(toCatalogId, fundCatalog, holdings),
+          buildFundTickerCanonicalMap(transactions, fundCatalog, fundDisplayNames)
+      );
       const holding = holdings.find(h => h.ticker === fromTicker && h.quantity > 0);
       if (!holding) {
           alert('Source fund holding not found.');
@@ -857,6 +860,8 @@ const App: React.FC = () => {
           return false;
       }
 
+      const taxAmt = Math.max(0, Number((tax || 0).toFixed(2)));
+
       const linkId = makeLinkId();
       const fromName = fundDisplayNames[fromTicker] || formatTransactionLabel(fromTicker, fundDisplayNames);
       const toName = fundDisplayNames[toTicker] || formatTransactionLabel(toTicker, fundDisplayNames);
@@ -870,7 +875,7 @@ const App: React.FC = () => {
           quantity: qty,
           price: roundFundNav(sellNav),
           date,
-          commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+          commission: 0, tax: taxAmt, cdcCharges: 0, otherFees: 0,
           notes: `Convert to ${toName}`,
           createdAt: base,
           linkId,
@@ -1416,6 +1421,11 @@ const App: React.FC = () => {
         else if (t.type === 'TRANSFER_OUT') {
             events.push({ date: t.date, type: 'OUT', amount: t.price * t.quantity, originalIndex: idx });
         }
+        else if (t.type === 'SELL' && isFundTicker(t.ticker) && (t.tax || 0) > 0) {
+            totalCGT += (t.tax || 0);
+            fundTaxWithheld += (t.tax || 0);
+            totalSalesTax += (t.tax || 0);
+        }
         else {
             totalSalesTax += (t.tax || 0);
         }
@@ -1588,6 +1598,15 @@ const App: React.FC = () => {
       const tempHoldings: Record<string, Holding> = {};
       const tempRealized: RealizedTrade[] = [];
 
+      const displayNamesForCanon: Record<string, string> = {};
+      Object.values(fundCatalog).forEach(f => { displayNamesForCanon[f.id] = f.fundName; });
+      portfolioTransactions.forEach(t => {
+          if (!isFundTicker(t.ticker) || displayNamesForCanon[t.ticker]) return;
+          const fromNotes = formatTransactionLabel(t.ticker, {}, t.notes);
+          if (fromNotes && !fromNotes.startsWith('MF:')) displayNamesForCanon[t.ticker] = fromNotes;
+      });
+      const fundCanonFinal = buildFundTickerCanonicalMap(portfolioTransactions, fundCatalog, displayNamesForCanon);
+
       const txsByKey: Record<string, Transaction[]> = {};
       portfolioTransactions.forEach(tx => {
           if (tx.type === 'DEPOSIT' || tx.type === 'WITHDRAWAL' || tx.type === 'ANNUAL_FEE' || tx.type === 'OTHER') return;
@@ -1603,7 +1622,8 @@ const App: React.FC = () => {
               return;
           }
           const brokerKey = isFundTicker(tx.ticker) ? '_' : (tx.broker || 'Unknown');
-          const key = `${tx.ticker}|${brokerKey}`;
+          const canonTicker = canonicalFundTicker(tx.ticker, fundCanonFinal);
+          const key = `${canonTicker}|${brokerKey}`;
           if (!txsByKey[key]) txsByKey[key] = [];
           txsByKey[key].push(tx);
       });
