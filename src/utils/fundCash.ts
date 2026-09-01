@@ -140,6 +140,20 @@ export function getFundTradeDisplayType(
   return tx.type;
 }
 
+/** Params for an internal fund switch (redeem + subscribe, no bank cash). */
+export type FundConvertParams = {
+  fromTicker: string;
+  quantity: number;
+  toTicker: string;
+  date: string;
+  /** Repurchase NAV on the convert date (source fund). */
+  sellNav: number;
+  /** Offer NAV on the convert date (destination fund). */
+  buyNav: number;
+  /** Units issued in the destination fund — may differ from units redeemed. */
+  destQuantity: number;
+};
+
 export function isFundConversionPair(transactions: Transaction[], linkId: string): boolean {
   const legs = transactions.filter(t => t.linkId === linkId);
   if (legs.some(l => l.autoCash)) return false;

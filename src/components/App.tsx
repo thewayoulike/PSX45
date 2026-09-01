@@ -43,8 +43,9 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
-import { buildPairedCashTx, cashAmountForTrade, isFundConversionPair, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount } from '../utils/fundCash';
-import { roundFundNav, roundFundUnits } from '../utils/fundFormat';
+import { buildPairedCashTx, cashAmountForTrade, isFundConversionPair, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
+import { resolveHeldFundTicker } from '../utils/fundMatch';
+import { roundFundNav, roundFundUnits, fmtFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
 import { setGeminiApiKey } from '../services/gemini';
@@ -832,18 +833,29 @@ const App: React.FC = () => {
   };
 
   /** Switch units from one fund to another inside the same portfolio (redeem + subscribe). */
-  const handleConvertFunds = (fromTicker: string, quantity: number, toTicker: string, date: string) => {
+  const handleConvertFunds = (params: FundConvertParams): boolean => {
+      const { fromTicker, quantity, toTicker: toCatalogId, date, sellNav, buyNav, destQuantity } = params;
+      const toTicker = resolveHeldFundTicker(toCatalogId, fundCatalog, holdings);
       const holding = holdings.find(h => h.ticker === fromTicker && h.quantity > 0);
-      if (!holding || quantity <= 0 || quantity > holding.quantity + 0.0001) return;
-
-      const sellNav = manualPrices[fromTicker] || holding.currentPrice || fundCatalog[fromTicker]?.repurchase || fundCatalog[fromTicker]?.nav || 0;
-      const buyNav = manualPrices[toTicker] || fundCatalog[toTicker]?.offer || fundCatalog[toTicker]?.nav || sellNav;
-      if (!(sellNav > 0) || !(buyNav > 0)) return;
+      if (!holding) {
+          alert('Source fund holding not found.');
+          return false;
+      }
+      if (quantity <= 0 || quantity > holding.quantity + 0.0001) {
+          alert(`Enter units to convert (max ${fmtFundUnits(holding.quantity)}).`);
+          return false;
+      }
+      if (!(sellNav > 0) || !(buyNav > 0)) {
+          alert('Enter the repurchase and offer NAV from your statement for the convert date.');
+          return false;
+      }
 
       const qty = roundFundUnits(quantity);
-      const proceeds = qty * sellNav;
-      const destQty = roundFundUnits(proceeds / buyNav);
-      if (destQty <= 0) return;
+      const destQty = roundFundUnits(destQuantity);
+      if (destQty <= 0) {
+          alert('Enter units to receive in the destination fund.');
+          return false;
+      }
 
       const linkId = makeLinkId();
       const fromName = fundDisplayNames[fromTicker] || formatTransactionLabel(fromTicker, fundDisplayNames);
@@ -877,6 +889,7 @@ const App: React.FC = () => {
           linkId,
       };
       setTransactions(prev => [...prev, sellTx, buyTx]);
+      return true;
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {

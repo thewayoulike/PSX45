@@ -1,11 +1,12 @@
-import { makeFundId } from './fundId';
+import { isFundTicker, makeFundId } from './fundId';
+import type { Holding } from '../types';
 import { MutualFundRecord } from '../services/mufapData';
 
 /** AMC statement short codes → keywords to match catalog fund names. */
 const FUND_CODE_HINTS: Record<string, string[]> = {
   AMMF: ['al meezan mutual fund'],
   KMIF: ['kse meezan index fund'],
-  MDIP: ['meezan daily income fund'],
+  MDIP: ['mdip i'],
   'MDIF-MMMP': ['meezan daily income fund', 'munafa plan', 'mahana'],
   MIF: ['meezan islamic fund'],
   MIIF: ['meezan islamic income fund'],
@@ -46,4 +47,22 @@ export function resolveFundFromScan(
     return { id: slug, record: null };
   }
   return { id: `MF:${code.toLowerCase()}`, record: null };
+}
+
+/** Prefer an existing holding ticker so converts merge with legacy import ids. */
+export function resolveHeldFundTicker(
+  catalogId: string,
+  catalog: Record<string, MutualFundRecord>,
+  holdings: Holding[]
+): string {
+  if (holdings.some(h => h.ticker === catalogId && h.quantity > 0)) return catalogId;
+  const rec = catalog[catalogId];
+  if (!rec) return catalogId;
+  const target = norm(rec.fundName);
+  for (const h of holdings) {
+    if (!isFundTicker(h.ticker) || h.quantity <= 0) continue;
+    const cat = catalog[h.ticker];
+    if (cat && norm(cat.fundName) === target) return h.ticker;
+  }
+  return catalogId;
 }
