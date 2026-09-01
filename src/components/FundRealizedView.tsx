@@ -91,7 +91,7 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [result, setResult] = useState<ResultFilter>('all');
-  const [fundTab, setFundTab] = useState<FundTab>('redemptions');
+  const [fundTab, setFundTab] = useState<FundTab>('all');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'date', direction: 'desc' });
   const [itemsPerPage, setItemsPerPage] = useState<number>(10);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -101,6 +101,11 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
   const [showOthers, setShowOthers] = useState(false);
 
   const tabTrades = useMemo(() => filterByTab(trades, fundTab), [trades, fundTab]);
+  const tabCounts = useMemo(() => ({
+    redemptions: filterByTab(trades, 'redemptions').length,
+    conversions: filterByTab(trades, 'conversions').length,
+    all: trades.length,
+  }), [trades]);
 
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
@@ -264,7 +269,10 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
   };
   const chip = (active: boolean) => `px-2.5 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`;
   const tabBtn = (tab: FundTab, label: string) => (
-    <button onClick={() => setFundTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${fundTab === tab ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>{label}</button>
+    <button onClick={() => setFundTab(tab)} className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${fundTab === tab ? 'bg-indigo-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700'}`}>
+      {label}
+      <span className={`text-[10px] tabular-nums px-1.5 py-0.5 rounded ${fundTab === tab ? 'bg-white/20' : 'bg-slate-200/70 dark:bg-slate-700/70'}`}>{tabCounts[tab]}</span>
+    </button>
   );
 
   const chartKey = timeMode === 'daily' ? 'daily' : timeMode === 'totalGain' ? 'totalGain' : 'cumulative';
@@ -496,7 +504,7 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
       <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl overflow-hidden flex flex-col shadow-sm">
         <div className="md:hidden p-3 space-y-2.5">
           {paginatedTrades.length === 0 ? (
-            <div className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 font-medium text-sm">{hasActiveFilters ? 'No events match your filters.' : 'No realized gains yet.'}</div>
+            <div className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 font-medium text-sm">{hasActiveFilters ? 'No events match your filters.' : fundTab === 'redemptions' && tabCounts.conversions > 0 ? 'No bank redemptions yet — your realized gain is from conversions. Switch to the Conversions or All tab.' : 'No realized gains yet.'}</div>
           ) : (
             paginatedTrades.map((trade) => {
               const isProfit = trade.profit >= 0;
@@ -546,7 +554,7 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {paginatedTrades.length === 0 ? (
-                <tr><td colSpan={11} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium">{hasActiveFilters ? 'No events match your filters.' : 'No realized gains yet.'}</td></tr>
+                <tr><td colSpan={11} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium">{hasActiveFilters ? 'No events match your filters.' : fundTab === 'redemptions' && tabCounts.conversions > 0 ? 'No bank redemptions yet — your realized gain is from conversions. Switch to the Conversions or All tab.' : 'No realized gains yet.'}</td></tr>
               ) : (
                 paginatedTrades.map((trade) => {
                   const isProfit = trade.profit >= 0; const totalCost = (trade.buyAvg || 0) * trade.quantity; const totalSell = (trade.sellPrice || 0) * trade.quantity;
