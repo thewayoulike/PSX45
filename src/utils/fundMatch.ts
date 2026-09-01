@@ -56,27 +56,56 @@ const matchCatalogByLabel = (
 ): string | undefined => {
   const nl = norm(label);
   if (!nl) return undefined;
-  const exact = Object.values(catalog).find(f => norm(f.fundName) === nl);
+
+  const entries = Object.values(catalog);
+
+  const exact = entries.find(f => norm(f.fundName) === nl);
   if (exact) return exact.id;
-  const partialMatches = Object.values(catalog).filter(f => {
+
+  // "Meezan Daily Income Fund (MDIP I)" → catalog row whose name starts with that label.
+  const prefixHits = entries.filter(f => norm(f.fundName).startsWith(nl));
+  if (prefixHits.length === 1) return prefixHits[0].id;
+  if (prefixHits.length > 1) {
+    prefixHits.sort((a, b) => norm(a.fundName).length - norm(b.fundName).length);
+    return prefixHits[0].id;
+  }
+
+  const reversePrefix = entries.filter(f => nl.startsWith(norm(f.fundName)));
+  if (reversePrefix.length === 1) return reversePrefix[0].id;
+
+  // Distinctive substrings disambiguate MDIP vs Mahana Munafa vs other MDIF share classes.
+  if (nl.includes('mdip')) {
+    const hit = entries.find(f => norm(f.fundName).includes('mdip i'))
+      || entries.find(f => norm(f.fundName).includes('mdip'));
+    if (hit) return hit.id;
+  }
+  if (nl.includes('mahana') || nl.includes('munafa') || nl.includes('mmmp')) {
+    const hit = entries.find(f => {
+      const fn = norm(f.fundName);
+      return fn.includes('mahana') || fn.includes('munafa');
+    });
+    if (hit) return hit.id;
+  }
+
+  const partialMatches = entries.filter(f => {
     const fn = norm(f.fundName);
     return fn.includes(nl) || nl.includes(fn);
   });
   if (partialMatches.length === 1) return partialMatches[0].id;
   if (partialMatches.length > 1) {
-    // Disambiguate MDIP vs Mahana Munafa etc. — pick the closest name length match.
+    const tokens = nl.split(' ').filter(t => t.length > 2);
     let best: MutualFundRecord | undefined;
     let bestScore = 0;
     for (const f of partialMatches) {
       const fn = norm(f.fundName);
-      if (fn === nl) return f.id;
-      const score = fn.startsWith(nl) || nl.startsWith(fn)
-        ? Math.min(fn.length, nl.length)
-        : 0;
+      let score = 0;
+      for (const t of tokens) if (fn.includes(t)) score++;
+      if (fn.startsWith(nl) || nl.startsWith(fn)) score += 5;
       if (score > bestScore) { bestScore = score; best = f; }
     }
     if (best && bestScore > 0) return best.id;
   }
+
   return undefined;
 };
 
@@ -123,6 +152,18 @@ export function buildFundTickerCanonicalMap(
     const label = displayNames[ticker] || formatTransactionLabel(ticker, displayNames, notes);
     map.set(ticker, matchCatalogByLabel(label, catalog) || ticker);
   }
+
+  // Convert legs often use catalog ids while imports use legacy slugs — align both.
+  for (const t of transactions) {
+    if (!isFundTicker(t.ticker)) continue;
+    if (map.get(t.ticker) === t.ticker && catalog[t.ticker]) continue;
+    const notes = t.notes || '';
+    if (/^Convert (to|from) /i.test(notes)) continue;
+    const label = displayNames[t.ticker] || formatTransactionLabel(t.ticker, displayNames, notes);
+    const matched = matchCatalogByLabel(label, catalog);
+    if (matched) map.set(t.ticker, matched);
+  }
+
   return map;
 }
 

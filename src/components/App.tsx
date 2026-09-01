@@ -43,8 +43,9 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
-import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertIn, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
+import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
+import { mergeFundHoldingsByCanon } from '../utils/fundHoldings';
 import { roundFundNav, roundFundUnits, fmtFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
@@ -837,10 +838,7 @@ const App: React.FC = () => {
       const { fromTicker, quantity, toTicker: toCatalogId, date, sellNav, buyNav, destQuantity, tax = 0 } = params;
       const canonMap = buildFundTickerCanonicalMap(transactions, fundCatalog, fundDisplayNames);
       const fromCanon = canonicalFundTicker(fromTicker, canonMap);
-      const toCanon = canonicalFundTicker(
-          resolveHeldFundTicker(toCatalogId, fundCatalog, holdings),
-          canonMap
-      );
+      const toCanon = canonicalFundTicker(toCatalogId, canonMap);
       const holding = holdings.find(h => {
           const hCanon = canonicalFundTicker(h.ticker, canonMap);
           return (hCanon === fromCanon || h.ticker === fromTicker) && h.quantity > 0;
@@ -1704,11 +1702,9 @@ const App: React.FC = () => {
               // covering buy. The lot that stays held still follows createdAt order.
               const dayBuyLots: Lot[] = dayTxs
                   .filter(t =>
-                      (t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t))
-                      && !isFundConvertIn(t, fundConversionMap)
+                      t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t)
                   )
                   .map(makeLot);
-              const convertInTxs = dayTxs.filter(t => isFundConvertIn(t, fundConversionMap));
               const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
               daySells.forEach(sellTx => {
                   let qtyToSell = sellTx.quantity;
@@ -1762,9 +1758,14 @@ const App: React.FC = () => {
                       qtyToSell -= matched;
                       if (fifoLot.quantity < 0.0001) lots.shift();
                   }
+                  if (qtyToSell > 0.0001 && isFundTicker(ticker)) {
+                      console.warn(
+                          `[PSX45] ${convertOut ? 'Convert out' : 'Sell'} on ${ticker} (${sellTx.date}): ` +
+                          `${qtyToSell.toFixed(4)} units had no matching lots — holdings may be short.`
+                      );
+                  }
               });
               dayBuyLots.forEach(l => { if (l.quantity > 0.0001) lots.push(l); });
-              convertInTxs.forEach(t => lots.push(makeLot(t)));
           });
           if (lots.length > 0) {
               const totalQty = lots.reduce((acc, l) => acc + l.quantity, 0);
@@ -1792,7 +1793,10 @@ const App: React.FC = () => {
               };
           }
       });
-      const finalHoldings = Object.values(tempHoldings).filter(h => h.quantity > 0.0001).map(h => {
+      const mergedHoldings = isFundPort
+          ? mergeFundHoldingsByCanon(tempHoldings, fundCanonFinal)
+          : tempHoldings;
+      const finalHoldings = Object.values(mergedHoldings).filter(h => h.quantity > 0.0001).map(h => {
           const current = manualPrices[h.ticker] || h.avgPrice;
           const lastUpdated = priceTimestamps[h.ticker];
           return { ...h, currentPrice: current, lastUpdated };
