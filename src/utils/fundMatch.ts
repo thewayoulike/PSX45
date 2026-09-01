@@ -58,16 +58,26 @@ const matchCatalogByLabel = (
   if (!nl) return undefined;
   const exact = Object.values(catalog).find(f => norm(f.fundName) === nl);
   if (exact) return exact.id;
-  let best: MutualFundRecord | undefined;
-  let bestLen = 0;
-  for (const f of Object.values(catalog)) {
+  const partialMatches = Object.values(catalog).filter(f => {
     const fn = norm(f.fundName);
-    if (fn.includes(nl) || nl.includes(fn)) {
-      const score = Math.min(fn.length, nl.length);
-      if (score > bestLen) { bestLen = score; best = f; }
+    return fn.includes(nl) || nl.includes(fn);
+  });
+  if (partialMatches.length === 1) return partialMatches[0].id;
+  if (partialMatches.length > 1) {
+    // Disambiguate MDIP vs Mahana Munafa etc. — pick the closest name length match.
+    let best: MutualFundRecord | undefined;
+    let bestScore = 0;
+    for (const f of partialMatches) {
+      const fn = norm(f.fundName);
+      if (fn === nl) return f.id;
+      const score = fn.startsWith(nl) || nl.startsWith(fn)
+        ? Math.min(fn.length, nl.length)
+        : 0;
+      if (score > bestScore) { bestScore = score; best = f; }
     }
+    if (best && bestScore > 0) return best.id;
   }
-  return best?.id;
+  return undefined;
 };
 
 /** Prefer an existing holding ticker so converts merge with legacy import ids. */

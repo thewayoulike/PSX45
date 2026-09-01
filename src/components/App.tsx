@@ -43,7 +43,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
-import { buildPairedCashTx, cashAmountForTrade, isFundConversionPair, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
+import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertIn, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
 import { roundFundNav, roundFundUnits, fmtFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
@@ -835,11 +835,16 @@ const App: React.FC = () => {
   /** Switch units from one fund to another inside the same portfolio (redeem + subscribe). */
   const handleConvertFunds = (params: FundConvertParams): boolean => {
       const { fromTicker, quantity, toTicker: toCatalogId, date, sellNav, buyNav, destQuantity, tax = 0 } = params;
-      const toTicker = canonicalFundTicker(
+      const canonMap = buildFundTickerCanonicalMap(transactions, fundCatalog, fundDisplayNames);
+      const fromCanon = canonicalFundTicker(fromTicker, canonMap);
+      const toCanon = canonicalFundTicker(
           resolveHeldFundTicker(toCatalogId, fundCatalog, holdings),
-          buildFundTickerCanonicalMap(transactions, fundCatalog, fundDisplayNames)
+          canonMap
       );
-      const holding = holdings.find(h => h.ticker === fromTicker && h.quantity > 0);
+      const holding = holdings.find(h => {
+          const hCanon = canonicalFundTicker(h.ticker, canonMap);
+          return (hCanon === fromCanon || h.ticker === fromTicker) && h.quantity > 0;
+      });
       if (!holding) {
           alert('Source fund holding not found.');
           return false;
@@ -863,15 +868,15 @@ const App: React.FC = () => {
       const taxAmt = Math.max(0, Number((tax || 0).toFixed(2)));
 
       const linkId = makeLinkId();
-      const fromName = fundDisplayNames[fromTicker] || formatTransactionLabel(fromTicker, fundDisplayNames);
-      const toName = fundDisplayNames[toTicker] || formatTransactionLabel(toTicker, fundDisplayNames);
+      const fromName = fundDisplayNames[fromCanon] || formatTransactionLabel(fromCanon, fundDisplayNames);
+      const toName = fundDisplayNames[toCanon] || formatTransactionLabel(toCanon, fundDisplayNames);
       const base = nextCreatedAt();
 
       const sellTx: Transaction = {
           id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sell-${Date.now()}`,
           portfolioId: currentPortfolioId,
           type: 'SELL',
-          ticker: fromTicker,
+          ticker: fromCanon,
           quantity: qty,
           price: roundFundNav(sellNav),
           date,
@@ -884,7 +889,7 @@ const App: React.FC = () => {
           id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `buy-${Date.now() + 1}`,
           portfolioId: currentPortfolioId,
           type: 'BUY',
-          ticker: toTicker,
+          ticker: toCanon,
           quantity: destQty,
           price: roundFundNav(buyNav),
           date,
@@ -1606,6 +1611,7 @@ const App: React.FC = () => {
           if (fromNotes && !fromNotes.startsWith('MF:')) displayNamesForCanon[t.ticker] = fromNotes;
       });
       const fundCanonFinal = buildFundTickerCanonicalMap(portfolioTransactions, fundCatalog, displayNamesForCanon);
+      const fundConversionMap = buildFundConversionMap(portfolioTransactions);
 
       const txsByKey: Record<string, Transaction[]> = {};
       portfolioTransactions.forEach(tx => {
@@ -1617,7 +1623,8 @@ const App: React.FC = () => {
               tempRealized.push({
                   id: tx.id, ticker: 'PREV-PNL', broker: tx.broker || 'Unknown', quantity: 1,
                   buyAvg: 0, sellPrice: 0, date: tx.date, profit: tx.price, fees: 0,
-                  commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0
+                  commission: 0, tax: tx.tax || 0, cdcCharges: 0, otherFees: 0,
+                  eventType: 'history',
               });
               return;
           }
@@ -1628,7 +1635,9 @@ const App: React.FC = () => {
           txsByKey[key].push(tx);
       });
       Object.entries(txsByKey).forEach(([key, txs]) => {
-          const [ticker, brokerName] = key.split('|');
+          const sep = key.lastIndexOf('|');
+          const ticker = key.slice(0, sep);
+          const brokerName = key.slice(sep + 1);
 
           interface Lot {
               quantity: number;
@@ -1692,17 +1701,26 @@ const App: React.FC = () => {
               // prevents phantom "held" shares when a sell was recorded before its
               // covering buy. The lot that stays held still follows createdAt order.
               const dayBuyLots: Lot[] = dayTxs
-                  .filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t))
+                  .filter(t =>
+                      (t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t))
+                      && !isFundConvertIn(t, fundConversionMap)
+                  )
                   .map(makeLot);
+              const convertInTxs = dayTxs.filter(t => isFundConvertIn(t, fundConversionMap));
               const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
               daySells.forEach(sellTx => {
                   let qtyToSell = sellTx.quantity;
+                  const convertOut = isFundConvertOut(sellTx, fundConversionMap);
                   const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
                   const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
-                  const pushRealized = (lotCost: number, matched: number) => {
+                  const isFundPort = getPortfolioType(currentPortfolio) === 'MUTUAL_FUND';
+                  const pushRealized = (lotCost: number, matched: number, lotDate?: string) => {
                       const revenue = matched * sellTx.price;
                       const cost = matched * lotCost;
                       const matchedSellFees = matched * sellFeePerShare;
+                      const holdDays = lotDate
+                          ? Math.max(0, Math.round((new Date(sellTx.date).getTime() - new Date(lotDate).getTime()) / 86400000))
+                          : undefined;
                       tempRealized.push({
                           id: `${sellTx.id}-m${matchSeq++}`,
                           ticker,
@@ -1716,31 +1734,36 @@ const App: React.FC = () => {
                           commission: (sellTx.commission || 0) * (matched / sellTx.quantity),
                           tax: (sellTx.tax || 0) * (matched / sellTx.quantity),
                           cdcCharges: (sellTx.cdcCharges || 0) * (matched / sellTx.quantity),
-                          otherFees: (sellTx.otherFees || 0) * (matched / sellTx.quantity)
+                          otherFees: (sellTx.otherFees || 0) * (matched / sellTx.quantity),
+                          eventType: isFundPort ? (convertOut ? 'convert' : 'redemption') : undefined,
+                          holdDays,
                       });
                   };
-                  // 1) Same-day buys first (all of them, FIFO by createdAt) — squares
-                  //    off intraday trades and prevents same-day oversell.
-                  for (const bl of dayBuyLots) {
-                      if (qtyToSell <= 0.0001) break;
-                      if (bl.quantity > 0) {
-                          const matched = Math.min(qtyToSell, bl.quantity);
-                          pushRealized(bl.costPerShare, matched);
-                          bl.quantity -= matched;
-                          qtyToSell -= matched;
+                  // Convert out redeems existing units — skip same-day buys (prevents
+                  // convert in/out on the same fund bucket from netting to zero).
+                  if (!convertOut) {
+                      for (const bl of dayBuyLots) {
+                          if (qtyToSell <= 0.0001) break;
+                          if (bl.quantity > 0) {
+                              const matched = Math.min(qtyToSell, bl.quantity);
+                              pushRealized(bl.costPerShare, matched, bl.date);
+                              bl.quantity -= matched;
+                              qtyToSell -= matched;
+                          }
                       }
                   }
-                  // 2) Then older holdings, FIFO oldest-first.
+                  // Then older holdings, FIFO oldest-first.
                   while (qtyToSell > 0.0001 && lots.length > 0) {
                       const fifoLot = lots[0];
                       const matched = Math.min(qtyToSell, fifoLot.quantity);
-                      pushRealized(fifoLot.costPerShare, matched);
+                      pushRealized(fifoLot.costPerShare, matched, fifoLot.date);
                       fifoLot.quantity -= matched;
                       qtyToSell -= matched;
                       if (fifoLot.quantity < 0.0001) lots.shift();
                   }
               });
               dayBuyLots.forEach(l => { if (l.quantity > 0.0001) lots.push(l); });
+              convertInTxs.forEach(t => lots.push(makeLot(t)));
           });
           if (lots.length > 0) {
               const totalQty = lots.reduce((acc, l) => acc + l.quantity, 0);
@@ -2327,7 +2350,7 @@ const App: React.FC = () => {
                       )}
                       {currentView === 'REALIZED' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                              <RealizedTable trades={realizedTrades} showBroker={!isFundPortfolio} totalCGT={stats.totalCGT} displayNames={fundDisplayNames} />
+                              <RealizedTable trades={realizedTrades} showBroker={!isFundPortfolio} totalCGT={stats.totalCGT} displayNames={fundDisplayNames} portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'} unrealizedPL={stats.unrealizedPL} />
                           </div>
                       )}
                       {currentView === 'HISTORY' && (

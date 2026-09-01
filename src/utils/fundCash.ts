@@ -162,3 +162,42 @@ export function isFundConversionPair(transactions: Transaction[], linkId: string
   return !!legs.find(l => l.type === 'SELL' && isFundTicker(l.ticker))
     && !!legs.find(l => l.type === 'BUY' && isFundTicker(l.ticker));
 }
+
+export function isFundConvertOut(
+  tx: Transaction,
+  conversionMap: Map<string, FundConversionLeg>
+): boolean {
+  return conversionMap.get(tx.id)?.leg === 'out';
+}
+
+export function isFundConvertIn(
+  tx: Transaction,
+  conversionMap: Map<string, FundConversionLeg>
+): boolean {
+  return conversionMap.get(tx.id)?.leg === 'in';
+}
+
+/** Linked convert legs as sell/buy pairs (for holdings). */
+export function getFundConvertPairs(
+  transactions: Transaction[]
+): Array<{ sell: Transaction; buy: Transaction }> {
+  const pairs: Array<{ sell: Transaction; buy: Transaction }> = [];
+  const seen = new Set<string>();
+  const byLink = new Map<string, Transaction[]>();
+  for (const t of transactions) {
+    if (!t.linkId) continue;
+    if (!byLink.has(t.linkId)) byLink.set(t.linkId, []);
+    byLink.get(t.linkId)!.push(t);
+  }
+  for (const legs of byLink.values()) {
+    if (legs.some(l => l.autoCash)) continue;
+    const sell = legs.find(l => l.type === 'SELL' && isFundTicker(l.ticker));
+    const buy = legs.find(l => l.type === 'BUY' && isFundTicker(l.ticker));
+    if (sell && buy && !seen.has(sell.id)) {
+      seen.add(sell.id);
+      seen.add(buy.id);
+      pairs.push({ sell, buy });
+    }
+  }
+  return pairs;
+}

@@ -59,6 +59,10 @@ export interface RealizedTrade {
   tax: number;
   cdcCharges: number;
   otherFees: number;
+  /** Fund redemptions vs internal converts; PSX sells omit this. */
+  eventType?: 'redemption' | 'convert' | 'trade' | 'history';
+  /** Days from matched buy lot to sell (fund redemptions / converts). */
+  holdDays?: number;
 }
 
 export interface ParsedTrade {
