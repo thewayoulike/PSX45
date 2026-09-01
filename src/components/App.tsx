@@ -43,7 +43,7 @@ import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
-import { buildPairedCashTx, cashAmountForTrade, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount } from '../utils/fundCash';
+import { buildPairedCashTx, cashAmountForTrade, isFundConversionPair, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount } from '../utils/fundCash';
 import { roundFundNav, roundFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
@@ -901,24 +901,51 @@ const App: React.FC = () => {
   const linkedIdsFor = (ids: string[], all: Transaction[]) => {
       const links = new Set(all.filter(t => ids.includes(t.id) && t.linkId).map(t => t.linkId));
       const out = new Set(ids);
-      if (links.size) all.forEach(t => { if (t.linkId && links.has(t.linkId) && t.autoCash) out.add(t.id); });
+      if (links.size) {
+          all.forEach(t => {
+              if (!t.linkId || !links.has(t.linkId)) return;
+              if (t.autoCash) out.add(t.id);
+              else if (isFundConversionPair(all, t.linkId)) out.add(t.id);
+          });
+      }
       return out;
   };
+  const deleteConfirmMessage = (selectedCount: number, doomed: Set<string>, all: Transaction[]) => {
+      const extra = doomed.size - selectedCount;
+      if (extra <= 0) {
+          return selectedCount === 1
+              ? 'Are you sure you want to delete this transaction?'
+              : `Are you sure you want to delete ${selectedCount} selected transactions?`;
+      }
+      const hasAutoCash = all.some(t => doomed.has(t.id) && t.autoCash);
+      const hasConvert = Array.from(linksFromDoomed(doomed, all)).some(linkId => isFundConversionPair(all, linkId));
+      if (hasAutoCash && hasConvert) {
+          return selectedCount === 1
+              ? 'Delete this transaction and its linked entries (cash and/or convert pair)?'
+              : `Delete ${selectedCount} selected transactions and ${extra} linked ${extra === 1 ? 'entry' : 'entries'}?`;
+      }
+      if (hasConvert) {
+          return selectedCount === 1
+              ? 'Delete this conversion? Both convert out and convert in will be removed.'
+              : `Delete ${selectedCount} selected transactions and ${extra} linked convert ${extra === 1 ? 'leg' : 'legs'}?`;
+      }
+      return selectedCount === 1
+          ? 'Delete this transaction and the linked cash entry that was created with it?'
+          : `Delete ${selectedCount} selected transactions and ${extra} linked cash ${extra === 1 ? 'entry' : 'entries'}?`;
+  };
+  const linksFromDoomed = (doomed: Set<string>, all: Transaction[]) =>
+      new Set(all.filter(t => doomed.has(t.id) && t.linkId).map(t => t.linkId!));
   const handleDeleteTransaction = (id: string) => {
       const doomed = linkedIdsFor([id], transactions);
-      const extra = doomed.size - 1;
-      const msg = extra > 0
-          ? "Delete this transaction and the linked cash entry that was created with it?"
-          : "Are you sure you want to delete this transaction?";
-      if (window.confirm(msg)) setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
+      if (window.confirm(deleteConfirmMessage(1, doomed, transactions))) {
+          setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
+      }
   };
   const handleDeleteTransactions = (ids: string[]) => {
       const doomed = linkedIdsFor(ids, transactions);
-      const extra = doomed.size - ids.length;
-      const msg = extra > 0
-          ? `Delete ${ids.length} selected transactions and ${extra} linked cash ${extra === 1 ? 'entry' : 'entries'}?`
-          : `Are you sure you want to delete ${ids.length} selected transactions?`;
-      if (window.confirm(msg)) setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
+      if (window.confirm(deleteConfirmMessage(ids.length, doomed, transactions))) {
+          setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
+      }
   };
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
   const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };

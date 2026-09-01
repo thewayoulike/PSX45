@@ -65,3 +65,13 @@ export function formatTransactionSubtext(
   }
   return null;
 }
+
+/** Subtext under a convert leg showing the counterparty fund. */
+export function formatConversionSubtext(
+  leg: 'out' | 'in',
+  otherTicker: string,
+  displayNames: Record<string, string> = {}
+): string {
+  const name = formatFundShortLabel(otherTicker, displayNames, 48);
+  return leg === 'out' ? `→ ${name}` : `← ${name}`;
+}

@@ -77,3 +77,72 @@ export function buildPairedCashTx(
 }
 
 export const isPairableFundTrade = (t: Transaction) => t.type === 'BUY' || t.type === 'SELL';
+
+/** One leg of an internal fund switch (redeem + subscribe, no bank cash row). */
+export type FundConversionLeg = { leg: 'out' | 'in'; otherTicker: string };
+
+
+/** Linked SELL+BUY pairs with no autoCash sibling — display as Convert Out / Convert In. */
+export function buildFundConversionMap(transactions: Transaction[]): Map<string, FundConversionLeg> {
+  const map = new Map<string, FundConversionLeg>();
+  const byLink = new Map<string, Transaction[]>();
+
+  for (const t of transactions) {
+    if (!t.linkId) continue;
+    if (!byLink.has(t.linkId)) byLink.set(t.linkId, []);
+    byLink.get(t.linkId)!.push(t);
+  }
+
+  for (const legs of byLink.values()) {
+    if (legs.some(l => l.autoCash)) continue;
+    const sell = legs.find(l => l.type === 'SELL' && isFundTicker(l.ticker));
+    const buy = legs.find(l => l.type === 'BUY' && isFundTicker(l.ticker));
+    if (sell && buy) {
+      map.set(sell.id, { leg: 'out', otherTicker: buy.ticker });
+      map.set(buy.id, { leg: 'in', otherTicker: sell.ticker });
+    }
+  }
+
+  // Older rows may only have Convert to/from notes without linkId.
+  for (const sell of transactions) {
+    if (map.has(sell.id)) continue;
+    if (sell.type !== 'SELL' || !isFundTicker(sell.ticker) || !/^Convert to /i.test(sell.notes || '')) continue;
+    const buy = transactions.find(t =>
+      !map.has(t.id) &&
+      t.type === 'BUY' &&
+      isFundTicker(t.ticker) &&
+      t.date === sell.date &&
+      /^Convert from /i.test(t.notes || '')
+    );
+    if (buy) {
+      map.set(sell.id, { leg: 'out', otherTicker: buy.ticker });
+      map.set(buy.id, { leg: 'in', otherTicker: sell.ticker });
+    }
+  }
+
+  return map;
+}
+
+export function getFundConversionLeg(
+  tx: Transaction,
+  conversionMap: Map<string, FundConversionLeg>
+): FundConversionLeg | undefined {
+  return conversionMap.get(tx.id);
+}
+
+/** UI/export label — underlying type stays BUY or SELL. */
+export function getFundTradeDisplayType(
+  tx: Transaction,
+  conversionMap: Map<string, FundConversionLeg>
+): string {
+  const conv = conversionMap.get(tx.id);
+  if (conv) return conv.leg === 'out' ? 'CONVERT OUT' : 'CONVERT IN';
+  return tx.type;
+}
+
+export function isFundConversionPair(transactions: Transaction[], linkId: string): boolean {
+  const legs = transactions.filter(t => t.linkId === linkId);
+  if (legs.some(l => l.autoCash)) return false;
+  return !!legs.find(l => l.type === 'SELL' && isFundTicker(l.ticker))
+    && !!legs.find(l => l.type === 'BUY' && isFundTicker(l.ticker));
+}

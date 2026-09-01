@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Transaction } from '../types';
-import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, ArrowUpRight, History, Search, Filter, X, Pencil, AlertCircle, FileSpreadsheet, FileText, Download, Settings2, ExternalLink, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ArrowRightLeft } from 'lucide-react';
 import { TaxIcon } from './ui/TaxIcon'; 
 import { DepositIcon } from './ui/DepositIcon'; 
 import { WithdrawIcon } from './ui/WithdrawIcon';
@@ -13,7 +13,8 @@ import { exportToExcel, exportToCSV } from '../utils/export';
 import { PortfolioType } from '../types';
 import { isFundTicker } from '../utils/fundId';
 import { fmtFundNav, fmtFundUnits } from '../utils/fundFormat';
-import { formatTransactionLabel, formatTransactionSubtext } from '../utils/fundDisplay';
+import { formatTransactionLabel, formatTransactionSubtext, formatConversionSubtext } from '../utils/fundDisplay';
+import { buildFundConversionMap, getFundTradeDisplayType, type FundConversionLeg } from '../utils/fundCash';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -49,6 +50,20 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const [itemsPerPage, setItemsPerPage] = useState<number>(25);
   const [currentPage, setCurrentPage] = useState<number>(1);
 
+  const conversionMap = useMemo(
+    () => (isFund ? buildFundConversionMap(transactions) : new Map<string, FundConversionLeg>()),
+    [isFund, transactions]
+  );
+
+  const matchesTypeFilter = (tx: Transaction) => {
+    const conv = conversionMap.get(tx.id);
+    if (filterType === 'ALL') return true;
+    if (filterType === 'CONVERT') return !!conv;
+    if (filterType === 'BUY') return tx.type === 'BUY' && !conv;
+    if (filterType === 'SELL') return tx.type === 'SELL' && !conv;
+    return tx.type === filterType;
+  };
+
   const handleSort = (key: SortKey) => {
     let direction: SortDirection = 'asc';
     if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
@@ -78,7 +93,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           || (tx.notes && tx.notes.toLowerCase().includes(searchLower));
         const matchesFrom = dateFrom ? tx.date >= dateFrom : true;
         const matchesTo = dateTo ? tx.date <= dateTo : true;
-        const matchesType = filterType === 'ALL' || tx.type === filterType;
+        const matchesType = matchesTypeFilter(tx);
         return matchesSearch && matchesFrom && matchesTo && matchesType;
     });
     return filtered.sort((a, b) => {
@@ -89,7 +104,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
         return 0;
     });
-  }, [transactions, searchTerm, dateFrom, dateTo, filterType, sortConfig]);
+  }, [transactions, searchTerm, dateFrom, dateTo, filterType, sortConfig, conversionMap, displayNames]);
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm, filterType, dateFrom, dateTo]);
 
@@ -102,7 +117,14 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const clearFilters = () => { setSearchTerm(''); setFilterType('ALL'); setDateFrom(''); setDateTo(''); };
   const hasActiveFilters = searchTerm || dateFrom || dateTo || filterType !== 'ALL';
 
-  const getTypeConfig = (tx: Transaction) => {
+  const getTypeConfig = (tx: Transaction, conv?: FundConversionLeg) => {
+      if (conv) {
+          return {
+              style: 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-200/60 dark:border-violet-500/20',
+              icon: <ArrowRightLeft size={12} />,
+              label: conv.leg === 'out' ? 'CONVERT OUT' : 'CONVERT IN',
+          };
+      }
       switch (tx.type) {
           case 'BUY': return { style: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20', icon: <BuyIcon className="w-3.5 h-3.5" />, label: 'BUY' };
           case 'SELL': return { style: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20', icon: <SellIcon className="w-3.5 h-3.5" />, label: 'SELL' };
@@ -118,10 +140,15 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       }
   };
 
+  const getRowSubtext = (tx: Transaction, conv?: FundConversionLeg) => {
+    if (conv) return formatConversionSubtext(conv.leg, conv.otherTicker, displayNames);
+    return formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
+  };
+
   const handleExport = (type: 'excel' | 'csv') => {
       const data = filteredAndSortedTransactions.map(tx => ({
         Date: tx.date,
-        Type: tx.type,
+        Type: isFund ? getFundTradeDisplayType(tx, conversionMap) : tx.type,
         [isFund ? 'Fund' : 'Ticker']: formatTransactionLabel(tx.ticker, displayNames, tx.notes),
         ...(isFund ? {} : { Broker: tx.broker || 'N/A' }),
         Quantity: tx.quantity,
@@ -140,7 +167,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       const selectedTransactions = transactions.filter(t => selectedIds.has(t.id));
       const data = selectedTransactions.map(tx => ({
         Date: tx.date,
-        Type: tx.type,
+        Type: isFund ? getFundTradeDisplayType(tx, conversionMap) : tx.type,
         [isFund ? 'Fund' : 'Ticker']: formatTransactionLabel(tx.ticker, displayNames, tx.notes),
         ...(isFund ? {} : { Broker: tx.broker || 'N/A' }),
         Quantity: tx.quantity,
@@ -203,6 +230,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         <option value="ALL">All Types</option> 
                         <option value="BUY">Buy</option> 
                         <option value="SELL">Sell</option> 
+                        {isFund && <option value="CONVERT">Convert</option>}
                         <option value="DIVIDEND">Dividend</option> 
                         <option value="TAX">Tax / CGT</option> 
                         <option value="HISTORY">History</option> 
@@ -235,10 +263,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({
         ) : (
           paginatedTransactions.map((tx) => {
             const netAmount = getNetAmount(tx);
-            const typeConfig = getTypeConfig(tx);
+            const conv = conversionMap.get(tx.id);
+            const typeConfig = getTypeConfig(tx, conv);
             const isSelected = selectedIds.has(tx.id);
             const txLabel = formatTransactionLabel(tx.ticker, displayNames, tx.notes);
-            const txSub = formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
+            const txSub = getRowSubtext(tx, conv);
             const isCDCManual = tx.type === 'OTHER' && tx.category === 'CDC_CHARGE';
             const isOtherManual = tx.type === 'OTHER' && tx.category === 'OTHER_TAX';
             const displayPrice = (isCDCManual || isOtherManual) ? 0 : tx.price;
@@ -332,9 +361,12 @@ export const TransactionList: React.FC<TransactionListProps> = ({
           <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {paginatedTransactions.length === 0 ? ( <tr> <td colSpan={colSpan} className="px-6 py-12 text-center text-slate-400 dark:text-slate-500 font-medium"> {hasActiveFilters ? 'No transactions found matching your filters.' : 'No transactions yet.'} </td> </tr> ) : (
                 paginatedTransactions.map((tx) => {
-                    const isDiv = tx.type === 'DIVIDEND'; const netAmount = getNetAmount(tx); const typeConfig = getTypeConfig(tx); const isNegativeFlow = ['TAX', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) || (tx.type === 'OTHER' && (tx.category === 'OTHER_TAX' || tx.category === 'CDC_CHARGE')) || (tx.type === 'OTHER' && tx.price < 0) || (tx.type === 'HISTORY' && netAmount < 0); const isSelected = selectedIds.has(tx.id);
+                    const isDiv = tx.type === 'DIVIDEND'; const netAmount = getNetAmount(tx);
+                    const conv = conversionMap.get(tx.id);
+                    const typeConfig = getTypeConfig(tx, conv);
+                    const isNegativeFlow = ['TAX', 'WITHDRAWAL', 'ANNUAL_FEE'].includes(tx.type) || (tx.type === 'OTHER' && (tx.category === 'OTHER_TAX' || tx.category === 'CDC_CHARGE')) || (tx.type === 'OTHER' && tx.price < 0) || (tx.type === 'HISTORY' && netAmount < 0); const isSelected = selectedIds.has(tx.id);
                     const txLabel = formatTransactionLabel(tx.ticker, displayNames, tx.notes);
-                    const txSub = formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
+                    const txSub = getRowSubtext(tx, conv);
                     
                     const isCDCManual = tx.type === 'OTHER' && tx.category === 'CDC_CHARGE';
                     const isOtherManual = tx.type === 'OTHER' && tx.category === 'OTHER_TAX';
