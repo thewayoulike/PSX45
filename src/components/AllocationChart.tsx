@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Holding, PortfolioType } from '../types';
 import { isFundTicker } from '../utils/fundId';
+import { formatFundShortLabel } from '../utils/fundDisplay';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Sector } from 'recharts';
 import { PieChart as PieChartIcon, Layers } from 'lucide-react';
 
@@ -48,7 +49,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
         });
         rawData = Array.from(assetMap.entries())
             .map(([name, data]) => ({
-              name: displayNames[name] || (isFundTicker(name) ? name.replace(/^MF:/, '').slice(0, 24) : name),
+              name: formatFundShortLabel(name, displayNames, 32),
               value: data.value,
               quantity: data.quantity,
             }))

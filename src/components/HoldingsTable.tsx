@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Holding, PortfolioType, Transaction } from '../types';
 import { isFundTicker } from '../utils/fundId';
+import { formatTransactionLabel } from '../utils/fundDisplay';
 import { roundFundNav, fmtFundNav, fmtFundUnits, fundAvgForCost, roundFundUnits } from '../utils/fundFormat';
 import { resolveFundDayNav, FundNavDayMap } from '../services/mufapData';
 import { todayPK } from '../utils/dates';
@@ -101,7 +102,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
       if (searchTerm) {
           const term = searchTerm.toLowerCase();
           result = holdings.filter(h => {
-              const label = (displayNames[h.ticker] || h.ticker).toLowerCase();
+              const label = formatTransactionLabel(h.ticker, displayNames).toLowerCase();
               return label.includes(term) || h.sector.toLowerCase().includes(term) || (showBroker && h.broker?.toLowerCase().includes(term));
           });
       }
@@ -161,7 +162,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           const cost = h.quantity * roundedAvg;
           const marketVal = h.quantity * h.currentPrice;
           return {
-            Ticker: h.ticker,
+            Ticker: formatTransactionLabel(h.ticker, displayNames),
             Sector: h.sector,
             Broker: h.broker || 'N/A',
             Quantity: isFund ? roundFundUnits(h.quantity) : h.quantity,
@@ -266,7 +267,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <div className="w-1 h-10 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
                       <div className="min-w-0">
                         <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5 truncate">
-                          {displayNames[holding.ticker] || holding.ticker}
+                          {formatTransactionLabel(holding.ticker, displayNames)}
                           {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse shrink-0" />}
                         </div>
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate mt-0.5">
@@ -401,7 +402,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                           <div className="w-1.5 h-[50px] rounded-full shadow-sm mt-0.5" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div> 
                           <div className="flex flex-col"> 
                             <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5"> 
-                              {displayNames[holding.ticker] || holding.ticker} 
+                              {formatTransactionLabel(holding.ticker, displayNames)} 
                               {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" title="Price update failed" />} 
                             </div> 
                             {displayNames[holding.ticker] && (

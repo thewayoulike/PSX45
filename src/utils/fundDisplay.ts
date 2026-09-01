@@ -8,6 +8,9 @@ const SPECIAL_TICKER_LABELS: Record<string, string> = {
   'DIV REINVEST': 'Dividend Reinvest',
 };
 
+/** Primary label for any asset row — fund name, not MF: slug. */
+export const formatAssetLabel = formatTransactionLabel;
+
 /** Human-readable label for a transaction ticker (fund name, not MF: slug). */
 export function formatTransactionLabel(
   ticker: string,

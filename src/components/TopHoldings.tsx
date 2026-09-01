@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { Holding, PortfolioStats, PortfolioType } from '../types';
 import { isFundTicker } from '../utils/fundId';
+import { formatFundShortLabel } from '../utils/fundDisplay';
 
 interface Props {
   holdings: Holding[];
@@ -16,7 +17,7 @@ const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionD
 
 export const TopHoldings: React.FC<Props> = ({ holdings, stats, onTickerClick, onViewAll, count = 5, displayNames = {}, portfolioType = 'PSX' }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
-  const label = (ticker: string) => displayNames[ticker] || ticker;
+  const label = (ticker: string) => formatFundShortLabel(ticker, displayNames, 48);
   const data = useMemo(() => {
     const total = stats.totalValue || holdings.reduce((s, h) => s + h.currentPrice * h.quantity, 0) || 1;
     const valued = holdings

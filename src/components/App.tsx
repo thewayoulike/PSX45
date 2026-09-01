@@ -44,6 +44,7 @@ import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapi
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { buildPairedCashTx, cashAmountForTrade, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount } from '../utils/fundCash';
+import { roundFundNav, roundFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
 import { setGeminiApiKey } from '../services/gemini';
@@ -828,6 +829,54 @@ const App: React.FC = () => {
           notes: `Transfer from ${sourcePortfolio.name}`
       };
       setTransactions(prev => [...prev, transferOut, transferIn]);
+  };
+
+  /** Switch units from one fund to another inside the same portfolio (redeem + subscribe). */
+  const handleConvertFunds = (fromTicker: string, quantity: number, toTicker: string, date: string) => {
+      const holding = holdings.find(h => h.ticker === fromTicker && h.quantity > 0);
+      if (!holding || quantity <= 0 || quantity > holding.quantity + 0.0001) return;
+
+      const sellNav = manualPrices[fromTicker] || holding.currentPrice || fundCatalog[fromTicker]?.repurchase || fundCatalog[fromTicker]?.nav || 0;
+      const buyNav = manualPrices[toTicker] || fundCatalog[toTicker]?.offer || fundCatalog[toTicker]?.nav || sellNav;
+      if (!(sellNav > 0) || !(buyNav > 0)) return;
+
+      const qty = roundFundUnits(quantity);
+      const proceeds = qty * sellNav;
+      const destQty = roundFundUnits(proceeds / buyNav);
+      if (destQty <= 0) return;
+
+      const linkId = makeLinkId();
+      const fromName = fundDisplayNames[fromTicker] || formatTransactionLabel(fromTicker, fundDisplayNames);
+      const toName = fundDisplayNames[toTicker] || formatTransactionLabel(toTicker, fundDisplayNames);
+      const base = nextCreatedAt();
+
+      const sellTx: Transaction = {
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `sell-${Date.now()}`,
+          portfolioId: currentPortfolioId,
+          type: 'SELL',
+          ticker: fromTicker,
+          quantity: qty,
+          price: roundFundNav(sellNav),
+          date,
+          commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+          notes: `Convert to ${toName}`,
+          createdAt: base,
+          linkId,
+      };
+      const buyTx: Transaction = {
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `buy-${Date.now() + 1}`,
+          portfolioId: currentPortfolioId,
+          type: 'BUY',
+          ticker: toTicker,
+          quantity: destQty,
+          price: roundFundNav(buyNav),
+          date,
+          commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+          notes: `Convert from ${fromName}`,
+          createdAt: new Date(new Date(base).getTime() + 1).toISOString(),
+          linkId,
+      };
+      setTransactions(prev => [...prev, sellTx, buyTx]);
   };
 
   const handleUpdateTransaction = (updatedTx: Transaction) => {
@@ -1727,8 +1776,13 @@ const App: React.FC = () => {
   const fundDisplayNames = useMemo(() => {
       const map: Record<string, string> = {};
       Object.values(fundCatalog).forEach(f => { map[f.id] = f.fundName; });
+      portfolioTransactions.forEach(t => {
+          if (!isFundTicker(t.ticker) || map[t.ticker]) return;
+          const fromNotes = formatTransactionLabel(t.ticker, {}, t.notes);
+          if (fromNotes && !fromNotes.startsWith('MF:')) map[t.ticker] = fromNotes;
+      });
       return map;
-  }, [fundCatalog]);
+  }, [fundCatalog, portfolioTransactions]);
 
   const effectiveDashboardLayout = useMemo(() => {
       const p = portfolios.find(x => x.id === currentPortfolioId);
@@ -2015,9 +2069,9 @@ const App: React.FC = () => {
                                       <button
                                           onClick={() => setShowTransferModal(true)}
                                           className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
-                                          title="Transfer"
+                                          title={isFundPortfolio ? 'Convert between funds' : 'Transfer'}
                                       >
-                                          <ArrowRightLeft size={16} /> <span className="hidden sm:inline">Transfer</span>
+                                          <ArrowRightLeft size={16} /> <span className="hidden sm:inline">{isFundPortfolio ? 'Convert Funds' : 'Transfer'}</span>
                                       </button>
                                       {!isFundPortfolio && (
                                       <>
@@ -2213,7 +2267,7 @@ const App: React.FC = () => {
                       )}
                       {currentView === 'REALIZED' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                              <RealizedTable trades={realizedTrades} showBroker={!isFundPortfolio} totalCGT={stats.totalCGT} />
+                              <RealizedTable trades={realizedTrades} showBroker={!isFundPortfolio} totalCGT={stats.totalCGT} displayNames={fundDisplayNames} />
                           </div>
                       )}
                       {currentView === 'HISTORY' && (
@@ -2445,7 +2499,12 @@ const App: React.FC = () => {
           portfolios={portfolios}
           holdings={holdings}
           brokers={brokers}
+          displayNames={fundDisplayNames}
+          portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
+          fundCatalog={fundCatalog}
+          currentPrices={manualPrices}
           onTransfer={handleTransferStock}
+          onConvertFunds={isFundPortfolio ? handleConvertFunds : undefined}
       />
       {viewTicker && (
           <TickerProfile

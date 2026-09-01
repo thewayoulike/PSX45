@@ -8,9 +8,10 @@ interface FundPickerProps {
   value: string;
   onChange: (fundId: string, fund: MutualFundRecord | null) => void;
   disabled?: boolean;
+  label?: string;
 }
 
-export const FundPicker: React.FC<FundPickerProps> = ({ catalog, value, onChange, disabled }) => {
+export const FundPicker: React.FC<FundPickerProps> = ({ catalog, value, onChange, disabled, label = 'Mutual Fund' }) => {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -49,7 +50,7 @@ export const FundPicker: React.FC<FundPickerProps> = ({ catalog, value, onChange
   return (
     <div ref={wrapRef} className="relative">
       <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">
-        Mutual Fund
+        {label}
       </label>
       <div className="relative">
         <Search size={16} className="absolute left-3.5 top-3.5 text-slate-400 pointer-events-none" />

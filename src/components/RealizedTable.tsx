@@ -4,12 +4,14 @@ import {
   Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
+import { formatAssetLabel } from '../utils/fundDisplay';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 interface RealizedTableProps {
   trades: RealizedTrade[];
   showBroker?: boolean;
   totalCGT?: number;
+  displayNames?: Record<string, string>;
 }
 
 type SortKey = keyof RealizedTrade | 'totalCost' | 'totalSell';
@@ -62,7 +64,7 @@ const ChartCard: React.FC<{ title: string; right?: React.ReactNode; children: Re
   </div>
 );
 
-export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = false, totalCGT = 0 }) => {
+export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = false, totalCGT = 0, displayNames = {} }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -85,7 +87,8 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   const filteredAndSortedTrades = useMemo(() => {
     const filtered = trades.filter(trade => {
       const term = searchTerm.toLowerCase();
-      const matchesSearch = trade.ticker.toLowerCase().includes(term) || (trade.broker && trade.broker.toLowerCase().includes(term));
+      const assetLabel = formatAssetLabel(trade.ticker, displayNames).toLowerCase();
+      const matchesSearch = trade.ticker.toLowerCase().includes(term) || assetLabel.includes(term) || (trade.broker && trade.broker.toLowerCase().includes(term));
       const matchesFrom = dateFrom ? trade.date >= dateFrom : true;
       const matchesTo = dateTo ? trade.date <= dateTo : true;
       const matchesResult = result === 'all' ? true : result === 'win' ? trade.profit > 0 : trade.profit < 0;
@@ -100,7 +103,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
       if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
       return 0;
     });
-  }, [trades, searchTerm, dateFrom, dateTo, result, sortConfig]);
+  }, [trades, searchTerm, dateFrom, dateTo, result, sortConfig, displayNames]);
 
   const summary = useMemo(() => {
     const t = filteredAndSortedTrades;
@@ -189,7 +192,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
   const handleExport = (type: 'excel' | 'csv') => {
     const data = filteredAndSortedTrades.map(trade => {
       const totalCost = (trade.buyAvg || 0) * trade.quantity; const totalSell = (trade.sellPrice || 0) * trade.quantity;
-      return { Date: trade.date, Ticker: trade.ticker, Broker: trade.broker || 'N/A', Quantity: trade.quantity, 'Buy Avg': trade.buyAvg, 'Sell Price': trade.sellPrice, 'Total Cost': totalCost, 'Total Sell': totalSell, 'P&L %': totalCost > 0 ? (trade.profit / totalCost) * 100 : 0, 'Net Profit': trade.profit, Commission: trade.commission, Tax: trade.tax, CDC: trade.cdcCharges, Other: trade.otherFees };
+      return { Date: trade.date, Ticker: formatAssetLabel(trade.ticker, displayNames), Broker: trade.broker || 'N/A', Quantity: trade.quantity, 'Buy Avg': trade.buyAvg, 'Sell Price': trade.sellPrice, 'Total Cost': totalCost, 'Total Sell': totalSell, 'P&L %': totalCost > 0 ? (trade.profit / totalCost) * 100 : 0, 'Net Profit': trade.profit, Commission: trade.commission, Tax: trade.tax, CDC: trade.cdcCharges, Other: trade.otherFees };
     });
     const filename = `Realized_Gains_Export_${new Date().toISOString().split('T')[0]}`;
     if (type === 'excel') exportToExcel(data, filename); else exportToCSV(data, filename);
@@ -229,7 +232,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="relative flex-grow sm:w-56">
             <Search size={16} className="absolute left-3.5 top-3 text-slate-400" />
-            <input type="text" placeholder="Search Ticker..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" />
+            <input type="text" placeholder={Object.values(displayNames).length ? 'Search fund or ticker…' : 'Search Ticker...'} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl pl-10 pr-4 py-2.5 text-sm font-medium text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none placeholder-slate-400 shadow-sm transition-all" />
           </div>
           <div className="flex gap-2 items-center bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 rounded-xl px-3 py-2.5 shrink-0 shadow-sm">
             <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent border-none text-sm font-medium text-slate-700 dark:text-slate-300 focus:ring-0 outline-none w-28 p-0" />
@@ -446,7 +449,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                 <div key={`${trade.id}-m`} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/25 p-3.5">
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
-                      <button type="button" onClick={() => filterByTicker(trade.ticker === 'PREV-PNL' ? 'HISTORY' : trade.ticker)} className="font-display font-black text-slate-900 dark:text-white text-sm">{trade.ticker}</button>
+                      <button type="button" onClick={() => filterByTicker(trade.ticker === 'PREV-PNL' ? 'HISTORY' : trade.ticker)} className="font-display font-black text-slate-900 dark:text-white text-sm">{formatAssetLabel(trade.ticker, displayNames)}</button>
                       <div className="text-[11px] font-mono text-slate-500 tabular-nums mt-0.5">{trade.date}{showBroker && trade.broker ? ` · ${trade.broker}` : ''}</div>
                     </div>
                     <div className={`text-right font-mono font-bold tabular-nums text-sm ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
@@ -481,7 +484,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker
                   return (
                     <tr key={trade.id} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
                       <td className="px-4 py-3 text-slate-500 dark:text-slate-400 text-xs font-mono tabular-nums">{trade.date}</td>
-                      <td className="px-4 py-3"><button onClick={() => filterByTicker(trade.ticker === 'PREV-PNL' ? 'HISTORY' : trade.ticker)} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-display font-black text-slate-800 dark:text-white text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors">{trade.ticker}</button></td>
+                      <td className="px-4 py-3"><button onClick={() => filterByTicker(trade.ticker === 'PREV-PNL' ? 'HISTORY' : trade.ticker)} className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 font-display font-black text-slate-800 dark:text-white text-xs hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors">{formatAssetLabel(trade.ticker, displayNames)}</button></td>
                       {showBroker && <td className="px-4 py-3 text-[11px] font-bold tracking-wider uppercase text-slate-500 dark:text-slate-400">{trade.broker || '-'}</td>}
                       <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{trade.quantity.toLocaleString()}</td>
                       <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{f2(trade.buyAvg || 0)}</td>
