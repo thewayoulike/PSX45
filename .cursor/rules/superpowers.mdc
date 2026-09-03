@@ -1,0 +1,20 @@
+---
+description: Superpowers agentic workflow — consult vendored skills before creative work, debugging, or finishing.
+alwaysApply: true
+---
+
+This project vendors the **Superpowers** skill library (by obra / Prime Radiant) in
+`.cursor/skills/`. Treat these as mandatory process skills, not suggestions.
+
+Before acting, check whether a skill applies and follow it:
+
+- **Building a feature / new behavior** → read `.cursor/skills/brainstorming/SKILL.md` first,
+  then `.cursor/skills/writing-plans/SKILL.md` before writing code.
+- **Fixing a bug / unexpected behavior** → read `.cursor/skills/systematic-debugging/SKILL.md`.
+- **Writing code** → follow `.cursor/skills/test-driven-development/SKILL.md`
+  (RED → GREEN → REFACTOR). Tests run with `npm test` (Vitest).
+- **Before saying "done"** → `.cursor/skills/verification-before-completion/SKILL.md`.
+- **Wrapping up a branch** → `.cursor/skills/finishing-a-development-branch/SKILL.md`.
+
+When a skill applies, announce "Using [skill] to [purpose]" and follow it exactly.
+Direct user instructions always take precedence over skills.

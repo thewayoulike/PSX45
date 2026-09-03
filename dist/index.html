@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0a0a" media="(prefers-color-scheme: dark)" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="format-detection" content="telephone=no">
+
+    <title>PSX Portfolio Tracker</title>
+
+    <link rel="apple-touch-icon" href="/pwa-192x192.png">
+    <script src="https://accounts.google.com/gsi/client" async defer id="google-gsi-script"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+      body {
+        font-family: 'Inter', sans-serif;
+        background: linear-gradient(135deg, #f0fdf4 0%, #f8fafc 50%, #ffffff 100%);
+        background-attachment: fixed;
+        color: #0f172a;
+        transition: background 0.3s ease, color 0.3s ease;
+        -webkit-tap-highlight-color: transparent;
+        /* PERFORMANCE FIX: Promote body to its own layer to avoid full page repaints */
+        transform: translateZ(0);
+        will-change: background;
+      }
+      
+      html.dark body {
+        background: linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e293b 100%) !important;
+        color: #f8fafc;
+      }
+
+      /* Reduce Glass Blur on Mobile specifically */
+      @media (max-width: 768px) {
+        .backdrop-blur-xl {
+           backdrop-filter: blur(12px) !important;
+           -webkit-backdrop-filter: blur(12px) !important;
+        }
+        .backdrop-blur-md {
+           backdrop-filter: blur(8px) !important;
+           -webkit-backdrop-filter: blur(8px) !important;
+        }
+      }
+
+      ::-webkit-scrollbar { width: 6px; height: 6px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+      .dark ::-webkit-scrollbar-thumb { background: #475569; }
+      
+      .glass-input {
+        background-color: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(203, 213, 225, 0.6);
+        color: #0f172a;
+      }
+      .dark .glass-input {
+        background-color: rgba(30, 41, 59, 0.7);
+        border: 1px solid rgba(71, 85, 105, 0.6);
+        color: #f8fafc;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-Dq3e2hha.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/vendor-BdvqmQhU.js">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-DzjtYsr8.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-BFM3K0mS.css">
+  <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
