@@ -50,7 +50,7 @@ export function resolveFundFromScan(
   return { id: `MF:${code.toLowerCase()}`, record: null };
 }
 
-const matchCatalogByLabel = (
+export const matchCatalogByLabel = (
   label: string,
   catalog: Record<string, MutualFundRecord>
 ): string | undefined => {
