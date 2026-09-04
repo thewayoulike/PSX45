@@ -22,6 +22,10 @@ interface FundProfileProps {
 
 const f0 = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 0 });
 const fK = (n: number) => (Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(1)}K` : `${Math.round(n)}`);
+/** Plain rupee value, e.g. "Rs. 1,234". */
+const rs = (n: number) => `Rs. ${f0(n)}`;
+/** Signed rupee P&L, e.g. "+Rs. 105" / "−Rs. 419". */
+const rsSigned = (n: number) => `${n >= 0 ? '+' : '−'}Rs. ${f0(Math.abs(n))}`;
 
 const isInflow = (t: Transaction) => t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t);
 const isOutflow = (t: Transaction) => t.type === 'SELL' || t.type === 'TRANSFER_OUT';
@@ -61,13 +65,14 @@ export const FundProfile: React.FC<FundProfileProps> = ({
     let dividendTax = 0;
     let reinvestUnits = 0;
 
-    const rowsAcc: Array<{ tx: Transaction; balance: number; leg?: FundConversionLeg }> = [];
+    const rowsAcc: Array<{ tx: Transaction; balance: number; leg?: FundConversionLeg; realized?: number; unrealized: number }> = [];
     const seriesAcc: Array<{ date: string; units: number; value: number }> = [];
 
     for (const t of sortedAsc) {
       const leg = conversionMap.get(t.id);
       const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
       const gross = t.quantity * t.price;
+      let rowRealized: number | undefined;
 
       if (isInflow(t)) {
         const cost = isUnitInflow(t) ? 0 : gross + fees;
@@ -79,7 +84,8 @@ export const FundProfile: React.FC<FundProfileProps> = ({
       } else if (isOutflow(t)) {
         const netProceeds = gross - fees;
         const cogs = t.quantity * wac;
-        realizedPnL += netProceeds - cogs;
+        rowRealized = netProceeds - cogs;
+        realizedPnL += rowRealized;
         realizedCost += cogs;
         realizedRevenue += netProceeds;
         if (leg?.leg === 'out') convertedOutUnits += t.quantity;
@@ -91,7 +97,9 @@ export const FundProfile: React.FC<FundProfileProps> = ({
         dividendTax += t.tax || 0;
       }
 
-      rowsAcc.push({ tx: t, balance: units, leg });
+      // Paper P&L on units still held after this row, valued at today's NAV.
+      const rowUnrealized = units > 0.0001 ? units * ((currentNav || t.price) - wac) : 0;
+      rowsAcc.push({ tx: t, balance: units, leg, realized: rowRealized, unrealized: rowUnrealized });
       seriesAcc.push({ date: t.date.slice(5), units, value: units * (currentNav || t.price) });
     }
 
@@ -110,13 +118,18 @@ export const FundProfile: React.FC<FundProfileProps> = ({
         invested: investedAtCost,
         unrealized,
         unrealizedPct,
-        lifetimeNet: totalCashOut + marketValue - totalCashIn,
+        // Total economic result = realized + unrealized + net cash dividends.
+        // Uses WAC-based realized/unrealized so internal converts don't distort it
+        // (a convert-in is a BUY and would otherwise look like fresh cash paid).
+        lifetimeNet: realizedPnL + unrealized + (dividends - dividendTax),
       },
       realizedStats: {
         pnl: realizedPnL,
         roi: realizedROI,
         redeemedUnits,
         convertedOutUnits,
+        proceeds: realizedRevenue,
+        cost: realizedCost,
         avgSell: redeemedUnits + convertedOutUnits > 0 ? realizedRevenue / (redeemedUnits + convertedOutUnits) : 0,
       },
       incomeStats: { net: dividends - dividendTax, reinvestUnits },
@@ -164,7 +177,7 @@ export const FundProfile: React.FC<FundProfileProps> = ({
           </div>
           <div className={`px-4 py-2.5 rounded-xl border shadow-sm ${isLifetimeProfit ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 border-rose-200/60 dark:border-rose-500/20'}`}>
             <div className={`text-[10px] font-bold uppercase tracking-widest ${isLifetimeProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>Lifetime Net</div>
-            <div className={`text-xl font-display font-black tabular-nums ${isLifetimeProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{isLifetimeProfit ? '+' : ''}{f0(stats.lifetimeNet)}</div>
+            <div className={`text-xl font-display font-black tabular-nums ${isLifetimeProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{rsSigned(stats.lifetimeNet)}</div>
           </div>
         </div>
       </div>
@@ -214,12 +227,12 @@ export const FundProfile: React.FC<FundProfileProps> = ({
                       <div className="text-2xl font-display font-black text-slate-900 dark:text-white tabular-nums">{fmtFundUnits(stats.units)}</div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-display font-black tabular-nums ${isUnrealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{isUnrealizedProfit ? '+' : ''}{f0(stats.unrealized)}</div>
+                      <div className={`text-2xl font-display font-black tabular-nums ${isUnrealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{rsSigned(stats.unrealized)}</div>
                       <div className={`text-xs font-bold font-mono tabular-nums ${isUnrealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>{isUnrealizedProfit ? '+' : ''}{stats.unrealizedPct.toFixed(2)}%</div>
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4 pt-5 border-t border-slate-100 dark:border-slate-800">
-                    <div><div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Avg NAV</div><div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {fmtFundNav(stats.avgNav)}</div></div>
+                    <div><div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Current NAV</div><div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {fmtFundNav(currentNav)}</div></div>
                     <div><div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Market Value</div><div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">Rs. {f0(stats.marketValue)}</div></div>
                   </div>
                 </div>
@@ -244,13 +257,15 @@ export const FundProfile: React.FC<FundProfileProps> = ({
                       <div className="text-2xl font-display font-black text-slate-900 dark:text-white tabular-nums">{fmtFundUnits(realizedStats.redeemedUnits + realizedStats.convertedOutUnits)}</div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-display font-black tabular-nums ${isRealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{isRealizedProfit ? '+' : ''}{f0(realizedStats.pnl)}</div>
+                      <div className={`text-2xl font-display font-black tabular-nums ${isRealizedProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>{rsSigned(realizedStats.pnl)}</div>
                       <div className={`text-xs font-bold font-mono tabular-nums ${isRealizedProfit ? 'text-emerald-600/80 dark:text-emerald-400/80' : 'text-rose-600/80 dark:text-rose-400/80'}`}>{isRealizedProfit ? '+' : ''}{realizedStats.roi.toFixed(2)}%</div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4 pt-5 border-t border-slate-100 dark:border-slate-800">
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-5 pt-5 border-t border-slate-100 dark:border-slate-800">
                     <div><div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Redeemed</div><div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtFundUnits(realizedStats.redeemedUnits)}</div></div>
                     <div><div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Converted Out</div><div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmtFundUnits(realizedStats.convertedOutUnits)}</div></div>
+                    <div><div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Proceeds</div><div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{rs(realizedStats.proceeds)}</div></div>
+                    <div><div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Cost</div><div className="font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{rs(realizedStats.cost)}</div></div>
                   </div>
                 </div>
               ) : (
@@ -267,7 +282,7 @@ export const FundProfile: React.FC<FundProfileProps> = ({
                 <h3 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Income</h3>
               </div>
               <div className="space-y-2">
-                <div className="text-3xl font-display font-black text-indigo-600 dark:text-indigo-400 tabular-nums">+{f0(incomeStats.net)}</div>
+                <div className="text-3xl font-display font-black text-indigo-600 dark:text-indigo-400 tabular-nums">{rsSigned(incomeStats.net)}</div>
                 <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Net Dividends {incomeStats.reinvestUnits > 0 ? `· ${fmtFundUnits(incomeStats.reinvestUnits)} units reinvested` : ''}</div>
               </div>
             </div>
@@ -281,7 +296,7 @@ export const FundProfile: React.FC<FundProfileProps> = ({
             <span className="text-xs font-bold text-slate-400 tabular-nums ml-auto">{rows.length} rows</span>
           </div>
           <div className="overflow-x-auto custom-scrollbar">
-            <table className="w-full text-left text-sm whitespace-nowrap min-w-[820px] border-collapse">
+            <table className="w-full text-left text-sm whitespace-nowrap min-w-[1000px] border-collapse">
               <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
                 <tr>
                   <th className="px-5 py-3.5">Date</th>
@@ -289,13 +304,15 @@ export const FundProfile: React.FC<FundProfileProps> = ({
                   <th className="px-5 py-3.5 text-right">Units</th>
                   <th className="px-5 py-3.5 text-right">NAV</th>
                   <th className="px-5 py-3.5 text-right">Amount</th>
+                  <th className="px-5 py-3.5 text-right">Realized</th>
+                  <th className="px-5 py-3.5 text-right">Unrealized</th>
                   <th className="px-5 py-3.5 text-right">Balance</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {rows.length === 0 ? (
-                  <tr><td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium">No transactions for this fund.</td></tr>
-                ) : rows.map(({ tx, balance, leg }, i) => {
+                  <tr><td colSpan={8} className="px-6 py-12 text-center text-slate-400 font-medium">No transactions for this fund.</td></tr>
+                ) : rows.map(({ tx, balance, leg, realized, unrealized }, i) => {
                   const badge = badgeFor(tx, leg);
                   const gross = tx.quantity * tx.price;
                   const fees = (tx.commission || 0) + (tx.tax || 0) + (tx.cdcCharges || 0) + (tx.otherFees || 0);
@@ -314,6 +331,8 @@ export const FundProfile: React.FC<FundProfileProps> = ({
                       <td className="px-5 py-3.5 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{showUnits ? `${isOutflow(tx) ? '−' : '+'}${fmtFundUnits(tx.quantity)}` : '—'}</td>
                       <td className="px-5 py-3.5 text-right text-slate-600 dark:text-slate-400 font-mono tabular-nums">{showUnits ? fmtFundNav(tx.price) : '—'}</td>
                       <td className={`px-5 py-3.5 text-right font-bold font-mono tabular-nums ${net > 0 ? 'text-emerald-600 dark:text-emerald-400' : net < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400'}`}>{net === 0 ? '—' : `${net >= 0 ? '+' : ''}${f0(net)}`}</td>
+                      <td className={`px-5 py-3.5 text-right font-bold font-mono tabular-nums ${realized == null ? 'text-slate-400' : realized >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>{realized == null ? '—' : rsSigned(realized)}</td>
+                      <td className={`px-5 py-3.5 text-right font-mono tabular-nums ${balance <= 0.0001 ? 'text-slate-400' : unrealized >= 0 ? 'text-emerald-600/90 dark:text-emerald-400/90' : 'text-rose-500/90 dark:text-rose-400/90'}`}>{balance <= 0.0001 ? '—' : rsSigned(unrealized)}</td>
                       <td className="px-5 py-3.5 text-right font-mono font-bold text-slate-700 dark:text-slate-200 tabular-nums">{fmtFundUnits(balance)}</td>
                     </tr>
                   );
