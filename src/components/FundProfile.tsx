@@ -4,7 +4,7 @@ import { ArrowLeft, TrendingUp, Wallet, Briefcase, History, Coins, CheckCircle, 
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { fmtFundNav, fmtFundUnits } from '../utils/fundFormat';
 import { isUnitInflow, isUnitReinvest, type FundConversionLeg } from '../utils/fundCash';
-import { formatAssetLabel, formatConversionSubtext } from '../utils/fundDisplay';
+import { formatConversionSubtext } from '../utils/fundDisplay';
 
 interface FundProfileProps {
   ticker: string;
@@ -128,8 +128,10 @@ export const FundProfile: React.FC<FundProfileProps> = ({
         roi: realizedROI,
         redeemedUnits,
         convertedOutUnits,
+        unitsOut: redeemedUnits + convertedOutUnits,
         proceeds: realizedRevenue,
         cost: realizedCost,
+        avgBuy: redeemedUnits + convertedOutUnits > 0 ? realizedCost / (redeemedUnits + convertedOutUnits) : 0,
         avgSell: redeemedUnits + convertedOutUnits > 0 ? realizedRevenue / (redeemedUnits + convertedOutUnits) : 0,
       },
       incomeStats: { net: dividends - dividendTax, reinvestUnits },
