@@ -201,6 +201,36 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
     }
 };
 
+/**
+ * Last candle close from the same PSX /historical feed the chart uses.
+ * During a live session that bar's close usually tracks the broker quote more
+ * closely than the market-watch CURRENT column Sync scrapes.
+ *
+ * Fetches symbols in small parallel batches so Sync stays responsive.
+ */
+export const fetchLatestCloses = async (
+    symbols: string[],
+    concurrency = 4
+): Promise<Record<string, number>> => {
+    const unique = [...new Set(
+        symbols
+            .map(s => (s || '').toUpperCase().replace(/^PSX:/, '').trim())
+            .filter(s => s && !s.startsWith('MF:'))
+    )];
+    const out: Record<string, number> = {};
+    if (unique.length === 0) return out;
+
+    for (let i = 0; i < unique.length; i += concurrency) {
+        const chunk = unique.slice(i, i + concurrency);
+        await Promise.all(chunk.map(async (sym) => {
+            const bars = await fetchOHLCV(sym);
+            const last = bars[bars.length - 1];
+            if (last && last.close > 0) out[sym] = last.close;
+        }));
+    }
+    return out;
+};
+
 export interface ChartAnalysisPoint {
     time: number;
     close: number;

@@ -41,7 +41,7 @@ import { ChartsExplorer } from './ChartsExplorer';
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, fetchAllPSXPrices, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
+import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
@@ -162,17 +162,21 @@ const App: React.FC = () => {
       () => (typeof window !== 'undefined' ? viewFromPath(window.location.pathname) : 'DASHBOARD')
   );
 
-  // React to browser back/forward — a /stock/TICKER path opens the profile overlay,
-  // any other path selects the matching page. (URL is pushed further below, once
-  // viewTicker state exists.)
+  // React to browser back/forward — /stock/TICKER or /fund/... opens a profile overlay.
   useEffect(() => {
       const onPop = () => {
           const path = window.location.pathname;
-          const m = path.match(/^\/stock\/([^/]+)/i);
-          if (m) {
-              setViewTicker(decodeURIComponent(m[1]).toUpperCase());
+          const stock = path.match(/^\/stock\/([^/]+)/i);
+          const fund = path.match(/^\/fund\/([^/]+)/i);
+          if (stock) {
+              setViewFundTicker(null);
+              setViewTicker(decodeURIComponent(stock[1]).toUpperCase());
+          } else if (fund) {
+              setViewTicker(null);
+              setViewFundTicker(decodeURIComponent(fund[1]));
           } else {
               setViewTicker(null);
+              setViewFundTicker(null);
               setCurrentView(viewFromPath(path));
           }
       };
@@ -183,7 +187,11 @@ const App: React.FC = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [agentSeedPrompt, setAgentSeedPrompt] = useState<string | null>(null);
-  const [viewFundTicker, setViewFundTicker] = useState<string | null>(null);
+  const [viewFundTicker, setViewFundTicker] = useState<string | null>(() => {
+      if (typeof window === 'undefined') return null;
+      const m = window.location.pathname.match(/^\/fund\/([^/]+)/i);
+      return m ? decodeURIComponent(m[1]) : null;
+  });
 
   const [viewTicker, setViewTicker] = useState<string | null>(() => {
       if (typeof window === 'undefined') return null;
@@ -191,15 +199,17 @@ const App: React.FC = () => {
       return m ? decodeURIComponent(m[1]).toUpperCase() : null;
   });
 
-  // Push the URL for the current page — or /stock/TICKER when a profile is open.
+  // Push the URL for the current page — or /stock|/fund when a profile is open.
   useEffect(() => {
-      const path = viewTicker
+      const path = viewFundTicker
+          ? `/fund/${encodeURIComponent(viewFundTicker)}`
+          : viewTicker
           ? `/stock/${encodeURIComponent(viewTicker)}`
           : (VIEW_TO_PATH[currentView] || '/');
       if (window.location.pathname !== path) {
           window.history.pushState(null, '', path);
       }
-  }, [currentView, viewTicker]);
+  }, [currentView, viewTicker, viewFundTicker]);
 
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       if (startEmpty) return [DEFAULT_BROKER];
@@ -1034,10 +1044,9 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = useCallback(async () => {
-      // Sync prices for the ENTIRE PSX market in a single request. The market-watch
-      // board already lists every symbol, so this prices your holdings, your closed
-      // positions, AND any stock you've never traded — so any profile you open has a
-      // live price.
+      // 1) Market-watch: one scrape for the whole board (LDCP, sector, listedIn, baseline prices).
+      // 2) Chart OHLC last-close for holdings: same /historical feed as StockChart — usually
+      //    fresher than market-watch CURRENT during a live session (what you see matching the broker).
       setIsSyncing(true);
       setPriceError(false);
       setFailedTickers(new Set());
@@ -1068,6 +1077,29 @@ const App: React.FC = () => {
                   }
               }
           });
+
+          // Prefer chart-source closes for stocks you hold (and watchlist, if present).
+          const heldTickers = holdings
+              .map(h => h.ticker)
+              .filter(t => t && !isFundTicker(t));
+          const watchTickers = (watchlist || []).filter(t => t && !isFundTicker(t));
+          const preferOhlc = [...new Set([...heldTickers, ...watchTickers])];
+
+          if (preferOhlc.length > 0) {
+              try {
+                  const ohlcCloses = await fetchLatestCloses(preferOhlc);
+                  const ohlcCount = Object.keys(ohlcCloses).length;
+                  console.log(`[App.tsx] Chart OHLC overlay: ${ohlcCount}/${preferOhlc.length} held/watch symbols`);
+                  Object.entries(ohlcCloses).forEach(([ticker, close]) => {
+                      if (close > 0) {
+                          validUpdates[ticker] = close;
+                          timestampUpdates[ticker] = now;
+                      }
+                  });
+              } catch (e) {
+                  console.warn('[App.tsx] OHLC overlay failed — keeping market-watch prices', e);
+              }
+          }
 
           if (Object.keys(validUpdates).length > 0) {
               setManualPrices(prev => ({ ...prev, ...validUpdates }));
@@ -1103,7 +1135,7 @@ const App: React.FC = () => {
       } finally {
           setIsSyncing(false);
       }
-  }, [holdings]);
+  }, [holdings, watchlist]);
 
   const handleSyncFundNav = useCallback(async () => {
       setIsSyncing(true);

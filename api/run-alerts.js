@@ -1,5 +1,6 @@
 import webpush from 'web-push';
 import { allSids, getRecord, putRecord, deleteRecord } from '../lib/alertsStore.js';
+import { fetchPsxLatestCloses } from '../lib/psxOhlc.js';
 
 // Fetch the PSX market-watch page once and return { TICKER: price }.
 async function fetchLivePrices() {
@@ -75,8 +76,24 @@ export default async function handler(req, res) {
     }
     if (records.length === 0) return res.status(200).json({ message: 'No active alerts' });
 
-    // One price fetch for everyone.
+    // Market-watch baseline (whole board, one scrape). Then overwrite each *alert*
+    // ticker with the chart OHLC last close — same /historical feed StockChart uses.
+    // This runs on the cron while the app is closed, so push alerts use the fresher price.
     const livePrices = await fetchLivePrices();
+    const alertTickers = [
+      ...new Set(
+        records.flatMap(({ rec }) =>
+          (rec.alerts || []).map((a) => String(a.ticker || '').toUpperCase()).filter(Boolean)
+        )
+      ),
+    ];
+    try {
+      const ohlcCloses = await fetchPsxLatestCloses(alertTickers);
+      Object.assign(livePrices, ohlcCloses);
+      console.log(`[run-alerts] OHLC overlay: ${Object.keys(ohlcCloses).length}/${alertTickers.length} alert tickers`);
+    } catch (e) {
+      console.warn('[run-alerts] OHLC overlay failed — using market-watch only', e);
+    }
 
     let pushesSent = 0;
 
@@ -87,7 +104,8 @@ export default async function handler(req, res) {
         let subscriptionDead = false;
 
         for (const alert of rec.alerts) {
-          const price = livePrices[alert.ticker];
+          const ticker = String(alert.ticker || '').toUpperCase();
+          const price = livePrices[ticker] ?? livePrices[alert.ticker];
           if (price == null) { remaining.push(alert); continue; }
 
           const hit =
@@ -97,7 +115,7 @@ export default async function handler(req, res) {
           if (!hit) { remaining.push(alert); continue; }
 
           const payload = JSON.stringify({
-            title: `PSX Alert: ${alert.ticker} hit Rs. ${price}`,
+            title: `PSX Alert: ${ticker || alert.ticker} hit Rs. ${price}`,
             body: `Target was Rs. ${alert.targetPrice}. Open the app to view your portfolio.`
           });
 
