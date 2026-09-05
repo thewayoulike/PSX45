@@ -1749,7 +1749,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           setLineFallback([]);
           setErr(
             bars.length === 0
-              ? 'No intraday candles yet. Add PYPSX_API_KEY_ID / PYPSX_API_SECRET_KEY on the server, then refresh. Coverage starts ~Oct 2025.'
+              ? 'No intraday candles returned. Coverage starts ~Oct 2025; try 5D after market hours, or check PYPSX keys on the server / .env.local for local dev.'
               : 'Not enough intraday bars to chart.'
           );
         }
@@ -1769,7 +1769,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       }
     } catch (e) {
       console.error('StockChart load failed', e);
-      setErr('Failed to load chart data.');
+      const msg = e instanceof Error ? e.message : String(e);
+      setErr(msg && msg !== 'Failed to fetch' ? msg : 'Failed to load chart data.');
     } finally {
       setLoading(false);
       setLoaded(true);

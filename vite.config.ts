@@ -2,7 +2,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
-/** Local /api/proxy?ohlc= / ?company= and legacy /api/ohlc for dev without Vercel. */
+/** Local /api/proxy?ohlc|company|analysis|intraday and /api/pypsx for dev without Vercel. */
 function localPsxApi(): Plugin {
   return {
     name: 'local-psx-api',
@@ -13,8 +13,12 @@ function localPsxApi(): Plugin {
         const isProxyOhlc = url.startsWith('/api/proxy') && (url.includes('ohlc=') || url.includes('mode=ohlc'));
         const isProxyCompany = url.startsWith('/api/proxy') && (url.includes('company=') || url.includes('mode=company'));
         const isProxyAnalysis = url.startsWith('/api/proxy') && (url.includes('analysis=') || url.includes('mode=analysis'));
+        const isProxyIntraday =
+          url.startsWith('/api/proxy') && (url.includes('intraday=') || url.includes('mode=intraday'));
         const isPypsx = url.startsWith('/api/pypsx');
-        if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis && !isPypsx) return next();
+        if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis && !isProxyIntraday && !isPypsx) {
+          return next();
+        }
         try {
           const u = new URL(url, 'http://localhost');
           if (isPypsx) {
@@ -50,9 +54,44 @@ function localPsxApi(): Plugin {
               res.end(JSON.stringify(payload));
               return;
             }
+            if (mode === 'intraday') {
+              const symbol = u.searchParams.get('symbol') || u.searchParams.get('intraday') || '';
+              const interval = u.searchParams.get('interval') || '5m';
+              const period = u.searchParams.get('period') || '5d';
+              if (!symbol) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'symbol required' }));
+                return;
+              }
+              const { fetchPypsxToolkit } = await import('./lib/pypsxFetch.js');
+              const payload = await fetchPypsxToolkit('intraday', { symbol, interval, period });
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(payload));
+              return;
+            }
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'mode required: company|analysis' }));
+            res.end(JSON.stringify({ error: 'mode required: company|analysis|intraday' }));
+            return;
+          }
+          if (isProxyIntraday) {
+            const intraday = u.searchParams.get('intraday') || '';
+            const interval = u.searchParams.get('interval') || '5m';
+            const period = u.searchParams.get('period') || '5d';
+            if (!intraday) {
+              res.statusCode = 400;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'intraday symbol is required' }));
+              return;
+            }
+            const { fetchPypsxIntraday } = await import('./lib/pypsxIntraday.js');
+            const payload = await fetchPypsxIntraday(intraday, interval, period);
+            res.statusCode = 200;
+            res.setHeader('Content-Type', 'application/json');
+            res.setHeader('Cache-Control', 'no-store');
+            res.end(JSON.stringify(payload));
             return;
           }
           if (isProxyAnalysis) {
