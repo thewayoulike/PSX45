@@ -4,7 +4,8 @@
     "api/pypsx.py": {
       "maxDuration": 60,
       "memory": 1024,
-      "includeFiles": "api/pypsx_lib.py"
+      "includeFiles": "api/pypsx_lib.py",
+      "excludeFiles": "{node_modules,dist,src,public,.cursor,.github,.git,data,coverage,tests,canvases}/**"
     }
   },
   "rewrites": [
