@@ -1,5 +1,6 @@
 {
   "cleanUrls": true,
+  "trailingSlash": false,
   "functions": {
     "api/pypsx.py": {
       "maxDuration": 60,
@@ -10,8 +11,8 @@
   },
   "rewrites": [
     {
-      "source": "/((?!api/|data/).*)",
-      "destination": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index"
     }
   ],
   "headers": [
