@@ -86,12 +86,16 @@ html.dark {
     color: rgb(var(--text));
   }
 
-  /* Respect users who prefer less motion */
+  /* Respect users who prefer less motion — but keep loading spinners usable.
+     A frozen Loader2/RefreshCw looks broken; infinite spin is functional feedback. */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {
       animation-duration: 0.001ms !important;
       animation-iteration-count: 1 !important;
       transition-duration: 0.001ms !important;
+    }
+    .animate-spin {
+      animation: spin 0.8s linear infinite !important;
     }
   }
 }

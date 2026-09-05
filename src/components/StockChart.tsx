@@ -302,10 +302,12 @@ const RANGES: { k: string; days: number; period: string }[] = [
   { k: 'ALL', days: 0, period: 'max' },
 ];
 
-/** Ranges for pyPSX intraday candles (coverage is recent / short). */
-const INTRADAY_RANGES: { k: string; days: number; period: '1d' | '5d' }[] = [
+/** Ranges for pyPSX intraday candles (API: 1d / 5d / 1w / 1mo; history from ~Oct 2025). */
+const INTRADAY_RANGES: { k: string; days: number; period: '1d' | '5d' | '1w' | '1mo' }[] = [
   { k: '1D', days: 1, period: '1d' },
   { k: '5D', days: 5, period: '5d' },
+  { k: '1W', days: 7, period: '1w' },
+  { k: '1M', days: 30, period: '1mo' },
 ];
 
 const isIntradayInterval = (iv: CandleInterval): iv is '1m' | '5m' | '15m' =>
@@ -1739,7 +1741,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     try {
       if (isIntradayInterval(candleInterval)) {
         const period = (INTRADAY_RANGES.find((x) => x.k === range)?.period
-          ?? (range === '1D' ? '1d' : '5d')) as '1d' | '5d';
+          ?? (range === '1D' ? '1d' : range === '1M' ? '1mo' : range === '1W' ? '1w' : '5d')) as
+          '1d' | '5d' | '1w' | '1mo';
         const bars = await fetchIntradayOHLCV(symbol, candleInterval, period);
         if (bars.length >= 2) {
           setOhlc(bars);
@@ -2400,7 +2403,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
             <MomentumPanel config={momentumConfig} onApply={setMomentumConfig} disabled={loading} />
           )}
           <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={15} className={loading ? 'animate-spin text-emerald-500' : ''} aria-hidden />
           </button>
         </div>
       </div>
@@ -2452,7 +2455,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         {showTechnical ? (
           loading && filteredAnalysis.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-28 text-slate-400">
-              <Loader2 size={22} className="animate-spin mb-2" />
+              <Loader2 size={22} className="animate-spin mb-2 text-emerald-500" aria-hidden />
               <span className="text-xs font-medium">Loading price history for {symbol}…</span>
             </div>
           ) : filteredAnalysis.length < 2 ? (
@@ -2469,7 +2472,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           )
         ) : loading && filteredOhlc.length === 0 && chartData.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-28 text-slate-400">
-            <Loader2 size={22} className="animate-spin mb-2" />
+            <Loader2 size={22} className="animate-spin mb-2 text-emerald-500" aria-hidden />
             <span className="text-xs font-medium">Loading OHLCV history for {symbol}…</span>
           </div>
         ) : err && loaded ? (
