@@ -201,6 +201,49 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
     }
 };
 
+export type IntradayInterval = '1m' | '5m' | '15m' | '30m' | '1h';
+export type IntradayPeriod = '1d' | '5d' | '1w' | '1mo';
+
+/**
+ * Intraday OHLCV via pyPSX (server keys). Same candles the Colab notebook uses.
+ * Available to every app user — keys stay on the server.
+ */
+export const fetchIntradayOHLCV = async (
+    symbol: string,
+    interval: IntradayInterval = '5m',
+    period: IntradayPeriod = '5d'
+): Promise<OhlcBar[]> => {
+    const clean = symbol.toUpperCase().replace('PSX:', '').trim();
+    if (!clean) return [];
+    try {
+        const qs = new URLSearchParams({
+            intraday: clean,
+            interval,
+            period,
+            t: String(Date.now()),
+        });
+        const res = await fetchWithTimeout(`/api/proxy?${qs.toString()}`, {}, 60000);
+        if (!res.ok) throw new Error(`intraday ${res.status}`);
+        const json = await res.json();
+        if (json?.error) throw new Error(json.error);
+        const bars = Array.isArray(json?.bars) ? json.bars : [];
+        return bars
+            .map((b: any) => ({
+                time: Number(b.time),
+                open: Number(b.open),
+                high: Number(b.high),
+                low: Number(b.low),
+                close: Number(b.close),
+                volume: Number(b.volume) || 0,
+            }))
+            .filter((b: OhlcBar) => b.time > 0 && b.close > 0 && b.high > 0 && b.low > 0 && b.open > 0)
+            .sort((a: OhlcBar, b: OhlcBar) => a.time - b.time);
+    } catch (e) {
+        console.warn('fetchIntradayOHLCV failed', e);
+        return [];
+    }
+};
+
 /**
  * Last candle close from the same PSX /historical feed the chart uses.
  * During a live session that bar's close usually tracks the broker quote more

@@ -177,3 +177,162 @@ def get_chart_analysis(symbol: str, period: str = "6mo") -> dict[str, Any]:
         }
     except Exception as exc:
         return {"error": str(exc), "symbol": clean, "period": period}
+
+
+INTRADAY_INTERVALS = {"1m", "5m", "15m", "30m", "1h"}
+INTRADAY_PERIODS = {"1d", "5d", "1w", "1mo"}
+
+
+def _load_dotenv_quiet():
+    try:
+        from dotenv import load_dotenv
+        from pathlib import Path
+
+        root = Path(__file__).resolve().parent.parent
+        load_dotenv(root / ".env.local")
+        load_dotenv(root / ".env")
+    except Exception:
+        pass
+
+
+def _row_get(row: Any, *names: str) -> Any:
+    if isinstance(row, dict):
+        lower = {str(k).lower(): v for k, v in row.items()}
+        for n in names:
+            if n.lower() in lower:
+                return lower[n.lower()]
+        return None
+    for n in names:
+        if hasattr(row, n):
+            return getattr(row, n)
+        if hasattr(row, n.lower()):
+            return getattr(row, n.lower())
+        if hasattr(row, n.upper()):
+            return getattr(row, n.upper())
+    return None
+
+
+def _to_time_ms(val: Any) -> int:
+    if val is None:
+        return 0
+    if hasattr(val, "timestamp"):
+        try:
+            return int(val.timestamp() * 1000)
+        except Exception:
+            pass
+    if isinstance(val, (int, float)):
+        n = float(val)
+        return int(n if n > 1e12 else n * 1000)
+    try:
+        import pandas as pd
+
+        ts = pd.Timestamp(val)
+        if ts.tzinfo is None:
+            # PSX session times are PKT (UTC+5)
+            ts = ts.tz_localize("Asia/Karachi")
+        return int(ts.timestamp() * 1000)
+    except Exception:
+        return 0
+
+
+def get_intraday_ohlcv(
+    symbol: str,
+    interval: str = "5m",
+    period: str = "5d",
+) -> dict[str, Any]:
+    """
+    Intraday OHLCV via authenticated pypsx SDK (same as Colab).
+    Keys: PYPSX_API_KEY_ID + PYPSX_API_SECRET_KEY (server env only).
+    Coverage roughly from 2025-10-20 onward.
+    """
+    _load_dotenv_quiet()
+    clean = (symbol or "").strip().upper()
+    interval = (interval or "5m").strip().lower()
+    period = (period or "5d").strip().lower()
+    if not clean:
+        return {"error": "symbol required"}
+    if interval not in INTRADAY_INTERVALS:
+        interval = "5m"
+    if period not in INTRADAY_PERIODS:
+        period = "5d"
+
+    import os
+
+    key_id = (os.environ.get("PYPSX_API_KEY_ID") or "").strip()
+    secret = (os.environ.get("PYPSX_API_SECRET_KEY") or "").strip()
+    if not key_id or not secret:
+        return {
+            "error": "PYPSX API keys missing",
+            "hint": "Set PYPSX_API_KEY_ID and PYPSX_API_SECRET_KEY in Vercel env / .env.local",
+        }
+
+    try:
+        import pypsx
+    except ImportError:
+        return {"error": "pypsx not installed", "hint": "pip install pypsx"}
+
+    try:
+        df = pypsx.get_intraday(clean, period=period, interval=interval)
+        if df is None or getattr(df, "empty", True):
+            return {
+                "symbol": clean,
+                "interval": interval,
+                "period": period,
+                "bars": [],
+                "count": 0,
+                "source": "pypsx:intraday",
+                "note": "No intraday bars (check market hours / coverage from 2025-10-20).",
+            }
+
+        flat = flatten_columns(df)
+        if hasattr(flat.index, "names") and flat.index.names and flat.index.names[0]:
+            flat = flat.reset_index()
+
+        bars = []
+        for _, row in flat.iterrows():
+            raw = row.to_dict() if hasattr(row, "to_dict") else row
+            t = _to_time_ms(
+                _row_get(raw, "datetime", "Datetime", "DATE", "date", "time", "Time", "index")
+            )
+            if not t and hasattr(row, "name"):
+                t = _to_time_ms(row.name)
+            o = _row_get(raw, "open", "OPEN", "Open")
+            h = _row_get(raw, "high", "HIGH", "High")
+            lo = _row_get(raw, "low", "LOW", "Low")
+            c = _row_get(raw, "close", "CLOSE", "Close")
+            v = _row_get(raw, "volume", "VOLUME", "Volume") or 0
+            try:
+                o, h, lo, c = float(o), float(h), float(lo), float(c)
+                v = float(v) if v is not None else 0.0
+            except (TypeError, ValueError):
+                continue
+            if not (t > 0 and c > 0 and o > 0 and h > 0 and lo > 0):
+                continue
+            if any(math.isnan(x) for x in (o, h, lo, c)):
+                continue
+            bars.append(
+                {
+                    "time": t,
+                    "open": o,
+                    "high": h,
+                    "low": lo,
+                    "close": c,
+                    "volume": v if not math.isnan(v) else 0,
+                }
+            )
+
+        bars.sort(key=lambda b: b["time"])
+        # Dedupe identical timestamps (keep last)
+        by_t = {b["time"]: b for b in bars}
+        bars = sorted(by_t.values(), key=lambda b: b["time"])
+
+        return {
+            "symbol": clean,
+            "interval": interval,
+            "period": period,
+            "bars": bars,
+            "count": len(bars),
+            "source": "pypsx:intraday",
+        }
+    except Exception as exc:
+        return {"error": str(exc), "symbol": clean, "interval": interval, "period": period}

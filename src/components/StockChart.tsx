@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useId } from 'react';
-import { fetchOHLCV, fetchStockHistory, fetchChartAnalysis, OhlcBar, ChartAnalysisPoint } from '../services/psxData';
+import { fetchOHLCV, fetchIntradayOHLCV, fetchStockHistory, fetchChartAnalysis, OhlcBar, ChartAnalysisPoint } from '../services/psxData';
 import { computeChartAnalysisFromBars } from '../utils/chartAnalysis';
 import {
   computeAwaisOverlays,
@@ -301,6 +301,15 @@ const RANGES: { k: string; days: number; period: string }[] = [
   { k: '1Y', days: 365, period: '1y' },
   { k: 'ALL', days: 0, period: 'max' },
 ];
+
+/** Ranges for pyPSX intraday candles (coverage is recent / short). */
+const INTRADAY_RANGES: { k: string; days: number; period: '1d' | '5d' }[] = [
+  { k: '1D', days: 1, period: '1d' },
+  { k: '5D', days: 5, period: '5d' },
+];
+
+const isIntradayInterval = (iv: CandleInterval): iv is '1m' | '5m' | '15m' =>
+  iv === '1m' || iv === '5m' || iv === '15m';
 
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtVol = (n: number) =>
@@ -1680,8 +1689,6 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     return () => window.removeEventListener(CHART_SETTINGS_EVENT, onCloudSettings);
   }, []);
 
-  const rangeMeta = RANGES.find((x) => x.k === range) ?? RANGES[1];
-
   useEffect(() => {
     setZoomIdx(0);
     setViewStart(0);
@@ -1722,11 +1729,33 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     return () => window.removeEventListener('keydown', onKey);
   }, [selectedDrawingId]);
 
+  const rangeMeta = RANGES.find((x) => x.k === range) ?? RANGES[1];
+  const onIntraday = isIntradayInterval(candleInterval);
+
   const load = async () => {
     if (!symbol) return;
     setLoading(true);
     setErr('');
     try {
+      if (isIntradayInterval(candleInterval)) {
+        const period = (INTRADAY_RANGES.find((x) => x.k === range)?.period
+          ?? (range === '1D' ? '1d' : '5d')) as '1d' | '5d';
+        const bars = await fetchIntradayOHLCV(symbol, candleInterval, period);
+        if (bars.length >= 2) {
+          setOhlc(bars);
+          setLineFallback([]);
+        } else {
+          setOhlc([]);
+          setLineFallback([]);
+          setErr(
+            bars.length === 0
+              ? 'No intraday candles yet. Add PYPSX_API_KEY_ID / PYPSX_API_SECRET_KEY on the server, then refresh. Coverage starts ~Oct 2025.'
+              : 'Not enough intraday bars to chart.'
+          );
+        }
+        return;
+      }
+
       const bars = await fetchOHLCV(symbol);
       if (bars.length >= 5) {
         setOhlc(bars);
@@ -1748,24 +1777,30 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   };
 
   useEffect(() => {
-    if (!symbol || import.meta.env.PROD) return;
+    if (!symbol || import.meta.env.PROD || onIntraday) return;
     fetchChartAnalysis(symbol, rangeMeta.period)
       .then((points) => { if (points.length) setAnalysis(points); })
       .catch(() => setAnalysis([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol, range, mode]);
+  }, [symbol, range, mode, onIntraday]);
 
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol]);
+  }, [symbol, candleInterval, range]);
 
   const filteredOhlc = useMemo(() => {
+    if (onIntraday) {
+      const r = INTRADAY_RANGES.find((x) => x.k === range);
+      if (!r) return ohlc;
+      const cutoff = Date.now() - r.days * 86400000;
+      return ohlc.filter((p) => p.time >= cutoff);
+    }
     const r = RANGES.find((x) => x.k === range);
     if (!r || r.days === 0) return ohlc;
     const cutoff = Date.now() - r.days * 86400000;
     return ohlc.filter((p) => p.time >= cutoff);
-  }, [ohlc, range]);
+  }, [ohlc, range, onIntraday]);
 
   const filteredLine = useMemo(() => {
     const r = RANGES.find((x) => x.k === range);
@@ -1814,15 +1849,16 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     [filteredLine]
   );
 
-  const canCandle = filteredOhlc.length >= 5;
+  const canCandle = onIntraday ? filteredOhlc.length >= 2 : filteredOhlc.length >= 5;
   const showCandle = mode === 'candle' && canCandle;
   const showTechnical = mode === 'technical';
   const candleOhlc = useMemo(() => {
     if (!showCandle) return filteredOhlc;
+    if (onIntraday) return filteredOhlc;
     if (candleInterval === 'month') return aggregateMonthly(filteredOhlc);
     if (candleInterval === 'week') return aggregateWeekly(filteredOhlc);
     return filteredOhlc;
-  }, [filteredOhlc, candleInterval, showCandle]);
+  }, [filteredOhlc, candleInterval, showCandle, onIntraday]);
   const modeLabel = showTechnical
     ? 'BB + RSI'
     : showCandle
@@ -1830,8 +1866,24 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         ? 'Candles · Monthly'
         : candleInterval === 'week'
           ? 'Candles · Weekly'
-          : 'Candles · Daily'
+          : candleInterval === '15m'
+            ? 'Candles · 15m'
+            : candleInterval === '5m'
+              ? 'Candles · 5m'
+              : candleInterval === '1m'
+                ? 'Candles · 1m'
+                : 'Candles · Daily'
       : 'Price';
+
+  const selectInterval = (iv: CandleInterval) => {
+    setCandleInterval(iv);
+    if (isIntradayInterval(iv)) {
+      setMode('candle');
+      if (!INTRADAY_RANGES.some((r) => r.k === range)) setRange('5D');
+    } else if (INTRADAY_RANGES.some((r) => r.k === range)) {
+      setRange('3M');
+    }
+  };
 
   const primaryLen = showCandle
     ? candleOhlc.length
@@ -2258,33 +2310,29 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               BB + RSI
             </button>
           </div>
-          {showCandle && (
-            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-              <button
-                type="button"
-                onClick={() => setCandleInterval('day')}
-                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${candleInterval === 'day' ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500'}`}
-              >
-                Day
-              </button>
-              <button
-                type="button"
-                onClick={() => setCandleInterval('week')}
-                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${candleInterval === 'week' ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500'}`}
-              >
-                Week
-              </button>
-              <button
-                type="button"
-                onClick={() => setCandleInterval('month')}
-                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${candleInterval === 'month' ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500'}`}
-              >
-                Month
-              </button>
+          {(showCandle || onIntraday || mode === 'candle') && (
+            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 flex-wrap">
+              {([
+                ['1m', '1m'],
+                ['5m', '5m'],
+                ['15m', '15m'],
+                ['day', 'Day'],
+                ['week', 'Week'],
+                ['month', 'Month'],
+              ] as const).map(([iv, label]) => (
+                <button
+                  key={iv}
+                  type="button"
+                  onClick={() => selectInterval(iv)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${candleInterval === iv ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500'}`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           )}
           <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-            {RANGES.map((r) => (
+            {(onIntraday ? INTRADAY_RANGES : RANGES).map((r) => (
               <button
                 key={r.k}
                 onClick={() => setRange(r.k)}

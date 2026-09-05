@@ -3,6 +3,7 @@
 import { fetchPsxOhlc } from '../lib/psxOhlc.js';
 import { fetchPypsxCompanyInfo } from '../lib/pypsxCompanyInfo.js';
 import { fetchPypsxChartAnalysis } from '../lib/pypsxChartAnalysis.js';
+import { fetchPypsxIntraday } from '../lib/pypsxIntraday.js';
 
 const ALLOWED_HOSTS = new Set([
   'dps.psx.com.pk',
@@ -74,6 +75,23 @@ export default async function handler(req, res) {
       return res.status(200).json(payload);
     } catch (e) {
       return res.status(502).json({ error: e.message || 'Chart analysis fetch failed' });
+    }
+  }
+
+  // --- Intraday OHLCV via authenticated pypsx SDK ---
+  const intradaySymbol = String(req.query.intraday || '').trim();
+  const wantsIntraday = Boolean(req.query.intraday) || String(req.query.mode || '') === 'intraday';
+  if (wantsIntraday) {
+    if (!intradaySymbol) return res.status(400).json({ error: 'intraday symbol is required' });
+    const interval = String(req.query.interval || '5m').trim().toLowerCase();
+    const period = String(req.query.period || '5d').trim().toLowerCase();
+    try {
+      const payload = await fetchPypsxIntraday(intradaySymbol, interval, period);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+      return res.status(200).json(payload);
+    } catch (e) {
+      return res.status(502).json({ error: e.message || 'Intraday fetch failed' });
     }
   }
 

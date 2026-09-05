@@ -1,7 +1,15 @@
-export type CandleInterval = 'day' | 'week' | 'month';
+export type CandleInterval = '1m' | '5m' | '15m' | 'day' | 'week' | 'month';
 
 /** TradingView-style sparse date labels — always include year for day/week. */
 export function fmtChartAxisDate(ms: number, interval: CandleInterval): string {
+  if (interval === '1m' || interval === '5m' || interval === '15m') {
+    return new Date(ms).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  }
   if (interval === 'month') {
     return new Date(ms).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
   }
