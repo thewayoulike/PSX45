@@ -310,8 +310,8 @@ const INTRADAY_RANGES: { k: string; days: number; period: '1d' | '5d' | '1w' | '
   { k: '1M', days: 30, period: '1mo' },
 ];
 
-const isIntradayInterval = (iv: CandleInterval): iv is '1m' | '5m' | '15m' =>
-  iv === '1m' || iv === '5m' || iv === '15m';
+const isIntradayInterval = (iv: CandleInterval): iv is '1m' | '5m' | '15m' | '1h' =>
+  iv === '1m' || iv === '5m' || iv === '15m' || iv === '1h';
 
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtVol = (n: number) =>
@@ -1870,13 +1870,15 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         ? 'Candles · Monthly'
         : candleInterval === 'week'
           ? 'Candles · Weekly'
-          : candleInterval === '15m'
-            ? 'Candles · 15m'
-            : candleInterval === '5m'
-              ? 'Candles · 5m'
-              : candleInterval === '1m'
-                ? 'Candles · 1m'
-                : 'Candles · Daily'
+          : candleInterval === '1h'
+            ? 'Candles · 1h'
+            : candleInterval === '15m'
+              ? 'Candles · 15m'
+              : candleInterval === '5m'
+                ? 'Candles · 5m'
+                : candleInterval === '1m'
+                  ? 'Candles · 1m'
+                  : 'Candles · Daily'
       : 'Price';
 
   const selectInterval = (iv: CandleInterval) => {
@@ -2320,6 +2322,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
                 ['1m', '1m'],
                 ['5m', '5m'],
                 ['15m', '15m'],
+                ['1h', '1h'],
                 ['day', 'Day'],
                 ['week', 'Week'],
                 ['month', 'Month'],
