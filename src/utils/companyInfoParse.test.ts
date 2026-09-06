@@ -26,21 +26,33 @@ describe('parsePipeSeries', () => {
 });
 
 describe('periodLabels', () => {
-  it('marks most recent first', () => {
-    expect(periodLabels(4)).toEqual(['Latest', '−1', '−2', '−3']);
+  it('uses provided year labels when available', () => {
+    expect(periodLabels(4, ['2025', '2024', '2023', '2022'])).toEqual([
+      '2025',
+      '2024',
+      '2023',
+      '2022',
+    ]);
+  });
+
+  it('falls back to FY offsets when years missing', () => {
+    expect(periodLabels(3)).toEqual(['FY', 'FY-1', 'FY-2']);
   });
 });
 
 describe('rowsToFinancials', () => {
   it('builds annual-style rows from metric map', () => {
-    const rows = rowsToFinancials({
-      Sales: '100 | 90 | 80',
-      'Profit after Taxation': '10 | 9 | 8',
-      EPS: '2.0 | 1.8 | 1.6',
-    });
+    const rows = rowsToFinancials(
+      {
+        Sales: '100 | 90 | 80',
+        'Profit after Taxation': '10 | 9 | 8',
+        EPS: '2.0 | 1.8 | 1.6',
+      },
+      ['2025', '2024', '2023']
+    );
     expect(rows).toHaveLength(3);
     expect(rows[0]).toMatchObject({
-      year: 'Latest',
+      year: '2025',
       sales: '100',
       profitAfterTax: '10',
       eps: '2.0',
@@ -58,7 +70,7 @@ describe('rowsToRatios', () => {
       PEG: '0.5 | 0.6',
     });
     expect(rows[0]).toMatchObject({
-      year: 'Latest',
+      year: 'FY',
       grossProfitMargin: '35',
       netProfitMargin: '12',
       epsGrowth: '(21)',

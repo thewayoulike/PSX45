@@ -40,6 +40,8 @@ export interface FundamentalsData {
 export interface LatestDividendInfo {
     dividendYield: string;
     annualDividend: string;
+    /** Cash amount of the most recent payout (from dividend history). */
+    cashAmount?: string;
     exDividendDate: string;
     payoutFrequency: string;
     payoutRatio: string;

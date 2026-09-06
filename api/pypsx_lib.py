@@ -19,12 +19,13 @@ def df_records(df):
     return out.to_dict(orient="records")
 
 
-def normalize_latest(row):
+def normalize_latest(row, cash_amount: str | None = None):
     if not row:
         return None
     return {
         "dividendYield": row.get("DIVIDEND YIELD", "-"),
         "annualDividend": row.get("ANNUAL DIVIDEND", "-"),
+        "cashAmount": cash_amount or row.get("CASH AMOUNT", "-"),
         "exDividendDate": row.get("EX-DIVIDEND DATE", "-"),
         "payoutFrequency": row.get("PAYOUT FREQUENCY", "-"),
         "payoutRatio": row.get("PAYOUT RATIO", "-"),
@@ -84,8 +85,52 @@ def _pipe_series(value: str) -> list[str]:
     return [p.strip() for p in s.split("|") if p.strip()]
 
 
-def _period_labels(n: int) -> list[str]:
-    return ["Latest" if i == 0 else f"−{i}" for i in range(n)]
+def _period_labels(n: int, years: list[str] | None = None) -> list[str]:
+    if years and len(years) >= n:
+        return years[:n]
+    if years:
+        out = list(years)
+        while len(out) < n:
+            out.append(f"FY-{len(out)}")
+        return out[:n]
+    return ["FY" if i == 0 else f"FY-{i}" for i in range(n)]
+
+
+def _format_quarter_label(period_ended: str) -> str:
+    """2026-06-30 → Jun 2026; bare year left as-is."""
+    s = (period_ended or "").strip()
+    if not s or s == "-":
+        return s
+    try:
+        from datetime import datetime
+
+        dt = datetime.strptime(s[:10], "%Y-%m-%d")
+        return dt.strftime("%b %Y")
+    except ValueError:
+        if len(s) == 4 and s.isdigit():
+            return s
+        return s
+
+
+def _labels_from_reports(reports_df, report_type: str, n: int) -> list[str]:
+    if n <= 0 or reports_df is None or getattr(reports_df, "empty", True):
+        return []
+    reset = reports_df.reset_index()
+    if "REPORT_TYPE" not in reset.columns:
+        return []
+    rows = reset[reset["REPORT_TYPE"].astype(str).str.lower() == report_type.lower()].copy()
+    if rows.empty:
+        return []
+    rows["_period"] = rows["PERIOD_ENDED"].astype(str)
+    rows = rows.sort_values("_period", ascending=False)
+    labels: list[str] = []
+    for p in rows["_period"].tolist():
+        label = _format_quarter_label(p) if report_type.lower() == "quarterly" else str(p)[:4]
+        if label and label not in labels:
+            labels.append(label)
+        if len(labels) >= n:
+            break
+    return labels
 
 
 def _metric_map(df, category: str) -> dict[str, str]:
@@ -115,7 +160,7 @@ def _pick_series(mmap: dict[str, str], keys: list[str]) -> list[str]:
     return []
 
 
-def _financial_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
+def _financial_rows(mmap: dict[str, str], years: list[str] | None = None) -> list[dict[str, str]]:
     sales = _pick_series(mmap, ["Sales", "Revenue"])
     income = _pick_series(mmap, ["Total Income"])
     profit = _pick_series(mmap, ["Profit after Taxation", "Profit After Tax", "Net Profit"])
@@ -124,7 +169,7 @@ def _financial_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
     if n == 0:
         return []
     rows = []
-    for i, year in enumerate(_period_labels(n)):
+    for i, year in enumerate(_period_labels(n, years)):
         rows.append(
             {
                 "year": year,
@@ -137,7 +182,7 @@ def _financial_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
     return rows
 
 
-def _ratio_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
+def _ratio_rows(mmap: dict[str, str], years: list[str] | None = None) -> list[dict[str, str]]:
     gpm = _pick_series(mmap, ["Gross Profit Margin"])
     npm = _pick_series(mmap, ["Net Profit Margin"])
     growth = _pick_series(mmap, ["EPS Growth"])
@@ -146,7 +191,7 @@ def _ratio_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
     if n == 0:
         return []
     rows = []
-    for i, year in enumerate(_period_labels(n)):
+    for i, year in enumerate(_period_labels(n, years)):
         rows.append(
             {
                 "year": year,
@@ -159,11 +204,27 @@ def _ratio_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
     return rows
 
 
-def build_statements(df) -> dict[str, Any]:
-    annual_fin = _financial_rows(_metric_map(df, "Financials Annual"))
-    quarterly_fin = _financial_rows(_metric_map(df, "Financials Quarterly"))
-    # Toolkit "Ratios" series align with annual columns.
-    annual_ratios = _ratio_rows(_metric_map(df, "Ratios"))
+def build_statements(df, reports_df=None) -> dict[str, Any]:
+    annual_map = _metric_map(df, "Financials Annual")
+    quarterly_map = _metric_map(df, "Financials Quarterly")
+    ratios_map = _metric_map(df, "Ratios")
+
+    # Probe length before labeling
+    annual_n = max(len(_pick_series(annual_map, ["Sales", "Revenue"])), 0) or max(
+        len(_pick_series(annual_map, ["EPS"])), 0
+    )
+    quarterly_n = max(len(_pick_series(quarterly_map, ["Sales", "Revenue"])), 0) or max(
+        len(_pick_series(quarterly_map, ["EPS"])), 0
+    )
+    ratios_n = max(len(_pick_series(ratios_map, ["Net Profit Margin"])), 0)
+
+    annual_years = _labels_from_reports(reports_df, "Annual", max(annual_n, ratios_n))
+    quarterly_years = _labels_from_reports(reports_df, "Quarterly", quarterly_n)
+
+    annual_fin = _financial_rows(annual_map, annual_years)
+    quarterly_fin = _financial_rows(quarterly_map, quarterly_years)
+    # Toolkit "Ratios" series align with annual columns — never attach to quarterly.
+    annual_ratios = _ratio_rows(ratios_map, annual_years)
     return {
         "annual": {"financials": annual_fin, "ratios": annual_ratios},
         "quarterly": {"financials": quarterly_fin, "ratios": []},
@@ -227,10 +288,14 @@ def get_company_info(symbol: str) -> dict[str, Any]:
 
         info_rows = df_records(div_info)
         hist_rows = df_records(div_hist)
+        hist_norm = normalize_history(hist_rows)
+        latest_cash = hist_norm[0]["cashAmount"] if hist_norm else None
 
+        reports_df = None
         reports: list[dict[str, str]] = []
         try:
-            reports = normalize_reports(pypsx_toolkit.get_reports(clean), limit=8)
+            reports_df = pypsx_toolkit.get_reports(clean)
+            reports = normalize_reports(reports_df, limit=8)
         except Exception:
             reports = []
 
@@ -238,9 +303,9 @@ def get_company_info(symbol: str) -> dict[str, Any]:
             "symbol": clean,
             "businessDescription": description,
             "fundamentals": fundamentals_sections(fund_df, description),
-            "statements": build_statements(fund_df),
-            "latestDividend": normalize_latest(info_rows[0] if info_rows else None),
-            "dividendHistory": normalize_history(hist_rows),
+            "statements": build_statements(fund_df, reports_df),
+            "latestDividend": normalize_latest(info_rows[0] if info_rows else None, latest_cash),
+            "dividendHistory": hist_norm,
             "reports": reports,
             "source": "pypsx",
         }

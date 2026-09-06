@@ -571,10 +571,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const periodKey = financialPeriod === 'Annual' ? 'annual' : 'quarterly';
       const fromToolkit = toolkit?.[periodKey];
       if (fromToolkit && (fromToolkit.financials?.length || fromToolkit.ratios?.length)) {
-          return fromToolkit;
+          return {
+              financials: fromToolkit.financials || [],
+              // Toolkit ratios are annual-only; never keep them on Quarterly.
+              ratios: financialPeriod === 'Annual' ? (fromToolkit.ratios || []) : [],
+          };
       }
       if (!fundamentals) return null;
-      return financialPeriod === 'Annual' ? fundamentals.annual : fundamentals.quarterly;
+      const block = financialPeriod === 'Annual' ? fundamentals.annual : fundamentals.quarterly;
+      return {
+          financials: block.financials || [],
+          ratios: financialPeriod === 'Annual' ? (block.ratios || []) : [],
+      };
   }, [fundamentals, financialPeriod, companyInfo?.statements]);
 
   const isSelectionNotFound = (analysisMode === 'STOCK' && selectedTicker && !selectedStockStats) || 

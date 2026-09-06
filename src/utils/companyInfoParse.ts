@@ -10,9 +10,17 @@ export function parsePipeSeries(raw: string | null | undefined): string[] {
     .filter(Boolean);
 }
 
-/** Toolkit series are most-recent-first with no year headers. */
-export function periodLabels(count: number): string[] {
-  return Array.from({ length: count }, (_, i) => (i === 0 ? 'Latest' : `−${i}`));
+/** Column headers: prefer real years; else FY / FY-1 … */
+export function periodLabels(count: number, years?: string[] | null): string[] {
+  if (years && years.length >= count) {
+    return years.slice(0, count);
+  }
+  if (years && years.length > 0) {
+    const out = years.slice();
+    while (out.length < count) out.push(`FY-${out.length}`);
+    return out.slice(0, count);
+  }
+  return Array.from({ length: count }, (_, i) => (i === 0 ? 'FY' : `FY-${i}`));
 }
 
 function pickMetric(map: Record<string, string>, keys: string[]): string[] {
@@ -28,14 +36,17 @@ function pickMetric(map: Record<string, string>, keys: string[]): string[] {
 }
 
 /** Build financial statement rows from toolkit metric → pipe-series map. */
-export function rowsToFinancials(map: Record<string, string>): CompanyFinancials[] {
+export function rowsToFinancials(
+  map: Record<string, string>,
+  years?: string[] | null
+): CompanyFinancials[] {
   const sales = pickMetric(map, ['Sales', 'Revenue']);
   const income = pickMetric(map, ['Total Income']);
   const profit = pickMetric(map, ['Profit after Taxation', 'Profit After Tax', 'Net Profit']);
   const eps = pickMetric(map, ['EPS', 'Earnings per share']);
   const n = Math.max(sales.length, income.length, profit.length, eps.length);
   if (n === 0) return [];
-  const labels = periodLabels(n);
+  const labels = periodLabels(n, years);
   return labels.map((year, i) => ({
     year,
     sales: sales[i] || '-',
@@ -46,14 +57,14 @@ export function rowsToFinancials(map: Record<string, string>): CompanyFinancials
 }
 
 /** Build ratio rows from toolkit Ratios category map. */
-export function rowsToRatios(map: Record<string, string>): CompanyRatios[] {
+export function rowsToRatios(map: Record<string, string>, years?: string[] | null): CompanyRatios[] {
   const gpm = pickMetric(map, ['Gross Profit Margin']);
   const npm = pickMetric(map, ['Net Profit Margin']);
   const growth = pickMetric(map, ['EPS Growth']);
   const peg = pickMetric(map, ['PEG']);
   const n = Math.max(gpm.length, npm.length, growth.length, peg.length);
   if (n === 0) return [];
-  const labels = periodLabels(n);
+  const labels = periodLabels(n, years);
   return labels.map((year, i) => ({
     year,
     grossProfitMargin: gpm[i] || '-',
