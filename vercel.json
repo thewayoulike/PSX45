@@ -3,10 +3,13 @@
   "trailingSlash": false,
   "functions": {
     "api/pypsx.py": {
-      "maxDuration": 60,
+      "maxDuration": 90,
       "memory": 1024,
       "includeFiles": "api/pypsx_lib.py",
       "excludeFiles": "{node_modules,dist,src,public,.cursor,.github,.git,data,coverage,tests,canvases}/**"
+    },
+    "api/run-alerts.js": {
+      "maxDuration": 60
     }
   },
   "rewrites": [

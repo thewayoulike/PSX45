@@ -1,6 +1,7 @@
 import webpush from 'web-push';
 import { allSids, getRecord, putRecord, deleteRecord } from '../lib/alertsStore.js';
 import { fetchPsxLatestCloses } from '../lib/psxOhlc.js';
+import { fetchPypsxQuotePrices } from '../lib/pypsxQuotes.js';
 
 // Fetch the PSX market-watch page once and return { TICKER: price }.
 async function fetchLivePrices() {
@@ -76,9 +77,8 @@ export default async function handler(req, res) {
     }
     if (records.length === 0) return res.status(200).json({ message: 'No active alerts' });
 
-    // Market-watch baseline (whole board, one scrape). Then overwrite each *alert*
-    // ticker with the chart OHLC last close — same /historical feed StockChart uses.
-    // This runs on the cron while the app is closed, so push alerts use the fresher price.
+    // Offline-safe price stack (app closed):
+    // 1) market-watch  2) OHLC last close  3) pypsx.get_quote (preferred when keys work)
     const livePrices = await fetchLivePrices();
     const alertTickers = [
       ...new Set(
@@ -93,6 +93,13 @@ export default async function handler(req, res) {
       console.log(`[run-alerts] OHLC overlay: ${Object.keys(ohlcCloses).length}/${alertTickers.length} alert tickers`);
     } catch (e) {
       console.warn('[run-alerts] OHLC overlay failed — using market-watch only', e);
+    }
+    try {
+      const quoteCloses = await fetchPypsxQuotePrices(alertTickers);
+      Object.assign(livePrices, quoteCloses);
+      console.log(`[run-alerts] pyPSX quote overlay: ${Object.keys(quoteCloses).length}/${alertTickers.length}`);
+    } catch (e) {
+      console.warn('[run-alerts] pyPSX quotes failed — keeping market-watch/OHLC backup', e);
     }
 
     let pushesSent = 0;

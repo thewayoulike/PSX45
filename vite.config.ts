@@ -71,9 +71,48 @@ function localPsxApi(): Plugin {
               res.end(JSON.stringify(payload));
               return;
             }
+            if (mode === 'quote') {
+              const symbol = u.searchParams.get('symbol') || u.searchParams.get('quote') || '';
+              if (!symbol) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'symbol required' }));
+                return;
+              }
+              const { fetchPypsxToolkit } = await import('./lib/pypsxFetch.js');
+              const payload = await fetchPypsxToolkit('quote', { symbol });
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(payload));
+              return;
+            }
+            if (mode === 'quotes') {
+              const symbols = u.searchParams.get('symbols') || u.searchParams.get('symbol') || '';
+              if (!symbols) {
+                res.statusCode = 400;
+                res.setHeader('Content-Type', 'application/json');
+                res.end(JSON.stringify({ error: 'symbols required' }));
+                return;
+              }
+              const { fetchPypsxToolkit } = await import('./lib/pypsxFetch.js');
+              const payload = await fetchPypsxToolkit('quotes', { symbols });
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(payload));
+              return;
+            }
+            if (mode === 'indices') {
+              const name = u.searchParams.get('index') || u.searchParams.get('name') || '';
+              const { fetchPypsxToolkit } = await import('./lib/pypsxFetch.js');
+              const payload = await fetchPypsxToolkit('indices', { name });
+              res.statusCode = 200;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify(payload));
+              return;
+            }
             res.statusCode = 400;
             res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ error: 'mode required: company|analysis|intraday' }));
+            res.end(JSON.stringify({ error: 'mode required: company|analysis|intraday|quote|quotes|indices' }));
             return;
           }
           if (isProxyIntraday) {

@@ -1,4 +1,4 @@
-"""Vercel Python function: pypsx-toolkit company info + chart analysis."""
+"""Vercel Python function: pypsx-toolkit company/analysis + pypsx quotes/intraday/indices."""
 
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
@@ -15,9 +15,23 @@ def _load_lib():
     if _LIB is not None:
         return _LIB
     try:
-        from pypsx_lib import get_chart_analysis, get_company_info, get_intraday_ohlcv
+        from pypsx_lib import (
+            get_chart_analysis,
+            get_company_info,
+            get_intraday_ohlcv,
+            get_quote,
+            get_quotes,
+            get_index_symbols_payload,
+        )
 
-        _LIB = (get_company_info, get_chart_analysis, get_intraday_ohlcv)
+        _LIB = {
+            "company": get_company_info,
+            "analysis": get_chart_analysis,
+            "intraday": get_intraday_ohlcv,
+            "quote": get_quote,
+            "quotes": get_quotes,
+            "indices": get_index_symbols_payload,
+        }
         return _LIB
     except ImportError:
         lib_file = Path(__file__).with_name("pypsx_lib.py")
@@ -26,7 +40,14 @@ def _load_lib():
             raise ImportError(f"Cannot load pypsx_lib from {lib_file}")
         mod = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(mod)
-        _LIB = (mod.get_company_info, mod.get_chart_analysis, mod.get_intraday_ohlcv)
+        _LIB = {
+            "company": mod.get_company_info,
+            "analysis": mod.get_chart_analysis,
+            "intraday": mod.get_intraday_ohlcv,
+            "quote": mod.get_quote,
+            "quotes": mod.get_quotes,
+            "indices": mod.get_index_symbols_payload,
+        }
         return _LIB
 
 
@@ -44,38 +65,51 @@ class handler(BaseHTTPRequestHandler):
         mode = (q.get("mode") or [""])[0].strip().lower()
 
         try:
-            get_company_info, get_chart_analysis, get_intraday_ohlcv = _load_lib()
+            lib = _load_lib()
             if mode == "company":
                 symbol = (q.get("symbol") or q.get("company") or [""])[0]
-                payload = get_company_info(symbol)
+                payload = lib["company"](symbol)
             elif mode == "analysis":
                 symbol = (q.get("symbol") or q.get("analysis") or [""])[0]
                 period = (q.get("period") or ["6mo"])[0]
-                payload = get_chart_analysis(symbol, period)
+                payload = lib["analysis"](symbol, period)
             elif mode == "intraday":
                 symbol = (q.get("symbol") or q.get("intraday") or [""])[0]
                 interval = (q.get("interval") or ["5m"])[0]
                 period = (q.get("period") or ["5d"])[0]
-                payload = get_intraday_ohlcv(symbol, interval=interval, period=period)
+                payload = lib["intraday"](symbol, interval=interval, period=period)
+            elif mode == "quote":
+                symbol = (q.get("symbol") or q.get("quote") or [""])[0]
+                payload = lib["quote"](symbol)
+            elif mode == "quotes":
+                symbols = (q.get("symbols") or q.get("symbol") or [""])[0]
+                payload = lib["quotes"](symbols)
+            elif mode == "indices":
+                name = (q.get("index") or q.get("name") or [""])[0]
+                payload = lib["indices"](name)
             else:
                 self._json(
                     400,
                     {
                         "error": "mode required",
-                        "hint": "Use mode=company, mode=analysis, or mode=intraday",
+                        "hint": "Use mode=company|analysis|intraday|quote|quotes|indices",
                     },
                 )
                 return
 
-            if payload.get("error"):
+            if payload.get("error") and mode not in ("quotes", "indices"):
+                self._json(502, payload)
+            elif payload.get("error") and mode == "quotes" and not payload.get("quotes"):
+                self._json(502, payload)
+            elif payload.get("error") and mode == "indices":
                 self._json(502, payload)
             else:
-                # Intraday moves faster — shorter CDN cache
-                cache = (
-                    "s-maxage=60, stale-while-revalidate=300"
-                    if mode == "intraday"
-                    else "s-maxage=300, stale-while-revalidate=3600"
-                )
+                cache = {
+                    "intraday": "s-maxage=60, stale-while-revalidate=300",
+                    "quote": "s-maxage=15, stale-while-revalidate=60",
+                    "quotes": "s-maxage=15, stale-while-revalidate=60",
+                    "indices": "s-maxage=86400, stale-while-revalidate=604800",
+                }.get(mode, "s-maxage=300, stale-while-revalidate=3600")
                 self._json(200, payload, cache=cache)
         except Exception as exc:
             self._json(500, {"error": str(exc)})

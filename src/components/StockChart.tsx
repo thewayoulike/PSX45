@@ -302,12 +302,13 @@ const RANGES: { k: string; days: number; period: string }[] = [
   { k: 'ALL', days: 0, period: 'max' },
 ];
 
-/** Ranges for pyPSX intraday candles (API: 1d / 5d / 1w / 1mo; history from ~Oct 2025). */
-const INTRADAY_RANGES: { k: string; days: number; period: '1d' | '5d' | '1w' | '1mo' }[] = [
+/** Ranges for pyPSX intraday candles (API: 1d / 5d / 1w / 1mo / all from ~Oct 2025). */
+const INTRADAY_RANGES: { k: string; days: number; period: '1d' | '5d' | '1w' | '1mo' | 'all' }[] = [
   { k: '1D', days: 1, period: '1d' },
   { k: '5D', days: 5, period: '5d' },
   { k: '1W', days: 7, period: '1w' },
   { k: '1M', days: 30, period: '1mo' },
+  { k: 'ALL', days: 0, period: 'all' },
 ];
 
 const isIntradayInterval = (iv: CandleInterval): iv is '1m' | '5m' | '15m' | '1h' =>
@@ -1741,8 +1742,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     try {
       if (isIntradayInterval(candleInterval)) {
         const period = (INTRADAY_RANGES.find((x) => x.k === range)?.period
-          ?? (range === '1D' ? '1d' : range === '1M' ? '1mo' : range === '1W' ? '1w' : '5d')) as
-          '1d' | '5d' | '1w' | '1mo';
+          ?? (range === '1D' ? '1d' : range === 'ALL' ? 'all' : range === '1M' ? '1mo' : range === '1W' ? '1w' : '5d')) as
+          '1d' | '5d' | '1w' | '1mo' | 'all';
         const bars = await fetchIntradayOHLCV(symbol, candleInterval, period);
         if (bars.length >= 2) {
           setOhlc(bars);
@@ -1796,7 +1797,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const filteredOhlc = useMemo(() => {
     if (onIntraday) {
       const r = INTRADAY_RANGES.find((x) => x.k === range);
-      if (!r) return ohlc;
+      if (!r || r.days === 0) return ohlc;
       const cutoff = Date.now() - r.days * 86400000;
       return ohlc.filter((p) => p.time >= cutoff);
     }

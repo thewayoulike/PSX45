@@ -180,7 +180,8 @@ def get_chart_analysis(symbol: str, period: str = "6mo") -> dict[str, Any]:
 
 
 INTRADAY_INTERVALS = {"1m", "5m", "15m", "30m", "1h"}
-INTRADAY_PERIODS = {"1d", "5d", "1w", "1mo"}
+INTRADAY_PERIODS = {"1d", "5d", "1w", "1mo", "all", "max"}
+INTRADAY_COVERAGE_START = "2025-10-20T09:30:00+05:00"
 
 
 def _load_dotenv_quiet():
@@ -193,6 +194,171 @@ def _load_dotenv_quiet():
         load_dotenv(root / ".env")
     except Exception:
         pass
+
+
+def _require_pypsx_keys() -> dict[str, Any] | None:
+    import os
+
+    key_id = (os.environ.get("PYPSX_API_KEY_ID") or "").strip()
+    secret = (os.environ.get("PYPSX_API_SECRET_KEY") or "").strip()
+    if not key_id or not secret:
+        return {
+            "error": "PYPSX API keys missing",
+            "hint": "Set PYPSX_API_KEY_ID and PYPSX_API_SECRET_KEY in Vercel env / .env.local",
+        }
+    return None
+
+
+def _normalize_quote(symbol: str, quote: Any) -> dict[str, Any]:
+    if not isinstance(quote, dict):
+        quote = {}
+    lower = {str(k).lower(): v for k, v in quote.items()}
+
+    def pick(*names):
+        for n in names:
+            if n.lower() in lower and lower[n.lower()] is not None:
+                return lower[n.lower()]
+        return None
+
+    price = pick("last", "price", "last_price", "close")
+    try:
+        price_f = float(price) if price is not None else None
+    except (TypeError, ValueError):
+        price_f = None
+    out = {
+        "symbol": symbol,
+        "price": price_f,
+        "last": price_f,
+        "bid": pick("bid", "bid_price"),
+        "ask": pick("ask", "ask_price"),
+        "change": pick("change"),
+        "change_pct": pick("change_pct", "change_percent"),
+        "volume": pick("volume"),
+        "high": pick("high"),
+        "low": pick("low"),
+        "source": "pypsx:quote",
+    }
+    # Keep extras that might be useful
+    for k, v in quote.items():
+        lk = str(k).lower()
+        if lk not in out and lk not in {"symbol"}:
+            out[str(k)] = v
+    return out
+
+
+def get_quote(symbol: str) -> dict[str, Any]:
+    """Live price snapshot via pypsx.get_quote (authenticated)."""
+    _load_dotenv_quiet()
+    clean = (symbol or "").strip().upper().replace("PSX:", "")
+    if not clean:
+        return {"error": "symbol required"}
+    missing = _require_pypsx_keys()
+    if missing:
+        return missing
+    try:
+        import pypsx
+    except ImportError:
+        return {"error": "pypsx not installed", "hint": "pip install pypsx"}
+    try:
+        raw = pypsx.get_quote(clean)
+        normalized = _normalize_quote(clean, raw)
+        if not normalized.get("price"):
+            return {"error": "no quote price", "symbol": clean, "raw": raw}
+        return normalized
+    except Exception as exc:
+        return {"error": str(exc), "symbol": clean}
+
+
+def get_quotes(symbols: list[str] | str) -> dict[str, Any]:
+    """Batch get_quote for Sync / alerts. Continues on per-symbol failures."""
+    if isinstance(symbols, str):
+        parts = [p.strip() for p in symbols.replace(";", ",").split(",")]
+    else:
+        parts = list(symbols or [])
+    clean_list = []
+    seen = set()
+    for s in parts:
+        u = str(s or "").strip().upper().replace("PSX:", "")
+        if u and not u.startswith("MF:") and u not in seen:
+            seen.add(u)
+            clean_list.append(u)
+    if not clean_list:
+        return {"error": "symbols required", "quotes": {}}
+
+    missing = _require_pypsx_keys()
+    if missing:
+        return {**missing, "quotes": {}}
+
+    quotes: dict[str, Any] = {}
+    errors: dict[str, str] = {}
+    for sym in clean_list:
+        payload = get_quote(sym)
+        if payload.get("error"):
+            errors[sym] = str(payload["error"])
+        else:
+            quotes[sym] = payload
+    return {
+        "quotes": quotes,
+        "count": len(quotes),
+        "errors": errors,
+        "source": "pypsx:quote",
+    }
+
+
+def get_index_symbols_payload(name: str = "") -> dict[str, Any]:
+    """
+    Index / sector constituents from packaged pypsx data (no API key).
+    name empty → return KSE-100 + KMI-30.
+    """
+    try:
+        import pypsx
+    except ImportError:
+        return {"error": "pypsx not installed", "hint": "pip install pypsx"}
+
+    def _list(index_name: str) -> list[str]:
+        try:
+            raw = pypsx.get_index_symbols(index_name)
+        except Exception:
+            raw = []
+        out = []
+        for s in raw or []:
+            u = str(s).strip().upper()
+            if u:
+                out.append(u)
+        return out
+
+    try:
+        requested = (name or "").strip()
+        if requested:
+            # Accept KSE100 / KMI30 aliases
+            key = requested.upper().replace(" ", "")
+            if key in ("KSE100", "KSE-100"):
+                requested = "KSE-100"
+            elif key in ("KMI30", "KMI-30"):
+                requested = "KMI-30"
+            symbols = _list(requested)
+            return {
+                "index": requested,
+                "symbols": symbols,
+                "count": len(symbols),
+                "source": "pypsx:index",
+            }
+
+        kmi = _list("KMI-30")
+        kse = _list("KSE-100")
+        indices = []
+        try:
+            indices = list(pypsx.list_indices() or [])
+        except Exception:
+            pass
+        return {
+            "KMI30": kmi,
+            "KSE100": kse,
+            "indices": indices,
+            "source": "pypsx:index",
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
 
 
 def _row_get(row: Any, *names: str) -> Any:
@@ -235,77 +401,70 @@ def _to_time_ms(val: Any) -> int:
         return 0
 
 
-def get_intraday_ohlcv(
-    symbol: str,
-    interval: str = "5m",
-    period: str = "5d",
-) -> dict[str, Any]:
-    """
-    Intraday OHLCV via authenticated pypsx SDK (same as Colab).
-    Keys: PYPSX_API_KEY_ID + PYPSX_API_SECRET_KEY (server env only).
-    Coverage roughly from 2025-10-20 onward.
-    """
-    _load_dotenv_quiet()
-    clean = (symbol or "").strip().upper()
-    interval = (interval or "5m").strip().lower()
-    period = (period or "5d").strip().lower()
-    if not clean:
-        return {"error": "symbol required"}
-    if interval not in INTRADAY_INTERVALS:
-        interval = "5m"
-    if period not in INTRADAY_PERIODS:
-        period = "5d"
+def _bars_from_df(df) -> list[dict[str, Any]]:
+    if df is None or getattr(df, "empty", True):
+        return []
+    flat = flatten_columns(df)
+    if hasattr(flat.index, "names") and flat.index.names and flat.index.names[0]:
+        flat = flat.reset_index()
 
-    import os
-
-    key_id = (os.environ.get("PYPSX_API_KEY_ID") or "").strip()
-    secret = (os.environ.get("PYPSX_API_SECRET_KEY") or "").strip()
-    if not key_id or not secret:
-        return {
-            "error": "PYPSX API keys missing",
-            "hint": "Set PYPSX_API_KEY_ID and PYPSX_API_SECRET_KEY in Vercel env / .env.local",
-        }
-
-    try:
-        import pypsx
-    except ImportError:
-        return {"error": "pypsx not installed", "hint": "pip install pypsx"}
-
-    try:
-        df = pypsx.get_intraday(clean, period=period, interval=interval)
-        if df is None or getattr(df, "empty", True):
-            return {
-                "symbol": clean,
-                "interval": interval,
-                "period": period,
-                "bars": [],
-                "count": 0,
-                "source": "pypsx:intraday",
-                "note": "No intraday bars (check market hours / coverage from 2025-10-20).",
+    bars = []
+    for _, row in flat.iterrows():
+        raw = row.to_dict() if hasattr(row, "to_dict") else row
+        t = _to_time_ms(
+            _row_get(raw, "datetime", "Datetime", "DATE", "date", "time", "Time", "index")
+        )
+        if not t and hasattr(row, "name"):
+            t = _to_time_ms(row.name)
+        o = _row_get(raw, "open", "OPEN", "Open")
+        h = _row_get(raw, "high", "HIGH", "High")
+        lo = _row_get(raw, "low", "LOW", "Low")
+        c = _row_get(raw, "close", "CLOSE", "Close")
+        v = _row_get(raw, "volume", "VOLUME", "Volume") or 0
+        try:
+            o, h, lo, c = float(o), float(h), float(lo), float(c)
+            v = float(v) if v is not None else 0.0
+        except (TypeError, ValueError):
+            continue
+        if not (t > 0 and c > 0 and o > 0 and h > 0 and lo > 0):
+            continue
+        if any(math.isnan(x) for x in (o, h, lo, c)):
+            continue
+        bars.append(
+            {
+                "time": t,
+                "open": o,
+                "high": h,
+                "low": lo,
+                "close": c,
+                "volume": v if not math.isnan(v) else 0,
             }
+        )
+    bars.sort(key=lambda b: b["time"])
+    by_t = {b["time"]: b for b in bars}
+    return sorted(by_t.values(), key=lambda b: b["time"])
 
-        flat = flatten_columns(df)
-        if hasattr(flat.index, "names") and flat.index.names and flat.index.names[0]:
-            flat = flat.reset_index()
 
-        bars = []
-        for _, row in flat.iterrows():
-            raw = row.to_dict() if hasattr(row, "to_dict") else row
-            t = _to_time_ms(
-                _row_get(raw, "datetime", "Datetime", "DATE", "date", "time", "Time", "index")
-            )
-            if not t and hasattr(row, "name"):
-                t = _to_time_ms(row.name)
-            o = _row_get(raw, "open", "OPEN", "Open")
-            h = _row_get(raw, "high", "HIGH", "High")
-            lo = _row_get(raw, "low", "LOW", "Low")
-            c = _row_get(raw, "close", "CLOSE", "Close")
-            v = _row_get(raw, "volume", "VOLUME", "Volume") or 0
-            try:
-                o, h, lo, c = float(o), float(h), float(lo), float(c)
-                v = float(v) if v is not None else 0.0
-            except (TypeError, ValueError):
+def _bars_from_historical_candles(candles: Any) -> list[dict[str, Any]]:
+    """candles: list of [ts, open, high, low, close, volume] or dict rows."""
+    bars = []
+    for row in candles or []:
+        try:
+            if isinstance(row, (list, tuple)) and len(row) >= 5:
+                ts, o, h, lo, c = row[0], row[1], row[2], row[3], row[4]
+                v = row[5] if len(row) > 5 else 0
+            elif isinstance(row, dict):
+                ts = _row_get(row, "datetime", "time", "timestamp", "ts")
+                o = _row_get(row, "open", "OPEN")
+                h = _row_get(row, "high", "HIGH")
+                lo = _row_get(row, "low", "LOW")
+                c = _row_get(row, "close", "CLOSE")
+                v = _row_get(row, "volume", "VOLUME") or 0
+            else:
                 continue
+            t = _to_time_ms(ts)
+            o, h, lo, c = float(o), float(h), float(lo), float(c)
+            v = float(v) if v is not None else 0.0
             if not (t > 0 and c > 0 and o > 0 and h > 0 and lo > 0):
                 continue
             if any(math.isnan(x) for x in (o, h, lo, c)):
@@ -320,11 +479,115 @@ def get_intraday_ohlcv(
                     "volume": v if not math.isnan(v) else 0,
                 }
             )
+        except (TypeError, ValueError, IndexError):
+            continue
+    bars.sort(key=lambda b: b["time"])
+    by_t = {b["time"]: b for b in bars}
+    return sorted(by_t.values(), key=lambda b: b["time"])
 
-        bars.sort(key=lambda b: b["time"])
-        # Dedupe identical timestamps (keep last)
-        by_t = {b["time"]: b for b in bars}
-        bars = sorted(by_t.values(), key=lambda b: b["time"])
+
+def _intraday_all_via_historical(clean: str, interval: str) -> dict[str, Any]:
+    """Full coverage since ~2025-10-20 via TradingClient.get_historical_intraday."""
+    from datetime import datetime, timezone, timedelta
+
+    # 1m over ~11 months is huge — cap lookback to 30 calendar days for 1m.
+    start = INTRADAY_COVERAGE_START
+    note = None
+    if interval == "1m":
+        start_dt = datetime.now(timezone(timedelta(hours=5))) - timedelta(days=30)
+        start = start_dt.strftime("%Y-%m-%dT09:30:00+05:00")
+        note = "1m ALL capped to last 30 days (full history from Oct 2025 available on 5m/15m/1h)."
+
+    end = datetime.now(timezone(timedelta(hours=5))).strftime("%Y-%m-%dT15:30:00+05:00")
+
+    from pypsx import TradingClient
+
+    client = TradingClient.from_env(paper=True)
+    results = client.get_historical_intraday(
+        [clean],
+        start=start,
+        end=end,
+        interval=interval,
+    )
+    candles = []
+    gaps = []
+    hist_note = None
+    if isinstance(results, list):
+        for r in results:
+            if not isinstance(r, dict):
+                continue
+            if str(r.get("symbol", "")).upper() == clean or len(results) == 1:
+                candles = r.get("candles") or []
+                gaps = r.get("gaps") or []
+                hist_note = r.get("note")
+                break
+    elif isinstance(results, dict):
+        candles = results.get("candles") or []
+        gaps = results.get("gaps") or []
+        hist_note = results.get("note")
+
+    bars = _bars_from_historical_candles(candles)
+    return {
+        "symbol": clean,
+        "interval": interval,
+        "period": "all",
+        "bars": bars,
+        "count": len(bars),
+        "gaps": gaps,
+        "note": note or hist_note,
+        "source": "pypsx:historical_intraday",
+        "from": start,
+        "to": end,
+    }
+
+
+def get_intraday_ohlcv(
+    symbol: str,
+    interval: str = "5m",
+    period: str = "5d",
+) -> dict[str, Any]:
+    """
+    Intraday OHLCV via authenticated pypsx SDK (same as Colab).
+    Keys: PYPSX_API_KEY_ID + PYPSX_API_SECRET_KEY (server env only).
+    Coverage roughly from 2025-10-20 onward.
+    period=all|max → TradingClient.get_historical_intraday from coverage start.
+    """
+    _load_dotenv_quiet()
+    clean = (symbol or "").strip().upper()
+    interval = (interval or "5m").strip().lower()
+    period = (period or "5d").strip().lower()
+    if not clean:
+        return {"error": "symbol required"}
+    if interval not in INTRADAY_INTERVALS:
+        interval = "5m"
+    if period not in INTRADAY_PERIODS:
+        period = "5d"
+
+    missing = _require_pypsx_keys()
+    if missing:
+        return missing
+
+    try:
+        import pypsx
+    except ImportError:
+        return {"error": "pypsx not installed", "hint": "pip install pypsx"}
+
+    try:
+        if period in ("all", "max"):
+            return _intraday_all_via_historical(clean, interval)
+
+        df = pypsx.get_intraday(clean, period=period, interval=interval)
+        bars = _bars_from_df(df)
+        if not bars:
+            return {
+                "symbol": clean,
+                "interval": interval,
+                "period": period,
+                "bars": [],
+                "count": 0,
+                "source": "pypsx:intraday",
+                "note": "No intraday bars (check market hours / coverage from 2025-10-20).",
+            }
 
         return {
             "symbol": clean,

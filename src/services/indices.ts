@@ -1,19 +1,16 @@
 // src/services/indices.ts
 // KSE-100 and KMI-30 constituent lists used to filter the market scan.
 //
-// NOTE: PSX rebalances these indices roughly twice a year. These lists are a
-// best-effort snapshot — update them after each rebalance. A symbol listed here
-// that isn't currently trading simply won't match; a real constituent missing
-// from the list won't be scanned. You can copy the official recomposition from
-// psx.com.pk and paste the symbols below.
+// Hardcoded lists are the fallback. Sync can refresh them via
+// pypsx.get_index_symbols (packaged in the wheel — no API key).
 
-export const KMI30: string[] = [
+export let KMI30: string[] = [
   'MEBL', 'OGDC', 'PPL', 'POL', 'MARI', 'HUBC', 'ENGRO', 'EFERT', 'FFC', 'LUCK',
   'DGKC', 'MLCF', 'PIOC', 'FCCL', 'KOHC', 'SYS', 'TRG', 'NETSOL', 'COLG', 'NESTLE',
   'ICI', 'SEARL', 'ABOT', 'EPCL', 'THALL', 'INDU', 'MTL', 'GHGL', 'NML', 'ATRL',
 ];
 
-export const KSE100: string[] = [
+export let KSE100: string[] = [
   // Banks
   'HBL', 'UBL', 'MCB', 'NBP', 'BAHL', 'BAFL', 'MEBL', 'AKBL', 'BOP', 'FABL', 'ABL', 'BIPL', 'HMB', 'JSBL', 'SNBL',
   // Oil & Gas
@@ -42,5 +39,18 @@ export const KSE100: string[] = [
   'PKGS', 'PAEL', 'PIBTL', 'PICT', 'GHGL', 'DAWH', 'FEROZ', 'JDWS',
 ];
 
-export const KSE100_SET = new Set(KSE100);
-export const KMI30_SET = new Set(KMI30);
+export let KSE100_SET = new Set(KSE100);
+export let KMI30_SET = new Set(KMI30);
+
+/** Replace in-memory constituent lists when pyPSX returns a non-empty universe. */
+export function applyIndexConstituents(payload: { KSE100?: string[]; KMI30?: string[] } | null | undefined) {
+  if (!payload) return;
+  if (Array.isArray(payload.KSE100) && payload.KSE100.length >= 50) {
+    KSE100 = payload.KSE100.map((s) => String(s).toUpperCase().trim()).filter(Boolean);
+    KSE100_SET = new Set(KSE100);
+  }
+  if (Array.isArray(payload.KMI30) && payload.KMI30.length >= 20) {
+    KMI30 = payload.KMI30.map((s) => String(s).toUpperCase().trim()).filter(Boolean);
+    KMI30_SET = new Set(KMI30);
+  }
+}

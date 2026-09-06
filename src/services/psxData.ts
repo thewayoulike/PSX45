@@ -202,7 +202,7 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
 };
 
 export type IntradayInterval = '1m' | '5m' | '15m' | '30m' | '1h';
-export type IntradayPeriod = '1d' | '5d' | '1w' | '1mo';
+export type IntradayPeriod = '1d' | '5d' | '1w' | '1mo' | 'all' | 'max';
 
 /**
  * Intraday OHLCV via pyPSX (server keys). Same candles the Colab notebook uses.
@@ -230,7 +230,7 @@ export const fetchIntradayOHLCV = async (
         period,
         t: String(Date.now()),
     });
-    const res = await fetchWithTimeout(`/api/pypsx?${qs.toString()}`, {}, 60000);
+    const res = await fetchWithTimeout(`/api/pypsx?${qs.toString()}`, {}, 90000);
     let json: any = null;
     try {
         json = await res.json();
@@ -255,6 +255,51 @@ export const fetchIntradayOHLCV = async (
         }))
         .filter((b: OhlcBar) => b.time > 0 && b.close > 0 && b.high > 0 && b.low > 0 && b.open > 0)
         .sort((a: OhlcBar, b: OhlcBar) => a.time - b.time);
+};
+
+/**
+ * Live prices via pypsx.get_quote (server keys). Returns { SYMBOL: price }.
+ * Empty object on failure — callers should keep market-watch / OHLC backup.
+ */
+export const fetchPypsxQuotes = async (symbols: string[]): Promise<Record<string, number>> => {
+    const unique = [...new Set(
+        symbols
+            .map(s => (s || '').toUpperCase().replace(/^PSX:/, '').trim())
+            .filter(s => s && !s.startsWith('MF:'))
+    )];
+    if (unique.length === 0) return {};
+    try {
+        const qs = new URLSearchParams({
+            mode: 'quotes',
+            symbols: unique.join(','),
+            t: String(Date.now()),
+        });
+        const res = await fetchWithTimeout(`/api/pypsx?${qs.toString()}`, {}, 60000);
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok && !json?.quotes) return {};
+        const { quotesPayloadToPriceMap } = await import('../utils/priceOverlay');
+        return quotesPayloadToPriceMap(json);
+    } catch (e) {
+        console.warn('fetchPypsxQuotes failed', e);
+        return {};
+    }
+};
+
+/** Refresh KSE-100 / KMI-30 constituents from pypsx (no API key). */
+export const fetchPypsxIndexSymbols = async (): Promise<{ KSE100?: string[]; KMI30?: string[] }> => {
+    try {
+        const qs = new URLSearchParams({ mode: 'indices', t: String(Date.now()) });
+        const res = await fetchWithTimeout(`/api/pypsx?${qs.toString()}`, {}, 30000);
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok || json?.error) return {};
+        return {
+            KSE100: Array.isArray(json.KSE100) ? json.KSE100.map((s: string) => String(s).toUpperCase()) : undefined,
+            KMI30: Array.isArray(json.KMI30) ? json.KMI30.map((s: string) => String(s).toUpperCase()) : undefined,
+        };
+    } catch (e) {
+        console.warn('fetchPypsxIndexSymbols failed', e);
+        return {};
+    }
 };
 
 /**

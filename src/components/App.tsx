@@ -41,7 +41,9 @@ import { ChartsExplorer } from './ChartsExplorer';
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
+import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, fetchPypsxQuotes, fetchPypsxIndexSymbols, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
+import { mergePriceOverlays } from '../utils/priceOverlay';
+import { applyIndexConstituents } from '../services/indices';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
@@ -1044,9 +1046,9 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = useCallback(async () => {
-      // 1) Market-watch: one scrape for the whole board (LDCP, sector, listedIn, baseline prices).
-      // 2) Chart OHLC last-close for holdings: same /historical feed as StockChart — usually
-      //    fresher than market-watch CURRENT during a live session (what you see matching the broker).
+      // 1) Market-watch: whole board (LDCP, sector, listedIn, baseline).
+      // 2) Chart OHLC last-close for holdings/watchlist (backup / fresher close).
+      // 3) pypsx.get_quote overlay for holdings/watchlist (preferred when keys work).
       setIsSyncing(true);
       setPriceError(false);
       setFailedTickers(new Set());
@@ -1078,27 +1080,45 @@ const App: React.FC = () => {
               }
           });
 
-          // Prefer chart-source closes for stocks you hold (and watchlist, if present).
           const heldTickers = holdings
               .map(h => h.ticker)
               .filter(t => t && !isFundTicker(t));
           const watchTickers = (watchlist || []).filter(t => t && !isFundTicker(t));
-          const preferOhlc = [...new Set([...heldTickers, ...watchTickers])];
+          const preferLive = [...new Set([...heldTickers, ...watchTickers])];
 
-          if (preferOhlc.length > 0) {
+          let ohlcCloses: Record<string, number> = {};
+          let quoteCloses: Record<string, number> = {};
+
+          if (preferLive.length > 0) {
               try {
-                  const ohlcCloses = await fetchLatestCloses(preferOhlc);
-                  const ohlcCount = Object.keys(ohlcCloses).length;
-                  console.log(`[App.tsx] Chart OHLC overlay: ${ohlcCount}/${preferOhlc.length} held/watch symbols`);
-                  Object.entries(ohlcCloses).forEach(([ticker, close]) => {
-                      if (close > 0) {
-                          validUpdates[ticker] = close;
-                          timestampUpdates[ticker] = now;
-                      }
-                  });
+                  ohlcCloses = await fetchLatestCloses(preferLive);
+                  console.log(`[App.tsx] Chart OHLC overlay: ${Object.keys(ohlcCloses).length}/${preferLive.length}`);
               } catch (e) {
                   console.warn('[App.tsx] OHLC overlay failed — keeping market-watch prices', e);
               }
+              try {
+                  quoteCloses = await fetchPypsxQuotes(preferLive);
+                  console.log(`[App.tsx] pyPSX quote overlay: ${Object.keys(quoteCloses).length}/${preferLive.length}`);
+              } catch (e) {
+                  console.warn('[App.tsx] pyPSX quotes failed — using market-watch/OHLC backup', e);
+              }
+          }
+
+          // market-watch → OHLC → get_quote (quote wins when present)
+          const merged = mergePriceOverlays(validUpdates, ohlcCloses, quoteCloses);
+          Object.entries(merged).forEach(([ticker, price]) => {
+              if (price > 0) {
+                  validUpdates[ticker] = price;
+                  timestampUpdates[ticker] = now;
+              }
+          });
+
+          // Best-effort index constituent refresh (no key required).
+          try {
+              const idx = await fetchPypsxIndexSymbols();
+              applyIndexConstituents(idx);
+          } catch (e) {
+              console.warn('[App.tsx] index constituents refresh skipped', e);
           }
 
           if (Object.keys(validUpdates).length > 0) {
@@ -1115,12 +1135,9 @@ const App: React.FC = () => {
               setListedInMap(prev => ({ ...prev, ...listedInUpdates }));
           }
 
-          // If the whole board came back empty, the fetch/proxy failed — that's a real error.
           if (marketTickers.length === 0) {
               setPriceError(true);
           } else {
-              // Otherwise only warn about stocks you CURRENTLY hold that weren't on the
-              // board (suspended / delisted / renamed). Everything else is expected.
               const failedHoldings = new Set(
                   holdings.map(h => h.ticker).filter(t => t && !(validUpdates[t] > 0))
               );
