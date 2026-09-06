@@ -1735,10 +1735,13 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const rangeMeta = RANGES.find((x) => x.k === range) ?? RANGES[1];
   const onIntraday = isIntradayInterval(candleInterval);
 
-  const load = async () => {
+  const load = async (opts?: { silent?: boolean }) => {
     if (!symbol) return;
-    setLoading(true);
-    setErr('');
+    const silent = Boolean(opts?.silent);
+    if (!silent) {
+      setLoading(true);
+      setErr('');
+    }
     try {
       if (isIntradayInterval(candleInterval)) {
         const period = (INTRADAY_RANGES.find((x) => x.k === range)?.period
@@ -1748,7 +1751,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         if (bars.length >= 2) {
           setOhlc(bars);
           setLineFallback([]);
-        } else {
+          if (!silent) setErr('');
+        } else if (!silent) {
           setOhlc([]);
           setLineFallback([]);
           setErr(
@@ -1764,19 +1768,22 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       if (bars.length >= 5) {
         setOhlc(bars);
         setLineFallback([]);
+        if (!silent) setErr('');
       } else {
         const d = await fetchStockHistory(symbol, '1Y');
         setOhlc([]);
         setLineFallback((d || []).filter((p) => p.price > 0));
         if (mode === 'candle') setMode('line');
-        if (!(d || []).length) setErr('No price history available.');
+        if (!(d || []).length && !silent) setErr('No price history available.');
       }
     } catch (e) {
       console.error('StockChart load failed', e);
-      const msg = e instanceof Error ? e.message : String(e);
-      setErr(msg && msg !== 'Failed to fetch' ? msg : 'Failed to load chart data.');
+      if (!silent) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setErr(msg && msg !== 'Failed to fetch' ? msg : 'Failed to load chart data.');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
       setLoaded(true);
     }
   };
@@ -1791,6 +1798,16 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol, candleInterval, range]);
+
+  // Quiet auto-refresh while the chart page is open (intraday + daily).
+  useEffect(() => {
+    if (!symbol) return;
+    const id = setInterval(() => {
+      load({ silent: true });
+    }, 60 * 1000);
+    return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, candleInterval, range]);
 

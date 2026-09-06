@@ -1280,7 +1280,7 @@ const App: React.FC = () => {
       }
       const interval = setInterval(() => {
           handleSyncPrices();
-      }, 5 * 60 * 1000);
+      }, 60 * 1000);
       return () => clearInterval(interval);
   }, [driveUser, holdings.length, handleSyncPrices]);
 

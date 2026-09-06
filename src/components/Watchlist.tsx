@@ -25,7 +25,7 @@ interface Props {
   canSaveAlerts?: boolean;
 }
 
-const REFRESH_MS = 5 * 60 * 1000; // every 5 minutes while this page is open
+const REFRESH_MS = 60 * 1000; // every 60s while this page is open
 
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const vol = (n: number) => n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : String(n);
