@@ -28,7 +28,6 @@ import { UpcomingEventsScanner } from './UpcomingEventsScanner';
 import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
 import { TickerPerformanceList } from './TickerPerformanceList';
-import { TickerProfile } from './TickerProfile';
 import { FundProfile } from './FundProfile';
 import { TransferModal, firstBrokerHolding } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
@@ -43,6 +42,7 @@ import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, fetchPypsxQuotes, fetchPypsxIndexSymbols, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
 import { mergePriceOverlays } from '../utils/priceOverlay';
+import { stocksPathForTicker, tickerFromStocksPath, normalizeStockDeepLink } from '../utils/stocksPath';
 import { applyIndexConstituents } from '../services/indices';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
@@ -143,9 +143,27 @@ const VIEW_TO_PATH: Record<string, string> = {
 const PATH_TO_VIEW: Record<string, string> = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([v, p]) => [p, v])
 );
+
 const viewFromPath = (path: string): AppView => {
   const p = path !== '/' ? path.replace(/\/+$/, '') : '/';
+  if (normalizeStockDeepLink(p) || p === '/stocks') return 'STOCKS';
   return (PATH_TO_VIEW[p] as AppView) || 'DASHBOARD';
+};
+
+/** `/stocks/TICKER` or legacy `/stock/TICKER` → select in analyzer; rewrite legacy URLs. */
+const absorbStockDeepLink = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  const normalized = normalizeStockDeepLink(window.location.pathname);
+  if (!normalized) {
+    // Bare /stocks may still have a last-selected ticker in localStorage — leave URL as-is.
+    return tickerFromStocksPath(window.location.pathname);
+  }
+  localStorage.setItem('psx_analyzer_mode', 'STOCK');
+  localStorage.setItem('psx_last_analyzed_ticker', normalized.ticker);
+  if (window.location.pathname !== normalized.canonicalPath) {
+    window.history.replaceState(null, '', normalized.canonicalPath);
+  }
+  return normalized.ticker;
 };
 
 const App: React.FC = () => {
@@ -160,24 +178,35 @@ const App: React.FC = () => {
   const [sbStatus, setSbStatus] = useState<AccessStatus | null>(null);      // access status of the signed-in user
   const [pendingStatus, setPendingStatus] = useState<AccessStatus | null>(null); // access status of a blocked Google user
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [stocksFocusTicker, setStocksFocusTicker] = useState<string | null>(() => absorbStockDeepLink());
+  const [stocksFocusNonce, setStocksFocusNonce] = useState(0);
   const [currentView, setCurrentView] = useState<AppView>(
       () => (typeof window !== 'undefined' ? viewFromPath(window.location.pathname) : 'DASHBOARD')
   );
 
-  // React to browser back/forward — /stock/TICKER or /fund/... opens a profile overlay.
+  // React to browser back/forward — /fund/... opens fund overlay; /stocks/TICKER → analyzer.
   useEffect(() => {
       const onPop = () => {
           const path = window.location.pathname;
-          const stock = path.match(/^\/stock\/([^/]+)/i);
+          const stockLink = normalizeStockDeepLink(path);
           const fund = path.match(/^\/fund\/([^/]+)/i);
-          if (stock) {
+          if (stockLink) {
               setViewFundTicker(null);
-              setViewTicker(decodeURIComponent(stock[1]).toUpperCase());
+              localStorage.setItem('psx_analyzer_mode', 'STOCK');
+              localStorage.setItem('psx_last_analyzed_ticker', stockLink.ticker);
+              setStocksFocusTicker(stockLink.ticker);
+              setStocksFocusNonce((n) => n + 1);
+              setCurrentView('STOCKS');
+              if (path !== stockLink.canonicalPath) {
+                  window.history.replaceState(null, '', stockLink.canonicalPath);
+              }
+          } else if (path === '/stocks' || path === '/stocks/') {
+              setViewFundTicker(null);
+              setStocksFocusTicker(null);
+              setCurrentView('STOCKS');
           } else if (fund) {
-              setViewTicker(null);
               setViewFundTicker(decodeURIComponent(fund[1]));
           } else {
-              setViewTicker(null);
               setViewFundTicker(null);
               setCurrentView(viewFromPath(path));
           }
@@ -195,23 +224,17 @@ const App: React.FC = () => {
       return m ? decodeURIComponent(m[1]) : null;
   });
 
-  const [viewTicker, setViewTicker] = useState<string | null>(() => {
-      if (typeof window === 'undefined') return null;
-      const m = window.location.pathname.match(/^\/stock\/([^/]+)/i);
-      return m ? decodeURIComponent(m[1]).toUpperCase() : null;
-  });
-
-  // Push the URL for the current page — or /stock|/fund when a profile is open.
+  // Push the URL for the current page — /stocks/TICKER when a stock is selected; /fund when open.
   useEffect(() => {
       const path = viewFundTicker
           ? `/fund/${encodeURIComponent(viewFundTicker)}`
-          : viewTicker
-          ? `/stock/${encodeURIComponent(viewTicker)}`
+          : currentView === 'STOCKS'
+          ? stocksPathForTicker(stocksFocusTicker)
           : (VIEW_TO_PATH[currentView] || '/');
       if (window.location.pathname !== path) {
           window.history.pushState(null, '', path);
       }
-  }, [currentView, viewTicker, viewFundTicker]);
+  }, [currentView, viewFundTicker, stocksFocusTicker]);
 
   const [brokers, setBrokers] = useState<Broker[]>(() => {
       if (startEmpty) return [DEFAULT_BROKER];
@@ -1899,13 +1922,6 @@ const App: React.FC = () => {
       });
   }, [holdings, fundNavDayMap, fundCatalog, priceTimestamps]);
 
-  const handleTickerClick = (ticker: string) => {
-      if (isFundTicker(ticker)) { setViewFundTicker(canonicalFundTicker(ticker, fundCanonMap)); return; }
-      localStorage.setItem('psx_analyzer_mode', 'STOCK');
-      localStorage.setItem('psx_last_analyzed_ticker', ticker);
-      setCurrentView('STOCKS');
-  };
-
   // A stock the user added to the analyzer that they've never traded — make sure we
   // have a live price (and sector/ldcp) so the inline profile shows market info.
   const handleAddStock = useCallback(async (ticker: string) => {
@@ -1926,9 +1942,25 @@ const App: React.FC = () => {
       }
   }, [manualPrices]);
 
-  // Deep link like /stock/ENGRO on first load → make sure that stock has a price.
+  const handleTickerClick = (ticker: string) => {
+      if (isFundTicker(ticker)) { setViewFundTicker(canonicalFundTicker(ticker, fundCanonMap)); return; }
+      const t = ticker.trim().toUpperCase();
+      localStorage.setItem('psx_analyzer_mode', 'STOCK');
+      localStorage.setItem('psx_last_analyzed_ticker', t);
+      setStocksFocusTicker(t);
+      setStocksFocusNonce((n) => n + 1);
+      setCurrentView('STOCKS');
+      void handleAddStock(t);
+  };
+
+  const handleStocksSelectionChange = useCallback((ticker: string | null) => {
+      const t = ticker ? ticker.trim().toUpperCase() : null;
+      setStocksFocusTicker((prev) => (prev === t ? prev : t));
+  }, []);
+
+  // Deep link /stock/… or focus from another page → ensure a live price.
   useEffect(() => {
-      if (viewTicker) handleAddStock(viewTicker);
+      if (stocksFocusTicker) void handleAddStock(stocksFocusTicker);
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2085,9 +2117,9 @@ const App: React.FC = () => {
           case 'dividends':
               return <UpcomingDividends holdings={holdings} />;
           case 'topMovers':
-              return <TopMovers holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />;
+              return <TopMovers holdings={holdings} onSelectTicker={(t) => handleTickerClick(t)} />;
           case 'boardMeetings':
-              return <BoardMeetings holdings={holdings} onSelectTicker={(t) => setViewTicker(t)} />;
+              return <BoardMeetings holdings={holdings} onSelectTicker={(t) => handleTickerClick(t)} />;
           case 'summary':
               return <PortfolioSummary holdings={holdings} realizedTrades={realizedTrades} stats={stats} displayNames={fundDisplayNames} />;
           default:
@@ -2409,7 +2441,9 @@ const App: React.FC = () => {
                                   currentPrices={manualPrices}
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
-                                  onTickerClick={(t) => setViewTicker(t)}
+                                  focusTicker={stocksFocusTicker}
+                                  focusNonce={stocksFocusNonce}
+                                  onSelectedTickerChange={handleStocksSelectionChange}
                                   onAddStock={handleAddStock}
                                   onFixSequence={handleFixSequence}
                                   mode="STOCK"
@@ -2424,7 +2458,6 @@ const App: React.FC = () => {
                                   currentPrices={manualPrices}
                                   sectors={sectorMap}
                                   listedInMap={listedInMap}
-                                  onTickerClick={(t) => setViewTicker(t)}
                                   onAddStock={handleAddStock}
                                   onFixSequence={handleFixSequence}
                                   mode="SECTOR"
@@ -2434,15 +2467,15 @@ const App: React.FC = () => {
                       )}
 
                       {currentView === 'SIGNALS' && (
-                          <MarketSignalScanner onSymbolClick={(t) => setViewTicker(t)} />
+                          <MarketSignalScanner onSymbolClick={(t) => handleTickerClick(t)} />
                       )}
                       {currentView === 'BACKTEST' && (
-                          <StrategyBacktest onSymbolClick={(t) => setViewTicker(t)} />
+                          <StrategyBacktest onSymbolClick={(t) => handleTickerClick(t)} />
                       )}
                       {currentView === 'DAILY_SCAN' && (
                           <DailyScanBot
                               watchlist={watchlist}
-                              onSymbolClick={(t) => setViewTicker(t)}
+                              onSymbolClick={(t) => handleTickerClick(t)}
                               onAskAssistant={(prompt) => {
                                   setAgentSeedPrompt(prompt);
                                   setCurrentView('AI_AGENT');
@@ -2450,7 +2483,7 @@ const App: React.FC = () => {
                           />
                       )}
                       {currentView === 'CHARTS' && (
-                          <ChartsExplorer onSymbolClick={(t) => setViewTicker(t)} />
+                          <ChartsExplorer onSymbolClick={(t) => handleTickerClick(t)} />
                       )}
                       {currentView === 'REALIZED' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -2494,7 +2527,7 @@ const App: React.FC = () => {
                                   watchlist={watchlist}
                                   onAdd={handleAddToWatchlist}
                                   onRemove={handleRemoveFromWatchlist}
-                                  onSelectTicker={(t) => setViewTicker(t)}
+                                  onSelectTicker={(t) => handleTickerClick(t)}
                                   seedPrices={manualPrices}
                                   canSaveAlerts={!!driveUser || !!sbUser}
                               />
@@ -2693,19 +2726,6 @@ const App: React.FC = () => {
           onTransfer={handleTransferStock}
           onConvertFunds={isFundPortfolio ? handleConvertFunds : undefined}
       />
-      {viewTicker && (
-          <TickerProfile
-              ticker={viewTicker}
-              currentPrice={manualPrices[viewTicker] || 0}
-              sector={sectorOverrides[viewTicker] || getSector(viewTicker)}
-              transactions={portfolioTransactions.filter(t => t.ticker === viewTicker)}
-              holding={holdings.find(h => h.ticker === viewTicker)}
-              realizedTrades={realizedTrades.filter(t => t.ticker === viewTicker)}
-              listedInMap={listedInMap}
-              onClose={() => setViewTicker(null)}
-              canSaveAlerts={!!driveUser || !!sbUser}
-          />
-      )}
       {fundProfileData && (
           <FundProfile
               ticker={fundProfileData.canon}

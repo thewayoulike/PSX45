@@ -55,11 +55,16 @@ interface TickerPerformanceListProps {
   currentPrices: Record<string, number>;
   sectors: Record<string, string>;
   listedInMap?: Record<string, string>; // Pass the dynamic tags here
-  onTickerClick: (ticker: string) => void;
   mode?: 'STOCK' | 'SECTOR';                 // drive Stock/Sector from the sidebar
   onModeChange?: (mode: 'STOCK' | 'SECTOR') => void; // keep sidebar highlight in sync
   onAddStock?: (ticker: string) => void;  // ensure a live price for a never-traded stock the user adds
   onFixSequence?: (txId: string) => void;  // move an out-of-sequence SELL after its same-day BUY
+  /** When set (e.g. from holdings click), select this ticker in Stock Analyzer. */
+  focusTicker?: string | null;
+  /** Bumps when the same ticker is focused again so the analyzer re-selects. */
+  focusNonce?: number;
+  /** Notify parent so the URL can track `/stocks/TICKER`. */
+  onSelectedTickerChange?: (ticker: string | null) => void;
 }
 
 interface ActivityRow extends Transaction {
@@ -123,7 +128,7 @@ const getHoldingDuration = (dateStr: string) => {
 };
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
-  transactions, currentPrices, sectors, listedInMap = {}, onTickerClick, mode, onModeChange, onAddStock, onFixSequence
+  transactions, currentPrices, sectors, listedInMap = {}, mode, onModeChange, onAddStock, onFixSequence, focusTicker, focusNonce, onSelectedTickerChange
 }) => {
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
       return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
@@ -153,6 +158,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       if (mode === 'SECTOR') return localStorage.getItem('psx_last_analyzed_sector') || '';
       return localStorage.getItem('psx_last_analyzed_ticker') || '';
   });
+
+  // External navigation (holdings / watchlist / deep link) → select in analyzer.
+  useEffect(() => {
+      const t = (focusTicker || '').trim().toUpperCase();
+      if (!t) return;
+      setAnalysisMode('STOCK');
+      setSelectedTicker(t);
+      setSearchTerm(t);
+      setDetailTab('companyInfo');
+      localStorage.setItem('psx_analyzer_mode', 'STOCK');
+      localStorage.setItem('psx_last_analyzed_ticker', t);
+      onAddStock?.(t);
+      if (!extraTickers.includes(t)) {
+          const traded = transactions.some((tx) => tx.ticker === t);
+          if (!traded) setExtraTickers((prev) => (prev.includes(t) ? prev : [...prev, t]));
+      }
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusTicker, focusNonce]);
+
+  // Keep parent URL in sync with the analyzer search selection.
+  useEffect(() => {
+      if (analysisMode !== 'STOCK') return;
+      onSelectedTickerChange?.(selectedTicker);
+  }, [selectedTicker, analysisMode, onSelectedTickerChange]);
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

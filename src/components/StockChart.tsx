@@ -72,6 +72,8 @@ function clampPriceScaleMul(m: number): number {
 
 const ZOOM_STEPS = [1, 1.25, 1.5, 2, 3, 4, 6, 8, 12] as const;
 const MIN_WINDOW = 12;
+/** Cap SVG candles — ALL intraday can be 5k–15k bars; rendering all freezes the UI. */
+const MAX_VISIBLE_BARS = 300;
 const PRICE_ZOOM_MIN = -5;
 const PRICE_ZOOM_MAX = 4;
 
@@ -212,9 +214,10 @@ function computePriceYRange(
 }
 
 function windowCount(total: number, zoomIdx: number): number {
-  if (zoomIdx <= 0 || total === 0) return total;
+  if (total === 0) return 0;
+  if (zoomIdx <= 0) return Math.min(total, MAX_VISIBLE_BARS);
   const factor = ZOOM_STEPS[Math.min(zoomIdx, ZOOM_STEPS.length - 1)] ?? 1;
-  return Math.max(MIN_WINDOW, Math.floor(total / factor));
+  return Math.max(MIN_WINDOW, Math.min(MAX_VISIBLE_BARS, Math.floor(total / factor)));
 }
 
 function applyViewport<T>(arr: T[], start: number, count: number): T[] {
@@ -1801,9 +1804,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, candleInterval, range]);
 
-  // Quiet auto-refresh while the chart page is open (intraday + daily).
+  // Quiet auto-refresh while the chart is open. Skip ALL — full history refetch is too heavy.
   useEffect(() => {
-    if (!symbol) return;
+    if (!symbol || range === 'ALL') return;
     const id = setInterval(() => {
       load({ silent: true });
     }, 60 * 1000);
@@ -1909,6 +1912,14 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     }
   };
 
+  const selectRange = (k: string) => {
+    setRange(k);
+    // ALL + fine intervals = huge payloads; bump to 15m for usable charts.
+    if (k === 'ALL' && (candleInterval === '1m' || candleInterval === '5m')) {
+      setCandleInterval('15m');
+    }
+  };
+
   const primaryLen = showCandle
     ? candleOhlc.length
     : showTechnical
@@ -1923,6 +1934,13 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   useEffect(() => {
     setViewStart((s) => Math.min(s, maxViewStart));
   }, [maxViewStart]);
+
+  // Large ALL / long intraday series: pin viewport to the most recent bars.
+  useEffect(() => {
+    if (primaryLen <= MAX_VISIBLE_BARS) return;
+    setZoomIdx(0);
+    setViewStart(Math.max(0, primaryLen - MAX_VISIBLE_BARS));
+  }, [symbol, candleInterval, range, primaryLen]);
 
   const snapToRecent = (nextZoomIdx: number) => {
     const cnt = windowCount(primaryLen, nextZoomIdx);
@@ -1940,7 +1958,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const resetZoom = () => {
     endPan();
     setZoomIdx(0);
-    setViewStart(0);
+    setViewStart(primaryLen > MAX_VISIBLE_BARS ? Math.max(0, primaryLen - MAX_VISIBLE_BARS) : 0);
   };
 
   const priceZoomIn = () => setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
@@ -2360,7 +2378,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
             {(onIntraday ? INTRADAY_RANGES : RANGES).map((r) => (
               <button
                 key={r.k}
-                onClick={() => setRange(r.k)}
+                onClick={() => selectRange(r.k)}
                 className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${range === r.k ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
               >
                 {r.k}
