@@ -42,16 +42,23 @@ export const StockFinancialsPanel: React.FC<Props> = ({
 }) => {
   const equitySnap = equitySnapshotFromSections(companyInfo?.fundamentals || []);
   const companyYieldPct = parsePercentValue(companyInfo?.latestDividend?.dividendYield);
+
+  const annualRatios =
+    companyInfo?.statements?.annual?.ratios?.length
+      ? companyInfo.statements.annual.ratios
+      : displayFinancials?.ratios?.length
+        ? displayFinancials.ratios
+        : [];
+
+  const showKeyRatios = annualRatios.length > 0;
+
   const hasAny =
     !!displayFinancials?.financials?.length ||
-    (!!displayFinancials?.ratios?.length && financialPeriod === 'Annual') ||
+    showKeyRatios ||
     !!companyInfo?.latestDividend ||
     (companyInfo?.dividendHistory?.length ?? 0) > 0 ||
     (companyInfo?.reports?.length ?? 0) > 0 ||
     (companyInfo?.statements?.annual?.financials?.length ?? 0) > 0;
-
-  const showKeyRatios =
-    financialPeriod === 'Annual' && !!displayFinancials?.ratios?.length;
 
   const periodToggle = (
     <div className="flex items-center gap-2">
@@ -292,12 +299,12 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         companyInfo?.statements?.annual?.financials &&
         companyInfo.statements.annual.financials.length > 0 && (
           <Card className="!p-0 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
-              <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-800/40">
+              <h4 className="text-[10px] font-bold text-slate-600 dark:text-slate-300 uppercase tracking-widest">
                 Trends (annual, latest first)
               </h4>
             </div>
-            <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50/40 dark:bg-transparent">
               {(
                 [
                   ['Sales', 'sales'],
@@ -307,7 +314,10 @@ export const StockFinancialsPanel: React.FC<Props> = ({
               ).map(([label, key]) => {
                 const latest = companyInfo.statements!.annual.financials[0]?.[key];
                 return (
-                  <div key={label} className="rounded-xl border border-slate-200/60 dark:border-slate-800 p-4">
+                  <div
+                    key={label}
+                    className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 shadow-sm"
+                  >
                     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">
                       {label}
                     </div>
@@ -318,7 +328,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                       {companyInfo.statements!.annual.financials.map((f, i) => (
                         <span
                           key={`${label}-${f.year}-${i}`}
-                          className="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+                          className="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-md bg-sky-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-sky-100 dark:border-slate-700"
                         >
                           {f.year}: {f[key]}
                         </span>
@@ -409,19 +419,22 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {!loading && showKeyRatios && displayFinancials && (
+      {!loading && showKeyRatios && (
         <Card className="!p-0 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
               Key Ratios
             </h4>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+              Annual
+            </span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm text-left whitespace-nowrap">
-              <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+              <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-5 py-3.5">Ratio</th>
-                  {displayFinancials.ratios.map((r) => (
+                  {annualRatios.map((r) => (
                     <th key={r.year} className="px-5 py-3.5 text-right">
                       {r.year}
                     </th>
@@ -429,27 +442,27 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
-                {displayFinancials.ratios.some((r) => r.grossProfitMargin && r.grossProfitMargin !== '-') && (
-                  <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                {annualRatios.some((r) => r.grossProfitMargin && r.grossProfitMargin !== '-') && (
+                  <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-5 py-3.5 font-bold">Gross Profit Margin (%)</td>
-                    {displayFinancials.ratios.map((r) => (
+                    {annualRatios.map((r) => (
                       <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">
                         {r.grossProfitMargin || '—'}
                       </td>
                     ))}
                   </tr>
                 )}
-                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                   <td className="px-5 py-3.5 font-bold">Net Profit Margin (%)</td>
-                  {displayFinancials.ratios.map((r) => (
+                  {annualRatios.map((r) => (
                     <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">
                       {r.netProfitMargin}
                     </td>
                   ))}
                 </tr>
-                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                   <td className="px-5 py-3.5 font-bold">EPS Growth (%)</td>
-                  {displayFinancials.ratios.map((r) => (
+                  {annualRatios.map((r) => (
                     <td
                       key={r.year}
                       className={`px-5 py-3.5 text-right font-mono tabular-nums font-bold ${
@@ -462,9 +475,9 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                     </td>
                   ))}
                 </tr>
-                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                <tr className="hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
                   <td className="px-5 py-3.5 font-bold">PEG</td>
-                  {displayFinancials.ratios.map((r) => (
+                  {annualRatios.map((r) => (
                     <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">
                       {r.peg}
                     </td>

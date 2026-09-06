@@ -2115,7 +2115,7 @@ const App: React.FC = () => {
           case 'insights':
               return <PortfolioInsights holdings={holdings} realizedTrades={realizedTrades} stats={stats} displayNames={fundDisplayNames} />;
           case 'dividends':
-              return <UpcomingDividends holdings={holdings} />;
+              return <UpcomingDividends holdings={holdings} watchlist={watchlist} />;
           case 'topMovers':
               return <TopMovers holdings={holdings} onSelectTicker={(t) => handleTickerClick(t)} />;
           case 'boardMeetings':
@@ -2150,7 +2150,7 @@ const App: React.FC = () => {
   })();
 
   return (
-    <div className="flex flex-col h-[100dvh] bg-slate-50 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div className="flex flex-col h-[100dvh] bg-slate-100 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       {trialBanner}
 
@@ -2265,9 +2265,14 @@ const App: React.FC = () => {
                       )}
 
                       {!isChartsView && (
-                      <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-4 mb-6 flex flex-col gap-3 bg-slate-50/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/50 dark:border-slate-800/50 shadow-sm transition-all">
-                          {!isFundPortfolio && <IndexBar />}
-                          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 bg-white/60 dark:bg-slate-900/60 p-3 sm:p-4 rounded-3xl border border-white/60 dark:border-slate-800/60 backdrop-blur-md shadow-card dark:shadow-card-dark">
+                      <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-4 mb-6 bg-slate-100/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl transition-all">
+                          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-card dark:shadow-card-dark overflow-hidden">
+                          {!isFundPortfolio && (
+                            <div className="px-4 sm:px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80">
+                              <IndexBar />
+                            </div>
+                          )}
+                          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 p-3 sm:p-4">
                           <div className="w-full">
                               <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                                       <button
@@ -2287,7 +2292,7 @@ const App: React.FC = () => {
                                       </button>
                                       <button
                                           onClick={() => setShowTransferModal(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
+                                          className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
                                           title={isFundPortfolio ? 'Convert between funds' : 'Transfer'}
                                       >
                                           <ArrowRightLeft size={16} /> <span className="hidden sm:inline">{isFundPortfolio ? 'Convert Funds' : 'Transfer'}</span>
@@ -2296,13 +2301,13 @@ const App: React.FC = () => {
                                       <>
                                       <button
                                           onClick={() => setShowDividendScanner(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
+                                          className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-indigo-600 dark:text-indigo-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
                                       >
                                           <Coins size={16} /> <span className="hidden md:inline">Scan Dividends</span>
                                       </button>
                                       <button
                                           onClick={() => setShowUpcomingScanner(true)}
-                                          className="hidden sm:flex bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
+                                          className="hidden sm:flex bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
                                       >
                                           <CalendarClock size={16} /> <span className="hidden md:inline">Future X-Dates</span>
                                       </button>
@@ -2310,12 +2315,12 @@ const App: React.FC = () => {
                                       )}
                                       <button
                                           onClick={() => setShowPriceEditor(true)}
-                                          className="bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-bold shadow-sm transition-all active:scale-[0.98] flex items-center gap-2 whitespace-nowrap shrink-0 text-sm min-h-[44px]"
+                                          className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-bold shadow-sm transition-all active:scale-[0.98] flex items-center gap-2 whitespace-nowrap shrink-0 text-sm min-h-[44px]"
                                       >
                                           <Edit3 size={16} /> <span className="hidden md:inline">Manual Prices</span>
                                       </button>
 
-                                      <div className="flex items-center gap-2 bg-white dark:bg-slate-800/80 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200/60 dark:border-slate-700/60 shadow-sm shrink-0 ml-auto">
+                                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 ml-auto">
                                           {isCombinedView && (
                                               <Popover.Root>
                                                   <Popover.Trigger asChild>
@@ -2384,6 +2389,7 @@ const App: React.FC = () => {
                               </div>
                             </div>
                            </div>
+                          </div>
                        </div>
                       )}
                       {currentView === 'DASHBOARD' && (
@@ -2711,6 +2717,7 @@ const App: React.FC = () => {
           isOpen={showUpcomingScanner}
           onClose={() => setShowUpcomingScanner(false)}
           holdings={holdings}
+          watchlist={watchlist}
       />
       <TransferModal
           isOpen={showTransferModal}

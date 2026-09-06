@@ -2,6 +2,13 @@ import { CompanyPayout, DividendAnnouncement } from '../types';
 import { getValidToken } from './driveStorage';
 import { fetchUrlWithFallback } from './psxData';
 import { percentToRs } from '../utils/faceValues';
+import { isFundTicker } from '../utils/fundId';
+import {
+  companyInfoToUpcomingPayouts,
+  mergeXDatePayouts,
+  uniqueTickers,
+  type DividendSnapshot,
+} from '../utils/xDateMerge';
 
 export interface CompanyFinancials {
   year: string;
@@ -285,6 +292,69 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     console.warn('Google Sheet fetch failed:', e);
     return [];
   }
+};
+
+const PYPSX_XDATE_CONCURRENCY = 4;
+const PYPSX_XDATE_MAX_TICKERS = 40;
+
+async function mapPool<T, R>(items: T[], concurrency: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await fn(items[i]);
+    }
+  });
+  await Promise.all(workers);
+  return out;
+}
+
+/** Lean pyPSX dividends for one symbol (Future X-Dates gap-fill). */
+export const fetchPypsxDividendSnapshot = async (ticker: string): Promise<DividendSnapshot | null> => {
+  const clean = ticker.toUpperCase().replace(/^PSX:/, '').trim();
+  if (!clean || isFundTicker(clean)) return null;
+  try {
+    const res = await fetch(
+      `/api/pypsx?mode=dividends&symbol=${encodeURIComponent(clean)}&t=${Date.now()}`
+    );
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (json?.error) return null;
+    return json as DividendSnapshot;
+  } catch {
+    return null;
+  }
+};
+
+/** Upcoming payouts from pyPSX for holdings ∪ watchlist tickers. */
+export const fetchPypsxUpcomingForTickers = async (tickers: string[]): Promise<CompanyPayout[]> => {
+  const list = uniqueTickers(tickers).filter((t) => !isFundTicker(t)).slice(0, PYPSX_XDATE_MAX_TICKERS);
+  if (list.length === 0) return [];
+
+  const snaps = await mapPool(list, PYPSX_XDATE_CONCURRENCY, fetchPypsxDividendSnapshot);
+  const rows: CompanyPayout[] = [];
+  for (const snap of snaps) {
+    if (!snap) continue;
+    rows.push(...companyInfoToUpcomingPayouts(snap));
+  }
+  return rows;
+};
+
+/**
+ * Future X-Dates: Google sheet (market-wide) ∪ pyPSX (holdings + watchlist gaps).
+ * Sheet wins on ticker+ex-date conflicts.
+ */
+export const fetchUpcomingXDates = async (
+  holdingsTickers: string[] = [],
+  watchlistTickers: string[] = []
+): Promise<CompanyPayout[]> => {
+  const focus = uniqueTickers(holdingsTickers, watchlistTickers);
+  const [sheet, pypsx] = await Promise.all([
+    fetchMarketWideDividends().catch(() => [] as CompanyPayout[]),
+    fetchPypsxUpcomingForTickers(focus).catch(() => [] as CompanyPayout[]),
+  ]);
+  return mergeXDatePayouts(sheet, pypsx);
 };
 
 // --- 2b. Dividend Scanner source: read the SAME sheet, backward-looking window ---

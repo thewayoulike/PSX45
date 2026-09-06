@@ -570,18 +570,21 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const toolkit = companyInfo?.statements;
       const periodKey = financialPeriod === 'Annual' ? 'annual' : 'quarterly';
       const fromToolkit = toolkit?.[periodKey];
-      if (fromToolkit && (fromToolkit.financials?.length || fromToolkit.ratios?.length)) {
+      const annualRatios = toolkit?.annual?.ratios?.length
+          ? toolkit.annual.ratios
+          : fundamentals?.annual?.ratios || [];
+      if (fromToolkit && (fromToolkit.financials?.length || fromToolkit.ratios?.length || annualRatios.length)) {
           return {
               financials: fromToolkit.financials || [],
-              // Toolkit ratios are annual-only; never keep them on Quarterly.
-              ratios: financialPeriod === 'Annual' ? (fromToolkit.ratios || []) : [],
+              // Ratios are annual-only; keep them available for Key Ratios in both period modes.
+              ratios: annualRatios.length ? annualRatios : (fromToolkit.ratios || []),
           };
       }
       if (!fundamentals) return null;
       const block = financialPeriod === 'Annual' ? fundamentals.annual : fundamentals.quarterly;
       return {
           financials: block.financials || [],
-          ratios: financialPeriod === 'Annual' ? (block.ratios || []) : [],
+          ratios: annualRatios,
       };
   }, [fundamentals, financialPeriod, companyInfo?.statements]);
 

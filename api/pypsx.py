@@ -18,6 +18,7 @@ def _load_lib():
         from pypsx_lib import (
             get_chart_analysis,
             get_company_info,
+            get_dividend_snapshot,
             get_intraday_ohlcv,
             get_quote,
             get_quotes,
@@ -26,6 +27,7 @@ def _load_lib():
 
         _LIB = {
             "company": get_company_info,
+            "dividends": get_dividend_snapshot,
             "analysis": get_chart_analysis,
             "intraday": get_intraday_ohlcv,
             "quote": get_quote,
@@ -42,6 +44,7 @@ def _load_lib():
         spec.loader.exec_module(mod)
         _LIB = {
             "company": mod.get_company_info,
+            "dividends": mod.get_dividend_snapshot,
             "analysis": mod.get_chart_analysis,
             "intraday": mod.get_intraday_ohlcv,
             "quote": mod.get_quote,
@@ -69,6 +72,9 @@ class handler(BaseHTTPRequestHandler):
             if mode == "company":
                 symbol = (q.get("symbol") or q.get("company") or [""])[0]
                 payload = lib["company"](symbol)
+            elif mode == "dividends":
+                symbol = (q.get("symbol") or q.get("dividends") or [""])[0]
+                payload = lib["dividends"](symbol)
             elif mode == "analysis":
                 symbol = (q.get("symbol") or q.get("analysis") or [""])[0]
                 period = (q.get("period") or ["6mo"])[0]
@@ -92,7 +98,7 @@ class handler(BaseHTTPRequestHandler):
                     400,
                     {
                         "error": "mode required",
-                        "hint": "Use mode=company|analysis|intraday|quote|quotes|indices",
+                        "hint": "Use mode=company|dividends|analysis|intraday|quote|quotes|indices",
                     },
                 )
                 return
@@ -109,6 +115,7 @@ class handler(BaseHTTPRequestHandler):
                     "quote": "s-maxage=15, stale-while-revalidate=60",
                     "quotes": "s-maxage=15, stale-while-revalidate=60",
                     "indices": "s-maxage=86400, stale-while-revalidate=604800",
+                    "dividends": "s-maxage=1800, stale-while-revalidate=7200",
                 }.get(mode, "s-maxage=300, stale-while-revalidate=3600")
                 self._json(200, payload, cache=cache)
         except Exception as exc:

@@ -45,19 +45,31 @@ export const IndexBar: React.FC = () => {
   if (items.length === 0) return null;
 
   return (
-    <div className="flex items-center gap-6 flex-wrap bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl px-5 py-2.5 shadow-card dark:shadow-card-dark">
+    <div className="flex items-center gap-x-5 gap-y-2 flex-wrap px-1 py-0.5">
       {items.map((it, i) => {
         const up = (it.changePct ?? 0) >= 0;
         return (
-          <div key={it.label} className="flex items-center gap-2.5">
-            {i > 0 && <span className="w-px h-4 bg-slate-200 dark:bg-slate-700 -ml-3 mr-1" />}
-            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{it.label}</span>
-            <span className="text-sm font-display font-black text-slate-900 dark:text-white tabular-nums">
+          <div key={it.label} className="flex items-center gap-2">
+            {i > 0 && (
+              <span
+                className="hidden sm:block w-px h-4 bg-slate-200 dark:bg-slate-700 mr-3"
+                aria-hidden
+              />
+            )}
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+              {it.label}
+            </span>
+            <span className="text-sm font-display font-bold text-slate-900 dark:text-white tabular-nums">
               {it.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
             {it.changePct != null && (
-              <span className={`text-xs font-bold tabular-nums ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
-                {up ? '+' : ''}{it.changePct.toFixed(2)}%
+              <span
+                className={`text-[11px] font-bold tabular-nums ${
+                  up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'
+                }`}
+              >
+                {up ? '+' : ''}
+                {it.changePct.toFixed(2)}%
               </span>
             )}
           </div>

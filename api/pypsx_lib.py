@@ -270,6 +270,33 @@ def normalize_reports(df, limit: int = 8) -> list[dict[str, str]]:
     return rows[:limit]
 
 
+def get_dividend_snapshot(symbol: str) -> dict[str, Any]:
+    """Lean dividends-only payload for Future X-Dates gap-fill (no fundamentals/reports)."""
+    clean = (symbol or "").strip().upper()
+    if not clean:
+        return {"error": "symbol required"}
+
+    try:
+        import pypsx_toolkit
+    except ImportError:
+        return {"error": "pypsx-toolkit not installed", "hint": "pip install pypsx-toolkit"}
+
+    try:
+        div_info = pypsx_toolkit.get_dividend_info(clean)
+        div_hist = pypsx_toolkit.get_dividend_history(clean)
+        info_rows = df_records(div_info)
+        hist_norm = normalize_history(df_records(div_hist))
+        latest_cash = hist_norm[0]["cashAmount"] if hist_norm else None
+        return {
+            "symbol": clean,
+            "latestDividend": normalize_latest(info_rows[0] if info_rows else None, latest_cash),
+            "dividendHistory": hist_norm,
+            "source": "pypsx",
+        }
+    except Exception as exc:
+        return {"error": str(exc), "symbol": clean}
+
+
 def get_company_info(symbol: str) -> dict[str, Any]:
     clean = (symbol or "").strip().upper()
     if not clean:

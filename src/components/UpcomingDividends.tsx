@@ -1,32 +1,43 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Holding } from '../types';
-import { fetchMarketWideDividends } from '../services/financials';
+import { fetchUpcomingXDates } from '../services/financials';
 import { Coins, CalendarClock, Loader2 } from 'lucide-react';
 
 interface Props {
   holdings: Holding[];
+  watchlist?: string[];
   days?: number; // window, default 30
 }
 
 const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const rs2 = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const UpcomingDividends: React.FC<Props> = ({ holdings, days = 30 }) => {
+export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], days = 30 }) => {
   const [payouts, setPayouts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Pull the market-wide dividend sheet (same source as Future X-Dates).
+  const holdingTickersKey = useMemo(
+    () => holdings.map((h) => h.ticker).sort().join(','),
+    [holdings]
+  );
+  const watchKey = useMemo(() => [...watchlist].map((t) => t.toUpperCase()).sort().join(','), [watchlist]);
+
+  // Sheet (market-wide) + pyPSX gap-fill for holdings ∪ watchlist.
   useEffect(() => {
     let alive = true;
+    setLoading(true);
     (async () => {
       try {
-        const data = await fetchMarketWideDividends();
+        const data = await fetchUpcomingXDates(
+          holdings.map((h) => h.ticker),
+          watchlist
+        );
         if (alive) setPayouts(data || []);
       } catch { /* ignore */ }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
-  }, []);
+  }, [holdingTickersKey, watchKey]);
 
   // Total quantity you hold per ticker (across brokers).
   const heldQty = useMemo(() => {
@@ -69,7 +80,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, days = 30 }) => {
         <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
           <Coins size={28} className="text-slate-300 dark:text-slate-600 mb-2" />
           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">No dividends for your holdings in the next {days} days.</p>
-          <p className="text-[11px] text-slate-400 mt-1">Reads your Future X-Dates sheet — sign in to Google if it's blank.</p>
+          <p className="text-[11px] text-slate-400 mt-1">Merges X-Dates sheet + pyPSX for holdings & watchlist.</p>
         </div>
       ) : (
         <>
