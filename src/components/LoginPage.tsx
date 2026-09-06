@@ -6,7 +6,7 @@ import {
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
   Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target,
   Mail, Lock, Loader2, AlertCircle, Star, Upload, FolderOpen, History, LayoutGrid,
-  CandlestickChart
+  CandlestickChart, FlaskConical
 } from 'lucide-react';
 import { signUp, signIn, isAuthConfigured } from '../services/auth';
 
@@ -239,9 +239,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </h1>
 
           <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
-            Live PSX prices, true FIFO cost basis, realized P&amp;L with CGT, dividends,
-            and market tools — plus full <span className="font-bold text-teal-700 dark:text-teal-400">mutual fund tracking</span> with MUFAP NAVs and daily P&amp;L,
-            and <span className="font-bold text-emerald-700 dark:text-emerald-400">TradingView-style charts</span> for 500+ tickers.
+            Live PSX prices, true FIFO cost basis, realized P&amp;L with CGT, dividends and X-dates,
+            market tools — plus <span className="font-bold text-teal-700 dark:text-teal-400">mutual fund portfolios</span> with NAV sync and daily P&amp;L,
+            and <span className="font-bold text-emerald-700 dark:text-emerald-400">candlestick charts</span> with indicators and draw tools.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
@@ -262,18 +262,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
 
           <div className="flex flex-wrap gap-2 justify-center mb-8">
             <Pill>Live PSX Prices</Pill>
-            <span className="px-3 py-1.5 rounded-full bg-emerald-600 text-white text-[11px] font-black tracking-wide shadow-md shadow-emerald-600/25 whitespace-nowrap">
-              ★ PSX Charts · New
-            </span>
-            <span className="px-3 py-1.5 rounded-full bg-teal-600 text-white text-[11px] font-black tracking-wide shadow-md shadow-teal-600/25 whitespace-nowrap">
-              ★ Mutual Funds · Extra
-            </span>
+            <Pill>Candlestick Charts</Pill>
+            <Pill>Mutual Funds</Pill>
             <Pill>Holdings &amp; History</Pill>
             <Pill>Watchlist</Pill>
             <Pill>Market Signals</Pill>
+            <Pill>Daily Scan Bot</Pill>
+            <Pill>Strategy Backtest</Pill>
             <Pill>Price Alerts</Pill>
-            <Pill>Dividend Scanner</Pill>
-            <Pill>Board Meetings</Pill>
+            <Pill>Dividends &amp; X-Dates</Pill>
+            <Pill>Company Financials</Pill>
             <Pill>Realized P&amp;L + CGT</Pill>
             <Pill>Fair Value Calc</Pill>
             <Pill>Trading Simulator</Pill>
@@ -291,10 +289,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <div>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className="text-sm font-display font-black text-slate-900 dark:text-white tracking-tight">Mutual Fund Portfolios</span>
-                  <span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-teal-600 text-white">Extra Feature</span>
                 </div>
                 <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                  Track open-end funds alongside stocks — MUFAP NAV sync, units &amp; cost basis, and true day-over-day fund P&amp;L from today vs yesterday NAV.
+                  Track open-end funds alongside stocks — live NAV sync, units &amp; cost basis, and day-over-day fund P&amp;L.
                 </p>
               </div>
             </div>
@@ -311,8 +308,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
         <div className="max-w-6xl mx-auto">
           <SectionHead
             eyebrow="Everything You Need"
-            title="A complete PSX toolkit"
-            sub="From daily tracking to trade planning — every number computed properly, not estimated."
+            title="Built for how you actually invest"
+            sub="Portfolio tracking, research tools, and trade planning — with cost basis and taxes done properly."
           />
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -320,44 +317,54 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               Icon={Wallet}
               title="Mutual Fund Tracking"
               tint="bg-teal-100 dark:bg-teal-500/20 text-teal-700 dark:text-teal-300 border-teal-200 dark:border-teal-500/30"
-              badge="Extra"
               highlight
             >
-              Dedicated fund portfolios with MUFAP NAV sync, units &amp; average cost, and daily P&amp;L from today vs yesterday NAV — not just stock tracking.
+              Dedicated fund portfolios with NAV sync, units &amp; average cost, and daily P&amp;L — not just stock tracking.
             </Feature>
 
             <Feature
               Icon={CandlestickChart}
-              title="PSX Charts Explorer"
+              title="PSX Charts"
               tint="bg-emerald-100 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/30"
-              badge="New"
               highlight
             >
-              Full-screen candlesticks for 500+ tickers — trend lines, Fib retracement, price-axis zoom, and your open + realized P&amp;L overlaid on the chart.
+              Candlesticks for hundreds of tickers — moving averages, RSI, Bollinger, Fib, trend lines, and your open + realized P&amp;L on the chart.
             </Feature>
 
             <Feature Icon={LayoutDashboard} title="Live Dashboard" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
-              Net worth, today's P&amp;L, total return and a portfolio health score — with KSE-100, KMI-30 and USD/PKR at the top. Layout is customizable.
+              Net worth, today&apos;s P&amp;L, total return and a portfolio health score — with KSE-100, KMI-30 and USD/PKR at the top. Layout is customizable.
             </Feature>
 
             <Feature Icon={FolderOpen} title="Holdings &amp; History" tint="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700">
-              Full open positions with avg cost, and a complete ledger of buys, sells, dividends, cash, fees and portfolio transfers.
+              Full open positions with avg cost, day change, break-even, and a complete ledger of buys, sells, dividends, cash, fees and transfers.
             </Feature>
 
             <Feature Icon={Radar} title="Market Signals" tint="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20">
               Scan the market, KSE-100 or KMI-30 for buy/sell signals using SMA, EMA, RSI and MACD — with buy range, stop loss and take-profit.
             </Feature>
 
+            <Feature Icon={Activity} title="Daily Scan Bot" tint="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/20">
+              Run a multi-indicator or RSI-oversold scan across KSE-100, KMI-30, or your watchlist and save the hits.
+            </Feature>
+
+            <Feature Icon={FlaskConical} title="Strategy Backtest" tint="bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-500/20">
+              Test simple technical strategies on historical prices before you size a real trade.
+            </Feature>
+
             <Feature Icon={Star} title="Watchlist" tint="bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-500/20">
-              Follow names you don't hold yet. Live PSX quotes, day change, and a one-tap jump into the stock profile.
+              Follow names you don&apos;t hold yet. Live quotes, day change, and a one-tap jump into the stock profile.
             </Feature>
 
             <Feature Icon={BellRing} title="Price Alerts" tint="bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-500/20">
-              Signed-in users can set above/below targets and get a push when the price hits — even if the app is closed. Guest Mode cannot save alerts.
+              Signed-in users can set above/below targets and get a browser push when the price hits (permission required). Guest Mode cannot save alerts.
             </Feature>
 
-            <Feature Icon={Coins} title="Dividend Tracking" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
-              Scan for dividends you're eligible for. Face-value math for Rs. 10, 5, 3.5 and 1 stocks, with WHT handled. Upcoming payouts on the dashboard.
+            <Feature Icon={Coins} title="Dividends &amp; X-Dates" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
+              Scan eligible dividends with face-value math and WHT. Upcoming ex-dates for the market plus your holdings and watchlist.
+            </Feature>
+
+            <Feature Icon={Building2} title="Company Financials" tint="bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-500/20">
+              Company profile, annual and quarterly results, key ratios, dividend history, and filings on the stock view.
             </Feature>
 
             <Feature Icon={Receipt} title="Realized P&amp;L &amp; CGT" tint="bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20">
@@ -365,15 +372,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             </Feature>
 
             <Feature Icon={TrendingUp} title="Benchmark vs Index" tint="bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-100 dark:border-teal-500/20">
-              See whether you're beating KSE-100 and KMI-30 today, this week or this month — plus a 30-day daily return chart.
+              See whether you&apos;re beating KSE-100 and KMI-30 today, this week or this month — plus a 30-day daily return chart.
             </Feature>
 
             <Feature Icon={PieChart} title="Allocation &amp; Insights" tint="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/20">
               Sector and stock allocation, concentration, fee drag, cash drag, and ranked best/worst holdings and sold trades.
-            </Feature>
-
-            <Feature Icon={Building2} title="Brokers &amp; Portfolios" tint="bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border-cyan-100 dark:border-cyan-500/20">
-              Per-broker commission slabs, SST and CDC in your cost basis. Multiple portfolios, with transfers at the first broker's buy cost.
             </Feature>
 
             <Feature Icon={Upload} title="Trade Import" tint="bg-lime-50 dark:bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-100 dark:border-lime-500/20">
@@ -381,7 +384,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             </Feature>
 
             <Feature Icon={CloudUpload} title="Google Drive Sync" tint="bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-500/20">
-              Portfolio data syncs to your own Google Drive (and a Sheet). Guest Mode stays on this device only.
+              Portfolio data syncs to your own Google Drive. Guest Mode stays on this device only.
             </Feature>
           </div>
         </div>
@@ -403,11 +406,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               </div>
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="font-display font-black text-lg tracking-tight">Charts Explorer</h3>
-                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-600 text-white">New</span>
               </div>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Research any PSX stock with candlesticks, volume, and draw tools — with your portfolio P&amp;L in view.</p>
               <ul className="space-y-2">
-                <Check>500+ tickers · Day / Week / Month</Check>
+                <Check>Day / Week / Month ranges</Check>
                 <Check>Fib, trend lines &amp; price-axis zoom</Check>
                 <Check>Open + realized P&amp;L on chart</Check>
               </ul>
@@ -420,7 +422,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Fair Value Calculator</h3>
               <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Estimate what a stock is actually worth before you buy.</p>
               <ul className="space-y-2">
-                <Check>Fundamentals from PSX</Check>
+                <Check>Company fundamentals</Check>
                 <Check>EPS &amp; book value based</Check>
                 <Check>Upside vs market price</Check>
               </ul>
@@ -436,6 +438,32 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
                 <Check>Your broker's charges</Check>
                 <Check>Break-even price</Check>
                 <Check>Profit at target</Check>
+              </ul>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-sm">
+              <div className="w-11 h-11 rounded-2xl bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border border-violet-100 dark:border-violet-500/20 flex items-center justify-center mb-4">
+                <FlaskConical size={20} />
+              </div>
+              <h3 className="font-display font-black text-lg tracking-tight mb-2">Strategy Backtest</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Rehearse a technical idea on past prices before you risk capital.</p>
+              <ul className="space-y-2">
+                <Check>Rule-based entries &amp; exits</Check>
+                <Check>Historical win / loss summary</Check>
+                <Check>Use alongside Daily Scan hits</Check>
+              </ul>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-sm">
+              <div className="w-11 h-11 rounded-2xl bg-cyan-50 dark:bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 border border-cyan-100 dark:border-cyan-500/20 flex items-center justify-center mb-4">
+                <Building2 size={20} />
+              </div>
+              <h3 className="font-display font-black text-lg tracking-tight mb-2">Brokers &amp; Portfolios</h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Model your real brokerage costs across multiple portfolios.</p>
+              <ul className="space-y-2">
+                <Check>Commission slabs, SST &amp; CDC</Check>
+                <Check>Multiple portfolios</Check>
+                <Check>Transfers at buy cost</Check>
               </ul>
             </div>
 
@@ -487,7 +515,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               <ul className="space-y-2">
                 <Check>Drag-and-drop grid</Check>
                 <Check>Separate mobile layout</Check>
-                <Check>Top movers &amp; board meetings</Check>
+                <Check>Top movers on the dashboard</Check>
               </ul>
             </div>
           </div>

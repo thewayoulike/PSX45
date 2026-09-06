@@ -80,7 +80,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
         <div className="flex-1 flex flex-col items-center justify-center py-8 text-center">
           <Coins size={28} className="text-slate-300 dark:text-slate-600 mb-2" />
           <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">No dividends for your holdings in the next {days} days.</p>
-          <p className="text-[11px] text-slate-400 mt-1">Merges X-Dates sheet + pyPSX for holdings & watchlist.</p>
+          <p className="text-[11px] text-slate-400 mt-1">No upcoming dividends in this window for your holdings.</p>
         </div>
       ) : (
         <>

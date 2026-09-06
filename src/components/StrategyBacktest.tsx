@@ -328,7 +328,7 @@ export const StrategyBacktest: React.FC<Props> = ({ onSymbolClick }) => {
 
       {!result && status !== 'running' && (
         <div className="text-center py-16 text-slate-400 text-sm">
-          Pick a PSX symbol and strategy, then run a backtest on daily OHLC from PSX historical data.
+          Pick a PSX symbol and strategy, then run a backtest on daily historical prices.
           <br />
           <span className="text-xs mt-2 inline-block">Includes ~0.1% round-trip commission. Educational only — not investment advice.</span>
         </div>

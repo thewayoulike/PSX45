@@ -139,7 +139,7 @@ export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache,
 
       } catch (error) {
           console.error("Auto-fill failed:", error);
-          alert("Failed to fetch data from Google Sheet.");
+          alert("Failed to fetch company fundamentals. Try again.");
       } finally {
           setIsFetching(false);
       }
@@ -328,7 +328,7 @@ export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache,
                         <button 
                             onClick={handleAutoFill}
                             disabled={isFetching}
-                            title="Auto-fill Data from PSX & StockAnalysis"
+                            title="Auto-fill company fundamentals"
                             className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 dark:bg-indigo-500/10 dark:hover:bg-indigo-500/20 dark:text-indigo-400 p-3 rounded-xl transition-all flex items-center justify-center shrink-0 border border-indigo-200/60 dark:border-indigo-500/20 shadow-sm"
                         >
                             {isFetching ? <Loader2 size={18} className="animate-spin" /> : <Sparkles size={18} />}

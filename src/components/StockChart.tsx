@@ -2601,8 +2601,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         {!isFocus && !showTechnical && !showCandle && (
         <p className="text-[10px] text-slate-400 mt-2 px-1">
           {canCandle
-            ? 'Daily OHLCV from PSX historical (same source as pypsx_toolkit.download) — open, high, low, close, volume.'
-            : 'Close-only fallback from PSX timeseries. Candles need OHLCV from /api/proxy?ohlc=.'}
+            ? 'Daily candles with open, high, low, close and volume.'
+            : 'Close-only price history for this chart.'}
         </p>
         )}
         {!isFocus && showCandle && canPanChart && (

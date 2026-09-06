@@ -234,7 +234,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
         </div>
         <h2 className="text-2xl sm:text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">Price Alerts</h2>
         <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium max-w-md mx-auto leading-relaxed">
-          Get a push notification the moment a stock hits your price — even when the app is closed.
+          Get a browser push when a stock hits your price (permission required).
         </p>
         {!canSaveAlerts && (
           <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-xl px-4 py-2.5 inline-block">

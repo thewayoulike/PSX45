@@ -186,7 +186,7 @@ export const Watchlist: React.FC<Props> = ({ watchlist, onAdd, onRemove, onSelec
               </button>
               <SetAlert ticker={t} currentPrice={price} canSaveAlerts={canSaveAlerts} />
               <p className="text-[10px] text-slate-400 mt-2 px-1 leading-snug">
-                Price alerts run on the server — they'll notify you even when the app is closed or you're logged out.
+                Price alerts can send a browser push when permission is on.
               </p>
             </div>
           </div>

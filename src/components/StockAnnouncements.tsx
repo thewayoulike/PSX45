@@ -4,7 +4,7 @@ import {
   fetchBoardMeetings, BoardMeeting,
   fetchMarketWideDividends,
 } from '../services/financials';
-import { Megaphone, FileText, CalendarClock, Loader2, RefreshCw, ExternalLink, Coins, CalendarDays } from 'lucide-react';
+import { Megaphone, FileText, CalendarClock, Loader2, RefreshCw, Coins, CalendarDays } from 'lucide-react';
 
 interface Props { ticker: string | null; }
 
@@ -130,7 +130,7 @@ export const StockAnnouncements: React.FC<Props> = ({ ticker }) => {
         )}
 
         <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 text-[10px] text-slate-400 flex items-center gap-1">
-          <ExternalLink size={9} /> Source: dps.psx.com.pk company filings · payouts from your Future X-Dates sheet
+          Recent company filings and upcoming payouts for your holdings.
         </div>
       </div>
     </div>
