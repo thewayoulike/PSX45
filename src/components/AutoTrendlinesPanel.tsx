@@ -6,6 +6,118 @@ import {
   cloneAutoTrendlineSettings,
 } from '../utils/autoTrendlines';
 
+export function AutoTrendlinesPanelContent({
+  draft,
+  patch,
+}: {
+  draft: AutoTrendlineSettings;
+  patch: (p: Partial<AutoTrendlineSettings>) => void;
+}) {
+  return (
+    <div className="p-3 space-y-3 max-h-[min(520px,70vh)] overflow-y-auto">
+      <label className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={draft.enabled}
+          onChange={() => patch({ enabled: !draft.enabled })}
+          className="rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+        />
+        <span className="text-[12px] font-bold text-slate-800 dark:text-slate-100">Enable auto trendlines</span>
+      </label>
+
+      <div className="border-t border-slate-100 dark:border-slate-800 pt-2 space-y-1">
+        <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Lines</p>
+        <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.showResistance}
+            onChange={() => patch({ showResistance: !draft.showResistance })}
+            className="rounded border-slate-300"
+          />
+          <span className="w-3 h-3 rounded-sm border border-slate-300" style={{ background: draft.resistanceColor }} />
+          <span className="text-[11px] font-semibold flex-1">Resistance</span>
+          <input
+            type="color"
+            value={draft.resistanceColor}
+            onChange={(e) => patch({ resistanceColor: e.target.value })}
+            className="w-8 h-6 rounded border border-slate-200 dark:border-slate-700 cursor-pointer"
+            title="Resistance color"
+          />
+        </label>
+        <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.showSupport}
+            onChange={() => patch({ showSupport: !draft.showSupport })}
+            className="rounded border-slate-300"
+          />
+          <span className="w-3 h-3 rounded-sm border border-slate-300" style={{ background: draft.supportColor }} />
+          <span className="text-[11px] font-semibold flex-1">Support</span>
+          <input
+            type="color"
+            value={draft.supportColor}
+            onChange={(e) => patch({ supportColor: e.target.value })}
+            className="w-8 h-6 rounded border border-slate-200 dark:border-slate-700 cursor-pointer"
+            title="Support color"
+          />
+        </label>
+      </div>
+
+      <div className="border-t border-slate-100 dark:border-slate-800 pt-2 space-y-2">
+        <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Inputs</p>
+        <label className="flex items-center justify-between gap-3 px-2 py-1.5">
+          <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Pivot strength</span>
+          <input
+            type="number"
+            min={2}
+            max={50}
+            value={draft.pivotLength}
+            onChange={(e) =>
+              patch({ pivotLength: Math.max(2, Math.min(50, Number(e.target.value) || 2)) })
+            }
+            className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold tabular-nums"
+          />
+        </label>
+        <label className="flex items-center justify-between gap-3 px-2 py-1.5">
+          <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Min bars between</span>
+          <input
+            type="number"
+            min={5}
+            max={200}
+            value={draft.minBarsBetween}
+            onChange={(e) =>
+              patch({ minBarsBetween: Math.max(5, Math.min(200, Number(e.target.value) || 5)) })
+            }
+            className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold tabular-nums"
+            title="Prefer longer structural swing pairs"
+          />
+        </label>
+        <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.extendRight}
+            onChange={() => patch({ extendRight: !draft.extendRight })}
+            className="rounded border-slate-300"
+          />
+          <span className="text-[11px] font-semibold">Extend lines right</span>
+        </label>
+        <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={draft.breakAndRebuild}
+            onChange={() => patch({ breakAndRebuild: !draft.breakAndRebuild })}
+            className="rounded border-slate-300"
+          />
+          <span className="text-[11px] font-semibold">Break &amp; rebuild</span>
+        </label>
+        <p className="px-2 text-[10px] text-slate-400 leading-snug">
+          Draws longer structural lines (not just the last two swings). When price closes through a line, rebuilds from an earlier unbroken pair.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export const AutoTrendlinesPanel: React.FC<{
   settings: AutoTrendlineSettings;
   onApply: (next: AutoTrendlineSettings) => void;
@@ -78,107 +190,7 @@ export const AutoTrendlinesPanel: React.FC<{
               </button>
             </div>
 
-            <div className="p-3 space-y-3 max-h-[min(520px,70vh)] overflow-y-auto">
-              <label className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={draft.enabled}
-                  onChange={() => patch({ enabled: !draft.enabled })}
-                  className="rounded border-slate-300 text-slate-900 focus:ring-slate-500"
-                />
-                <span className="text-[12px] font-bold text-slate-800 dark:text-slate-100">Enable auto trendlines</span>
-              </label>
-
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-2 space-y-1">
-                <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Lines</p>
-                <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={draft.showResistance}
-                    onChange={() => patch({ showResistance: !draft.showResistance })}
-                    className="rounded border-slate-300"
-                  />
-                  <span className="w-3 h-3 rounded-sm border border-slate-300" style={{ background: draft.resistanceColor }} />
-                  <span className="text-[11px] font-semibold flex-1">Resistance</span>
-                  <input
-                    type="color"
-                    value={draft.resistanceColor}
-                    onChange={(e) => patch({ resistanceColor: e.target.value })}
-                    className="w-8 h-6 rounded border border-slate-200 dark:border-slate-700 cursor-pointer"
-                    title="Resistance color"
-                  />
-                </label>
-                <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={draft.showSupport}
-                    onChange={() => patch({ showSupport: !draft.showSupport })}
-                    className="rounded border-slate-300"
-                  />
-                  <span className="w-3 h-3 rounded-sm border border-slate-300" style={{ background: draft.supportColor }} />
-                  <span className="text-[11px] font-semibold flex-1">Support</span>
-                  <input
-                    type="color"
-                    value={draft.supportColor}
-                    onChange={(e) => patch({ supportColor: e.target.value })}
-                    className="w-8 h-6 rounded border border-slate-200 dark:border-slate-700 cursor-pointer"
-                    title="Support color"
-                  />
-                </label>
-              </div>
-
-              <div className="border-t border-slate-100 dark:border-slate-800 pt-2 space-y-2">
-                <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">Inputs</p>
-                <label className="flex items-center justify-between gap-3 px-2 py-1.5">
-                  <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Pivot strength</span>
-                  <input
-                    type="number"
-                    min={2}
-                    max={50}
-                    value={draft.pivotLength}
-                    onChange={(e) =>
-                      patch({ pivotLength: Math.max(2, Math.min(50, Number(e.target.value) || 2)) })
-                    }
-                    className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold tabular-nums"
-                  />
-                </label>
-                <label className="flex items-center justify-between gap-3 px-2 py-1.5">
-                  <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Min bars between</span>
-                  <input
-                    type="number"
-                    min={5}
-                    max={200}
-                    value={draft.minBarsBetween}
-                    onChange={(e) =>
-                      patch({ minBarsBetween: Math.max(5, Math.min(200, Number(e.target.value) || 5)) })
-                    }
-                    className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold tabular-nums"
-                    title="Prefer longer structural swing pairs"
-                  />
-                </label>
-                <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={draft.extendRight}
-                    onChange={() => patch({ extendRight: !draft.extendRight })}
-                    className="rounded border-slate-300"
-                  />
-                  <span className="text-[11px] font-semibold">Extend lines right</span>
-                </label>
-                <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={draft.breakAndRebuild}
-                    onChange={() => patch({ breakAndRebuild: !draft.breakAndRebuild })}
-                    className="rounded border-slate-300"
-                  />
-                  <span className="text-[11px] font-semibold">Break &amp; rebuild</span>
-                </label>
-                <p className="px-2 text-[10px] text-slate-400 leading-snug">
-                  Draws longer structural lines (not just the last two swings). When price closes through a line, rebuilds from an earlier unbroken pair.
-                </p>
-              </div>
-            </div>
+            <AutoTrendlinesPanelContent draft={draft} patch={patch} />
 
             <div className="flex items-center justify-between gap-2 px-4 py-3 border-t border-slate-200 dark:border-slate-800">
               <button

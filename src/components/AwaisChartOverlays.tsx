@@ -112,7 +112,7 @@ function PanelCheckbox({
 
 type PanelTab = 'inputs' | 'style' | 'visibility';
 
-function IndicatorsPanelContent({
+export function IndicatorsPanelContent({
   draft,
   setDraft,
   tab,
