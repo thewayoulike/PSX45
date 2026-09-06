@@ -20,25 +20,16 @@ import {
   LayoutList, 
   TrendingUp, 
   Activity,
-  Loader2,
-  FileText,
-  RefreshCw,
   Clock,
-  Building2,
-  AlertCircle, AlertTriangle,
-  ExternalLink,
-  Link2
+  AlertCircle, AlertTriangle
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { StockAnnouncements } from './StockAnnouncements';
 import { StockChart } from './StockChart';
 import { exportToCSV } from '../utils/export';
 import { fetchCompanyFundamentals, fetchCompanyInfo, FundamentalsData, CompanyInfoData } from '../services/financials';
-import {
-  equitySnapshotFromSections,
-  formatCompactPkAmount,
-  parsePercentValue,
-} from '../utils/companyInfoParse';
+import { CompanyInfoPanel } from './CompanyInfoPanel';
+import { StockFinancialsPanel } from './StockFinancialsPanel';
 
 // --- HYBRID FALLBACK: Static Lists ---
 const FALLBACK_KMI30 = new Set([
@@ -200,14 +191,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [companyInfo, setCompanyInfo] = useState<CompanyInfoData | null>(null);
   const [loadingFundamentals, setLoadingFundamentals] = useState(false);
   const [financialPeriod, setFinancialPeriod] = useState<'Annual' | 'Quarterly'>('Annual');
-  const [descExpanded, setDescExpanded] = useState(false);
 
   const loadFundamentals = useCallback(async () => {
       if (analysisMode === 'STOCK' && selectedTicker) {
           setLoadingFundamentals(true);
           setFundamentals(null);
           setCompanyInfo(null);
-          setDescExpanded(false);
           try {
               const [data, info] = await Promise.all([
                   fetchCompanyFundamentals(selectedTicker),
@@ -588,16 +577,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return financialPeriod === 'Annual' ? fundamentals.annual : fundamentals.quarterly;
   }, [fundamentals, financialPeriod, companyInfo?.statements]);
 
-  const equitySnap = useMemo(
-      () => equitySnapshotFromSections(companyInfo?.fundamentals || []),
-      [companyInfo?.fundamentals]
-  );
-
-  const companyYieldPct = useMemo(
-      () => parsePercentValue(companyInfo?.latestDividend?.dividendYield),
-      [companyInfo?.latestDividend?.dividendYield]
-  );
-
   const isSelectionNotFound = (analysisMode === 'STOCK' && selectedTicker && !selectedStockStats) || 
                               (analysisMode === 'SECTOR' && selectedSector && !selectedSectorStats);
 
@@ -801,385 +780,33 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 </>)}
 
-                {detailTab === 'companyInfo' && (<>
-                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
-                    <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                              <Building2 size={20} />
-                            </div>
-                            <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Company Info</h3>
-                        </div>
-                        <button onClick={loadFundamentals} disabled={loadingFundamentals} className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                            <RefreshCw size={16} className={loadingFundamentals ? "animate-spin" : ""} />
-                        </button>
-                    </div>
+                {detailTab === 'companyInfo' && (
+                    <CompanyInfoPanel
+                        companyInfo={companyInfo}
+                        loading={loadingFundamentals}
+                        onRefresh={loadFundamentals}
+                    />
+                )}
 
-                    {loadingFundamentals && (
-                        <div className="p-12 flex items-center justify-center gap-3 text-slate-400 font-medium text-sm">
-                            <Loader2 size={18} className="animate-spin" /> Loading company info…
-                        </div>
-                    )}
-
-                    {!loadingFundamentals && !companyInfo?.businessDescription && !(companyInfo?.fundamentals?.length) && !companyInfo?.latestDividend && !(companyInfo?.statements?.annual?.financials?.length) && !(companyInfo?.reports?.length) && (
-                        <div className="p-12 text-center text-slate-400 font-medium text-sm">No company info available for this symbol right now. PSX data may be temporarily unavailable.</div>
-                    )}
-
-                    {!loadingFundamentals && companyInfo && (companyInfo.businessDescription || (companyInfo.fundamentals?.length ?? 0) > 0 || companyInfo.latestDividend || (companyInfo.statements?.annual?.financials?.length ?? 0) > 0 || (companyInfo.reports?.length ?? 0) > 0) && (
-                        <div className="p-6 space-y-8 animate-in fade-in duration-300">
-                            {/* Snapshot strip */}
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                                {([
-                                    ['Price', selectedStockStats && currentPrices[selectedStockStats.ticker] > 0
-                                        ? currentPrices[selectedStockStats.ticker].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                                        : '—'],
-                                    ['Mkt cap', formatCompactPkAmount(equitySnap.marketCapRaw, { unitIsThousands: true })],
-                                    ['Yield', companyInfo.latestDividend?.dividendYield || '—'],
-                                    ['EPS (latest)', companyInfo.statements?.annual?.financials?.[0]?.eps || '—'],
-                                    ['Free float', equitySnap.freeFloatPct || '—'],
-                                ] as const).map(([label, value]) => (
-                                    <div key={label} className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-4 py-3">
-                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
-                                        <div className="mt-1 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value}</div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            {companyInfo.businessDescription && (
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Business Description</h4>
-                                    <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 p-5">
-                                        <p className="text-sm leading-relaxed text-slate-700 dark:text-slate-300">
-                                            {descExpanded || companyInfo.businessDescription.length <= 420
-                                                ? companyInfo.businessDescription
-                                                : `${companyInfo.businessDescription.slice(0, 420).trim()}…`}
-                                        </p>
-                                        {companyInfo.businessDescription.length > 420 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setDescExpanded((v) => !v)}
-                                                className="mt-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
-                                            >
-                                                {descExpanded ? 'Show less' : 'Read more'}
-                                            </button>
-                                        )}
-                                        {equitySnap.website && (
-                                            <a
-                                                href={equitySnap.website.startsWith('http') ? equitySnap.website : `https://${equitySnap.website}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
-                                            >
-                                                <Link2 size={14} /> Website <ExternalLink size={12} />
-                                            </a>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Dividend desk */}
-                            {(companyInfo.latestDividend || (selectedStockStats && selectedStockStats.dividendCount > 0)) && (
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Dividend desk</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {companyInfo.latestDividend && (
-                                            <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/10 p-5">
-                                                <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700/80 dark:text-emerald-400/80 mb-3">Company dividend</div>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    {([
-                                                        ['Yield', companyInfo.latestDividend.dividendYield],
-                                                        ['Annual', companyInfo.latestDividend.annualDividend],
-                                                        ['Ex-date', companyInfo.latestDividend.exDividendDate],
-                                                        ['Payout', companyInfo.latestDividend.payoutRatio],
-                                                    ] as const).map(([label, value]) => (
-                                                        <div key={label}>
-                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
-                                                            <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value || '—'}</div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDetailTab('financials')}
-                                                    className="mt-4 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
-                                                >
-                                                    Full history on Financials →
-                                                </button>
-                                            </div>
-                                        )}
-                                        {selectedStockStats && (selectedStockStats.dividendCount > 0 || selectedStockStats.ownedQty > 0) && (
-                                            <div className="rounded-2xl border border-indigo-200/70 dark:border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-500/10 p-5">
-                                                <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-700/80 dark:text-indigo-400/80 mb-3">Your position</div>
-                                                <div className="grid grid-cols-2 gap-3">
-                                                    <div>
-                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Yield on cost</div>
-                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{selectedStockStats.dividendYieldOnCost.toFixed(2)}%</div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Company yield</div>
-                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{companyYieldPct != null ? `${companyYieldPct.toFixed(2)}%` : '—'}</div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Net received</div>
-                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{formatCurrency(selectedStockStats.netDividends)}</div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Payouts</div>
-                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{selectedStockStats.dividendCount}</div>
-                                                    </div>
-                                                </div>
-                                                {companyYieldPct != null && (
-                                                    <p className="mt-3 text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
-                                                        Your yield on cost is{' '}
-                                                        <span className="font-bold tabular-nums">
-                                                            {(selectedStockStats.dividendYieldOnCost - companyYieldPct) >= 0 ? '+' : ''}
-                                                            {(selectedStockStats.dividendYieldOnCost - companyYieldPct).toFixed(2)}pp
-                                                        </span>
-                                                        {' '}vs the company’s trailing yield.
-                                                    </p>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDetailTab('position')}
-                                                    className="mt-3 text-xs font-bold text-indigo-700 dark:text-indigo-400 hover:underline"
-                                                >
-                                                    Open Position &amp; Gains →
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Trend cards from toolkit statements */}
-                            {companyInfo.statements?.annual?.financials && companyInfo.statements.annual.financials.length > 0 && (
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Trends (annual, latest first)</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                        {([
-                                            ['Sales', 'sales'],
-                                            ['Profit after tax', 'profitAfterTax'],
-                                            ['EPS', 'eps'],
-                                        ] as const).map(([label, key]) => {
-                                            const series = companyInfo.statements!.annual.financials.map((f) => f[key]);
-                                            return (
-                                                <div key={label} className="rounded-2xl border border-slate-200/60 dark:border-slate-800 p-4">
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">{label}</div>
-                                                    <div className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">{series[0] || '—'}</div>
-                                                    <div className="mt-2 flex flex-wrap gap-1.5">
-                                                        {series.map((v, i) => (
-                                                            <span key={`${label}-${i}`} className="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                                                {i === 0 ? 'L' : `−${i}`}: {v}
-                                                            </span>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    {companyInfo.statements.annual.ratios.length > 0 && (
-                                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
-                                            {([
-                                                ['GPM', companyInfo.statements.annual.ratios[0].grossProfitMargin],
-                                                ['NPM', companyInfo.statements.annual.ratios[0].netProfitMargin],
-                                                ['EPS growth', companyInfo.statements.annual.ratios[0].epsGrowth],
-                                                ['PEG', companyInfo.statements.annual.ratios[0].peg],
-                                            ] as const).map(([label, value]) => (
-                                                <div key={label} className="rounded-2xl border border-slate-200/60 dark:border-slate-800 px-4 py-3">
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
-                                                    <div className="mt-1 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value || '—'}</div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-
-                            {(companyInfo.fundamentals ?? []).map((section) => (
-                                <div key={section.category}>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">{section.category}</h4>
-                                    <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
-                                        <dl className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                                            {section.items.map((item) => (
-                                                <div key={`${section.category}-${item.label}-${item.value}`} className="grid grid-cols-1 sm:grid-cols-[minmax(140px,34%)_1fr] gap-1 sm:gap-4 px-5 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                                    <dt className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{item.label}</dt>
-                                                    <dd className="text-sm font-medium text-slate-800 dark:text-slate-200 break-words">{item.value}</dd>
-                                                </div>
-                                            ))}
-                                        </dl>
-                                    </div>
-                                </div>
-                            ))}
-
-                            {/* Filings */}
-                            {(companyInfo.reports?.length ?? 0) > 0 && (
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Filings</h4>
-                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
-                                        <table className="w-full text-sm text-left whitespace-nowrap">
-                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                                <tr>
-                                                    <th className="px-5 py-3.5">Type</th>
-                                                    <th className="px-5 py-3.5">Period ended</th>
-                                                    <th className="px-5 py-3.5">Posted</th>
-                                                    <th className="px-5 py-3.5 text-right">PDF</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
-                                                {companyInfo.reports!.map((r, i) => (
-                                                    <tr key={`${r.reportType}-${r.periodEnded}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
-                                                        <td className="px-5 py-3.5 font-medium">{r.reportType}</td>
-                                                        <td className="px-5 py-3.5 font-mono tabular-nums text-slate-600 dark:text-slate-300">{r.periodEnded}</td>
-                                                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{r.postingDate}</td>
-                                                        <td className="px-5 py-3.5 text-right">
-                                                            {r.pdfLink ? (
-                                                                <a
-                                                                    href={r.pdfLink}
-                                                                    target="_blank"
-                                                                    rel="noopener noreferrer"
-                                                                    className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
-                                                                >
-                                                                    Open <ExternalLink size={12} />
-                                                                </a>
-                                                            ) : (
-                                                                '—'
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-                </>)}
-
-                {detailTab === 'financials' && (<>
-                {/* --- COMPANY FINANCIALS --- */}
-                <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
-                    <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 rounded-2xl flex items-center justify-center text-slate-500 dark:text-slate-400 shrink-0">
-                              <FileText size={20} />
-                            </div>
-                            <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Company Financials</h3>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-                                <button onClick={() => setFinancialPeriod('Annual')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${financialPeriod === 'Annual' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>Annual</button>
-                                <button onClick={() => setFinancialPeriod('Quarterly')} className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${financialPeriod === 'Quarterly' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}>Quarterly</button>
-                            </div>
-                            <button onClick={loadFundamentals} disabled={loadingFundamentals} className="p-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"> <RefreshCw size={16} className={loadingFundamentals ? "animate-spin" : ""} /> </button>
-                        </div>
-                    </div>
-                    
-                    {!displayFinancials && !companyInfo?.latestDividend && !(companyInfo?.dividendHistory?.length) && !loadingFundamentals && ( <div className="p-12 text-center text-slate-400 font-medium text-sm">No {financialPeriod.toLowerCase()} data available for this company.</div> )}
-
-                    {(displayFinancials || companyInfo?.latestDividend || (companyInfo?.dividendHistory?.length ?? 0) > 0) && (
-                        <div className="p-6 space-y-8 animate-in fade-in duration-300">
-                            {companyInfo?.latestDividend && (
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Latest Dividend</h4>
-                                    <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-500/30 bg-gradient-to-br from-emerald-50/80 to-white dark:from-emerald-500/10 dark:to-slate-900 p-5">
-                                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                                            {([
-                                                ['Yield', companyInfo.latestDividend.dividendYield],
-                                                ['Annual', companyInfo.latestDividend.annualDividend],
-                                                ['Ex-date', companyInfo.latestDividend.exDividendDate],
-                                                ['Frequency', companyInfo.latestDividend.payoutFrequency],
-                                                ['Payout ratio', companyInfo.latestDividend.payoutRatio],
-                                                ['Growth', companyInfo.latestDividend.dividendGrowth],
-                                            ] as const).map(([label, value]) => (
-                                                <div key={label}>
-                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700/70 dark:text-emerald-400/70">{label}</div>
-                                                    <div className="mt-1 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value || '—'}</div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {companyInfo && companyInfo.dividendHistory.length > 0 && (
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Dividend History</h4>
-                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
-                                        <table className="w-full text-sm text-left whitespace-nowrap">
-                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                                <tr>
-                                                    <th className="px-5 py-3.5">Ex-dividend date</th>
-                                                    <th className="px-5 py-3.5 text-right">Cash amount</th>
-                                                    <th className="px-5 py-3.5">Record date</th>
-                                                    <th className="px-5 py-3.5">Pay date</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
-                                                {companyInfo.dividendHistory.map((row, i) => (
-                                                    <tr key={`${row.exDividendDate}-${i}`} className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${i === 0 ? 'bg-emerald-50/40 dark:bg-emerald-500/5' : ''}`}>
-                                                        <td className="px-5 py-3.5 font-medium">{row.exDividendDate}</td>
-                                                        <td className="px-5 py-3.5 text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{row.cashAmount}</td>
-                                                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{row.recordDate}</td>
-                                                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{row.payDate}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-
-                            {displayFinancials && displayFinancials.financials.length > 0 && (
-                                <div>
-                                    <div className="flex items-center justify-between gap-3 mb-4">
-                                        <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{financialPeriod} Results (000&apos;s)</h4>
-                                        {companyInfo?.statements?.[financialPeriod === 'Annual' ? 'annual' : 'quarterly']?.financials?.length ? (
-                                            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Source: pyPSX toolkit</span>
-                                        ) : (
-                                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Source: PSX page</span>
-                                        )}
-                                    </div>
-                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
-                                        <table className="w-full text-sm text-left whitespace-nowrap">
-                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                                <tr> <th className="px-5 py-3.5">Metric</th> {displayFinancials.financials.map(f => ( <th key={f.year} className="px-5 py-3.5 text-right">{f.year}</th> ))} </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Sales</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">{f.sales}</td>)} </tr>
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Total Income</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums text-slate-600 dark:text-slate-300">{f.totalIncome}</td>)} </tr>
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Profit After Tax</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums font-bold text-emerald-600 dark:text-emerald-400">{f.profitAfterTax}</td>)} </tr>
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">EPS</td> {displayFinancials.financials.map(f => <td key={f.year} className="px-5 py-3.5 text-right font-mono tabular-nums font-bold text-indigo-600 dark:text-indigo-400">{f.eps}</td>)} </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-                            {displayFinancials && displayFinancials.ratios.length > 0 && (
-                                <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">Key Ratios</h4>
-                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
-                                        <table className="w-full text-sm text-left whitespace-nowrap">
-                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                                                <tr> <th className="px-5 py-3.5">Ratio</th> {displayFinancials.ratios.map(r => ( <th key={r.year} className="px-5 py-3.5 text-right">{r.year}</th> ))} </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
-                                                {displayFinancials.ratios.some(r => r.grossProfitMargin && r.grossProfitMargin !== '-') && (
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Gross Profit Margin (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.grossProfitMargin || '—'}</td>)} </tr>
-                                                )}
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Net Profit Margin (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.netProfitMargin}</td>)} </tr>
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">EPS Growth (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className={`px-5 py-3.5 text-right font-mono tabular-nums font-bold ${r.epsGrowth.includes('(') ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{r.epsGrowth}</td>)} </tr>
-                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">PEG</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.peg}</td>)} </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-                </>)}
+                {detailTab === 'financials' && (
+                    <StockFinancialsPanel
+                        companyInfo={companyInfo}
+                        displayFinancials={displayFinancials}
+                        financialPeriod={financialPeriod}
+                        onPeriodChange={setFinancialPeriod}
+                        loading={loadingFundamentals}
+                        onRefresh={loadFundamentals}
+                        currentPrice={selectedStockStats && currentPrices[selectedStockStats.ticker] > 0 ? currentPrices[selectedStockStats.ticker] : 0}
+                        selectedStockStats={selectedStockStats ? {
+                            ticker: selectedStockStats.ticker,
+                            ownedQty: selectedStockStats.ownedQty,
+                            dividendCount: selectedStockStats.dividendCount,
+                            dividendYieldOnCost: selectedStockStats.dividendYieldOnCost,
+                            netDividends: selectedStockStats.netDividends,
+                        } : null}
+                        formatCurrency={formatCurrency}
+                    />
+                )}
 
                 {detailTab === 'chart' && (
                     <div className="mt-2"><StockChart symbol={selectedTicker} /></div>
