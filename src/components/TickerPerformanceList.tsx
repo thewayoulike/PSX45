@@ -25,13 +25,20 @@ import {
   RefreshCw,
   Clock,
   Building2,
-  AlertCircle, AlertTriangle
+  AlertCircle, AlertTriangle,
+  ExternalLink,
+  Link2
 } from 'lucide-react';
 import { Card } from './ui/Card';
 import { StockAnnouncements } from './StockAnnouncements';
 import { StockChart } from './StockChart';
 import { exportToCSV } from '../utils/export';
 import { fetchCompanyFundamentals, fetchCompanyInfo, FundamentalsData, CompanyInfoData } from '../services/financials';
+import {
+  equitySnapshotFromSections,
+  formatCompactPkAmount,
+  parsePercentValue,
+} from '../utils/companyInfoParse';
 
 // --- HYBRID FALLBACK: Static Lists ---
 const FALLBACK_KMI30 = new Set([
@@ -206,7 +213,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   fetchCompanyFundamentals(selectedTicker),
                   fetchCompanyInfo(selectedTicker),
               ]);
-              setFundamentals(data);
+              // Prefer toolkit statements when present; keep scrape as backup.
+              const toolkit = info?.statements;
+              const toolkitHas =
+                  (toolkit?.annual?.financials?.length || 0) > 0 ||
+                  (toolkit?.quarterly?.financials?.length || 0) > 0;
+              setFundamentals(toolkitHas && toolkit ? toolkit : data);
               setCompanyInfo(info);
           } catch (err) {
               console.error("Failed to fetch fundamentals", err);
@@ -566,9 +578,25 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   };
 
   const displayFinancials = useMemo(() => {
+      const toolkit = companyInfo?.statements;
+      const periodKey = financialPeriod === 'Annual' ? 'annual' : 'quarterly';
+      const fromToolkit = toolkit?.[periodKey];
+      if (fromToolkit && (fromToolkit.financials?.length || fromToolkit.ratios?.length)) {
+          return fromToolkit;
+      }
       if (!fundamentals) return null;
       return financialPeriod === 'Annual' ? fundamentals.annual : fundamentals.quarterly;
-  }, [fundamentals, financialPeriod]);
+  }, [fundamentals, financialPeriod, companyInfo?.statements]);
+
+  const equitySnap = useMemo(
+      () => equitySnapshotFromSections(companyInfo?.fundamentals || []),
+      [companyInfo?.fundamentals]
+  );
+
+  const companyYieldPct = useMemo(
+      () => parsePercentValue(companyInfo?.latestDividend?.dividendYield),
+      [companyInfo?.latestDividend?.dividendYield]
+  );
 
   const isSelectionNotFound = (analysisMode === 'STOCK' && selectedTicker && !selectedStockStats) || 
                               (analysisMode === 'SECTOR' && selectedSector && !selectedSectorStats);
@@ -793,12 +821,30 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         </div>
                     )}
 
-                    {!loadingFundamentals && !companyInfo?.businessDescription && !(companyInfo?.fundamentals?.length) && (
+                    {!loadingFundamentals && !companyInfo?.businessDescription && !(companyInfo?.fundamentals?.length) && !companyInfo?.latestDividend && !(companyInfo?.statements?.annual?.financials?.length) && !(companyInfo?.reports?.length) && (
                         <div className="p-12 text-center text-slate-400 font-medium text-sm">No company info available for this symbol right now. PSX data may be temporarily unavailable.</div>
                     )}
 
-                    {!loadingFundamentals && companyInfo && (companyInfo.businessDescription || (companyInfo.fundamentals?.length ?? 0) > 0) && (
+                    {!loadingFundamentals && companyInfo && (companyInfo.businessDescription || (companyInfo.fundamentals?.length ?? 0) > 0 || companyInfo.latestDividend || (companyInfo.statements?.annual?.financials?.length ?? 0) > 0 || (companyInfo.reports?.length ?? 0) > 0) && (
                         <div className="p-6 space-y-8 animate-in fade-in duration-300">
+                            {/* Snapshot strip */}
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                                {([
+                                    ['Price', selectedStockStats && currentPrices[selectedStockStats.ticker] > 0
+                                        ? currentPrices[selectedStockStats.ticker].toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                                        : '—'],
+                                    ['Mkt cap', formatCompactPkAmount(equitySnap.marketCapRaw, { unitIsThousands: true })],
+                                    ['Yield', companyInfo.latestDividend?.dividendYield || '—'],
+                                    ['EPS (latest)', companyInfo.statements?.annual?.financials?.[0]?.eps || '—'],
+                                    ['Free float', equitySnap.freeFloatPct || '—'],
+                                ] as const).map(([label, value]) => (
+                                    <div key={label} className="rounded-2xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 px-4 py-3">
+                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
+                                        <div className="mt-1 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value}</div>
+                                    </div>
+                                ))}
+                            </div>
+
                             {companyInfo.businessDescription && (
                                 <div>
                                     <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Business Description</h4>
@@ -817,7 +863,135 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                 {descExpanded ? 'Show less' : 'Read more'}
                                             </button>
                                         )}
+                                        {equitySnap.website && (
+                                            <a
+                                                href={equitySnap.website.startsWith('http') ? equitySnap.website : `https://${equitySnap.website}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                                            >
+                                                <Link2 size={14} /> Website <ExternalLink size={12} />
+                                            </a>
+                                        )}
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Dividend desk */}
+                            {(companyInfo.latestDividend || (selectedStockStats && selectedStockStats.dividendCount > 0)) && (
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Dividend desk</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {companyInfo.latestDividend && (
+                                            <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-500/30 bg-emerald-50/50 dark:bg-emerald-500/10 p-5">
+                                                <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-700/80 dark:text-emerald-400/80 mb-3">Company dividend</div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {([
+                                                        ['Yield', companyInfo.latestDividend.dividendYield],
+                                                        ['Annual', companyInfo.latestDividend.annualDividend],
+                                                        ['Ex-date', companyInfo.latestDividend.exDividendDate],
+                                                        ['Payout', companyInfo.latestDividend.payoutRatio],
+                                                    ] as const).map(([label, value]) => (
+                                                        <div key={label}>
+                                                            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
+                                                            <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value || '—'}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDetailTab('financials')}
+                                                    className="mt-4 text-xs font-bold text-emerald-700 dark:text-emerald-400 hover:underline"
+                                                >
+                                                    Full history on Financials →
+                                                </button>
+                                            </div>
+                                        )}
+                                        {selectedStockStats && (selectedStockStats.dividendCount > 0 || selectedStockStats.ownedQty > 0) && (
+                                            <div className="rounded-2xl border border-indigo-200/70 dark:border-indigo-500/30 bg-indigo-50/50 dark:bg-indigo-500/10 p-5">
+                                                <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-700/80 dark:text-indigo-400/80 mb-3">Your position</div>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    <div>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Yield on cost</div>
+                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{selectedStockStats.dividendYieldOnCost.toFixed(2)}%</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Company yield</div>
+                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{companyYieldPct != null ? `${companyYieldPct.toFixed(2)}%` : '—'}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Net received</div>
+                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{formatCurrency(selectedStockStats.netDividends)}</div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Payouts</div>
+                                                        <div className="mt-0.5 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{selectedStockStats.dividendCount}</div>
+                                                    </div>
+                                                </div>
+                                                {companyYieldPct != null && (
+                                                    <p className="mt-3 text-[11px] text-slate-600 dark:text-slate-400 leading-snug">
+                                                        Your yield on cost is{' '}
+                                                        <span className="font-bold tabular-nums">
+                                                            {(selectedStockStats.dividendYieldOnCost - companyYieldPct) >= 0 ? '+' : ''}
+                                                            {(selectedStockStats.dividendYieldOnCost - companyYieldPct).toFixed(2)}pp
+                                                        </span>
+                                                        {' '}vs the company’s trailing yield.
+                                                    </p>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDetailTab('position')}
+                                                    className="mt-3 text-xs font-bold text-indigo-700 dark:text-indigo-400 hover:underline"
+                                                >
+                                                    Open Position &amp; Gains →
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Trend cards from toolkit statements */}
+                            {companyInfo.statements?.annual?.financials && companyInfo.statements.annual.financials.length > 0 && (
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Trends (annual, latest first)</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        {([
+                                            ['Sales', 'sales'],
+                                            ['Profit after tax', 'profitAfterTax'],
+                                            ['EPS', 'eps'],
+                                        ] as const).map(([label, key]) => {
+                                            const series = companyInfo.statements!.annual.financials.map((f) => f[key]);
+                                            return (
+                                                <div key={label} className="rounded-2xl border border-slate-200/60 dark:border-slate-800 p-4">
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-2">{label}</div>
+                                                    <div className="text-lg font-bold font-mono tabular-nums text-slate-900 dark:text-white">{series[0] || '—'}</div>
+                                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                                        {series.map((v, i) => (
+                                                            <span key={`${label}-${i}`} className="text-[10px] font-mono tabular-nums px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                {i === 0 ? 'L' : `−${i}`}: {v}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {companyInfo.statements.annual.ratios.length > 0 && (
+                                        <div className="mt-3 grid grid-cols-2 md:grid-cols-4 gap-3">
+                                            {([
+                                                ['GPM', companyInfo.statements.annual.ratios[0].grossProfitMargin],
+                                                ['NPM', companyInfo.statements.annual.ratios[0].netProfitMargin],
+                                                ['EPS growth', companyInfo.statements.annual.ratios[0].epsGrowth],
+                                                ['PEG', companyInfo.statements.annual.ratios[0].peg],
+                                            ] as const).map(([label, value]) => (
+                                                <div key={label} className="rounded-2xl border border-slate-200/60 dark:border-slate-800 px-4 py-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</div>
+                                                    <div className="mt-1 text-sm font-bold font-mono tabular-nums text-slate-900 dark:text-white">{value || '—'}</div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -827,7 +1001,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800 overflow-hidden">
                                         <dl className="divide-y divide-slate-100 dark:divide-slate-800/60">
                                             {section.items.map((item) => (
-                                                <div key={`${section.category}-${item.label}`} className="grid grid-cols-1 sm:grid-cols-[minmax(140px,34%)_1fr] gap-1 sm:gap-4 px-5 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                <div key={`${section.category}-${item.label}-${item.value}`} className="grid grid-cols-1 sm:grid-cols-[minmax(140px,34%)_1fr] gap-1 sm:gap-4 px-5 py-3.5 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                                                     <dt className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">{item.label}</dt>
                                                     <dd className="text-sm font-medium text-slate-800 dark:text-slate-200 break-words">{item.value}</dd>
                                                 </div>
@@ -836,6 +1010,48 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     </div>
                                 </div>
                             ))}
+
+                            {/* Filings */}
+                            {(companyInfo.reports?.length ?? 0) > 0 && (
+                                <div>
+                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-3">Filings</h4>
+                                    <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
+                                        <table className="w-full text-sm text-left whitespace-nowrap">
+                                            <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
+                                                <tr>
+                                                    <th className="px-5 py-3.5">Type</th>
+                                                    <th className="px-5 py-3.5">Period ended</th>
+                                                    <th className="px-5 py-3.5">Posted</th>
+                                                    <th className="px-5 py-3.5 text-right">PDF</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
+                                                {companyInfo.reports!.map((r, i) => (
+                                                    <tr key={`${r.reportType}-${r.periodEnded}-${i}`} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
+                                                        <td className="px-5 py-3.5 font-medium">{r.reportType}</td>
+                                                        <td className="px-5 py-3.5 font-mono tabular-nums text-slate-600 dark:text-slate-300">{r.periodEnded}</td>
+                                                        <td className="px-5 py-3.5 text-slate-600 dark:text-slate-300">{r.postingDate}</td>
+                                                        <td className="px-5 py-3.5 text-right">
+                                                            {r.pdfLink ? (
+                                                                <a
+                                                                    href={r.pdfLink}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline"
+                                                                >
+                                                                    Open <ExternalLink size={12} />
+                                                                </a>
+                                                            ) : (
+                                                                '—'
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -917,7 +1133,14 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                             {displayFinancials && displayFinancials.financials.length > 0 && (
                                 <div>
-                                    <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4">{financialPeriod} Results (000's)</h4>
+                                    <div className="flex items-center justify-between gap-3 mb-4">
+                                        <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{financialPeriod} Results (000&apos;s)</h4>
+                                        {companyInfo?.statements?.[financialPeriod === 'Annual' ? 'annual' : 'quarterly']?.financials?.length ? (
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">Source: pyPSX toolkit</span>
+                                        ) : (
+                                            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Source: PSX page</span>
+                                        )}
+                                    </div>
                                     <div className="overflow-x-auto rounded-2xl border border-slate-200/60 dark:border-slate-800">
                                         <table className="w-full text-sm text-left whitespace-nowrap">
                                             <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
@@ -942,6 +1165,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                                 <tr> <th className="px-5 py-3.5">Ratio</th> {displayFinancials.ratios.map(r => ( <th key={r.year} className="px-5 py-3.5 text-right">{r.year}</th> ))} </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
+                                                {displayFinancials.ratios.some(r => r.grossProfitMargin && r.grossProfitMargin !== '-') && (
+                                                <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Gross Profit Margin (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.grossProfitMargin || '—'}</td>)} </tr>
+                                                )}
                                                 <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">Net Profit Margin (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.netProfitMargin}</td>)} </tr>
                                                 <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">EPS Growth (%)</td> {displayFinancials.ratios.map(r => <td key={r.year} className={`px-5 py-3.5 text-right font-mono tabular-nums font-bold ${r.epsGrowth.includes('(') ? 'text-rose-500 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>{r.epsGrowth}</td>)} </tr>
                                                 <tr className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors"> <td className="px-5 py-3.5 font-bold">PEG</td> {displayFinancials.ratios.map(r => <td key={r.year} className="px-5 py-3.5 text-right font-mono tabular-nums">{r.peg}</td>)} </tr>

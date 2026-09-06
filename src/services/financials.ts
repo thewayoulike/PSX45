@@ -23,6 +23,7 @@ export interface CompanyRatios {
   netProfitMargin: string;
   epsGrowth: string;
   peg: string;
+  grossProfitMargin?: string;
 }
 
 export interface FundamentalsData {
@@ -62,12 +63,22 @@ export interface CompanyFundamentalSection {
     items: CompanyFundamentalItem[];
 }
 
+export interface CompanyReportRow {
+  reportType: string;
+  periodEnded: string;
+  postingDate: string;
+  pdfLink: string;
+}
+
 export interface CompanyInfoData {
     symbol: string;
     businessDescription: string;
     fundamentals: CompanyFundamentalSection[];
     latestDividend: LatestDividendInfo | null;
     dividendHistory: DividendHistoryRow[];
+    /** Structured statements from toolkit (preferred over HTML scrape). */
+    statements?: FundamentalsData | null;
+    reports?: CompanyReportRow[];
     source?: string;
 }
 

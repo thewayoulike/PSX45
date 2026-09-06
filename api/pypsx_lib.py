@@ -46,12 +46,13 @@ def normalize_history(rows):
     return out
 
 
-def fundamentals_sections(df):
+def fundamentals_sections(df, business_description: str = ""):
     if df is None or getattr(df, "empty", True):
         return []
     reset = df.reset_index()
     sections = []
     skip = {"Business Description"}
+    desc_norm = " ".join((business_description or "").split()).lower()
     for cat in ["Profile", "Governance", "Equity Profile"]:
         rows = reset[reset["CATEGORY"] == cat] if "CATEGORY" in reset.columns else []
         items = []
@@ -64,11 +65,148 @@ def fundamentals_sections(df):
                 items.append({"label": value, "value": metric})
             elif metric in skip:
                 continue
+            elif cat == "Profile" and metric.lower() == "address" and desc_norm:
+                # Toolkit sometimes repeats the business description as Address.
+                if " ".join(value.split()).lower() == desc_norm or len(value) > 180:
+                    continue
+                items.append({"label": metric, "value": value})
             else:
                 items.append({"label": metric, "value": value})
         if items:
             sections.append({"category": cat, "items": items})
     return sections
+
+
+def _pipe_series(value: str) -> list[str]:
+    s = (value or "").strip()
+    if not s or s == "-":
+        return []
+    return [p.strip() for p in s.split("|") if p.strip()]
+
+
+def _period_labels(n: int) -> list[str]:
+    return ["Latest" if i == 0 else f"−{i}" for i in range(n)]
+
+
+def _metric_map(df, category: str) -> dict[str, str]:
+    if df is None or getattr(df, "empty", True):
+        return {}
+    reset = df.reset_index()
+    if "CATEGORY" not in reset.columns:
+        return {}
+    out: dict[str, str] = {}
+    for _, row in reset[reset["CATEGORY"] == category].iterrows():
+        metric = str(row.get("METRIC", "")).strip()
+        value = str(row.get("VALUE", "")).strip()
+        if metric and value:
+            out[metric] = value
+    return out
+
+
+def _pick_series(mmap: dict[str, str], keys: list[str]) -> list[str]:
+    lower = {k.lower(): v for k, v in mmap.items()}
+    for key in keys:
+        if key.lower() in lower:
+            return _pipe_series(lower[key.lower()])
+    for key in keys:
+        for mk, mv in mmap.items():
+            if key.lower() in mk.lower():
+                return _pipe_series(mv)
+    return []
+
+
+def _financial_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
+    sales = _pick_series(mmap, ["Sales", "Revenue"])
+    income = _pick_series(mmap, ["Total Income"])
+    profit = _pick_series(mmap, ["Profit after Taxation", "Profit After Tax", "Net Profit"])
+    eps = _pick_series(mmap, ["EPS", "Earnings per share"])
+    n = max(len(sales), len(income), len(profit), len(eps), 0)
+    if n == 0:
+        return []
+    rows = []
+    for i, year in enumerate(_period_labels(n)):
+        rows.append(
+            {
+                "year": year,
+                "sales": sales[i] if i < len(sales) else "-",
+                "totalIncome": income[i] if i < len(income) else "-",
+                "profitAfterTax": profit[i] if i < len(profit) else "-",
+                "eps": eps[i] if i < len(eps) else "-",
+            }
+        )
+    return rows
+
+
+def _ratio_rows(mmap: dict[str, str]) -> list[dict[str, str]]:
+    gpm = _pick_series(mmap, ["Gross Profit Margin"])
+    npm = _pick_series(mmap, ["Net Profit Margin"])
+    growth = _pick_series(mmap, ["EPS Growth"])
+    peg = _pick_series(mmap, ["PEG"])
+    n = max(len(gpm), len(npm), len(growth), len(peg), 0)
+    if n == 0:
+        return []
+    rows = []
+    for i, year in enumerate(_period_labels(n)):
+        rows.append(
+            {
+                "year": year,
+                "grossProfitMargin": gpm[i] if i < len(gpm) else "-",
+                "netProfitMargin": npm[i] if i < len(npm) else "-",
+                "epsGrowth": growth[i] if i < len(growth) else "-",
+                "peg": peg[i] if i < len(peg) else "-",
+            }
+        )
+    return rows
+
+
+def build_statements(df) -> dict[str, Any]:
+    annual_fin = _financial_rows(_metric_map(df, "Financials Annual"))
+    quarterly_fin = _financial_rows(_metric_map(df, "Financials Quarterly"))
+    # Toolkit "Ratios" series align with annual columns.
+    annual_ratios = _ratio_rows(_metric_map(df, "Ratios"))
+    return {
+        "annual": {"financials": annual_fin, "ratios": annual_ratios},
+        "quarterly": {"financials": quarterly_fin, "ratios": []},
+    }
+
+
+def normalize_reports(df, limit: int = 8) -> list[dict[str, str]]:
+    if df is None or getattr(df, "empty", True):
+        return []
+    reset = df.reset_index()
+    rows = []
+    for _, row in reset.iterrows():
+        report_type = str(row.get("REPORT_TYPE", "")).strip()
+        if not report_type and "REPORT_TYPE" in getattr(reset.index, "names", []):
+            pass
+        # MultiIndex columns from toolkit: REPORT_TYPE may be in index
+        link = str(row.get("PDF_LINK", "") or "").strip()
+        period = str(row.get("PERIOD_ENDED", "") or "").strip()
+        posted = str(row.get("POSTING_DATE", "") or "").strip()
+        if not report_type:
+            # try index levels
+            try:
+                if hasattr(row, "name") and isinstance(row.name, tuple) and len(row.name) >= 2:
+                    report_type = str(row.name[1])
+            except Exception:
+                report_type = ""
+        if not link and not period:
+            continue
+        rows.append(
+            {
+                "reportType": report_type or "Report",
+                "periodEnded": period or "-",
+                "postingDate": posted or "-",
+                "pdfLink": link,
+            }
+        )
+
+    def sort_key(r: dict[str, str]):
+        return r.get("periodEnded") or "", r.get("postingDate") or ""
+
+    rows.sort(key=sort_key, reverse=True)
+    # Prefer recent annual + quarterly mix: already sorted by period
+    return rows[:limit]
 
 
 def get_company_info(symbol: str) -> dict[str, Any]:
@@ -84,18 +222,26 @@ def get_company_info(symbol: str) -> dict[str, Any]:
     try:
         div_info = pypsx_toolkit.get_dividend_info(clean)
         div_hist = pypsx_toolkit.get_dividend_history(clean)
-        description = pypsx_toolkit.get_business_description(clean)
+        description = pypsx_toolkit.get_business_description(clean) or ""
         fund_df = pypsx_toolkit.get_company_fundamentals(clean)
 
         info_rows = df_records(div_info)
         hist_rows = df_records(div_hist)
 
+        reports: list[dict[str, str]] = []
+        try:
+            reports = normalize_reports(pypsx_toolkit.get_reports(clean), limit=8)
+        except Exception:
+            reports = []
+
         return {
             "symbol": clean,
-            "businessDescription": description or "",
-            "fundamentals": fundamentals_sections(fund_df),
+            "businessDescription": description,
+            "fundamentals": fundamentals_sections(fund_df, description),
+            "statements": build_statements(fund_df),
             "latestDividend": normalize_latest(info_rows[0] if info_rows else None),
             "dividendHistory": normalize_history(hist_rows),
+            "reports": reports,
             "source": "pypsx",
         }
     except Exception as exc:
