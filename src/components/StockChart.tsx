@@ -59,7 +59,7 @@ import {
   type DrawRenderCoords,
 } from '../utils/chartDrawings';
 import { fmtChartAxisDate, pickChartXTickIndices, rechartsSparseTickLabels, type CandleInterval } from '../utils/chartAxis';
-import { applyViewport, maxViewStart as maxViewStartFor } from '../utils/chartViewport';
+import { applyViewport, maxViewStart as maxViewStartFor, canFitAllTime, effectiveViewCount, windowCount, DEFAULT_MAX_VISIBLE_BARS } from '../utils/chartViewport';
 import { useChartTheme } from '../utils/chartTheme';
 import { PaneLegend } from './ChartPaneLegend';
 import { ChartAlertDialog } from './ChartAlertDialog';
@@ -81,8 +81,8 @@ function clampPriceScaleMul(m: number): number {
 
 const ZOOM_STEPS = [1, 1.25, 1.5, 2, 3, 4, 6, 8, 12] as const;
 const MIN_WINDOW = 12;
-/** Cap SVG candles — ALL intraday can be 5k–15k bars; rendering all freezes the UI. */
-const MAX_VISIBLE_BARS = 300;
+/** Cap SVG candles in default (recent) mode — ALL intraday can be 5k–15k bars. */
+const MAX_VISIBLE_BARS = DEFAULT_MAX_VISIBLE_BARS;
 const PRICE_ZOOM_MIN = -5;
 const PRICE_ZOOM_MAX = 4;
 
@@ -185,7 +185,8 @@ function computePricePanLimits(
   return { min: panMin, max: panMax };
 }
 
-function formatHorizZoomLabel(zoomIdx: number): string {
+function formatHorizZoomLabel(zoomIdx: number, fitAll = false): string {
+  if (fitAll) return 'All';
   if (zoomIdx <= 0) return '100%';
   return `${Math.round((1 / (ZOOM_STEPS[zoomIdx] ?? 1)) * 100)}%`;
 }
@@ -222,13 +223,6 @@ function computePriceYRange(
   return { yMin: center - half, yMax: center + half };
 }
 
-function windowCount(total: number, zoomIdx: number): number {
-  if (total === 0) return 0;
-  if (zoomIdx <= 0) return Math.min(total, MAX_VISIBLE_BARS);
-  const factor = ZOOM_STEPS[Math.min(zoomIdx, ZOOM_STEPS.length - 1)] ?? 1;
-  return Math.max(MIN_WINDOW, Math.min(MAX_VISIBLE_BARS, Math.floor(total / factor)));
-}
-
 const AxisZoomControls: React.FC<{
   axis: 'H' | 'Y';
   zoomIdx: number;
@@ -240,7 +234,9 @@ const AxisZoomControls: React.FC<{
   onZoomOut: () => void;
   onReset: () => void;
   onFitAll?: () => void;
-}> = ({ axis, zoomIdx, minIdx, maxIdx, label, isDefault, onZoomIn, onZoomOut, onReset, onFitAll }) => {
+  fitAllActive?: boolean;
+  fitAllDisabled?: boolean;
+}> = ({ axis, zoomIdx, minIdx, maxIdx, label, isDefault, onZoomIn, onZoomOut, onReset, onFitAll, fitAllActive, fitAllDisabled }) => {
   const atMin = zoomIdx <= minIdx;
   const atMax = zoomIdx >= maxIdx;
   return (
@@ -290,10 +286,21 @@ const AxisZoomControls: React.FC<{
         <button
           type="button"
           onClick={onFitAll}
-          className="px-2 py-1.5 rounded-lg text-[9px] font-bold text-orange-500 hover:bg-white dark:hover:bg-slate-900 transition-colors"
-          title="Fit pivot targets into view"
+          disabled={fitAllDisabled}
+          className={`px-2 py-1.5 rounded-lg text-[9px] font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed ${
+            fitAllActive
+              ? 'bg-white dark:bg-slate-900 text-orange-600 dark:text-orange-400 shadow-sm'
+              : 'text-orange-500 hover:bg-white dark:hover:bg-slate-900'
+          }`}
+          title={
+            axis === 'H'
+              ? fitAllDisabled
+                ? 'Too many bars to fit safely — zoom or pick a shorter range'
+                : 'Shrink chart to show all bars in view'
+              : 'Fit pivot targets into view'
+          }
         >
-          Targets
+          {axis === 'H' ? 'All' : 'Targets'}
         </button>
       )}
     </div>
@@ -1745,6 +1752,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const [candleInterval, setCandleInterval] = useState<CandleInterval>('day');
   const [err, setErr] = useState('');
   const [zoomIdx, setZoomIdx] = useState(0);
+  const [fitAllTime, setFitAllTime] = useState(false);
   const [viewStart, setViewStart] = useState(0);
   const [alertToast, setAlertToast] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [alertDraftPrice, setAlertDraftPrice] = useState<number | null>(null);
@@ -1818,6 +1826,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
 
   useEffect(() => {
     setZoomIdx(0);
+    setFitAllTime(false);
     setViewStart(0);
     setPriceZoomIdx(0);
     setPricePanOffset(0);
@@ -2047,39 +2056,58 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       ? filteredAnalysis.length
       : chartData.length;
 
-  const viewCount = windowCount(primaryLen, zoomIdx);
+  const viewCount = effectiveViewCount(primaryLen, zoomIdx, fitAllTime);
   const maxViewStart = maxViewStartFor(primaryLen, viewCount);
   const canZoom = primaryLen >= MIN_WINDOW;
   const canPan = canZoom && maxViewStart > 0;
+  const fitAllTimeAllowed = canFitAllTime(primaryLen);
 
   useEffect(() => {
     setViewStart((s) => Math.min(s, maxViewStart));
   }, [maxViewStart]);
 
-  // Large ALL / long intraday series: pin viewport to the most recent bars.
+  // Clear fit-all when the series identity changes.
   useEffect(() => {
+    setFitAllTime(false);
+  }, [symbol, candleInterval, range]);
+
+  // Large series: pin to recent bars (skip while fit-all is active).
+  useEffect(() => {
+    if (fitAllTime) return;
     if (primaryLen <= MAX_VISIBLE_BARS) return;
     setZoomIdx(0);
     setViewStart(Math.max(0, primaryLen - MAX_VISIBLE_BARS));
-  }, [symbol, candleInterval, range, primaryLen]);
+  }, [symbol, candleInterval, range, primaryLen, fitAllTime]);
 
   const snapToRecent = (nextZoomIdx: number) => {
-    const cnt = windowCount(primaryLen, nextZoomIdx);
+    const cnt = windowCount(primaryLen, nextZoomIdx, MAX_VISIBLE_BARS);
     setViewStart(Math.max(0, primaryLen - cnt));
   };
 
   const zoomIn = () => {
+    setFitAllTime(false);
     setZoomIdx((z) => {
       const next = Math.min(ZOOM_STEPS.length - 1, z + 1);
       if (next !== z) snapToRecent(next);
       return next;
     });
   };
-  const zoomOut = () => setZoomIdx((z) => Math.max(0, z - 1));
+  const zoomOut = () => {
+    setFitAllTime(false);
+    setZoomIdx((z) => Math.max(0, z - 1));
+  };
   const resetZoom = () => {
     endPan();
+    setFitAllTime(false);
     setZoomIdx(0);
     setViewStart(primaryLen > MAX_VISIBLE_BARS ? Math.max(0, primaryLen - MAX_VISIBLE_BARS) : 0);
+  };
+  const fitAllTimeBars = () => {
+    if (!canFitAllTime(primaryLen)) return;
+    endPan();
+    setFitAllTime(true);
+    setZoomIdx(0);
+    setViewStart(0);
   };
 
   const priceZoomIn = () => setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
@@ -2378,15 +2406,17 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       }
       if (!canZoom) return;
       if (e.deltaY < 0) {
+        setFitAllTime(false);
         setZoomIdx((z) => {
           const next = Math.min(ZOOM_STEPS.length - 1, z + 1);
           if (next !== z) {
-            const cnt = windowCount(primaryLen, next);
+            const cnt = windowCount(primaryLen, next, MAX_VISIBLE_BARS);
             setViewStart(Math.max(0, primaryLen - cnt));
           }
           return next;
         });
       } else if (e.deltaY > 0) {
+        setFitAllTime(false);
         setZoomIdx((z) => Math.max(0, z - 1));
       }
     };
@@ -2512,11 +2542,14 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               zoomIdx={zoomIdx}
               minIdx={0}
               maxIdx={ZOOM_STEPS.length - 1}
-              label={formatHorizZoomLabel(zoomIdx)}
-              isDefault={zoomIdx === 0}
+              label={formatHorizZoomLabel(zoomIdx, fitAllTime)}
+              isDefault={zoomIdx === 0 && !fitAllTime}
               onZoomIn={zoomIn}
               onZoomOut={zoomOut}
               onReset={resetZoom}
+              onFitAll={fitAllTimeBars}
+              fitAllActive={fitAllTime}
+              fitAllDisabled={!fitAllTimeAllowed}
             />
           )}
           {showCandle && visibleOhlc.length >= 3 && (

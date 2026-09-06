@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { applyViewport, maxViewStart, rightPadBars } from './chartViewport';
+import {
+  applyViewport,
+  canFitAllTime,
+  effectiveViewCount,
+  FIT_ALL_MAX_BARS,
+  maxViewStart,
+  rightPadBars,
+  DEFAULT_MAX_VISIBLE_BARS,
+} from './chartViewport';
 
 describe('rightPadBars', () => {
   it('is about half the visible window', () => {
@@ -15,7 +23,6 @@ describe('rightPadBars', () => {
 
 describe('maxViewStart', () => {
   it('allows panning past the last bar by the right pad', () => {
-    // 100 bars, window of 40 → data end start=60, plus pad 20 → 80
     expect(maxViewStart(100, 40)).toBe(60 + 20);
   });
 
@@ -36,7 +43,6 @@ describe('applyViewport', () => {
   });
 
   it('returns a shorter slice when start leaves empty space past the end', () => {
-    // start=7, count=6 → only indices 7,8,9 (3 bars); caller keeps 6 slots
     expect(applyViewport(arr, 7, 6)).toEqual([7, 8, 9]);
   });
 
@@ -51,5 +57,30 @@ describe('applyViewport', () => {
 
   it('returns empty for empty input', () => {
     expect(applyViewport([], 0, 5)).toEqual([]);
+  });
+});
+
+describe('canFitAllTime', () => {
+  it('allows fit when series is within the safety cap', () => {
+    expect(canFitAllTime(500)).toBe(true);
+    expect(canFitAllTime(FIT_ALL_MAX_BARS)).toBe(true);
+  });
+
+  it('blocks fit when series would freeze the UI', () => {
+    expect(canFitAllTime(FIT_ALL_MAX_BARS + 1)).toBe(false);
+  });
+});
+
+describe('effectiveViewCount', () => {
+  it('uses the recent-window cap by default (fitAll off)', () => {
+    expect(effectiveViewCount(800, 0, false)).toBe(DEFAULT_MAX_VISIBLE_BARS);
+  });
+
+  it('returns full series length when fitAll is on and allowed', () => {
+    expect(effectiveViewCount(800, 0, true)).toBe(800);
+  });
+
+  it('falls back to capped window when fitAll is on but series is too large', () => {
+    expect(effectiveViewCount(FIT_ALL_MAX_BARS + 50, 0, true)).toBe(DEFAULT_MAX_VISIBLE_BARS);
   });
 });
