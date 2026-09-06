@@ -401,7 +401,7 @@ function stdevAt(values: number[], i: number, period: number, mean: number): num
   return Math.sqrt(s / period);
 }
 
-function atrSeries(bars: OhlcBar[], period: number): number[] {
+export function atrSeries(bars: OhlcBar[], period: number): number[] {
   const tr: number[] = [];
   for (let i = 0; i < bars.length; i++) {
     if (i === 0) tr.push(bars[i].high - bars[i].low);

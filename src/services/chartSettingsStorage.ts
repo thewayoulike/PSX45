@@ -6,6 +6,12 @@ import {
   cloneAutoTrendlineSettings,
   normalizeAutoTrendlineSettings,
 } from '../utils/autoTrendlines';
+import {
+  ChartExtras,
+  DEFAULT_CHART_EXTRAS,
+  cloneChartExtras,
+  normalizeChartExtras,
+} from '../utils/chartExtras';
 
 export const CHART_SETTINGS_KEY = 'psx_chart_settings';
 export const CHART_SETTINGS_EVENT = 'psx-chart-settings-updated';
@@ -22,6 +28,7 @@ export interface ChartUserSettings {
   awaisLayers: AwaisLayers;
   momentumConfig: MomentumConfig;
   autoTrendlines: AutoTrendlineSettings;
+  chartExtras: ChartExtras;
 }
 
 const DEFAULT_CHART_SETTINGS: ChartUserSettings = {
@@ -30,6 +37,7 @@ const DEFAULT_CHART_SETTINGS: ChartUserSettings = {
   awaisLayers: DEFAULT_AWAIS_LAYERS,
   momentumConfig: DEFAULT_MOMENTUM_CONFIG,
   autoTrendlines: DEFAULT_AUTO_TRENDLINES,
+  chartExtras: DEFAULT_CHART_EXTRAS,
 };
 
 export function cloneChartSettings(settings: ChartUserSettings): ChartUserSettings {
@@ -39,6 +47,7 @@ export function cloneChartSettings(settings: ChartUserSettings): ChartUserSettin
     awaisLayers: cloneAwaisLayers(settings.awaisLayers),
     momentumConfig: cloneMomentumConfig(settings.momentumConfig),
     autoTrendlines: cloneAutoTrendlineSettings(settings.autoTrendlines),
+    chartExtras: cloneChartExtras(settings.chartExtras),
   };
 }
 
@@ -59,6 +68,9 @@ function normalizeChartSettings(raw: unknown): ChartUserSettings {
   }
   if (o.autoTrendlines) {
     base.autoTrendlines = normalizeAutoTrendlineSettings(o.autoTrendlines);
+  }
+  if (o.chartExtras) {
+    base.chartExtras = normalizeChartExtras(o.chartExtras);
   }
   return base;
 }
@@ -81,6 +93,7 @@ export function persistChartSettings(partial: Partial<ChartUserSettings>): Chart
     awaisLayers: partial.awaisLayers ?? current.awaisLayers,
     momentumConfig: partial.momentumConfig ?? current.momentumConfig,
     autoTrendlines: partial.autoTrendlines ?? current.autoTrendlines,
+    chartExtras: partial.chartExtras ?? current.chartExtras,
   });
   try {
     localStorage.setItem(CHART_SETTINGS_KEY, JSON.stringify(next));

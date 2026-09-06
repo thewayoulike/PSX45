@@ -14,17 +14,17 @@ import {
   ChartTimeframe,
   PivotLabel,
 } from '../utils/awaisIndicators';
-import { IndicatorsPanel, AwaisSvgOverlays, AwaisPivotLabels } from './AwaisChartOverlays';
-import { AutoTrendlinesPanel } from './AutoTrendlinesPanel';
+import { AwaisSvgOverlays, AwaisPivotLabels } from './AwaisChartOverlays';
 import {
   AutoTrendlineSettings,
   AutoTrendlineSegment,
+  DEFAULT_AUTO_TRENDLINES,
   cloneAutoTrendlineSettings,
   computeAutoTrendlines,
   extendTrendlineToIndex,
+  findSwingPivots,
 } from '../utils/autoTrendlines';
 import {
-  MomentumPanel,
   MomentumMiniChart,
   momentumHoverText,
   MOMENTUM_PANEL_HEIGHT,
@@ -47,6 +47,23 @@ import {
   CHART_SETTINGS_EVENT,
   type ChartUserSettings,
 } from '../services/chartSettingsStorage';
+import { ChartSettingsPanel } from './ChartSettingsPanel';
+import {
+  DEFAULT_CHART_EXTRAS,
+  ChartExtras,
+  cloneChartExtras,
+  computeVwapLine,
+  detectCandlePatterns,
+  findConsolidationZones,
+  type CandlePatternMarker,
+  type ConsolidationZone,
+  type VwapPoint,
+} from '../utils/chartExtras';
+import { labelSwingStructure, type StructureLabel } from '../utils/chartStructure';
+import { volumeSpikeFlags } from '../utils/chartVolumeSignals';
+import { computeChartBreakouts, mapBreakoutsToViewport, type ChartBreakoutMarker } from '../utils/chartBreakouts';
+import { computeRsiDivergence } from '../utils/chartRsiDivergence';
+import { computeChartAtr } from '../utils/chartAtr';
 import {
   ChartDrawing,
   DrawTool,
@@ -324,8 +341,17 @@ const INTRADAY_RANGES: { k: string; days: number; period: '1d' | '5d' | '1w' | '
   { k: 'ALL', days: 0, period: 'all' },
 ];
 
+const CHART_INTERVALS: CandleInterval[] = ['1m', '5m', '15m', '1h', 'day', 'week', 'month'];
+
 const isIntradayInterval = (iv: CandleInterval): iv is '1m' | '5m' | '15m' | '1h' =>
   iv === '1m' || iv === '5m' || iv === '15m' || iv === '1h';
+
+function fmtInterval(iv: CandleInterval): string {
+  if (iv === 'day') return 'Day';
+  if (iv === 'week') return 'Week';
+  if (iv === 'month') return 'Month';
+  return iv;
+}
 
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const fmtVol = (n: number) =>
@@ -670,7 +696,11 @@ const BollingerRsiChart: React.FC<{
   );
 };
 
-const LineVolumePanel: React.FC<{ bars: OhlcBar[]; candleInterval?: CandleInterval }> = ({ bars, candleInterval = 'day' }) => {
+const LineVolumePanel: React.FC<{ bars: OhlcBar[]; candleInterval?: CandleInterval; showVolumeSpike?: boolean }> = ({
+  bars,
+  candleInterval = 'day',
+  showVolumeSpike = false,
+}) => {
   const ref = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(640);
 
@@ -687,7 +717,7 @@ const LineVolumePanel: React.FC<{ bars: OhlcBar[]; candleInterval?: CandleInterv
   const slot = Math.max(4, (width - 64) / Math.max(bars.length, 1));
   return (
     <div ref={ref} className="w-full">
-      <VolumeMiniChart bars={bars} slot={slot} padL={52} width={width} height={VOLUME_PANEL_HEIGHT} candleInterval={candleInterval} />
+      <VolumeMiniChart bars={bars} slot={slot} padL={52} width={width} height={VOLUME_PANEL_HEIGHT} candleInterval={candleInterval} showVolumeSpike={showVolumeSpike} />
     </div>
   );
 };
@@ -967,8 +997,21 @@ const VolumeMiniChart: React.FC<{
   barW?: number;
   hoverX?: number | null;
   hoverIdx?: number | null;
+  showVolumeSpike?: boolean;
   plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
-}> = ({ bars, slot, padL, width, height = VOLUME_PANEL_HEIGHT, candleInterval = 'day', barW: barWProp, hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
+}> = ({
+  bars,
+  slot,
+  padL,
+  width,
+  height = VOLUME_PANEL_HEIGHT,
+  candleInterval = 'day',
+  barW: barWProp,
+  hoverX = null,
+  hoverIdx = null,
+  showVolumeSpike = false,
+  plotMouseHandlers,
+}) => {
   const theme = useChartTheme();
   const pad = { t: 8, r: 56, b: 24, l: 52 };
   const innerH = height - pad.t - pad.b;
@@ -979,6 +1022,10 @@ const VolumeMiniChart: React.FC<{
   const barW = barWProp ?? chartBarMetrics(slot, bars.length, candleInterval).barW;
   const xTickIndices = useMemo(() => pickChartXTickIndices(bars.length, slot), [bars.length, slot]);
   const hoverBar = hoverIdx != null ? bars[hoverIdx] : null;
+  const spikeFlags = useMemo(
+    () => (showVolumeSpike ? volumeSpikeFlags(bars.map((b) => b.volume)) : []),
+    [bars, showVolumeSpike]
+  );
 
   return (
     <div className="relative">
@@ -1002,6 +1049,7 @@ const VolumeMiniChart: React.FC<{
           const top = yVol(b.volume);
           const h = pad.t + innerH - top;
           const up = b.close >= b.open;
+          const isSpike = spikeFlags[i] === true;
           return (
             <rect
               key={`vol-${b.time}`}
@@ -1009,7 +1057,8 @@ const VolumeMiniChart: React.FC<{
               y={top}
               width={barW}
               height={Math.max(1, h)}
-              fill={up ? theme.volUp : theme.volDown}
+              fill={isSpike ? '#f59e0b' : up ? theme.volUp : theme.volDown}
+              fillOpacity={isSpike ? 0.95 : 1}
             />
           );
         })}
@@ -1031,6 +1080,72 @@ const VolumeMiniChart: React.FC<{
             </text>
           );
         })}
+      </svg>
+    </div>
+  );
+};
+
+const AtrMiniChart: React.FC<{
+  bars: OhlcBar[];
+  values: number[];
+  slot: number;
+  padL: number;
+  width: number;
+  height?: number;
+  candleInterval?: CandleInterval;
+  hoverX?: number | null;
+  hoverIdx?: number | null;
+  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
+}> = ({
+  bars,
+  values,
+  slot,
+  padL,
+  width,
+  height = 132,
+  candleInterval = 'day',
+  hoverX = null,
+  hoverIdx = null,
+  plotMouseHandlers,
+}) => {
+  const theme = useChartTheme();
+  const pad = { t: 16, r: 56, b: 24, l: 52 };
+  const innerH = height - pad.t - pad.b;
+  const xAt = (i: number) => padL + i * slot + slot / 2;
+  const xTickIndices = useMemo(() => pickChartXTickIndices(bars.length, slot), [bars.length, slot]);
+  const nums = values.filter((v) => Number.isFinite(v) && v > 0);
+  const maxV = nums.length ? Math.max(...nums) * 1.08 : 1;
+  const yAtr = (v: number) => pad.t + innerH - (Math.max(0, v) / maxV) * innerH;
+  const path = polylinePath(values.map((v) => (v > 0 ? v : null)), xAt, yAtr);
+  const hovered = hoverIdx != null ? values[hoverIdx] : undefined;
+
+  return (
+    <div className="relative">
+      <PaneLegend items={[{ label: 'ATR (14)', color: '#f59e0b', value: hovered && hovered > 0 ? hovered.toFixed(2) : undefined }]} />
+      <svg width={width} height={height} className="overflow-visible" {...plotMouseHandlers}>
+        {bars.length > 0 && xTickIndices.map((i) => (
+          <line key={`atr-vg-${i}`} x1={xAt(i)} x2={xAt(i)} y1={pad.t} y2={pad.t + innerH} stroke={theme.grid} />
+        ))}
+        <line x1={width - pad.r} x2={width - pad.r} y1={pad.t} y2={pad.t + innerH} stroke={theme.border} />
+        <line x1={padL} x2={width - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke={theme.border} />
+        <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={10} fill={theme.mutedText}>
+          {maxV.toFixed(2)}
+        </text>
+        {path && <path d={path} fill="none" stroke="#f59e0b" strokeWidth={1.5} strokeLinejoin="round" strokeLinecap="round" />}
+        {hoverX != null && <CrosshairVertical x={hoverX} top={pad.t} bottom={pad.t + innerH} />}
+        {hovered != null && hovered > 0 && (
+          <>
+            <rect x={width - pad.r + 1} y={yAtr(hovered) - 9} width={pad.r - 2} height={18} fill={theme.badgeBg} />
+            <text x={width - 8} y={yAtr(hovered) + 4} textAnchor="end" fontSize={10} fill={theme.badgeText} fontWeight={600}>
+              {hovered.toFixed(2)}
+            </text>
+          </>
+        )}
+        {bars.length > 0 && xTickIndices.map((i) => (
+          <text key={`atr-x-${i}`} x={xAt(i)} y={height - 6} textAnchor="middle" fontSize={11} fill={theme.mutedText}>
+            {fmtChartAxisDate(bars[i].time, candleInterval)}
+          </text>
+        ))}
       </svg>
     </div>
   );
@@ -1106,17 +1221,251 @@ function AutoTrendlinesSvg({
   );
 }
 
+function SwingStructureSvg({
+  highs,
+  lows,
+  highLabels,
+  lowLabels,
+  viewStart,
+  visibleCount,
+  xAt,
+  yScale,
+  showMarkers,
+  showLabels,
+}: {
+  highs: { i: number; price: number }[];
+  lows: { i: number; price: number }[];
+  highLabels: { i: number; price: number; label: StructureLabel }[];
+  lowLabels: { i: number; price: number; label: StructureLabel }[];
+  viewStart: number;
+  visibleCount: number;
+  xAt: (i: number) => number;
+  yScale: (p: number) => number;
+  showMarkers: boolean;
+  showLabels: boolean;
+}) {
+  const visibleEnd = viewStart + visibleCount;
+  const toVisible = (p: { i: number; price: number }) => {
+    if (p.i < viewStart || p.i >= visibleEnd) return null;
+    return { x: xAt(p.i - viewStart), y: yScale(p.price) };
+  };
+  const labelColor = (label: StructureLabel) => (label === 'HH' || label === 'HL' ? '#10b981' : '#f43f5e');
+
+  return (
+    <g pointerEvents="none">
+      {showMarkers && highs.map((p) => {
+        const pos = toVisible(p);
+        if (!pos) return null;
+        return <circle key={`swing-high-${p.i}`} cx={pos.x} cy={pos.y} r={3} fill="#f43f5e" stroke="#fff" strokeWidth={1} />;
+      })}
+      {showMarkers && lows.map((p) => {
+        const pos = toVisible(p);
+        if (!pos) return null;
+        return <circle key={`swing-low-${p.i}`} cx={pos.x} cy={pos.y} r={3} fill="#10b981" stroke="#fff" strokeWidth={1} />;
+      })}
+      {showLabels && highLabels.map((p) => {
+        const pos = toVisible(p);
+        if (!pos) return null;
+        return (
+          <text
+            key={`structure-high-${p.i}`}
+            x={pos.x}
+            y={pos.y - 8}
+            textAnchor="middle"
+            fontSize={10}
+            fontWeight={800}
+            fill={labelColor(p.label)}
+          >
+            {p.label}
+          </text>
+        );
+      })}
+      {showLabels && lowLabels.map((p) => {
+        const pos = toVisible(p);
+        if (!pos) return null;
+        return (
+          <text
+            key={`structure-low-${p.i}`}
+            x={pos.x}
+            y={pos.y + 14}
+            textAnchor="middle"
+            fontSize={10}
+            fontWeight={800}
+            fill={labelColor(p.label)}
+          >
+            {p.label}
+          </text>
+        );
+      })}
+    </g>
+  );
+}
+
+function BreakoutMarkersSvg({
+  markers,
+  bars,
+  xAt,
+  yScale,
+}: {
+  markers: ChartBreakoutMarker[];
+  bars: OhlcBar[];
+  xAt: (i: number) => number;
+  yScale: (p: number) => number;
+}) {
+  return (
+    <g>
+      {markers.map((m) => {
+        const bar = bars[m.i];
+        if (!bar) return null;
+        const x = xAt(m.i);
+        const isBreakout = m.kind === 'breakout';
+        const y = yScale(isBreakout ? bar.high : bar.low) + (isBreakout ? -10 : 10);
+        const fill = isBreakout ? '#10b981' : '#f43f5e';
+        const d = isBreakout
+          ? `M ${x} ${y - 12} L ${x - 7} ${y} L ${x + 7} ${y} Z`
+          : `M ${x} ${y + 12} L ${x - 7} ${y} L ${x + 7} ${y} Z`;
+        const tip = isBreakout
+          ? m.confirmed
+            ? 'Breakout (volume confirmed)'
+            : 'Breakout (weak volume)'
+          : m.confirmed
+            ? 'Breakdown (volume confirmed)'
+            : 'Breakdown (weak volume)';
+        return (
+          <g key={`${m.kind}-${m.i}`} style={{ pointerEvents: 'auto', cursor: 'help' }}>
+            <title>{tip}</title>
+            <circle cx={x} cy={y} r={10} fill="transparent" />
+            <path
+              d={d}
+              fill={fill}
+              fillOpacity={m.confirmed ? 1 : 0.45}
+              stroke="#0f172a"
+              strokeOpacity={m.confirmed ? 0.85 : 0.45}
+              strokeWidth={1.25}
+            />
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
+function ConsolidationZonesSvg({
+  zones,
+  xAt,
+  yScale,
+  slot,
+}: {
+  zones: ConsolidationZone[];
+  xAt: (i: number) => number;
+  yScale: (p: number) => number;
+  slot: number;
+}) {
+  return (
+    <g pointerEvents="none">
+      {zones.map((z) => {
+        const x = xAt(z.startIndex) - slot / 2;
+        const yTop = yScale(z.high);
+        const yBottom = yScale(z.low);
+        const width = xAt(z.endIndex) - xAt(z.startIndex) + slot;
+        return (
+          <rect
+            key={`consolidation-${z.startIndex}-${z.endIndex}`}
+            x={x}
+            y={Math.min(yTop, yBottom)}
+            width={width}
+            height={Math.max(1, Math.abs(yBottom - yTop))}
+            fill="#38bdf8"
+            fillOpacity={0.09}
+            stroke="#0ea5e9"
+            strokeOpacity={0.42}
+            strokeDasharray="4 3"
+            rx={4}
+          />
+        );
+      })}
+    </g>
+  );
+}
+
+function VwapLineSvg({
+  points,
+  xAt,
+  yScale,
+}: {
+  points: VwapPoint[];
+  xAt: (i: number) => number;
+  yScale: (p: number) => number;
+}) {
+  const path = polylinePath(points.map((p) => p.value), xAt, yScale);
+  if (!path) return null;
+  return (
+    <g pointerEvents="none">
+      <path d={path} fill="none" stroke="#f59e0b" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+    </g>
+  );
+}
+
+function candlePatternLabel(type: CandlePatternMarker['type']): string {
+  if (type === 'doji') return 'Doji';
+  if (type === 'hammer') return 'Hammer';
+  if (type === 'bullishEngulfing') return 'Bullish engulfing';
+  return 'Bearish engulfing';
+}
+
+function CandlePatternsSvg({
+  markers,
+  xAt,
+  yScale,
+}: {
+  markers: CandlePatternMarker[];
+  xAt: (i: number) => number;
+  yScale: (p: number) => number;
+}) {
+  const short = (type: CandlePatternMarker['type']) => {
+    if (type === 'doji') return 'D';
+    if (type === 'hammer') return 'H';
+    if (type === 'bullishEngulfing') return 'E+';
+    return 'E-';
+  };
+
+  return (
+    <g>
+      {markers.map((m) => {
+        const bullish = m.direction === 'bullish';
+        const bearish = m.direction === 'bearish';
+        const color = bullish ? '#10b981' : bearish ? '#f43f5e' : '#64748b';
+        const y = yScale(m.price) + (bullish ? 14 : -8);
+        const x = xAt(m.index);
+        return (
+          <g key={`pattern-${m.type}-${m.index}`} style={{ pointerEvents: 'auto', cursor: 'help' }}>
+            <title>{candlePatternLabel(m.type)}</title>
+            <circle cx={x} cy={y - 3} r={9} fill={color} fillOpacity={0.12} stroke={color} strokeWidth={1} />
+            <text x={x} y={y + 1} textAnchor="middle" fontSize={8} fontWeight={800} fill={color}>
+              {short(m.type)}
+            </text>
+          </g>
+        );
+      })}
+    </g>
+  );
+}
+
 const CandleChart: React.FC<{
   bars: OhlcBar[];
+  allBars?: OhlcBar[];
+  viewStart?: number;
   /** Full horizontal window size (may exceed bars.length when panned past latest). */
   viewportSlots?: number;
   analysis?: ChartAnalysisPoint[];
   layers: ChartLayers;
   momentumConfig: MomentumConfig;
   momentumSeries: ReturnType<typeof computeMomentumSeries>;
+  atrSeries: number[];
   awaisLayers: AwaisLayers;
   awaisData?: AwaisOverlayData | null;
   autoTrendlines?: AutoTrendlineSettings;
+  chartExtras?: ChartExtras;
   candleInterval?: CandleInterval;
   height?: number;
   panning?: boolean;
@@ -1139,14 +1488,18 @@ const CandleChart: React.FC<{
   onAddAlert?: (price: number) => void;
 }> = ({
   bars,
+  allBars,
+  viewStart = 0,
   viewportSlots,
   analysis = [],
   layers,
   momentumConfig,
   momentumSeries,
+  atrSeries,
   awaisLayers,
   awaisData = null,
   autoTrendlines,
+  chartExtras = DEFAULT_CHART_EXTRAS,
   candleInterval = 'day',
   height = 320,
   panning = false,
@@ -1182,6 +1535,42 @@ const CandleChart: React.FC<{
     return computeAutoTrendlines(bars, autoTrendlines);
   }, [bars, autoTrendlines]);
 
+  const breakoutMarkers = useMemo(() => {
+    const showBreaks = chartExtras.breakoutMarkers || chartExtras.volumeConfirmBreaks;
+    const sourceBars = allBars ?? bars;
+    if (!showBreaks || sourceBars.length < 5) return [];
+    const settings = autoTrendlines ?? DEFAULT_AUTO_TRENDLINES;
+    const spikeFlags = chartExtras.volumeConfirmBreaks
+      ? volumeSpikeFlags(sourceBars.map((b) => b.volume))
+      : undefined;
+    const full = computeChartBreakouts(sourceBars, settings, {
+      volumeConfirmBreaks: chartExtras.volumeConfirmBreaks,
+      volumeSpikeFlags: spikeFlags,
+    });
+    return mapBreakoutsToViewport(full, viewStart, bars.length);
+  }, [
+    allBars,
+    bars,
+    viewStart,
+    autoTrendlines,
+    chartExtras.breakoutMarkers,
+    chartExtras.volumeConfirmBreaks,
+  ]);
+
+  const swingPivots = useMemo(() => {
+    if (!chartExtras.swingMarkers && !chartExtras.marketStructure) {
+      return { highs: [], lows: [], highLabels: [], lowLabels: [] };
+    }
+    const sourceBars = allBars ?? bars;
+    const { highs, lows } = findSwingPivots(sourceBars, autoTrendlines?.pivotLength ?? 5);
+    return {
+      highs,
+      lows,
+      highLabels: labelSwingStructure(highs, 'high'),
+      lowLabels: labelSwingStructure(lows, 'low'),
+    };
+  }, [allBars, bars, autoTrendlines?.pivotLength, chartExtras.swingMarkers, chartExtras.marketStructure]);
+
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return;
@@ -1208,6 +1597,30 @@ const CandleChart: React.FC<{
   const hasAwais = awaisData != null;
   const showMomentum = layers.momentum && display.length >= 3 && activeMomentum.length > 0;
   const showVolume = layers.volume && bars.some((b) => b.volume > 0);
+  const rsiDivergenceMarkers = useMemo(
+    () =>
+      chartExtras.rsiDivergence && momentumConfig.enabled.RSI
+        ? computeRsiDivergence(display, momentumSeries.map((p) => p.rsi), {
+            pivotLength: autoTrendlines?.pivotLength ?? DEFAULT_AUTO_TRENDLINES.pivotLength,
+          })
+        : [],
+    [display, momentumSeries, momentumConfig.enabled.RSI, autoTrendlines?.pivotLength, chartExtras.rsiDivergence]
+  );
+  const consolidationZones = useMemo(
+    () => (chartExtras.consolidationZones ? findConsolidationZones(display) : []),
+    [display, chartExtras.consolidationZones]
+  );
+  const vwapLine = useMemo(
+    () =>
+      chartExtras.vwap
+        ? computeVwapLine(display, { resetBySession: isIntradayInterval(candleInterval) })
+        : [],
+    [display, candleInterval, chartExtras.vwap]
+  );
+  const candlePatternMarkers = useMemo(
+    () => (chartExtras.candlePatterns ? detectCandlePatterns(display) : []),
+    [display, chartExtras.candlePatterns]
+  );
 
   const { yMin, yMax } = useMemo(
     () =>
@@ -1245,6 +1658,10 @@ const CandleChart: React.FC<{
   const legendChangePct = legendBar ? candleChangeFromPrev(legendBar, legendPrev) : null;
   const hiMomentum = plotHover.idx != null ? momentumSeries[plotHover.idx] : null;
   const momentumTip = momentumHoverText(momentumConfig, hiMomentum ?? undefined);
+  const hoverPattern =
+    plotHover.idx != null
+      ? candlePatternMarkers.find((m) => m.index === plotHover.idx) ?? null
+      : null;
   const xAt = (i: number) => plotOffset + i * slot + slot / 2;
   const crosshairX = plotHover.x;
   const crosshairY = plotHover.y;
@@ -1499,6 +1916,11 @@ const CandleChart: React.FC<{
             {showMomentum && momentumTip && (
               <span className="font-semibold text-purple-600 dark:text-purple-300">{momentumTip}</span>
             )}
+            {hoverPattern && (
+              <span className="font-semibold text-sky-600 dark:text-sky-300">
+                {candlePatternLabel(hoverPattern.type)}
+              </span>
+            )}
           </div>
         );
       })()}
@@ -1562,6 +1984,9 @@ const CandleChart: React.FC<{
             plotRight={w - pad.r}
           />
         )}
+        {chartExtras.consolidationZones && (
+          <ConsolidationZonesSvg zones={consolidationZones} xAt={xAt} yScale={yScale} slot={slot} />
+        )}
         {display.map((b, i) => {
           const x = xAt(i);
           const up = b.close >= b.open;
@@ -1580,6 +2005,34 @@ const CandleChart: React.FC<{
             </g>
           );
         })}
+        {chartExtras.vwap && (
+          <VwapLineSvg points={vwapLine} xAt={xAt} yScale={yScale} />
+        )}
+        {chartExtras.candlePatterns && (
+          <CandlePatternsSvg markers={candlePatternMarkers} xAt={xAt} yScale={yScale} />
+        )}
+        {(chartExtras.swingMarkers || chartExtras.marketStructure) && (
+          <SwingStructureSvg
+            highs={swingPivots.highs}
+            lows={swingPivots.lows}
+            highLabels={swingPivots.highLabels}
+            lowLabels={swingPivots.lowLabels}
+            viewStart={viewStart}
+            visibleCount={display.length}
+            xAt={xAt}
+            yScale={yScale}
+            showMarkers={chartExtras.swingMarkers}
+            showLabels={chartExtras.marketStructure}
+          />
+        )}
+        {(chartExtras.breakoutMarkers || chartExtras.volumeConfirmBreaks) && (
+          <BreakoutMarkersSvg
+            markers={breakoutMarkers}
+            bars={display}
+            xAt={xAt}
+            yScale={yScale}
+          />
+        )}
         {(drawings.length > 0 || draftDrawing) && (
           <g pointerEvents="none">
             <ChartDrawingsLayer
@@ -1716,6 +2169,7 @@ const CandleChart: React.FC<{
           candleInterval={candleInterval}
           hoverX={crosshairX}
           hoverIdx={plotHover.idx}
+          rsiDivergenceMarkers={type === 'RSI' ? rsiDivergenceMarkers : []}
           plotMouseHandlers={subMouseHandlers}
         />
         </div>
@@ -1732,8 +2186,24 @@ const CandleChart: React.FC<{
           barW={barW}
           hoverX={crosshairX}
           hoverIdx={plotHover.idx}
+          showVolumeSpike={chartExtras.volumeSpike}
           plotMouseHandlers={subMouseHandlers}
         />
+        </div>
+      )}
+      {chartExtras.atrPane && atrSeries.length > 0 && (
+        <div className="mt-0 border-t" style={{ borderColor: theme.border }}>
+          <AtrMiniChart
+            bars={display}
+            values={atrSeries}
+            slot={slot}
+            padL={plotOffset}
+            width={w}
+            candleInterval={candleInterval}
+            hoverX={crosshairX}
+            hoverIdx={plotHover.idx}
+            plotMouseHandlers={subMouseHandlers}
+          />
         </div>
       )}
     </div>
@@ -1772,6 +2242,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const [autoTrendlines, setAutoTrendlines] = useState<AutoTrendlineSettings>(() =>
     cloneAutoTrendlineSettings(loadChartSettings().autoTrendlines)
   );
+  const [chartExtras, setChartExtras] = useState<ChartExtras>(() =>
+    cloneChartExtras(loadChartSettings().chartExtras ?? DEFAULT_CHART_EXTRAS)
+  );
   const chartPanRef = useRef<HTMLDivElement>(null);
   const candlePlotRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{
@@ -1806,8 +2279,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   };
 
   useEffect(() => {
-    persistChartSettings({ layers, awaisLayers, momentumConfig, autoTrendlines });
-  }, [layers, awaisLayers, momentumConfig, autoTrendlines]);
+    persistChartSettings({ layers, awaisLayers, momentumConfig, autoTrendlines, chartExtras });
+  }, [layers, awaisLayers, momentumConfig, autoTrendlines, chartExtras]);
 
   useEffect(() => {
     const onCloudSettings = (e: Event) => {
@@ -1818,6 +2291,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       setMomentumConfig(cloneMomentumConfig(detail.momentumConfig));
       if (detail.autoTrendlines) {
         setAutoTrendlines(cloneAutoTrendlineSettings(detail.autoTrendlines));
+      }
+      if (detail.chartExtras) {
+        setChartExtras(cloneChartExtras(detail.chartExtras));
       }
     };
     window.addEventListener(CHART_SETTINGS_EVENT, onCloudSettings);
@@ -2273,6 +2749,18 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     [momentumSeriesFull, momentumBars, momentumVisibleBars]
   );
 
+  const atrSeriesFull = useMemo(
+    () => (candleOhlc.length >= 3 ? computeChartAtr(candleOhlc, 14) : []),
+    [candleOhlc]
+  );
+
+  const atrSeriesVisible = useMemo(() => {
+    if (!visibleOhlc.length || !atrSeriesFull.length) return [];
+    const startIdx = candleOhlc.findIndex((b) => b.time === visibleOhlc[0].time);
+    if (startIdx < 0) return atrSeriesFull.slice(0, visibleOhlc.length);
+    return atrSeriesFull.slice(startIdx, startIdx + visibleOhlc.length);
+  }, [atrSeriesFull, candleOhlc, visibleOhlc]);
+
   const pricePanLimits = useMemo(
     () => computePricePanLimits(visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll, priceScaleMul),
     [visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll, priceScaleMul]
@@ -2503,38 +2991,37 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               BB + RSI
             </button>
           </div>
-          {(showCandle || onIntraday || mode === 'candle') && (
-            <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1 flex-wrap">
-              {([
-                ['1m', '1m'],
-                ['5m', '5m'],
-                ['15m', '15m'],
-                ['1h', '1h'],
-                ['day', 'Day'],
-                ['week', 'Week'],
-                ['month', 'Month'],
-              ] as const).map(([iv, label]) => (
-                <button
-                  key={iv}
-                  type="button"
-                  onClick={() => selectInterval(iv)}
-                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${candleInterval === iv ? 'bg-white dark:bg-slate-900 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500'}`}
-                >
-                  {label}
-                </button>
+          <div className="flex items-center gap-1.5">
+            <label className="sr-only" htmlFor="chart-candle-interval">Candle</label>
+            <select
+              id="chart-candle-interval"
+              value={candleInterval}
+              disabled={loading}
+              onChange={(e) => selectInterval(e.target.value as CandleInterval)}
+              className="px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-sm disabled:opacity-40"
+              title="Candle size"
+            >
+              {CHART_INTERVALS.map((iv) => (
+                <option key={iv} value={iv}>
+                  {fmtInterval(iv)}
+                </option>
               ))}
-            </div>
-          )}
-          <div className="flex bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-            {(onIntraday ? INTRADAY_RANGES : RANGES).map((r) => (
-              <button
-                key={r.k}
-                onClick={() => selectRange(r.k)}
-                className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition-all ${range === r.k ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700'}`}
-              >
-                {r.k}
-              </button>
-            ))}
+            </select>
+            <label className="sr-only" htmlFor="chart-range-length">Length</label>
+            <select
+              id="chart-range-length"
+              value={range}
+              disabled={loading}
+              onChange={(e) => selectRange(e.target.value)}
+              className="px-2 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold text-slate-700 dark:text-slate-200 shadow-sm disabled:opacity-40"
+              title="Chart length"
+            >
+              {(onIntraday ? INTRADAY_RANGES : RANGES).map((r) => (
+                <option key={r.k} value={r.k}>
+                  {r.k}
+                </option>
+              ))}
+            </select>
           </div>
           {canZoom && (
             <AxisZoomControls
@@ -2589,15 +3076,22 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               disabled={loading}
             />
           )}
-          {showCandle && visibleOhlc.length >= 3 && (
-            <IndicatorsPanel layers={awaisLayers} onApply={setAwaisLayers} disabled={loading} />
-          )}
-          {showCandle && visibleOhlc.length >= 5 && (
-            <AutoTrendlinesPanel settings={autoTrendlines} onApply={setAutoTrendlines} disabled={loading} />
-          )}
-          {(showCandle || showTechnical || mode === 'line') && (
-            <MomentumPanel config={momentumConfig} onApply={setMomentumConfig} disabled={loading} />
-          )}
+          <ChartSettingsPanel
+            disabled={loading}
+            rangeLabel={`${fmtInterval(candleInterval)} · ${range}`}
+            layers={layers}
+            awaisLayers={awaisLayers}
+            momentumConfig={momentumConfig}
+            autoTrendlines={autoTrendlines}
+            chartExtras={chartExtras}
+            onApply={(next) => {
+              setLayers(next.layers);
+              setAwaisLayers(next.awaisLayers);
+              setMomentumConfig(next.momentumConfig);
+              setAutoTrendlines(next.autoTrendlines);
+              setChartExtras(next.chartExtras);
+            }}
+          />
           <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh">
             <RefreshCw size={15} className={loading ? 'animate-spin text-emerald-500' : ''} aria-hidden />
           </button>
@@ -2677,14 +3171,18 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           <div className="space-y-1">
             <CandleChart
               bars={visibleOhlc}
+              allBars={candleOhlc}
+              viewStart={viewStart}
               viewportSlots={viewCount}
               analysis={candleAnalysis}
               layers={layers}
               momentumConfig={momentumConfig}
               momentumSeries={momentumSeriesVisible}
+              atrSeries={atrSeriesVisible}
               awaisLayers={awaisLayers}
               awaisData={awaisVisible}
               autoTrendlines={autoTrendlines}
+              chartExtras={chartExtras}
               candleInterval={candleInterval}
               height={isFocus ? focusCandleHeight : CANDLE_CHART_HEIGHT}
               panning={panning}
@@ -2749,7 +3247,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               />
             )}
             {layers.volume && hasVolume && visibleOhlc.length > 0 && (
-              <LineVolumePanel bars={visibleOhlc} />
+              <LineVolumePanel bars={visibleOhlc} showVolumeSpike={chartExtras.volumeSpike} />
             )}
             {!filteredAnalysis.length && mode === 'line' && filteredLine.length < 3 && (
               <p className="text-[10px] text-slate-400 px-1">Not enough price history for indicator overlays.</p>

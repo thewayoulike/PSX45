@@ -13,6 +13,7 @@ import {
   momentumPanelLabel,
   setAllMomentumEnabled,
 } from '../utils/momentumIndicators';
+import type { RsiDivergenceMarker } from '../utils/chartRsiDivergence';
 import { fmtChartAxisDate, pickChartXTickIndices, type CandleInterval } from '../utils/chartAxis';
 import { useChartTheme } from '../utils/chartTheme';
 import { PaneLegend } from './ChartPaneLegend';
@@ -84,7 +85,7 @@ function ColorInput({ label, value, onChange }: { label: string; value: string; 
   );
 }
 
-function MomentumPanelContent({
+export function MomentumPanelContent({
   draft,
   setDraft,
   tab,
@@ -334,8 +335,9 @@ export const MomentumMiniChart: React.FC<{
   candleInterval?: CandleInterval;
   hoverX?: number | null;
   hoverIdx?: number | null;
+  rsiDivergenceMarkers?: RsiDivergenceMarker[];
   plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
-}> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false, candleInterval = 'day', hoverX = null, hoverIdx = null, plotMouseHandlers }) => {
+}> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false, candleInterval = 'day', hoverX = null, hoverIdx = null, rsiDivergenceMarkers = [], plotMouseHandlers }) => {
   const theme = useChartTheme();
   const computed = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);
   const series = seriesProp ?? computed;
@@ -412,6 +414,21 @@ export const MomentumMiniChart: React.FC<{
           {config.rsi.showSmoothing && (
             <path d={polylinePath(series.map((p) => p.rsiSmooth), xAt, yRsi)} fill="none" stroke={config.rsi.smoothingColor} strokeWidth={1} />
           )}
+          {rsiDivergenceMarkers.map((marker) => {
+            const point = series[marker.i];
+            if (point?.rsi == null) return null;
+            const x = xAt(marker.i);
+            const y = yRsi(point.rsi);
+            const color = marker.kind === 'bull' ? '#10b981' : '#ef4444';
+            const d = marker.kind === 'bull'
+              ? `M ${x} ${y + 9} L ${x - 5} ${y + 1} L ${x + 5} ${y + 1} Z`
+              : `M ${x} ${y - 9} L ${x - 5} ${y - 1} L ${x + 5} ${y - 1} Z`;
+            return (
+              <path key={`${marker.kind}-${marker.i}`} d={d} fill={color} stroke={theme.bg} strokeWidth={1}>
+                <title>{marker.kind === 'bull' ? 'Bullish RSI divergence' : 'Bearish RSI divergence'}</title>
+              </path>
+            );
+          })}
           {crosshair}
           {hovered?.rsi != null && valueBadge(yRsi(hovered.rsi), hovered.rsi.toFixed(2))}
           {xAxisLabels}
