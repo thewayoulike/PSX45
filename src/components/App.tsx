@@ -2115,7 +2115,7 @@ const App: React.FC = () => {
           case 'insights':
               return <PortfolioInsights holdings={holdings} realizedTrades={realizedTrades} stats={stats} displayNames={fundDisplayNames} />;
           case 'dividends':
-              return <UpcomingDividends holdings={holdings} watchlist={watchlist} />;
+              return <UpcomingDividends holdings={holdings} watchlist={watchlist} days={90} />;
           case 'topMovers':
               return <TopMovers holdings={holdings} onSelectTicker={(t) => handleTickerClick(t)} />;
           case 'boardMeetings':
@@ -2265,16 +2265,16 @@ const App: React.FC = () => {
                       )}
 
                       {!isChartsView && (
-                      <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-4 mb-6 bg-slate-100/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl transition-all">
-                          <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-card dark:shadow-card-dark overflow-hidden">
+                      <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-3 mb-5 bg-slate-100/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md">
+                          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-card-dark">
                           {!isFundPortfolio && (
-                            <div className="px-4 sm:px-5 py-2.5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/80">
+                            <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 sm:px-4 dark:border-slate-700 dark:bg-slate-900/90">
                               <IndexBar />
                             </div>
                           )}
-                          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-3 p-3 sm:p-4">
+                          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5 p-2.5 sm:p-3">
                           <div className="w-full">
-                              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+                              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                                       <button
                                           onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
                                           className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm dark:shadow-emerald-900/40 flex-1 sm:flex-none min-h-[44px]"

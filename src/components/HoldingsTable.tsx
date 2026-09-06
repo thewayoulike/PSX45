@@ -367,6 +367,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const dailyChange = day.change;
                   const dailyPercent = day.pct;
                   const isDailyProfit = dailyChange >= 0;
+                  const hasLdcp = isFund
+                    ? ldcp > 0 && Math.abs(ldcp - holding.currentPrice) > 1e-9
+                    : !!(ldcpMap[holding.ticker] && ldcpMap[holding.ticker] > 0);
+                  const priceDelta = hasLdcp ? holding.currentPrice - ldcp : null;
 
                   const totalBuyFees = holding.totalCommission + holding.totalTax + holding.totalCDC + holding.totalOtherFees;
                   const estimatedSellFees = totalBuyFees;
@@ -445,12 +449,25 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       </td>
                       <td className="px-4 py-3.5 text-right align-middle"> 
                         <div className="flex flex-col items-end"> 
-                            <span className={`tabular-nums font-display font-black text-sm ${isFailed ? "text-amber-500" : "text-slate-900 dark:text-white"}`}> 
+                            <span className={`tabular-nums font-display font-black text-sm inline-flex items-baseline justify-end gap-1.5 flex-wrap ${isFailed ? "text-amber-500" : "text-slate-900 dark:text-white"}`}> 
                                 {holding.currentPrice > 0
                                   ? (isFund
                                       ? fmtFundNav(holding.currentPrice)
                                       : holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
-                                  : '-'} 
+                                  : '-'}
+                                {holding.currentPrice > 0 && priceDelta != null && Math.abs(priceDelta) >= 0.005 && (
+                                  <span
+                                    className={`text-[11px] font-bold tabular-nums ${
+                                      priceDelta > 0
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-rose-500 dark:text-rose-400'
+                                    }`}
+                                    title={isFund ? 'NAV change vs prior day' : 'Change vs previous close (LDCP)'}
+                                  >
+                                    ({priceDelta > 0 ? '+' : ''}
+                                    {isFund ? priceDelta.toFixed(4) : priceDelta.toFixed(2)})
+                                  </span>
+                                )}
                             </span> 
                             {holding.quantity > 0 && (
                                 <span className={`text-[9px] font-bold uppercase tracking-widest mt-1 px-1.5 py-0.5 rounded-md border shadow-sm border-transparent ${beColorClass}`} title={`Break-Even: Rs. ${isFund ? fmtFundNav(breakEvenPrice) : breakEvenPrice.toFixed(4)}`}>

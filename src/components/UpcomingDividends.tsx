@@ -6,13 +6,13 @@ import { Coins, CalendarClock, Loader2 } from 'lucide-react';
 interface Props {
   holdings: Holding[];
   watchlist?: string[];
-  days?: number; // window, default 30
+  days?: number; // window, default 90
 }
 
 const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const rs2 = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], days = 30 }) => {
+export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], days = 90 }) => {
   const [payouts, setPayouts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,7 +64,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
   }, [payouts, heldQty, days]);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
+    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <CalendarClock size={16} className="text-indigo-500" /> Upcoming Dividends
