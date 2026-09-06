@@ -15,6 +15,14 @@ import {
   PivotLabel,
 } from '../utils/awaisIndicators';
 import { IndicatorsPanel, AwaisSvgOverlays, AwaisPivotLabels } from './AwaisChartOverlays';
+import { AutoTrendlinesPanel } from './AutoTrendlinesPanel';
+import {
+  AutoTrendlineSettings,
+  AutoTrendlineSegment,
+  cloneAutoTrendlineSettings,
+  computeAutoTrendlines,
+  extendTrendlineToIndex,
+} from '../utils/autoTrendlines';
 import {
   MomentumPanel,
   MomentumMiniChart,
@@ -1031,6 +1039,59 @@ function sliceAwaisData(data: AwaisOverlayData, startIdx: number, count: number)
   };
 }
 
+function AutoTrendlinesSvg({
+  segments,
+  settings,
+  lastI,
+  xAt,
+  yScale,
+  plotRight,
+}: {
+  segments: { support: AutoTrendlineSegment | null; resistance: AutoTrendlineSegment | null };
+  settings: AutoTrendlineSettings;
+  lastI: number;
+  xAt: (i: number) => number;
+  yScale: (p: number) => number;
+  plotRight: number;
+}) {
+  const draw = (seg: AutoTrendlineSegment | null, color: string) => {
+    if (!seg) return null;
+    const x0 = xAt(seg.i0);
+    const y0 = yScale(seg.price0);
+    let x1 = xAt(seg.i1);
+    let y1 = yScale(seg.price1);
+    if (settings.extendRight && lastI >= 0) {
+      const pLast = extendTrendlineToIndex(seg, lastI);
+      x1 = xAt(lastI);
+      y1 = yScale(pLast);
+      if (Math.abs(x1 - x0) > 1e-6) {
+        const m = (y1 - y0) / (x1 - x0);
+        y1 = y0 + m * (plotRight - x0);
+        x1 = plotRight;
+      }
+    }
+    return (
+      <line
+        key={seg.kind}
+        x1={x0}
+        y1={y0}
+        x2={x1}
+        y2={y1}
+        stroke={color}
+        strokeWidth={2}
+        strokeLinecap="round"
+      />
+    );
+  };
+
+  return (
+    <g pointerEvents="none">
+      {settings.showResistance && draw(segments.resistance, settings.resistanceColor)}
+      {settings.showSupport && draw(segments.support, settings.supportColor)}
+    </g>
+  );
+}
+
 const CandleChart: React.FC<{
   bars: OhlcBar[];
   analysis?: ChartAnalysisPoint[];
@@ -1039,6 +1100,7 @@ const CandleChart: React.FC<{
   momentumSeries: ReturnType<typeof computeMomentumSeries>;
   awaisLayers: AwaisLayers;
   awaisData?: AwaisOverlayData | null;
+  autoTrendlines?: AutoTrendlineSettings;
   candleInterval?: CandleInterval;
   height?: number;
   panning?: boolean;
@@ -1067,6 +1129,7 @@ const CandleChart: React.FC<{
   momentumSeries,
   awaisLayers,
   awaisData = null,
+  autoTrendlines,
   candleInterval = 'day',
   height = 320,
   panning = false,
@@ -1094,6 +1157,13 @@ const CandleChart: React.FC<{
   const [plotHover, setPlotHover] = useState<PlotHoverState>({ idx: null, x: null, y: null });
   const plotClipId = useId().replace(/:/g, '');
   const labelClipId = useId().replace(/:/g, '');
+
+  const trendlineSegments = useMemo(() => {
+    if (!autoTrendlines?.enabled || bars.length < 5) {
+      return { support: null, resistance: null };
+    }
+    return computeAutoTrendlines(bars, autoTrendlines);
+  }, [bars, autoTrendlines]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -1440,6 +1510,16 @@ const CandleChart: React.FC<{
             hidePivotLabels
           />
         )}
+        {autoTrendlines?.enabled && (
+          <AutoTrendlinesSvg
+            segments={trendlineSegments}
+            settings={autoTrendlines}
+            lastI={display.length - 1}
+            xAt={xAt}
+            yScale={yScale}
+            plotRight={w - pad.r}
+          />
+        )}
         {display.map((b, i) => {
           const x = xAt(i);
           const up = b.close >= b.open;
@@ -1646,6 +1726,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const [layers, setLayers] = useState<ChartLayers>(() => loadChartSettings().layers);
   const [awaisLayers, setAwaisLayers] = useState<AwaisLayers>(() => cloneAwaisLayers(loadChartSettings().awaisLayers));
   const [momentumConfig, setMomentumConfig] = useState<MomentumConfig>(() => cloneMomentumConfig(loadChartSettings().momentumConfig));
+  const [autoTrendlines, setAutoTrendlines] = useState<AutoTrendlineSettings>(() =>
+    cloneAutoTrendlineSettings(loadChartSettings().autoTrendlines)
+  );
   const chartPanRef = useRef<HTMLDivElement>(null);
   const candlePlotRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{
@@ -1680,8 +1763,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   };
 
   useEffect(() => {
-    persistChartSettings({ layers, awaisLayers, momentumConfig });
-  }, [layers, awaisLayers, momentumConfig]);
+    persistChartSettings({ layers, awaisLayers, momentumConfig, autoTrendlines });
+  }, [layers, awaisLayers, momentumConfig, autoTrendlines]);
 
   useEffect(() => {
     const onCloudSettings = (e: Event) => {
@@ -1690,6 +1773,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       setLayers({ ...detail.layers });
       setAwaisLayers(cloneAwaisLayers(detail.awaisLayers));
       setMomentumConfig(cloneMomentumConfig(detail.momentumConfig));
+      if (detail.autoTrendlines) {
+        setAutoTrendlines(cloneAutoTrendlineSettings(detail.autoTrendlines));
+      }
     };
     window.addEventListener(CHART_SETTINGS_EVENT, onCloudSettings);
     return () => window.removeEventListener(CHART_SETTINGS_EVENT, onCloudSettings);
@@ -2438,6 +2524,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           {showCandle && visibleOhlc.length >= 3 && (
             <IndicatorsPanel layers={awaisLayers} onApply={setAwaisLayers} disabled={loading} />
           )}
+          {showCandle && visibleOhlc.length >= 5 && (
+            <AutoTrendlinesPanel settings={autoTrendlines} onApply={setAutoTrendlines} disabled={loading} />
+          )}
           {(showCandle || showTechnical || mode === 'line') && (
             <MomentumPanel config={momentumConfig} onApply={setMomentumConfig} disabled={loading} />
           )}
@@ -2526,6 +2615,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               momentumSeries={momentumSeriesVisible}
               awaisLayers={awaisLayers}
               awaisData={awaisVisible}
+              autoTrendlines={autoTrendlines}
               candleInterval={candleInterval}
               height={isFocus ? focusCandleHeight : CANDLE_CHART_HEIGHT}
               panning={panning}

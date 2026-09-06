@@ -2265,14 +2265,13 @@ const App: React.FC = () => {
                       )}
 
                       {!isChartsView && (
-                      <div className="sticky top-0 z-50 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-2 pb-3 mb-5 bg-slate-100/95 dark:bg-[#0a0a0a]/95 backdrop-blur-md">
-                          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:shadow-card-dark">
+                      <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
-                            <div className="border-b border-slate-200 bg-slate-50 px-3 py-2 sm:px-4 dark:border-slate-700 dark:bg-slate-900/90">
+                            <div className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2">
                               <IndexBar />
                             </div>
                           )}
-                          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5 p-2.5 sm:p-3">
+                          <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2.5">
                           <div className="w-full">
                               <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
                                       <button
@@ -2389,7 +2388,6 @@ const App: React.FC = () => {
                               </div>
                             </div>
                            </div>
-                          </div>
                        </div>
                       )}
                       {currentView === 'DASHBOARD' && (

@@ -1,5 +1,11 @@
 import { AwaisLayers, DEFAULT_AWAIS_LAYERS, cloneAwaisLayers } from '../utils/awaisIndicators';
 import { DEFAULT_MOMENTUM_CONFIG, MomentumConfig, cloneMomentumConfig } from '../utils/momentumIndicators';
+import {
+  AutoTrendlineSettings,
+  DEFAULT_AUTO_TRENDLINES,
+  cloneAutoTrendlineSettings,
+  normalizeAutoTrendlineSettings,
+} from '../utils/autoTrendlines';
 
 export const CHART_SETTINGS_KEY = 'psx_chart_settings';
 export const CHART_SETTINGS_EVENT = 'psx-chart-settings-updated';
@@ -15,6 +21,7 @@ export interface ChartUserSettings {
   layers: ChartLayerToggles;
   awaisLayers: AwaisLayers;
   momentumConfig: MomentumConfig;
+  autoTrendlines: AutoTrendlineSettings;
 }
 
 const DEFAULT_CHART_SETTINGS: ChartUserSettings = {
@@ -22,6 +29,7 @@ const DEFAULT_CHART_SETTINGS: ChartUserSettings = {
   layers: { volume: true, momentum: true },
   awaisLayers: DEFAULT_AWAIS_LAYERS,
   momentumConfig: DEFAULT_MOMENTUM_CONFIG,
+  autoTrendlines: DEFAULT_AUTO_TRENDLINES,
 };
 
 export function cloneChartSettings(settings: ChartUserSettings): ChartUserSettings {
@@ -30,6 +38,7 @@ export function cloneChartSettings(settings: ChartUserSettings): ChartUserSettin
     layers: { ...settings.layers },
     awaisLayers: cloneAwaisLayers(settings.awaisLayers),
     momentumConfig: cloneMomentumConfig(settings.momentumConfig),
+    autoTrendlines: cloneAutoTrendlineSettings(settings.autoTrendlines),
   };
 }
 
@@ -47,6 +56,9 @@ function normalizeChartSettings(raw: unknown): ChartUserSettings {
   }
   if (o.momentumConfig && typeof o.momentumConfig === 'object') {
     base.momentumConfig = cloneMomentumConfig(o.momentumConfig as MomentumConfig);
+  }
+  if (o.autoTrendlines) {
+    base.autoTrendlines = normalizeAutoTrendlineSettings(o.autoTrendlines);
   }
   return base;
 }
@@ -68,6 +80,7 @@ export function persistChartSettings(partial: Partial<ChartUserSettings>): Chart
     layers: { ...current.layers, ...partial.layers },
     awaisLayers: partial.awaisLayers ?? current.awaisLayers,
     momentumConfig: partial.momentumConfig ?? current.momentumConfig,
+    autoTrendlines: partial.autoTrendlines ?? current.autoTrendlines,
   });
   try {
     localStorage.setItem(CHART_SETTINGS_KEY, JSON.stringify(next));
