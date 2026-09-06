@@ -142,6 +142,20 @@ export const AutoTrendlinesPanel: React.FC<{
                     className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold tabular-nums"
                   />
                 </label>
+                <label className="flex items-center justify-between gap-3 px-2 py-1.5">
+                  <span className="text-[11px] font-semibold text-slate-700 dark:text-slate-200">Min bars between</span>
+                  <input
+                    type="number"
+                    min={5}
+                    max={200}
+                    value={draft.minBarsBetween}
+                    onChange={(e) =>
+                      patch({ minBarsBetween: Math.max(5, Math.min(200, Number(e.target.value) || 5)) })
+                    }
+                    className="w-16 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-bold tabular-nums"
+                    title="Prefer longer structural swing pairs"
+                  />
+                </label>
                 <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer">
                   <input
                     type="checkbox"
@@ -161,7 +175,7 @@ export const AutoTrendlinesPanel: React.FC<{
                   <span className="text-[11px] font-semibold">Break &amp; rebuild</span>
                 </label>
                 <p className="px-2 text-[10px] text-slate-400 leading-snug">
-                  When price closes through a line, drop it and try the previous swing pair.
+                  Draws longer structural lines (not just the last two swings). When price closes through a line, rebuilds from an earlier unbroken pair.
                 </p>
               </div>
             </div>

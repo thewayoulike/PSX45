@@ -7,6 +7,7 @@ import {
   extendTrendlineToIndex,
   findSwingPivots,
   isLineBroken,
+  normalizeAutoTrendlineSettings,
 } from './autoTrendlines';
 
 function bar(i: number, high: number, low: number, close?: number): OhlcBar {
@@ -59,14 +60,25 @@ function seriesWithPivots(opts: {
 }
 
 describe('cloneAutoTrendlineSettings', () => {
-  it('copies defaults with black colors and break-rebuild on', () => {
+  it('copies defaults with black colors and structural settings', () => {
     const c = cloneAutoTrendlineSettings(DEFAULT_AUTO_TRENDLINES);
     expect(c.supportColor).toBe('#000000');
     expect(c.resistanceColor).toBe('#000000');
     expect(c.enabled).toBe(false);
     expect(c.breakAndRebuild).toBe(true);
+    expect(c.pivotLength).toBe(10);
+    expect(c.minBarsBetween).toBe(25);
     c.enabled = true;
     expect(DEFAULT_AUTO_TRENDLINES.enabled).toBe(false);
+  });
+});
+
+describe('normalizeAutoTrendlineSettings', () => {
+  it('fills minBarsBetween from defaults when missing', () => {
+    const n = normalizeAutoTrendlineSettings({ enabled: true, pivotLength: 5 });
+    expect(n.enabled).toBe(true);
+    expect(n.pivotLength).toBe(5);
+    expect(n.minBarsBetween).toBe(25);
   });
 });
 
@@ -177,6 +189,7 @@ describe('computeAutoTrendlines', () => {
       ...DEFAULT_AUTO_TRENDLINES,
       enabled: true,
       pivotLength: 2,
+      minBarsBetween: 5,
       breakAndRebuild: true,
       showSupport: false,
       showResistance: true,
@@ -215,11 +228,38 @@ describe('computeAutoTrendlines', () => {
       ...DEFAULT_AUTO_TRENDLINES,
       enabled: true,
       pivotLength: 2,
+      minBarsBetween: 5,
       breakAndRebuild: true,
       showSupport: true,
       showResistance: false,
     });
     expect(out.support).toEqual(older);
+  });
+
+  it('prefers longer structural resistance from major peak over last two local swings', () => {
+    // Major peak at 5, later lower highs; short last pair 40→50 is unbroken but short.
+    const bars = seriesWithPivots({
+      highPivots: [
+        { i: 5, price: 100 },
+        { i: 30, price: 80 },
+        { i: 40, price: 72 },
+        { i: 50, price: 70 },
+      ],
+      lowPivots: [{ i: 20, price: 40 }],
+      len: 60,
+    });
+    const out = computeAutoTrendlines(bars, {
+      ...DEFAULT_AUTO_TRENDLINES,
+      enabled: true,
+      pivotLength: 2,
+      minBarsBetween: 20,
+      breakAndRebuild: true,
+      showSupport: false,
+      showResistance: true,
+    });
+    // Prefer 5→50 (or 5→40) over stubby 40→50
+    expect(out.resistance?.i0).toBe(5);
+    expect(out.resistance!.i1).toBeGreaterThanOrEqual(40);
   });
 });
 

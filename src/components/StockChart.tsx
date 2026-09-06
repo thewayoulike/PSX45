@@ -59,6 +59,7 @@ import {
   type DrawRenderCoords,
 } from '../utils/chartDrawings';
 import { fmtChartAxisDate, pickChartXTickIndices, rechartsSparseTickLabels, type CandleInterval } from '../utils/chartAxis';
+import { applyViewport, maxViewStart as maxViewStartFor } from '../utils/chartViewport';
 import { useChartTheme } from '../utils/chartTheme';
 import { PaneLegend } from './ChartPaneLegend';
 import { ChartAlertDialog } from './ChartAlertDialog';
@@ -228,12 +229,6 @@ function windowCount(total: number, zoomIdx: number): number {
   return Math.max(MIN_WINDOW, Math.min(MAX_VISIBLE_BARS, Math.floor(total / factor)));
 }
 
-function applyViewport<T>(arr: T[], start: number, count: number): T[] {
-  if (!arr.length || count >= arr.length) return arr;
-  const s = Math.max(0, Math.min(start, arr.length - count));
-  return arr.slice(s, s + count);
-}
-
 const AxisZoomControls: React.FC<{
   axis: 'H' | 'Y';
   zoomIdx: number;
@@ -378,9 +373,17 @@ function candleChangeFromPrev(current: OhlcBar, prev: OhlcBar | null | undefined
   return ((current.close - prev.close) / prev.close) * 100;
 }
 
-function barIndexAtX(x: number, plotOffset: number, slot: number, count: number): number | null {
-  if (count <= 0 || slot <= 0 || x < plotOffset || x > plotOffset + count * slot) return null;
-  return Math.min(count - 1, Math.max(0, Math.floor((x - plotOffset) / slot)));
+function barIndexAtX(
+  x: number,
+  plotOffset: number,
+  slot: number,
+  slotCount: number,
+  barCount = slotCount
+): number | null {
+  if (slotCount <= 0 || slot <= 0 || x < plotOffset || x > plotOffset + slotCount * slot) return null;
+  const i = Math.min(slotCount - 1, Math.max(0, Math.floor((x - plotOffset) / slot)));
+  if (i >= barCount) return null;
+  return i;
 }
 
 type PlotHoverState = { idx: number | null; x: number | null; y: number | null };
@@ -396,22 +399,26 @@ function plotCoordsFromOverlay(
 function plotMouseHandlers(
   plotOffset: number,
   slot: number,
-  count: number,
+  slotCount: number,
   plotTop: number,
   plotBottom: number,
   setHover: (v: PlotHoverState) => void,
   panning: boolean,
   trackY = false,
-  disabled = false
+  disabled = false,
+  barCount = slotCount
 ) {
-  const plotRight = plotOffset + count * slot;
+  const plotRight = plotOffset + slotCount * slot;
   return {
     onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => {
       if (panning || disabled) return;
       const x = e.nativeEvent.offsetX;
       const y = e.nativeEvent.offsetY;
       setHover((prev) => {
-        const next: PlotHoverState = { ...prev, idx: barIndexAtX(x, plotOffset, slot, count) };
+        const next: PlotHoverState = {
+          ...prev,
+          idx: barIndexAtX(x, plotOffset, slot, slotCount, barCount),
+        };
         if (x >= plotOffset && x <= plotRight) next.x = x;
         if (trackY && y >= plotTop && y <= plotBottom) next.y = y;
         return next;
@@ -1094,6 +1101,8 @@ function AutoTrendlinesSvg({
 
 const CandleChart: React.FC<{
   bars: OhlcBar[];
+  /** Full horizontal window size (may exceed bars.length when panned past latest). */
+  viewportSlots?: number;
   analysis?: ChartAnalysisPoint[];
   layers: ChartLayers;
   momentumConfig: MomentumConfig;
@@ -1123,6 +1132,7 @@ const CandleChart: React.FC<{
   onAddAlert?: (price: number) => void;
 }> = ({
   bars,
+  viewportSlots,
   analysis = [],
   layers,
   momentumConfig,
@@ -1181,6 +1191,7 @@ const CandleChart: React.FC<{
   const innerH = h - pad.t - pad.b;
 
   const display = bars;
+  const slotCount = Math.max(display.length, viewportSlots ?? display.length, 1);
   const showOverlay = analysis.length > 0;
   const aligned = useMemo(
     () => (showOverlay ? alignAnalysisToBars(display, analysis) : []),
@@ -1208,14 +1219,14 @@ const CandleChart: React.FC<{
     [yMin, yMax, innerH]
   );
   const plotInnerW =
-    candleInterval === 'month' && display.length <= 24
-      ? Math.min(innerW, display.length * 44)
-      : candleInterval === 'week' && display.length <= 52
-        ? Math.min(innerW, display.length * 34)
+    candleInterval === 'month' && slotCount <= 24
+      ? Math.min(innerW, slotCount * 44)
+      : candleInterval === 'week' && slotCount <= 52
+        ? Math.min(innerW, slotCount * 34)
         : innerW;
-  const slot = plotInnerW / Math.max(display.length, 1);
+  const slot = plotInnerW / slotCount;
   const plotOffset = pad.l + (innerW - plotInnerW) / 2;
-  const { bodyW, barW } = chartBarMetrics(slot, display.length, candleInterval);
+  const { bodyW, barW } = chartBarMetrics(slot, slotCount, candleInterval);
   const xTickIndices = useMemo(() => pickChartXTickIndices(display.length, slot), [display.length, slot]);
 
   const hi = plotHover.idx != null ? display[plotHover.idx] : null;
@@ -1304,14 +1315,14 @@ const CandleChart: React.FC<{
 
   const updatePlotHover = useCallback(
     (x: number, y: number) => {
-      const plotRight = plotOffset + display.length * slot;
+      const plotRight = plotOffset + slotCount * slot;
       setPlotHover({
-        idx: barIndexAtX(x, plotOffset, slot, display.length),
+        idx: barIndexAtX(x, plotOffset, slot, slotCount, display.length),
         x: x >= plotOffset && x <= plotRight ? x : null,
         y: y >= pad.t && y <= pad.t + innerH ? y : null,
       });
     },
-    [plotOffset, slot, display.length, pad.t, innerH]
+    [plotOffset, slot, slotCount, display.length, pad.t, innerH]
   );
 
   const handleDrawPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
@@ -1392,12 +1403,36 @@ const CandleChart: React.FC<{
   }, [panning]);
 
   const mainMouseHandlers = useMemo(
-    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, true, plotOverlayActive),
-    [plotOffset, slot, display.length, pad.t, innerH, panning, plotOverlayActive]
+    () =>
+      plotMouseHandlers(
+        plotOffset,
+        slot,
+        slotCount,
+        pad.t,
+        pad.t + innerH,
+        setPlotHover,
+        panning,
+        true,
+        plotOverlayActive,
+        display.length
+      ),
+    [plotOffset, slot, slotCount, pad.t, innerH, panning, plotOverlayActive, display.length]
   );
   const subMouseHandlers = useMemo(
-    () => plotMouseHandlers(plotOffset, slot, display.length, pad.t, pad.t + innerH, setPlotHover, panning, false, plotOverlayActive),
-    [plotOffset, slot, display.length, pad.t, innerH, panning, plotOverlayActive]
+    () =>
+      plotMouseHandlers(
+        plotOffset,
+        slot,
+        slotCount,
+        pad.t,
+        pad.t + innerH,
+        setPlotHover,
+        panning,
+        false,
+        plotOverlayActive,
+        display.length
+      ),
+    [plotOffset, slot, slotCount, pad.t, innerH, panning, plotOverlayActive, display.length]
   );
 
   const wrapCursor =
@@ -2013,9 +2048,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       : chartData.length;
 
   const viewCount = windowCount(primaryLen, zoomIdx);
-  const maxViewStart = Math.max(0, primaryLen - viewCount);
+  const maxViewStart = maxViewStartFor(primaryLen, viewCount);
   const canZoom = primaryLen >= MIN_WINDOW;
-  const canPan = canZoom && viewCount < primaryLen;
+  const canPan = canZoom && maxViewStart > 0;
 
   useEffect(() => {
     setViewStart((s) => Math.min(s, maxViewStart));
@@ -2609,6 +2644,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           <div className="space-y-1">
             <CandleChart
               bars={visibleOhlc}
+              viewportSlots={viewCount}
               analysis={candleAnalysis}
               layers={layers}
               momentumConfig={momentumConfig}
@@ -2697,7 +2733,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         )}
         {!isFocus && showCandle && canPanChart && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
-            Drag to pan (Pan tool) · Drag/scroll price axis to zoom · Double-click axis to reset · Draw toolbar · Del removes selected · Shift+scroll zoom price
+            Drag to pan (Pan tool) · Drag past latest for mid-chart space · Drag/scroll price axis to zoom · Double-click axis to reset · Draw toolbar · Del removes selected · Shift+scroll zoom price
             {hasAnyPivot(awaisLayers) && ' · Y Targets fits pivot levels'}
             {canPanH && visibleRangeLabel ? ` · ${visibleRangeLabel}` : ''}
           </p>

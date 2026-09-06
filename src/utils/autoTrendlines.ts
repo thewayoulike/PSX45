@@ -7,8 +7,10 @@ export interface AutoTrendlineSettings {
   supportColor: string;
   resistanceColor: string;
   pivotLength: number;
+  /** Ignore pivot pairs closer than this many bars (structural lines). */
+  minBarsBetween: number;
   extendRight: boolean;
-  /** When price closes through a line, drop it and try the previous pivot pair. */
+  /** Prefer longest unbroken structural pair; drop pairs price has closed through. */
   breakAndRebuild: boolean;
 }
 
@@ -31,7 +33,8 @@ export const DEFAULT_AUTO_TRENDLINES: AutoTrendlineSettings = {
   showResistance: true,
   supportColor: '#000000',
   resistanceColor: '#000000',
-  pivotLength: 5,
+  pivotLength: 10,
+  minBarsBetween: 25,
   extendRight: true,
   breakAndRebuild: true,
 };
@@ -84,7 +87,10 @@ export function extendTrendlineToIndex(seg: AutoTrendlineSegment, i: number): nu
   return seg.price0 + slope * (i - seg.i0);
 }
 
-/** True if any close after the second pivot pierces the line (resistance: close above; support: close below). */
+/**
+ * Broken if any close after the second pivot pierces the line.
+ * Resistance: close above. Support: close below.
+ */
 export function isLineBroken(
   bars: OhlcBar[],
   seg: AutoTrendlineSegment,
@@ -101,14 +107,14 @@ export function isLineBroken(
   return false;
 }
 
-function pickUnbrokenPair(
+/** Pine-style: last two consecutive pivots (optionally skip if broken). */
+function pickConsecutivePair(
   pivots: { i: number; price: number }[],
   bars: OhlcBar[],
   kind: 'support' | 'resistance',
   breakAndRebuild: boolean
 ): AutoTrendlineSegment | null {
   if (pivots.length < 2) return null;
-
   for (let end = pivots.length - 1; end >= 1; end--) {
     const a = pivots[end - 1];
     const b = pivots[end];
@@ -124,6 +130,76 @@ function pickUnbrokenPair(
   return null;
 }
 
+/**
+ * Structural: among unbroken pairs far enough apart, prefer longer span
+ * anchored near the major peak (resistance) or trough (support).
+ */
+function pickStructuralPair(
+  pivots: { i: number; price: number }[],
+  bars: OhlcBar[],
+  kind: 'support' | 'resistance',
+  minBarsBetween: number,
+  breakAndRebuild: boolean
+): AutoTrendlineSegment | null {
+  if (pivots.length < 2) return null;
+  const minSpan = Math.max(5, Math.floor(minBarsBetween) || 25);
+  const peak = Math.max(...pivots.map((p) => p.price));
+  const trough = Math.min(...pivots.map((p) => p.price));
+
+  let best: AutoTrendlineSegment | null = null;
+  let bestScore = -Infinity;
+
+  for (let j = 1; j < pivots.length; j++) {
+    for (let i = 0; i < j; i++) {
+      const a = pivots[i];
+      const b = pivots[j];
+      const span = b.i - a.i;
+      if (span < minSpan) continue;
+
+      const seg: AutoTrendlineSegment = {
+        kind,
+        i0: a.i,
+        price0: a.price,
+        i1: b.i,
+        price1: b.price,
+      };
+      if (breakAndRebuild && isLineBroken(bars, seg, kind)) continue;
+
+      // Longer + more recent end wins; bonus for anchoring at major extreme.
+      let score = span + b.i * 0.08;
+      if (kind === 'resistance' && peak > 0 && a.price >= peak * 0.98) score += span * 0.75;
+      if (kind === 'support' && trough > 0 && a.price <= trough * 1.02) score += span * 0.75;
+
+      if (score > bestScore) {
+        bestScore = score;
+        best = seg;
+      }
+    }
+  }
+
+  // Fallback: if nothing met minSpan, use consecutive logic.
+  return best ?? pickConsecutivePair(pivots, bars, kind, breakAndRebuild);
+}
+
+function pickPair(
+  pivots: { i: number; price: number }[],
+  bars: OhlcBar[],
+  kind: 'support' | 'resistance',
+  settings: AutoTrendlineSettings
+): AutoTrendlineSegment | null {
+  // Structural mode when break-and-rebuild is on (default).
+  if (settings.breakAndRebuild) {
+    return pickStructuralPair(
+      pivots,
+      bars,
+      kind,
+      settings.minBarsBetween,
+      true
+    );
+  }
+  return pickConsecutivePair(pivots, bars, kind, false);
+}
+
 export function computeAutoTrendlines(
   bars: OhlcBar[],
   settings: AutoTrendlineSettings
@@ -135,10 +211,10 @@ export function computeAutoTrendlines(
   const { highs: pivotHighs, lows: pivotLows } = findSwingPivots(bars, settings.pivotLength);
 
   const resistance = settings.showResistance
-    ? pickUnbrokenPair(pivotHighs, bars, 'resistance', settings.breakAndRebuild)
+    ? pickPair(pivotHighs, bars, 'resistance', settings)
     : null;
   const support = settings.showSupport
-    ? pickUnbrokenPair(pivotLows, bars, 'support', settings.breakAndRebuild)
+    ? pickPair(pivotLows, bars, 'support', settings)
     : null;
 
   return { support, resistance };
@@ -156,6 +232,9 @@ export function normalizeAutoTrendlineSettings(raw: unknown): AutoTrendlineSetti
   if (typeof o.resistanceColor === 'string' && o.resistanceColor) base.resistanceColor = o.resistanceColor;
   if (typeof o.pivotLength === 'number' && o.pivotLength >= 2) {
     base.pivotLength = Math.min(50, Math.floor(o.pivotLength));
+  }
+  if (typeof o.minBarsBetween === 'number' && o.minBarsBetween >= 5) {
+    base.minBarsBetween = Math.min(200, Math.floor(o.minBarsBetween));
   }
   if (typeof o.extendRight === 'boolean') base.extendRight = o.extendRight;
   if (typeof o.breakAndRebuild === 'boolean') base.breakAndRebuild = o.breakAndRebuild;
