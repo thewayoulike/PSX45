@@ -1,5 +1,5 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock } from 'lucide-react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock, Sparkles, Settings2 } from 'lucide-react';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
 import {
   computeSignal,
@@ -13,9 +13,18 @@ import {
   Verdict,
   RsiOversoldBacktest,
 } from '../utils/indicators';
-import { KSE100_SET, KMI30_SET } from '../services/indices';
+import { buildScanUniverse } from '../utils/scanUniverse';
+import {
+  isScanStale,
+  loadDailyScan,
+  loadScanBotSettings,
+  saveDailyScan,
+  saveScanBotSettings,
+  ScanBotSettings,
+  DailyScanHit,
+} from '../services/scanBot';
 import { useFreemium } from './FreemiumContext';
-import { consumeDailyQuota } from '../utils/freemiumQuotas';
+import { consumeDailyQuota, peekDailyQuota } from '../utils/freemiumQuotas';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'INDEX', 'KSE'];
 
@@ -78,13 +87,11 @@ const parseCandidates = (html: string): Candidate[] => {
 };
 
 // Pick the scan universe from parsed candidates.
-const buildUniverse = (candidates: Candidate[], u: string): Candidate[] => {
-  if (u === 'KSE100') return candidates.filter((c) => KSE100_SET.has(c.symbol));
-  if (u === 'KMI30') return candidates.filter((c) => KMI30_SET.has(c.symbol));
-  if (u === 'ALL') return candidates;
-  const n = Number(u) || 40;
-  return candidates.slice(0, n);
-};
+const buildUniverse = (
+  candidates: Candidate[],
+  u: string,
+  opts?: { watchlist?: string[]; symbol?: string },
+): Candidate[] => buildScanUniverse(candidates, u, opts);
 
 // Run an async fn over items with limited concurrency.
 async function mapPool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>, onProgress: (done: number) => void): Promise<R[]> {
@@ -216,6 +223,16 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
                 </div>
               ))}
             </div>
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <div className="rounded-2xl bg-sky-50/70 dark:bg-sky-500/10 border border-sky-100 dark:border-sky-500/20 p-3 shadow-sm">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-sky-700 dark:text-sky-400 mb-1">Support</div>
+                <div className="font-mono font-bold text-sm text-sky-900 dark:text-sky-100 tabular-nums">{fmt(plan.support)}</div>
+              </div>
+              <div className="rounded-2xl bg-orange-50/70 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/20 p-3 shadow-sm">
+                <div className="text-[10px] font-bold uppercase tracking-widest text-orange-700 dark:text-orange-400 mb-1">Resistance</div>
+                <div className="font-mono font-bold text-sm text-orange-900 dark:text-orange-100 tabular-nums">{fmt(plan.resistance)}</div>
+              </div>
+            </div>
           </div>
         )}
 
@@ -281,8 +298,8 @@ const ScreenerTable: React.FC<{
             <Th className="text-right">SMA 20</Th>
             <Th className="text-right">SMA 50</Th>
             <Th className="text-right">RSI 14</Th>
-            <Th className="text-right">{rsiMode ? 'Stop −1.5%' : 'Buy zone'}</Th>
-            <Th className="text-right">{rsiMode ? 'TP +4%' : 'Sell zone'}</Th>
+            <Th className="text-right">{rsiMode ? 'Stop −1.5%' : 'Support'}</Th>
+            <Th className="text-right">{rsiMode ? 'TP +4%' : 'Resistance'}</Th>
             <Th className="text-center">{rsiMode ? '1Y Win%' : 'Signal'}</Th>
           </tr>
         </thead>
@@ -369,7 +386,11 @@ const BacktestSummary: React.FC<{ bt: RsiOversoldBacktest; symbols: number }> = 
   </div>
 );
 
-export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void }> = ({ onSymbolClick }) => {
+export const MarketSignalScanner: React.FC<{
+  onSymbolClick?: (s: string) => void;
+  watchlist?: string[];
+  onAskAssistant?: (prompt: string) => void;
+}> = ({ onSymbolClick, watchlist = [], onAskAssistant }) => {
   const { isFree, quotas, requestUpgrade } = useFreemium();
   const signalsVisible = quotas.signalsVisible ?? 5;
   const [status, setStatus] = useState<'idle' | 'scanning' | 'done'>('idle');
@@ -377,19 +398,52 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
   const [results, setResults] = useState<Result[]>([]);
   const [error, setError] = useState('');
   const [universe, setUniverse] = useState<string>('KSE100');
+  const [singleSymbol, setSingleSymbol] = useState('');
   const [strategy, setStrategy] = useState<StrategyMode>('composite');
   const [buyOnly, setBuyOnly] = useState(true);
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [copied, setCopied] = useState(false);
   const [scannedAt, setScannedAt] = useState<Date | null>(null);
   const [aggBacktest, setAggBacktest] = useState<RsiOversoldBacktest | null>(null);
+  const [settings, setSettings] = useState<ScanBotSettings>(() => loadScanBotSettings());
+  const [showSettings, setShowSettings] = useState(false);
+  const autoRan = useRef(false);
 
   // RSI oversold works best on liquid index names — nudge universe when switching mode.
   useEffect(() => {
-    if (strategy === 'rsi_oversold' && universe !== 'KSE100' && universe !== 'KMI30') {
+    if (strategy === 'rsi_oversold' && !['KSE100', 'KMI30', 'WATCHLIST', 'SYMBOL'].includes(universe)) {
       setUniverse('KSE100');
     }
   }, [strategy, universe]);
+
+  const persistHits = useCallback((collected: Result[], univ: string, mode: StrategyMode, total: number, agg: RsiOversoldBacktest | null) => {
+    const hits: DailyScanHit[] = collected.map((r) => ({
+      symbol: r.symbol,
+      current: r.current,
+      changePct: r.changePct,
+      volume: r.volume,
+      verdict: r.summary.verdict,
+      rsi: r.summary.rsi,
+      score: r.summary.score,
+      stop: r.plan?.stop,
+      target: r.plan?.targets[0],
+      support: r.plan?.support,
+      resistance: r.plan?.resistance,
+      backtestWinRate: r.backtest && r.backtest.trades > 0 ? r.backtest.winRate : undefined,
+      backtestTrades: r.backtest && r.backtest.trades > 0 ? r.backtest.trades : undefined,
+      backtestAvgReturnPct: r.backtest && r.backtest.trades > 0 ? r.backtest.avgReturnPct : undefined,
+    }));
+    saveDailyScan({
+      scannedAt: Date.now(),
+      universe: univ,
+      mode,
+      hits,
+      totalScanned: total,
+      aggBacktest: agg && agg.trades > 0
+        ? { trades: agg.trades, winRate: agg.winRate, avgReturnPct: agg.avgReturnPct }
+        : undefined,
+    });
+  }, []);
 
   const runScan = useCallback(async () => {
     if (isFree) {
@@ -402,13 +456,24 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
     setAggBacktest(null);
     setProgress({ done: 0, total: 0 });
     const rsiMode = strategy === 'rsi_oversold';
+    const symbolMode = universe === 'SYMBOL';
     try {
+      if (symbolMode && !singleSymbol.trim()) {
+        throw new Error('Enter a PSX ticker to scan (e.g. OGDC).');
+      }
       const html = await fetchUrlWithFallback('https://dps.psx.com.pk/market-watch');
       if (!html || html.length < 500) throw new Error('Could not fetch the market snapshot. Try again in a moment.');
 
-      const scanUniverse = rsiMode && universe !== 'KSE100' && universe !== 'KMI30' ? 'KSE100' : universe;
-      const candidates = buildUniverse(parseCandidates(html), scanUniverse);
-      if (candidates.length === 0) throw new Error('No matching stocks found. If you scanned an index, check the constituent list in indices.ts.');
+      const scanUniverse = rsiMode && !['KSE100', 'KMI30', 'WATCHLIST', 'SYMBOL'].includes(universe) ? 'KSE100' : universe;
+      const candidates = buildUniverse(parseCandidates(html), scanUniverse, {
+        watchlist,
+        symbol: singleSymbol,
+      });
+      if (candidates.length === 0) {
+        if (scanUniverse === 'WATCHLIST') throw new Error('Watchlist is empty or none of your tickers appeared in today\'s market snapshot.');
+        if (scanUniverse === 'SYMBOL') throw new Error('Enter a PSX ticker to scan (e.g. OGDC).');
+        throw new Error('No matching stocks found. If you scanned an index, check the constituent list in indices.ts.');
+      }
 
       const concurrency = candidates.length > 80 ? 8 : 6;
       if (candidates.length > 40) setView('table');
@@ -422,58 +487,84 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
         const history = await fetchStockHistory(c.symbol, '1Y');
         const closes = history.map((h) => h.price);
         if (closes.length < 35) return;
+        const price = c.current > 0 ? c.current : closes[closes.length - 1];
+        const row = { ...c, current: price };
         const summary = computeSignal(closes);
 
         if (rsiMode) {
           const bt = backtestRsiOversold(closes);
           btParts.push(bt);
-          // Live signal: only keep names currently RSI < 30
-          if (!(summary.rsi < 30)) return;
-          const plan = computeRsiOversoldPlan(c.current);
-          collected.push({
-            ...c,
-            summary: { ...summary, verdict: 'BUY' },
-            plan,
-            strategy: 'rsi_oversold',
-            backtest: bt,
-          });
+          const oversold = summary.rsi < 30;
+          if (!oversold && !symbolMode) return;
+          if (oversold) {
+            const plan = computeRsiOversoldPlan(price);
+            collected.push({
+              ...row,
+              summary: { ...summary, verdict: 'BUY' },
+              plan,
+              strategy: 'rsi_oversold',
+              backtest: bt,
+            });
+          } else {
+            const plan = computeTradePlan(closes, price);
+            collected.push({ ...row, summary, plan, strategy: 'rsi_oversold', backtest: bt });
+          }
           return;
         }
 
-        const plan = computeTradePlan(closes, c.current);
-        collected.push({ ...c, summary, plan, strategy: 'composite' });
+        const plan = computeTradePlan(closes, price);
+        collected.push({ ...row, summary, plan, strategy: 'composite' });
       }, (done) => setProgress((p) => ({ ...p, done })));
 
+      let agg: RsiOversoldBacktest | null = null;
       if (rsiMode) {
         collected.sort((a, b) => a.summary.rsi - b.summary.rsi || b.volume - a.volume);
-        setAggBacktest(mergeRsiOversoldBacktests(btParts));
+        agg = mergeRsiOversoldBacktests(btParts);
+        setAggBacktest(agg);
       } else {
         collected.sort((a, b) => b.summary.score - a.summary.score || b.volume - a.volume);
       }
 
       setResults(collected);
       setScannedAt(new Date());
+      persistHits(collected, scanUniverse, strategy, candidates.length, agg);
       setStatus('done');
     } catch (e: any) {
       setError(e.message || 'Scan failed.');
       setStatus('idle');
     }
-  }, [universe, strategy, isFree, quotas.signalsPerDay, requestUpgrade]);
+  }, [universe, strategy, singleSymbol, watchlist, isFree, quotas.signalsPerDay, requestUpgrade, persistHits]);
+
+  useEffect(() => {
+    if (autoRan.current || !settings.autoRunIfStale) return;
+    if (isFree && peekDailyQuota('signals') >= (quotas.signalsPerDay ?? 1)) return;
+    const snap = loadDailyScan();
+    if (isScanStale(snap, settings.staleHours)) {
+      autoRan.current = true;
+      void runScan();
+    }
+  }, [settings.autoRunIfStale, settings.staleHours, runScan, isFree, quotas.signalsPerDay]);
 
   const rsiMode = strategy === 'rsi_oversold';
+  const symbolMode = universe === 'SYMBOL';
 
   const shown = results.filter((r) => {
-    if (rsiMode) return true; // already RSI < 30
+    if (symbolMode) return true;
+    if (rsiMode) return true;
     return buyOnly ? (r.summary.verdict === 'BUY' || r.summary.verdict === 'STRONG BUY') : true;
   });
 
+  const assistantPrompt = scannedAt
+    ? `Summarize my latest Market Signals scan (${universe}${symbolMode ? `: ${singleSymbol.toUpperCase()}` : ''}, ${rsiMode ? 'RSI oversold' : 'multi-indicator'}). Highlight the strongest 3–5 names, note support/resistance, and flag risks. Use get_daily_scan for the data.`
+    : 'Summarize what a Market Signals scan would show — I have not run one yet.';
+
   const copyAll = async () => {
     const header = rsiMode
-      ? 'SYMBOL\tPRICE\tCHG %\tRSI14\tSTOP\tTP\t1Y_WIN%\t1Y_TRADES\tSIGNAL'
-      : 'SYMBOL\tPRICE\tCHG %\tSMA20\tSMA50\tRSI14\tBUY ZONE\tSELL ZONE\tSIGNAL';
+      ? 'SYMBOL\tPRICE\tCHG %\tRSI14\tSTOP\tTP\tSUPPORT\tRESISTANCE\t1Y_WIN%\t1Y_TRADES\tSIGNAL'
+      : 'SYMBOL\tPRICE\tCHG %\tSMA20\tSMA50\tRSI14\tSUPPORT\tRESISTANCE\tSIGNAL';
     const body = shown.map((r) =>
       rsiMode
-        ? `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.stop) : ''}\t${r.plan ? fmt(r.plan.targets[0]) : ''}\t${r.backtest ? fmt(r.backtest.winRate, 1) : ''}\t${r.backtest?.trades ?? ''}\tRSI_OVERSOLD`
+        ? `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.stop) : ''}\t${r.plan ? fmt(r.plan.targets[0]) : ''}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.backtest ? fmt(r.backtest.winRate, 1) : ''}\t${r.backtest?.trades ?? ''}\tRSI_OVERSOLD`
         : `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.sma20)}\t${fmt(r.summary.sma50)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.summary.verdict}`
     ).join('\n');
     await navigator.clipboard.writeText(`${header}\n${body}`);
@@ -484,7 +575,11 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
   const isAll = universe === 'ALL';
 
-  return (
+  const patchSettings = (partial: Partial<ScanBotSettings>) => {
+    const next = { ...settings, ...partial };
+    setSettings(next);
+    saveScanBotSettings(next);
+  };
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 w-full min-w-0">
       {/* Header / controls */}
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark p-5">

@@ -2603,7 +2603,7 @@ const App: React.FC = () => {
                           <ChartsExplorer
                               onSymbolClick={(t) => handleTickerClick(t)}
                               freePlan={isFreePlan}
-                              chartViewLimit={sbStatus?.quotas?.chartViewsPerDay ?? 5}
+                              chartViewLimit={isFreePlan ? (sbStatus?.quotas?.chartViewsPerDay ?? 5) : Number.POSITIVE_INFINITY}
                               onUpgrade={() => setShowUpgrade(true)}
                           />
                       )}

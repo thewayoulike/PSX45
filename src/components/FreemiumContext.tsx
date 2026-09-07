@@ -10,7 +10,8 @@ export interface FreemiumContextValue {
   canSeePositions: (ticker: string) => boolean;
 }
 
-const defaultQuotas: FreemiumQuotas = {
+/** Free plan caps (finite). */
+const FREE_QUOTAS: FreemiumQuotas = {
   stockTickers: 3,
   fundTickers: 3,
   portfolios: 1,
@@ -28,9 +29,52 @@ const defaultQuotas: FreemiumQuotas = {
   exportPerDay: 1,
 };
 
+/**
+ * Paid / trial / lifetime defaults.
+ * Note: JSON turns Infinity into null over the wire — normalizeQuotas maps null → Infinity.
+ * Alert caps stay finite (15 × 4 TP + 4 SL).
+ */
+const PAID_QUOTAS: FreemiumQuotas = {
+  ...FREE_QUOTAS,
+  stockTickers: Number.POSITIVE_INFINITY,
+  fundTickers: Number.POSITIVE_INFINITY,
+  portfolios: Number.POSITIVE_INFINITY,
+  stockProfiles: Number.POSITIVE_INFINITY,
+  chartViewsPerDay: Number.POSITIVE_INFINITY,
+  signalsPerDay: Number.POSITIVE_INFINITY,
+  signalsVisible: Number.POSITIVE_INFINITY,
+  dailyScanPerDay: Number.POSITIVE_INFINITY,
+  dailyScanVisible: Number.POSITIVE_INFINITY,
+  alertsTickers: 15,
+  alertsTp: 4,
+  alertsSl: 4,
+  aiMessagesPerDay: Number.POSITIVE_INFINITY,
+  fairValuePerDay: Number.POSITIVE_INFINITY,
+  exportPerDay: Number.POSITIVE_INFINITY,
+};
+
+/** Merge API quotas; null/NaN mean unlimited when not Free (JSON dropped Infinity). */
+export function normalizeQuotas(
+  isFree: boolean,
+  quotas?: FreemiumQuotas | null,
+): FreemiumQuotas {
+  const base = isFree ? FREE_QUOTAS : PAID_QUOTAS;
+  const merged: FreemiumQuotas = { ...base };
+  if (!quotas) return merged;
+  for (const [key, raw] of Object.entries(quotas)) {
+    if (raw == null || Number.isNaN(Number(raw))) {
+      merged[key] = isFree ? (FREE_QUOTAS[key] ?? 0) : Number.POSITIVE_INFINITY;
+      continue;
+    }
+    const n = Number(raw);
+    merged[key] = n;
+  }
+  return merged;
+}
+
 const FreemiumContext = createContext<FreemiumContextValue>({
   isFree: false,
-  quotas: defaultQuotas,
+  quotas: PAID_QUOTAS,
   entitledTickers: null,
   requestUpgrade: () => {},
   canSeePositions: () => true,
@@ -44,7 +88,7 @@ export const FreemiumProvider: React.FC<{
   children: React.ReactNode;
 }> = ({ isFree, quotas, entitledTickers, requestUpgrade, children }) => {
   const value = useMemo<FreemiumContextValue>(() => {
-    const q = { ...defaultQuotas, ...(quotas || {}) };
+    const q = normalizeQuotas(isFree, quotas);
     const entitled = entitledTickers;
     return {
       isFree,

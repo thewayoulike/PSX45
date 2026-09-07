@@ -1,6 +1,5 @@
 // Daily PSX scan bot — deterministic signals + backtest stats, no LLM.
 import { fetchUrlWithFallback, fetchStockHistory } from './psxData';
-import { KSE100_SET, KMI30_SET } from './indices';
 import {
   computeSignal,
   computeTradePlan,
@@ -9,6 +8,7 @@ import {
   mergeRsiOversoldBacktests,
   Verdict,
 } from '../utils/indicators';
+import { buildScanUniverse } from '../utils/scanUniverse';
 
 const STORAGE_KEY = 'psx_daily_scan';
 const SETTINGS_KEY = 'psx_scan_bot_settings';
@@ -16,7 +16,8 @@ const SETTINGS_KEY = 'psx_scan_bot_settings';
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'INDEX', 'KSE'];
 
 export type ScanMode = 'composite' | 'rsi_oversold';
-export type ScanUniverse = 'KSE100' | 'KMI30' | 'WATCHLIST';
+/** Legacy daily-scan universes + SYMBOL for single-ticker runs. */
+export type ScanUniverse = 'KSE100' | 'KMI30' | 'WATCHLIST' | 'SYMBOL';
 
 export interface DailyScanHit {
   symbol: string;
@@ -28,6 +29,8 @@ export interface DailyScanHit {
   score: number;
   stop?: number;
   target?: number;
+  support?: number;
+  resistance?: number;
   backtestWinRate?: number;
   backtestTrades?: number;
   backtestAvgReturnPct?: number;
@@ -35,7 +38,7 @@ export interface DailyScanHit {
 
 export interface DailyScanSnapshot {
   scannedAt: number;
-  universe: ScanUniverse;
+  universe: string;
   mode: ScanMode;
   hits: DailyScanHit[];
   totalScanned: number;
@@ -67,7 +70,7 @@ const numv = (s?: string | null) => {
 
 interface Candidate { symbol: string; current: number; ldcp: number; changePct: number; volume: number; }
 
-const parseCandidates = (html: string): Candidate[] => {
+export const parseMarketWatchCandidates = (html: string): Candidate[] => {
   const out: Candidate[] = [];
   const doc = new DOMParser().parseFromString(html, 'text/html');
   doc.querySelectorAll('table').forEach((table) => {
@@ -102,13 +105,6 @@ const parseCandidates = (html: string): Candidate[] => {
   const best = new Map<string, Candidate>();
   out.forEach((c) => { const p = best.get(c.symbol); if (!p || c.volume > p.volume) best.set(c.symbol, c); });
   return Array.from(best.values()).sort((a, b) => b.volume - a.volume);
-};
-
-const buildUniverse = (candidates: Candidate[], universe: ScanUniverse, watchlist: string[]): Candidate[] => {
-  if (universe === 'KSE100') return candidates.filter((c) => KSE100_SET.has(c.symbol));
-  if (universe === 'KMI30') return candidates.filter((c) => KMI30_SET.has(c.symbol));
-  const wl = new Set(watchlist.map((s) => s.toUpperCase()));
-  return candidates.filter((c) => wl.has(c.symbol));
 };
 
 async function mapPool<T, R>(
@@ -163,26 +159,39 @@ export const isScanStale = (snap: DailyScanSnapshot | null, staleHours: number):
 };
 
 export interface RunDailyScanOpts {
-  universe: ScanUniverse;
+  universe: string;
   mode: ScanMode;
   watchlist?: string[];
+  /** Required when universe is SYMBOL */
+  symbol?: string;
+  /** When true (default for bot), only BUY / STRONG BUY (or RSI hits). */
+  buysOnly?: boolean;
   onProgress?: (done: number, total: number) => void;
 }
 
-/** Run a full market scan — no Gemini, same rules as Market Signals. */
+/** Run a market scan — no Gemini; shared rules with Market Signals. */
 export const runDailyScan = async (opts: RunDailyScanOpts): Promise<DailyScanSnapshot> => {
   const html = await fetchUrlWithFallback('https://dps.psx.com.pk/market-watch');
   if (!html || html.length < 500) throw new Error('Could not fetch the market snapshot. Try again in a moment.');
 
   const watchlist = opts.watchlist || [];
-  const candidates = buildUniverse(parseCandidates(html), opts.universe, watchlist);
+  const universeKey = (opts.universe || 'KSE100').toUpperCase();
+  const candidates = buildScanUniverse(parseMarketWatchCandidates(html), universeKey, {
+    watchlist,
+    symbol: opts.symbol,
+  });
   if (candidates.length === 0) {
-    throw new opts.universe === 'WATCHLIST'
-      ? new Error('Watchlist is empty or none of your tickers appeared in today\'s market snapshot.')
-      : new Error('No matching stocks found for this universe.');
+    if (universeKey === 'WATCHLIST') {
+      throw new Error('Watchlist is empty or none of your tickers appeared in today\'s market snapshot.');
+    }
+    if (universeKey === 'SYMBOL') {
+      throw new Error('Enter a PSX ticker to scan (e.g. OGDC).');
+    }
+    throw new Error('No matching stocks found for this universe.');
   }
 
   const rsiMode = opts.mode === 'rsi_oversold';
+  const buysOnly = opts.buysOnly !== false && universeKey !== 'SYMBOL';
   const concurrency = candidates.length > 80 ? 8 : 6;
   const hits: DailyScanHit[] = [];
   const btParts: ReturnType<typeof backtestRsiOversold>[] = [];
@@ -191,35 +200,59 @@ export const runDailyScan = async (opts: RunDailyScanOpts): Promise<DailyScanSna
     const history = await fetchStockHistory(c.symbol, '1Y');
     const closes = history.map((h) => h.price);
     if (closes.length < 35) return;
+    const price = c.current > 0 ? c.current : closes[closes.length - 1];
     const summary = computeSignal(closes);
 
     if (rsiMode) {
       const bt = backtestRsiOversold(closes);
       btParts.push(bt);
-      if (!(summary.rsi < 30)) return;
-      const plan = computeRsiOversoldPlan(c.current);
-      hits.push({
-        symbol: c.symbol,
-        current: c.current,
-        changePct: c.changePct,
-        volume: c.volume,
-        verdict: 'BUY',
-        rsi: summary.rsi,
-        score: summary.score,
-        stop: plan?.stop,
-        target: plan?.targets[0],
-        backtestWinRate: bt.trades > 0 ? bt.winRate : undefined,
-        backtestTrades: bt.trades > 0 ? bt.trades : undefined,
-        backtestAvgReturnPct: bt.trades > 0 ? bt.avgReturnPct : undefined,
-      });
+      const oversold = summary.rsi < 30;
+      if (!oversold && universeKey !== 'SYMBOL') return;
+      if (oversold) {
+        const plan = computeRsiOversoldPlan(price);
+        hits.push({
+          symbol: c.symbol,
+          current: price,
+          changePct: c.changePct,
+          volume: c.volume,
+          verdict: 'BUY',
+          rsi: summary.rsi,
+          score: summary.score,
+          stop: plan?.stop,
+          target: plan?.targets[0],
+          support: plan?.support,
+          resistance: plan?.resistance,
+          backtestWinRate: bt.trades > 0 ? bt.winRate : undefined,
+          backtestTrades: bt.trades > 0 ? bt.trades : undefined,
+          backtestAvgReturnPct: bt.trades > 0 ? bt.avgReturnPct : undefined,
+        });
+      } else {
+        const planC = computeTradePlan(closes, price);
+        hits.push({
+          symbol: c.symbol,
+          current: price,
+          changePct: c.changePct,
+          volume: c.volume,
+          verdict: summary.verdict,
+          rsi: summary.rsi,
+          score: summary.score,
+          stop: planC?.stop,
+          target: planC?.targets[0],
+          support: planC?.support,
+          resistance: planC?.resistance,
+          backtestWinRate: bt.trades > 0 ? bt.winRate : undefined,
+          backtestTrades: bt.trades > 0 ? bt.trades : undefined,
+          backtestAvgReturnPct: bt.trades > 0 ? bt.avgReturnPct : undefined,
+        });
+      }
       return;
     }
 
-    if (!(summary.verdict === 'BUY' || summary.verdict === 'STRONG BUY')) return;
-    const plan = computeTradePlan(closes, c.current);
+    if (buysOnly && !(summary.verdict === 'BUY' || summary.verdict === 'STRONG BUY')) return;
+    const plan = computeTradePlan(closes, price);
     hits.push({
       symbol: c.symbol,
-      current: c.current,
+      current: price,
       changePct: c.changePct,
       volume: c.volume,
       verdict: summary.verdict,
@@ -227,6 +260,8 @@ export const runDailyScan = async (opts: RunDailyScanOpts): Promise<DailyScanSna
       score: summary.score,
       stop: plan?.stop,
       target: plan?.targets[0],
+      support: plan?.support,
+      resistance: plan?.resistance,
     });
   }, (done) => opts.onProgress?.(done, candidates.length));
 
@@ -255,7 +290,7 @@ export const runDailyScan = async (opts: RunDailyScanOpts): Promise<DailyScanSna
 
 /** Compact summary for PSX Assistant tool responses. */
 export const formatDailyScanForAgent = (snap: DailyScanSnapshot | null): Record<string, unknown> => {
-  if (!snap) return { note: 'No daily scan has been run yet. Ask the user to open Daily Scan and run a scan first.' };
+  if (!snap) return { note: 'No market scan has been run yet. Ask the user to open Market Signals and run a scan first.' };
   return {
     scanned_at: new Date(snap.scannedAt).toISOString(),
     universe: snap.universe,
@@ -272,6 +307,8 @@ export const formatDailyScanForAgent = (snap: DailyScanSnapshot | null): Record<
       score: Math.round(h.score * 100) / 100,
       stop_pkr: h.stop,
       target_pkr: h.target,
+      support_pkr: h.support,
+      resistance_pkr: h.resistance,
       backtest_1y_win_rate_percent: h.backtestWinRate,
       backtest_1y_trades: h.backtestTrades,
     })),
