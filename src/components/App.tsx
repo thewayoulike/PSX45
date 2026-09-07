@@ -524,17 +524,6 @@ const App: React.FC = () => {
   // Explicit Google sign-in — clears guest mode so the auth callback is honoured.
   const handleLogin = () => { guestModeRef.current = false; signInWithDrive(); };
 
-  // Explicit Guest Mode — enter locally and block any silent Google restore.
-  const handleGuestLogin = () => {
-      guestModeRef.current = true;
-      resetLocalSession();
-      void signOutAuth();
-      setDriveUser(null);
-      setIsAuthChecking(false);
-      setShowLogin(false);
-      setTimeout(() => { skipPersistRef.current = false; }, 0);
-  };
-
   // A Google user who authenticated but isn't approved yet (blocks entry).
   const [accessPendingEmail, setAccessPendingEmail] = useState<string | null>(null);
   const [driveBannerDismissed, setDriveBannerDismissed] = useState(false);
@@ -2045,7 +2034,7 @@ const App: React.FC = () => {
           }
           return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
       }
-      return <LoginPage onGuestLogin={handleGuestLogin} onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
+      return <LoginPage onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
   }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
