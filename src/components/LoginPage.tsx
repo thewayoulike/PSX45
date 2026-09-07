@@ -11,14 +11,29 @@ import {
 import { signUp, signIn, isAuthConfigured } from '../services/auth';
 
 interface LoginPageProps {
-  onGuestLogin: () => void;
   onGoogleLogin: () => void;
   onAuthSuccess?: () => void; // called after a successful email login/signup
 }
 
+const FREE_VS_PAID: { feature: string; free: string; paid: string }[] = [
+  { feature: 'Holdings (stocks)', free: 'First 3 tickers ever (open or sold)', paid: 'Unlimited · full history' },
+  { feature: 'Mutual funds', free: 'First 3 funds ever', paid: 'Unlimited · full history' },
+  { feature: 'Portfolios / brokers', free: '1 portfolio (1 broker)', paid: 'Unlimited' },
+  { feature: 'Charts', free: '5 symbol views / day', paid: 'Unlimited' },
+  { feature: 'Market Signals', free: '1 run / day · top 5 shown', paid: 'Unlimited · full list' },
+  { feature: 'Daily Scan', free: '1 run / day · top 5 shown', paid: 'Unlimited · full list' },
+  { feature: 'Strategy Backtest', free: 'Results teaser · pay to unlock detail', paid: 'Full results' },
+  { feature: 'Price Alerts', free: '3 tickers · 2 TP + 2 SL each', paid: 'Unlimited tickers' },
+  { feature: 'PSX Assistant (AI)', free: '10 messages / day', paid: 'Unlimited' },
+  { feature: 'Trading Simulator', free: 'Unlimited', paid: 'Unlimited' },
+  { feature: 'Fair Value Calc', free: '4 lookups / day', paid: 'Unlimited' },
+  { feature: 'Import (CSV / OCR / Gmail)', free: 'Unlimited runs · first-3 tickers only', paid: 'All tickers' },
+  { feature: 'Export', free: 'Not included', paid: 'Included' },
+];
+
 /* ---------- email/password auth (Supabase) ---------- */
 
-const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => void; onGuestLogin: () => void }> = ({ onAuthSuccess, onGoogleLogin, onGuestLogin }) => {
+const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => void }> = ({ onAuthSuccess, onGoogleLogin }) => {
   const [tab, setTab] = useState<'login' | 'signup'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -109,11 +124,10 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
 
       <p className="text-[11px] text-slate-400 text-center mt-4 leading-snug">
         {tab === 'signup'
-          ? 'New accounts get a 15-day free trial after a quick owner approval.'
+          ? 'New accounts get a 7-day full free trial after a quick owner approval — then Free forever with limits, or upgrade to Paid.'
           : "Signed up but can't get in yet? Your account may still be pending approval."}
       </p>
 
-      {/* Google + Guest, inside the same card */}
       <div className="flex items-center gap-3 my-5">
         <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
         <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">or</span>
@@ -129,14 +143,6 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
         <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Recommended</span>
       </button>
       <p className="text-[11px] text-slate-400 text-center mt-1.5">Syncs securely to your own Google Drive across devices.</p>
-
-      <button
-        onClick={onGuestLogin}
-        className="w-full flex items-center justify-center gap-2 mt-3 text-sm font-bold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 py-2.5 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-      >
-        <User size={16} /> Continue as Guest
-        <span className="text-[11px] font-medium text-slate-400">· local only, no sync</span>
-      </button>
     </div>
   );
 };
@@ -194,7 +200,7 @@ const SectionHead: React.FC<{ eyebrow: string; title: string; sub?: string }> = 
 
 /* ---------- page ---------- */
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogin, onAuthSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSuccess }) => {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   return (
@@ -258,7 +264,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
               Explore Features
             </button>
           </div>
-          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-12">✓ 15-day free trial · no card required</p>
+          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-12">✓ 7-day full trial · then Free forever (limited) or Paid · no card required</p>
 
           <div className="flex flex-wrap gap-2 justify-center mb-8">
             <Pill>Live PSX Prices</Pill>
@@ -278,7 +284,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             <Pill>vs KSE-100 &amp; KMI-30</Pill>
             <Pill>Trade Import</Pill>
             <Pill>Drive Sync</Pill>
-            <Pill>Guest Mode</Pill>
+            <Pill>Free + Paid plans</Pill>
           </div>
 
           <div className="max-w-2xl mx-auto rounded-2xl border border-teal-200/80 dark:border-teal-500/30 bg-gradient-to-r from-teal-50/90 to-emerald-50/80 dark:from-teal-500/10 dark:to-emerald-500/10 px-5 py-4 text-left shadow-sm">
@@ -356,7 +362,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             </Feature>
 
             <Feature Icon={BellRing} title="Price Alerts" tint="bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-500/20">
-              Signed-in users can set above/below targets and get a browser push when the price hits (permission required). Guest Mode cannot save alerts.
+              Set above/below targets and get a browser push when the price hits (permission required). Free includes 3 tickers with 2 TP + 2 SL each.
             </Feature>
 
             <Feature Icon={Coins} title="Dividends &amp; X-Dates" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
@@ -384,7 +390,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
             </Feature>
 
             <Feature Icon={CloudUpload} title="Google Drive Sync" tint="bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-500/20">
-              Portfolio data syncs to your own Google Drive. Guest Mode stays on this device only.
+              Portfolio data syncs to your own Google Drive — so holdings follow you across devices.
             </Feature>
           </div>
         </div>
@@ -583,16 +589,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <Feature Icon={ShieldCheck} title="Your portfolio, your store" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
-              Holdings sync to your Google Drive (or stay in this browser in Guest Mode). We don't keep a copy of your trades on our servers.
+              Holdings sync to your Google Drive. We don't keep a copy of your trades on our servers.
             </Feature>
-            <Feature Icon={User} title="Guest Mode" tint="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              Start instantly with zero sign-up. Everything stays on this device. Sign in if you want Drive sync and price alerts.
+            <Feature Icon={CloudUpload} title="Drive Sync Required" tint="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+              Sign in with Google to sync across devices, save alerts, and keep your portfolio backed up.
             </Feature>
             <Feature Icon={Smartphone} title="Installable App" tint="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20">
               Add to your home screen and it works like a native app, including offline viewing.
             </Feature>
-            <Feature Icon={Wallet} title="15-Day Free Trial" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
-              Try the full tracker free for 15 days after approval. Then monthly, yearly, or lifetime.
+            <Feature Icon={Wallet} title="7-Day Full Trial" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
+              Full access for 7 days after approval — then Free forever with limits, or upgrade to Paid for unlimited.
             </Feature>
           </div>
         </div>
@@ -603,10 +609,36 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
         <div className="max-w-5xl mx-auto">
           <SectionHead
             eyebrow="Pricing"
-            title="Simple, honest pricing"
-            sub="Start with a 15-day free trial — no card needed. Then pick a plan: the longer you commit, the less you pay per month."
+            title="Free vs Paid"
+            sub="7-day full trial after approval — no card. Then stay on Free forever with limits, or unlock everything with Paid."
           />
 
+          {/* Free vs Paid comparison */}
+          <div className="rounded-3xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-sm overflow-hidden mb-10">
+            <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] border-b border-slate-200/70 dark:border-slate-800/70 bg-slate-50/80 dark:bg-slate-800/40">
+              <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-400">Feature</div>
+              <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 text-center border-l border-slate-200/70 dark:border-slate-800/70">
+                Free
+                <div className="mt-0.5 text-[10px] font-bold normal-case tracking-normal text-slate-400">Forever · limited</div>
+              </div>
+              <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400 text-center border-l border-emerald-200/60 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/10">
+                Paid
+                <div className="mt-0.5 text-[10px] font-bold normal-case tracking-normal text-emerald-600/80 dark:text-emerald-400/80">Unlimited</div>
+              </div>
+            </div>
+            {FREE_VS_PAID.map((row, i) => (
+              <div
+                key={row.feature}
+                className={`grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] ${i % 2 === 0 ? '' : 'bg-slate-50/40 dark:bg-slate-800/20'} ${i < FREE_VS_PAID.length - 1 ? 'border-b border-slate-100 dark:border-slate-800/60' : ''}`}
+              >
+                <div className="px-4 py-3 text-sm font-bold text-slate-800 dark:text-slate-100">{row.feature}</div>
+                <div className="px-4 py-3 text-xs sm:text-sm text-slate-500 dark:text-slate-400 text-center border-l border-slate-100 dark:border-slate-800/60 leading-snug">{row.free}</div>
+                <div className="px-4 py-3 text-xs sm:text-sm font-semibold text-emerald-700 dark:text-emerald-400 text-center border-l border-emerald-100/80 dark:border-emerald-500/15 leading-snug bg-emerald-50/30 dark:bg-emerald-500/5">{row.paid}</div>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-sm font-bold text-slate-600 dark:text-slate-300 mb-5">Paid billing options</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
             {[
               { label: '1 Month', pm: '500', total: '500', save: null as string | null, best: false },
@@ -629,7 +661,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
           </div>
 
           <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
-            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash, email the receipt — your account is activated as soon as it's confirmed.
+            Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash, email the receipt — your account is activated as soon as it&apos;s confirmed.
           </p>
         </div>
       </section>
@@ -637,10 +669,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGuestLogin, onGoogleLogi
       {/* ================= START / SIGN IN ================= */}
       <section id="start" className="px-5 py-20 bg-white/60 dark:bg-slate-900/20 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-3xl mx-auto">
-          <SectionHead eyebrow="Get Started" title="Start your 15-day free trial" sub="Create an account (a quick owner approval), sign in with Google, or use Guest Mode — no sign-up needed." />
+          <SectionHead
+            eyebrow="Get Started"
+            title="Start your 7-day full trial"
+            sub="Create an account (quick owner approval) or sign in with Google. After the trial you stay on Free with limits — or upgrade to Paid anytime."
+          />
 
-          {/* Email / password + Google + Guest, all in one card */}
-          <EmailAuth onAuthSuccess={onAuthSuccess} onGoogleLogin={onGoogleLogin} onGuestLogin={onGuestLogin} />
+          <EmailAuth onAuthSuccess={onAuthSuccess} onGoogleLogin={onGoogleLogin} />
         </div>
       </section>
 
