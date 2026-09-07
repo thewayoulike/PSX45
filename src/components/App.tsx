@@ -592,6 +592,19 @@ const App: React.FC = () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Free (and other active plans) must never stick on the login/pending gate.
+  useEffect(() => {
+      if (!showLogin) return;
+      const st = accessPendingEmail ? pendingStatus : sbStatus;
+      if (!st) return;
+      const status = st.status === 'expired' ? 'free' : st.status;
+      const active = !!(st.active || status === 'free' || status === 'trial' || status === 'paid' || status === 'lifetime');
+      if (!active) return;
+      setAccessPendingEmail(null);
+      setSbApproved(true);
+      setShowLogin(false);
+  }, [showLogin, accessPendingEmail, pendingStatus, sbStatus]);
+
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
       if (userScraperKey) setScrapingApiKey(userScraperKey);
@@ -2080,35 +2093,22 @@ const App: React.FC = () => {
       const pendingEmail = accessPendingEmail || (sbUser && !sbApproved ? sbUser.email : null);
       const blockStatus = accessPendingEmail ? pendingStatus : sbStatus;
       if (pendingEmail && !driveUser && !guestModeRef.current) {
-          // Legacy "expired" or Free: let them into the app (active). Only pending stays blocked.
           const st = blockStatus?.status === 'expired' ? 'free' : blockStatus?.status;
-          if (st === 'pending' || (!blockStatus?.active && st !== 'free')) {
-              // Still waiting on owner approval
-              if (st !== 'free' && st !== 'trial' && st !== 'paid' && st !== 'lifetime') {
-                  return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
-              }
-          }
-          if (!blockStatus?.active && st !== 'free') {
+          const active = !!(
+              blockStatus?.active
+              || st === 'free'
+              || st === 'trial'
+              || st === 'paid'
+              || st === 'lifetime'
+          );
+          // Free / trial / paid / lifetime → do not hard-lock; fall through into the app.
+          // (A small effect below clears showLogin when status is active.)
+          if (!active) {
               return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
           }
-          // free / trial / paid / lifetime → fall through to Login only if still showLogin;
-          // active free users should already have showLogin cleared. If we landed here with
-          // free+active, clear login gate.
-          if (blockStatus?.active || st === 'free') {
-              // Should not hard-lock; continue to LoginPage only when showLogin and no access.
-              // If status is free/trial/paid/lifetime with active, force into app.
-              if (st === 'free' || st === 'trial' || st === 'paid' || st === 'lifetime' || blockStatus?.active) {
-                  // Fall through: don't return Paywall. User must have showLogin true somehow —
-                  // treat Free like approved and drop the gate.
-                  // (setState during render is avoided; rely on active flag from API.)
-              }
-          }
-          // Pending only
-          if (st === 'pending' || !blockStatus?.approved) {
-              return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
-          }
+      } else {
+          return <LoginPage onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
       }
-      return <LoginPage onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
   }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
@@ -2195,17 +2195,31 @@ const App: React.FC = () => {
   const trialBanner = (() => {
       const st = sbStatus;
       if (!st) return null;
+      if (st.status === 'free') {
+          return (
+              <div className="shrink-0 text-center text-xs font-bold py-1.5 px-4 bg-slate-800 text-white flex items-center justify-center gap-2 flex-wrap">
+                  <span>Free plan · first 3 tickers · limited tools</span>
+                  <button
+                      type="button"
+                      onClick={() => setShowUpgrade(true)}
+                      className="underline decoration-emerald-400 underline-offset-2 text-emerald-300 hover:text-emerald-200"
+                  >
+                      Upgrade
+                  </button>
+              </div>
+          );
+      }
       if (st.status === 'trial' && st.daysLeft != null) {
           return (
               <div className="shrink-0 text-center text-xs font-bold py-1.5 px-4 bg-amber-500 text-white">
-                  Free trial · {st.daysLeft} {st.daysLeft === 1 ? 'day' : 'days'} left. Subscribe to keep access after it ends.
+                  Free trial · {st.daysLeft} {st.daysLeft === 1 ? 'day' : 'days'} left. Then Free (limited) or upgrade to Paid.
               </div>
           );
       }
       if (st.status === 'paid' && st.daysLeft != null && st.daysLeft <= 7) {
           return (
               <div className="shrink-0 text-center text-xs font-bold py-1.5 px-4 bg-amber-500 text-white">
-                  Subscription ends in {st.daysLeft} {st.daysLeft === 1 ? 'day' : 'days'}. Please renew to avoid interruption.
+                  Subscription ends in {st.daysLeft} {st.daysLeft === 1 ? 'day' : 'days'}. Please renew to avoid Free limits.
               </div>
           );
       }
