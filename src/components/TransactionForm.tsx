@@ -6,6 +6,8 @@ import { parseTradeDocument, parseFundBalanceDocument } from '../services/gemini
 import { fundScanToTrades } from '../services/fundImport';
 import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
 import { exportToCSV } from '../utils/export';
+import { useFreemium } from './FreemiumContext';
+import { filterImportTickersForFree } from '../utils/freemiumQuotas';
 import { todayPK, toDatePK } from '../utils/dates';
 import { FundPicker } from './FundPicker';
 import { MutualFundRecord } from '../services/mufapData';
@@ -69,6 +71,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   savedScannedTrades = [],
   onSaveScannedTrades
 }) => {
+  const { isFree, entitledTickers } = useFreemium();
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
   const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'REFUND_OF_CAPITAL' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
@@ -604,36 +607,55 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
   
   const handleAcceptTrade = (trade: EditableTrade) => { 
-      setFormError(null); 
-      if (trade.type === 'BUY' && freeCash !== undefined) { 
-          const cost = getTradeCost(trade); 
+      setFormError(null);
+      let toAdd = trade;
+      if (isFree) {
+          const { accepted, skipped } = filterImportTickersForFree([trade], entitledTickers || [], 3);
+          if (skipped.length > 0 || accepted.length === 0) {
+              setFormError(`Skipped 1 trade outside your Free ticker limit. Upgrade to import more symbols.`);
+              scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              return;
+          }
+          toAdd = accepted[0];
+      }
+      if (toAdd.type === 'BUY' && freeCash !== undefined) { 
+          const cost = getTradeCost(toAdd); 
           if (!canAfford(cost, freeCash)) { 
               setFormError(`Insufficient Buying Power! This trade costs Rs. ${cost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} but you have Rs. ${freeCash.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.`); 
               scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
               return; 
           } 
       } 
-      if (trade.type === 'SELL') { 
-          const targetBrokerId = trade.brokerId || selectedBrokerId; 
-          const currentQty = getHoldingQty(trade.ticker, targetBrokerId); 
-          if (!hasPriorBuy(trade.ticker, trade.date || '')) { 
-              setFormError(`Cannot add SELL of ${trade.ticker}: no BUY exists on or before ${trade.date || 'that date'}. Add the covering BUY first (same date or earlier), then the SELL.`); 
+      if (toAdd.type === 'SELL') { 
+          const targetBrokerId = toAdd.brokerId || selectedBrokerId; 
+          const currentQty = getHoldingQty(toAdd.ticker, targetBrokerId); 
+          if (!hasPriorBuy(toAdd.ticker, toAdd.date || '')) { 
+              setFormError(`Cannot add SELL of ${toAdd.ticker}: no BUY exists on or before ${toAdd.date || 'that date'}. Add the covering BUY first (same date or earlier), then the SELL.`); 
               scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
               return; 
           } 
-          if (Number(trade.quantity) > currentQty) { 
-              setFormError(`Insufficient Holdings! You are trying to sell ${trade.quantity} ${trade.ticker}, but you only own ${currentQty}. For a same-day trade, add the BUY before the SELL.`); 
+          if (Number(toAdd.quantity) > currentQty) { 
+              setFormError(`Insufficient Holdings! You are trying to sell ${toAdd.quantity} ${toAdd.ticker}, but you only own ${currentQty}. For a same-day trade, add the BUY before the SELL.`); 
               scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
               return; 
           } 
       } 
-      addSingleTrade(trade); 
+      addSingleTrade(toAdd); 
       updateScannedTrades(savedScannedTrades.filter(t => t !== trade)); 
   };
 
   const handleAcceptSelected = () => { 
       setFormError(null); 
-      const selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i)); 
+      let selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i));
+      if (isFree) {
+          const { accepted, skipped } = filterImportTickersForFree(selectedTrades, entitledTickers || [], 3);
+          if (skipped.length > 0) {
+              setFormError(`Skipped ${skipped.length} trade(s) outside your Free ticker limit. Upgrade to import more symbols.`);
+              scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          }
+          selectedTrades = accepted;
+          if (selectedTrades.length === 0) return;
+      }
       
       // Buying power is checked on the NET of the batch (buys minus sell proceeds),
       // so an intraday set that squares off can be added together even when the

@@ -4,6 +4,8 @@ import {
   Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 import { formatAssetLabel } from '../utils/fundDisplay';
 import { FundRealizedView } from './FundRealizedView';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
@@ -75,6 +77,7 @@ export const RealizedTable: React.FC<RealizedTableProps> = (props) => {
 };
 
 const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = false, totalCGT = 0, displayNames = {} }) => {
+  const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -200,7 +203,18 @@ const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = f
   };
 
   const handleExport = (type: 'excel' | 'csv') => {
-    const data = filteredAndSortedTrades.map(trade => {
+    if (isFree) {
+      const { ok } = consumeDailyQuota('export', quotas.exportPerDay ?? 1);
+      if (!ok) { requestUpgrade(); return; }
+    }
+    const entitled = entitledTickers?.map((t) => t.toUpperCase()) ?? null;
+    const rows = isFree && entitled
+      ? filteredAndSortedTrades.filter((trade) => {
+          const t = (trade.ticker || '').trim().toUpperCase();
+          return !t || entitled.includes(t);
+        })
+      : filteredAndSortedTrades;
+    const data = rows.map(trade => {
       const totalCost = (trade.buyAvg || 0) * trade.quantity; const totalSell = (trade.sellPrice || 0) * trade.quantity;
       return { Date: trade.date, Ticker: formatAssetLabel(trade.ticker, displayNames), Broker: trade.broker || 'N/A', Quantity: trade.quantity, 'Buy Avg': trade.buyAvg, 'Sell Price': trade.sellPrice, 'Total Cost': totalCost, 'Total Sell': totalSell, 'P&L %': totalCost > 0 ? (trade.profit / totalCost) * 100 : 0, 'Net Profit': trade.profit, Commission: trade.commission, Tax: trade.tax, CDC: trade.cdcCharges, Other: trade.otherFees };
     });

@@ -14,6 +14,7 @@ import {
   resolveInitialChartSymbol,
   resolveSelectedAfterMarketLoad,
 } from '../utils/chartExplorerSelection';
+import { peekChartViewsToday, tryRecordChartView } from '../utils/freemiumQuotas';
 import { StockChart } from './StockChart';
 
 const LAST_SYMBOL_KEY = 'psx_charts_symbol';
@@ -36,6 +37,10 @@ interface Props {
   /** Login-page preview: fixed height, no URL/localStorage side effects. */
   previewMode?: boolean;
   defaultSymbol?: string;
+  /** Free plan: enforce chartViewsPerDay unique symbol views. */
+  freePlan?: boolean;
+  chartViewLimit?: number;
+  onUpgrade?: () => void;
 }
 
 const rs = (n: number) =>
@@ -45,12 +50,17 @@ export const ChartsExplorer: React.FC<Props> = ({
   onSymbolClick,
   previewMode = false,
   defaultSymbol = '',
+  freePlan = false,
+  chartViewLimit = 5,
+  onUpgrade,
 }) => {
   const [rows, setRows] = useState<PsxStockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState('ALL');
+  const [quotaNote, setQuotaNote] = useState('');
+  const [viewsUsed, setViewsUsed] = useState(() => (freePlan ? peekChartViewsToday().length : 0));
   const [selected, setSelected] = useState(() => {
     if (typeof window === 'undefined') {
       return resolveInitialChartSymbol({ previewMode, defaultSymbol });
@@ -73,6 +83,34 @@ export const ChartsExplorer: React.FC<Props> = ({
     })) return true;
     return localStorage.getItem(LIST_OPEN_KEY) === '1';
   });
+
+  const selectSymbol = (symbol: string) => {
+    const sym = symbol.toUpperCase();
+    if (freePlan && !previewMode) {
+      const result = tryRecordChartView(sym, chartViewLimit);
+      setViewsUsed(result.used);
+      if (!result.ok) {
+        setQuotaNote(`Free plan: ${chartViewLimit} chart symbols / day. Upgrade for unlimited.`);
+        onUpgrade?.();
+        return;
+      }
+      setQuotaNote('');
+    }
+    setSelected(sym);
+  };
+
+  // Deep-link / restored URL symbol still counts toward Free quota once.
+  useEffect(() => {
+    if (previewMode || !freePlan || !selected) return;
+    const result = tryRecordChartView(selected, chartViewLimit);
+    setViewsUsed(result.used);
+    if (!result.ok) {
+      setSelected('');
+      setQuotaNote(`Free plan: ${chartViewLimit} chart symbols / day. Upgrade for unlimited.`);
+      onUpgrade?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const load = async () => {
     setLoading(true);
@@ -179,6 +217,11 @@ export const ChartsExplorer: React.FC<Props> = ({
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {freePlan && !previewMode && (
+            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 tabular-nums">
+              Charts {Math.min(viewsUsed, chartViewLimit)}/{chartViewLimit} today
+            </span>
+          )}
           {onSymbolClick && active && (
             <button
               type="button"
@@ -200,6 +243,16 @@ export const ChartsExplorer: React.FC<Props> = ({
           </button>
         </div>
       </div>
+      {quotaNote && (
+        <div className="mb-2 shrink-0 rounded-lg border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-3 py-2 text-[11px] font-bold text-amber-800 dark:text-amber-200 flex items-center justify-between gap-2">
+          <span>{quotaNote}</span>
+          {onUpgrade && (
+            <button type="button" onClick={onUpgrade} className="underline shrink-0">
+              Upgrade
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="flex flex-1 min-h-0 gap-2 overflow-hidden">
         {listOpen && (
@@ -240,7 +293,7 @@ export const ChartsExplorer: React.FC<Props> = ({
                   <button
                     key={r.symbol}
                     type="button"
-                    onClick={() => setSelected(r.symbol)}
+                    onClick={() => selectSymbol(r.symbol)}
                     className={`w-full flex items-center gap-2 px-2 py-2 text-left border-b border-slate-50 dark:border-slate-800/60 transition-colors ${
                       activeRow
                         ? 'bg-emerald-50/80 dark:bg-emerald-500/10 border-l-2 border-l-emerald-500'

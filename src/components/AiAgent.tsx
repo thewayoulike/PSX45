@@ -4,6 +4,8 @@ import { runAgent, AgentMessage, SUGGESTED_PROMPTS } from '../services/psxAgent'
 import {
   Sparkles, Send, Loader2, Key, Trash2, Wrench, AlertCircle, User as UserIcon
 } from 'lucide-react';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 
 interface Props {
   holdings: Holding[];
@@ -71,6 +73,7 @@ export const AiAgent: React.FC<Props> = ({
   holdings, stats, realizedTrades, transactions, apiKey, onOpenApiKeys,
   seedPrompt, onSeedPromptConsumed,
 }) => {
+  const { isFree, quotas, requestUpgrade } = useFreemium();
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
@@ -91,6 +94,14 @@ export const AiAgent: React.FC<Props> = ({
   const send = useCallback(async (text: string) => {
     const q = text.trim();
     if (!q || busy) return;
+    if (isFree) {
+      const r = consumeDailyQuota('ai', quotas.aiMessagesPerDay ?? 10);
+      if (!r.ok) {
+        requestUpgrade();
+        setError(`Free plan: ${quotas.aiMessagesPerDay ?? 10} AI messages / day. Upgrade for unlimited.`);
+        return;
+      }
+    }
     setError(null);
     setInput('');
     const history = messages;
@@ -106,7 +117,7 @@ export const AiAgent: React.FC<Props> = ({
       setBusy(false);
       setActiveTool(null);
     }
-  }, [apiKey, busy, ctx, messages]);
+  }, [apiKey, busy, ctx, messages, isFree, quotas.aiMessagesPerDay, requestUpgrade]);
 
   const seedSent = useRef(false);
   useEffect(() => {

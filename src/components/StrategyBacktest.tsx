@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
-  Activity, BarChart3, FlaskConical, Loader2, Play, TrendingDown, TrendingUp,
+  Activity, BarChart3, FlaskConical, Loader2, Play, TrendingDown, TrendingUp, Lock,
 } from 'lucide-react';
 import {
   Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis,
@@ -14,6 +14,7 @@ import {
   filterBarsByLookback,
   runStrategyBacktest,
 } from '../utils/strategyBacktest';
+import { useFreemium } from './FreemiumContext';
 
 interface Props {
   onSymbolClick?: (symbol: string) => void;
@@ -45,6 +46,7 @@ const reasonLabel: Record<string, string> = {
 };
 
 export const StrategyBacktest: React.FC<Props> = ({ onSymbolClick }) => {
+  const { isFree, requestUpgrade } = useFreemium();
   const [symbol, setSymbol] = useState('OGDC');
   const [strategy, setStrategy] = useState<BacktestStrategy>('rsi_oversold');
   const [lookback, setLookback] = useState<Lookback>('1Y');
@@ -222,6 +224,33 @@ export const StrategyBacktest: React.FC<Props> = ({ onSymbolClick }) => {
 
       {m && result && (
         <>
+          {isFree && (
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-indigo-50/80 dark:bg-indigo-500/10 border border-indigo-200/60 dark:border-indigo-500/20 rounded-2xl px-4 py-3">
+              <p className="text-sm font-medium text-indigo-800 dark:text-indigo-200">
+                Free teaser: {m.trades} trade{m.trades === 1 ? '' : 's'} generated for {result.symbol}. Upgrade to unlock full metrics and trade list.
+              </p>
+              <button
+                type="button"
+                onClick={requestUpgrade}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shrink-0"
+              >
+                <Lock size={14} /> Upgrade
+              </button>
+            </div>
+          )}
+          <div className={`relative ${isFree ? 'select-none' : ''}`}>
+            {isFree && (
+              <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/40 dark:bg-slate-950/40 backdrop-blur-[2px] rounded-3xl">
+                <button
+                  type="button"
+                  onClick={requestUpgrade}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-lg"
+                >
+                  <Lock size={16} /> Upgrade to see results
+                </button>
+              </div>
+            )}
+            <div className={isFree ? 'opacity-40 blur-[2px] pointer-events-none' : ''}>
           <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3">
             {[
               { label: 'Trades', value: String(m.trades), sub: `${fmt(m.winRate, 0)}% win rate` },
@@ -242,7 +271,7 @@ export const StrategyBacktest: React.FC<Props> = ({ onSymbolClick }) => {
           </div>
 
           {chartData.length > 1 && (
-            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 p-5 shadow-card dark:shadow-card-dark">
+            <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 p-5 shadow-card dark:shadow-card-dark mt-6">
               <div className="flex items-center gap-2 mb-4">
                 <BarChart3 size={18} className="text-violet-600" />
                 <h3 className="text-sm font-black text-slate-800 dark:text-slate-100">Equity curve (% return)</h3>
@@ -269,7 +298,7 @@ export const StrategyBacktest: React.FC<Props> = ({ onSymbolClick }) => {
             </div>
           )}
 
-          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden mt-6">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Activity size={18} className="text-violet-600" />
@@ -322,6 +351,8 @@ export const StrategyBacktest: React.FC<Props> = ({ onSymbolClick }) => {
                 </table>
               </div>
             )}
+          </div>
+            </div>
           </div>
         </>
       )}

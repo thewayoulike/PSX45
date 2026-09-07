@@ -7,6 +7,8 @@ import { resolveFundDayNav, FundNavDayMap } from '../services/mufapData';
 import { todayPK } from '../utils/dates';
 import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, TrendingDown, ArrowUpDown, ArrowUp, ArrowDown as ArrowDownIcon, ChevronLeft, ChevronRight } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 
 // --- HYBRID FALLBACK: Static Lists (Used only if live PSX scraping fails) ---
 const FALLBACK_KMI30 = new Set([
@@ -76,6 +78,7 @@ const fundDayPL = (
 };
 
 export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {} }) => {
+  const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const isFund = portfolioType === 'MUTUAL_FUND';
   const today = todayPK();
   const fundLdcp = (h: Holding) =>
@@ -157,7 +160,18 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
   const globalLastUpdate = useMemo(() => { if (holdings.length === 0) return null; const times = holdings.map(h => h.lastUpdated).filter((t): t is string => !!t).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); return times.length > 0 ? formatUpdateDate(times[0]) : null; }, [holdings]);
 
   const handleExport = (type: 'excel' | 'csv') => {
-      const data = filteredAndSortedHoldings.map(h => {
+      if (isFree) {
+          const { ok } = consumeDailyQuota('export', quotas.exportPerDay ?? 1);
+          if (!ok) { requestUpgrade(); return; }
+      }
+      const entitled = entitledTickers?.map((t) => t.toUpperCase()) ?? null;
+      const rows = isFree && entitled
+          ? filteredAndSortedHoldings.filter((h) => {
+              const t = (h.ticker || '').trim().toUpperCase();
+              return !t || entitled.includes(t);
+            })
+          : filteredAndSortedHoldings;
+      const data = rows.map(h => {
           const roundedAvg = isFund ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
           const cost = h.quantity * roundedAvg;
           const marketVal = h.quantity * h.currentPrice;

@@ -66,8 +66,10 @@ import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVEN
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { UpgradeModal } from './UpgradeModal';
+import { FreemiumProvider } from './FreemiumContext';
 import { calculateXIRR } from '../utils/finance';
 import { firstEntitledTickers, isTickerEntitled } from '../utils/freemiumEntitlements';
+import { tryRecordProfileOpen } from '../utils/freemiumQuotas';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const WIPE_FLAG = 'psx_wipe_local_data';
@@ -362,7 +364,7 @@ const App: React.FC = () => {
       window.addEventListener('resize', onResize);
       return () => window.removeEventListener('resize', onResize);
   }, []);
-  // Persist both PSX + fund layouts locally (works for guests too).
+  // Persist both PSX + fund layouts locally.
   useEffect(() => {
       if (skipPersistRef.current) return;
       try {
@@ -435,9 +437,6 @@ const App: React.FC = () => {
   const initialSyncDone = useRef(false);
   const initialFundSyncDone = useRef(false);
   const loadedEmailRef = useRef<string | null>(null); // which Google account's data is currently loaded
-  // When the user explicitly picks Guest Mode we must ignore any Google session
-  // that silently restores afterwards, otherwise it would auto-log them back in.
-  const guestModeRef = useRef(false);
   const skipPersistRef = useRef(false);
   const [chartSettingsTick, setChartSettingsTick] = useState(0);
 
@@ -502,12 +501,10 @@ const App: React.FC = () => {
   }, []);
 
   const performLogout = useCallback(() => {
-      guestModeRef.current = false;
       resetLocalSession();
       void signOutAuth();
       setShowLogin(true);
       setIsAuthChecking(false);
-      // Allow Guest Mode persist after the empty state has flushed.
       setTimeout(() => { skipPersistRef.current = false; }, 0);
   }, [resetLocalSession]);
 
@@ -523,8 +520,7 @@ const App: React.FC = () => {
   });
 
   const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
-  // Explicit Google sign-in — clears guest mode so the auth callback is honoured.
-  const handleLogin = () => { guestModeRef.current = false; signInWithDrive(); };
+  const handleLogin = () => { signInWithDrive(); };
 
   // A Google user who authenticated but isn't approved yet (blocks entry).
   const [accessPendingEmail, setAccessPendingEmail] = useState<string | null>(null);
@@ -538,7 +534,7 @@ const App: React.FC = () => {
           const st = await getAccessStatus(u.email);
           setSbStatus(st);
           setSbApproved(st.active);
-          if (st.active) { guestModeRef.current = false; setShowLogin(false); }
+          if (st.active) { setShowLogin(false); }
       } else {
           setSbApproved(false);
           setSbStatus(null);
@@ -565,7 +561,6 @@ const App: React.FC = () => {
 
   // Full sign-out from the pending screen (clears Google/Drive too).
   const handlePendingSignOut = async () => {
-      guestModeRef.current = false;
       resetLocalSession();
       await signOutAuth();
       setAccessPendingEmail(null);
@@ -626,9 +621,6 @@ const App: React.FC = () => {
           setShowLogin(true);
       });
       initDriveAuth(async (user) => {
-          // User chose Guest Mode — ignore a silently-restored Google session.
-          if (guestModeRef.current) { setIsAuthChecking(false); return; }
-
           // Gate Google sign-in by owner approval + subscription (same allowlist).
           const st = await getAccessStatus(user.email, user.name, true);
           setSbStatus(st);
@@ -749,6 +741,18 @@ const App: React.FC = () => {
   const handleAddToWatchlist = (ticker: string) => {
       const t = ticker.trim().toUpperCase();
       if (!t) return;
+      const free = (sbStatus?.plan || sbStatus?.status) === 'free';
+      if (free) {
+          const scopeTx = transactions.filter(x => x.portfolioId === currentPortfolioId);
+          const allowed = firstEntitledTickers(
+              scopeTx.filter(x => x.ticker && !isFundTicker(x.ticker)),
+              3,
+          );
+          if (!isTickerEntitled(t, allowed)) {
+              setShowUpgrade(true);
+              return;
+          }
+      }
       setWatchlist(prev => (prev.includes(t) ? prev : [...prev, t]));
   };
   const handleRemoveFromWatchlist = (ticker: string) => {
@@ -756,7 +760,14 @@ const App: React.FC = () => {
       setWatchlist(prev => prev.filter(x => x.toUpperCase() !== t));
   };
 
-  const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => { const id = Date.now().toString(); const updatedBrokers = [...brokers, { ...newBroker, id }]; setBrokers(updatedBrokers); };
+  const handleAddBroker = (newBroker: Omit<Broker, 'id'>) => {
+      if ((sbStatus?.plan || sbStatus?.status) === 'free' && brokers.length >= 1) {
+          setShowUpgrade(true);
+          return;
+      }
+      const id = Date.now().toString();
+      setBrokers([...brokers, { ...newBroker, id }]);
+  };
   const handleUpdateBroker = (updated: Broker) => { const updatedBrokers = brokers.map(b => b.id === updated.id ? updated : b); setBrokers(updatedBrokers); };
   const handleDeleteBroker = (id: string) => { if (window.confirm("Delete this broker?")) { const updatedBrokers = brokers.filter(b => b.id !== id); setBrokers(updatedBrokers); } };
 
@@ -1066,6 +1077,13 @@ const App: React.FC = () => {
               ? { ...p, name: portfolioNameInput.trim(), defaultBrokerId: brokerIdForPortfolio, type: portfolioTypeInput }
               : p));
       } else {
+          if ((sbStatus?.plan || sbStatus?.status) === 'free') {
+              const sameType = portfolios.filter(p => getPortfolioType(p) === portfolioTypeInput).length;
+              if (sameType >= 1) {
+                  setShowUpgrade(true);
+                  return;
+              }
+          }
           const newId = Date.now().toString();
           setPortfolios(prev => [...prev, {
               id: newId,
@@ -1410,6 +1428,11 @@ const App: React.FC = () => {
       );
       return new Set([...stocks, ...funds]);
   }, [isFreePlan, portfolioTransactionsRaw]);
+
+  const entitledTickerList = useMemo(
+      () => (entitledTickers ? [...entitledTickers] : null),
+      [entitledTickers],
+  );
 
   const portfolioTransactions = useMemo(() => {
       if (!entitledTickers) return portfolioTransactionsRaw;
@@ -1998,6 +2021,14 @@ const App: React.FC = () => {
   const handleTickerClick = (ticker: string) => {
       if (isFundTicker(ticker)) { setViewFundTicker(canonicalFundTicker(ticker, fundCanonMap)); return; }
       const t = ticker.trim().toUpperCase();
+      if ((sbStatus?.plan || sbStatus?.status) === 'free') {
+          const limit = sbStatus?.quotas?.stockProfiles ?? 7;
+          const result = tryRecordProfileOpen(t, limit);
+          if (!result.ok) {
+              setShowUpgrade(true);
+              return;
+          }
+      }
       localStorage.setItem('psx_analyzer_mode', 'STOCK');
       localStorage.setItem('psx_last_analyzed_ticker', t);
       setStocksFocusTicker(t);
@@ -2091,7 +2122,7 @@ const App: React.FC = () => {
       // and email/password users (sbUser not yet approved).
       const pendingEmail = accessPendingEmail || (sbUser && !sbApproved ? sbUser.email : null);
       const blockStatus = accessPendingEmail ? pendingStatus : sbStatus;
-      if (pendingEmail && !driveUser && !guestModeRef.current) {
+      if (pendingEmail && !driveUser) {
           const st = (blockStatus?.status as string) === 'expired' ? 'free' : blockStatus?.status;
           const active = !!(
               blockStatus?.active
@@ -2226,6 +2257,12 @@ const App: React.FC = () => {
   })();
 
   return (
+    <FreemiumProvider
+      isFree={isFreePlan}
+      quotas={sbStatus?.quotas || null}
+      entitledTickers={entitledTickerList}
+      requestUpgrade={() => setShowUpgrade(true)}
+    >
     <div className="flex flex-col h-[100dvh] bg-slate-100 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       {trialBanner}
@@ -2563,7 +2600,12 @@ const App: React.FC = () => {
                           />
                       )}
                       {currentView === 'CHARTS' && (
-                          <ChartsExplorer onSymbolClick={(t) => handleTickerClick(t)} />
+                          <ChartsExplorer
+                              onSymbolClick={(t) => handleTickerClick(t)}
+                              freePlan={isFreePlan}
+                              chartViewLimit={sbStatus?.quotas?.chartViewsPerDay ?? 5}
+                              onUpgrade={() => setShowUpgrade(true)}
+                          />
                       )}
                       {currentView === 'REALIZED' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -2833,6 +2875,7 @@ const App: React.FC = () => {
           />
       )}
     </div>
+    </FreemiumProvider>
   );
 };
 export default App;

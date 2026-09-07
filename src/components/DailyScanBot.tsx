@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  Bot, Loader2, Play, Sparkles, Clock, Settings2, Radar, Crosshair,
+  Bot, Loader2, Play, Sparkles, Clock, Settings2, Radar, Crosshair, Lock,
 } from 'lucide-react';
 import {
   DailyScanSnapshot,
@@ -13,6 +13,8 @@ import {
   runDailyScan,
   saveScanBotSettings,
 } from '../services/scanBot';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota, peekDailyQuota } from '../utils/freemiumQuotas';
 
 interface Props {
   watchlist: string[];
@@ -37,6 +39,9 @@ const UNIVERSE_LABEL: Record<ScanUniverse, string> = {
 };
 
 export const DailyScanBot: React.FC<Props> = ({ watchlist, onAskAssistant, onSymbolClick }) => {
+  const { isFree, quotas, requestUpgrade } = useFreemium();
+  const dailyScanVisible = quotas.dailyScanVisible ?? 5;
+  const dailyScanLimit = quotas.dailyScanPerDay ?? 1;
   const [settings, setSettings] = useState<ScanBotSettings>(() => loadScanBotSettings());
   const [snapshot, setSnapshot] = useState<DailyScanSnapshot | null>(() => loadDailyScan());
   const [universe, setUniverse] = useState<ScanUniverse>(settings.defaultUniverse);
@@ -48,6 +53,10 @@ export const DailyScanBot: React.FC<Props> = ({ watchlist, onAskAssistant, onSym
   const autoRan = React.useRef(false);
 
   const run = useCallback(async () => {
+    if (isFree) {
+      const { ok } = consumeDailyQuota('dailyScan', dailyScanLimit);
+      if (!ok) { requestUpgrade(); return; }
+    }
     setStatus('running');
     setError(null);
     setProgress({ done: 0, total: 0 });
@@ -64,16 +73,17 @@ export const DailyScanBot: React.FC<Props> = ({ watchlist, onAskAssistant, onSym
       setError(e?.message || 'Scan failed');
       setStatus('error');
     }
-  }, [universe, mode, watchlist]);
+  }, [universe, mode, watchlist, isFree, dailyScanLimit, requestUpgrade]);
 
   useEffect(() => {
     if (autoRan.current || !settings.autoRunIfStale) return;
+    if (isFree && peekDailyQuota('dailyScan') >= dailyScanLimit) return;
     const snap = loadDailyScan();
     if (isScanStale(snap, settings.staleHours)) {
       autoRan.current = true;
       run();
     }
-  }, [settings.autoRunIfStale, settings.staleHours, run]);
+  }, [settings.autoRunIfStale, settings.staleHours, run, isFree, dailyScanLimit]);
 
   const pct = progress.total ? Math.round((progress.done / progress.total) * 100) : 0;
   const rsiMode = mode === 'rsi_oversold';
@@ -259,26 +269,35 @@ export const DailyScanBot: React.FC<Props> = ({ watchlist, onAskAssistant, onSym
                 </tr>
               </thead>
               <tbody>
-                {snapshot.hits.map((h) => (
+                {snapshot.hits.map((h, idx) => {
+                  const locked = isFree && idx >= dailyScanVisible;
+                  return (
                   <tr
                     key={h.symbol}
-                    className="border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 cursor-pointer"
-                    onClick={() => onSymbolClick?.(h.symbol)}
+                    className={`border-b border-slate-50 dark:border-slate-800/50 hover:bg-slate-50/50 dark:hover:bg-slate-800/30 ${locked ? 'opacity-40' : 'cursor-pointer'}`}
+                    onClick={() => locked ? requestUpgrade() : onSymbolClick?.(h.symbol)}
                   >
-                    <td className="px-5 py-2.5 font-black text-cyan-700 dark:text-cyan-400">{h.symbol}</td>
-                    <td className="px-3 py-2.5 text-right font-mono">{fmt(h.current)}</td>
-                    <td className={`px-3 py-2.5 text-right font-bold ${h.changePct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{fmtPct(h.changePct)}</td>
-                    <td className="px-3 py-2.5 text-right">{fmt(h.rsi, 1)}</td>
-                    <td className="px-3 py-2.5 text-xs font-bold text-emerald-600">{h.verdict}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-slate-500">{fmt(h.stop)}</td>
-                    <td className="px-3 py-2.5 text-right font-mono text-slate-500">{fmt(h.target)}</td>
+                    <td className="px-5 py-2.5 font-black text-cyan-700 dark:text-cyan-400">
+                      {locked ? (
+                        <span className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400">
+                          <Lock size={12} /> Pay to see
+                        </span>
+                      ) : h.symbol}
+                    </td>
+                    <td className="px-3 py-2.5 text-right font-mono">{locked ? '•••' : fmt(h.current)}</td>
+                    <td className={`px-3 py-2.5 text-right font-bold ${h.changePct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{locked ? '—' : fmtPct(h.changePct)}</td>
+                    <td className="px-3 py-2.5 text-right">{locked ? '—' : fmt(h.rsi, 1)}</td>
+                    <td className="px-3 py-2.5 text-xs font-bold text-emerald-600">{locked ? '—' : h.verdict}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-slate-500">{locked ? '—' : fmt(h.stop)}</td>
+                    <td className="px-3 py-2.5 text-right font-mono text-slate-500">{locked ? '—' : fmt(h.target)}</td>
                     {rsiMode && (
                       <td className="px-5 py-2.5 text-right text-xs">
-                        {h.backtestTrades ? `${fmt(h.backtestWinRate, 0)}% · ${h.backtestTrades}t` : '—'}
+                        {locked ? '—' : (h.backtestTrades ? `${fmt(h.backtestWinRate, 0)}% · ${h.backtestTrades}t` : '—')}
                       </td>
                     )}
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

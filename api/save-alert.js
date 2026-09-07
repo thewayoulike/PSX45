@@ -1,5 +1,28 @@
 import { sidFor, getRecord, putRecord } from '../lib/alertsStore.js';
 import { requireOnlineUser } from '../lib/requireOnlineUser.js';
+import { computeAccess, FREE_QUOTAS, PAID_QUOTAS } from '../lib/access.js';
+import { createClient } from '@supabase/supabase-js';
+
+async function quotasForEmail(email) {
+  try {
+    const supabase = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false, autoRefreshToken: false } },
+    );
+    const { data } = await supabase
+      .from('allowlist')
+      .select('approved, approved_at, access_until, lifetime')
+      .eq('email', (email || '').toLowerCase())
+      .maybeSingle();
+    const access = computeAccess(data || { approved: false });
+    if (access.plan === 'free') return { ...FREE_QUOTAS, plan: 'free' };
+    return { ...PAID_QUOTAS, plan: access.plan || 'paid' };
+  } catch (e) {
+    console.error('alerts quotas lookup failed', e);
+    return { ...PAID_QUOTAS, plan: 'paid' };
+  }
+}
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -20,12 +43,24 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Missing required data or empty alerts array' });
     }
 
+    const quotas = await quotasForEmail(gate.user.email);
+    const maxTickers = Number.isFinite(quotas.alertsTickers) ? quotas.alertsTickers : 15;
+    const maxTp = Number.isFinite(quotas.alertsTp) ? quotas.alertsTp : 4;
+    const maxSl = Number.isFinite(quotas.alertsSl) ? quotas.alertsSl : 4;
+
     const sid = sidFor(subscription.endpoint);
     const record = (await getRecord(sid)) || { subscription, alerts: [] };
     record.subscription = subscription;
     record.userEmail = gate.user.email;
 
     const T = ticker.toUpperCase();
+    const existingTickers = new Set((record.alerts || []).map((a) => a.ticker));
+    if (!existingTickers.has(T) && existingTickers.size >= maxTickers) {
+      return res.status(403).json({
+        error: `Your plan allows alerts on ${maxTickers} tickers. Upgrade or remove an old ticker.`,
+      });
+    }
+
     const existing = record.alerts.filter((a) => a.ticker === T);
     let tpCount = existing.filter((a) => a.direction === 'ABOVE').length;
     let slCount = existing.filter((a) => a.direction === 'BELOW').length;
@@ -38,10 +73,18 @@ export default async function handler(req, res) {
       }
       const direction = a.direction === 'ABOVE' ? 'ABOVE' : 'BELOW';
       if (direction === 'ABOVE') {
-        if (tpCount >= 3) return res.status(400).json({ error: `Max 3 Target Price (TP) alerts allowed for ${T}. Please delete an old one first.` });
+        if (tpCount >= maxTp) {
+          return res.status(400).json({
+            error: `Max ${maxTp} Target Price (TP) alerts allowed for ${T} on your plan.`,
+          });
+        }
         tpCount++;
       } else {
-        if (slCount >= 3) return res.status(400).json({ error: `Max 3 Stop Loss (SL) alerts allowed for ${T}. Please delete an old one first.` });
+        if (slCount >= maxSl) {
+          return res.status(400).json({
+            error: `Max ${maxSl} Stop Loss (SL) alerts allowed for ${T} on your plan.`,
+          });
+        }
         slCount++;
       }
       toAdd.push({
@@ -49,7 +92,7 @@ export default async function handler(req, res) {
         ticker: T,
         targetPrice: price,
         direction,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
       });
     }
 

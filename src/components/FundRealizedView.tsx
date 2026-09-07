@@ -4,6 +4,8 @@ import {
   Search, X, FileSpreadsheet, FileText, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, ChevronDown
 } from 'lucide-react';
 import { exportToExcel, exportToCSV } from '../utils/export';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 import { formatAssetLabel } from '../utils/fundDisplay';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -87,6 +89,7 @@ const ChartCard: React.FC<{ title: string; subtitle?: string; right?: React.Reac
 );
 
 export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, displayNames = {}, unrealizedPL }) => {
+  const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const [searchTerm, setSearchTerm] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
@@ -230,7 +233,18 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
   };
 
   const handleExport = (type: 'excel' | 'csv') => {
-    const data = filteredAndSortedTrades.map(trade => {
+    if (isFree) {
+      const { ok } = consumeDailyQuota('export', quotas.exportPerDay ?? 1);
+      if (!ok) { requestUpgrade(); return; }
+    }
+    const entitled = entitledTickers?.map((t) => t.toUpperCase()) ?? null;
+    const rows = isFree && entitled
+      ? filteredAndSortedTrades.filter((trade) => {
+          const t = (trade.ticker || '').trim().toUpperCase();
+          return !t || entitled.includes(t);
+        })
+      : filteredAndSortedTrades;
+    const data = rows.map(trade => {
       const totalCost = (trade.buyAvg || 0) * trade.quantity; const totalSell = (trade.sellPrice || 0) * trade.quantity;
       return {
         Date: trade.date,

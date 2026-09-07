@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair } from 'lucide-react';
+import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock } from 'lucide-react';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
 import {
   computeSignal,
@@ -14,6 +14,8 @@ import {
   RsiOversoldBacktest,
 } from '../utils/indicators';
 import { KSE100_SET, KMI30_SET } from '../services/indices';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'INDEX', 'KSE'];
 
@@ -258,7 +260,13 @@ const SignalCard: React.FC<{ result: Result; onClick?: (s: string) => void }> = 
 };
 
 // ---------- Compact table (screener style) ----------
-const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void; rsiMode?: boolean }> = ({ rows, onClick, rsiMode }) => {
+const ScreenerTable: React.FC<{
+  rows: Result[];
+  onClick?: (s: string) => void;
+  rsiMode?: boolean;
+  lockedFrom?: number;
+  onUpgrade?: () => void;
+}> = ({ rows, onClick, rsiMode, lockedFrom = Infinity, onUpgrade }) => {
   const Th = ({ children, className = '' }: { children: React.ReactNode; className?: string }) => (
     <th className={`px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400 ${className}`}>{children}</th>
   );
@@ -279,32 +287,41 @@ const ScreenerTable: React.FC<{ rows: Result[]; onClick?: (s: string) => void; r
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-          {rows.map((r) => {
+          {rows.map((r, idx) => {
+            const locked = idx >= lockedFrom;
             const up = r.changePct >= 0;
             const vs = VERDICT_STYLE[r.summary.verdict];
             const rsiColor = r.summary.rsi < 30 ? 'text-amber-600 dark:text-amber-400' : r.summary.rsi > 70 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400';
             return (
-              <tr key={r.symbol} className="even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group">
+              <tr key={r.symbol} className={`even:bg-slate-50/50 dark:even:bg-slate-800/20 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 transition-colors group relative ${locked ? 'opacity-40' : ''}`}>
                 <td className="px-4 py-3">
-                  <button onClick={() => onClick?.(r.symbol)} className="font-display font-black text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">{r.symbol}</button>
+                  {locked ? (
+                    <button type="button" onClick={onUpgrade} className="inline-flex items-center gap-1.5 font-display font-black text-indigo-600 dark:text-indigo-400 hover:underline">
+                      <Lock size={12} /> Pay to see
+                    </button>
+                  ) : (
+                    <button onClick={() => onClick?.(r.symbol)} className="font-display font-black text-slate-900 dark:text-white hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">{r.symbol}</button>
+                  )}
                 </td>
-                <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{fmt(r.current)}</td>
+                <td className="px-4 py-3 text-right font-mono font-bold text-slate-900 dark:text-slate-100 tabular-nums">{locked ? '•••' : fmt(r.current)}</td>
                 <td className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
                     <span className={`px-1.5 py-0.5 rounded ${up ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
-                        {up ? '+' : '−'}{fmt(Math.abs(r.changePct))}%
+                        {locked ? '—' : `${up ? '+' : '−'}${fmt(Math.abs(r.changePct))}%`}
                     </span>
                 </td>
-                <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{fmt(r.summary.sma20)}</td>
-                <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{fmt(r.summary.sma50)}</td>
-                <td className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${rsiColor}`}>{fmt(r.summary.rsi, 1)}</td>
+                <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{locked ? '—' : fmt(r.summary.sma20)}</td>
+                <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{locked ? '—' : fmt(r.summary.sma50)}</td>
+                <td className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${rsiColor}`}>{locked ? '—' : fmt(r.summary.rsi, 1)}</td>
                 <td className="px-4 py-3 text-right font-mono text-rose-500 dark:text-rose-400 font-bold tabular-nums">
-                  {r.plan ? fmt(rsiMode ? r.plan.stop : r.plan.support) : '—'}
+                  {locked || !r.plan ? '—' : fmt(rsiMode ? r.plan.stop : r.plan.support)}
                 </td>
                 <td className="px-4 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
-                  {r.plan ? fmt(rsiMode ? r.plan.targets[0] : r.plan.resistance) : '—'}
+                  {locked || !r.plan ? '—' : fmt(rsiMode ? r.plan.targets[0] : r.plan.resistance)}
                 </td>
                 <td className="px-4 py-3 text-center">
-                  {rsiMode ? (
+                  {locked ? (
+                    <button type="button" onClick={onUpgrade} className="text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:underline">Pay to see</button>
+                  ) : rsiMode ? (
                     <span className="font-mono font-bold tabular-nums text-teal-700 dark:text-teal-400">
                       {r.backtest && r.backtest.trades > 0 ? `${fmt(r.backtest.winRate, 0)}%` : '—'}
                     </span>
@@ -353,6 +370,8 @@ const BacktestSummary: React.FC<{ bt: RsiOversoldBacktest; symbols: number }> = 
 );
 
 export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void }> = ({ onSymbolClick }) => {
+  const { isFree, quotas, requestUpgrade } = useFreemium();
+  const signalsVisible = quotas.signalsVisible ?? 5;
   const [status, setStatus] = useState<'idle' | 'scanning' | 'done'>('idle');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [results, setResults] = useState<Result[]>([]);
@@ -373,6 +392,10 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
   }, [strategy, universe]);
 
   const runScan = useCallback(async () => {
+    if (isFree) {
+      const { ok } = consumeDailyQuota('signals', quotas.signalsPerDay ?? 1);
+      if (!ok) { requestUpgrade(); return; }
+    }
     setStatus('scanning');
     setError('');
     setResults([]);
@@ -435,7 +458,7 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
       setError(e.message || 'Scan failed.');
       setStatus('idle');
     }
-  }, [universe, strategy]);
+  }, [universe, strategy, isFree, quotas.signalsPerDay, requestUpgrade]);
 
   const rsiMode = strategy === 'rsi_oversold';
 
@@ -626,14 +649,38 @@ export const MarketSignalScanner: React.FC<{ onSymbolClick?: (s: string) => void
       {/* Results */}
       {shown.length > 0 && view === 'table' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-           <ScreenerTable rows={shown} onClick={onSymbolClick} rsiMode={rsiMode} />
+           <ScreenerTable
+             rows={shown}
+             onClick={onSymbolClick}
+             rsiMode={rsiMode}
+             lockedFrom={isFree ? signalsVisible : Infinity}
+             onUpgrade={requestUpgrade}
+           />
         </div>
       )}
       {shown.length > 0 && view === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {shown.map((r) => (
-            <SignalCard key={r.symbol} result={r} onClick={onSymbolClick} />
-          ))}
+          {shown.map((r, idx) => {
+            const locked = isFree && idx >= signalsVisible;
+            return (
+              <div key={r.symbol} className="relative">
+                <div className={locked ? 'opacity-40 blur-[2px] pointer-events-none select-none' : ''}>
+                  <SignalCard result={r} onClick={onSymbolClick} />
+                </div>
+                {locked && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/50 dark:bg-slate-950/40 rounded-3xl">
+                    <button
+                      type="button"
+                      onClick={requestUpgrade}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold shadow-lg"
+                    >
+                      <Lock size={14} /> Pay to see
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

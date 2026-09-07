@@ -21,8 +21,10 @@ import {
   TrendingUp, 
   Activity,
   Clock,
-  AlertCircle, AlertTriangle
+  AlertCircle, AlertTriangle, Lock
 } from 'lucide-react';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 import { Card } from './ui/Card';
 import { StockAnnouncements } from './StockAnnouncements';
 import { StockChart } from './StockChart';
@@ -128,6 +130,7 @@ const getHoldingDuration = (dateStr: string) => {
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
   transactions, currentPrices, sectors, listedInMap = {}, mode, onModeChange, onAddStock, onFixSequence, focusTicker, focusNonce, onSelectedTickerChange
 }) => {
+  const { isFree, quotas, canSeePositions, requestUpgrade } = useFreemium();
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
       return (localStorage.getItem('psx_analyzer_mode') as 'STOCK' | 'SECTOR') || 'STOCK';
   });
@@ -551,7 +554,22 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const activityTotals = useMemo(() => { return currentRows.reduce((acc, row) => { let net = 0; const gross = row.quantity * row.price; const fees = (row.commission || 0) + (row.tax || 0) + (row.cdcCharges || 0) + (row.otherFees || 0); if (row.type === 'BUY') net = -(gross + fees); else if (row.type === 'SELL') net = gross - fees; else if (row.type === 'DIVIDEND') net = gross - (row.tax || 0); return { netAmount: acc.netAmount + net, realized: acc.realized + (row.gainType === 'REALIZED' ? row.gain : 0), unrealized: acc.unrealized + (row.gainType === 'UNREALIZED' ? row.gain : 0) }; }, { netAmount: 0, realized: 0, unrealized: 0 }); }, [currentRows]);
   const hasSeqWarnings = useMemo(() => currentRows.some((r: any) => r.seqWarning), [currentRows]);
 
-  const handleExportActivity = () => { if (analysisMode === 'STOCK' && selectedTicker) { const dataToExport = activityRows.map(row => ({ Date: row.date, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy / Cost': row.avgBuyPrice, 'Sell / Current': row.sellOrCurrentPrice, 'Gain/Loss': row.gain, 'Gain Type': row.gainType })); exportToCSV(dataToExport, `${selectedTicker}_Activity_Log`); } else if (analysisMode === 'SECTOR' && selectedSector) { const dataToExport = sectorActivityRows.map(row => ({ Date: row.date, Ticker: row.ticker, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy': row.avgBuyPrice, 'Sell/Current': row.sellOrCurrentPrice, 'Gain': row.gain })); exportToCSV(dataToExport, `${selectedSector}_Sector_Activity`); } };
+  const handleExportActivity = () => {
+    if (isFree) {
+      const { ok } = consumeDailyQuota('export', quotas.exportPerDay ?? 1);
+      if (!ok) {
+        requestUpgrade();
+        return;
+      }
+    }
+    if (analysisMode === 'STOCK' && selectedTicker) {
+      const dataToExport = activityRows.map(row => ({ Date: row.date, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy / Cost': row.avgBuyPrice, 'Sell / Current': row.sellOrCurrentPrice, 'Gain/Loss': row.gain, 'Gain Type': row.gainType }));
+      exportToCSV(dataToExport, `${selectedTicker}_Activity_Log`);
+    } else if (analysisMode === 'SECTOR' && selectedSector) {
+      const dataToExport = sectorActivityRows.map(row => ({ Date: row.date, Ticker: row.ticker, Type: row.type, Qty: row.quantity, Price: row.price, 'Avg Buy': row.avgBuyPrice, 'Sell/Current': row.sellOrCurrentPrice, 'Gain': row.gain }));
+      exportToCSV(dataToExport, `${selectedSector}_Sector_Activity`);
+    }
+  };
   
   const formatCurrency = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const formatDecimal = (val: number) => val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -724,6 +742,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 </div>
 
                 {detailTab === 'position' && (<>
+                {selectedTicker && !canSeePositions(selectedTicker) ? (
+                  <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 p-10 text-center shadow-card dark:shadow-card-dark">
+                    <Lock className="mx-auto mb-3 text-slate-400" size={28} />
+                    <h3 className="text-lg font-display font-black text-slate-900 dark:text-white mb-2">Positions locked on Free</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
+                      Company info stays available. Position, gains, and trade history unlock for your first-3 entitled holdings, or with Paid.
+                    </p>
+                    <button type="button" onClick={requestUpgrade} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
+                      Upgrade
+                    </button>
+                  </div>
+                ) : (<>
                 {/* 1.5 QUICK STATS BAR */}
                 <div className={`grid grid-cols-2 ${selectedStockStats.status === 'Active' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-3'} gap-4`}>
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"><Activity size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Current Price</div> <div className="text-lg font-mono font-bold text-slate-900 dark:text-white tabular-nums">Rs. {formatDecimal(selectedStockStats.currentPrice)}</div> </div> </div> </div>
@@ -789,6 +819,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     </Card>
                 </div>
 
+                </>)}
                 </>)}
 
                 {detailTab === 'companyInfo' && (
@@ -1006,7 +1037,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
         )}
 
         {/* --- ACTIVITY TABLE --- */}
-        {(selectedTicker || selectedSector) && !isSelectionNotFound && (analysisMode !== 'STOCK' || detailTab === 'position') && (
+        {(selectedTicker || selectedSector) && !isSelectionNotFound && (analysisMode !== 'STOCK' || detailTab === 'position') && !(selectedTicker && !canSeePositions(selectedTicker)) && (
             <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl overflow-hidden shadow-card dark:shadow-card-dark mt-8">
                 <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4 bg-white dark:bg-slate-900">
                     <div className="flex items-center gap-3"> 

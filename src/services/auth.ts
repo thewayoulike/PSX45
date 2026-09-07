@@ -137,7 +137,7 @@ export const onAuthChange = (cb: (session: Session | null) => void) => {
   return () => data.subscription.unsubscribe();
 };
 
-/** Headers for APIs that require a signed-in (non-guest) user. */
+/** Headers for APIs that require a signed-in user. */
 export const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   try {

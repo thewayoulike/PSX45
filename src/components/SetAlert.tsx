@@ -51,7 +51,7 @@ export const SetAlert = ({
     if (!target) return;
     if (!canSaveAlerts) {
       setStatus('error');
-      setMessage('Sign in to save alerts. Guest Mode is offline-only.');
+      setMessage('Sign in to save alerts.');
       return;
     }
     if (!VAPID_PUBLIC_KEY) {
@@ -172,7 +172,7 @@ export const SetAlert = ({
       )}
       {!canSaveAlerts && (
         <p className="mt-3 text-[11px] font-semibold text-slate-500 dark:text-slate-400 leading-snug">
-          Sign in with Google or email to save alerts. Guest Mode cannot create them.
+          Sign in with Google or email to save alerts.
         </p>
       )}
     </div>

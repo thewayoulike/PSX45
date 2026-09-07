@@ -3,6 +3,7 @@ import { Bell, Loader2, CheckCircle2, AlertCircle, Search, Trash2, ArrowUpRight,
 import { Holding } from '../types';
 import { Card } from './ui/Card';
 import { getAuthHeaders } from '../services/auth';
+import { useFreemium } from './FreemiumContext';
 
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
@@ -24,6 +25,10 @@ interface AlertsPageProps {
 }
 
 export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices, canSaveAlerts = false }) => {
+  const { quotas, requestUpgrade } = useFreemium();
+  const maxTp = quotas.alertsTp ?? 2;
+  const maxSl = quotas.alertsSl ?? 2;
+  const maxTickers = quotas.alertsTickers ?? 3;
   const [ticker, setTicker] = useState<string>('');
   const [tps, setTps] = useState<string[]>(['']);
   const [sls, setSls] = useState<string[]>([]);
@@ -138,7 +143,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
   const handleSetAlert = async () => {
     if (!ticker) return;
     if (!canSaveAlerts) {
-        setStatus('error'); setMessage('Sign in to save alerts. Guest Mode is offline-only.'); return;
+        setStatus('error'); setMessage('Sign in to save alerts.'); return;
     }
 
     const validTps = tps.filter(val => val !== '').map(price => ({ price: Number(price), direction: 'ABOVE' }));
@@ -147,6 +152,14 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
 
     if (allAlerts.length === 0) {
         setStatus('error'); setMessage('Please enter at least one Target Price or Stop Loss.'); return;
+    }
+
+    const existingTickers = Object.keys(groupedAlerts);
+    if (!existingTickers.includes(ticker) && existingTickers.length >= maxTickers) {
+        requestUpgrade();
+        setStatus('error');
+        setMessage(`Free plan: alerts on ${maxTickers} tickers. Upgrade for more.`);
+        return;
     }
 
     if (!VAPID_PUBLIC_KEY) {
@@ -238,7 +251,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
         </p>
         {!canSaveAlerts && (
           <p className="mt-3 text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-xl px-4 py-2.5 inline-block">
-            Sign in with Google or email to save alerts. Guest Mode cannot create them.
+            Sign in with Google or email to save alerts.
           </p>
         )}
       </div>
@@ -301,7 +314,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
                       <ArrowUpRight size={15} /> Rises to
                     </span>
                     <span className="text-[10px] font-bold text-emerald-700/60 dark:text-emerald-400/60 bg-emerald-100 dark:bg-emerald-800/40 px-2 py-0.5 rounded-md">
-                      {tps.filter(t => t !== '').length}/3
+                      {tps.filter(t => t !== '').length}/{maxTp}
                     </span>
                   </div>
 
@@ -331,7 +344,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
                         </div>
                       );
                     })}
-                    {tps.length < 3 && (
+                    {tps.length < maxTp && (
                       <button onClick={() => { setTps([...tps, '']); setStatus('idle'); setMessage(''); }} className="w-full py-2.5 border border-dashed border-emerald-300 dark:border-emerald-700/50 text-emerald-600 dark:text-emerald-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors">
                         <Plus size={15} /> Add target
                       </button>
@@ -346,7 +359,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
                       <ArrowDownRight size={15} /> Falls to
                     </span>
                     <span className="text-[10px] font-bold text-rose-700/60 dark:text-rose-400/60 bg-rose-100 dark:bg-rose-800/40 px-2 py-0.5 rounded-md">
-                      {sls.filter(s => s !== '').length}/3
+                      {sls.filter(s => s !== '').length}/{maxSl}
                     </span>
                   </div>
 
@@ -376,7 +389,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
                         </div>
                       );
                     })}
-                    {sls.length < 3 && (
+                    {sls.length < maxSl && (
                       <button onClick={() => { setSls([...sls, '']); setStatus('idle'); setMessage(''); }} className="w-full py-2.5 border border-dashed border-rose-300 dark:border-rose-700/50 text-rose-600 dark:text-rose-400 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
                         <Plus size={15} /> Add stop-loss
                       </button>

@@ -3,6 +3,8 @@ import { Card } from './ui/Card';
 import { Calculator, Shield, Activity, BookOpen, RefreshCw, Loader2, Sparkles, SlidersHorizontal, LineChart } from 'lucide-react';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { fetchCompanyFundamentals, syncWithGoogleSheet } from '../services/financials';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 
 interface FairValueCalculatorProps {
   cache: Record<string, any>;
@@ -10,6 +12,7 @@ interface FairValueCalculatorProps {
 }
 
 export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache, onSaveCache }) => {
+  const { isFree, quotas, requestUpgrade } = useFreemium();
   const [isFetching, setIsFetching] = useState(false);
   
   // Initialize with completely empty fields (Baseline)
@@ -58,8 +61,22 @@ export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache,
 
   const handleAutoFill = async () => {
       if (!inputs.ticker) return;
-      setIsFetching(true);
       const upperTicker = inputs.ticker.toUpperCase();
+
+      // Cache hit: apply stored research without network / daily quota.
+      if (cache[upperTicker]) {
+          setInputs({ ticker: upperTicker, ...cache[upperTicker] });
+          return;
+      }
+
+      if (isFree) {
+          const { ok } = consumeDailyQuota('fairValue', quotas.fairValuePerDay ?? 4);
+          if (!ok) {
+              requestUpgrade();
+              return;
+          }
+      }
+      setIsFetching(true);
 
       try {
           let newPrice = inputs.price;

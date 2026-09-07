@@ -10,6 +10,8 @@ import { DividendIcon } from './ui/DividendIcon';
 import { HistoricalPnLIcon } from './ui/HistoricalPnLIcon';
 import { FeeIcon } from './ui/FeeIcon'; 
 import { exportToExcel, exportToCSV } from '../utils/export';
+import { useFreemium } from './FreemiumContext';
+import { consumeDailyQuota } from '../utils/freemiumQuotas';
 import { PortfolioType } from '../types';
 import { isFundTicker } from '../utils/fundId';
 import { fmtFundNav, fmtFundUnits } from '../utils/fundFormat';
@@ -39,6 +41,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   displayNames = {},
   portfolioType = 'PSX',
 }) => {
+  const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const isFund = portfolioType === 'MUTUAL_FUND';
   const colSpan = isFund ? 10 : 13;
   const [searchTerm, setSearchTerm] = useState('');
@@ -145,8 +148,21 @@ export const TransactionList: React.FC<TransactionListProps> = ({
     return formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
   };
 
+  const filterExportRows = <T extends { ticker?: string }>(rows: T[]) => {
+      if (!isFree || !entitledTickers) return rows;
+      const entitled = entitledTickers.map((t) => t.toUpperCase());
+      return rows.filter((r) => {
+          const t = (r.ticker || '').trim().toUpperCase();
+          return !t || entitled.includes(t);
+      });
+  };
+
   const handleExport = (type: 'excel' | 'csv') => {
-      const data = filteredAndSortedTransactions.map(tx => ({
+      if (isFree) {
+          const { ok } = consumeDailyQuota('export', quotas.exportPerDay ?? 1);
+          if (!ok) { requestUpgrade(); return; }
+      }
+      const data = filterExportRows(filteredAndSortedTransactions).map(tx => ({
         Date: tx.date,
         Type: isFund ? getFundTradeDisplayType(tx, conversionMap) : tx.type,
         [isFund ? 'Fund' : 'Ticker']: formatTransactionLabel(tx.ticker, displayNames, tx.notes),
@@ -164,7 +180,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({
       if (type === 'excel') exportToExcel(data, filename); else exportToCSV(data, filename);
   };
   const handleExportSelected = () => {
-      const selectedTransactions = transactions.filter(t => selectedIds.has(t.id));
+      if (isFree) {
+          const { ok } = consumeDailyQuota('export', quotas.exportPerDay ?? 1);
+          if (!ok) { requestUpgrade(); return; }
+      }
+      const selectedTransactions = filterExportRows(transactions.filter(t => selectedIds.has(t.id)));
       const data = selectedTransactions.map(tx => ({
         Date: tx.date,
         Type: isFund ? getFundTradeDisplayType(tx, conversionMap) : tx.type,
