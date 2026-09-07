@@ -36,7 +36,7 @@ ALWAYS call the relevant tool before answering questions about the user's holdin
 prices, signals, dividends or fundamentals. Never guess a number you could look up,
 and never invent a price, ticker or figure. If a tool returns nothing useful, say so plainly.
 
-For Daily Scan summaries, call get_daily_scan first. For backtest questions on a single
+For Market Signals summaries, call get_daily_scan first. For backtest questions on a single
 symbol, use run_strategy_backtest. These tools use deterministic PSX data — no guessing.
 
 STYLE
@@ -156,7 +156,7 @@ const functionDeclarations = [
   },
   {
     name: "get_daily_scan",
-    description: "Latest Daily Scan Bot results: automated multi-indicator or RSI-oversold hits from the user's most recent scan (KSE-100, KMI-30, or watchlist). No Gemini needed to run the scan — this reads stored results. Call before summarizing scan hits or comparing names to the user's watchlist.",
+    description: "Latest Market Signals scan results: multi-indicator or RSI-oversold hits (indexes, watchlist, top volume, or a single ticker), including support/resistance. Reads the user's last persisted scan. Call before summarizing scan hits.",
     parameters: { type: Type.OBJECT, properties: {} },
   },
   {
@@ -574,7 +574,7 @@ export const runAgent = async (
 /** Suggested starter prompts shown in the empty state. */
 export const SUGGESTED_PROMPTS = [
   "How is my portfolio doing overall?",
-  "Summarize my latest Daily Scan and highlight the best 3 names.",
+  "Summarize my latest Market Signals scan and highlight the best 3 names.",
   "Which of my holdings looks weakest right now?",
   "Backtest RSI oversold on OGDC for the past year.",
   "Any dividends coming up for my stocks?",

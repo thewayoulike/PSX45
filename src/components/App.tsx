@@ -35,7 +35,6 @@ import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
 import { StrategyBacktest } from './StrategyBacktest';
-import { DailyScanBot } from './DailyScanBot';
 import { ChartsExplorer } from './ChartsExplorer';
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
@@ -115,7 +114,7 @@ const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', de
 const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
   (list || []).map(p => ({ ...p, type: p.type || 'PSX' }));
 
-const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST', 'DAILY_SCAN'];
+const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST'];
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
@@ -150,6 +149,8 @@ const PATH_TO_VIEW: Record<string, string> = Object.fromEntries(
 const viewFromPath = (path: string): AppView => {
   const p = path !== '/' ? path.replace(/\/+$/, '') : '/';
   if (normalizeStockDeepLink(p) || p === '/stocks') return 'STOCKS';
+  // Daily Scan Bot merged into Market Signals
+  if (p === '/daily-scan') return 'SIGNALS';
   return (PATH_TO_VIEW[p] as AppView) || 'DASHBOARD';
 };
 
@@ -2584,13 +2585,7 @@ const App: React.FC = () => {
                       )}
 
                       {currentView === 'SIGNALS' && (
-                          <MarketSignalScanner onSymbolClick={(t) => handleTickerClick(t)} />
-                      )}
-                      {currentView === 'BACKTEST' && (
-                          <StrategyBacktest onSymbolClick={(t) => handleTickerClick(t)} />
-                      )}
-                      {currentView === 'DAILY_SCAN' && (
-                          <DailyScanBot
+                          <MarketSignalScanner
                               watchlist={watchlist}
                               onSymbolClick={(t) => handleTickerClick(t)}
                               onAskAssistant={(prompt) => {
@@ -2598,6 +2593,9 @@ const App: React.FC = () => {
                                   setCurrentView('AI_AGENT');
                               }}
                           />
+                      )}
+                      {currentView === 'BACKTEST' && (
+                          <StrategyBacktest onSymbolClick={(t) => handleTickerClick(t)} />
                       )}
                       {currentView === 'CHARTS' && (
                           <ChartsExplorer

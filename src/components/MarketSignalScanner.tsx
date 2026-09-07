@@ -298,8 +298,8 @@ const ScreenerTable: React.FC<{
             <Th className="text-right">SMA 20</Th>
             <Th className="text-right">SMA 50</Th>
             <Th className="text-right">RSI 14</Th>
-            <Th className="text-right">{rsiMode ? 'Stop −1.5%' : 'Support'}</Th>
-            <Th className="text-right">{rsiMode ? 'TP +4%' : 'Resistance'}</Th>
+            <Th className="text-right">Support</Th>
+            <Th className="text-right">Resistance</Th>
             <Th className="text-center">{rsiMode ? '1Y Win%' : 'Signal'}</Th>
           </tr>
         </thead>
@@ -329,11 +329,11 @@ const ScreenerTable: React.FC<{
                 <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{locked ? '—' : fmt(r.summary.sma20)}</td>
                 <td className="px-4 py-3 text-right font-mono text-slate-500 dark:text-slate-400 tabular-nums">{locked ? '—' : fmt(r.summary.sma50)}</td>
                 <td className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${rsiColor}`}>{locked ? '—' : fmt(r.summary.rsi, 1)}</td>
-                <td className="px-4 py-3 text-right font-mono text-rose-500 dark:text-rose-400 font-bold tabular-nums">
-                  {locked || !r.plan ? '—' : fmt(rsiMode ? r.plan.stop : r.plan.support)}
+                <td className="px-4 py-3 text-right font-mono text-sky-600 dark:text-sky-400 font-bold tabular-nums">
+                  {locked || !r.plan ? '—' : fmt(r.plan.support)}
                 </td>
-                <td className="px-4 py-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-bold tabular-nums">
-                  {locked || !r.plan ? '—' : fmt(rsiMode ? r.plan.targets[0] : r.plan.resistance)}
+                <td className="px-4 py-3 text-right font-mono text-orange-600 dark:text-orange-400 font-bold tabular-nums">
+                  {locked || !r.plan ? '—' : fmt(r.plan.resistance)}
                 </td>
                 <td className="px-4 py-3 text-center">
                   {locked ? (
@@ -580,6 +580,8 @@ export const MarketSignalScanner: React.FC<{
     setSettings(next);
     saveScanBotSettings(next);
   };
+
+  return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 w-full min-w-0">
       {/* Header / controls */}
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark p-5">
@@ -596,19 +598,33 @@ export const MarketSignalScanner: React.FC<{
             </div>
             <div>
               <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">
-                {rsiMode ? 'RSI Oversold Scanner' : 'Buy Signal Scanner'}
+                Market Signals
               </h2>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
                 {scannedAt
                   ? `Scanned ${scannedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Found ${shown.length} ${rsiMode ? 'oversold' : 'signals'}`
-                  : rsiMode
-                    ? 'RSI < 30 entries with fixed −1.5% stop / +4% take-profit'
-                    : 'Automated technical scans across PSX listings'}
+                  : 'Scan indexes, watchlist, or one ticker — with support & resistance'}
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowSettings((v) => !v)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+            >
+              <Settings2 size={14} /> Settings
+            </button>
+            {onAskAssistant && (
+              <button
+                type="button"
+                onClick={() => onAskAssistant(assistantPrompt)}
+                className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-violet-50 dark:bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-200/60 dark:border-violet-500/20"
+              >
+                <Sparkles size={14} /> Summarize
+              </button>
+            )}
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
               <button
                 type="button"
@@ -646,6 +662,8 @@ export const MarketSignalScanner: React.FC<{
                 >
                 <option value="KSE100">KSE-100 index</option>
                 <option value="KMI30">KMI-30 index</option>
+                <option value="WATCHLIST">My watchlist</option>
+                <option value="SYMBOL">Single stock</option>
                 {!rsiMode && <option value="20">Top 20 by volume</option>}
                 {!rsiMode && <option value="40">Top 40 by volume</option>}
                 {!rsiMode && <option value="60">Top 60 by volume</option>}
@@ -654,7 +672,18 @@ export const MarketSignalScanner: React.FC<{
                 </select>
             </div>
 
-            {!rsiMode && (
+            {universe === 'SYMBOL' && (
+              <input
+                type="text"
+                value={singleSymbol}
+                onChange={(e) => setSingleSymbol(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
+                placeholder="e.g. OGDC"
+                disabled={status === 'scanning'}
+                className="glass-input rounded-xl px-3 py-2.5 text-sm font-bold uppercase w-28 outline-none shadow-sm disabled:opacity-50"
+              />
+            )}
+
+            {!rsiMode && !symbolMode && (
               <label className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300" />
                 Buys Only
@@ -677,10 +706,36 @@ export const MarketSignalScanner: React.FC<{
               }`}
             >
               {status === 'scanning' ? <Loader2 size={18} className="animate-spin" /> : rsiMode ? <Crosshair size={18} /> : <Radar size={18} />}
-              {status === 'scanning' ? 'Scanning…' : rsiMode ? 'Scan RSI < 30' : 'Scan Market'}
+              {status === 'scanning' ? 'Scanning…' : symbolMode ? 'Scan ticker' : rsiMode ? 'Scan RSI < 30' : 'Scan Market'}
             </button>
           </div>
         </div>
+
+        {showSettings && (
+          <div className="mt-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 space-y-3">
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={settings.autoRunIfStale}
+                onChange={(e) => patchSettings({ autoRunIfStale: e.target.checked })}
+                className="w-4 h-4 rounded text-emerald-600"
+              />
+              Auto-run when last scan is stale
+            </label>
+            <label className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300">
+              Stale after
+              <input
+                type="number"
+                min={1}
+                max={168}
+                value={settings.staleHours}
+                onChange={(e) => patchSettings({ staleHours: Math.max(1, Number(e.target.value) || 24) })}
+                className="w-16 glass-input rounded-lg px-2 py-1 text-xs font-bold"
+              />
+              hours
+            </label>
+          </div>
+        )}
 
         {rsiMode && status !== 'scanning' && (
           <div className="mt-4 p-3 bg-teal-50/80 dark:bg-teal-500/10 border border-teal-200/60 dark:border-teal-500/20 rounded-xl text-xs font-medium text-teal-800 dark:text-teal-300 flex items-start gap-2 shadow-sm">

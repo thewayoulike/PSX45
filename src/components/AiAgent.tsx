@@ -32,7 +32,7 @@ const TOOL_LABEL: Record<string, string> = {
   get_upcoming_dividends: 'Dividends',
   get_company_fundamentals: 'Fundamentals',
   get_market_movers: 'Market movers',
-  get_daily_scan: 'Daily scan',
+  get_daily_scan: 'Market scan',
   run_strategy_backtest: 'Strategy backtest',
 };
 
