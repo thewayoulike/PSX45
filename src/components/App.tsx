@@ -65,7 +65,6 @@ import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFro
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
-import { Paywall } from './Paywall';
 import { UpgradeModal } from './UpgradeModal';
 import { calculateXIRR } from '../utils/finance';
 import { firstEntitledTickers, isTickerEntitled } from '../utils/freemiumEntitlements';
@@ -597,7 +596,7 @@ const App: React.FC = () => {
       if (!showLogin) return;
       const st = accessPendingEmail ? pendingStatus : sbStatus;
       if (!st) return;
-      const status = st.status === 'expired' ? 'free' : st.status;
+      const status = (st.status as string) === 'expired' ? 'free' : st.status;
       const active = !!(st.active || status === 'free' || status === 'trial' || status === 'paid' || status === 'lifetime');
       if (!active) return;
       setAccessPendingEmail(null);
@@ -2093,7 +2092,7 @@ const App: React.FC = () => {
       const pendingEmail = accessPendingEmail || (sbUser && !sbApproved ? sbUser.email : null);
       const blockStatus = accessPendingEmail ? pendingStatus : sbStatus;
       if (pendingEmail && !driveUser && !guestModeRef.current) {
-          const st = blockStatus?.status === 'expired' ? 'free' : blockStatus?.status;
+          const st = (blockStatus?.status as string) === 'expired' ? 'free' : blockStatus?.status;
           const active = !!(
               blockStatus?.active
               || st === 'free'
@@ -2821,6 +2820,16 @@ const App: React.FC = () => {
               conversionMap={fundConversionMapForView}
               lastUpdated={fundProfileData.lastUpdated}
               onClose={() => setViewFundTicker(null)}
+          />
+      )}
+      {showUpgrade && (
+          <UpgradeModal
+              email={(driveUser?.email || sbUser?.email || accessPendingEmail || '').toString()}
+              onRefresh={async () => {
+                  await refreshAuthStatus();
+                  if (accessPendingEmail) await refreshPending();
+              }}
+              onClose={() => setShowUpgrade(false)}
           />
       )}
     </div>
