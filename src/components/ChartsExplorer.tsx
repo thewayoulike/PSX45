@@ -10,6 +10,10 @@ import {
   PanelLeftOpen,
 } from 'lucide-react';
 import { fetchAllPSXPrices } from '../services/psxData';
+import {
+  resolveInitialChartSymbol,
+  resolveSelectedAfterMarketLoad,
+} from '../utils/chartExplorerSelection';
 import { StockChart } from './StockChart';
 
 const LAST_SYMBOL_KEY = 'psx_charts_symbol';
@@ -40,24 +44,34 @@ const rs = (n: number) =>
 export const ChartsExplorer: React.FC<Props> = ({
   onSymbolClick,
   previewMode = false,
-  defaultSymbol = 'OGDC',
+  defaultSymbol = '',
 }) => {
   const [rows, setRows] = useState<PsxStockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
   const [search, setSearch] = useState('');
   const [sectorFilter, setSectorFilter] = useState('ALL');
+  const [selected, setSelected] = useState(() => {
+    if (typeof window === 'undefined') {
+      return resolveInitialChartSymbol({ previewMode, defaultSymbol });
+    }
+    return resolveInitialChartSymbol({
+      previewMode,
+      defaultSymbol,
+      urlSymbol: new URLSearchParams(window.location.search).get('symbol'),
+      storedSymbol: localStorage.getItem(LAST_SYMBOL_KEY),
+    });
+  });
   const [listOpen, setListOpen] = useState(() => {
     if (previewMode) return false;
-    if (typeof window === 'undefined') return false;
+    if (typeof window === 'undefined') return true;
+    // Prefer open list when nothing is loaded so the user can pick a symbol.
+    if (!resolveInitialChartSymbol({
+      previewMode: false,
+      urlSymbol: new URLSearchParams(window.location.search).get('symbol'),
+      storedSymbol: localStorage.getItem(LAST_SYMBOL_KEY),
+    })) return true;
     return localStorage.getItem(LIST_OPEN_KEY) === '1';
-  });
-  const [selected, setSelected] = useState(() => {
-    if (previewMode) return defaultSymbol.toUpperCase();
-    if (typeof window === 'undefined') return defaultSymbol.toUpperCase();
-    const q = new URLSearchParams(window.location.search).get('symbol');
-    if (q) return q.toUpperCase();
-    return localStorage.getItem(LAST_SYMBOL_KEY) || defaultSymbol.toUpperCase();
   });
 
   const load = async () => {
@@ -84,9 +98,7 @@ export const ChartsExplorer: React.FC<Props> = ({
         .filter((r) => r.symbol && r.price > 0)
         .sort((a, b) => a.symbol.localeCompare(b.symbol));
       setRows(list);
-      if (list.length && !list.some((r) => r.symbol === selected)) {
-        setSelected(list[0].symbol);
-      }
+      setSelected((prev) => resolveSelectedAfterMarketLoad(prev, list.map((r) => r.symbol)));
     } catch {
       setErr('Could not load PSX market watch. Try again in a moment.');
     } finally {
@@ -99,9 +111,20 @@ export const ChartsExplorer: React.FC<Props> = ({
   }, []);
 
   useEffect(() => {
-    if (previewMode || !selected) return;
-    localStorage.setItem(LAST_SYMBOL_KEY, selected);
+    if (previewMode) return;
     const url = new URL(window.location.href);
+    if (!selected) {
+      if (!url.searchParams.has('symbol')) return;
+      url.searchParams.delete('symbol');
+      const next = url.searchParams.toString()
+        ? `${url.pathname}?${url.searchParams.toString()}`
+        : url.pathname;
+      if (`${window.location.pathname}${window.location.search}` !== next) {
+        window.history.replaceState({}, '', next);
+      }
+      return;
+    }
+    localStorage.setItem(LAST_SYMBOL_KEY, selected);
     url.searchParams.set('symbol', selected);
     const next = `${url.pathname}?${url.searchParams.toString()}`;
     if (`${window.location.pathname}${window.location.search}` !== next) {
@@ -245,7 +268,27 @@ export const ChartsExplorer: React.FC<Props> = ({
         )}
 
         <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-          <StockChart symbol={selected} layout="focus" />
+          {selected ? (
+            <StockChart symbol={selected} layout="focus" />
+          ) : (
+            <div className="flex-1 min-h-0 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 px-6 text-center">
+              <Search size={28} className="text-slate-300 dark:text-slate-600 mb-3" />
+              <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">Load a chart</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed mb-4">
+                No symbol is loaded by default. Open the stock list and pick a ticker to view its chart.
+              </p>
+              {!listOpen && (
+                <button
+                  type="button"
+                  onClick={() => setListOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                >
+                  <PanelLeftOpen size={14} />
+                  Open stock list
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

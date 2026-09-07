@@ -19,16 +19,18 @@ const FREE_VS_PAID: { feature: string; free: string; paid: string }[] = [
   { feature: 'Holdings (stocks)', free: 'First 3 tickers ever (open or sold)', paid: 'Unlimited · full history' },
   { feature: 'Mutual funds', free: 'First 3 funds ever', paid: 'Unlimited · full history' },
   { feature: 'Portfolios / brokers', free: '1 portfolio (1 broker)', paid: 'Unlimited' },
-  { feature: 'Charts', free: '5 symbol views / day', paid: 'Unlimited' },
+  { feature: 'Stock profiles', free: '7 lifetime · positions only on first-3', paid: 'Unlimited · full positions' },
+  { feature: 'Sector pages', free: 'Unlimited', paid: 'Unlimited' },
+  { feature: 'Charts', free: '5 symbol views / day · pick to load', paid: 'Unlimited · pick to load' },
   { feature: 'Market Signals', free: '1 run / day · top 5 shown', paid: 'Unlimited · full list' },
   { feature: 'Daily Scan', free: '1 run / day · top 5 shown', paid: 'Unlimited · full list' },
   { feature: 'Strategy Backtest', free: 'Results teaser · pay to unlock detail', paid: 'Full results' },
-  { feature: 'Price Alerts', free: '3 tickers · 2 TP + 2 SL each', paid: 'Unlimited tickers' },
+  { feature: 'Price Alerts', free: '3 tickers · 2 TP + 2 SL each', paid: '15 tickers · 4 TP + 4 SL each' },
   { feature: 'PSX Assistant (AI)', free: '10 messages / day', paid: 'Unlimited' },
   { feature: 'Trading Simulator', free: 'Unlimited', paid: 'Unlimited' },
   { feature: 'Fair Value Calc', free: '4 lookups / day', paid: 'Unlimited' },
   { feature: 'Import (CSV / OCR / Gmail)', free: 'Unlimited runs · first-3 tickers only', paid: 'All tickers' },
-  { feature: 'Export', free: 'Not included', paid: 'Included' },
+  { feature: 'Export', free: '1 / day · first-3 tickers only', paid: 'Unlimited' },
 ];
 
 /* ---------- email/password auth (Supabase) ---------- */
@@ -362,7 +364,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             </Feature>
 
             <Feature Icon={BellRing} title="Price Alerts" tint="bg-orange-50 dark:bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-100 dark:border-orange-500/20">
-              Set above/below targets and get a browser push when the price hits (permission required). Free includes 3 tickers with 2 TP + 2 SL each.
+              Set above/below targets and get a browser push when the price hits (permission required). Free: 3 tickers · 2 TP + 2 SL. Paid: 15 tickers · 4 TP + 4 SL.
             </Feature>
 
             <Feature Icon={Coins} title="Dividends &amp; X-Dates" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
