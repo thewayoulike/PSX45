@@ -85,11 +85,14 @@ export default async function handler(req, res) {
       pending: !approved,
       new: brandNew,
       active: access.active,
-      accessStatus: access.status,
+      status: access.status,
+      accessStatus: access.status, // alias for older clients
+      plan: access.plan || access.status,
       lifetime: access.lifetime,
       accessUntil: access.accessUntil,
       trialEnds: access.trialEnds,
       daysLeft: access.daysLeft,
+      quotas: access.quotas || null,
     });
   } catch (e) {
     console.error('check-access error', e);

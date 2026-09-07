@@ -66,7 +66,9 @@ import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVEN
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { Paywall } from './Paywall';
+import { UpgradeModal } from './UpgradeModal';
 import { calculateXIRR } from '../utils/finance';
+import { firstEntitledTickers, isTickerEntitled } from '../utils/freemiumEntitlements';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const WIPE_FLAG = 'psx_wipe_local_data';
@@ -177,6 +179,7 @@ const App: React.FC = () => {
   const [sbChecking, setSbChecking] = useState(true);
   const [sbStatus, setSbStatus] = useState<AccessStatus | null>(null);      // access status of the signed-in user
   const [pendingStatus, setPendingStatus] = useState<AccessStatus | null>(null); // access status of a blocked Google user
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
   const [stocksFocusTicker, setStocksFocusTicker] = useState<string | null>(() => absorbStockDeepLink());
   const [stocksFocusNonce, setStocksFocusNonce] = useState(0);
@@ -752,6 +755,31 @@ const App: React.FC = () => {
   const handleAddTransaction = (txData: Omit<Transaction, 'id' | 'portfolioId'>) => {
       const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
       if (!currentPortfolio) return;
+
+      const plan = sbStatus?.plan || sbStatus?.status;
+      const isFreePlan = plan === 'free';
+      if (isFreePlan && txData.ticker?.trim()) {
+          const scopeTx = transactions.filter(t => t.portfolioId === currentPortfolioId);
+          const stockAllowed = firstEntitledTickers(
+              scopeTx.filter(t => t.ticker && !isFundTicker(t.ticker)),
+              3,
+          );
+          const fundAllowed = firstEntitledTickers(
+              scopeTx.filter(t => t.ticker && isFundTicker(t.ticker)),
+              3,
+          );
+          const sym = txData.ticker.trim();
+          if (isFundTicker(sym)) {
+              if (!isTickerEntitled(sym, fundAllowed) && fundAllowed.length >= 3) {
+                  setShowUpgrade(true);
+                  return;
+              }
+          } else if (!isTickerEntitled(sym, stockAllowed) && stockAllowed.length >= 3) {
+              setShowUpgrade(true);
+              return;
+          }
+      }
+
       const isFund = getPortfolioType(currentPortfolio) === 'MUTUAL_FUND';
       const brokerToUse = brokers.find(b => b.id === currentPortfolio.defaultBrokerId);
       const newId = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : Date.now().toString();
@@ -1351,10 +1379,34 @@ const App: React.FC = () => {
       }
   }, [portfolios, currentPortfolioId, currentView]);
 
-  const portfolioTransactions = useMemo(() => {
+  const portfolioTransactionsRaw = useMemo(() => {
       if (isCombinedView) return transactions.filter(t => combinedPortfolioIds.has(t.portfolioId));
       return transactions.filter(t => t.portfolioId === currentPortfolioId);
   }, [transactions, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
+
+  const isFreePlan = (sbStatus?.plan || sbStatus?.status) === 'free';
+
+  const entitledTickers = useMemo(() => {
+      if (!isFreePlan) return null;
+      const stocks = firstEntitledTickers(
+          portfolioTransactionsRaw.filter(t => t.ticker && !isFundTicker(t.ticker)),
+          3,
+      );
+      const funds = firstEntitledTickers(
+          portfolioTransactionsRaw.filter(t => t.ticker && isFundTicker(t.ticker)),
+          3,
+      );
+      return new Set([...stocks, ...funds]);
+  }, [isFreePlan, portfolioTransactionsRaw]);
+
+  const portfolioTransactions = useMemo(() => {
+      if (!entitledTickers) return portfolioTransactionsRaw;
+      return portfolioTransactionsRaw.filter(t => {
+          const sym = (t.ticker || '').trim().toUpperCase();
+          if (!sym) return true;
+          return entitledTickers.has(sym);
+      });
+  }, [portfolioTransactionsRaw, entitledTickers]);
 
   const stats: PortfolioStats = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0; let totalReinvest = 0;
@@ -2028,11 +2080,33 @@ const App: React.FC = () => {
       const pendingEmail = accessPendingEmail || (sbUser && !sbApproved ? sbUser.email : null);
       const blockStatus = accessPendingEmail ? pendingStatus : sbStatus;
       if (pendingEmail && !driveUser && !guestModeRef.current) {
-          // Approved once but trial/subscription lapsed → payment screen.
-          if (blockStatus?.status === 'expired') {
-              return <Paywall email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
+          // Legacy "expired" or Free: let them into the app (active). Only pending stays blocked.
+          const st = blockStatus?.status === 'expired' ? 'free' : blockStatus?.status;
+          if (st === 'pending' || (!blockStatus?.active && st !== 'free')) {
+              // Still waiting on owner approval
+              if (st !== 'free' && st !== 'trial' && st !== 'paid' && st !== 'lifetime') {
+                  return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
+              }
           }
-          return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
+          if (!blockStatus?.active && st !== 'free') {
+              return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
+          }
+          // free / trial / paid / lifetime → fall through to Login only if still showLogin;
+          // active free users should already have showLogin cleared. If we landed here with
+          // free+active, clear login gate.
+          if (blockStatus?.active || st === 'free') {
+              // Should not hard-lock; continue to LoginPage only when showLogin and no access.
+              // If status is free/trial/paid/lifetime with active, force into app.
+              if (st === 'free' || st === 'trial' || st === 'paid' || st === 'lifetime' || blockStatus?.active) {
+                  // Fall through: don't return Paywall. User must have showLogin true somehow —
+                  // treat Free like approved and drop the gate.
+                  // (setState during render is avoided; rely on active flag from API.)
+              }
+          }
+          // Pending only
+          if (st === 'pending' || !blockStatus?.approved) {
+              return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
+          }
       }
       return <LoginPage onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
   }

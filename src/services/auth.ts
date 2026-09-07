@@ -47,21 +47,23 @@ export const checkApproval = async (email: string, name?: string, notify = false
   return st.active;
 };
 
-export type AccessState = 'pending' | 'trial' | 'paid' | 'lifetime' | 'expired';
+export type AccessState = 'pending' | 'trial' | 'free' | 'paid' | 'lifetime';
 
 export interface AccessStatus {
   approved: boolean;       // owner has let them in (trial or beyond)
-  active: boolean;         // currently has access to the app
+  active: boolean;         // currently has access to the app (includes Free)
   status: AccessState;
+  plan: AccessState;
   lifetime: boolean;
   accessUntil?: string | null;
   trialEnds?: string | null;
   daysLeft?: number | null;
+  quotas?: Record<string, number> | null;
   isNew?: boolean;
 }
 
 /**
- * Full access picture for an email (trial / paid / lifetime / expired). If
+ * Full access picture for an email (trial / free / paid / lifetime). If
  * `notify` is true and the email is new, it's added as pending and the owner
  * is emailed an approve link (unchanged behaviour).
  */
@@ -84,18 +86,26 @@ export const getAccessStatus = async (email: string, name?: string, notify = fal
       body: JSON.stringify({ email, name: name || '', notify, resend }),
     });
     const d = await res.json().catch(() => ({}));
+    // Legacy API returned "expired"; treat as free.
+    const raw = (d.status || d.accessStatus || (d.approved ? 'trial' : 'pending')) as string;
+    const status = (raw === 'expired' ? 'free' : raw) as AccessState;
     return {
       approved: !!d.approved,
-      active: !!d.active,
-      status: (d.accessStatus as AccessState) || (d.approved ? 'trial' : 'pending'),
+      active: d.active != null ? !!d.active : (status !== 'pending'),
+      status,
+      plan: ((d.plan === 'expired' ? 'free' : d.plan) || status) as AccessState,
       lifetime: !!d.lifetime,
       accessUntil: d.accessUntil ?? null,
       trialEnds: d.trialEnds ?? null,
       daysLeft: d.daysLeft ?? null,
+      quotas: d.quotas ?? null,
       isNew: !!d.new,
     };
   } catch {
-    return { approved: false, active: false, status: 'pending', lifetime: false, accessUntil: null, trialEnds: null, daysLeft: null };
+    return {
+      approved: false, active: false, status: 'pending', plan: 'pending',
+      lifetime: false, accessUntil: null, trialEnds: null, daysLeft: null, quotas: null,
+    };
   }
 };
 
