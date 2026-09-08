@@ -952,10 +952,10 @@ export const AwaisSvgOverlays: React.FC<{
             .map((pv) => {
               const showInlineLabel =
                 isNewest && !hidePivotLabels && (layers.showPivotLabels || layers.showPivotPrices);
-              const labelParts: string[] = [];
-              if (layers.showPivotLabels) labelParts.push(pv.label);
-              if (layers.showPivotPrices) labelParts.push(pv.value.toFixed(2));
-              const labelText = labelParts.join(' ');
+              // Pine: `"R1 (338.11)"` / `" P (325.59)"`
+              const name = layers.showPivotLabels ? `${pv.label} ` : '';
+              const price = layers.showPivotPrices ? `(${pv.value.toFixed(2)})` : '';
+              const labelText = `${name}${price}`.trim();
               return (
                 <g key={`pv-${pi}-${pv.label}`}>
                   <line
@@ -963,10 +963,9 @@ export const AwaisSvgOverlays: React.FC<{
                     x2={range.x2}
                     y1={yScale(pv.value)}
                     y2={yScale(pv.value)}
-                    stroke="#EA580C"
+                    stroke="#FB8C00"
                     strokeWidth={pivotStroke}
-                    strokeDasharray="6 4"
-                    strokeOpacity={isNewest ? 0.9 : 0.55}
+                    strokeOpacity={isNewest ? 0.95 : 0.5}
                   />
                   {showInlineLabel && labelText && (
                     <text
