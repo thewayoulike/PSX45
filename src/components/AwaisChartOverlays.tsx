@@ -32,6 +32,7 @@ import {
   setAwaisGroupEnabled,
 } from '../utils/awaisIndicators';
 import type { PivotType } from '../utils/pivotPointLevels';
+import { pivotLineXRange } from '../utils/pivotLineXRange';
 
 function BulkToggleButtons({
   onSelectAll,
@@ -842,23 +843,6 @@ export const AwaisSvgOverlays: React.FC<{
         ? [{ startTime: -Infinity, endTime: Infinity, levels: data.pivots }]
         : [];
 
-  const xRangeForPeriod = (startTime: number, endTime: number): { x1: number; x2: number } | null => {
-    if (!barTimes || barTimes.length === 0 || !Number.isFinite(startTime)) {
-      return { x1: plotOffset, x2: width - padRight };
-    }
-    let i0 = -1;
-    let i1 = -1;
-    for (let i = 0; i < Math.min(barTimes.length, barCount); i++) {
-      const t = barTimes[i];
-      if (t >= startTime && t <= endTime) {
-        if (i0 < 0) i0 = i;
-        i1 = i;
-      }
-    }
-    if (i0 < 0 || i1 < 0) return null;
-    return { x1: xAt(i0), x2: xAt(i1) };
-  };
-
   return (
     <>
       {showIchi && layers.ichimoku.cloud && (
@@ -951,9 +935,18 @@ export const AwaisSvgOverlays: React.FC<{
 
       {showPivot &&
         periodSets.map((period, pi) => {
-          const range = xRangeForPeriod(period.startTime, period.endTime);
-          if (!range || range.x2 <= range.x1) return null;
           const isNewest = pi === periodSets.length - 1;
+          const range = pivotLineXRange({
+            startTime: period.startTime,
+            endTime: period.endTime,
+            barTimes,
+            barCount,
+            xAt,
+            plotLeft: plotOffset,
+            plotRight: width - padRight,
+            isNewest,
+          });
+          if (!range || range.x2 <= range.x1) return null;
           return period.levels
             .filter((pv) => layers.pivot[pv.label as PivotLabel])
             .map((pv) => {
