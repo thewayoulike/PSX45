@@ -1,19 +1,37 @@
+import { PK_TIMEZONE } from './dates';
+
 export type CandleInterval = '1m' | '5m' | '15m' | '1h' | 'day' | 'week' | 'month';
 
-/** TradingView-style sparse date labels — always include year for day/week. */
+const PK_DATE: Intl.DateTimeFormatOptions = { timeZone: PK_TIMEZONE };
+const PK_DAY: Intl.DateTimeFormatOptions = {
+  ...PK_DATE,
+  month: 'short',
+  day: 'numeric',
+  year: 'numeric',
+};
+const PK_MONTH: Intl.DateTimeFormatOptions = {
+  ...PK_DATE,
+  month: 'short',
+  year: 'numeric',
+};
+const PK_INTRA: Intl.DateTimeFormatOptions = {
+  ...PK_DATE,
+  month: 'short',
+  day: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+};
+
+/** TradingView-style sparse date labels — PSX calendar day (Asia/Karachi), not browser TZ. */
 export function fmtChartAxisDate(ms: number, interval: CandleInterval): string {
   if (interval === '1m' || interval === '5m' || interval === '15m' || interval === '1h') {
-    return new Date(ms).toLocaleString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return new Date(ms).toLocaleString('en-US', PK_INTRA);
   }
   if (interval === 'month') {
-    return new Date(ms).toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+    return new Date(ms).toLocaleDateString('en-US', PK_MONTH);
   }
-  return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+  return new Date(ms).toLocaleDateString('en-US', PK_DAY);
 }
 
 /**
