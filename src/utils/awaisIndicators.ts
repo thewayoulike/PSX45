@@ -360,7 +360,7 @@ export function normalizeAwaisLayers(partial: Partial<AwaisLayers> | Record<stri
   const pivotLabelPosition: PivotLabelPosition =
     raw.pivotLabelPosition === 'Left' || raw.pivotLabelPosition === 'Right'
       ? raw.pivotLabelPosition
-      : 'Right';
+      : 'Left';
   const pivotLineWidth =
     typeof raw.pivotLineWidth === 'number' && raw.pivotLineWidth >= 1
       ? Math.round(raw.pivotLineWidth)
