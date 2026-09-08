@@ -1,10 +1,11 @@
 import type { OhlcBar } from '../services/psxData';
+import { pivotLevelsAsArray, type PivotType } from './pivotPointLevels';
 
-export const MA_SLOTS = ['ma1', 'ma2', 'ma3', 'ma4', 'ma5'] as const;
+export const MA_SLOTS = ['ma1', 'ma2', 'ma3', 'ma4', 'ma5', 'ma6'] as const;
 export type MaSlot = (typeof MA_SLOTS)[number];
 
 /** @deprecated use MaSlot */
-export const MA_PERIODS = [5, 10, 50, 100, 200] as const;
+export const MA_PERIODS = [5, 10, 20, 50, 100, 200] as const;
 /** @deprecated use MaSlot */
 export type MaPeriod = (typeof MA_PERIODS)[number];
 
@@ -31,9 +32,10 @@ export interface AwaisGroupToggles {
 export const DEFAULT_MA_LINES: MaLineMap = {
   ma1: { enabled: true, period: 5, type: 'SMA', color: '#97F592' },
   ma2: { enabled: true, period: 10, type: 'SMA', color: '#15A24B' },
-  ma3: { enabled: true, period: 50, type: 'SMA', color: '#f22828' },
-  ma4: { enabled: true, period: 100, type: 'SMA', color: '#e6b00c' },
-  ma5: { enabled: true, period: 200, type: 'SMA', color: '#7b49e7' },
+  ma3: { enabled: false, period: 20, type: 'SMA', color: '#100c09' },
+  ma4: { enabled: true, period: 50, type: 'SMA', color: '#f22828' },
+  ma5: { enabled: true, period: 100, type: 'SMA', color: '#e6b00c' },
+  ma6: { enabled: true, period: 200, type: 'SMA', color: '#7b49e7' },
 };
 
 export const DEFAULT_GROUPS: AwaisGroupToggles = {
@@ -41,14 +43,58 @@ export const DEFAULT_GROUPS: AwaisGroupToggles = {
   bb: true,
   supertrend: true,
   pivot: true,
-  ichimoku: false,
+  ichimoku: true,
 };
 
 export type BbKey = 'fill' | 'upper' | 'middle' | 'lower';
 export type BbSelection = Record<BbKey, boolean>;
 
+export type BbSource = 'close' | 'open' | 'high' | 'low' | 'hl2' | 'hlc3' | 'ohlc4';
+export const BB_SOURCES: readonly BbSource[] = ['close', 'open', 'high', 'low', 'hl2', 'hlc3', 'ohlc4'];
+
+export interface BbConfig {
+  length: number;
+  mult: number;
+  offset: number;
+  source: BbSource;
+}
+
+export const DEFAULT_BB_CONFIG: BbConfig = {
+  length: 20,
+  mult: 2,
+  offset: 0,
+  source: 'close',
+};
+
 export type SupertrendKey = 'up' | 'down';
 export type SupertrendSelection = Record<SupertrendKey, boolean>;
+
+export interface SupertrendConfig {
+  atrPeriod: number;
+  multiplier: number;
+  /** true = Wilder RMA ATR (Pine default); false = SMA of true range */
+  changeAtrMethod: boolean;
+}
+
+export const DEFAULT_SUPERTREND_CONFIG: SupertrendConfig = {
+  atrPeriod: 10,
+  multiplier: 3,
+  changeAtrMethod: true,
+};
+
+export interface IchimokuConfig {
+  conversion: number;
+  base: number;
+  spanB: number;
+  displacement: number;
+}
+
+export const DEFAULT_ICHIMOKU_CONFIG: IchimokuConfig = {
+  conversion: 9,
+  base: 26,
+  spanB: 52,
+  displacement: 26,
+};
 
 export const PIVOT_LABELS = [
   'P',
@@ -58,22 +104,62 @@ export const PIVOT_LABELS = [
 export type PivotLabel = (typeof PIVOT_LABELS)[number];
 export type PivotSelection = Record<PivotLabel, boolean>;
 
+export type PivotLabelPosition = 'Left' | 'Right';
+
+export const PIVOT_TYPES: PivotType[] = [
+  'Traditional',
+  'Fibonacci',
+  'Woodie',
+  'Classic',
+  'DM',
+  'Camarilla',
+];
+
 /** Pivot anchor period. "Auto" follows the Pine script: daily -> Monthly, weekly/monthly -> Yearly. */
-export const PIVOT_ANCHORS = ['Auto', 'Daily', 'Weekly', 'Monthly', 'Quarterly', 'Yearly'] as const;
+export const PIVOT_ANCHORS = [
+  'Auto',
+  'Daily',
+  'Weekly',
+  'Monthly',
+  'Quarterly',
+  'Yearly',
+  'Biyearly',
+  'Triyearly',
+  'Quinquennially',
+  'Decennially',
+] as const;
 export type PivotAnchor = (typeof PIVOT_ANCHORS)[number];
 export type ChartTimeframe = 'day' | 'week' | 'month';
 
-export type IchimokuKey = 'cloud' | 'conversion' | 'base' | 'spanA' | 'spanB';
+/** Year multipliers for multi-year pivot anchors. */
+export const PIVOT_YEAR_MULTIPLIERS: Partial<Record<PivotAnchor, number>> = {
+  Biyearly: 2,
+  Triyearly: 3,
+  Quinquennially: 5,
+  Decennially: 10,
+};
+
+export type IchimokuKey = 'cloud' | 'conversion' | 'base' | 'spanA' | 'spanB' | 'lagging';
 export type IchimokuSelection = Record<IchimokuKey, boolean>;
 
 export interface AwaisLayers {
   groups: AwaisGroupToggles;
   maLines: MaLineMap;
   bb: BbSelection;
+  bbConfig: BbConfig;
   supertrend: SupertrendSelection;
+  supertrendConfig: SupertrendConfig;
   pivot: PivotSelection;
   pivotAnchor: PivotAnchor;
+  pivotType: PivotType;
+  maxHistoricalPivots: number;
+  showPivotLabels: boolean;
+  showPivotPrices: boolean;
+  pivotLabelPosition: PivotLabelPosition;
+  pivotLineWidth: number;
+  useDailyBasedValues: boolean;
   ichimoku: IchimokuSelection;
+  ichimokuConfig: IchimokuConfig;
 }
 
 export const DEFAULT_BB_SELECTION: BbSelection = {
@@ -108,6 +194,7 @@ export const DEFAULT_ICHI_SELECTION: IchimokuSelection = {
   base: true,
   spanA: true,
   spanB: true,
+  lagging: true,
 };
 
 export const DEFAULT_AWAIS_LAYERS: AwaisLayers = {
@@ -118,12 +205,23 @@ export const DEFAULT_AWAIS_LAYERS: AwaisLayers = {
     ma3: { ...DEFAULT_MA_LINES.ma3 },
     ma4: { ...DEFAULT_MA_LINES.ma4 },
     ma5: { ...DEFAULT_MA_LINES.ma5 },
+    ma6: { ...DEFAULT_MA_LINES.ma6 },
   },
   bb: { ...DEFAULT_BB_SELECTION },
+  bbConfig: { ...DEFAULT_BB_CONFIG },
   supertrend: { ...DEFAULT_SUPERTREND_SELECTION },
+  supertrendConfig: { ...DEFAULT_SUPERTREND_CONFIG },
   pivot: { ...DEFAULT_PIVOT_SELECTION },
   pivotAnchor: 'Auto',
+  pivotType: 'Traditional',
+  maxHistoricalPivots: 1,
+  showPivotLabels: true,
+  showPivotPrices: true,
+  pivotLabelPosition: 'Right',
+  pivotLineWidth: 1,
+  useDailyBasedValues: true,
   ichimoku: { ...DEFAULT_ICHI_SELECTION },
+  ichimokuConfig: { ...DEFAULT_ICHIMOKU_CONFIG },
 };
 
 export const AWAIS_BB_OPTIONS: { key: BbKey; label: string; color: string }[] = [
@@ -158,21 +256,164 @@ export const AWAIS_ICHI_OPTIONS: { key: IchimokuKey; label: string; color: strin
   { key: 'base', label: 'Base Line', color: '#B71C1C' },
   { key: 'spanA', label: 'Senkou Span A', color: '#A5D6A7' },
   { key: 'spanB', label: 'Senkou Span B', color: '#EF9A9A' },
+  { key: 'lagging', label: 'Lagging Span', color: '#43A047' },
 ];
 
 export function maSlotLabel(slot: MaSlot): string {
   return `MA ${MA_SLOTS.indexOf(slot) + 1}`;
 }
 
-export function cloneAwaisLayers(layers: AwaisLayers): AwaisLayers {
-  const c = JSON.parse(JSON.stringify(layers)) as AwaisLayers;
-  c.pivot = c.pivot ?? { ...DEFAULT_PIVOT_SELECTION };
-  // Settings saved before R4/R5/S4/S5 existed default them on, matching the Pine script.
-  for (const label of PIVOT_LABELS) {
-    if (c.pivot[label] == null) c.pivot[label] = true;
+function mergeMaLine(partial: Partial<MaLineConfig> | undefined, fallback: MaLineConfig): MaLineConfig {
+  return {
+    enabled: typeof partial?.enabled === 'boolean' ? partial.enabled : fallback.enabled,
+    period: typeof partial?.period === 'number' && Number.isFinite(partial.period) ? partial.period : fallback.period,
+    type: partial?.type && MA_TYPES.includes(partial.type) ? partial.type : fallback.type,
+    color: typeof partial?.color === 'string' && partial.color ? partial.color : fallback.color,
+  };
+}
+
+/** Fill Pine defaults / migrate older saved layers (e.g. ma1–ma5 → add ma6). */
+export function normalizeAwaisLayers(partial: Partial<AwaisLayers> | Record<string, unknown> | null | undefined): AwaisLayers {
+  const raw = (partial && typeof partial === 'object' ? partial : {}) as Partial<AwaisLayers> & {
+    maLines?: Partial<Record<MaSlot, Partial<MaLineConfig>>>;
+  };
+  const srcMa = raw.maLines ?? {};
+
+  const maLines = MA_SLOTS.reduce((acc, slot) => {
+    acc[slot] = mergeMaLine(srcMa[slot], DEFAULT_MA_LINES[slot]);
+    return acc;
+  }, {} as MaLineMap);
+
+  const groupsIn: Partial<AwaisGroupToggles> = raw.groups ?? {};
+  const groups: AwaisGroupToggles = {
+    ema: typeof groupsIn.ema === 'boolean' ? groupsIn.ema : DEFAULT_GROUPS.ema,
+    bb: typeof groupsIn.bb === 'boolean' ? groupsIn.bb : DEFAULT_GROUPS.bb,
+    supertrend: typeof groupsIn.supertrend === 'boolean' ? groupsIn.supertrend : DEFAULT_GROUPS.supertrend,
+    pivot: typeof groupsIn.pivot === 'boolean' ? groupsIn.pivot : DEFAULT_GROUPS.pivot,
+    ichimoku: typeof groupsIn.ichimoku === 'boolean' ? groupsIn.ichimoku : DEFAULT_GROUPS.ichimoku,
+  };
+
+  const bbIn: Partial<BbSelection> = raw.bb ?? {};
+  const bb: BbSelection = {
+    fill: typeof bbIn.fill === 'boolean' ? bbIn.fill : DEFAULT_BB_SELECTION.fill,
+    upper: typeof bbIn.upper === 'boolean' ? bbIn.upper : DEFAULT_BB_SELECTION.upper,
+    middle: typeof bbIn.middle === 'boolean' ? bbIn.middle : DEFAULT_BB_SELECTION.middle,
+    lower: typeof bbIn.lower === 'boolean' ? bbIn.lower : DEFAULT_BB_SELECTION.lower,
+  };
+
+  const bbc: Partial<BbConfig> = raw.bbConfig ?? {};
+  const bbConfig: BbConfig = {
+    length: typeof bbc.length === 'number' && bbc.length > 0 ? Math.round(bbc.length) : DEFAULT_BB_CONFIG.length,
+    mult: typeof bbc.mult === 'number' && Number.isFinite(bbc.mult) ? bbc.mult : DEFAULT_BB_CONFIG.mult,
+    offset: typeof bbc.offset === 'number' && Number.isFinite(bbc.offset) ? Math.round(bbc.offset) : DEFAULT_BB_CONFIG.offset,
+    source:
+      bbc.source && (BB_SOURCES as readonly string[]).includes(bbc.source)
+        ? bbc.source
+        : DEFAULT_BB_CONFIG.source,
+  };
+
+  const stIn: Partial<SupertrendSelection> = raw.supertrend ?? {};
+  const supertrend: SupertrendSelection = {
+    up: typeof stIn.up === 'boolean' ? stIn.up : DEFAULT_SUPERTREND_SELECTION.up,
+    down: typeof stIn.down === 'boolean' ? stIn.down : DEFAULT_SUPERTREND_SELECTION.down,
+  };
+
+  const stc: Partial<SupertrendConfig> = raw.supertrendConfig ?? {};
+  const supertrendConfig: SupertrendConfig = {
+    atrPeriod:
+      typeof stc.atrPeriod === 'number' && stc.atrPeriod > 0
+        ? Math.round(stc.atrPeriod)
+        : DEFAULT_SUPERTREND_CONFIG.atrPeriod,
+    multiplier:
+      typeof stc.multiplier === 'number' && Number.isFinite(stc.multiplier)
+        ? stc.multiplier
+        : DEFAULT_SUPERTREND_CONFIG.multiplier,
+    changeAtrMethod:
+      typeof stc.changeAtrMethod === 'boolean' ? stc.changeAtrMethod : DEFAULT_SUPERTREND_CONFIG.changeAtrMethod,
+  };
+
+  const pivot: PivotSelection = { ...DEFAULT_PIVOT_SELECTION };
+  if (raw.pivot && typeof raw.pivot === 'object') {
+    for (const label of PIVOT_LABELS) {
+      if (typeof raw.pivot[label] === 'boolean') pivot[label] = raw.pivot[label]!;
+    }
   }
-  if (!PIVOT_ANCHORS.includes(c.pivotAnchor)) c.pivotAnchor = 'Auto';
-  return c;
+
+  const pivotAnchor: PivotAnchor =
+    raw.pivotAnchor && (PIVOT_ANCHORS as readonly string[]).includes(raw.pivotAnchor)
+      ? raw.pivotAnchor
+      : 'Auto';
+
+  const pivotType: PivotType =
+    raw.pivotType && (PIVOT_TYPES as readonly string[]).includes(raw.pivotType)
+      ? raw.pivotType
+      : 'Traditional';
+
+  const maxHistoricalPivots =
+    typeof raw.maxHistoricalPivots === 'number' && raw.maxHistoricalPivots >= 1
+      ? Math.round(raw.maxHistoricalPivots)
+      : 1;
+
+  const showPivotLabels = typeof raw.showPivotLabels === 'boolean' ? raw.showPivotLabels : true;
+  const showPivotPrices = typeof raw.showPivotPrices === 'boolean' ? raw.showPivotPrices : true;
+  const pivotLabelPosition: PivotLabelPosition =
+    raw.pivotLabelPosition === 'Left' || raw.pivotLabelPosition === 'Right'
+      ? raw.pivotLabelPosition
+      : 'Right';
+  const pivotLineWidth =
+    typeof raw.pivotLineWidth === 'number' && raw.pivotLineWidth >= 1
+      ? Math.round(raw.pivotLineWidth)
+      : 1;
+  const useDailyBasedValues =
+    typeof raw.useDailyBasedValues === 'boolean' ? raw.useDailyBasedValues : true;
+
+  const ichiIn: Partial<IchimokuSelection> = raw.ichimoku ?? {};
+  const ichimoku: IchimokuSelection = {
+    cloud: typeof ichiIn.cloud === 'boolean' ? ichiIn.cloud : DEFAULT_ICHI_SELECTION.cloud,
+    conversion: typeof ichiIn.conversion === 'boolean' ? ichiIn.conversion : DEFAULT_ICHI_SELECTION.conversion,
+    base: typeof ichiIn.base === 'boolean' ? ichiIn.base : DEFAULT_ICHI_SELECTION.base,
+    spanA: typeof ichiIn.spanA === 'boolean' ? ichiIn.spanA : DEFAULT_ICHI_SELECTION.spanA,
+    spanB: typeof ichiIn.spanB === 'boolean' ? ichiIn.spanB : DEFAULT_ICHI_SELECTION.spanB,
+    lagging: typeof ichiIn.lagging === 'boolean' ? ichiIn.lagging : DEFAULT_ICHI_SELECTION.lagging,
+  };
+
+  const ic: Partial<IchimokuConfig> = raw.ichimokuConfig ?? {};
+  const ichimokuConfig: IchimokuConfig = {
+    conversion:
+      typeof ic.conversion === 'number' && ic.conversion > 0
+        ? Math.round(ic.conversion)
+        : DEFAULT_ICHIMOKU_CONFIG.conversion,
+    base: typeof ic.base === 'number' && ic.base > 0 ? Math.round(ic.base) : DEFAULT_ICHIMOKU_CONFIG.base,
+    spanB: typeof ic.spanB === 'number' && ic.spanB > 0 ? Math.round(ic.spanB) : DEFAULT_ICHIMOKU_CONFIG.spanB,
+    displacement:
+      typeof ic.displacement === 'number' && ic.displacement > 0
+        ? Math.round(ic.displacement)
+        : DEFAULT_ICHIMOKU_CONFIG.displacement,
+  };
+
+  return {
+    groups,
+    maLines,
+    bb,
+    bbConfig,
+    supertrend,
+    supertrendConfig,
+    pivot,
+    pivotAnchor,
+    pivotType,
+    maxHistoricalPivots,
+    showPivotLabels,
+    showPivotPrices,
+    pivotLabelPosition,
+    pivotLineWidth,
+    useDailyBasedValues,
+    ichimoku,
+    ichimokuConfig,
+  };
+}
+
+export function cloneAwaisLayers(layers: AwaisLayers): AwaisLayers {
+  return normalizeAwaisLayers(JSON.parse(JSON.stringify(layers)) as Partial<AwaisLayers>);
 }
 
 export function hasAnyMaLine(layers: AwaisLayers): boolean {
@@ -204,7 +445,12 @@ export function hasAnyIchimoku(layers: AwaisLayers): boolean {
 }
 
 export function countAwaisActiveLayers(layers: AwaisLayers): { active: number; total: number } {
-  const total = 5 + AWAIS_BB_OPTIONS.length + AWAIS_SUPERTREND_OPTIONS.length + AWAIS_PIVOT_OPTIONS.length + AWAIS_ICHI_OPTIONS.length;
+  const total =
+    MA_SLOTS.length +
+    AWAIS_BB_OPTIONS.length +
+    AWAIS_SUPERTREND_OPTIONS.length +
+    AWAIS_PIVOT_OPTIONS.length +
+    AWAIS_ICHI_OPTIONS.length;
   let active = layers.groups.ema ? MA_SLOTS.filter((s) => layers.maLines[s].enabled).length : 0;
   if (layers.groups.bb) active += AWAIS_BB_OPTIONS.filter((o) => layers.bb[o.key]).length;
   if (layers.groups.supertrend) active += AWAIS_SUPERTREND_OPTIONS.filter((o) => layers.supertrend[o.key]).length;
@@ -232,7 +478,8 @@ export function setAwaisGroupEnabled(layers: AwaisLayers, group: AwaisLayerGroup
         ...layers,
         groups: { ...layers.groups, ema: enabled },
         maLines: MA_SLOTS.reduce((acc, slot) => {
-          acc[slot] = { ...layers.maLines[slot], enabled };
+          const prev = layers.maLines[slot] ?? DEFAULT_MA_LINES[slot];
+          acc[slot] = { ...prev, enabled };
           return acc;
         }, {} as MaLineMap),
       };
@@ -262,9 +509,11 @@ export function setAwaisGroupEnabled(layers: AwaisLayers, group: AwaisLayerGroup
       };
     case 'all':
       return {
+        ...layers,
         groups: { ema: enabled, bb: enabled, supertrend: enabled, pivot: enabled, ichimoku: enabled },
         maLines: MA_SLOTS.reduce((acc, slot) => {
-          acc[slot] = { ...layers.maLines[slot], enabled };
+          const prev = layers.maLines[slot] ?? DEFAULT_MA_LINES[slot];
+          acc[slot] = { ...prev, enabled };
           return acc;
         }, {} as MaLineMap),
         bb: fillRecord(AWAIS_BB_OPTIONS.map((o) => o.key), enabled),
@@ -287,18 +536,39 @@ export interface PivotLevel {
   value: number;
 }
 
+/** One completed/active pivot drawing window (TradingView: line spans that period). */
+export interface PivotPeriodSet {
+  /** Inclusive start of the period where these levels are drawn. */
+  startTime: number;
+  /** Inclusive end of the drawing period. */
+  endTime: number;
+  levels: PivotLevel[];
+}
+
+export interface SupertrendMarker {
+  index: number;
+  kind: 'buy' | 'sell';
+  price: number;
+}
+
 export interface AwaisOverlayData {
   maLines: MaLineSeries[];
   bb: { upper: (number | null)[]; middle: (number | null)[]; lower: (number | null)[] };
   supertrend: { up: (number | null)[]; down: (number | null)[] };
+  supertrendMarkers: SupertrendMarker[];
   ichimoku: {
     conversion: (number | null)[];
     base: (number | null)[];
     spanA: (number | null)[];
     spanB: (number | null)[];
+    /** Close series; plotting offset (displacement) is applied by the renderer. */
+    laggingSpan: (number | null)[];
     displacement: number;
   };
+  /** Newest period's levels (same as last entry of pivotsByPeriod). */
   pivots: PivotLevel[];
+  /** Up to maxHistoricalPivots period sets, oldest → newest. */
+  pivotsByPeriod: PivotPeriodSet[];
 }
 
 function smaSeries(values: number[], period: number): (number | null)[] {
@@ -401,7 +671,7 @@ function stdevAt(values: number[], i: number, period: number, mean: number): num
   return Math.sqrt(s / period);
 }
 
-export function atrSeries(bars: OhlcBar[], period: number): number[] {
+export function atrSeries(bars: OhlcBar[], period: number, useRma = true): number[] {
   const tr: number[] = [];
   for (let i = 0; i < bars.length; i++) {
     if (i === 0) tr.push(bars[i].high - bars[i].low);
@@ -415,7 +685,8 @@ export function atrSeries(bars: OhlcBar[], period: number): number[] {
       );
     }
   }
-  return rmaSeries(tr, period).map((v) => v ?? 0);
+  const smoothed = useRma ? rmaSeries(tr, period) : smaSeries(tr, period);
+  return smoothed.map((v) => v ?? 0);
 }
 
 function donchianMid(bars: OhlcBar[], i: number, len: number): number | null {
@@ -429,25 +700,6 @@ function donchianMid(bars: OhlcBar[], i: number, len: number): number | null {
   return (lo + hi) / 2;
 }
 
-/** TradingView "Traditional" pivots: P plus R1–R5 / S1–S5. */
-function traditionalPivots(h: number, l: number, c: number): PivotLevel[] {
-  const p = (h + l + c) / 3;
-  const r = h - l;
-  return [
-    { label: 'P', value: p },
-    { label: 'R1', value: 2 * p - l },
-    { label: 'S1', value: 2 * p - h },
-    { label: 'R2', value: p + r },
-    { label: 'S2', value: p - r },
-    { label: 'R3', value: 2 * p + (h - 2 * l) },
-    { label: 'S3', value: 2 * p - (2 * h - l) },
-    { label: 'R4', value: 3 * p + (h - 3 * l) },
-    { label: 'S4', value: 3 * p - (3 * h - l) },
-    { label: 'R5', value: 4 * p + (h - 4 * l) },
-    { label: 'S5', value: 4 * p - (4 * h - l) },
-  ];
-}
-
 /** Pine `autoAnchor`: daily chart anchors to Monthly, weekly/monthly charts to Yearly. */
 export function resolvePivotAnchor(
   anchor: PivotAnchor,
@@ -457,10 +709,18 @@ export function resolvePivotAnchor(
   return timeframe === 'day' ? 'Monthly' : 'Yearly';
 }
 
+function yearBucket(year: number, mult: number): string {
+  const start = Math.floor(year / mult) * mult;
+  return `Y${start}-${start + mult - 1}`;
+}
+
 function periodKey(time: number, anchor: Exclude<PivotAnchor, 'Auto'>): string {
   const d = new Date(time);
   const y = d.getUTCFullYear();
   const m = d.getUTCMonth();
+  const yearMult = PIVOT_YEAR_MULTIPLIERS[anchor];
+  if (yearMult) return yearBucket(y, yearMult);
+
   switch (anchor) {
     case 'Daily':
       return `${y}-${m}-${d.getUTCDate()}`;
@@ -475,39 +735,162 @@ function periodKey(time: number, anchor: Exclude<PivotAnchor, 'Auto'>): string {
       return `${y}-Q${Math.floor(m / 3)}`;
     case 'Yearly':
       return `${y}`;
+    default:
+      return `${y}`;
   }
 }
 
 /**
- * High/low/close of the last *completed* anchor period, which is what pivot
+ * High/low/close(/open) of the last *completed* anchor period, which is what pivot
  * levels are drawn from. Falls back to the previous bar when history is too
  * short to contain a finished period.
  */
 function pivotSourceOhlc(
   bars: OhlcBar[],
   anchor: Exclude<PivotAnchor, 'Auto'>
-): { high: number; low: number; close: number } | null {
-  const n = bars.length;
-  if (!n) return null;
+): { high: number; low: number; close: number; open: number } | null {
+  const periods = collectPivotPeriods(bars, anchor);
+  if (periods.length >= 2) {
+    // Last completed period is second-to-last when the final bucket is current/incomplete.
+    // collectPivotPeriods returns all buckets including the current open period.
+    const src = periods[periods.length - 2];
+    return { high: src.high, low: src.low, close: src.close, open: src.open };
+  }
+  if (periods.length === 1 && bars.length >= 2) {
+    const prev = bars[bars.length - 2];
+    return { high: prev.high, low: prev.low, close: prev.close, open: prev.open };
+  }
+  if (!bars.length) return null;
+  const prev = bars[bars.length - 2] ?? bars[bars.length - 1];
+  return { high: prev.high, low: prev.low, close: prev.close, open: prev.open };
+}
 
-  const currentKey = periodKey(bars[n - 1].time, anchor);
-  let i = n - 1;
-  while (i >= 0 && periodKey(bars[i].time, anchor) === currentKey) i--;
+interface RawPivotPeriod {
+  key: string;
+  startTime: number;
+  endTime: number;
+  high: number;
+  low: number;
+  open: number;
+  close: number;
+}
 
-  if (i < 0) {
-    const prev = bars[n - 2] ?? bars[n - 1];
-    return { high: prev.high, low: prev.low, close: prev.close };
+/** Chronological period buckets (oldest → newest), including the current incomplete period. */
+function collectPivotPeriods(
+  bars: OhlcBar[],
+  anchor: Exclude<PivotAnchor, 'Auto'>
+): RawPivotPeriod[] {
+  if (!bars.length) return [];
+  const out: RawPivotPeriod[] = [];
+  let key = periodKey(bars[0].time, anchor);
+  let startTime = bars[0].time;
+  let endTime = bars[0].time;
+  let high = bars[0].high;
+  let low = bars[0].low;
+  let open = bars[0].open;
+  let close = bars[0].close;
+
+  const flush = () => {
+    out.push({ key, startTime, endTime, high, low, open, close });
+  };
+
+  for (let i = 1; i < bars.length; i++) {
+    const b = bars[i];
+    const k = periodKey(b.time, anchor);
+    if (k !== key) {
+      flush();
+      key = k;
+      startTime = b.time;
+      endTime = b.time;
+      high = b.high;
+      low = b.low;
+      open = b.open;
+      close = b.close;
+    } else {
+      endTime = b.time;
+      high = Math.max(high, b.high);
+      low = Math.min(low, b.low);
+      close = b.close;
+    }
+  }
+  flush();
+  return out;
+}
+
+/**
+ * Build up to `maxCount` pivot period sets.
+ * Levels for drawing period P come from the prior period's HLC (Pine/TV behavior).
+ * Returned oldest → newest; the newest set is the current (possibly incomplete) period.
+ */
+function buildHistoricalPivotPeriods(
+  bars: OhlcBar[],
+  anchor: Exclude<PivotAnchor, 'Auto'>,
+  pivotType: PivotType,
+  maxCount: number
+): PivotPeriodSet[] {
+  const periods = collectPivotPeriods(bars, anchor);
+  if (periods.length < 2 || maxCount < 1) {
+    // Fall back: single set from pivotSourceOhlc spanning full history
+    const src = pivotSourceOhlc(bars, anchor);
+    if (!src || !bars.length) return [];
+    return [
+      {
+        startTime: bars[0].time,
+        endTime: bars[bars.length - 1].time,
+        levels: pivotLevelsAsArray(pivotType, src),
+      },
+    ];
   }
 
-  const prevKey = periodKey(bars[i].time, anchor);
-  const close = bars[i].close;
-  let high = -Infinity;
-  let low = Infinity;
-  for (; i >= 0 && periodKey(bars[i].time, anchor) === prevKey; i--) {
-    high = Math.max(high, bars[i].high);
-    low = Math.min(low, bars[i].low);
+  // Drawing period i uses source period i-1. Newest drawable is the last period.
+  const newestDrawIdx = periods.length - 1;
+  const oldestDrawIdx = Math.max(1, newestDrawIdx - maxCount + 1);
+  const sets: PivotPeriodSet[] = [];
+  for (let i = oldestDrawIdx; i <= newestDrawIdx; i++) {
+    const draw = periods[i];
+    const src = periods[i - 1];
+    sets.push({
+      startTime: draw.startTime,
+      endTime: draw.endTime,
+      levels: pivotLevelsAsArray(pivotType, {
+        high: src.high,
+        low: src.low,
+        close: src.close,
+        open: src.open,
+      }),
+    });
   }
-  return { high, low, close };
+  return sets;
+}
+
+function bbSourceSeries(bars: OhlcBar[], source: BbSource): number[] {
+  switch (source) {
+    case 'open':
+      return bars.map((b) => b.open);
+    case 'high':
+      return bars.map((b) => b.high);
+    case 'low':
+      return bars.map((b) => b.low);
+    case 'hl2':
+      return bars.map((b) => (b.high + b.low) / 2);
+    case 'hlc3':
+      return bars.map((b) => (b.high + b.low + b.close) / 3);
+    case 'ohlc4':
+      return bars.map((b) => (b.open + b.high + b.low + b.close) / 4);
+    default:
+      return bars.map((b) => b.close);
+  }
+}
+
+function applySeriesOffset(values: (number | null)[], offset: number): (number | null)[] {
+  if (!offset) return values;
+  const n = values.length;
+  const out: (number | null)[] = new Array(n).fill(null);
+  for (let i = 0; i < n; i++) {
+    const src = i - offset;
+    if (src >= 0 && src < n) out[i] = values[src];
+  }
+  return out;
 }
 
 export interface AwaisOverlayOptions {
@@ -523,46 +906,53 @@ export function computeAwaisOverlays(
   options: AwaisOverlayOptions = {}
 ): AwaisOverlayData | null {
   if (bars.length < 3) return null;
+  const cfg = normalizeAwaisLayers(layers);
   const closes = bars.map((b) => b.close);
   const volumes = bars.map((b) => b.volume);
   const n = bars.length;
 
   const maLines: MaLineSeries[] = [];
-  if (layers.groups.ema) {
+  if (cfg.groups.ema) {
     for (const slot of MA_SLOTS) {
-      const cfg = layers.maLines[slot];
-      if (!cfg.enabled) continue;
-      const period = Math.min(500, Math.max(1, Math.round(cfg.period)));
+      const line = cfg.maLines[slot];
+      if (!line.enabled) continue;
+      const period = Math.min(500, Math.max(1, Math.round(line.period)));
       maLines.push({
         slot,
         period,
-        color: cfg.color,
-        values: maSeries(closes, period, cfg.type, volumes),
+        color: line.color,
+        values: maSeries(closes, period, line.type, volumes),
       });
     }
   }
 
-  const bbLen = 20;
-  const bbMult = 2;
-  const middle = smaSeries(closes, bbLen);
-  const upper: (number | null)[] = new Array(n).fill(null);
-  const lower: (number | null)[] = new Array(n).fill(null);
+  const bbLen = Math.max(1, Math.round(cfg.bbConfig.length));
+  const bbMult = cfg.bbConfig.mult;
+  const bbSrc = bbSourceSeries(bars, cfg.bbConfig.source);
+  const middleRaw = smaSeries(bbSrc, bbLen);
+  const upperRaw: (number | null)[] = new Array(n).fill(null);
+  const lowerRaw: (number | null)[] = new Array(n).fill(null);
   for (let i = bbLen - 1; i < n; i++) {
-    const m = middle[i];
+    const m = middleRaw[i];
     if (m == null) continue;
-    const sd = stdevAt(closes, i, bbLen, m);
-    upper[i] = m + bbMult * sd;
-    lower[i] = m - bbMult * sd;
+    const sd = stdevAt(bbSrc, i, bbLen, m);
+    upperRaw[i] = m + bbMult * sd;
+    lowerRaw[i] = m - bbMult * sd;
   }
+  const bbOffset = Math.round(cfg.bbConfig.offset) || 0;
+  const middle = applySeriesOffset(middleRaw, bbOffset);
+  const upper = applySeriesOffset(upperRaw, bbOffset);
+  const lower = applySeriesOffset(lowerRaw, bbOffset);
 
-  const stPeriod = 10;
-  const stMult = 3;
-  const atr = atrSeries(bars, stPeriod);
+  const stPeriod = Math.max(1, Math.round(cfg.supertrendConfig.atrPeriod));
+  const stMult = cfg.supertrendConfig.multiplier;
+  const atr = atrSeries(bars, stPeriod, cfg.supertrendConfig.changeAtrMethod);
   const up: (number | null)[] = new Array(n).fill(null);
   const down: (number | null)[] = new Array(n).fill(null);
   const stUp: number[] = new Array(n).fill(0);
   const stDn: number[] = new Array(n).fill(0);
   const trend: number[] = new Array(n).fill(1);
+  const supertrendMarkers: SupertrendMarker[] = [];
 
   for (let i = 0; i < n; i++) {
     const src = (bars[i].high + bars[i].low) / 2;
@@ -578,19 +968,27 @@ export function computeAwaisOverlays(
       if (t === -1 && bars[i].close > stDn[i - 1]) t = 1;
       else if (t === 1 && bars[i].close < stUp[i - 1]) t = -1;
       trend[i] = t;
+      if (trend[i] !== trend[i - 1]) {
+        supertrendMarkers.push({
+          index: i,
+          kind: trend[i] === 1 ? 'buy' : 'sell',
+          price: bars[i].close,
+        });
+      }
     }
     if (trend[i] === 1) up[i] = stUp[i];
     else down[i] = stDn[i];
   }
 
-  const convLen = 9;
-  const baseLen = 26;
-  const spanBLen = 52;
-  const displacement = 26;
+  const convLen = Math.max(1, Math.round(cfg.ichimokuConfig.conversion));
+  const baseLen = Math.max(1, Math.round(cfg.ichimokuConfig.base));
+  const spanBLen = Math.max(1, Math.round(cfg.ichimokuConfig.spanB));
+  const displacement = Math.max(1, Math.round(cfg.ichimokuConfig.displacement));
   const conversion: (number | null)[] = new Array(n).fill(null);
   const base: (number | null)[] = new Array(n).fill(null);
   const spanA: (number | null)[] = new Array(n).fill(null);
   const spanB: (number | null)[] = new Array(n).fill(null);
+  const laggingSpan: (number | null)[] = closes.map((c) => c);
   for (let i = 0; i < n; i++) {
     conversion[i] = donchianMid(bars, i, convLen);
     base[i] = donchianMid(bars, i, baseLen);
@@ -600,17 +998,27 @@ export function computeAwaisOverlays(
   }
 
   const timeframe = options.timeframe ?? 'day';
-  const anchor = resolvePivotAnchor(layers.pivotAnchor ?? 'Auto', timeframe);
+  const anchor = resolvePivotAnchor(cfg.pivotAnchor ?? 'Auto', timeframe);
   const pivotBars = options.pivotBars?.length ? options.pivotBars : bars;
-  const src = pivotSourceOhlc(pivotBars, anchor);
-  const pivots = src ? traditionalPivots(src.high, src.low, src.close) : [];
+  const maxHist = Math.max(1, Math.round(cfg.maxHistoricalPivots ?? 1));
+  const pivotsByPeriod = buildHistoricalPivotPeriods(
+    pivotBars,
+    anchor,
+    cfg.pivotType ?? 'Traditional',
+    maxHist
+  );
+  const pivots = pivotsByPeriod.length
+    ? pivotsByPeriod[pivotsByPeriod.length - 1].levels
+    : [];
 
   return {
     maLines,
     bb: { upper, middle, lower },
     supertrend: { up, down },
-    ichimoku: { conversion, base, spanA, spanB, displacement },
+    supertrendMarkers,
+    ichimoku: { conversion, base, spanA, spanB, laggingSpan, displacement },
     pivots,
+    pivotsByPeriod,
   };
 }
 
@@ -630,4 +1038,22 @@ export function ichimokuPlottedSpans(
     }
   }
   return { spanA, spanB };
+}
+
+/**
+ * Lagging span plotted like Pine `plot(close, offset=-displacement+1)`:
+ * close at index src appears at chart index src + (-displacement + 1).
+ */
+export function ichimokuPlottedLagging(
+  laggingSpan: (number | null)[],
+  displacement: number,
+  barCount: number
+): (number | null)[] {
+  const out: (number | null)[] = new Array(barCount).fill(null);
+  const offset = -displacement + 1;
+  for (let i = 0; i < barCount; i++) {
+    const src = i - offset;
+    if (src >= 0 && src < laggingSpan.length) out[i] = laggingSpan[src];
+  }
+  return out;
 }

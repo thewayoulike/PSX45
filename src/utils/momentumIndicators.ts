@@ -42,6 +42,8 @@ export interface MomentumConfig {
     diLength: number;
     threshold: number;
     color: string;
+    plusDiColor: string;
+    minusDiColor: string;
   };
 }
 
@@ -82,6 +84,8 @@ export const DEFAULT_MOMENTUM_CONFIG: MomentumConfig = {
     diLength: 14,
     threshold: 25,
     color: '#9333ea',
+    plusDiColor: '#22c55e',
+    minusDiColor: '#ef4444',
   },
 };
 
@@ -95,6 +99,8 @@ export interface MomentumBar {
   stochK: number | null;
   stochD: number | null;
   adx: number | null;
+  plusDi: number | null;
+  minusDi: number | null;
 }
 
 export function cloneMomentumConfig(config: MomentumConfig): MomentumConfig {
@@ -106,6 +112,9 @@ export function cloneMomentumConfig(config: MomentumConfig): MomentumConfig {
   for (const t of MOMENTUM_TYPES) {
     if (c.enabled[t] == null) c.enabled[t] = false;
   }
+  if (!c.adx) c.adx = { ...DEFAULT_MOMENTUM_CONFIG.adx };
+  if (!c.adx.plusDiColor) c.adx.plusDiColor = DEFAULT_MOMENTUM_CONFIG.adx.plusDiColor;
+  if (!c.adx.minusDiColor) c.adx.minusDiColor = DEFAULT_MOMENTUM_CONFIG.adx.minusDiColor;
   return c;
 }
 
@@ -208,10 +217,12 @@ function computeDmi(
   bars: OhlcBar[],
   diLength: number,
   adxLength: number
-): { adx: (number | null)[] } {
+): { adx: (number | null)[]; plusDi: (number | null)[]; minusDi: (number | null)[] } {
   const n = bars.length;
   const adx: (number | null)[] = new Array(n).fill(null);
-  if (n < diLength + adxLength) return { adx };
+  const plusDiArr: (number | null)[] = new Array(n).fill(null);
+  const minusDiArr: (number | null)[] = new Array(n).fill(null);
+  if (n < diLength + adxLength) return { adx, plusDi: plusDiArr, minusDi: minusDiArr };
 
   const tr: number[] = [];
   const plusDm: number[] = [];
@@ -248,6 +259,8 @@ function computeDmi(
     if (trv == null || p == null || m == null || trv === 0) continue;
     const plusDi = (100 * p) / trv;
     const minusDi = (100 * m) / trv;
+    plusDiArr[i] = plusDi;
+    minusDiArr[i] = minusDi;
     const sum = plusDi + minusDi;
     dx[i] = sum === 0 ? 0 : (100 * Math.abs(plusDi - minusDi)) / sum;
   }
@@ -259,7 +272,7 @@ function computeDmi(
   for (let i = 0; i < n; i++) {
     if (i >= diLength + adxLength - 2) adx[i] = adxSmoothed[i];
   }
-  return { adx };
+  return { adx, plusDi: plusDiArr, minusDi: minusDiArr };
 }
 
 /** Momentum Panel Selector — RSI, MACD, Stochastic, or ADX on OHLC bars. */
@@ -275,6 +288,8 @@ export function computeMomentumSeries(bars: OhlcBar[], config: MomentumConfig): 
     stochK: null,
     stochD: null,
     adx: null,
+    plusDi: null,
+    minusDi: null,
   };
   if (n < 3) return new Array(n).fill(empty);
 
@@ -316,7 +331,11 @@ export function computeMomentumSeries(bars: OhlcBar[], config: MomentumConfig): 
   const stochK = smaSeries(stochRawVals, Math.max(1, config.stochastic.smooth));
   const stochD = smaSeries(stochK, Math.max(1, config.stochastic.dLength));
 
-  const { adx } = computeDmi(bars, Math.max(1, config.adx.diLength), Math.max(1, config.adx.adxLength));
+  const { adx, plusDi, minusDi } = computeDmi(
+    bars,
+    Math.max(1, config.adx.diLength),
+    Math.max(1, config.adx.adxLength),
+  );
 
   return bars.map((_, i) => ({
     rsi: rsi[i],
@@ -328,6 +347,8 @@ export function computeMomentumSeries(bars: OhlcBar[], config: MomentumConfig): 
     stochK: stochK[i],
     stochD: stochD[i],
     adx: adx[i],
+    plusDi: plusDi[i],
+    minusDi: minusDi[i],
   }));
 }
 

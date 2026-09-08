@@ -1,4 +1,4 @@
-import { AwaisLayers, DEFAULT_AWAIS_LAYERS, cloneAwaisLayers } from '../utils/awaisIndicators';
+import { AwaisLayers, DEFAULT_AWAIS_LAYERS, cloneAwaisLayers, normalizeAwaisLayers } from '../utils/awaisIndicators';
 import { DEFAULT_MOMENTUM_CONFIG, MomentumConfig, cloneMomentumConfig } from '../utils/momentumIndicators';
 import {
   AutoTrendlineSettings,
@@ -61,7 +61,7 @@ function normalizeChartSettings(raw: unknown): ChartUserSettings {
     if (typeof o.layers.momentum === 'boolean') base.layers.momentum = o.layers.momentum;
   }
   if (o.awaisLayers && typeof o.awaisLayers === 'object' && 'groups' in o.awaisLayers) {
-    base.awaisLayers = cloneAwaisLayers(o.awaisLayers as AwaisLayers);
+    base.awaisLayers = normalizeAwaisLayers(o.awaisLayers as Partial<AwaisLayers>);
   }
   if (o.momentumConfig && typeof o.momentumConfig === 'object') {
     base.momentumConfig = cloneMomentumConfig(o.momentumConfig as MomentumConfig);

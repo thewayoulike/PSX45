@@ -5,7 +5,9 @@ import {
   AWAIS_ICHI_OPTIONS,
   AWAIS_PIVOT_OPTIONS,
   AWAIS_SUPERTREND_OPTIONS,
+  BB_SOURCES,
   PIVOT_ANCHORS,
+  PIVOT_TYPES,
   DEFAULT_AWAIS_LAYERS,
   MA_SLOTS,
   MA_TYPES,
@@ -13,19 +15,23 @@ import {
   AwaisLayers,
   AwaisOverlayData,
   BbKey,
+  BbSource,
   IchimokuKey,
   MaSlot,
   MaType,
   PivotAnchor,
   PivotLabel,
+  PivotLabelPosition,
   SupertrendKey,
   cloneAwaisLayers,
   countAwaisActiveLayers,
+  ichimokuPlottedLagging,
   ichimokuPlottedSpans,
   isMaSeriesVisible,
   maSlotLabel,
   setAwaisGroupEnabled,
 } from '../utils/awaisIndicators';
+import type { PivotType } from '../utils/pivotPointLevels';
 
 function BulkToggleButtons({
   onSelectAll,
@@ -106,6 +112,74 @@ function PanelCheckbox({
       />
       <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: color }} />
       {label}
+    </label>
+  );
+}
+
+function NumberInput({
+  label,
+  value,
+  onChange,
+  min = 1,
+  max = 500,
+  step = 1,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  min?: number;
+  max?: number;
+  step?: number;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 text-[11px]">
+      <span className="font-semibold text-slate-600 dark:text-slate-300">{label}</span>
+      <input
+        type="number"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => {
+          const raw = Number(e.target.value);
+          if (!Number.isFinite(raw)) {
+            onChange(min);
+            return;
+          }
+          const next = step >= 1 ? Math.round(raw) : raw;
+          onChange(Math.max(min, Math.min(max, next)));
+        }}
+        className="w-16 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[11px] font-semibold tabular-nums text-right"
+      />
+    </label>
+  );
+}
+
+function SelectInput({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: readonly string[];
+}) {
+  return (
+    <label className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
+      <span className="font-semibold text-slate-600 dark:text-slate-300">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-1.5 py-0.5 text-[11px] font-medium max-w-[55%]"
+      >
+        {options.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }
@@ -238,6 +312,161 @@ export function IndicatorsPanelContent({
               </div>
             );
           })}
+        </PanelSection>
+
+        <PanelSection title="Bollinger Bands" bordered>
+          <NumberInput
+            label="Length"
+            value={draft.bbConfig.length}
+            onChange={(v) => setDraft((prev) => ({ ...prev, bbConfig: { ...prev.bbConfig, length: v } }))}
+          />
+          <NumberInput
+            label="StdDev"
+            value={draft.bbConfig.mult}
+            onChange={(v) => setDraft((prev) => ({ ...prev, bbConfig: { ...prev.bbConfig, mult: v } }))}
+            min={0.1}
+            max={10}
+            step={0.1}
+          />
+          <SelectInput
+            label="Source"
+            value={draft.bbConfig.source}
+            onChange={(v) =>
+              setDraft((prev) => ({
+                ...prev,
+                bbConfig: { ...prev.bbConfig, source: v as BbSource },
+              }))
+            }
+            options={BB_SOURCES}
+          />
+          <NumberInput
+            label="Offset"
+            value={draft.bbConfig.offset}
+            onChange={(v) => setDraft((prev) => ({ ...prev, bbConfig: { ...prev.bbConfig, offset: v } }))}
+            min={-500}
+            max={500}
+          />
+        </PanelSection>
+
+        <PanelSection title="Supertrend" bordered>
+          <NumberInput
+            label="ATR Period"
+            value={draft.supertrendConfig.atrPeriod}
+            onChange={(v) =>
+              setDraft((prev) => ({ ...prev, supertrendConfig: { ...prev.supertrendConfig, atrPeriod: v } }))
+            }
+          />
+          <NumberInput
+            label="Multiplier"
+            value={draft.supertrendConfig.multiplier}
+            onChange={(v) =>
+              setDraft((prev) => ({ ...prev, supertrendConfig: { ...prev.supertrendConfig, multiplier: v } }))
+            }
+            min={0.1}
+            max={50}
+            step={0.1}
+          />
+          <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+            <input
+              type="checkbox"
+              checked={draft.supertrendConfig.changeAtrMethod}
+              onChange={() =>
+                setDraft((prev) => ({
+                  ...prev,
+                  supertrendConfig: {
+                    ...prev.supertrendConfig,
+                    changeAtrMethod: !prev.supertrendConfig.changeAtrMethod,
+                  },
+                }))
+              }
+              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            Change ATR Calculation Method
+          </label>
+        </PanelSection>
+
+        <PanelSection title="Ichimoku Cloud" bordered>
+          <NumberInput
+            label="Conversion"
+            value={draft.ichimokuConfig.conversion}
+            onChange={(v) =>
+              setDraft((prev) => ({ ...prev, ichimokuConfig: { ...prev.ichimokuConfig, conversion: v } }))
+            }
+          />
+          <NumberInput
+            label="Base"
+            value={draft.ichimokuConfig.base}
+            onChange={(v) =>
+              setDraft((prev) => ({ ...prev, ichimokuConfig: { ...prev.ichimokuConfig, base: v } }))
+            }
+          />
+          <NumberInput
+            label="Span B"
+            value={draft.ichimokuConfig.spanB}
+            onChange={(v) =>
+              setDraft((prev) => ({ ...prev, ichimokuConfig: { ...prev.ichimokuConfig, spanB: v } }))
+            }
+          />
+          <NumberInput
+            label="Displacement"
+            value={draft.ichimokuConfig.displacement}
+            onChange={(v) =>
+              setDraft((prev) => ({ ...prev, ichimokuConfig: { ...prev.ichimokuConfig, displacement: v } }))
+            }
+          />
+        </PanelSection>
+
+        <PanelSection title="Pivot Points" bordered>
+          <SelectInput
+            label="Type"
+            value={draft.pivotType}
+            onChange={(v) => setDraft((prev) => ({ ...prev, pivotType: v as PivotType }))}
+            options={PIVOT_TYPES}
+          />
+          <SelectInput
+            label="Pivots Timeframe"
+            value={draft.pivotAnchor ?? 'Auto'}
+            onChange={(v) => setDraft((prev) => ({ ...prev, pivotAnchor: v as PivotAnchor }))}
+            options={PIVOT_ANCHORS}
+          />
+          <NumberInput
+            label="Historical Pivots"
+            value={draft.maxHistoricalPivots}
+            onChange={(v) => setDraft((prev) => ({ ...prev, maxHistoricalPivots: v }))}
+            min={1}
+            max={50}
+          />
+          <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+            <input
+              type="checkbox"
+              checked={draft.showPivotLabels}
+              onChange={() => setDraft((prev) => ({ ...prev, showPivotLabels: !prev.showPivotLabels }))}
+              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            Show Pivot Labels
+          </label>
+          <label className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer text-[11px] font-semibold text-slate-700 dark:text-slate-200">
+            <input
+              type="checkbox"
+              checked={draft.showPivotPrices}
+              onChange={() => setDraft((prev) => ({ ...prev, showPivotPrices: !prev.showPivotPrices }))}
+              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+            Show Pivot Prices
+          </label>
+          <SelectInput
+            label="Label Position"
+            value={draft.pivotLabelPosition}
+            onChange={(v) => setDraft((prev) => ({ ...prev, pivotLabelPosition: v as PivotLabelPosition }))}
+            options={['Left', 'Right'] as const}
+          />
+          <NumberInput
+            label="Line Width"
+            value={draft.pivotLineWidth}
+            onChange={(v) => setDraft((prev) => ({ ...prev, pivotLineWidth: v }))}
+            min={1}
+            max={8}
+          />
         </PanelSection>
       </>
     );
@@ -568,14 +797,32 @@ export const AwaisSvgOverlays: React.FC<{
   data: AwaisOverlayData;
   layers: AwaisLayers;
   barCount: number;
+  /** Bar timestamps for mapping pivot period spans onto the x axis. */
+  barTimes?: number[];
   xAt: (i: number) => number;
   yScale: (v: number) => number;
   plotOffset: number;
   width: number;
   padRight: number;
   hidePivotLabels?: boolean;
-}> = ({ data, layers, barCount, xAt, yScale, plotOffset, width, padRight, hidePivotLabels = false }) => {
+}> = ({
+  data,
+  layers,
+  barCount,
+  barTimes,
+  xAt,
+  yScale,
+  plotOffset,
+  width,
+  padRight,
+  hidePivotLabels = false,
+}) => {
   const { spanA, spanB } = ichimokuPlottedSpans(data.ichimoku, barCount);
+  const laggingPlotted = ichimokuPlottedLagging(
+    data.ichimoku.laggingSpan ?? [],
+    data.ichimoku.displacement ?? layers.ichimokuConfig.displacement,
+    barCount
+  );
   const bbUpper = data.bb.upper.slice(0, barCount);
   const bbMiddle = data.bb.middle.slice(0, barCount);
   const bbLower = data.bb.lower.slice(0, barCount);
@@ -585,6 +832,32 @@ export const AwaisSvgOverlays: React.FC<{
   const showBb = layers.groups.bb;
   const showSt = layers.groups.supertrend;
   const showPivot = layers.groups.pivot;
+  const pivotStroke = Math.max(1, layers.pivotLineWidth ?? 1);
+  const labelOnRight = (layers.pivotLabelPosition ?? 'Right') !== 'Left';
+
+  const periodSets =
+    data.pivotsByPeriod && data.pivotsByPeriod.length > 0
+      ? data.pivotsByPeriod
+      : data.pivots.length
+        ? [{ startTime: -Infinity, endTime: Infinity, levels: data.pivots }]
+        : [];
+
+  const xRangeForPeriod = (startTime: number, endTime: number): { x1: number; x2: number } | null => {
+    if (!barTimes || barTimes.length === 0 || !Number.isFinite(startTime)) {
+      return { x1: plotOffset, x2: width - padRight };
+    }
+    let i0 = -1;
+    let i1 = -1;
+    for (let i = 0; i < Math.min(barTimes.length, barCount); i++) {
+      const t = barTimes[i];
+      if (t >= startTime && t <= endTime) {
+        if (i0 < 0) i0 = i;
+        i1 = i;
+      }
+    }
+    if (i0 < 0 || i1 < 0) return null;
+    return { x1: xAt(i0), x2: xAt(i1) };
+  };
 
   return (
     <>
@@ -612,6 +885,9 @@ export const AwaisSvgOverlays: React.FC<{
           stroke="#B71C1C"
           strokeWidth={1}
         />
+      )}
+      {showIchi && layers.ichimoku.lagging && (
+        <path d={segmentedPath(laggingPlotted, xAt, yScale)} fill="none" stroke="#43A047" strokeWidth={1} />
       )}
 
       {showBb && layers.bb.fill && (
@@ -657,36 +933,64 @@ export const AwaisSvgOverlays: React.FC<{
       {showSt && layers.supertrend.down && (
         <path d={segmentedPath(stDown, xAt, yScale)} fill="none" stroke="#ef4444" strokeWidth={2} />
       )}
+      {showSt &&
+        (data.supertrendMarkers ?? []).map((m) => {
+          if (m.index < 0 || m.index >= barCount) return null;
+          return (
+            <circle
+              key={`st-${m.kind}-${m.index}`}
+              cx={xAt(m.index)}
+              cy={yScale(m.price)}
+              r={3.5}
+              fill={m.kind === 'buy' ? '#22c55e' : '#ef4444'}
+              stroke="#fff"
+              strokeWidth={1}
+            />
+          );
+        })}
 
       {showPivot &&
-        data.pivots
-          .filter((pv) => layers.pivot[pv.label as PivotLabel])
-          .map((pv) => (
-            <g key={pv.label}>
-              <line
-                x1={plotOffset}
-                x2={width - padRight}
-                y1={yScale(pv.value)}
-                y2={yScale(pv.value)}
-                stroke="#EA580C"
-                strokeWidth={1}
-                strokeDasharray="6 4"
-                strokeOpacity={0.9}
-              />
-              {!hidePivotLabels && (
-              <text
-                x={width - padRight - 4}
-                y={yScale(pv.value) - 3}
-                textAnchor="end"
-                fontSize={9}
-                fill="#FB8C00"
-                fontWeight={700}
-              >
-                {pv.label} {pv.value.toFixed(2)}
-              </text>
-              )}
-            </g>
-          ))}
+        periodSets.map((period, pi) => {
+          const range = xRangeForPeriod(period.startTime, period.endTime);
+          if (!range || range.x2 <= range.x1) return null;
+          const isNewest = pi === periodSets.length - 1;
+          return period.levels
+            .filter((pv) => layers.pivot[pv.label as PivotLabel])
+            .map((pv) => {
+              const showInlineLabel =
+                isNewest && !hidePivotLabels && (layers.showPivotLabels || layers.showPivotPrices);
+              const labelParts: string[] = [];
+              if (layers.showPivotLabels) labelParts.push(pv.label);
+              if (layers.showPivotPrices) labelParts.push(pv.value.toFixed(2));
+              const labelText = labelParts.join(' ');
+              return (
+                <g key={`pv-${pi}-${pv.label}`}>
+                  <line
+                    x1={range.x1}
+                    x2={range.x2}
+                    y1={yScale(pv.value)}
+                    y2={yScale(pv.value)}
+                    stroke="#EA580C"
+                    strokeWidth={pivotStroke}
+                    strokeDasharray="6 4"
+                    strokeOpacity={isNewest ? 0.9 : 0.55}
+                  />
+                  {showInlineLabel && labelText && (
+                    <text
+                      x={labelOnRight ? range.x2 - 4 : range.x1 + 4}
+                      y={yScale(pv.value) - 3}
+                      textAnchor={labelOnRight ? 'end' : 'start'}
+                      fontSize={9}
+                      fill="#FB8C00"
+                      fontWeight={700}
+                    >
+                      {labelText}
+                    </text>
+                  )}
+                </g>
+              );
+            });
+        })}
     </>
   );
 };
@@ -697,10 +1001,22 @@ export const AwaisPivotLabels: React.FC<{
   yScale: (v: number) => number;
   width: number;
   padRight: number;
+  plotOffset?: number;
   plotTop?: number;
   plotBottom?: number;
-}> = ({ data, layers, yScale, width, padRight, plotTop = 0, plotBottom = Infinity }) => {
+}> = ({
+  data,
+  layers,
+  yScale,
+  width,
+  padRight,
+  plotOffset = 0,
+  plotTop = 0,
+  plotBottom = Infinity,
+}) => {
   if (!layers.groups.pivot) return null;
+  if (!layers.showPivotLabels && !layers.showPivotPrices) return null;
+  const labelOnRight = (layers.pivotLabelPosition ?? 'Right') !== 'Left';
   return (
     <>
       {data.pivots
@@ -708,9 +1024,13 @@ export const AwaisPivotLabels: React.FC<{
         .map((pv) => {
           const y = yScale(pv.value);
           if (y < plotTop - 2 || y > plotBottom + 2) return null;
-          const label = `${pv.label} ${pv.value.toFixed(2)}`;
+          const parts: string[] = [];
+          if (layers.showPivotLabels) parts.push(pv.label);
+          if (layers.showPivotPrices) parts.push(pv.value.toFixed(2));
+          const label = parts.join(' ');
+          if (!label) return null;
           const pillW = label.length * 5.8 + 10;
-          const pillX = width - padRight - 6 - pillW;
+          const pillX = labelOnRight ? width - padRight - 6 - pillW : plotOffset + 6;
           return (
             <g key={pv.label}>
               <rect
@@ -724,9 +1044,9 @@ export const AwaisPivotLabels: React.FC<{
                 strokeWidth={0.75}
               />
               <text
-                x={pillX + pillW - 5}
+                x={labelOnRight ? pillX + pillW - 5 : pillX + 5}
                 y={y - 1}
-                textAnchor="end"
+                textAnchor={labelOnRight ? 'end' : 'start'}
                 fontSize={10}
                 fill="#9A3412"
                 fontWeight={800}

@@ -217,6 +217,8 @@ export function MomentumPanelContent({
         <>
           <p className="px-2 text-[10px] font-bold uppercase tracking-widest text-slate-400">ADX</p>
           <ColorInput label="ADX Line" value={draft.adx.color} onChange={(v) => patch('adx', { ...draft.adx, color: v })} />
+          <ColorInput label="+DI" value={draft.adx.plusDiColor || '#22c55e'} onChange={(v) => patch('adx', { ...draft.adx, plusDiColor: v })} />
+          <ColorInput label="−DI" value={draft.adx.minusDiColor || '#ef4444'} onChange={(v) => patch('adx', { ...draft.adx, minusDiColor: v })} />
         </>
       )}
     </div>
@@ -472,16 +474,24 @@ export const MomentumMiniChart: React.FC<{
   if (type === 'ADX') {
     const yMax = Math.min(100, Math.max(config.adx.threshold * 2, 50));
     const yAdx = makeOscillatorScale(0, yMax, pad.t, innerH);
+    const plusDiColor = config.adx.plusDiColor || '#22c55e';
+    const minusDiColor = config.adx.minusDiColor || '#ef4444';
     return (
       <div className="relative">
         <PaneLegend
-          items={[{ label, color: config.adx.color, value: hovered?.adx != null ? hovered.adx.toFixed(2) : undefined }]}
+          items={[
+            { label: '+DI', color: plusDiColor, value: hovered?.plusDi != null ? hovered.plusDi.toFixed(2) : undefined },
+            { label: '−DI', color: minusDiColor, value: hovered?.minusDi != null ? hovered.minusDi.toFixed(2) : undefined },
+            { label, color: config.adx.color, value: hovered?.adx != null ? hovered.adx.toFixed(2) : undefined },
+          ]}
         />
         <svg width={width} height={panelHeight} className="overflow-visible" {...plotMouseHandlers}>
           {frame}
           <line x1={padL} x2={width - pad.r} y1={yAdx(config.adx.threshold)} y2={yAdx(config.adx.threshold)} stroke={config.adx.color} strokeOpacity={0.5} strokeDasharray="2 2" strokeWidth={1} />
           <text x={width - 8} y={yAdx(config.adx.threshold) + 3} textAnchor="end" fontSize={10} fill={theme.mutedText}>{config.adx.threshold}</text>
           <text x={width - 8} y={pad.t + 4} textAnchor="end" fontSize={10} fill={theme.mutedText}>{yMax}</text>
+          <path d={polylinePath(series.map((p) => p.plusDi), xAt, yAdx)} fill="none" stroke={plusDiColor} strokeWidth={1.25} />
+          <path d={polylinePath(series.map((p) => p.minusDi), xAt, yAdx)} fill="none" stroke={minusDiColor} strokeWidth={1.25} />
           <path d={polylinePath(series.map((p) => p.adx), xAt, yAdx)} fill="none" stroke={config.adx.color} strokeWidth={1.5} />
           {crosshair}
           {hovered?.adx != null && valueBadge(yAdx(hovered.adx), hovered.adx.toFixed(2))}

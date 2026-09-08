@@ -7,6 +7,7 @@ import {
   AwaisLayers,
   AwaisOverlayData,
   cloneAwaisLayers,
+  countAwaisActiveLayers,
   hasAnyBb,
   hasAnyPivot,
   hasAnySupertrend,
@@ -82,7 +83,7 @@ import { PaneLegend } from './ChartPaneLegend';
 import { ChartAlertDialog } from './ChartAlertDialog';
 import { ChartDrawingsLayer, DrawToolsToolbar } from './ChartDrawings';
 import {
-  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
+  AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Customized,
   ComposedChart, Line, ReferenceLine, Bar, Cell,
 } from 'recharts';
 import { LineChart as LineIcon, CandlestickChart as CandleIcon, Activity, Loader2, RefreshCw, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
@@ -145,6 +146,11 @@ function collectPriceBounds(
   if (includePivots && hasAnyPivot(awaisLayers)) {
     awaisData.pivots.forEach((p) => {
       if (awaisLayers.pivot[p.label as PivotLabel]) push(p.value);
+    });
+    (awaisData.pivotsByPeriod ?? []).forEach((period) => {
+      period.levels.forEach((p) => {
+        if (awaisLayers.pivot[p.label as PivotLabel]) push(p.value);
+      });
     });
   }
   if (hasAnyBb(awaisLayers)) {
@@ -1153,19 +1159,63 @@ const AtrMiniChart: React.FC<{
 
 function sliceAwaisData(data: AwaisOverlayData, startIdx: number, count: number): AwaisOverlayData {
   const slice = <T,>(arr: T[]) => arr.slice(startIdx, startIdx + count);
+  const end = startIdx + count;
   return {
     maLines: data.maLines.map((m) => ({ ...m, values: slice(m.values) })),
     bb: { upper: slice(data.bb.upper), middle: slice(data.bb.middle), lower: slice(data.bb.lower) },
     supertrend: { up: slice(data.supertrend.up), down: slice(data.supertrend.down) },
+    supertrendMarkers: (data.supertrendMarkers ?? [])
+      .filter((m) => m.index >= startIdx && m.index < end)
+      .map((m) => ({ ...m, index: m.index - startIdx })),
     ichimoku: {
       conversion: slice(data.ichimoku.conversion),
       base: slice(data.ichimoku.base),
       spanA: slice(data.ichimoku.spanA),
       spanB: slice(data.ichimoku.spanB),
+      laggingSpan: slice(data.ichimoku.laggingSpan ?? []),
       displacement: data.ichimoku.displacement,
     },
     pivots: data.pivots,
+    pivotsByPeriod: data.pivotsByPeriod ?? [],
   };
+}
+
+/** Awais overlays inside Recharts line mode — uses live axis scales from Customized. */
+function LineAwaisRechartsLayer(props: {
+  xAxisMap?: Record<string, { scale?: (v: string | number) => number; bandwidth?: () => number }>;
+  yAxisMap?: Record<string, { scale?: (v: number) => number }>;
+  offset?: { left?: number; right?: number; top?: number; width?: number };
+  awaisData: AwaisOverlayData;
+  awaisLayers: AwaisLayers;
+  points: { t: number; label: string }[];
+}) {
+  const xAxis = props.xAxisMap ? Object.values(props.xAxisMap)[0] : undefined;
+  const yAxis = props.yAxisMap ? Object.values(props.yAxisMap)[0] : undefined;
+  if (!xAxis?.scale || !yAxis?.scale || !props.points.length) return null;
+  const band = typeof xAxis.bandwidth === 'function' ? xAxis.bandwidth() : 0;
+  const xAt = (i: number) => {
+    const label = props.points[i]?.label;
+    if (label == null) return 0;
+    return xAxis.scale!(label) + band / 2;
+  };
+  const yScale = (v: number) => yAxis.scale!(v);
+  const left = props.offset?.left ?? 0;
+  const width = (props.offset?.left ?? 0) + (props.offset?.width ?? 0) + (props.offset?.right ?? 0);
+  const padRight = props.offset?.right ?? 8;
+  return (
+    <AwaisSvgOverlays
+      data={props.awaisData}
+      layers={props.awaisLayers}
+      barCount={props.points.length}
+      barTimes={props.points.map((p) => p.t)}
+      xAt={xAt}
+      yScale={yScale}
+      plotOffset={left}
+      width={width}
+      padRight={padRight}
+      hidePivotLabels={false}
+    />
+  );
 }
 
 function AutoTrendlinesSvg({
@@ -1966,6 +2016,7 @@ const CandleChart: React.FC<{
             data={awaisData}
             layers={awaisLayers}
             barCount={display.length}
+            barTimes={display.map((b) => b.time)}
             xAt={xAt}
             yScale={yScale}
             plotOffset={plotOffset}
@@ -2137,6 +2188,7 @@ const CandleChart: React.FC<{
               yScale={yScale}
               width={w}
               padRight={pad.r}
+              plotOffset={plotOffset}
               plotTop={pad.t}
               plotBottom={pad.t + innerH}
             />
@@ -3235,6 +3287,20 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
                     formatter={(v: any) => [`Rs. ${rs(Number(v))}`, 'Close']}
                   />
                   <Area type="monotone" dataKey="price" stroke={stroke} strokeWidth={2.5} fill="url(#scg)" dot={false} />
+                  {awaisVisible &&
+                    filteredOhlc.length >= 3 &&
+                    countAwaisActiveLayers(awaisLayers).active > 0 && (
+                      <Customized
+                        component={(rechartsProps: Record<string, unknown>) => (
+                          <LineAwaisRechartsLayer
+                            {...(rechartsProps as Parameters<typeof LineAwaisRechartsLayer>[0])}
+                            awaisData={awaisVisible}
+                            awaisLayers={awaisLayers}
+                            points={visibleChartData}
+                          />
+                        )}
+                      />
+                    )}
                 </AreaChart>
               </ResponsiveContainer>
             </div>
