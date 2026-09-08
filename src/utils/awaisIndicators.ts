@@ -29,13 +29,14 @@ export interface AwaisGroupToggles {
   ichimoku: boolean;
 }
 
+/** Defaults match Awais Pine script EMA inputs (type EMA, periods 5/13/20/50/200/200). */
 export const DEFAULT_MA_LINES: MaLineMap = {
-  ma1: { enabled: true, period: 5, type: 'SMA', color: '#97F592' },
-  ma2: { enabled: true, period: 10, type: 'SMA', color: '#15A24B' },
-  ma3: { enabled: false, period: 20, type: 'SMA', color: '#100c09' },
-  ma4: { enabled: true, period: 50, type: 'SMA', color: '#f22828' },
-  ma5: { enabled: true, period: 100, type: 'SMA', color: '#e6b00c' },
-  ma6: { enabled: true, period: 200, type: 'SMA', color: '#7b49e7' },
+  ma1: { enabled: true, period: 5, type: 'EMA', color: '#FEEA4A' },
+  ma2: { enabled: true, period: 13, type: 'EMA', color: '#FD5457' },
+  ma3: { enabled: false, period: 20, type: 'EMA', color: '#00FFFF' },
+  ma4: { enabled: true, period: 50, type: 'EMA', color: '#0000FF' },
+  ma5: { enabled: true, period: 200, type: 'EMA', color: '#FFFFFF' },
+  ma6: { enabled: true, period: 200, type: 'EMA', color: '#FFA500' },
 };
 
 export const DEFAULT_GROUPS: AwaisGroupToggles = {
@@ -217,7 +218,7 @@ export const DEFAULT_AWAIS_LAYERS: AwaisLayers = {
   maxHistoricalPivots: 1,
   showPivotLabels: true,
   showPivotPrices: true,
-  pivotLabelPosition: 'Right',
+  pivotLabelPosition: 'Left',
   pivotLineWidth: 1,
   useDailyBasedValues: true,
   ichimoku: { ...DEFAULT_ICHI_SELECTION },

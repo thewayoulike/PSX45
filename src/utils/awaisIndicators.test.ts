@@ -33,13 +33,15 @@ describe('Awais MA6 Pine parity', () => {
     expect(MA_SLOTS).toEqual(['ma1', 'ma2', 'ma3', 'ma4', 'ma5', 'ma6']);
   });
 
-  it('defaults match Pine (20 off; 50/100/200 on)', () => {
+  it('defaults match Awais Pine (EMA 5/13/20/50/200/200; 20 off)', () => {
     expect(DEFAULT_MA_LINES.ma1.period).toBe(5);
-    expect(DEFAULT_MA_LINES.ma2.period).toBe(10);
+    expect(DEFAULT_MA_LINES.ma1.type).toBe('EMA');
+    expect(DEFAULT_MA_LINES.ma2.period).toBe(13);
+    expect(DEFAULT_MA_LINES.ma2.type).toBe('EMA');
     expect(DEFAULT_MA_LINES.ma3.period).toBe(20);
     expect(DEFAULT_MA_LINES.ma3.enabled).toBe(false);
     expect(DEFAULT_MA_LINES.ma4.period).toBe(50);
-    expect(DEFAULT_MA_LINES.ma5.period).toBe(100);
+    expect(DEFAULT_MA_LINES.ma5.period).toBe(200);
     expect(DEFAULT_MA_LINES.ma6.period).toBe(200);
     expect(DEFAULT_MA_LINES.ma6.enabled).toBe(true);
   });
@@ -90,7 +92,7 @@ describe('Awais pivot type / history settings', () => {
     expect(layers.maxHistoricalPivots).toBeGreaterThanOrEqual(1);
     expect(layers.showPivotLabels).toBe(true);
     expect(layers.showPivotPrices).toBe(true);
-    expect(layers.pivotLabelPosition).toMatch(/Left|Right/);
+    expect(layers.pivotLabelPosition).toBe('Left');
     expect(layers.pivotLineWidth).toBeGreaterThanOrEqual(1);
   });
 
