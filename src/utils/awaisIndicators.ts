@@ -748,21 +748,42 @@ function periodKey(time: number, anchor: Exclude<PivotAnchor, 'Auto'>): string {
 function pivotSourceOhlc(
   bars: OhlcBar[],
   anchor: Exclude<PivotAnchor, 'Auto'>
-): { high: number; low: number; close: number; open: number } | null {
+): { high: number; low: number; close: number; open: number; currentOpen: number } | null {
   const periods = collectPivotPeriods(bars, anchor);
   if (periods.length >= 2) {
     // Last completed period is second-to-last when the final bucket is current/incomplete.
     // collectPivotPeriods returns all buckets including the current open period.
     const src = periods[periods.length - 2];
-    return { high: src.high, low: src.low, close: src.close, open: src.open };
+    const curr = periods[periods.length - 1];
+    return {
+      high: src.high,
+      low: src.low,
+      close: src.close,
+      open: src.open,
+      currentOpen: curr.open,
+    };
   }
   if (periods.length === 1 && bars.length >= 2) {
     const prev = bars[bars.length - 2];
-    return { high: prev.high, low: prev.low, close: prev.close, open: prev.open };
+    const curr = bars[bars.length - 1];
+    return {
+      high: prev.high,
+      low: prev.low,
+      close: prev.close,
+      open: prev.open,
+      currentOpen: curr.open,
+    };
   }
   if (!bars.length) return null;
   const prev = bars[bars.length - 2] ?? bars[bars.length - 1];
-  return { high: prev.high, low: prev.low, close: prev.close, open: prev.open };
+  const curr = bars[bars.length - 1];
+  return {
+    high: prev.high,
+    low: prev.low,
+    close: prev.close,
+    open: prev.open,
+    currentOpen: curr.open,
+  };
 }
 
 interface RawPivotPeriod {
@@ -857,6 +878,7 @@ function buildHistoricalPivotPeriods(
         low: src.low,
         close: src.close,
         open: src.open,
+        currentOpen: draw.open,
       }),
     });
   }

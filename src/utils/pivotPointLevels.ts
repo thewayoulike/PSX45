@@ -12,7 +12,10 @@ export interface PivotSource {
   high: number;
   low: number;
   close: number;
+  /** Previous-period open (DeMark). */
   open?: number;
+  /** Current-period open (Woodie uses 2 × currOpen, not prev close). */
+  currentOpen?: number;
 }
 
 /** Sparse map of level name → price (undefined = not applicable for that type). */
@@ -65,15 +68,21 @@ export function pivotPointLevels(type: PivotType, src: PivotSource): PivotLevels
       };
     }
     case 'Woodie': {
-      const P = (H + L + 2 * C) / 4;
+      // TradingView: P = (prevHigh + prevLow + 2 * currOpen) / 4
+      const currOpen = src.currentOpen ?? O;
+      const P = (H + L + 2 * currOpen) / 4;
+      const R3 = H + 2 * (P - L);
+      const S3 = L - 2 * (H - P);
       return {
         P,
         R1: 2 * P - L,
         S1: 2 * P - H,
         R2: P + range,
         S2: P - range,
-        R3: H + 2 * (P - L),
-        S3: L - 2 * (H - P),
+        R3,
+        S3,
+        R4: R3 + range,
+        S4: S3 - range,
       };
     }
     case 'Classic': {
@@ -84,8 +93,10 @@ export function pivotPointLevels(type: PivotType, src: PivotSource): PivotLevels
         S1: 2 * P - H,
         R2: P + range,
         S2: P - range,
-        R3: H + 2 * (P - L),
-        S3: L - 2 * (H - P),
+        R3: P + 2 * range,
+        S3: P - 2 * range,
+        R4: P + 3 * range,
+        S4: P - 3 * range,
       };
     }
     case 'DM': {
