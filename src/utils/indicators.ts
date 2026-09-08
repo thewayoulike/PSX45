@@ -2,6 +2,9 @@
 // Pure technical-analysis helpers + a combined buy/sell rating + a trade plan.
 // These are mechanical indicators on historical prices — NOT investment advice.
 
+import type { OhlcBar } from '../services/psxData';
+import { monthlyPivotSupportResistance } from './pivotLevels';
+
 export type Signal = 'BUY' | 'SELL' | 'NEUTRAL';
 export type Verdict = 'STRONG BUY' | 'BUY' | 'NEUTRAL' | 'SELL' | 'STRONG SELL';
 
@@ -34,8 +37,13 @@ export interface TradePlan {
   riskPct: number;      // (price - stop) / price * 100
   rewardPct: number[];  // per target, relative to price
   atr: number;
-  support: number;      // recent 10-day low
-  resistance: number;   // recent 20-day high (or price + 2*ATR)
+  /** Traditional monthly pivot S1 (when OHLC provided); else recent structure. */
+  support: number;
+  /** Traditional monthly pivot R1 (when OHLC provided); else recent structure. */
+  resistance: number;
+  pivot?: number;
+  supportLabel?: 'S1' | '10d low';
+  resistanceLabel?: 'R1' | '20d high';
 }
 
 const smaLast = (v: number[], p: number): number => {
