@@ -565,6 +565,22 @@ export function IndicatorsPanelContent({
         onSelectNone={() => setGroup('pivot', false)}
       >
         <label className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
+          <span className="text-slate-500 dark:text-slate-400">Type</span>
+          <select
+            value={draft.pivotType ?? 'Traditional'}
+            onChange={(e) =>
+              setDraft((prev) => ({ ...prev, pivotType: e.target.value as PivotType }))
+            }
+            className="rounded border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-1.5 py-0.5 text-[11px] font-medium"
+          >
+            {PIVOT_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
           <span className="text-slate-500 dark:text-slate-400">Pivots Timeframe</span>
           <select
             value={draft.pivotAnchor ?? 'Auto'}
@@ -1016,10 +1032,9 @@ export const AwaisPivotLabels: React.FC<{
         .map((pv) => {
           const y = yScale(pv.value);
           if (y < plotTop - 2 || y > plotBottom + 2) return null;
-          const parts: string[] = [];
-          if (layers.showPivotLabels) parts.push(pv.label);
-          if (layers.showPivotPrices) parts.push(pv.value.toFixed(2));
-          const label = parts.join(' ');
+          const name = layers.showPivotLabels ? `${pv.label} ` : '';
+          const price = layers.showPivotPrices ? `(${pv.value.toFixed(2)})` : '';
+          const label = `${name}${price}`.trim();
           if (!label) return null;
           const pillW = label.length * 5.8 + 10;
           const pillX = labelOnRight ? width - padRight - 6 - pillW : plotOffset + 6;
@@ -1032,7 +1047,7 @@ export const AwaisPivotLabels: React.FC<{
                 height={15}
                 rx={3}
                 fill="rgba(255,255,255,0.94)"
-                stroke="#EA580C"
+                stroke="#FB8C00"
                 strokeWidth={0.75}
               />
               <text
@@ -1040,7 +1055,7 @@ export const AwaisPivotLabels: React.FC<{
                 y={y - 1}
                 textAnchor={labelOnRight ? 'end' : 'start'}
                 fontSize={10}
-                fill="#9A3412"
+                fill="#FB8C00"
                 fontWeight={800}
               >
                 {label}
