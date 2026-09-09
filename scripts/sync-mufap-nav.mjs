@@ -13,6 +13,9 @@ const ROOT = path.join(__dirname, '..');
 const OUT = path.join(ROOT, 'data', 'fund-nav-catalog.json');
 const PREV_OUT = path.join(ROOT, 'data', 'fund-nav-previous.json');
 const MUFAP_BASE = 'https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=3';
+const MAX_ATTEMPTS = 3;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const pkToday = () => {
   // Asia/Karachi YYYY-MM-DD
@@ -32,7 +35,7 @@ const addDaysPK = (ymd, delta) => {
   return dt.toISOString().slice(0, 10);
 };
 
-async function fetchDayHtml(dateYmd) {
+async function fetchDayHtmlOnce(dateYmd) {
   const page = `${MUFAP_BASE}&AMCId=null&fundId=null&datefrom=${dateYmd}&datetill=${dateYmd}`;
   const url = `https://r.jina.ai/http://${page.replace(/^https?:\/\//, '')}`;
   console.log(`[sync-mufap] Fetching ${dateYmd} via jina…`);
@@ -47,6 +50,25 @@ async function fetchDayHtml(dateYmd) {
   if (funds.length < 50) throw new Error(`Only ${funds.length} funds for ${dateYmd}`);
   const reportDate = (html.match(/Report Date:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/i) || [])[1] || null;
   return { html, funds, reportDate, dateYmd };
+}
+
+/** Retries flaky jina/Cloudflare empties (CI failed with "Only 0 funds"). */
+async function fetchDayHtml(dateYmd, { required = true } = {}) {
+  let lastErr = null;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fetchDayHtmlOnce(dateYmd);
+    } catch (err) {
+      lastErr = err;
+      console.warn(
+        `[sync-mufap] attempt ${attempt}/${MAX_ATTEMPTS} failed for ${dateYmd}: ${err.message}`,
+      );
+      if (attempt < MAX_ATTEMPTS) await sleep(1500 * attempt);
+    }
+  }
+  if (required) throw lastErr;
+  console.warn(`[sync-mufap] Giving up on ${dateYmd} (optional): ${lastErr?.message}`);
+  return null;
 }
 
 function fundsToCatalog(funds) {
@@ -97,20 +119,53 @@ function previousNavMap(prevFunds) {
   return map;
 }
 
+/** Reuse last good previousNavs when yesterday's MUFAP pull fails. */
+function loadFallbackPreviousNavs() {
+  for (const p of [PREV_OUT, OUT]) {
+    try {
+      if (!fs.existsSync(p)) continue;
+      const j = JSON.parse(fs.readFileSync(p, 'utf8'));
+      const map = j.previousNavs || null;
+      if (map && Object.keys(map).length >= 50) {
+        console.warn(`[sync-mufap] Using fallback previousNavs from ${path.basename(p)} (${Object.keys(map).length})`);
+        return {
+          previousNavs: map,
+          reportDate: j.previousReportDate || j.reportDate || null,
+          dateYmd: j.yesterday || j.date || null,
+        };
+      }
+    } catch {
+      /* try next */
+    }
+  }
+  return { previousNavs: {}, reportDate: null, dateYmd: null };
+}
+
 async function main() {
   const today = process.env.MUFAP_DATE || pkToday();
   const yday = process.env.MUFAP_PREV_DATE || addDaysPK(today, -1);
 
   console.log(`[sync-mufap] Today=${today} Yesterday=${yday}`);
-  const [todayPack, ydayPack] = await Promise.all([
-    fetchDayHtml(today),
-    fetchDayHtml(yday),
-  ]);
+  // Sequential — parallel jina calls often return empty (CI: Only 0 funds).
+  const todayPack = await fetchDayHtml(today, { required: true });
+  const ydayPack = await fetchDayHtml(yday, { required: false });
 
   writeExcel(todayPack.funds, path.join(ROOT, 'data', `mufap-nav-${today}.xlsx`), `NAV ${today}`);
-  writeExcel(ydayPack.funds, path.join(ROOT, 'data', `mufap-nav-${yday}.xlsx`), `NAV ${yday}`);
+  if (ydayPack) {
+    writeExcel(ydayPack.funds, path.join(ROOT, 'data', `mufap-nav-${yday}.xlsx`), `NAV ${yday}`);
+  }
 
-  const previousNavs = previousNavMap(ydayPack.funds);
+  let previousNavs = ydayPack ? previousNavMap(ydayPack.funds) : {};
+  let previousReportDate = ydayPack?.reportDate || null;
+  let yesterdayUsed = yday;
+
+  if (Object.keys(previousNavs).length < 50) {
+    const fb = loadFallbackPreviousNavs();
+    previousNavs = fb.previousNavs;
+    previousReportDate = fb.reportDate || previousReportDate;
+    yesterdayUsed = fb.dateYmd || yesterdayUsed;
+  }
+
   const catalog = fundsToCatalog(todayPack.funds);
 
   // Attach prev NAV onto each fund for convenience (optional field)
@@ -127,11 +182,11 @@ async function main() {
   const payload = {
     updatedAt: new Date().toISOString(),
     reportDate: todayPack.reportDate,
-    previousReportDate: ydayPack.reportDate,
+    previousReportDate,
     source: 'relay:jina',
     count: todayPack.funds.length,
     today,
-    yesterday: yday,
+    yesterday: yesterdayUsed,
     catalog,
     previousNavs,
   };
@@ -140,8 +195,8 @@ async function main() {
   fs.writeFileSync(OUT, JSON.stringify(payload, null, 2));
   fs.writeFileSync(PREV_OUT, JSON.stringify({
     updatedAt: payload.updatedAt,
-    date: yday,
-    reportDate: ydayPack.reportDate,
+    date: yesterdayUsed,
+    reportDate: previousReportDate,
     count: Object.keys(previousNavs).length,
     previousNavs,
   }, null, 2));

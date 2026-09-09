@@ -114,7 +114,7 @@ export const isLiveFundCatalogSource = (source?: string) =>
   source === 'api' ||
   !!source?.startsWith('relay:');
 
-const isRecentCatalog = (updatedAt?: string | null, maxAgeMs = 48 * 60 * 60 * 1000) => {
+const isRecentCatalog = (updatedAt?: string | null, maxAgeMs = 72 * 60 * 60 * 1000) => {
   if (!updatedAt) return false;
   const t = Date.parse(updatedAt);
   return !Number.isNaN(t) && Date.now() - t >= 0 && Date.now() - t < maxAgeMs;

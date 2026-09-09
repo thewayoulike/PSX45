@@ -164,7 +164,7 @@ export default async function handler(req, res) {
       bundled &&
       Object.keys(bundled.catalog || bundled).length >= 50 &&
       !Number.isNaN(syncedAt) &&
-      Date.now() - syncedAt < 36 * 60 * 60 * 1000 && // < 36h
+      Date.now() - syncedAt < 72 * 60 * 60 * 1000 && // < 72h (tolerate one missed weekday sync)
       (syncedSources.has(bundled.source) || String(bundled.source || '').startsWith('relay:'));
 
     if (syncedFresh) {
