@@ -199,7 +199,7 @@ export default defineConfig({
       srcDir: 'src', 
       filename: 'sw.js',
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      includeAssets: ['favicon.ico', 'favicon-premium.svg', 'favicon-32.png', 'apple-touch-premium.png', 'mask-icon.svg', 'brand/premium-badge.svg', 'brand/premium-badge-dark.svg', 'notification-badge-premium.png'],
       manifest: {
         name: 'PSX Portfolio Tracker',
         short_name: 'PSX Tracker',
@@ -211,42 +211,25 @@ export default defineConfig({
         icons: [
           {
             src: 'pwa-64x64.png',
-            sizes: '32x32', // <--- FIXED: Now matches the actual physical size of your image
+            sizes: '64x64',
             type: 'image/png'
           },
           {
-            src: 'pwa-192x192.png',
+            src: 'pwa-premium-192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'pwa-512x512.png',
+            src: 'pwa-premium-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: 'maskable-icon-512x512.png',
+            src: 'pwa-premium-maskable-512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
-          }
-        ],
-        // --- ADDED: Satisfies Chrome's requirement for the Richer Install UI ---
-        screenshots: [
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            form_factor: 'narrow',
-            label: 'Mobile View'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            form_factor: 'wide',
-            label: 'Desktop View'
           }
         ]
       }

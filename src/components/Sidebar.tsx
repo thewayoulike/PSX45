@@ -208,18 +208,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Header / Logo Area */}
         <div className={`relative flex flex-col items-center justify-center border-b border-slate-100 dark:border-slate-800/60 shrink-0 transition-all duration-300 ${isCollapsed ? 'py-6 min-h-[90px]' : 'p-6 mb-2 min-h-[120px]'}`}>
 
-          <div className={`flex-shrink-0 origin-center transition-transform duration-300 transform ${isCollapsed ? 'scale-75' : 'scale-110'}`}>
-              <Logo />
+          <div className="flex-shrink-0">
+              <Logo variant={isCollapsed ? 'icon' : 'stacked'} />
           </div>
 
-          {!isCollapsed && (
-              <div className="mt-4 animate-in fade-in duration-300">
-                  <p className="text-[10px] md:text-[11px] font-bold tracking-wider whitespace-nowrap text-center">
-                      <span className="text-slate-700 dark:text-slate-300">KNOW MORE. </span>
-                      <span className="text-cyan-500">EARN MORE.</span>
-                  </p>
-              </div>
-          )}
 
           <button
             onClick={onClose}

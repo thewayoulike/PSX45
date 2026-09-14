@@ -247,3 +247,31 @@ html.dark {
 .landing-header { padding-top: var(--sat); padding-left: var(--sal); padding-right: var(--sar); }
 .landing-page { padding-bottom: var(--sab); }
 .landing-page section[id] { scroll-margin-top: calc(80px + var(--sat)); }
+
+/* Premium Badge identity: readable wordmark, no raster scaling or layout transforms. */
+.brand-logo { display: inline-flex; align-items: center; flex-shrink: 0; gap: 8px; max-width: 100%; color: #059669; }
+.brand-logo--stacked { flex-direction: column; width: 184px; }
+.brand-logo__mark { display: block; width: 76px; flex-shrink: 0; }
+.brand-logo__mark img { width: 100%; height: auto; }
+.brand-logo__dark { display: none; }
+.dark .brand-logo__light { display: none; }
+.dark .brand-logo__dark { display: block; }
+.dark .brand-logo { color: #f8fafc; }
+.brand-logo__type { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.brand-logo__name { display: flex; align-items: baseline; gap: 5px; white-space: nowrap; font-family: 'Plus Jakarta Sans', sans-serif; font-size: 25px; font-weight: 500; letter-spacing: -1.1px; line-height: 1.15; }
+.brand-logo__name b { font-weight: 900; color: #059669; }
+.brand-logo__name > span, .brand-logo__know { color: #06b6d4; }
+.brand-logo__earn { color: #059669; }
+.brand-logo__tagline { white-space: nowrap; font: 700 8px/1.4 'Inter', sans-serif; letter-spacing: 1.25px; }
+.dark .brand-logo__name b, .dark .brand-logo__earn { color: #34d399; }
+.dark .brand-logo__name > span, .dark .brand-logo__know { color: #06b6d4; }
+.brand-logo--horizontal .brand-logo__mark { width: 42px; }
+.brand-logo--horizontal .brand-logo__type { align-items: flex-start; }
+.brand-logo--horizontal .brand-logo__name { font-size: 22px; }
+.brand-logo--icon .brand-logo__mark { width: 48px; }
+@media (max-width: 767px) {
+  .brand-logo--header { gap: 5px; }
+  .brand-logo--header .brand-logo__mark { width: 28px; }
+  .brand-logo--header .brand-logo__name { font-size: 15px; letter-spacing: -.6px; gap: 3px; }
+  .brand-logo--header .brand-logo__tagline { display: none; }
+}

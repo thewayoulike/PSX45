@@ -211,10 +211,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
       {/* ================= NAV ================= */}
       <header className="landing-header sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-6xl mx-auto px-3 sm:px-5 min-h-16 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="hidden sm:block w-12 h-14 relative shrink-0"><div className="absolute top-0 left-0 origin-top-left scale-[0.45]"><Logo /></div></div>
-            <span className="font-display font-black tracking-tight text-base sm:text-lg">PSX Tracker</span>
-          </div>
+          <Logo variant="horizontal" className="brand-logo--header" />
           <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-500 dark:text-slate-400">
             <button onClick={() => scrollTo('features')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</button>
             <button onClick={() => scrollTo('tools')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</button>
@@ -685,10 +682,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
       <footer className="px-5 py-12 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-5xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-5 mb-8">
-            <div className="flex items-center gap-2.5">
-              <div className="scale-[0.5] -ml-5 -my-5"><Logo /></div>
-              <span className="font-display font-black tracking-tight">PSX Portfolio Tracker</span>
-            </div>
+            <Logo variant="horizontal" />
             <p className="text-xs text-slate-400 text-center md:text-right">
               Built for Pakistan Stock Exchange investors.
             </p>
