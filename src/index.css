@@ -191,3 +191,26 @@ html.dark {
   0% { background-position: 100% 0; }
   100% { background-position: 0 0; }
 }
+
+/* Phone ergonomics. Keep financial numbers readable and scroll inside the
+   appropriate panel instead of shrinking an entire desktop layout. */
+@media (max-width: 639px) {
+  body { background-attachment: scroll; }
+  button, select, a[role="button"] { min-height: 44px; min-width: 44px; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select, textarea { font-size: 16px !important; }
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) { min-height: 44px; }
+  .mobile-dashboard { overflow-wrap: anywhere; }
+  .mobile-dashboard > section { content-visibility: auto; contain-intrinsic-size: auto 480px; }
+  .mobile-dashboard > section:first-child { content-visibility: visible; }
+  .mobile-dashboard .dash-card-shell { height: auto; }
+  .chart-layer-toggles { flex-wrap: nowrap !important; overflow-x: auto; padding-bottom: 6px; }
+  .chart-layer-toggles > * { flex-shrink: 0; }
+}
+@media (max-width: 374px) {
+  .dashboard-metrics { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 639px) {
+  .dashboard-metric-tooltip { width: 160px; left: -80px; font-size: 12px; }
+  .dashboard-health-popover { right: 0; left: auto; transform: none; width: 240px; }
+}

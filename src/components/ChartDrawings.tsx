@@ -54,6 +54,8 @@ export const DrawToolsToolbar: React.FC<{
         type="button"
         disabled={disabled}
         title={t.title}
+        aria-label={t.title}
+        aria-pressed={tool === t.id}
         onClick={() => onToolChange(t.id)}
         className={`inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold transition-all disabled:opacity-40 ${
           tool === t.id
@@ -62,7 +64,7 @@ export const DrawToolsToolbar: React.FC<{
         }`}
       >
         {t.icon}
-        <span className="hidden md:inline">{t.label}</span>
+        <span className="inline">{t.label}</span>
       </button>
     ))}
     {hasSelection && (

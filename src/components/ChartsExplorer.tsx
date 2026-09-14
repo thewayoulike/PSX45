@@ -16,6 +16,7 @@ import {
 } from '../utils/chartExplorerSelection';
 import { peekChartViewsToday, tryRecordChartView } from '../utils/freemiumQuotas';
 import { StockChart } from './StockChart';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const LAST_SYMBOL_KEY = 'psx_charts_symbol';
 const LIST_OPEN_KEY = 'psx_charts_list_open';
@@ -54,6 +55,7 @@ export const ChartsExplorer: React.FC<Props> = ({
   chartViewLimit = 5,
   onUpgrade,
 }) => {
+  const isPhone = useMediaQuery('(max-width: 639px)');
   const [rows, setRows] = useState<PsxStockRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState('');
@@ -97,6 +99,7 @@ export const ChartsExplorer: React.FC<Props> = ({
       setQuotaNote('');
     }
     setSelected(sym);
+    if (isPhone) setListOpen(false);
   };
 
   // Deep-link / restored URL symbol still counts toward Free quota once.
@@ -194,7 +197,7 @@ export const ChartsExplorer: React.FC<Props> = ({
   return (
     <div
       className={`flex flex-col min-h-0 w-full animate-in fade-in duration-300 ${
-        previewMode ? 'h-full' : 'h-[calc(100dvh-3.5rem)] lg:h-[calc(100dvh-2.5rem)]'
+        previewMode ? 'h-full' : 'flex-1 h-full'
       }`}
     >
       <div className="flex items-center gap-2 mb-2 shrink-0 flex-wrap">
@@ -203,9 +206,12 @@ export const ChartsExplorer: React.FC<Props> = ({
           onClick={() => setListOpen((o) => !o)}
           className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:border-emerald-300 transition-colors"
           title={listOpen ? 'Hide stock list' : 'Show stock list'}
+          aria-label={listOpen ? 'Hide stock list' : 'Show stock list'}
+          aria-expanded={listOpen}
+          aria-controls="chart-stock-list"
         >
           {listOpen ? <PanelLeftClose size={14} /> : <PanelLeftOpen size={14} />}
-          <span className="hidden sm:inline">{listOpen ? 'Hide list' : 'Stock list'}</span>
+          <span>{listOpen ? 'Hide list' : 'Stock list'}</span>
         </button>
         {active && (
           <div className="flex items-center gap-2 min-w-0 text-sm">
@@ -226,6 +232,7 @@ export const ChartsExplorer: React.FC<Props> = ({
             <button
               type="button"
               onClick={() => onSymbolClick(active.symbol)}
+              aria-label={`Open ${active.symbol} profile`}
               className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:border-emerald-300 transition-colors"
             >
               <ExternalLink size={12} />
@@ -238,6 +245,7 @@ export const ChartsExplorer: React.FC<Props> = ({
             disabled={loading}
             className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-bold border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-500 hover:border-emerald-300 transition-colors disabled:opacity-40"
             title="Refresh stock list"
+            aria-label="Refresh stock list"
           >
             <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
@@ -256,7 +264,7 @@ export const ChartsExplorer: React.FC<Props> = ({
 
       <div className="flex flex-1 min-h-0 gap-2 overflow-hidden">
         {listOpen && (
-          <div className="w-[min(100%,280px)] sm:w-[260px] lg:w-[280px] shrink-0 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col min-h-0">
+          <div id="chart-stock-list" className="w-full sm:w-[260px] lg:w-[280px] shrink-0 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col min-h-0">
             <div className="p-2 border-b border-slate-100 dark:border-slate-800 space-y-2 shrink-0">
               <div className="relative">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -264,11 +272,13 @@ export const ChartsExplorer: React.FC<Props> = ({
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Symbol or sector…"
+                  aria-label="Find a stock by symbol or sector"
                   className="w-full pl-8 pr-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 text-xs font-semibold outline-none focus:border-emerald-500"
                 />
               </div>
               <select
                 value={sectorFilter}
+                aria-label="Filter stock sectors"
                 onChange={(e) => setSectorFilter(e.target.value)}
                 className="w-full px-2 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-[10px] font-bold outline-none focus:border-emerald-500"
               >
@@ -320,7 +330,7 @@ export const ChartsExplorer: React.FC<Props> = ({
           </div>
         )}
 
-        <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+        <div className={`${listOpen ? 'hidden sm:flex' : 'flex'} flex-1 min-w-0 min-h-0 flex-col`}>
           {selected ? (
             <StockChart symbol={selected} layout="focus" />
           ) : (

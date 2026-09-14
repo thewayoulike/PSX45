@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
 import { setCanSaveAlerts } from '../services/alertAccess';
 import { Dashboard } from './DashboardStats';
@@ -27,7 +27,7 @@ import { DividendScanner } from './DividendScanner';
 import { UpcomingEventsScanner } from './UpcomingEventsScanner';
 import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
-import { TickerPerformanceList } from './TickerPerformanceList';
+const TickerPerformanceList = lazy(() => import('./TickerPerformanceList').then(m => ({ default: m.TickerPerformanceList })));
 import { FundProfile } from './FundProfile';
 import { TransferModal, firstBrokerHolding } from './TransferModal';
 import { TradingSimulator } from './TradingSimulator';
@@ -35,7 +35,7 @@ import { FairValueCalculator } from './FairValueCalculator';
 import { AlertsPage } from './AlertsPage';
 import { MarketSignalScanner } from './MarketSignalScanner';
 import { StrategyBacktest } from './StrategyBacktest';
-import { ChartsExplorer } from './ChartsExplorer';
+const ChartsExplorer = lazy(() => import('./ChartsExplorer').then(m => ({ default: m.ChartsExplorer })));
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
@@ -2303,11 +2303,11 @@ const App: React.FC = () => {
              hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 
-          <div className={`flex-1 flex flex-col relative z-10 ${isChartsView ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}>
+          <div className={`flex-1 min-w-0 flex flex-col relative z-10 ${isChartsView ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}>
               <div className={`w-full min-w-0 ${isChartsView ? 'px-1 sm:px-2 pt-1 pb-2 h-full flex flex-col min-h-0' : 'px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-6 pb-20'}`}>
 
                   {!isChartsView && (
-                  <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
+                  <header className="flex flex-row justify-between items-center gap-2 sm:gap-4 mb-4 sm:mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
 
                       <div className="flex items-center gap-3">
                          <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
@@ -2315,13 +2315,14 @@ const App: React.FC = () => {
                          </button>
                       </div>
 
-                      <div className="flex items-center gap-2 w-full md:w-auto bg-white/80 dark:bg-slate-900/80 p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
+                      <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 md:flex-none md:w-auto bg-white/80 dark:bg-slate-900/80 p-1 sm:p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
 
                           <ThemeToggle />
 
                           <div className="relative group flex-1 min-w-0">
                               <select
                                   value={currentPortfolioId}
+                                  aria-label="Current portfolio"
                                   onChange={(e) => setCurrentPortfolioId(e.target.value)}
                                   className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1.5 pl-2 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
                               >
@@ -2343,6 +2344,7 @@ const App: React.FC = () => {
                   )}
 
                   <main className={`${isChartsView ? 'flex-1 min-h-0 flex flex-col' : 'animate-in fade-in slide-in-from-bottom-5 duration-700'}`}>
+                      <Suspense fallback={<div role="status" className="p-6 text-slate-500">Loading view…</div>}>
 
                       {isChartsView && (
                         <header className="flex lg:hidden items-center justify-between mb-1 px-1 shrink-0">
@@ -2705,6 +2707,7 @@ const App: React.FC = () => {
                               />
                           </div>
                       )}
+                      </Suspense>
                   </main>
               </div>
           </div>

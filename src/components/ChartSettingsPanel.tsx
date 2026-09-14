@@ -267,7 +267,7 @@ export const ChartSettingsPanel: React.FC<{
             onClick={() => setOpen(false)}
           />
 
-          <div className="relative w-full max-w-[460px] max-h-[min(680px,90vh)] bg-white dark:bg-slate-900 shadow-2xl rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
+          <div className="relative w-full max-w-[460px] max-h-[min(680px,90dvh)] bg-white dark:bg-slate-900 shadow-2xl rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 dark:border-slate-800 shrink-0">
               <div className="flex items-center gap-2">
                 <Layers size={16} className="text-sky-600" />

@@ -15,6 +15,7 @@ import { fetchStockHistory } from '../services/psxData';
 import { formatDatePK } from '../utils/dates';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 interface PerformanceChartProps {
   transactions: Transaction[];
@@ -23,6 +24,8 @@ interface PerformanceChartProps {
 }
 
 export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions, savedData, onSaveData }) => {
+  const compact = useMediaQuery('(max-width: 639px)');
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [loading, setLoading] = useState(false);
   const [chartData, setChartData] = useState<any[]>(savedData || []);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -276,14 +279,14 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         </div>
       )}
       
-      <div className="w-full relative" style={{ height: '400px' }}>
+      <div className="w-full min-w-0 relative" style={{ height: compact ? 280 : 400 }} role="img" aria-label="Portfolio and benchmark returns over time. Tap a point for exact values.">
         {chartData.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="currentColor" strokeOpacity={0.15} className="text-slate-400 dark:text-slate-500" />
               <ReferenceLine y={0} stroke="#ef4444" strokeWidth={1.5} strokeDasharray="3 3" opacity={0.6} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} />
-              <YAxis domain={[-10, 10]} ticks={[10, 0, -10]} allowDataOverflow tickFormatter={(val) => `${val > 0 ? '+' : ''}${val}%`} tick={{ fontSize: 10, fill: '#94a3b8', fontWeight: 600 }} axisLine={false} tickLine={false} width={45} />
+              <XAxis dataKey="date" minTickGap={compact ? 36 : 20} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} axisLine={false} tickLine={false} />
+              <YAxis domain={['auto', 'auto']} tickFormatter={(val) => `${val > 0 ? '+' : ''}${val}%`} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} axisLine={false} tickLine={false} width={54} />
 
               <Tooltip
                 contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
@@ -296,14 +299,14 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '15px' }} />
 
-              <Line type="monotone" name="Portfolio" dataKey="Portfolio" stroke="#10b981" strokeWidth={3} dot={{ r: 3, fill: "#10b981", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />
+              <Line isAnimationActive={!compact && !reduceMotion} type="monotone" name="Portfolio" dataKey="Portfolio" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />
 
               {showKSE100 && (
-                <Line type="monotone" name="KSE100" dataKey="KSE100" stroke="#6366f1" strokeWidth={2.5} dot={{ r: 3, fill: "#6366f1", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }} />
+                <Line isAnimationActive={!compact && !reduceMotion} type="monotone" name="KSE100" dataKey="KSE100" stroke="#6366f1" strokeWidth={2.5} dot={false} activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }} />
               )}
 
               {showKMI30 && (
-                <Line type="monotone" name="KMI30" dataKey="KMI30" stroke="#f59e0b" strokeWidth={2.5} dot={{ r: 3, fill: "#f59e0b", strokeWidth: 0 }} activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }} />
+                <Line isAnimationActive={!compact && !reduceMotion} type="monotone" name="KMI30" dataKey="KMI30" stroke="#f59e0b" strokeWidth={2.5} dot={false} activeDot={{ r: 6, fill: "#f59e0b", strokeWidth: 0 }} />
               )}
             </LineChart>
           </ResponsiveContainer>

@@ -72,6 +72,15 @@ describe('canFitAllTime', () => {
 });
 
 describe('effectiveViewCount', () => {
+  it('zooms immediately from the phone window even with a long history', () => {
+    expect(effectiveViewCount(1500, 0, false, 60)).toBe(60);
+    expect(effectiveViewCount(1500, 1, false, 60)).toBe(48);
+    expect(effectiveViewCount(1500, 8, false, 60)).toBe(12);
+  });
+
+  it('does not invent bars when zooming a short series', () => {
+    expect(effectiveViewCount(5, 8, false, 60)).toBe(5);
+  });
   it('uses the recent-window cap by default (fitAll off)', () => {
     expect(effectiveViewCount(800, 0, false)).toBe(DEFAULT_MAX_VISIBLE_BARS);
   });

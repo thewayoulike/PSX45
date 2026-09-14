@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useId } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { fetchOHLCV, fetchIntradayOHLCV, fetchStockHistory, fetchChartAnalysis, OhlcBar, ChartAnalysisPoint } from '../services/psxData';
 import { computeChartAnalysisFromBars } from '../utils/chartAnalysis';
 import {
@@ -526,7 +527,7 @@ const LayerToggleBar: React.FC<{
   momentumLabel: string;
 }> = ({ layers, onToggle, hasVolume, momentumLabel }) => (
   <div
-    className="flex flex-wrap items-center gap-1.5 mb-1 px-1 relative z-20"
+    className="chart-layer-toggles flex flex-wrap items-center gap-1.5 mb-1 px-1 relative z-20"
     onPointerDown={(e) => e.stopPropagation()}
   >
     <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-1">Panels</span>
@@ -1501,7 +1502,7 @@ function CandlePatternsSvg({
   );
 }
 
-const CandleChart: React.FC<{
+export const CandleChart: React.FC<{
   bars: OhlcBar[];
   allBars?: OhlcBar[];
   viewStart?: number;
@@ -2263,6 +2264,9 @@ const CandleChart: React.FC<{
 };
 
 export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
+  const isPhone = useMediaQuery('(max-width: 639px)');
+  const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const maxVisibleBars = isPhone ? 60 : MAX_VISIBLE_BARS;
   const isFocus = layout === 'focus';
   const [ohlc, setOhlc] = useState<OhlcBar[]>([]);
   const [lineFallback, setLineFallback] = useState<{ time: number; price: number }[]>([]);
@@ -2319,12 +2323,12 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       return;
     }
     const update = () => {
-      setFocusCandleHeight(Math.max(440, Math.min(window.innerHeight - 260, 960)));
+      setFocusCandleHeight(Math.max(isPhone ? 260 : 440, Math.min(window.innerHeight - 260, 960)));
     };
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
-  }, [isFocus]);
+  }, [isFocus, isPhone]);
 
   const toggleLayer = (key: keyof ChartLayers) => {
     setLayers((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -2466,7 +2470,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   useEffect(() => {
     if (!symbol || range === 'ALL') return;
     const id = setInterval(() => {
-      load({ silent: true });
+      if (document.visibilityState === 'visible') load({ silent: true });
     }, 60 * 1000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2584,7 +2588,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       ? filteredAnalysis.length
       : chartData.length;
 
-  const viewCount = effectiveViewCount(primaryLen, zoomIdx, fitAllTime);
+  const viewCount = effectiveViewCount(primaryLen, zoomIdx, fitAllTime, maxVisibleBars);
   const maxViewStart = maxViewStartFor(primaryLen, viewCount);
   const canZoom = primaryLen >= MIN_WINDOW;
   const canPan = canZoom && maxViewStart > 0;
@@ -2602,13 +2606,13 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   // Large series: pin to recent bars (skip while fit-all is active).
   useEffect(() => {
     if (fitAllTime) return;
-    if (primaryLen <= MAX_VISIBLE_BARS) return;
+    if (primaryLen <= maxVisibleBars) return;
     setZoomIdx(0);
-    setViewStart(Math.max(0, primaryLen - MAX_VISIBLE_BARS));
-  }, [symbol, candleInterval, range, primaryLen, fitAllTime]);
+    setViewStart(Math.max(0, primaryLen - maxVisibleBars));
+  }, [symbol, candleInterval, range, primaryLen, fitAllTime, maxVisibleBars]);
 
   const snapToRecent = (nextZoomIdx: number) => {
-    const cnt = windowCount(primaryLen, nextZoomIdx, MAX_VISIBLE_BARS);
+    const cnt = windowCount(primaryLen, nextZoomIdx, maxVisibleBars);
     setViewStart(Math.max(0, primaryLen - cnt));
   };
 
@@ -2628,7 +2632,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     endPan();
     setFitAllTime(false);
     setZoomIdx(0);
-    setViewStart(primaryLen > MAX_VISIBLE_BARS ? Math.max(0, primaryLen - MAX_VISIBLE_BARS) : 0);
+    setViewStart(primaryLen > maxVisibleBars ? Math.max(0, primaryLen - maxVisibleBars) : 0);
   };
   const fitAllTimeBars = () => {
     if (!canFitAllTime(primaryLen)) return;
@@ -2887,9 +2891,11 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
 
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.button !== 0 || !canPanChart || drawTool !== 'pan') return;
-    e.preventDefault();
+    if (e.pointerType !== 'touch') e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
     onPanStart(e.clientX, e.clientY);
+    // Touch swipes move time horizontally; vertical gestures scroll the page.
+    if (e.pointerType === 'touch' && panRef.current) panRef.current.panV = false;
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -2950,7 +2956,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         setZoomIdx((z) => {
           const next = Math.min(ZOOM_STEPS.length - 1, z + 1);
           if (next !== z) {
-            const cnt = windowCount(primaryLen, next, MAX_VISIBLE_BARS);
+            const cnt = windowCount(primaryLen, next, maxVisibleBars);
             setViewStart(Math.max(0, primaryLen - cnt));
           }
           return next;
@@ -2962,7 +2968,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [canZoom, primaryLen, showCandle]);
+  }, [canZoom, primaryLen, showCandle, maxVisibleBars]);
 
   const first = filteredOhlc[0]?.close ?? chartData[0]?.price ?? 0;
   const last = filteredOhlc[filteredOhlc.length - 1]?.close ?? chartData[chartData.length - 1]?.price ?? 0;
@@ -3075,6 +3081,11 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               ))}
             </select>
           </div>
+          <button type="button" className="sm:hidden px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 text-xs font-bold"
+            aria-expanded={mobileToolsOpen} onClick={() => setMobileToolsOpen(v => !v)}>
+            {mobileToolsOpen ? 'Hide tools' : 'Chart tools'}
+          </button>
+          <div className={`${mobileToolsOpen ? 'flex' : 'hidden sm:flex'} flex-wrap items-center gap-2 w-full sm:w-auto`}>
           {canZoom && (
             <AxisZoomControls
               axis="H"
@@ -3144,7 +3155,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               setChartExtras(next.chartExtras);
             }}
           />
-          <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh">
+          </div>
+          <button onClick={refresh} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 transition-colors disabled:opacity-40" title="Refresh" aria-label="Refresh chart">
             <RefreshCw size={15} className={loading ? 'animate-spin text-emerald-500' : ''} aria-hidden />
           </button>
         </div>
@@ -3166,7 +3178,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           />
         )}
         <div
-          className={`${canPanChart && drawTool === 'pan' ? (panning ? 'cursor-grabbing touch-none' : 'cursor-grab touch-none') : ''}`}
+          className={`${canPanChart && drawTool === 'pan' ? (panning ? 'cursor-grabbing touch-pan-y' : 'cursor-grab touch-pan-y') : ''}`}
           ref={chartPanRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
@@ -3236,7 +3248,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               autoTrendlines={autoTrendlines}
               chartExtras={chartExtras}
               candleInterval={candleInterval}
-              height={isFocus ? focusCandleHeight : CANDLE_CHART_HEIGHT}
+              height={isFocus ? focusCandleHeight : isPhone ? 320 : CANDLE_CHART_HEIGHT}
               panning={panning}
               canPan={canPanChart && drawTool === 'pan'}
               priceZoomIdx={priceZoomIdx}

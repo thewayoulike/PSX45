@@ -147,7 +147,7 @@ const pillarText = (s: number) => (s >= 60 ? 'text-emerald-600 dark:text-emerald
 const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: React.ReactNode }> = ({ pillars, score, children }) => (
   <span className="relative group inline-flex cursor-help z-30" tabIndex={0}>
     {children}
-    <div className="opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible group-focus:opacity-100 group-focus:visible transition-all duration-200 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-card dark:shadow-card-dark p-4 text-left normal-case tracking-normal transform scale-95 group-hover:scale-100 origin-bottom">
+    <div className="dashboard-health-popover opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible group-focus:opacity-100 group-focus:visible transition-all duration-200 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-card dark:shadow-card-dark p-4 text-left normal-case tracking-normal transform scale-95 group-hover:scale-100 origin-bottom">
       <div className="flex items-center justify-between mb-3">
         <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Score Breakdown</span>
         <span className="text-sm font-display font-black text-slate-900 dark:text-white">{score}/100</span>
@@ -206,25 +206,25 @@ const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: 
         {icon}
         <span className="text-[11px] font-bold uppercase tracking-widest">{title}</span>
      </div>
-     <div className="grid grid-cols-2 gap-3 flex-1">
+     <div className="dashboard-metrics grid grid-cols-2 gap-2 sm:gap-3 flex-1 min-w-0">
         {children}
      </div>
   </div>
 );
 const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.ReactNode; valueClass?: string; tooltip?: string }> = ({ label, value, sub, valueClass, tooltip }) => (
-  <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm flex flex-col justify-center">
+  <div className="min-w-0 bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 sm:p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm flex flex-col justify-center">
     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1">
       {label}
       {tooltip && (
-        <span className="relative group/tt inline-flex items-center">
+        <span tabIndex={0} className="relative group/tt inline-flex items-center">
           <Info size={10} className="text-slate-400 dark:text-slate-500 cursor-help" />
-          <span className="pointer-events-none absolute left-0 bottom-full mb-1.5 w-56 z-50 opacity-0 group-hover/tt:opacity-100 transition-opacity duration-150 bg-slate-900 dark:bg-slate-700 text-white text-[10px] font-medium leading-snug rounded-lg px-2.5 py-2 shadow-xl normal-case tracking-normal">
+          <span className="dashboard-metric-tooltip invisible group-hover/tt:visible group-focus/tt:visible group-focus/tt:opacity-100 pointer-events-none absolute left-0 bottom-full mb-1.5 w-56 z-50 opacity-0 group-hover/tt:opacity-100 transition-opacity duration-150 bg-slate-900 dark:bg-slate-700 text-white text-[10px] font-medium leading-snug rounded-lg px-2.5 py-2 shadow-xl normal-case tracking-normal">
             {tooltip}
           </span>
         </span>
       )}
     </div>
-    <div className={`text-lg sm:text-xl font-display font-black tabular-nums tracking-tight leading-none ${valueClass || 'text-slate-800 dark:text-slate-100'}`}>
+    <div className={`break-words text-base sm:text-xl font-display font-black tabular-nums tracking-tight leading-snug ${valueClass || 'text-slate-800 dark:text-slate-100'}`}>
       {value}
     </div>
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}

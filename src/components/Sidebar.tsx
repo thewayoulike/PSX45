@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { AppView, PortfolioType } from '../types';
 import {
   LayoutDashboard, History, Bell, Calculator,
@@ -45,6 +46,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isSidebarCollapsed, onToggleCollapse, driveUser, authUser, isOwner, onLogin, onLogout, isCloudSyncing, hasApiKeys,
   cloudSyncError, lastCloudSave, onCloudRetry
 }) => {
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    const drawer = drawerRef.current;
+    if (!drawer) return;
+    drawer.toggleAttribute('inert', !isDesktop && !isOpen);
+    if (isDesktop || !isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const focusable = () => Array.from(drawer.querySelectorAll<HTMLElement>('button:not([disabled]), a[href], input, select, [tabindex="0"]'))
+      .filter(el => el.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); }
+      if (event.key !== 'Tab') return;
+      const list = focusable(), first = list[0], last = list[list.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    drawer.addEventListener('keydown', onKey);
+    return () => { drawer.removeEventListener('keydown', onKey); previous?.focus(); };
+  }, [isDesktop, isOpen]);
 
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
   const isProfileView = !isFundPortfolio && (currentView === 'STOCKS' || currentView === 'SECTOR');
@@ -168,12 +192,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* Sidebar Container */}
-      <div className={`
+      <div ref={drawerRef} role={!isDesktop && isOpen ? 'dialog' : 'navigation'}
+        aria-label="Main navigation" aria-modal={!isDesktop && isOpen ? true : undefined}
+        aria-hidden={!isDesktop && !isOpen}
+        className={`
         fixed lg:static inset-y-0 left-0 z-50
         bg-white dark:bg-slate-900 border-r border-slate-200/60 dark:border-slate-800/60
         shadow-[4px_0_24px_rgba(0,0,0,0.02)] dark:shadow-[4px_0_24px_rgba(0,0,0,0.2)]
         transform transition-all duration-300 ease-in-out
-        flex flex-col h-[100dvh] overflow-hidden
+        flex flex-col h-[100dvh] overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]
         ${isCollapsed ? 'w-24' : 'w-64'}
         ${isOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0'}
       `}>
@@ -196,6 +223,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           <button
             onClick={onClose}
+            aria-label="Close menu"
             className="lg:hidden absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 dark:hover:text-slate-200 rounded-full transition-colors"
           >
             <X size={20} />

@@ -48,7 +48,7 @@ export function windowCount(
   if (total === 0) return 0;
   if (zoomIdx <= 0) return Math.min(total, maxVisible);
   const factor = ZOOM_STEPS[Math.min(zoomIdx, ZOOM_STEPS.length - 1)] ?? 1;
-  return Math.max(MIN_WINDOW, Math.min(maxVisible, Math.floor(total / factor)));
+  return Math.min(total, maxVisible, Math.max(MIN_WINDOW, Math.floor(Math.min(total, maxVisible) / factor)));
 }
 
 /**

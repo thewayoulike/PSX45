@@ -4,6 +4,7 @@ import { isFundTicker } from '../utils/fundId';
 import { formatFundShortLabel } from '../utils/fundDisplay';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Sector } from 'recharts';
 import { PieChart as PieChartIcon, Layers } from 'lucide-react';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 
 interface AllocationChartProps {
   holdings: Holding[];
@@ -23,16 +24,10 @@ const RADIAN = Math.PI / 180;
 export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, portfolioType = 'PSX', displayNames = {} }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const [chartMode, setChartMode] = useState<'asset' | 'sector'>(isFund ? 'asset' : 'sector');
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const isMobile = useMediaQuery('(max-width: 767px)');
+  const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 
-  useEffect(() => {
-    const handleResize = () => {
-        setIsMobile(window.innerWidth < 768);
-    };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   const { data: displayData, totalValue } = useMemo(() => {
     let rawData: { name: string; value: number; quantity: number }[] = [];
@@ -80,7 +75,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
         })), 
         totalValue: total 
     };
-  }, [holdings, chartMode]);
+  }, [holdings, chartMode, displayNames]);
 
   const onPieClick = (_: any, index: number) => {
     setActiveIndex(index === activeIndex ? -1 : index);
@@ -193,7 +188,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 flex flex-col w-full h-full min-h-[550px]">
+    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-4 sm:p-6 flex flex-col w-full h-full min-h-0 lg:min-h-[550px]">
       
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
@@ -220,10 +215,10 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-col lg:flex-row items-center gap-8 flex-1">
+      <div className="flex flex-col lg:flex-row items-center gap-3 sm:gap-8 flex-1 min-w-0">
           
           {/* Left: Chart Container */}
-          <div className="w-full lg:w-3/5 h-[350px] md:h-[400px] relative">
+          <div className="w-full lg:w-3/5 h-[240px] sm:h-[350px] md:h-[400px] relative" role="img" aria-label={`Allocation across ${displayData.length} ${chartMode === 'asset' ? 'assets' : 'sectors'}. Values are listed below.`}>
             
             {/* Center Donut Text (Layer 0 - Background) */}
             {displayData.length > 0 && (
@@ -268,9 +263,10 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
                         outerRadius={isMobile ? 90 : 135} 
                         paddingAngle={3}
                         dataKey="value"
-                        label={renderCustomizedLabel}
+                        label={isMobile ? false : renderCustomizedLabel}
+                        isAnimationActive={!isMobile && !reduceMotion}
                         labelLine={false} 
-                        filter="url(#realistic-3d)"
+                        filter={isMobile ? undefined : 'url(#realistic-3d)'}
                         stroke="none"
                         activeIndex={activeIndex}
                         activeShape={renderActiveShape}
@@ -298,16 +294,16 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
           </div>
           
           {/* Right: Legend List */}
-          <div className="w-full lg:w-2/5 flex flex-col h-[400px] overflow-y-auto custom-scrollbar pr-2 relative z-10">
+          <div className="w-full lg:w-2/5 flex flex-col max-h-[320px] lg:h-[400px] lg:max-h-none overflow-y-auto overscroll-contain custom-scrollbar sm:pr-2 relative z-10">
               <div className="space-y-2 pt-2">
                   {displayData.map((item, idx) => {
                       const percent = (item.value / totalValue) * 100;
                       const isActive = activeIndex === idx;
                       return (
-                        <div 
+                        <button type="button" aria-pressed={isActive}
                             key={item.name} 
                             onClick={() => setActiveIndex(isActive ? -1 : idx)}
-                            className={`flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-all duration-300 group border ${isActive ? 'bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 shadow-sm scale-[1.02]' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}
+                            className={`w-full text-left flex items-center gap-3 p-3 rounded-2xl cursor-pointer transition-colors duration-150 group border ${isActive ? 'bg-white dark:bg-slate-800 border-slate-200/80 dark:border-slate-700 shadow-sm' : 'border-transparent hover:bg-slate-50 dark:hover:bg-slate-800/40'}`}
                         >
                             <div 
                                 className="w-3.5 h-3.5 rounded-[4px] shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-125" 
@@ -315,8 +311,9 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
                             ></div>
                             
                             <div className="flex-1 flex justify-between items-center min-w-0">
-                                <span className={`text-xs font-display font-bold truncate pr-3 transition-colors ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100'}`} title={item.name}>
+                                <span className={`text-xs font-display font-bold break-words min-w-0 pr-2 transition-colors ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100'}`} title={item.name}>
                                     {item.name}
+                                    <span className="block sm:hidden text-xs font-normal text-slate-600 dark:text-slate-400 mt-1">Rs. {Math.round(item.value).toLocaleString()}</span>
                                 </span>
                                 <div className="flex items-center gap-3 shrink-0">
                                     <span className="text-[11px] text-slate-400 dark:text-slate-500 font-bold tabular-nums hidden sm:block">
@@ -329,7 +326,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </button>
                       );
                   })}
               </div>
