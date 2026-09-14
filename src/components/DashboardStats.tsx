@@ -349,8 +349,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
         <MetricPanel title="Performance" icon={<TrendingUp size={16}/>} colorClass="text-emerald-600 dark:text-emerald-400">
           <PanelCell
             label="MWR (XIRR)"
-            value={spct(stats.mwrr)}
-            valueClass={stats.mwrr >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
+            value={stats.mwrr == null ? 'N/A' : spct(stats.mwrr)}
+            valueClass={stats.mwrr == null ? 'text-slate-400' : stats.mwrr >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
             sub="Annualized"
             tooltip="MWR (XIRR): your true, annualized personal return \u2014 it accounts for how much you invested and exactly when you deposited or withdrew. Because it is annualized, a gain earned over a short period can look large."
           />

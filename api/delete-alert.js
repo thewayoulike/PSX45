@@ -1,34 +1,16 @@
-import { sidFor, getRecord, putRecord, deleteRecord } from '../lib/alertsStore.js';
-import { requireOnlineUser } from '../lib/requireOnlineUser.js';
-
+import { sidFor, mutateAlerts } from '../lib/alertsStore.js';
+import { alertRequest } from '../lib/alertRequest.js';
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') return res.status(200).end();
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
-
   try {
-    const gate = await requireOnlineUser(req);
-    if (!gate.ok) return res.status(gate.status).json({ error: gate.error });
-
-    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-    const { id, endpoint } = body;
-
-    if (!id || !endpoint) return res.status(400).json({ error: 'Missing alert ID or endpoint' });
-
-    const sid = sidFor(endpoint);
-    const record = await getRecord(sid);
-    if (!record) return res.status(200).json({ success: true });
-
-    record.alerts = record.alerts.filter((a) => a.id !== id);
-
-    if (record.alerts.length === 0) await deleteRecord(sid);
-    else await putRecord(sid, record);
-
+    const context = await alertRequest(req, res);
+    if (!context) return;
+    const { endpoint, id } = context.body;
+    if (typeof endpoint !== 'string' || !endpoint || typeof id !== 'string' || !id) {
+      return res.status(400).json({ error: 'Missing alert ID or endpoint' });
+    }
+    await mutateAlerts(sidFor(endpoint), context.user.email, 'remove', { id });
     return res.status(200).json({ success: true });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    return res.status(error.status || 500).json({ error: error.message });
   }
 }

@@ -366,7 +366,10 @@ export const StrategyBacktest: React.FC<Props> = ({ onSymbolClick }) => {
       )}
 
       <p className="text-[11px] text-slate-400 text-center pb-4">
-        <strong className="text-slate-500">Disclaimer:</strong> Backtests use daily OHLC with simplified fills. Past performance does not guarantee future results.
+        Signals fill at the signal-day close. Gaps fill at the next opening price; if both stop and target
+        are crossed within a bar, the stop takes priority. Drawdown uses daily closing equity, including
+        open positions. Round-trip fees are reserved at entry for both strategy and buy-and-hold.
+        Daily bars cannot measure intraday drawdown or guarantee execution. Past performance does not guarantee future results.
       </p>
     </div>
   );

@@ -1,5 +1,7 @@
 import webpush from 'web-push';
-import { allSids, getRecord, putRecord, deleteRecord } from '../lib/alertsStore.js';
+import { getAllRecords } from '../lib/alertsStore.js';
+import { deliverAlerts } from '../lib/deliverAlerts.js';
+import { isCronAuthorized } from '../lib/cronAuth.js';
 import { fetchPsxLatestCloses } from '../lib/psxOhlc.js';
 import { fetchPypsxQuotePrices } from '../lib/pypsxQuotes.js';
 
@@ -54,7 +56,7 @@ async function fetchLivePrices() {
 }
 
 export default async function handler(req, res) {
-  if (req.query.secret !== process.env.CRON_SECRET) {
+  if (!isCronAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized. Invalid Secret.' });
   }
 
@@ -66,16 +68,8 @@ export default async function handler(req, res) {
     }
     webpush.setVapidDetails('mailto:itruth2011@gmail.com', pubKey, privKey);
 
-    const sids = await allSids();
-    if (sids.length === 0) return res.status(200).json({ message: 'No active alerts' });
-
-    // Load every subscription record.
-    const records = [];
-    for (const sid of sids) {
-      const rec = await getRecord(sid);
-      if (rec && Array.isArray(rec.alerts) && rec.alerts.length > 0) records.push({ sid, rec });
-    }
-    if (records.length === 0) return res.status(200).json({ message: 'No active alerts' });
+    const records = (await getAllRecords()).filter(({ rec }) => rec?.alerts?.length);
+    if (!records.length) return res.status(200).json({ message: 'No active alerts' });
 
     // Offline-safe price stack (app closed):
     // 1) market-watch  2) OHLC last close  3) pypsx.get_quote (preferred when keys work)
@@ -102,53 +96,8 @@ export default async function handler(req, res) {
       console.warn('[run-alerts] pyPSX quotes failed — keeping market-watch/OHLC backup', e);
     }
 
-    let pushesSent = 0;
-
-    // Each record is read+written independently -> no cross-user clobbering.
-    await Promise.all(
-      records.map(async ({ sid, rec }) => {
-        const remaining = [];
-        let subscriptionDead = false;
-
-        for (const alert of rec.alerts) {
-          const ticker = String(alert.ticker || '').toUpperCase();
-          const price = livePrices[ticker] ?? livePrices[alert.ticker];
-          if (price == null) { remaining.push(alert); continue; }
-
-          const hit =
-            (alert.direction === 'ABOVE' && price >= alert.targetPrice) ||
-            (alert.direction === 'BELOW' && price <= alert.targetPrice);
-
-          if (!hit) { remaining.push(alert); continue; }
-
-          const payload = JSON.stringify({
-            title: `PSX Alert: ${ticker || alert.ticker} hit Rs. ${price}`,
-            body: `Target was Rs. ${alert.targetPrice}. Open the app to view your portfolio.`
-          });
-
-          try {
-            await webpush.sendNotification(rec.subscription, payload);
-            pushesSent++;
-            // alert consumed -> intentionally NOT pushed to `remaining`
-          } catch (e) {
-            if (e.statusCode === 410 || e.statusCode === 404) {
-              subscriptionDead = true;
-              break; // whole subscription is gone
-            }
-            remaining.push(alert); // transient error -> keep for next run
-          }
-        }
-
-        if (subscriptionDead || remaining.length === 0) {
-          await deleteRecord(sid);
-        } else if (remaining.length !== rec.alerts.length) {
-          rec.alerts = remaining;
-          await putRecord(sid, rec);
-        }
-      })
-    );
-
-    return res.status(200).json({ success: true, pushesSent });
+    const result = await deliverAlerts(records, livePrices, (...args) => webpush.sendNotification(...args));
+    return res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error('Run Alerts Error:', error);
     return res.status(500).json({ error: 'GENERAL ERROR: ' + error.message });

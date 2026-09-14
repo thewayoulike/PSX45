@@ -1,4 +1,11 @@
-/** Daily + lifetime Free-plan usage counters (Pakistan calendar day). localStorage v1. */
+/** Soft browser usage counters, scoped by account and Pakistan calendar day.
+ * These are UI limits, not server-enforced entitlements. Alerts use server quotas.
+ */
+let quotaAccount = 'guest';
+export function setQuotaAccount(email: string | null | undefined): void {
+  quotaAccount = email?.trim().toLowerCase() || 'guest';
+}
+const accountKey = (key: string) => `psx_quota_v2:${encodeURIComponent(quotaAccount)}:${key}`;
 
 const CHART_KEY_PREFIX = 'psx_quota_charts_';
 const DAILY_KEY_PREFIX = 'psx_quota_daily_';
@@ -15,7 +22,7 @@ export function karachiDayKey(d = new Date()): string {
 
 function readJson<T>(key: string, fallback: T): T {
   try {
-    const raw = localStorage.getItem(key);
+    const raw = localStorage.getItem(accountKey(key));
     if (!raw) return fallback;
     return JSON.parse(raw) as T;
   } catch {
@@ -25,7 +32,7 @@ function readJson<T>(key: string, fallback: T): T {
 
 function writeJson(key: string, value: unknown): void {
   try {
-    localStorage.setItem(key, JSON.stringify(value));
+    localStorage.setItem(accountKey(key), JSON.stringify(value));
   } catch {
     /* ignore */
   }

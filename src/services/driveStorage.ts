@@ -1,3 +1,5 @@
+import { buildSheetSyncRequests } from '../utils/sheetSync';
+import { createSerialQueue } from '../utils/serialQueue';
 // src/services/driveStorage.ts
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
@@ -206,185 +208,121 @@ export const getValidToken = async (): Promise<string | null> => {
     return null;
 };
 
-// --- Drive File Operations ---
-
-const findDbFile = async () => {
-    const token = await getValidToken();
-    if (!token) return null;
-
-    const query = `name = '${DB_FILE_NAME}' and trashed = false`;
-    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`;
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    
-    if (response.status === 401) {
-        localStorage.removeItem(STORAGE_TOKEN_KEY); 
-        const newToken = await getValidToken();
-        if (!newToken) return null;
-        const retryResp = await fetch(url, { headers: { Authorization: `Bearer ${newToken}` } });
-        const data = await retryResp.json();
-        if (data.files && data.files.length > 0) return data.files[0].id;
-        return null;
-    }
-
-    const data = await response.json();
-    if (data.files && data.files.length > 0) return data.files[0].id;
-    return null;
+// --- Checked, serialized Drive and Sheets operations ---
+const cloudQueue = createSerialQueue();
+const currentEmail = () => {
+    try { return String(JSON.parse(localStorage.getItem(STORAGE_USER_KEY) || '{}').email || '').toLowerCase(); }
+    catch { return ''; }
 };
+const pendingKey = (email: string) => 'psx_pending_cloud_v1:' + encodeURIComponent(email);
+export type CloudSaveResult = { ok: true; savedAt: string; sheetId: string | null } | { ok: false; error: string };
 
-export const saveToDrive = async (data: any) => {
+async function cloudSession(email: string) {
     const token = await getValidToken();
-    if (!token) return;
-
-    try {
-        const fileId = await findDbFile();
-        const contentToSave = {
-            ...data,
-            lastModified: new Date().toISOString()
-        };
-        const fileContent = JSON.stringify(contentToSave);
-        const metadata = { name: DB_FILE_NAME, mimeType: 'application/json' };
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
-        form.append('file', new Blob([fileContent], { type: 'application/json' }));
-
-        const method = fileId ? 'PATCH' : 'POST';
-        const endpoint = fileId 
-            ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-            : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-
-        await fetch(endpoint, {
-            method,
-            headers: { Authorization: `Bearer ${token}` },
-            body: form
-        });
-    } catch (e) {
-        console.error("Save to Drive failed", e);
-    }
-};
-
-export const loadFromDrive = async () => {
-    const token = await getValidToken();
-    if (!token) return null;
-
-    try {
-        const fileId = await findDbFile();
-        if (!fileId) return null;
-
-        const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        if (response.ok) return await response.json();
-    } catch (e) {
-        console.error("Load from Drive failed", e);
-    }
-    return null;
-};
-
-// --- Google Sheets Sync ---
-
-const findSheetFile = async () => {
-    const token = await getValidToken();
-    if (!token) return null;
-
-    const query = `name = '${SHEET_FILE_NAME}' and mimeType = 'application/vnd.google-apps.spreadsheet' and trashed = false`;
-    const url = `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id, name)`;
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-    const data = await response.json();
-    if (data.files && data.files.length > 0) return data.files[0].id;
-    return null;
-};
-
-const createSheetFile = async () => {
-    const token = await getValidToken();
-    if (!token) return null;
-
-    const metadata = { name: SHEET_FILE_NAME, mimeType: 'application/vnd.google-apps.spreadsheet' };
-    const response = await fetch('https://www.googleapis.com/drive/v3/files', {
-        method: 'POST',
-        headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(metadata)
-    });
-    
-    if (response.status === 403) {
-        alert("Action Forbidden: Please Sign Out and Sign In again to grant 'Create Spreadsheets' permission.");
-        return null;
-    }
-    const data = await response.json();
-    return data.id;
-};
-
-export const getGoogleSheetId = async (): Promise<string | null> => {
-    return await findSheetFile();
-};
-
-export const syncTransactionsToSheet = async (transactions: any[], portfolios: any[]) => {
-    const token = await getValidToken();
-    if (!token) return;
-
-    try {
-        let sheetId = await findSheetFile();
-        if (!sheetId) sheetId = await createSheetFile();
-        if (!sheetId) return;
-
-        const metaResp = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets.properties`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        
-        if (metaResp.status === 403) {
-             alert("Sync Failed: The app does not have permission to access Google Sheets. Please re-authenticate.");
-             return;
-        }
-
-        const meta = await metaResp.json();
-        const existingTitles = new Set(meta.sheets?.map((s: any) => s.properties.title) || []);
-        const headers = ['Date', 'Type', 'Category', 'Ticker', 'Broker', 'Quantity', 'Price', 'Commission', 'Tax', 'CDC Charges', 'Other Fees', 'Total Amount', 'Notes', 'ID'];
-
-        for (const p of portfolios) {
-            const sheetTitle = p.name.replace(/[*?:\/\\\[\]]/g, '_').substring(0, 100);
-            if (!existingTitles.has(sheetTitle)) {
-                await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
-                    method: 'POST',
-                    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: sheetTitle } } }] })
-                });
+    if (!email || !token || currentEmail() !== email) throw new Error('Sign in to the same Google account to finish saving.');
+    return async (url: string, options: RequestInit = {}) => {
+        if (currentEmail() !== email) throw new Error('Account changed. Save cancelled.');
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 30000);
+        let response: Response;
+        try {
+            response = await fetch(url, { ...options, signal: controller.signal, headers: {
+                ...options.headers, Authorization: `Bearer ${token}`,
+            } });
+        } finally { clearTimeout(timer); }
+        if (!response.ok) {
+            if (response.status === 401 && accessToken === token) {
+                accessToken = null;
+                tokenExpiryTime = 0;
+                localStorage.removeItem(STORAGE_TOKEN_KEY);
+                localStorage.removeItem(STORAGE_EXPIRY_KEY);
             }
-
-            const pTx = transactions.filter(t => t.portfolioId === p.id).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            const rows = pTx.map(t => {
-                let total = 0;
-                const gross = t.quantity * t.price;
-                const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
-                if (t.type === 'BUY') total = gross + fees;
-                else if (t.type === 'SELL') total = gross - fees;
-                else if (t.type === 'DIVIDEND') total = gross - (t.tax || 0); 
-                else if (t.type === 'TAX') total = -Math.abs(t.price);
-                else if (t.type === 'DEPOSIT') total = t.price;
-                else if (t.type === 'WITHDRAWAL' || t.type === 'ANNUAL_FEE') total = -Math.abs(t.price);
-                else if (t.type === 'OTHER') total = t.category === 'OTHER_TAX' ? -Math.abs(t.price) : t.price;
-                else if (t.type === 'HISTORY') total = t.price;
-
-                return [t.date, t.type, t.category || '', t.ticker, t.broker || '', t.quantity, t.price, t.commission || 0, t.tax || 0, t.cdcCharges || 0, t.otherFees || 0, total, t.notes || '', t.id];
-            });
-
-            const range = `'${sheetTitle}'!A:Z`;
-            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}:clear`, {
-                method: 'POST',
-                headers: { Authorization: `Bearer ${token}` }
-            });
-
-            await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/'${sheetTitle}'!A1?valueInputOption=USER_ENTERED`, {
-                method: 'PUT',
-                headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ values: [headers, ...rows] })
-            });
+            throw new Error(`Cloud request failed (HTTP ${response.status}). Your changes remain unsynced. Please retry or sign in again.`);
         }
-    } catch (e) {
-        console.error("Sheet Sync Failed", e);
+        return response;
+    };
+}
+type CloudRequest = Awaited<ReturnType<typeof cloudSession>>;
+
+async function findFile(request: CloudRequest, name: string) {
+    const query = `name = '${name}' and trashed = false`;
+    const response = await request(`https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)&orderBy=modifiedTime%20desc`);
+    const data = await response.json();
+    return data.files?.[0]?.id || null;
+}
+async function writeDrive(request: CloudRequest, data: any) {
+    const fileId = await findFile(request, DB_FILE_NAME);
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({ name: DB_FILE_NAME, mimeType: 'application/json' })], { type: 'application/json' }));
+    form.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
+    await request(fileId
+        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
+        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+        { method: fileId ? 'PATCH' : 'POST', body: form });
+}
+async function writeSheets(request: CloudRequest, transactions: any[], portfolios: any[]) {
+    let sheetId = await findFile(request, SHEET_FILE_NAME);
+    if (!sheetId) {
+        const created = await request('https://www.googleapis.com/drive/v3/files', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: SHEET_FILE_NAME, mimeType: 'application/vnd.google-apps.spreadsheet' }),
+        });
+        sheetId = (await created.json()).id;
+        if (!sheetId) throw new Error('Google did not return a spreadsheet ID.');
     }
-};
+    const meta = await (await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties,developerMetadata)`)).json();
+    const requests = buildSheetSyncRequests(meta, transactions, portfolios);
+    if (requests.length) await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }),
+    });
+    return sheetId as string;
+}
+
+/** Persists the pending snapshot before scheduling any network writes. */
+export function saveToDrive(data: any, includeSheets = false): Promise<CloudSaveResult> {
+    const email = currentEmail();
+    const revision = crypto.randomUUID();
+    const snapshot = JSON.parse(JSON.stringify({ ...data, lastModified: new Date().toISOString() }));
+    try {
+        if (!email) throw new Error('Sign in to Google before saving.');
+        localStorage.setItem(pendingKey(email), JSON.stringify({ revision, data: snapshot }));
+    } catch (error: any) {
+        return Promise.resolve({ ok: false, error: error.message || 'Unable to preserve pending changes locally.' });
+    }
+    return cloudQueue(async () => {
+        try {
+            const request = await cloudSession(email);
+            await writeDrive(request, snapshot);
+            const sheetId = includeSheets ? await writeSheets(request, snapshot.transactions || [], snapshot.portfolios || []) : null;
+            if (currentEmail() !== email) throw new Error('Account changed during save.');
+            const pending = JSON.parse(localStorage.getItem(pendingKey(email)) || '{}');
+            if (pending.revision === revision) localStorage.removeItem(pendingKey(email));
+            return { ok: true, savedAt: new Date().toISOString(), sheetId } as CloudSaveResult;
+        } catch (error: any) {
+            return { ok: false, error: error.message || 'Cloud save failed. Please retry.' } as CloudSaveResult;
+        }
+    });
+}
+
+export async function loadFromDrive() {
+    const email = currentEmail();
+    const request = await cloudSession(email);
+    // Keep this account's unsynced snapshot across reloads. A later successful save
+    // clears it; another account can neither load it nor send it to their Drive.
+    const pending = JSON.parse(localStorage.getItem(pendingKey(email)) || 'null');
+    if (pending?.data) return pending.data;
+    const fileId = await findFile(request, DB_FILE_NAME);
+    if (!fileId) return null; // Only a successful empty lookup means no backup exists.
+    return (await request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json();
+}
+export async function getGoogleSheetId(): Promise<string | null> {
+    return findFile(await cloudSession(currentEmail()), SHEET_FILE_NAME);
+}
+export function syncTransactionsToSheet(transactions: any[], portfolios: any[]) {
+    const email = currentEmail();
+    const snapshot = JSON.parse(JSON.stringify({ transactions, portfolios }));
+    return cloudQueue(async () => writeSheets(await cloudSession(email), snapshot.transactions, snapshot.portfolios));
+}
 
 // --- GMAIL INTEGRATION FUNCTIONS ---
 

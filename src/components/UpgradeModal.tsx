@@ -65,6 +65,10 @@ export const UpgradeModal: React.FC<Props> = ({
         </div>
         <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight text-center mb-1">{title}</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed text-center mb-5">{subtitle}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 text-center mb-4">
+          Daily tool and profile limits are tracked for your account in this browser.
+          Alert limits are shared across all your devices.
+        </p>
 
         <div className="grid grid-cols-3 gap-2 mb-5">
           {PLANS.map((p) => (

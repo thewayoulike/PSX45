@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call Vercel API
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
-          # UPDATED: Corrected the URL to api/run-alerts
-          curl -X GET "https://psx-45-naeh.vercel.app/api/run-alerts?secret=${{ secrets.CRON_SECRET }}"
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --max-time 65 -H "Authorization: Bearer $CRON_SECRET" "https://psx-45-naeh.vercel.app/api/run-alerts"

@@ -60,7 +60,7 @@ import {
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, syncTransactionsToSheet, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler } from '../services/driveStorage';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
@@ -68,7 +68,7 @@ import { UpgradeModal } from './UpgradeModal';
 import { FreemiumProvider } from './FreemiumContext';
 import { calculateXIRR } from '../utils/finance';
 import { firstEntitledTickers, isTickerEntitled } from '../utils/freemiumEntitlements';
-import { tryRecordProfileOpen } from '../utils/freemiumQuotas';
+import { tryRecordProfileOpen, setQuotaAccount } from '../utils/freemiumQuotas';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const WIPE_FLAG = 'psx_wipe_local_data';
@@ -177,12 +177,18 @@ const App: React.FC = () => {
   const [showLogin, setShowLogin] = useState(false);
   // Supabase email/password auth + owner-approval gate
   const [sbUser, setSbUser] = useState<AppAuthUser | null>(null);
+  // Set before child components read their soft browser counters.
+  setQuotaAccount(driveUser?.email || sbUser?.email);
   const [sbApproved, setSbApproved] = useState(false);
   const [sbChecking, setSbChecking] = useState(true);
   const [sbStatus, setSbStatus] = useState<AccessStatus | null>(null);      // access status of the signed-in user
   const [pendingStatus, setPendingStatus] = useState<AccessStatus | null>(null); // access status of a blocked Google user
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+  const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
+  const [lastCloudSave, setLastCloudSave] = useState<string | null>(null);
+  const [cloudRetryTick, setCloudRetryTick] = useState(0);
+  const cloudRevision = useRef(0);
   const [stocksFocusTicker, setStocksFocusTicker] = useState<string | null>(() => absorbStockDeepLink());
   const [stocksFocusNonce, setStocksFocusNonce] = useState(0);
   const [currentView, setCurrentView] = useState<AppView>(
@@ -661,7 +667,10 @@ const App: React.FC = () => {
           }
           loadedEmailRef.current = user.email;
 
-          getGoogleSheetId().then(id => setGoogleSheetId(id));
+          getGoogleSheetId().then(id => setGoogleSheetId(id)).catch(() => setGoogleSheetId(null));
+          isReadyToSave.current = false;
+          setCloudSyncError(null);
+          setLastCloudSave(null);
           setIsCloudSyncing(true);
           try {
               const cloudData = await loadFromDrive();
@@ -714,11 +723,11 @@ const App: React.FC = () => {
                       applyCloudChartSettings(cloudData.chartSettings);
                   }
               }
+              isReadyToSave.current = true;
           } catch (e) {
-              console.error("Drive Load Error", e);
+              setCloudSyncError('Could not load your backup. Reload to retry before saving changes.');
           } finally {
               setIsCloudSyncing(false);
-              isReadyToSave.current = true;
           }
       });
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
@@ -730,13 +739,7 @@ const App: React.FC = () => {
       localStorage.setItem('psx_gemini_api_key', geminiKey);
       localStorage.setItem('psx_scraping_api_key', scraperKey);
       localStorage.setItem('psx_webscraping_ai_key', webAIKey);
-      if (driveUser) {
-          saveToDrive({
-              transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps, brokers,
-              sectorOverrides, scannerState, performanceHistory, fairValueCache, watchlist, geminiApiKey: geminiKey, scrapingApiKey: scraperKey, webScrapingAIKey: webAIKey,
-              chartSettings: loadChartSettings(),
-          });
-      }
+      // The autosave effect writes the complete snapshot, including these keys.
   };
 
   const handleAddToWatchlist = (ticker: string) => {
@@ -1714,9 +1717,10 @@ const App: React.FC = () => {
       }
 
       if (driveUser && isReadyToSave.current) {
+          const revision = ++cloudRevision.current;
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
-              await saveToDrive({
+              const result = await saveToDrive({
                   transactions,
                   portfolios,
                   currentPortfolioId,
@@ -1737,16 +1741,20 @@ const App: React.FC = () => {
                   scrapingApiKey: userScraperKey,
                   webScrapingAIKey: userWebScrapingAIKey,
                   chartSettings: loadChartSettings(),
-              });
-              if (transactions.length > 0) {
-                  await syncTransactionsToSheet(transactions, portfolios);
-                  if (!googleSheetId) { const id = await getGoogleSheetId(); setGoogleSheetId(id); }
+              }, true);
+              if (cloudRevision.current !== revision) return;
+              if (result.ok === true) {
+                  setLastCloudSave(result.savedAt);
+                  setCloudSyncError(null);
+                  if (result.sheetId) setGoogleSheetId(result.sheetId);
+              } else {
+                  setCloudSyncError(result.error);
               }
               setIsCloudSyncing(false);
           }, 3000);
-          return () => clearTimeout(timer);
+          return () => { clearTimeout(timer); cloudRevision.current++; };
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, googleSheetId, chartSettingsTick]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -2289,6 +2297,9 @@ const App: React.FC = () => {
              onLogin={handleLogin}
              onLogout={handleManualLogout}
              isCloudSyncing={isCloudSyncing}
+             cloudSyncError={cloudSyncError}
+             lastCloudSave={lastCloudSave}
+             onCloudRetry={() => isReadyToSave.current ? setCloudRetryTick(t => t + 1) : window.location.reload()}
              hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 

@@ -103,6 +103,9 @@ const walkExit = (
   const tp = entry * (1 + takeProfitPct / 100);
   for (let j = entryIdx + 1; j < bars.length; j++) {
     const b = bars[j];
+    // A gap is executable at the opening price, not at an unavailable threshold.
+    if (b.open <= sl) return { exitIdx: j, exit: b.open, reason: 'sl' };
+    if (b.open >= tp) return { exitIdx: j, exit: b.open, reason: 'tp' };
     if (b.low <= sl) return { exitIdx: j, exit: sl, reason: 'sl' };
     if (b.high >= tp) return { exitIdx: j, exit: tp, reason: 'tp' };
     if (signalExit?.(j)) return { exitIdx: j, exit: b.close, reason: 'signal' };
@@ -123,22 +126,18 @@ const buildMetrics = (
   if (!bars.length) return empty;
 
   const buyHoldReturnPct = bars.length > 1
-    ? ((bars[bars.length - 1].close - bars[0].close) / bars[0].close) * 100
+    ? ((bars[bars.length - 1].close - bars[0].close) / bars[0].close) * 100 - commissionPct
     : 0;
-
-  if (!trades.length) {
-    return { ...empty, buyHoldReturnPct, alphaVsBuyHoldPct: -buyHoldReturnPct };
-  }
 
   const wins = trades.filter((t) => t.retPct > 0).length;
   const totalReturnPct = trades.reduce((s, t) => s + t.retPct, 0);
-  const avgReturnPct = totalReturnPct / trades.length;
+  const avgReturnPct = trades.length ? totalReturnPct / trades.length : 0;
 
   let equity = 1;
   let peak = 1;
   let maxDd = 0;
-  for (const t of trades) {
-    equity *= 1 + t.retPct / 100;
+  for (const point of buildEquityCurve(bars, trades, commissionPct)) {
+    equity = point.equity;
     if (equity > peak) peak = equity;
     const dd = peak > 0 ? ((peak - equity) / peak) * 100 : 0;
     if (dd > maxDd) maxDd = dd;
@@ -149,7 +148,7 @@ const buildMetrics = (
     trades: trades.length,
     wins,
     losses: trades.length - wins,
-    winRate: (wins / trades.length) * 100,
+    winRate: trades.length ? (wins / trades.length) * 100 : 0,
     avgReturnPct,
     totalReturnPct,
     compoundedReturnPct,
@@ -159,13 +158,13 @@ const buildMetrics = (
   };
 };
 
-const buildEquityCurve = (bars: OhlcBar[], trades: BacktestTrade[]): BacktestResult['equityCurve'] => {
+const buildEquityCurve = (bars: OhlcBar[], trades: BacktestTrade[], commissionPct: number): BacktestResult['equityCurve'] => {
   if (!bars.length) return [];
   const start = bars[0].close;
   const points: BacktestResult['equityCurve'] = [{
     time: bars[0].time,
     equity: 1,
-    buyHold: 1,
+    buyHold: bars.length > 1 ? 1 - commissionPct / 100 : 1,
   }];
 
   let equity = 1;
@@ -175,10 +174,14 @@ const buildEquityCurve = (bars: OhlcBar[], trades: BacktestTrade[]): BacktestRes
       equity *= 1 + trades[tIdx].retPct / 100;
       tIdx++;
     }
+    const openTrade = trades[tIdx];
+    // Reserve round-trip fees at entry and value open positions at daily closes.
+    const markedEquity = openTrade && i >= openTrade.entryIdx && i < openTrade.exitIdx
+      ? equity * (bars[i].close / openTrade.entry - commissionPct / 100) : equity;
     points.push({
       time: bars[i].time,
-      equity,
-      buyHold: start > 0 ? bars[i].close / start : 1,
+      equity: markedEquity,
+      buyHold: start > 0 ? bars[i].close / start - commissionPct / 100 : 1,
     });
   }
   return points;
@@ -355,7 +358,7 @@ export const runStrategyBacktest = (
     toTime: bars[bars.length - 1]?.time ?? 0,
     trades: [],
     metrics: buildMetrics([], bars, commissionPct),
-    equityCurve: buildEquityCurve(bars, []),
+    equityCurve: buildEquityCurve(bars, [], commissionPct),
   };
   if (bars.length < 40) return empty;
 
@@ -384,7 +387,7 @@ export const runStrategyBacktest = (
     toTime: bars[bars.length - 1].time,
     trades,
     metrics: buildMetrics(trades, bars, commissionPct),
-    equityCurve: buildEquityCurve(bars, trades),
+    equityCurve: buildEquityCurve(bars, trades, commissionPct),
   };
 };
 

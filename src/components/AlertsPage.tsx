@@ -452,6 +452,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
                         className={`inline-flex items-center gap-1.5 text-sm font-bold font-mono px-2.5 py-1 rounded-lg border shadow-sm tabular-nums ${kind === 'tp' ? 'bg-white dark:bg-slate-800 text-emerald-700 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-700/50' : 'bg-white dark:bg-slate-800 text-rose-700 dark:text-rose-400 border-rose-200/60 dark:border-rose-700/50'}`}
                       >
                         {a.targetPrice.toFixed(2)}
+                        {a.delivery && <span className="text-xs font-sans text-amber-600" title="Delivery could not be confirmed. Check notifications before deleting and recreating this alert.">Delivery unconfirmed</span>}
                         {d != null && <span className="text-[10px] font-bold text-slate-400">({fmtSigned(d)})</span>}
                         <button onClick={() => handleDeleteAlert(a.id)} className="ml-0.5 text-slate-300 hover:text-rose-500 transition-colors"><X size={14} /></button>
                       </span>

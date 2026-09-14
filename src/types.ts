@@ -110,7 +110,7 @@ export interface PortfolioStats {
   dividendReinvested?: number;
   roi: number;
   
-  mwrr: number;
+  mwrr: number | null;
 }
 
 export type PortfolioType = 'PSX' | 'MUTUAL_FUND';

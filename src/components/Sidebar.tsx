@@ -23,6 +23,9 @@ interface SidebarProps {
   onLogin: () => void;
   onLogout: () => void;
   isCloudSyncing: boolean;
+  cloudSyncError?: string | null;
+  lastCloudSave?: string | null;
+  onCloudRetry?: () => void;
   hasApiKeys: boolean;
 }
 
@@ -39,7 +42,8 @@ interface NavGroup { key: string; label: string; Icon: React.ComponentType<{ siz
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView, onViewChange, portfolioType = 'PSX',
   isOpen, onClose,
-  isSidebarCollapsed, onToggleCollapse, driveUser, authUser, isOwner, onLogin, onLogout, isCloudSyncing, hasApiKeys
+  isSidebarCollapsed, onToggleCollapse, driveUser, authUser, isOwner, onLogin, onLogout, isCloudSyncing, hasApiKeys,
+  cloudSyncError, lastCloudSave, onCloudRetry
 }) => {
 
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
@@ -319,13 +323,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         {!isCollapsed && (
                             <div className="flex flex-col min-w-0 overflow-hidden">
                                 <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                                    {isCloudSyncing ? <Loader2 size={10} className="animate-spin shrink-0" /> : <Save size={10} className="shrink-0" />} Synced
+                                    {isCloudSyncing ? <Loader2 size={10} className="animate-spin shrink-0" /> : <Save size={10} className="shrink-0" />}
+                                    {isCloudSyncing ? 'Saving…' : cloudSyncError ? 'Not synced' : lastCloudSave ? 'Synced' : 'Not yet saved'}
                                 </span>
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{driveUser.name}</span>
                             </div>
                         )}
                     </div>
-
+                    {cloudSyncError && <div role="alert" className="text-xs text-amber-700 dark:text-amber-400">
+                        {!isCollapsed && <p>{cloudSyncError}</p>}
+                        <button type="button" onClick={onCloudRetry} disabled={isCloudSyncing} className="underline font-bold">Retry sync</button>
+                    </div>}
+                    {!isCollapsed && lastCloudSave && <p className="text-[10px] text-slate-500">Last saved: {new Date(lastCloudSave).toLocaleString()}</p>}
                     <button
                         onClick={onLogout}
                         title={isCollapsed ? "Sign Out" : undefined}
