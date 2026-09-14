@@ -9,9 +9,12 @@ import { PerformanceChart } from '../../src/components/PerformanceChart';
 import { StockChart, CandleChart } from '../../src/components/StockChart';
 import { Sidebar } from '../../src/components/Sidebar';
 import { ChartsExplorer } from '../../src/components/ChartsExplorer';
+import { StockFinancialsPanel } from '../../src/components/StockFinancialsPanel';
 import { loadChartSettings } from '../../src/services/chartSettingsStorage';
 import { useMediaQuery } from '../../src/hooks/useMediaQuery';
 const noop = () => {};
+const financials = {financials: ['2025','2024','2023'].map(year => ({year,sales:'123,456,789',totalIncome:'145,678,901',profitAfterTax:'(12,345,678)',eps:'(14.53)'})),ratios:['2025','2024'].map(year=>({year,netProfitMargin:'(12.5)',grossProfitMargin:'34.6',epsGrowth:'(15.2)',peg:'1.24'}))};
+const company:any = {symbol:'DEMO',fundamentals:[],latestDividend:null,dividendHistory:[{exDividendDate:'September 14, 2026',cashAmount:'Rs. 123.45',recordDate:'September 15, 2026',payDate:'September 30, 2026'}],reports:[{reportType:'Quarterly consolidated financial statement',periodEnded:'June 30, 2026',postingDate:'August 15, 2026',pdfLink:''}]};
 const holdings = ['Oil and Gas Exploration Companies', 'Commercial Banks', 'Technology and Communication', 'Fertilizer'].map((sector, i) => ({ticker:['OGDC','MEBL','SYS','FFC'][i],sector,quantity:10000,currentPrice:200+i*40,avgPrice:180,totalCommission:0,totalTax:0,totalCDC:0,totalOtherFees:0}));
 const stats:any = Object.fromEntries(['totalValue','totalCost','unrealizedPL','unrealizedPLPercent','realizedPL','netRealizedPL','totalDividends','totalDividendTax','dailyPL','dailyPLPercent','totalCommission','totalSalesTax','totalCDC','totalOtherFees','totalCGT','freeCash','cashInvestment','totalDeposits','netPrincipal','peakNetPrincipal','reinvestedProfits','roi','mwrr'].map(k=>[k,0]));
 Object.assign(stats,{totalValue:123456789.25,totalCost:100000000,netPrincipal:100000000,peakNetPrincipal:100000000,unrealizedPL:23456789.25,roi:23.46,dailyPL:1234567.89});
@@ -22,13 +25,14 @@ function Fixture(){
  const phone=useMediaQuery('(max-width: 767px)'),settings=loadChartSettings();
  const cards=['stats','allocation','performance'];
  return <div className={dark?'dark':''}><div style={{minHeight:'100vh',padding:12,background:dark?'#0f172a':'#f1f5f9'}}>
- <nav style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:16}}>{['Dashboard','Allocation','Performance','Candles','Tools','Explorer'].map(x=><button key={x} onClick={()=>setView(x)}>{x}</button>)}<button onClick={()=>setOpen(true)}>Open menu</button><button onClick={()=>setDark(!dark)}>Toggle theme</button></nav>
+ <nav style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:16}}>{['Dashboard','Allocation','Performance','Candles','Tools','Explorer','Financials'].map(x=><button key={x} onClick={()=>setView(x)}>{x}</button>)}<button onClick={()=>setOpen(true)}>Open menu</button><button onClick={()=>setDark(!dark)}>Toggle theme</button></nav>
  <Sidebar currentView="DASHBOARD" onViewChange={noop} isOpen={open} onClose={()=>setOpen(false)} isSidebarCollapsed={false} onToggleCollapse={noop} driveUser={null} onLogin={noop} onLogout={noop} isCloudSyncing={false} hasApiKeys={false}/>
  <div style={{marginLeft:!phone&&innerWidth>=1024?256:0}}>
  {view==='Dashboard'&&<DashboardGrid device={phone?'mobile':'web'} layout={cards.map((id,i)=>({id,visible:true,x:0,y:i*30,w:phone?1:12,h:30}))} renderCard={id=>id==='stats'?<Dashboard stats={stats} holdings={holdings}/>:id==='allocation'?<AllocationChart holdings={holdings}/>:<PerformanceChart transactions={[]} savedData={performance} onSaveData={noop}/>}/>}
  {view==='Allocation'&&<AllocationChart holdings={holdings}/>}
  {view==='Performance'&&<PerformanceChart transactions={[]} savedData={performance} onSaveData={noop}/>}
  {view==='Tools'&&<StockChart symbol={null}/>}
+ {view==='Financials'&&<StockFinancialsPanel companyInfo={company} displayFinancials={financials} financialPeriod="Annual" onPeriodChange={noop} loading={false} onRefresh={noop} currentPrice={123} selectedStockStats={null} formatCurrency={String}/>}
  {view==='Explorer'&&<div style={{height:'calc(100dvh - 180px)',display:'flex'}}><ChartsExplorer previewMode/></div>}
  {view==='Candles'&&<CandleChart bars={bars} layers={settings.layers} momentumConfig={settings.momentumConfig} momentumSeries={[]} atrSeries={[]} awaisLayers={settings.awaisLayers} height={320}/>}
  </div></div></div>;

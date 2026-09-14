@@ -43,3 +43,14 @@ This is a source audit plus browser viewport testing, not a complete physical-de
 
 Start `npm run dev -- --host 127.0.0.1`, then open `http://127.0.0.1:3000/tests/mobile/index.html`. Choose a fixture view and resize the browser. The fixture is not a production entry and uses synthetic data; Explorer alone may request the app's public market-data API. Test actual authenticated workflows separately.
 
+
+## Follow-up: profile tables, scrolling, and iPhone header
+
+Implemented after feedback that the initial pass missed stock-profile tables:
+
+- Added a shared responsive table renderer to all four financial tables (dividend history, results, ratios, filings), sector holdings, and the profile activity log. Below 768px, each row becomes labeled fields. All values, warnings, Fix controls, PDF links, totals, pagination, and exports remain present. Desktop retains the table layout. Financial period labels are taken from the rendered column headers so years remain paired with their values.
+- Ordinary wheel/trackpad scrolling over stock charts now scrolls instead of zooming. Alt+scroll zooms; Alt+Shift+scroll adjusts price zoom. Updated chart help text. Touching the price axis no longer starts a vertical price-scale drag.
+- Increased global/custom scrollbars from 6px to 12px. On mobile the chart explorer uses the main page scroll area rather than a nested chart scroll box; the stock picker retains a bounded list area.
+- Landing header now includes top/side safe-area insets for notched iPhones. Removed the oversized scaled logo footprint on phones, kept Get Started on one line with a 44px target, and gave anchored sections a header-aware scroll offset. Horizontal clipping no longer creates an unintended sticky-header scroll container.
+
+Validation: 197 tests pass, production build passes, and the type diagnostic baseline remains unchanged at 67 existing messages. At 320px, all four populated financial tables measured 282px wide with no page overflow; inspected dividend dates and multi-year results visually. Header Get Started measured approximately 110×44px and was fully inside the 320px viewport; its click action worked. A browser viewport does not reproduce the iPhone hardware status bar, and physical iOS gesture/safe-area validation is still outstanding. Sector/activity use the same renderer but their populated authenticated interactions were not browser-tested in this follow-up. Synthetic Financials view added to the local fixture.

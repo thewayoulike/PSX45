@@ -1,3 +1,4 @@
+import { ResponsiveTable } from './ui/ResponsiveTable';
 import React from 'react';
 import { ExternalLink, FileText, Loader2, RefreshCw } from 'lucide-react';
 import { Card } from './ui/Card';
@@ -264,7 +265,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
             </h4>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left whitespace-nowrap">
+            <ResponsiveTable className="w-full text-sm text-left whitespace-nowrap">
               <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-5 py-3.5">Ex-dividend date</th>
@@ -290,7 +291,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         </Card>
       )}
@@ -350,7 +351,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
             {periodToggle}
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left whitespace-nowrap">
+            <ResponsiveTable className="w-full text-sm text-left whitespace-nowrap">
               <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-5 py-3.5">Metric</th>
@@ -401,7 +402,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                   ))}
                 </tr>
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         </Card>
       )}
@@ -430,7 +431,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
             </span>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left whitespace-nowrap">
+            <ResponsiveTable className="w-full text-sm text-left whitespace-nowrap">
               <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-5 py-3.5">Ratio</th>
@@ -484,7 +485,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                   ))}
                 </tr>
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         </Card>
       )}
@@ -495,7 +496,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Filings</h4>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left whitespace-nowrap">
+            <ResponsiveTable className="w-full text-sm text-left whitespace-nowrap">
               <thead className="text-[10px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-widest bg-slate-50/80 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
                 <tr>
                   <th className="px-5 py-3.5">Type</th>
@@ -532,7 +533,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </ResponsiveTable>
           </div>
         </Card>
       )}

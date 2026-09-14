@@ -196,7 +196,7 @@ export const ChartsExplorer: React.FC<Props> = ({
 
   return (
     <div
-      className={`flex flex-col min-h-0 w-full animate-in fade-in duration-300 ${
+      className={`chart-explorer flex flex-col min-h-0 w-full animate-in fade-in duration-300 ${
         previewMode ? 'h-full' : 'flex-1 h-full'
       }`}
     >

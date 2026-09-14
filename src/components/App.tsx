@@ -2303,7 +2303,7 @@ const App: React.FC = () => {
              hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 
-          <div className={`flex-1 min-w-0 flex flex-col relative z-10 ${isChartsView ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}>
+          <div className={`app-page-scroll flex-1 min-w-0 flex flex-col relative z-10 ${isChartsView ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}>
               <div className={`w-full min-w-0 ${isChartsView ? 'px-1 sm:px-2 pt-1 pb-2 h-full flex flex-col min-h-0' : 'px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-6 pb-20'}`}>
 
                   {!isChartsView && (

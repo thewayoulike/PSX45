@@ -214,3 +214,36 @@ html.dark {
   .dashboard-metric-tooltip { width: 160px; left: -80px; font-size: 12px; }
   .dashboard-health-popover { right: 0; left: auto; transform: none; width: 240px; }
 }
+
+.profile-cell-label { display: none; }
+.profile-cell-value { display: contents; }
+@media (max-width: 767px) {
+  .responsive-profile-table { display: block; width: 100%; min-width: 0 !important; white-space: normal !important; }
+  .responsive-profile-table thead { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); }
+  .responsive-profile-table tbody, .responsive-profile-table tfoot { display: block; }
+  .responsive-profile-table tbody > tr, .responsive-profile-table tfoot > tr { display: block; padding: 12px; border-bottom: 1px solid #cbd5e1; }
+  .dark .responsive-profile-table tbody > tr, .dark .responsive-profile-table tfoot > tr { border-color: #334155; }
+  .responsive-profile-table td { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 12px; align-items: start; width: 100%; padding: 8px 4px; font-size: 12px; white-space: normal; }
+  .responsive-profile-table td[colspan] { display: block; text-align: left; }
+  .responsive-profile-table .profile-cell-label { display: block; text-align: left; font: 500 12px/1.5 sans-serif; color: #475569; overflow-wrap: anywhere; }
+  .dark .responsive-profile-table .profile-cell-label { color: #cbd5e1; }
+  .responsive-profile-table .profile-cell-value { display: block; min-width: 0; text-align: right; overflow-wrap: anywhere; }
+  .responsive-profile-table a { display: inline-flex; align-items: center; min-height: 44px; }
+  .responsive-profile-table td[colspan] .profile-cell-value { text-align: left; }
+}
+
+/* Scroll normally over charts; provide a wider drag target for pointer users. */
+::-webkit-scrollbar, .custom-scrollbar::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb, .custom-scrollbar::-webkit-scrollbar-thumb { border: 2px solid transparent; background-clip: padding-box; }
+.app-page-scroll { scrollbar-gutter: stable; }
+@media (max-width: 767px) {
+  .app-page-scroll { overflow-y: auto !important; min-height: 0; }
+  .chart-explorer { height: auto !important; flex: none; }
+  .chart-explorer > .overflow-hidden { overflow: visible; flex: none; }
+  .chart-focus-card { height: auto !important; flex: none; }
+  .chart-focus-scroll { overflow: visible !important; flex: none; }
+  #chart-stock-list { height: 65dvh; }
+}
+.landing-header { padding-top: var(--sat); padding-left: var(--sal); padding-right: var(--sar); }
+.landing-page { padding-bottom: var(--sab); }
+.landing-page section[id] { scroll-margin-top: calc(80px + var(--sat)); }

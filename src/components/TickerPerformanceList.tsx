@@ -1,3 +1,4 @@
+import { ResponsiveTable } from './ui/ResponsiveTable';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Transaction } from '../types';
 import { 
@@ -974,7 +975,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Sector Holdings</h3>
                     </div>
                     <div className="overflow-x-auto custom-scrollbar">
-                        <table className="w-full text-sm min-w-[900px] whitespace-nowrap border-collapse">
+                        <ResponsiveTable className="w-full text-sm min-w-[900px] whitespace-nowrap border-collapse">
                             <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-left sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800 text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest">
                                 <tr>
                                     <th className="px-6 py-3.5">Ticker</th>
@@ -1030,7 +1031,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                     );
                                 })}
                             </tbody>
-                        </table>
+                        </ResponsiveTable>
                     </div>
                 </div>
             </div>
@@ -1055,7 +1056,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   </div>
                 )}
                 <div className="overflow-x-auto custom-scrollbar">
-                    <table className="w-full text-left text-sm whitespace-nowrap min-w-[1000px] border-collapse">
+                    <ResponsiveTable className="w-full text-left text-sm whitespace-nowrap min-w-[1000px] border-collapse">
                         <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-[10px] uppercase text-slate-500 dark:text-slate-400 font-bold tracking-widest border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
                             <tr> 
                               <th className="px-6 py-3.5">Date</th> 
@@ -1119,7 +1120,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                               <td className={`px-6 py-3 text-right font-mono tabular-nums ${getColorClass(activityTotals.unrealized)}`}>{formatGain(activityTotals.unrealized)}</td>
                             </tr>
                         </tfoot>
-                    </table>
+                    </ResponsiveTable>
                 </div>
                 {paginatedActivity.length > 0 && (
                     <div className="p-5 border-t border-slate-200/60 dark:border-slate-800 bg-white dark:bg-slate-900 flex flex-col sm:flex-row justify-between items-center gap-4">

@@ -206,14 +206,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] font-sans text-slate-900 dark:text-white selection:bg-emerald-200 dark:selection:bg-emerald-900 overflow-x-hidden">
+    <div className="landing-page min-h-screen bg-slate-50 dark:bg-[#0a0a0a] font-sans text-slate-900 dark:text-white selection:bg-emerald-200 dark:selection:bg-emerald-900 overflow-x-clip">
 
       {/* ================= NAV ================= */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-[#0a0a0a]/80 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
-        <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="scale-[0.55] -ml-4 -my-4"><Logo /></div>
-            <span className="font-display font-black tracking-tight text-lg">PSX Tracker</span>
+      <header className="landing-header sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
+        <div className="max-w-6xl mx-auto px-3 sm:px-5 min-h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="hidden sm:block w-12 h-14 relative shrink-0"><div className="absolute top-0 left-0 origin-top-left scale-[0.45]"><Logo /></div></div>
+            <span className="font-display font-black tracking-tight text-base sm:text-lg">PSX Tracker</span>
           </div>
           <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-500 dark:text-slate-400">
             <button onClick={() => scrollTo('features')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</button>
@@ -223,7 +223,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           </nav>
           <button
             onClick={() => scrollTo('start')}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5"
+            className="shrink-0 whitespace-nowrap min-h-[44px] bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5"
           >
             Get Started
           </button>

@@ -1743,6 +1743,7 @@ export const CandleChart: React.FC<{
   const priceAxisDragRef = useRef<{ y: number } | null>(null);
 
   const handlePriceAxisPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
+    if (e.pointerType === 'touch') return;
     if (drawTool !== 'pan' || !onPriceScaleZoom) return;
     e.stopPropagation();
     e.preventDefault();
@@ -1765,7 +1766,7 @@ export const CandleChart: React.FC<{
   };
 
   const handlePriceAxisWheel = (e: React.WheelEvent<SVGRectElement>) => {
-    if (drawTool !== 'pan' || !onPriceScaleZoom) return;
+    if (!e.altKey || drawTool !== 'pan' || !onPriceScaleZoom) return;
     // No preventDefault here: React attaches wheel listeners passively, so it would
     // only log a warning. Page scrolling is already blocked by the non-passive
     // wheel listener on the chart container.
@@ -2944,6 +2945,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     const el = chartPanRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
+      // Ordinary wheel/trackpad movement belongs to the page, even over a plot.
+      if (!e.altKey) return;
       e.preventDefault();
       if (showCandle && e.shiftKey) {
         if (e.deltaY < 0) setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
@@ -2989,7 +2992,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     <div
       className={
         isFocus
-          ? 'bg-white dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800/50 overflow-hidden flex flex-col min-h-0 h-full'
+          ? 'chart-focus-card bg-white dark:bg-slate-900 rounded-xl border border-slate-200/50 dark:border-slate-800/50 overflow-hidden flex flex-col min-h-0 h-full'
           : 'bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden'
       }
     >
@@ -3162,7 +3165,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         </div>
       </div>
 
-      <div className={isFocus ? 'p-1 sm:p-2 flex-1 min-h-0 overflow-auto' : 'p-4'}>
+      <div className={isFocus ? 'chart-focus-scroll p-1 sm:p-2 flex-1 min-h-0 overflow-auto' : 'p-4'}>
         {!loading && (showCandle || showTechnical || mode === 'line') && (
           <LayerToggleBar
             layers={layers}
@@ -3342,14 +3345,14 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         )}
         {!isFocus && showCandle && canPanChart && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
-            Drag to pan (Pan tool) · Drag past latest for mid-chart space · Drag/scroll price axis to zoom · Double-click axis to reset · Draw toolbar · Del removes selected · Shift+scroll zoom price
+            Drag to pan (Pan tool) · Drag past latest for mid-chart space · Drag price axis or Alt+scroll to zoom · Double-click axis to reset · Draw toolbar · Del removes selected · Alt+Shift+scroll zoom price
             {hasAnyPivot(awaisLayers) && ' · Y Targets fits pivot levels'}
             {canPanH && visibleRangeLabel ? ` · ${visibleRangeLabel}` : ''}
           </p>
         )}
         {!isFocus && !showCandle && canPan && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
-            Drag left/right to pan · scroll or +/- to zoom · {visibleRangeLabel}
+            Drag left/right to pan · Alt+scroll or +/- to zoom · {visibleRangeLabel}
           </p>
         )}
       </div>
