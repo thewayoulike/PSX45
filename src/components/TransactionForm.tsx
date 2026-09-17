@@ -74,7 +74,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const { isFree, entitledTickers } = useFreemium();
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
-  const [type, setType] = useState<'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'REFUND_OF_CAPITAL' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER'>('BUY');
+  const [type, setType] = useState<Transaction['type']>('BUY');
   
   const [date, setDate] = useState(todayPK());
   const [ticker, setTicker] = useState('');

@@ -338,7 +338,7 @@ export const MomentumMiniChart: React.FC<{
   hoverX?: number | null;
   hoverIdx?: number | null;
   rsiDivergenceMarkers?: RsiDivergenceMarker[];
-  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
+  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave?: () => void };
 }> = ({ type, bars, config, series: seriesProp, slot, padL, width, height, showXLabels = false, candleInterval = 'day', hoverX = null, hoverIdx = null, rsiDivergenceMarkers = [], plotMouseHandlers }) => {
   const theme = useChartTheme();
   const computed = useMemo(() => computeMomentumSeries(bars, config), [bars, config]);

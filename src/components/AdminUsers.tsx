@@ -92,7 +92,7 @@ const Row: React.FC<{
           {busy ? <Loader2 size={16} className="animate-spin text-slate-400" /> : (
             <>
               {!u.approved && (
-                <button onClick={() => onAct(u.email, { action: 'approve' })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors" title="Approve → starts 15-day trial">
+                <button onClick={() => onAct(u.email, { action: 'approve' })} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-emerald-500 hover:bg-emerald-600 transition-colors" title="Approve and start the trial">
                   <Check size={13} /> Approve
                 </button>
               )}

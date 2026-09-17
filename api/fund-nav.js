@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { isMufapBlockedPage, parseMufapNavHtml } from '../lib/mufapParse.js';
+import { limitRequest } from '../lib/sharedRateLimit.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CATALOG_PATHS = [
@@ -134,6 +135,8 @@ async function tryLiveMufapFetch() {
  * Bonus: short live attempt when Cloudflare allows.
  */
 export default async function handler(req, res) {
+  if (req.method !== 'GET') return res.status(405).json({ error: 'Method not allowed' });
+  if (!await limitRequest(req, res, 'fund-nav', 30)) return;
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();

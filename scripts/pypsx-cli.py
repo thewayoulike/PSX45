@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "api"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib" / "market"))
 
 from pypsx_lib import (  # noqa: E402
     get_quote,

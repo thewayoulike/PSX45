@@ -25,6 +25,8 @@ const isCloudflareChallenge = (html) => {
   );
 };
 
+import { limitRequest } from '../lib/sharedRateLimit.js';
+import { validateMarketQuery } from '../lib/marketLimits.js';
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -32,6 +34,10 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
+  if (!['GET', 'POST'].includes(req.method)) return res.status(405).json({ error: 'Method not allowed' });
+  const invalid = validateMarketQuery(req.query);
+  if (invalid) return res.status(400).json({ error: invalid });
+  if (!await limitRequest(req, res, 'market-proxy', 120)) return;
   // --- OHLCV mode (same as former /api/ohlc) ---
   const ohlcSymbol = String(req.query.ohlc || req.query.symbol || '').trim();
   const wantsOhlc = Boolean(req.query.ohlc) || String(req.query.mode || '') === 'ohlc';
@@ -122,7 +128,8 @@ export default async function handler(req, res) {
     const fetchOptions = {
       method: req.method || 'GET',
       headers: browserHeaders,
-      redirect: 'follow',
+      redirect: 'manual',
+      signal: AbortSignal.timeout(15000),
     };
 
     if (req.method === 'POST') {
@@ -130,7 +137,20 @@ export default async function handler(req, res) {
       fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
     }
 
-    const response = await fetch(target.toString(), fetchOptions);
+    let response;
+    for (let redirects = 0; redirects <= 3; redirects++) {
+      response = await fetch(target.toString(), fetchOptions);
+      if (![301, 302, 303, 307, 308].includes(response.status)) break;
+      const location = response.headers.get('location');
+      if (!location || redirects === 3) throw new Error('Upstream redirect limit reached');
+      const next = new URL(location, target);
+      // Google Sheets CSV exports use a Google-hosted download URL.
+      const googleExport = (target.hostname === 'docs.google.com' || target.hostname.endsWith('.googleusercontent.com')) && next.hostname.endsWith('.googleusercontent.com');
+      if (next.protocol !== 'https:' || (!ALLOWED_HOSTS.has(next.hostname) && !googleExport)) throw new Error('Upstream redirected to an unsupported host');
+      await response.body?.cancel();
+      if (response.status === 303 || ((response.status === 301 || response.status === 302) && fetchOptions.method === 'POST')) { fetchOptions.method = 'GET'; delete fetchOptions.body; }
+      target = next;
+    }
     const data = await response.text();
 
     // Upstream blocked (Cloudflare / WAF) — surface as 502, not a cryptic 500

@@ -1,6 +1,8 @@
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { TRIAL_DAYS } from './config/product.js';
 import { VitePWA } from 'vite-plugin-pwa';
+import { publicPagesPlugin } from './scripts/public-pages-plugin';
 
 /** Local /api/proxy?ohlc|company|analysis|intraday and /api/pypsx for dev without Vercel. */
 function localPsxApi(): Plugin {
@@ -192,10 +194,19 @@ function localPsxApi(): Plugin {
 
 export default defineConfig({
   plugins: [
+    publicPagesPlugin(),
+    { name: 'product-terms', transformIndexHtml: { order: 'pre', handler: (html) => html.replaceAll('%TRIAL_DAYS%', String(TRIAL_DAYS)) } },
     localPsxApi(),
     react(),
     VitePWA({
       strategies: 'injectManifest',
+      injectManifest: {
+        // Cache the landing/offline shell immediately; tools cache after first use.
+        manifestTransforms: [async entries => ({
+          manifest: entries.filter(entry => !entry.url.endsWith('.js') || /(?:^|\/)(?:index-|vendor-|registerSW|site-theme)/.test(entry.url)),
+          warnings: [],
+        })],
+      },
       srcDir: 'src', 
       filename: 'sw.js',
       registerType: 'autoUpdate',
@@ -251,7 +262,7 @@ export default defineConfig({
         manualChunks(id) {
           if (id.includes('fund-nav-catalog.json')) return 'fund-catalog';
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('recharts') || id.includes('lucide-react')) {
+            if (/node_modules[\\/](react|react-dom|scheduler)[\\/]/.test(id)) {
               return 'vendor';
             }
           }

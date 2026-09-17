@@ -1,0 +1,58 @@
+import { TRIAL_DAYS } from './product.js';
+import { SUPPORT_EMAIL, SUPPORT_PHONE, WHATSAPP_URL } from './site.js';
+// Public copy and build-time HTML share this source. No invented company or jurisdiction.
+export const publicPages = {
+  about: {
+    title: 'About PSX Tracker', eyebrow: 'Made for your investing routine',
+    description: 'Get to know PSX Tracker: portfolio tracking, mutual funds, charts and research tools for Pakistan Stock Exchange investors.',
+    intro: 'Know more. Earn more. Start with a clearer view of what you own.',
+    sections: [
+      ['A clearer portfolio picture', 'PSX Tracker brings stock holdings, mutual fund investments, cash movements, dividends and trade history together. It helps individual investors review their own records and explore market data.'],
+      ['Tools that work together', 'Track FIFO cost basis and realized gains, compare portfolio performance, explore stock and fund profiles, and use charts, watchlists and alerts. Import and export your records, with optional Google Drive backups and a Google Sheets export.'],
+      ['Your account, your choice', `Sign in with Google or use email and a password. Access starts after owner approval, with a ${TRIAL_DAYS}-day full trial. After the trial, use the Free plan within its limits or choose a Paid plan. Connecting Google Drive enables cloud portfolio sync; email login alone does not grant Drive access.`],
+      ['Built to support your research', 'PSX Tracker is an independent portfolio and research tool. It is not a brokerage, does not execute real trades, and is not affiliated with or endorsed by Pakistan Stock Exchange. Data, calculations and AI answers can be incomplete or wrong; check important decisions against primary records.'],
+    ],
+  },
+  privacy: {
+    title: 'Privacy Policy', eyebrow: 'Your information',
+    description: 'How PSX Tracker uses account details, local portfolio records, Google Drive, optional Gmail imports, alerts and support messages.',
+    intro: 'This page explains what the app stores and what optional features share. Last updated 17 September 2026.',
+    sections: [
+      ['Who to contact', `PSX Tracker support can be reached at ${SUPPORT_EMAIL} or WhatsApp ${SUPPORT_PHONE}. Use the Contact page for questions about your information or to request account deletion.`],
+      ['Account and service information', 'Google provides your account email, name and profile picture when you sign in. Email sign-in and password recovery are handled by Supabase Auth. The service stores access approval, plan dates, alert settings and notification destinations. It also stores approval-token hashes, cloud version numbers and backup file identifiers. These records let us manage access, send requested alerts and detect conflicting saves.'],
+      ['Portfolio records and this device', 'Your browser stores portfolio records, preferences, cached market data, authentication sessions and configured API keys. If you connect Google Drive, portfolio snapshots and settings are saved in your Drive, and transactions can be exported to your Google Sheet. Backups may include API keys you configured in the app. Our cloud-version database keeps backup identifiers, not the portfolio snapshot contents. Local recovery copies can remain after a failed save or a restore. Use a trusted device and keep your own export.'],
+      ['Google permissions', 'Drive access is used for files created or opened by this app. Sheets access supports the transaction export. Gmail read access is requested separately when you choose Gmail import. The app uses your search to list matching messages and download the attachment you select. It does not request permission to send Gmail messages. You can disconnect PSX Tracker in your Google Account permissions; deleting app files in Drive is a separate action.'],
+      ['Optional AI and document processing', 'Using the assistant or an AI-assisted import sends your prompt, selected portfolio context or selected document to the configured processing provider, including Google Gemini. OCR processing may send an uploaded image or document to OCR.space. A Gmail attachment selected for import can be passed to these services when you start the scan. These features are optional; review a document before uploading it and use manual or CSV entry if you do not want AI/OCR processing. Provider terms and retention practices also apply.'],
+      ['Delivery, hosting and support', 'Vercel hosts the app, Supabase handles authentication and service records, and Brevo delivers service emails. Google delivers connected Drive, Sheets and Gmail features; market-data providers receive the symbol queries needed for their services. Hosting and providers may process connection metadata and operational logs. Shared abuse limits use hashed request identifiers with expiring counters. A support message you choose to send goes through your email provider or WhatsApp and is received by PSX Tracker support. Do not include passwords, API keys or full account statements. Providers may process data in countries other than yours.'],
+      ['Storage, retention and your choices', 'Browser records remain until cleared by app actions or browser settings; sign-out clears active local portfolio data but may retain account-specific recovery copies. Drive sync retains up to 20 committed versions, with older versions moved to Drive trash on a best-effort basis. A failed or conflicted upload can leave an additional recovery file. Account, access and support records remain until removed through account administration or a deletion request, subject to any applicable obligations and provider backup retention. Export your records before deletion. You may ask to access, correct or delete service-held information; we may need to verify that the account is yours.'],
+      ['Cookies and browser storage', 'The app uses browser storage for sign-in, saved settings, offline viewing and recovery. Google sign-in and other providers may use their own cookies. Clearing site data removes local records and may sign you out. No advertising or cross-site analytics integration is included in this app build.'],
+      ['Policy changes', 'This page will be updated if the app’s data practices change. The date above identifies this version. Contact support with questions before using an optional feature.'],
+    ],
+  },
+  terms: {
+    title: 'Terms & Conditions', eyebrow: 'Using PSX Tracker',
+    description: 'Terms for using PSX Tracker accounts, portfolio tools, market data, subscriptions and optional connected services.',
+    intro: 'Please read these terms before creating an account or using the service. Last updated 17 September 2026.',
+    sections: [
+      ['The service', 'PSX Tracker provides portfolio record-keeping and research tools. It does not act as a broker, hold your investments or money, or execute real trades. Its trading simulator is a simulation. It is independent of Pakistan Stock Exchange.'],
+      ['Your account', 'Use an email address you control and keep your credentials private. You are responsible for the records and documents you enter and for activity you authorize. Do not impersonate another person, bypass access limits, misuse APIs, interfere with the service or upload information you are not entitled to use. Contact support if you suspect unauthorized access.'],
+      ['Research and calculations', 'Prices and other market data may be delayed, missing or inaccurate. Portfolio returns, taxes, signals, simulations and AI outputs depend on inputs and assumptions and can contain errors. They are informational tools, not personalized investment, legal or tax advice, recommendations or guarantees of future returns. Verify results against broker statements and official sources before relying on them.'],
+      ['Trial, plans and payments', `New approved accounts receive a ${TRIAL_DAYS}-day full trial. After it ends, the Free plan applies unless Paid access is activated. Current plan limits and advertised prices appear on the homepage. Confirm the price, currency, access period and any refund or cancellation terms with support before sending a manual payment. A trial does not itself authorize a charge or automatic renewal. Paid access begins after the payment is confirmed.`],
+      ['Your records and connected services', 'You keep responsibility for your portfolio records and backups. Google, Supabase and other connected providers have their own terms. Only connect accounts and upload files you are entitled to use. Save a current export before replacing cloud data, clearing browser storage or deleting your account. Account access by email does not automatically grant access to Google Drive.'],
+      ['Availability and changes', 'Features may change and services may be temporarily unavailable. We may restrict access to address abuse or security concerns. Contact support if a change affects a paid access period. Keep independent records; we cannot promise uninterrupted availability, timely notifications or error-free data. Nothing in these terms removes rights or remedies that applicable law does not allow to be excluded.'],
+      ['Suggestions and support', `You may submit ideas or report problems through Contact or the signed-in suggestions page. Submitting an idea does not guarantee it will be implemented. Send only content you have permission to share. Account, payment, privacy and service questions can be sent to ${SUPPORT_EMAIL}.`],
+      ['Updates to these terms', 'The date above identifies the current version. Review changes when you next use the app and contact support if you need clarification.'],
+    ],
+  },
+  contact: {
+    title: 'Contact PSX Tracker', eyebrow: 'We’re here to listen',
+    description: 'Contact PSX Tracker for account help, Google Drive sync issues, privacy requests, payment questions or product feedback.',
+    intro: 'Need a hand, found a problem, or have an idea? Choose the channel that works for you.',
+    sections: [
+      ['Account or sync help', 'Tell us which page you were using, what you expected and what happened. Include your device and browser if relevant. For a sync issue, the short error and pending save ID shown in the sidebar can help. Keep your pending backup before restoring.'],
+      ['Ideas for the app', 'Signed-in users can use the suggestions page to prepare a feature request or bug report. You can also contact support directly. Please avoid including private portfolio records unless they are necessary and you are comfortable sharing them.'],
+      ['Privacy and account requests', 'For access, correction or deletion requests, contact support from the email linked to your account. We may ask for enough information to verify ownership. Never send a password, login code, API key or complete financial statement.'],
+    ],
+    actions: [['Email support', `mailto:${SUPPORT_EMAIL}`], ['Chat on WhatsApp', WHATSAPP_URL]],
+  },
+};

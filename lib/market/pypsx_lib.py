@@ -522,6 +522,9 @@ def get_quotes(symbols: list[str] | str) -> dict[str, Any]:
             clean_list.append(u)
     if not clean_list:
         return {"error": "symbols required", "quotes": {}}
+    import re
+    if len(clean_list) > 20 or any(not re.fullmatch(r'[A-Z0-9][A-Z0-9.-]{0,19}', s) for s in clean_list):
+        return {"error": "Use at most 20 valid stock symbols", "quotes": {}}
 
     missing = _require_pypsx_keys()
     if missing:

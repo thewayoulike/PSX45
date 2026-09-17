@@ -4,4 +4,5 @@
 .worktrees/
 .superpowers/
 .audit-tools/
+__pycache__/
 

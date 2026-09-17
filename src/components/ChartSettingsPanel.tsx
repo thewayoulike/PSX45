@@ -306,10 +306,10 @@ export const ChartSettingsPanel: React.FC<{
             </div>
 
             {tab === 'overlays' && (
-              <SubTabs tabs={OVERLAY_TABS} active={overlayTab} onSelect={setOverlayTab} accent="teal" />
+              <SubTabs<OverlayPanelTab> tabs={OVERLAY_TABS} active={overlayTab} onSelect={setOverlayTab} accent="teal" />
             )}
             {tab === 'momentum' && (
-              <SubTabs tabs={MOMENTUM_TABS} active={momentumTab} onSelect={setMomentumTab} accent="purple" />
+              <SubTabs<MomentumPanelTab> tabs={MOMENTUM_TABS} active={momentumTab} onSelect={setMomentumTab} accent="purple" />
             )}
 
             <div className="flex-1 overflow-y-auto p-2">

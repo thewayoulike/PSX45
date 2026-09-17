@@ -11,30 +11,33 @@ import { PortfolioSummary } from './PortfolioSummary';
 import { TopHoldings } from './TopHoldings';
 import { IndexBar } from './IndexBar';
 import { BenchmarkPanel } from './BenchmarkPanel';
-import { AiAgent } from './AiAgent';
+const AiAgent = lazy(() => import('./AiAgent').then(m => ({ default: m.AiAgent })));
 import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
 import { BoardMeetings } from './BoardMeetings';
 import { DashboardGrid } from './DashboardGrid';
 import { DashboardCustomizer } from './DashboardCustomizer';
-import { AdminUsers } from './AdminUsers';
+const AdminUsers = lazy(() => import('./AdminUsers').then(m => ({ default: m.AdminUsers })));
 import { DashboardLayout, DashboardLayoutsByType, normalizeLayoutsByType, DEFAULT_LAYOUTS_BY_TYPE, defaultLayoutFor, applyPortfolioToLayout, PSX_ONLY_CARD_IDS } from './dashboard';
-import { TransactionForm } from './TransactionForm';
+const TransactionForm = lazy(() => import('./TransactionForm').then(m => ({ default: m.TransactionForm })));
 import { BrokerManager } from './BrokerManager';
 import { PriceEditor } from './PriceEditor';
-import { DividendScanner } from './DividendScanner';
-import { UpcomingEventsScanner } from './UpcomingEventsScanner';
+const DividendScanner = lazy(() => import('./DividendScanner').then(m => ({ default: m.DividendScanner })));
+const UpcomingEventsScanner = lazy(() => import('./UpcomingEventsScanner').then(m => ({ default: m.UpcomingEventsScanner })));
 import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
+const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.ProfilePage })));
+const SuggestionsPage = lazy(() => import('./SuggestionsPage').then(m => ({ default: m.SuggestionsPage })));
+const GooglePasswordSetup = lazy(() => import('./GooglePasswordSetup').then(m => ({ default: m.GooglePasswordSetup })));
 const TickerPerformanceList = lazy(() => import('./TickerPerformanceList').then(m => ({ default: m.TickerPerformanceList })));
-import { FundProfile } from './FundProfile';
+const FundProfile = lazy(() => import('./FundProfile').then(m => ({ default: m.FundProfile })));
 import { TransferModal, firstBrokerHolding } from './TransferModal';
-import { TradingSimulator } from './TradingSimulator';
-import { FairValueCalculator } from './FairValueCalculator';
+const TradingSimulator = lazy(() => import('./TradingSimulator').then(m => ({ default: m.TradingSimulator })));
+const FairValueCalculator = lazy(() => import('./FairValueCalculator').then(m => ({ default: m.FairValueCalculator })));
 import { AlertsPage } from './AlertsPage';
-import { MarketSignalScanner } from './MarketSignalScanner';
-import { StrategyBacktest } from './StrategyBacktest';
+const MarketSignalScanner = lazy(() => import('./MarketSignalScanner').then(m => ({ default: m.MarketSignalScanner })));
+const StrategyBacktest = lazy(() => import('./StrategyBacktest').then(m => ({ default: m.StrategyBacktest })));
 const ChartsExplorer = lazy(() => import('./ChartsExplorer').then(m => ({ default: m.ChartsExplorer })));
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
@@ -45,6 +48,10 @@ import { stocksPathForTicker, tickerFromStocksPath, normalizeStockDeepLink } fro
 import { applyIndexConstituents } from '../services/indices';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
+import { formatTransactionLabel } from '../utils/fundDisplay';
+import { OfflinePortfolio } from './OfflinePortfolio';
+import { shouldPersistPortfolio } from '../utils/portfolioPersistence';
+import { preparePortfolioAccount } from '../utils/localAccount';
 import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
 import { mergeFundHoldingsByCanon, computeFundBucketAverageCost } from '../utils/fundHoldings';
@@ -60,7 +67,7 @@ import {
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, preservePendingAndReloadCloud, getPendingCloud, PendingCloud } from '../services/driveStorage';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
@@ -93,7 +100,7 @@ const clearPortfolioLocalStorage = () => {
         const toRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k && k.startsWith('psx_') && !keep.has(k)) toRemove.push(k);
+            if (k && k.startsWith('psx_') && !keep.has(k) && !k.startsWith('psx_pending_cloud_v1:') && !k.startsWith('psx_cloud_recovery:') && !k.startsWith('psx_password_prompt:')) toRemove.push(k);
         }
         toRemove.forEach(k => localStorage.removeItem(k));
     } catch { /* ignore */ }
@@ -118,7 +125,7 @@ const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', '
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
@@ -141,6 +148,8 @@ const VIEW_TO_PATH: Record<string, string> = {
   ADMIN_USERS: '/admin/users',
   BROKERS: '/settings/brokers',
   API_KEYS: '/settings/api-keys',
+  PROFILE_SETTINGS: '/settings/profile',
+  SUGGESTIONS: '/suggestions',
 };
 const PATH_TO_VIEW: Record<string, string> = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([v, p]) => [p, v])
@@ -180,6 +189,7 @@ const App: React.FC = () => {
   // Set before child components read their soft browser counters.
   setQuotaAccount(driveUser?.email || sbUser?.email);
   const [sbApproved, setSbApproved] = useState(false);
+  const [viewSavedOffline, setViewSavedOffline] = useState(false);
   const [sbChecking, setSbChecking] = useState(true);
   const [sbStatus, setSbStatus] = useState<AccessStatus | null>(null);      // access status of the signed-in user
   const [pendingStatus, setPendingStatus] = useState<AccessStatus | null>(null); // access status of a blocked Google user
@@ -188,6 +198,7 @@ const App: React.FC = () => {
   const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
   const [lastCloudSave, setLastCloudSave] = useState<string | null>(null);
   const [cloudRetryTick, setCloudRetryTick] = useState(0);
+  const [pendingCloud, setPendingCloud] = useState<PendingCloud | null>(null);
   const cloudRevision = useRef(0);
   const [stocksFocusTicker, setStocksFocusTicker] = useState<string | null>(() => absorbStockDeepLink());
   const [stocksFocusNonce, setStocksFocusNonce] = useState(0);
@@ -245,6 +256,7 @@ const App: React.FC = () => {
       if (window.location.pathname !== path) {
           window.history.pushState(null, '', path);
       }
+      document.querySelector('meta[name="robots"]')?.setAttribute('content', 'noindex, follow');
   }, [currentView, viewFundTicker, stocksFocusTicker]);
 
   const [brokers, setBrokers] = useState<Broker[]>(() => {
@@ -522,11 +534,11 @@ const App: React.FC = () => {
   useIdleTimer(IDLE_LOGOUT_MS, () => {
       if (driveUser) {
           performLogout();
-          alert("Session timed out after 12 hours of inactivity. Data cleared for security.");
+          alert("Session timed out after 12 hours of inactivity. Active local data cleared; unsynced recovery copies kept for your account.");
       }
   });
 
-  const handleManualLogout = () => { if (window.confirm("Logout and clear local data?")) { performLogout(); } };
+  const handleManualLogout = () => { if (window.confirm("Log out and clear active local data? Unsynced recovery copies will be kept for this account on this device.")) { performLogout(); } };
   const handleLogin = () => { signInWithDrive(); };
 
   // A Google user who authenticated but isn't approved yet (blocks entry).
@@ -536,9 +548,12 @@ const App: React.FC = () => {
   // Re-check Supabase session + approval (after email login/signup, or "check now").
   const refreshAuthStatus = async () => {
       const u = await getAuthUser();
+      const driveEmail = (() => { try { return JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email; } catch { return null; } })();
+      if (driveEmail && u?.email && driveEmail.toLowerCase() !== u.email.toLowerCase()) { setSbUser(null); setSbApproved(false); return; }
+      if (u && preparePortfolioAccount(u.email)) { window.location.reload(); return; }
       setSbUser(u);
       if (u) {
-          const st = await getAccessStatus(u.email);
+          const st = await getAccessStatus(u.email, u.name, true);
           setSbStatus(st);
           setSbApproved(st.active);
           if (st.active) { setShowLogin(false); }
@@ -628,6 +643,8 @@ const App: React.FC = () => {
           setShowLogin(true);
       });
       initDriveAuth(async (user) => {
+          try { if (preparePortfolioAccount(user.email)) { window.location.reload(); return; } }
+          catch { setIsAuthChecking(false); setCloudSyncError('Account switch paused: previous local records could not be archived.'); setShowLogin(true); return; }
           // Gate Google sign-in by owner approval + subscription (same allowlist).
           const st = await getAccessStatus(user.email, user.name, true);
           setSbStatus(st);
@@ -724,8 +741,10 @@ const App: React.FC = () => {
                   }
               }
               isReadyToSave.current = true;
+              setPendingCloud(getPendingCloud());
           } catch (e) {
-              setCloudSyncError('Could not load your backup. Reload to retry before saving changes.');
+              setCloudSyncError(e instanceof Error ? e.message : 'Could not load your backup. Reload to retry before saving changes.');
+              setPendingCloud(getPendingCloud());
           } finally {
               setIsCloudSyncing(false);
           }
@@ -1698,7 +1717,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
       if (skipPersistRef.current) return;
-      if (driveUser || transactions.length > 0) {
+      if (shouldPersistPortfolio({ signedIn: !!driveUser || sbApproved, checking: isAuthChecking || sbChecking, skip: skipPersistRef.current })) {
           localStorage.setItem('psx_transactions', JSON.stringify(transactions));
           localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
           localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
@@ -1750,11 +1769,12 @@ const App: React.FC = () => {
               } else {
                   setCloudSyncError(result.error);
               }
+              setPendingCloud(getPendingCloud());
               setIsCloudSyncing(false);
           }, 3000);
           return () => { clearTimeout(timer); cloudRevision.current++; };
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -2126,6 +2146,8 @@ const App: React.FC = () => {
   };
 
   if (isAuthChecking || sbChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
+  if (viewSavedOffline) return <OfflinePortfolio />;
+  if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
       // Awaiting approval → pending screen. Covers Google users (accessPendingEmail)
       // and email/password users (sbUser not yet approved).
@@ -2143,10 +2165,10 @@ const App: React.FC = () => {
           // Free / trial / paid / lifetime → do not hard-lock; fall through into the app.
           // (A small effect below clears showLogin when status is active.)
           if (!active) {
-              return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
+              return <><PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />{accessPendingEmail && <Suspense fallback={null}><GooglePasswordSetup email={accessPendingEmail}/></Suspense>}</>;
           }
       } else {
-          return <LoginPage onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
+          return <LoginPage compact onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
       }
   }
 
@@ -2275,6 +2297,7 @@ const App: React.FC = () => {
     <div className="flex flex-col h-[100dvh] bg-slate-100 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       {trialBanner}
+      {driveUser && <Suspense fallback={null}><GooglePasswordSetup email={driveUser.email}/></Suspense>}
 
       <div className="flex flex-1 overflow-hidden relative">
 
@@ -2299,7 +2322,11 @@ const App: React.FC = () => {
              isCloudSyncing={isCloudSyncing}
              cloudSyncError={cloudSyncError}
              lastCloudSave={lastCloudSave}
+             pendingRevision={pendingCloud?.revision ?? null}
+             pendingQueuedAt={pendingCloud?.queuedAt ?? null}
              onCloudRetry={() => isReadyToSave.current ? setCloudRetryTick(t => t + 1) : window.location.reload()}
+             onDownloadPending={downloadPendingCloudBackup}
+             onLoadCloud={preservePendingAndReloadCloud}
              hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 
@@ -2543,6 +2570,8 @@ const App: React.FC = () => {
                       )}
 
                       {currentView === 'ADMIN_USERS' && isOwner && <AdminUsers />}
+                      {currentView === 'PROFILE_SETTINGS' && <ProfilePage email={driveUser?.email || sbUser?.email || ''} name={driveUser?.name || sbUser?.name} googleConnected={!!driveUser} />}
+                      {currentView === 'SUGGESTIONS' && <SuggestionsPage />}
 
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

@@ -85,7 +85,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   const handleAdd = (div: FoundDividend) => {
       const totalAmount = div.eligibleQty * div.amount; const wht = totalAmount * 0.15;
-      onAddTransaction({ ticker: div.ticker, type: 'DIVIDEND', quantity: div.eligibleQty, price: div.amount, date: div.exDate, tax: wht, commission: 0, cdcCharges: 0, broker: div.broker, notes: `${div.type} Dividend (${div.period || 'N/A'})` });
+      onAddTransaction({ ticker: div.ticker, type: 'DIVIDEND', quantity: div.eligibleQty, price: div.amount, date: div.exDate, tax: wht, commission: 0, cdcCharges: 0, otherFees: 0, broker: div.broker, notes: `${div.type} Dividend (${div.period || 'N/A'})` });
       const remaining = foundDividends.filter(d => d !== div); updateDividends(remaining);
   };
   const handleIgnore = (div: FoundDividend) => { setDismissedItems(prev => [div, ...prev]); const remaining = foundDividends.filter(d => d !== div); updateDividends(remaining); };

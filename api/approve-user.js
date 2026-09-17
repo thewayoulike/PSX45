@@ -1,64 +1,31 @@
-// api/approve-user.js
-// The one-click link from the owner's signup email lands here.
-// Verifies the secret, flips profiles.approved = true (service role), and
-// emails the user that their account is active.
-
-import { createClient } from '@supabase/supabase-js';
-import { sendBrevo } from '../lib/brevo.js';
-
-const page = (title, body) =>
-  `<!doctype html><html><body style="font-family:sans-serif;text-align:center;padding:60px;color:#0f172a">
-   <h2>${title}</h2><p style="color:#475569">${body}</p></body></html>`;
-
+import { serverDb } from '../lib/serverDb.js';
+import { tokenHash, appOrigin } from '../lib/approvalTokens.js';
+import { sendBrevo, escapeHtml } from '../lib/brevo.js';
+import { limitRequest } from '../lib/sharedRateLimit.js';
+const page = (title, body) => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title></head><body><main><h1>${title}</h1>${body}</main></body></html>`;
 export default async function handler(req, res) {
-  const { secret, email } = req.query;
-
-  if (secret !== process.env.APPROVE_SECRET) {
-    return res.status(401).send(page('Unauthorized', 'Invalid approval link.'));
-  }
-  if (!email) {
-    return res.status(400).send(page('Missing email', 'No user specified.'));
-  }
-
-  const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY,
-    { auth: { persistSession: false, autoRefreshToken: false } }
-  );
-
-  const cleanEmail = String(email).trim().toLowerCase();
-
-  // Start the trial clock on first approval only (don't reset it on re-clicks).
-  const { data: existing } = await supabase
-    .from('allowlist')
-    .select('approved_at')
-    .eq('email', cleanEmail)
-    .maybeSingle();
-  const approvedAt = existing?.approved_at || new Date().toISOString();
-
-  const { error } = await supabase
-    .from('allowlist')
-    .upsert({ email: cleanEmail, approved: true, approved_at: approvedAt }, { onConflict: 'email' });
-
-  if (error) {
-    return res.status(500).send(page('Database error', error.message));
-  }
-
-  // Tell the user they're in (best-effort; approval already succeeded).
+  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  if (!['GET', 'POST'].includes(req.method)) return res.status(405).send('Method not allowed');
+  if (!await limitRequest(req, res, 'approval', 20)) return;
+  const body = typeof req.body === 'string' ? Object.fromEntries(new URLSearchParams(req.body)) : req.body;
+  const token = req.method === 'GET' ? req.query?.token : body?.token;
+  if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return res.status(401).send(page('Invalid approval link', '<p>Request a new approval link.</p>'));
   try {
-    const appUrl = process.env.APP_URL || `https://${req.headers.host}`;
-    await sendBrevo(
-      email,
-      'Your PSX Tracker account is activated',
-      `<div style="font-family:sans-serif;line-height:1.6">
-        <h2>You're approved 🎉</h2>
-        <p>Your account has been activated. You can now log in with your email and password.</p>
-        <p><a href="${appUrl}" style="display:inline-block;background:#059669;color:#fff;text-decoration:none;padding:12px 20px;border-radius:8px;font-weight:bold">Log in to PSX Tracker</a></p>
-      </div>`
-    );
-  } catch (e) {
-    console.error('activation email failed', e);
-  }
-
-  return res.status(200).send(page('✅ User approved', `${email} can now log in.`));
+    const origin = appOrigin();
+    const db = serverDb();
+    if (req.method === 'GET') {
+      const { data, error } = await db.from('approval_tokens').select('email,expires_at,used_at').eq('token_hash', tokenHash(token)).maybeSingle();
+      if (error) throw error;
+      if (!data || data.used_at || Date.parse(data.expires_at) <= Date.now()) return res.status(410).send(page('Link expired or used', '<p>Request a new approval link.</p>'));
+      return res.status(200).send(page('Confirm account approval', `<p>Approve ${escapeHtml(data.email)}?</p><form method="post" action="/api/approve-user"><input type="hidden" name="token" value="${token}"><button type="submit">Approve this account</button></form>`));
+    }
+    if (req.headers.origin && req.headers.origin !== origin) return res.status(403).send('Invalid origin');
+    const { data, error } = await db.rpc('psx_consume_approval', { p_hash: tokenHash(token) });
+    if (error) throw error;
+    if (!data) return res.status(410).send(page('Link expired or used', '<p>No account was changed.</p>'));
+    try { await sendBrevo(data, 'Your PSX Tracker account is activated', `<p>Your account is approved.</p><p><a href="${origin}">Open PSX Tracker</a></p>`); }
+    catch { console.error('Activation email delivery failed'); }
+    return res.status(200).send(page('Account approved', `<p>${escapeHtml(data)} can now log in.</p>`));
+  } catch { return res.status(503).send(page('Approval unavailable', '<p>Please retry shortly.</p>')); }
 }

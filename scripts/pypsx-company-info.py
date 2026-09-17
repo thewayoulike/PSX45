@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""CLI wrapper — company info via api/pypsx_lib.get_company_info."""
+"""CLI wrapper — company info via lib/market/pypsx_lib.get_company_info."""
 
 import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "api"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib" / "market"))
 
 from pypsx_lib import get_company_info  # noqa: E402
 

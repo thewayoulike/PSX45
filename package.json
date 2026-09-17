@@ -5,12 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite --port 3000 --host",
-    "build": "node scripts/copy-fund-catalog.mjs && vite build",
+    "build": "npm run typecheck && node scripts/copy-fund-catalog.mjs && vite build",
     "preview": "vite preview --port 3000",
     "test": "vitest run",
     "test:watch": "vitest",
     "sync:funds": "node scripts/sync-mufap-nav.mjs",
-    "seed:funds": "node scripts/seed-fund-catalog.mjs"
+    "seed:funds": "node scripts/seed-fund-catalog.mjs",
+    "typecheck": "tsc -p src/tsconfig.json --noEmit",
+    "check": "npm run typecheck && npm test && npm run build"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",

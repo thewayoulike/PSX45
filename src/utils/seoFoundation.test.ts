@@ -2,12 +2,13 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { TRIAL_DAYS } from '../../config/product.js';
 
 const root = process.cwd();
 
 const TITLE = 'PSX Tracker — Pakistan Stock Exchange Portfolio & Charts';
 const DESCRIPTION =
-  'Live PSX prices, FIFO portfolio tracking, mutual funds with NAV sync, and candlestick charts. 15-day free trial — no card required.';
+  `Live PSX prices, FIFO portfolio tracking, mutual funds with NAV sync, and candlestick charts. ${TRIAL_DAYS}-day free trial — no card required.`;
 const CANONICAL = 'https://www.psx-tracker.com/';
 const OG_IMAGE = 'https://www.psx-tracker.com/preview/dashboard.png';
 
@@ -30,7 +31,7 @@ describe('SEO foundation', () => {
   });
 
   it('index.html has title, description, canonical, robots, and social tags', () => {
-    const html = read('index.html');
+    const html = read('index.html').replaceAll('%TRIAL_DAYS%', String(TRIAL_DAYS));
     expect(html).toContain(`<title>${TITLE}</title>`);
     expect(html).toContain(`content="${DESCRIPTION}"`);
     expect(html).toContain(`rel="canonical" href="${CANONICAL}"`);

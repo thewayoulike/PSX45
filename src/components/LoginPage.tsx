@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
+import { TRIAL_DAYS } from '../../config/product.js';
 import { Logo } from './ui/Logo';
+import { SiteFooter } from './SiteFooter';
+import { HOME_FAQS } from '../../config/site.js';
 import { LoginAppPreview } from './LoginAppPreview';
 import {
   User, LayoutDashboard, Radar, BellRing, Coins, Calculator, LineChart,
@@ -8,9 +11,10 @@ import {
   Mail, Lock, Loader2, AlertCircle, Star, Upload, FolderOpen, History, LayoutGrid,
   CandlestickChart, FlaskConical
 } from 'lucide-react';
-import { signUp, signIn, isAuthConfigured } from '../services/auth';
+import { signUp, signIn, isAuthConfigured, requestPasswordReset } from '../services/auth';
 
 interface LoginPageProps {
+  compact?: boolean;
   onGoogleLogin: () => void;
   onAuthSuccess?: () => void; // called after a successful email login/signup
 }
@@ -42,22 +46,29 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'signup-done'>('idle');
   const [msg, setMsg] = useState('');
+  const [resetMode, setResetMode] = useState(false);
 
-  const inputCls = "w-full pl-10 pr-3 py-3 text-sm bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 dark:text-white transition-all";
+  const inputCls = "w-full px-3 py-3 text-base bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 dark:text-white transition-all";
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!isAuthConfigured()) { setStatus('error'); setMsg('Login is not configured yet. Please contact the owner.'); return; }
+    if (resetMode) {
+      setStatus('loading');
+      try { await requestPasswordReset(email); setStatus('idle'); setMsg('If that email has an account, a reset link is on its way. Check your inbox and spam folder.'); }
+      catch (error) { setStatus('error'); setMsg(error instanceof Error ? error.message : 'Please retry shortly.'); }
+      return;
+    }
     if (!email.trim() || !password) { setStatus('error'); setMsg('Enter your email and password.'); return; }
     if (tab === 'signup' && !name.trim()) { setStatus('error'); setMsg('Please enter your name.'); return; }
-    if (tab === 'signup' && password.length < 6) { setStatus('error'); setMsg('Password must be at least 6 characters.'); return; }
+    if (tab === 'signup' && password.length < 10) { setStatus('error'); setMsg('Password must be at least 10 characters.'); return; }
 
     setStatus('loading'); setMsg('');
     try {
       if (tab === 'signup') {
         await signUp(name.trim(), email.trim(), password);
         setStatus('signup-done');
-        setMsg("Account created! We've emailed the owner to approve you. You'll be notified when it's active.");
+        setMsg('Check your inbox for an email confirmation if required, then log in to request access. Owner approval starts your trial.');
       } else {
         await signIn(email.trim(), password);
         onAuthSuccess?.(); // App re-checks session + approval and routes accordingly
@@ -74,7 +85,7 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
         <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
           <CheckCircle2 size={26} />
         </div>
-        <h3 className="text-xl font-display font-black tracking-tight mb-2">Request sent</h3>
+        <h3 className="text-xl font-display font-black tracking-tight mb-2">Check your email</h3>
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">{msg}</p>
         <button onClick={() => { setStatus('idle'); setTab('login'); setPassword(''); }} className="text-sm font-bold text-emerald-600 dark:text-emerald-400 hover:underline">Back to log in</button>
       </div>
@@ -88,7 +99,7 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
         {(['login', 'signup'] as const).map(t => (
           <button
             key={t}
-            onClick={() => { setTab(t); setStatus('idle'); setMsg(''); }}
+            onClick={() => { setTab(t); setResetMode(false); setStatus('idle'); setMsg(''); }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === t ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
           >
             {t === 'login' ? 'Log in' : 'Sign up'}
@@ -99,18 +110,18 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
       <form onSubmit={submit} className="space-y-3">
         {tab === 'signup' && (
           <div className="relative">
-            <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input value={name} onChange={e => { setName(e.target.value); setStatus('idle'); }} placeholder="Your name" className={inputCls} />
+            <label htmlFor="signup-name" className="block text-sm mb-1">Your name</label><input id="signup-name" autoComplete="name" value={name} onChange={e => { setName(e.target.value); setStatus('idle'); }} placeholder="Your name" className={inputCls} />
           </div>
         )}
         <div className="relative">
-          <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="email" value={email} onChange={e => { setEmail(e.target.value); setStatus('idle'); }} placeholder="Email" className={inputCls} />
+          <label htmlFor="login-email" className="block text-sm mb-1">Email</label><input id="login-email" autoComplete="email" required type="email" value={email} onChange={e => { setEmail(e.target.value); setStatus('idle'); }} placeholder="Email" className={inputCls} />
         </div>
-        <div className="relative">
-          <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input type="password" value={password} onChange={e => { setPassword(e.target.value); setStatus('idle'); }} placeholder="Password" className={inputCls} />
-        </div>
+        {!resetMode && <div className="relative">
+          <label htmlFor="login-password" className="block text-sm mb-1">Password</label>
+          <input id="login-password" required minLength={tab === 'signup' ? 10 : undefined} maxLength={72} type="password" autoComplete={tab === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={e => { setPassword(e.target.value); setStatus('idle'); }} placeholder={tab === 'signup' ? 'At least 10 characters' : 'Password'} className={inputCls} />
+        </div>}
+        {msg && status !== 'error' && <p role="status" className="text-sm">{msg}</p>}
+        {tab === 'login' && <button type="button" className="text-sm underline py-2" onClick={() => { setResetMode(!resetMode); setMsg(''); setStatus('idle'); }}>{resetMode ? 'Back to password login' : 'Forgot password?'}</button>}
 
         {status === 'error' && (
           <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400">
@@ -120,13 +131,13 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
         )}
 
         <button type="submit" disabled={status === 'loading'} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-3 rounded-xl shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2">
-          {status === 'loading' ? <><Loader2 size={18} className="animate-spin" /> Please wait…</> : (tab === 'login' ? 'Log in' : 'Create account')}
+          {status === 'loading' ? <><Loader2 size={18} className="animate-spin" /> Please wait…</> : resetMode ? 'Send reset link' : (tab === 'login' ? 'Log in' : 'Create account')}
         </button>
       </form>
 
       <p className="text-[11px] text-slate-400 text-center mt-4 leading-snug">
         {tab === 'signup'
-          ? 'New accounts get a 7-day full free trial after a quick owner approval — then Free forever with limits, or upgrade to Paid.'
+          ? `New accounts get a ${TRIAL_DAYS}-day full free trial after a quick owner approval — then Free forever with limits, or upgrade to Paid.`
           : "Signed up but can't get in yet? Your account may still be pending approval."}
       </p>
 
@@ -140,11 +151,12 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
         onClick={onGoogleLogin}
         className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:shadow-md text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-all"
       >
-        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 shrink-0" alt="" />
         Sign in with Google
-        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Recommended</span>
+        <span className="hidden sm:inline text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Recommended</span>
       </button>
       <p className="text-[11px] text-slate-400 text-center mt-1.5">Syncs securely to your own Google Drive across devices.</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-4 leading-relaxed">By creating an account, you agree to our <a href="/terms" className="underline">Terms & Conditions</a>. Read how your information is used in our <a href="/privacy" className="underline">Privacy Policy</a>.</p>
     </div>
   );
 };
@@ -158,7 +170,7 @@ const Pill: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 );
 
 const Feature: React.FC<{
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  Icon: import('lucide-react').LucideIcon;
   title: string;
   children: React.ReactNode;
   tint: string;
@@ -202,8 +214,12 @@ const SectionHead: React.FC<{ eyebrow: string; title: string; sub?: string }> = 
 
 /* ---------- page ---------- */
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSuccess }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSuccess, compact = false }) => {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+
+  if (compact) return <main className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
+    <div className="max-w-md mx-auto"><a href="/" aria-label="PSX Tracker home" className="inline-block mb-8"><Logo variant="horizontal" /></a><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><div className="mt-7"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
+  </main>;
 
   return (
     <div className="landing-page min-h-screen bg-slate-50 dark:bg-[#0a0a0a] font-sans text-slate-900 dark:text-white selection:bg-emerald-200 dark:selection:bg-emerald-900 overflow-x-clip">
@@ -213,10 +229,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
         <div className="max-w-6xl mx-auto px-3 sm:px-5 min-h-16 flex items-center justify-between gap-2">
           <Logo variant="horizontal" className="brand-logo--header" />
           <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-500 dark:text-slate-400">
-            <button onClick={() => scrollTo('features')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</button>
-            <button onClick={() => scrollTo('tools')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</button>
-            <button onClick={() => scrollTo('pricing')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</button>
-            <button onClick={() => scrollTo('privacy')} className="hover:text-slate-900 dark:hover:text-white transition-colors">Privacy</button>
+            <a href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
+            <a href="#tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</a>
+            <a href="#pricing" className="hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</a>
+            <a href="/about" className="hover:text-slate-900 dark:hover:text-white transition-colors">About</a>
+            <a href="/login" className="hover:text-slate-900 dark:hover:text-white transition-colors">Log in</a>
           </nav>
           <button
             onClick={() => scrollTo('start')}
@@ -263,7 +280,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
               Explore Features
             </button>
           </div>
-          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-12">✓ 7-day full trial · then Free forever (limited) or Paid · no card required</p>
+          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-12">✓ {TRIAL_DAYS}-day full trial · then Free forever (limited) or Paid · no card required</p>
 
           <div className="flex flex-wrap gap-2 justify-center mb-8">
             <Pill>Live PSX Prices</Pill>
@@ -588,18 +605,19 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
             <Feature Icon={ShieldCheck} title="Your portfolio, your store" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
-              Holdings sync to your Google Drive. We don't keep a copy of your trades on our servers.
+              Records stay on this device and, when connected, in your Google Drive. Optional AI and import tools process the information you choose to share.
             </Feature>
-            <Feature Icon={CloudUpload} title="Drive Sync Required" tint="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
-              Sign in with Google to sync across devices, save alerts, and keep your portfolio backed up.
+            <Feature Icon={CloudUpload} title="Optional Drive Sync" tint="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
+              Connect Google Drive to sync across devices and back up your portfolio. You can also log in with email and a password.
             </Feature>
             <Feature Icon={Smartphone} title="Installable App" tint="bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20">
               Add to your home screen and it works like a native app, including offline viewing.
             </Feature>
-            <Feature Icon={Wallet} title="7-Day Full Trial" tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
-              Full access for 7 days after approval — then Free forever with limits, or upgrade to Paid for unlimited.
+            <Feature Icon={Wallet} title={`${TRIAL_DAYS}-Day Full Trial`} tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
+              Full access for {TRIAL_DAYS} days after approval — then Free forever with limits, or upgrade to Paid for unlimited.
             </Feature>
           </div>
+          <p className="text-center mt-6"><a href="/privacy" className="underline text-sm text-emerald-700 dark:text-emerald-400">Read our full Privacy Policy</a></p>
         </div>
       </section>
 
@@ -609,7 +627,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           <SectionHead
             eyebrow="Pricing"
             title="Free vs Paid"
-            sub="7-day full trial after approval — no card. Then stay on Free forever with limits, or unlock everything with Paid."
+            sub={`${TRIAL_DAYS}-day full trial after approval — no card. Then stay on Free forever with limits, or unlock everything with Paid.`}
           />
 
           {/* Free vs Paid comparison */}
@@ -670,7 +688,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
         <div className="max-w-3xl mx-auto">
           <SectionHead
             eyebrow="Get Started"
-            title="Start your 7-day full trial"
+            title={`Start your ${TRIAL_DAYS}-day full trial`}
             sub="Create an account (quick owner approval) or sign in with Google. After the trial you stay on Free with limits — or upgrade to Paid anytime."
           />
 
@@ -679,8 +697,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
       </section>
 
       {/* ================= FOOTER ================= */}
+      <section className="max-w-3xl mx-auto px-5 py-12" aria-labelledby="faq-heading"><h2 id="faq-heading" className="text-3xl font-bold mb-6">A few things to know</h2>{HOME_FAQS.map(([question, answer]) => <details key={question} className="border-b border-slate-200 dark:border-slate-800 py-4"><summary className="cursor-pointer font-semibold py-2">{question}</summary><p className="text-slate-600 dark:text-slate-400 py-3 leading-relaxed">{answer}</p></details>)}</section>
       <footer className="px-5 py-12 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-5xl mx-auto">
+          <div className="mb-8"><SiteFooter /></div>
           <div className="flex flex-col md:flex-row items-center justify-between gap-5 mb-8">
             <Logo variant="horizontal" />
             <p className="text-xs text-slate-400 text-center md:text-right">

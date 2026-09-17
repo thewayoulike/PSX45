@@ -442,7 +442,7 @@ function plotMouseHandlers(
   slotCount: number,
   plotTop: number,
   plotBottom: number,
-  setHover: (v: PlotHoverState) => void,
+  setHover: React.Dispatch<React.SetStateAction<PlotHoverState>>,
   panning: boolean,
   trackY = false,
   disabled = false,
@@ -1005,7 +1005,7 @@ const VolumeMiniChart: React.FC<{
   hoverX?: number | null;
   hoverIdx?: number | null;
   showVolumeSpike?: boolean;
-  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
+  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave?: () => void };
 }> = ({
   bars,
   slot,
@@ -1102,7 +1102,7 @@ const AtrMiniChart: React.FC<{
   candleInterval?: CandleInterval;
   hoverX?: number | null;
   hoverIdx?: number | null;
-  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave: () => void };
+  plotMouseHandlers?: { onMouseMove: (e: React.MouseEvent<SVGSVGElement>) => void; onMouseLeave?: () => void };
 }> = ({
   bars,
   values,

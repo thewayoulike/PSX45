@@ -3,9 +3,9 @@
   "trailingSlash": false,
   "functions": {
     "api/pypsx.py": {
-      "maxDuration": 90,
+      "maxDuration": 45,
       "memory": 1024,
-      "includeFiles": "api/pypsx_lib.py",
+      "includeFiles": "lib/market/*.py",
       "excludeFiles": "{node_modules,dist,src,public,.cursor,.github,.git,data,coverage,tests,canvases}/**"
     },
     "api/run-alerts.js": {
@@ -14,11 +14,19 @@
   },
   "rewrites": [
     {
+      "source": "/api/request-access",
+      "destination": "/api/notify-signup"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index"
     }
   ],
   "headers": [
+    {
+      "source": "/(login|reset-password|suggestions|settings|holdings|stocks|stock|fund|sector|realized|history|watchlist|signals|alerts|assistant|simulator|calculator|charts|backtest|daily-scan|dashboard|admin)(.*)",
+      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }]
+    },
     {
       "source": "/(.*)",
       "headers": [

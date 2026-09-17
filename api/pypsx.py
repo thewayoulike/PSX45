@@ -1,131 +1,79 @@
-"""Vercel Python function: pypsx-toolkit company/analysis + pypsx quotes/intraday/indices."""
-
+"""Bounded, cached market-data gateway. No unbounded SDK work in the request process."""
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
-import importlib.util
-import json
 from pathlib import Path
+from collections import OrderedDict
+import json
+import subprocess
+import sys
+import threading
+import time
 
-_LIB = None
+MARKET_DIR = Path(__file__).resolve().parents[1] / 'lib' / 'market'
+sys.path.insert(0, str(MARKET_DIR))
+from market_limits import validate_query, allowed_request
 
+_SLOTS = threading.BoundedSemaphore(4)
+_LOCK = threading.Lock()
+_CACHE = OrderedDict()
 
-def _load_lib():
-    """Lazy-load pypsx_lib (Vercel may not resolve sibling imports at module init)."""
-    global _LIB
-    if _LIB is not None:
-        return _LIB
-    try:
-        from pypsx_lib import (
-            get_chart_analysis,
-            get_company_info,
-            get_dividend_snapshot,
-            get_intraday_ohlcv,
-            get_quote,
-            get_quotes,
-            get_index_symbols_payload,
-        )
-
-        _LIB = {
-            "company": get_company_info,
-            "dividends": get_dividend_snapshot,
-            "analysis": get_chart_analysis,
-            "intraday": get_intraday_ohlcv,
-            "quote": get_quote,
-            "quotes": get_quotes,
-            "indices": get_index_symbols_payload,
-        }
-        return _LIB
-    except ImportError:
-        lib_file = Path(__file__).with_name("pypsx_lib.py")
-        spec = importlib.util.spec_from_file_location("pypsx_lib", lib_file)
-        if spec is None or spec.loader is None:
-            raise ImportError(f"Cannot load pypsx_lib from {lib_file}")
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        _LIB = {
-            "company": mod.get_company_info,
-            "dividends": mod.get_dividend_snapshot,
-            "analysis": mod.get_chart_analysis,
-            "intraday": mod.get_intraday_ohlcv,
-            "quote": mod.get_quote,
-            "quotes": mod.get_quotes,
-            "indices": mod.get_index_symbols_payload,
-        }
-        return _LIB
-
+def run_market(q):
+    result = subprocess.run([sys.executable, str(MARKET_DIR / '_pypsx_worker.py'), json.dumps(q)],
+                            capture_output=True, text=True, timeout=35, check=True)
+    if len(result.stdout) > 8_000_000:
+        raise ValueError('Response exceeds size limit')
+    return json.loads(result.stdout)
 
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET,OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'GET,OPTIONS')
         self.end_headers()
 
     def do_GET(self):
-        parsed = urlparse(self.path)
-        q = parse_qs(parsed.query)
-        mode = (q.get("mode") or [""])[0].strip().lower()
-
+        params = parse_qs(urlparse(self.path).query)
+        keys = {'mode','symbol','symbols','company','dividends','analysis','intraday','quote','period','interval','index','name'}
+        q = {k: v[0] for k, v in params.items() if k in keys}
+        invalid = validate_query(q)
+        if invalid:
+            return self._json(400, {'error': invalid})
         try:
-            lib = _load_lib()
-            if mode == "company":
-                symbol = (q.get("symbol") or q.get("company") or [""])[0]
-                payload = lib["company"](symbol)
-            elif mode == "dividends":
-                symbol = (q.get("symbol") or q.get("dividends") or [""])[0]
-                payload = lib["dividends"](symbol)
-            elif mode == "analysis":
-                symbol = (q.get("symbol") or q.get("analysis") or [""])[0]
-                period = (q.get("period") or ["6mo"])[0]
-                payload = lib["analysis"](symbol, period)
-            elif mode == "intraday":
-                symbol = (q.get("symbol") or q.get("intraday") or [""])[0]
-                interval = (q.get("interval") or ["5m"])[0]
-                period = (q.get("period") or ["5d"])[0]
-                payload = lib["intraday"](symbol, interval=interval, period=period)
-            elif mode == "quote":
-                symbol = (q.get("symbol") or q.get("quote") or [""])[0]
-                payload = lib["quote"](symbol)
-            elif mode == "quotes":
-                symbols = (q.get("symbols") or q.get("symbol") or [""])[0]
-                payload = lib["quotes"](symbols)
-            elif mode == "indices":
-                name = (q.get("index") or q.get("name") or [""])[0]
-                payload = lib["indices"](name)
-            else:
-                self._json(
-                    400,
-                    {
-                        "error": "mode required",
-                        "hint": "Use mode=company|dividends|analysis|intraday|quote|quotes|indices",
-                    },
-                )
-                return
+            ip = self.headers.get('x-forwarded-for', '').split(',')[0].strip() or str(self.client_address[0])
+            if not allowed_request(ip):
+                return self._json(429, {'error': 'Too many requests. Please retry shortly.'})
+        except Exception:
+            return self._json(503, {'error': 'Market-data service temporarily unavailable.'})
+        key = json.dumps(q, sort_keys=True)
+        with _LOCK:
+            cached = _CACHE.get(key)
+            if cached and cached[0] > time.monotonic():
+                return self._json(200, cached[1])
+        if not _SLOTS.acquire(blocking=False):
+            return self._json(503, {'error': 'Market-data service busy. Please retry.'})
+        try:
+            payload = run_market(q)
+            if payload.get('error') and not payload.get('quotes'):
+                return self._json(502, {'error': 'Market data is temporarily unavailable.'})
+            with _LOCK:
+                _CACHE[key] = (time.monotonic() + (15 if q['mode'] in {'quote','quotes'} else 60), payload)
+                _CACHE.move_to_end(key)
+                while len(_CACHE) > 128:
+                    _CACHE.popitem(last=False)
+            return self._json(200, payload)
+        except subprocess.TimeoutExpired:
+            return self._json(504, {'error': 'Market-data request timed out. Please retry.'})
+        except Exception:
+            return self._json(502, {'error': 'Market data is temporarily unavailable.'})
+        finally:
+            _SLOTS.release()
 
-            if payload.get("error") and mode not in ("quotes", "indices"):
-                self._json(502, payload)
-            elif payload.get("error") and mode == "quotes" and not payload.get("quotes"):
-                self._json(502, payload)
-            elif payload.get("error") and mode == "indices":
-                self._json(502, payload)
-            else:
-                cache = {
-                    "intraday": "s-maxage=60, stale-while-revalidate=300",
-                    "quote": "s-maxage=15, stale-while-revalidate=60",
-                    "quotes": "s-maxage=15, stale-while-revalidate=60",
-                    "indices": "s-maxage=86400, stale-while-revalidate=604800",
-                    "dividends": "s-maxage=1800, stale-while-revalidate=7200",
-                }.get(mode, "s-maxage=300, stale-while-revalidate=3600")
-                self._json(200, payload, cache=cache)
-        except Exception as exc:
-            self._json(500, {"error": str(exc)})
-
-    def _json(self, status: int, payload: dict, cache: str = "s-maxage=300, stale-while-revalidate=3600"):
-        body = json.dumps(payload).encode("utf-8")
+    def _json(self, status, payload):
+        body = json.dumps(payload).encode('utf-8')
         self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Cache-Control", cache)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Cache-Control', 's-maxage=15, stale-while-revalidate=60' if status == 200 else 'no-store')
+        if status in (429, 503): self.send_header('Retry-After', '60')
         self.end_headers()
         self.wfile.write(body)

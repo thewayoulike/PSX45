@@ -5,9 +5,9 @@ import json
 import sys
 from pathlib import Path
 
-# Allow importing api/pypsx_lib when run from repo root
+# Allow importing the shared market helpers when run from repo root
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT / "api"))
+sys.path.insert(0, str(ROOT / "lib" / "market"))
 
 from pypsx_lib import get_intraday_ohlcv  # noqa: E402
 

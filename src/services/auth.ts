@@ -9,7 +9,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 // Publishable/anon key only — safe for the browser (RLS protects the data).
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+export const supabase = createClient(SUPABASE_URL || 'https://unconfigured.invalid', SUPABASE_ANON_KEY || 'unconfigured', {
   auth: { persistSession: true, autoRefreshToken: true },
 });
 
@@ -47,7 +47,7 @@ export const checkApproval = async (email: string, name?: string, notify = false
   return st.active;
 };
 
-export type AccessState = 'pending' | 'trial' | 'free' | 'paid' | 'lifetime';
+export type AccessState = 'pending' | 'trial' | 'free' | 'paid' | 'lifetime' | 'unavailable';
 
 export interface AccessStatus {
   approved: boolean;       // owner has let them in (trial or beyond)
@@ -78,14 +78,23 @@ export const getAccessStatus = async (email: string, name?: string, notify = fal
         new Promise<undefined>(res => setTimeout(() => res(undefined), 1200)),
       ]);
     } catch { token = undefined; }
+    // The Google identity being checked must not accidentally use another email session.
+    const googleToken = await getValidToken();
+    let googleEmail = '';
+    try { googleEmail = JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email || ''; } catch { /* ignore */ }
+    if (googleToken && googleEmail.toLowerCase() === email.toLowerCase()) token = googleToken;
+    if (!token) throw new Error('No authenticated session');
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     if (token) headers['Authorization'] = `Bearer ${token}`;
-    const res = await fetch('/api/check-access', {
+    const res = await fetch(notify ? '/api/request-access' : '/api/check-access', {
       method: 'POST',
+      signal: AbortSignal.timeout(10000),
       headers,
       body: JSON.stringify({ email, name: name || '', notify, resend }),
     });
+    if (!res.ok) throw new Error('Access check unavailable');
     const d = await res.json().catch(() => ({}));
+    if (!['pending', 'trial', 'free', 'paid', 'lifetime', 'expired'].includes(d.status || d.accessStatus)) throw new Error('Invalid access response');
     // Legacy API returned "expired"; treat as free.
     const raw = (d.status || d.accessStatus || (d.approved ? 'trial' : 'pending')) as string;
     const status = (raw === 'expired' ? 'free' : raw) as AccessState;
@@ -103,11 +112,52 @@ export const getAccessStatus = async (email: string, name?: string, notify = fal
     };
   } catch {
     return {
-      approved: false, active: false, status: 'pending', plan: 'pending',
+      approved: false, active: false, status: 'unavailable', plan: 'unavailable',
       lifetime: false, accessUntil: null, trialEnds: null, daysLeft: null, quotas: null,
     };
   }
 };
+
+export async function requestPasswordReset(email: string) {
+  if (!isAuthConfigured()) throw new Error('Sign-in is temporarily unavailable.');
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
+  if (error) throw new Error('The reset request could not be completed. Please retry shortly.');
+}
+export async function requestPasswordSetup(email: string) {
+  if (!isAuthConfigured()) throw new Error('Sign-in is temporarily unavailable.');
+  // Google Drive's OAuth session is separate from Supabase. Email verification
+  // establishes the matching password account without trusting a browser email.
+  const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: {
+    shouldCreateUser: true, emailRedirectTo: `${window.location.origin}/reset-password`,
+  } });
+  if (error) throw new Error('The setup email could not be sent. Please retry shortly.');
+}
+export function validatePassword(password: string) {
+  if (password.length < 10) throw new Error('Use at least 10 characters.');
+  if (new TextEncoder().encode(password).length > 72) throw new Error('Use a password no longer than 72 bytes.');
+}
+export async function changeAccountPassword(email: string, currentPassword: string, newPassword: string) {
+  validatePassword(newPassword);
+  // Reauthenticate in an isolated client; a wrong password cannot replace the
+  // main session or accidentally update a different signed-in account.
+  const verification = createClient(SUPABASE_URL || 'https://unconfigured.invalid', SUPABASE_ANON_KEY || 'unconfigured', {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false, storageKey: 'psx-password-verification' },
+  });
+  try {
+    const { data, error } = await verification.auth.signInWithPassword({ email: email.trim(), password: currentPassword });
+    if (error || !data.user || data.user.email?.toLowerCase() !== email.trim().toLowerCase()) throw new Error('The current password could not be verified. Try again or use Forgot password.');
+    const { error: updateError } = await verification.auth.updateUser({ password: newPassword });
+    if (updateError) throw new Error('Password could not be changed. Use the email reset link and try again.');
+  } finally { await verification.auth.signOut({ scope: 'local' }).catch(() => {}); }
+}
+export async function completePasswordReset(password: string) {
+  validatePassword(password);
+  const { data } = await supabase.auth.getSession();
+  if (!data.session) throw new Error('This link expired. Request a new password reset.');
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) throw new Error('Password could not be updated. Request a fresh link and try again.');
+  await supabase.auth.signOut();
+}
 
 export const signIn = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -140,16 +190,18 @@ export const onAuthChange = (cb: (session: Session | null) => void) => {
 /** Headers for APIs that require a signed-in user. */
 export const getAuthHeaders = async (): Promise<Record<string, string>> => {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  // Drive is the active identity when connected; do not send an older email
+  // session's token for another account's alerts or settings.
+  try {
+    const token = await getValidToken();
+    if (token) { headers.Authorization = `Bearer ${token}`; return headers; }
+  } catch { /* fall back to email sign-in */ }
   try {
     const session = await getSession();
     if (session?.access_token) {
       headers.Authorization = `Bearer ${session.access_token}`;
       return headers;
     }
-  } catch { /* ignore */ }
-  try {
-    const token = await getValidToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
   } catch { /* ignore */ }
   return headers;
 };

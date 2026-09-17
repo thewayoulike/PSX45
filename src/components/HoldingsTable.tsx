@@ -421,7 +421,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                           <div className="flex flex-col"> 
                             <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5"> 
                               {formatTransactionLabel(holding.ticker, displayNames)} 
-                              {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" title="Price update failed" />} 
+                              {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse" aria-label="Price update failed" />}
                             </div> 
                             {displayNames[holding.ticker] && (
                               <div className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[220px]">{holding.ticker.replace(/^MF:/, '')}</div>

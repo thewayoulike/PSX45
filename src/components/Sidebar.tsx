@@ -1,14 +1,21 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import * as Popover from '@radix-ui/react-popover';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { AppView, PortfolioType } from '../types';
 import {
   LayoutDashboard, History, Bell, Calculator,
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
-  ChevronsLeft, ChevronsRight, LogOut, Save, Loader2,
+  ChevronsLeft, ChevronsRight, LogOut, Save, Loader2, RefreshCw,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical
+  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical, UserRound, MessageSquare
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
+import {
+  formatPendingAge,
+  shortenCloudError,
+  shortenRevision,
+  syncHealthStatus,
+} from '../utils/cloudSyncHealth';
 
 interface SidebarProps {
   currentView: AppView;
@@ -26,7 +33,11 @@ interface SidebarProps {
   isCloudSyncing: boolean;
   cloudSyncError?: string | null;
   lastCloudSave?: string | null;
+  pendingRevision?: string | null;
+  pendingQueuedAt?: string | null;
   onCloudRetry?: () => void;
+  onDownloadPending?: () => void;
+  onLoadCloud?: () => void;
   hasApiKeys: boolean;
 }
 
@@ -38,15 +49,16 @@ interface NavItem {
   alert?: boolean;
   children?: Leaf[];
 }
-interface NavGroup { key: string; label: string; Icon: React.ComponentType<{ size?: number; className?: string }>; gear?: boolean; items: NavItem[]; }
+interface NavGroup { key: string; label: string; Icon: import('lucide-react').LucideIcon; gear?: boolean; items: NavItem[]; }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentView, onViewChange, portfolioType = 'PSX',
   isOpen, onClose,
   isSidebarCollapsed, onToggleCollapse, driveUser, authUser, isOwner, onLogin, onLogout, isCloudSyncing, hasApiKeys,
-  cloudSyncError, lastCloudSave, onCloudRetry
+  cloudSyncError, lastCloudSave, pendingRevision, pendingQueuedAt, onCloudRetry, onDownloadPending, onLoadCloud
 }) => {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const [syncPopoverOpen, setSyncPopoverOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -78,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     DASHBOARD: 'Menu', HOLDINGS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
     SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
-    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings',
+    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', SUGGESTIONS: 'Settings',
   };
 
   // Everything collapsed by default — only the group holding the active view is open.
@@ -138,6 +150,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
       },
       {
         key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
+          { id: 'PROFILE_SETTINGS', label: 'Profile & Security', icon: <UserRound size={22} /> },
+          { id: 'SUGGESTIONS', label: 'Suggestions', icon: <MessageSquare size={22} /> },
           { id: 'DASH_CUSTOMIZE', label: 'Dashboard Layout', icon: <LayoutGrid size={22} /> },
           ...(isOwner ? [{ id: 'ADMIN_USERS' as AppView, label: 'Users', icon: <UsersRound size={22} /> }] : []),
           { id: 'BROKERS', label: isFundPortfolio ? 'Bank / Account' : 'Broker Setup', icon: <Briefcase size={22} /> },
@@ -330,31 +344,136 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             {driveUser ? (
                 <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-3`}>
+                    {(() => {
+                      const hasPending = !!pendingRevision;
+                      const status = syncHealthStatus({
+                        isSyncing: isCloudSyncing,
+                        error: cloudSyncError ?? null,
+                        lastSave: lastCloudSave ?? null,
+                        hasPending,
+                      });
+                      const statusTone = status === 'Not synced' || status === 'Pending'
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-emerald-600 dark:text-emerald-400';
+                      const pendingMeta = hasPending
+                        ? `${pendingQueuedAt ? formatPendingAge(pendingQueuedAt) : '…'} · ${shortenRevision(pendingRevision!)}`
+                        : null;
+                      const confirmRestore = () => {
+                        if (!onLoadCloud) return;
+                        if (window.confirm('Restore the cloud backup? A recovery copy of unsynced local changes will be kept, then the page will reload.')) {
+                          onLoadCloud();
+                        }
+                      };
+                      const syncActions = (
+                        <>
+                          <button
+                            type="button"
+                            onClick={onCloudRetry}
+                            disabled={isCloudSyncing}
+                            className="flex-1 min-h-[44px] bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold py-1.5 rounded-lg"
+                          >
+                            Retry
+                          </button>
+                          <button
+                            type="button"
+                            onClick={confirmRestore}
+                            className="flex-1 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-bold py-1.5 rounded-lg"
+                          >
+                            Restore
+                          </button>
+                        </>
+                      );
 
-                    <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} w-full`}>
-                        {driveUser.picture ? (
-                            <img src={driveUser.picture} alt="User" className="w-10 h-10 rounded-xl border border-emerald-200 dark:border-emerald-900 flex-shrink-0 shadow-sm" />
-                        ) : (
-                            <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold flex-shrink-0 shadow-sm">
+                      if (isCollapsed) {
+                        return (
+                          <>
+                            <div className="relative">
+                              {driveUser.picture ? (
+                                <img src={driveUser.picture} alt="User" className="w-10 h-10 rounded-xl border border-emerald-200 dark:border-emerald-900 shadow-sm" />
+                              ) : (
+                                <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold shadow-sm">
+                                  {driveUser.name?.[0]}
+                                </div>
+                              )}
+                              {(cloudSyncError || hasPending) && (
+                                <span className="absolute -right-0.5 -top-0.5 w-3 h-3 rounded-full bg-amber-500 border-2 border-slate-50 dark:border-[#0f0f0f]" aria-hidden />
+                              )}
+                              {!cloudSyncError && !hasPending && lastCloudSave && (
+                                <span className="absolute -right-0.5 -top-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-50 dark:border-[#0f0f0f]" aria-hidden />
+                              )}
+                            </div>
+                            {(cloudSyncError || hasPending) && (
+                              <div className="relative flex flex-col items-center gap-1.5 w-full">
+                                <button
+                                  type="button"
+                                  aria-label="Retry cloud save"
+                                  title={cloudSyncError ? shortenCloudError(cloudSyncError) : 'Pending local changes'}
+                                  onClick={onCloudRetry}
+                                  disabled={isCloudSyncing}
+                                  className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300/70 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 flex items-center justify-center disabled:opacity-50"
+                                >
+                                  {isCloudSyncing ? <Loader2 size={16} className="animate-spin" /> : <RefreshCw size={16} />}
+                                </button>
+                                <Popover.Root open={syncPopoverOpen} onOpenChange={setSyncPopoverOpen}><Popover.Trigger asChild><button
+                                  type="button"
+                                  title="Sync details"
+                                  className="min-h-[32px] text-[10px] font-bold text-slate-500 underline"
+                                >
+                                  Details
+                                </button></Popover.Trigger>
+                                <Popover.Portal>
+                                  <Popover.Content side="right" align="end" sideOffset={14} collisionPadding={12} aria-label="Cloud sync details" className="z-[100] w-64 max-w-[calc(100vw_-_24px)] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 p-3 shadow-lg">
+                                    <div className={`text-[10px] font-bold uppercase tracking-widest ${statusTone}`}>{status}{pendingMeta ? ` · ${pendingMeta}` : ''}</div>
+                                    {cloudSyncError && <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 mb-2">{shortenCloudError(cloudSyncError)}</p>}
+                                    <div className="flex gap-1.5">{syncActions}</div>
+                                    <button type="button" onClick={onDownloadPending} className="mt-2 min-h-[44px] text-xs text-slate-600 dark:text-slate-300 underline w-full text-left">Keep pending</button>
+                                  </Popover.Content>
+                                </Popover.Portal></Popover.Root>
+                              </div>
+                            )}
+                          </>
+                        );
+                      }
+
+                      return (
+                        <>
+                          <div className="flex items-center gap-3 w-full">
+                            {driveUser.picture ? (
+                              <img src={driveUser.picture} alt="User" className="w-10 h-10 rounded-xl border border-emerald-200 dark:border-emerald-900 flex-shrink-0 shadow-sm" />
+                            ) : (
+                              <div className="w-10 h-10 bg-emerald-100 dark:bg-emerald-900/50 rounded-xl flex items-center justify-center text-emerald-700 dark:text-emerald-400 font-bold flex-shrink-0 shadow-sm">
                                 {driveUser.name?.[0]}
-                            </div>
-                        )}
-
-                        {!isCollapsed && (
-                            <div className="flex flex-col min-w-0 overflow-hidden">
-                                <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                                    {isCloudSyncing ? <Loader2 size={10} className="animate-spin shrink-0" /> : <Save size={10} className="shrink-0" />}
-                                    {isCloudSyncing ? 'Saving…' : cloudSyncError ? 'Not synced' : lastCloudSave ? 'Synced' : 'Not yet saved'}
+                              </div>
+                            )}
+                            <div className="flex flex-col min-w-0 overflow-hidden flex-1">
+                              <div className="flex items-baseline justify-between gap-2">
+                                <span className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1 ${statusTone}`}>
+                                  {isCloudSyncing ? <Loader2 size={10} className="animate-spin shrink-0" /> : <Save size={10} className="shrink-0" />}
+                                  {status}
                                 </span>
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{driveUser.name}</span>
+                                {pendingMeta && <span className="text-[10px] text-slate-500 shrink-0">{pendingMeta}</span>}
+                              </div>
+                              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{driveUser.name}</span>
                             </div>
-                        )}
-                    </div>
-                    {cloudSyncError && <div role="alert" className="text-xs text-amber-700 dark:text-amber-400">
-                        {!isCollapsed && <p>{cloudSyncError}</p>}
-                        <button type="button" onClick={onCloudRetry} disabled={isCloudSyncing} className="underline font-bold">Retry sync</button>
-                    </div>}
-                    {!isCollapsed && lastCloudSave && <p className="text-[10px] text-slate-500">Last saved: {new Date(lastCloudSave).toLocaleString()}</p>}
+                          </div>
+                          {(cloudSyncError || hasPending) && (
+                            <div role="alert" className="w-full space-y-2">
+                              {cloudSyncError && (
+                                <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-snug">{shortenCloudError(cloudSyncError)}</p>
+                              )}
+                              <div className="flex gap-1.5">{syncActions}</div>
+                              <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
+                                <span>{lastCloudSave ? `Last OK · ${new Date(lastCloudSave).toLocaleString()}` : 'Not yet saved to cloud'}</span>
+                                <button type="button" onClick={onDownloadPending} className="underline shrink-0">Keep pending</button>
+                              </div>
+                            </div>
+                          )}
+                          {!cloudSyncError && !hasPending && lastCloudSave && (
+                            <p className="text-[10px] text-slate-500">Last saved: {new Date(lastCloudSave).toLocaleString()}</p>
+                          )}
+                        </>
+                      );
+                    })()}
                     <button
                         onClick={onLogout}
                         title={isCollapsed ? "Sign Out" : undefined}

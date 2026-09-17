@@ -264,7 +264,7 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
                           step="any"
                           placeholder={activeHolding.currentPrice.toString()}
                           value={customTargetPrice}
-                          onChange={(e) => setCustomTargetPrice(e.target.value)}
+                          onChange={(e) => setCustomTargetPrice(e.target.value === '' ? '' : Number(e.target.value))}
                           className="w-full px-4 py-3.5 rounded-xl border border-indigo-200/60 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 font-black font-mono tabular-nums focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 shadow-sm transition-all"
                       />
                   </div>

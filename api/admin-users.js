@@ -1,20 +1,19 @@
 // api/admin-users.js
 // Owner-only admin for the access allowlist. Gated by a shared secret
-// (reuses APPROVE_SECRET). Lets the owner list users and approve / disable /
+// (ADMIN_SECRET only). Lets the owner list users and approve / disable /
 // remove them directly from the app. Uses the service role (bypasses RLS).
 //
 // GET  /api/admin-users            -> { users: [...] }
 // POST /api/admin-users { action, email }  action = approve | disable | remove
-// Auth: send the secret as header `x-admin-secret` (or ?secret= for GET).
+// Auth: send ADMIN_SECRET as the `x-admin-secret` header.
 
 import { createClient } from '@supabase/supabase-js';
 import { computeAccess } from '../lib/access.js';
+import { timingSafeEqual } from 'node:crypto';
+import { limitRequest } from '../lib/sharedRateLimit.js';
 
 const getSecret = (req) =>
-  (req.headers['x-admin-secret'] ||
-    (req.query && req.query.secret) ||
-    (req.body && typeof req.body === 'object' && req.body.secret) ||
-    '').toString();
+  (req.headers['x-admin-secret'] || '').toString();
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,9 +21,12 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-secret');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const expected = (process.env.ADMIN_SECRET || process.env.APPROVE_SECRET || '').toString();
+  const expected = (process.env.ADMIN_SECRET || '').trim();
   if (!expected) return res.status(500).json({ error: 'Admin secret not configured' });
-  if (getSecret(req) !== expected) return res.status(401).json({ error: 'Unauthorized' });
+  const supplied = Buffer.from(getSecret(req));
+  const wanted = Buffer.from(expected);
+  if (supplied.length !== wanted.length || !timingSafeEqual(supplied, wanted)) return res.status(401).json({ error: 'Unauthorized' });
+  if (!await limitRequest(req, res, 'admin', 60)) return;
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -51,7 +53,7 @@ export default async function handler(req, res) {
       if (!email) return res.status(400).json({ error: 'email required' });
 
       if (action === 'approve') {
-        // Approve = start the 15-day trial (stamp approved_at only if not set).
+        // Approve = start the configured trial (stamp approved_at only if not set).
         const { data: cur } = await supabase
           .from('allowlist').select('approved_at').eq('email', email).maybeSingle();
         const approvedAt = cur?.approved_at || new Date().toISOString();
@@ -84,7 +86,7 @@ export default async function handler(req, res) {
         if (error) throw error;
 
       } else if (action === 'start_trial') {
-        // Reset to a fresh 15-day trial from now.
+        // Reset to a fresh configured trial from now.
         const { error } = await supabase
           .from('allowlist')
           .upsert({ email, approved: true, approved_at: new Date().toISOString(), access_until: null, lifetime: false }, { onConflict: 'email' });

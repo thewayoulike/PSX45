@@ -13,8 +13,8 @@ const STORAGE_TOKEN_KEY = 'psx_drive_access_token';
 const STORAGE_USER_KEY = 'psx_drive_user_profile';
 const STORAGE_EXPIRY_KEY = 'psx_drive_token_expiry';
 
-// SCOPES: Updated to include 'gmail.readonly'
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/gmail.readonly openid';
+// Gmail is requested separately, only when the user opens Gmail import.
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets openid';
 const DB_FILE_NAME = 'psx_tracker_data.json';
 const SHEET_FILE_NAME = 'PSX_Portfolio_Transactions'; // Name of the Google Sheet
 
@@ -146,6 +146,7 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
             }
         }
     }, 500);
+    return () => clearInterval(checkInterval);
 };
 
 export const signInWithDrive = () => {
@@ -157,6 +158,7 @@ export const signInWithDrive = () => {
 };
 
 export const clearDriveSession = () => {
+    gmailToken = null;
     localStorage.removeItem(STORAGE_TOKEN_KEY);
     localStorage.removeItem(STORAGE_USER_KEY);
     localStorage.removeItem(STORAGE_EXPIRY_KEY);
@@ -210,6 +212,9 @@ export const getValidToken = async (): Promise<string | null> => {
 
 // --- Checked, serialized Drive and Sheets operations ---
 const cloudQueue = createSerialQueue();
+const cloudBases = new Map<string, number>();
+const cloudConflicts = new Set<string>();
+const conflictMessage = 'Another device saved a newer version. Download your changes, then load the cloud version to reconcile them.';
 const currentEmail = () => {
     try { return String(JSON.parse(localStorage.getItem(STORAGE_USER_KEY) || '{}').email || '').toLowerCase(); }
     catch { return ''; }
@@ -230,6 +235,7 @@ async function cloudSession(email: string) {
                 ...options.headers, Authorization: `Bearer ${token}`,
             } });
         } finally { clearTimeout(timer); }
+        if (currentEmail() !== email) throw new Error('Account changed. Cloud request cancelled.');
         if (!response.ok) {
             if (response.status === 401 && accessToken === token) {
                 accessToken = null;
@@ -251,14 +257,26 @@ async function findFile(request: CloudRequest, name: string) {
     return data.files?.[0]?.id || null;
 }
 async function writeDrive(request: CloudRequest, data: any) {
-    const fileId = await findFile(request, DB_FILE_NAME);
     const form = new FormData();
-    form.append('metadata', new Blob([JSON.stringify({ name: DB_FILE_NAME, mimeType: 'application/json' })], { type: 'application/json' }));
+    form.append('metadata', new Blob([JSON.stringify({ name: `psx_tracker_backup_${crypto.randomUUID()}.json`, mimeType: 'application/json', appProperties: { psxSnapshot: 'v2' } })], { type: 'application/json' }));
     form.append('file', new Blob([JSON.stringify(data)], { type: 'application/json' }));
-    await request(fileId
-        ? `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`
-        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
-        { method: fileId ? 'PATCH' : 'POST', body: form });
+    const response = await request('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id', { method: 'POST', body: form });
+    const { id } = await response.json();
+    if (!id) throw new Error('Google did not return a backup ID.');
+    return id as string;
+}
+type CloudHead = { revision: number; fileId: string | null; cleanupIds?: string[] };
+async function cloudHead(email: string, body: Record<string, unknown>): Promise<CloudHead> {
+    const token = await getValidToken();
+    if (!token || currentEmail() !== email) throw new Error('Sign in to the same Google account to sync.');
+    const res = await fetch('/api/cloud-sync', { method: 'POST', signal: AbortSignal.timeout(15000),
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (res.status === 409) { cloudConflicts.add(email); throw new Error(conflictMessage); }
+    if (!res.ok) throw new Error('Cloud version check unavailable. Your changes remain on this device.');
+    const head = await res.json();
+    if (currentEmail() !== email) throw new Error('Account changed. Cloud version check cancelled.');
+    if (!Number.isSafeInteger(head.revision) || head.revision < 0 || (head.fileId !== null && typeof head.fileId !== 'string')) throw new Error('Invalid cloud version response.');
+    return head;
 }
 async function writeSheets(request: CloudRequest, transactions: any[], portfolios: any[]) {
     let sheetId = await findFile(request, SHEET_FILE_NAME);
@@ -285,15 +303,44 @@ export function saveToDrive(data: any, includeSheets = false): Promise<CloudSave
     const snapshot = JSON.parse(JSON.stringify({ ...data, lastModified: new Date().toISOString() }));
     try {
         if (!email) throw new Error('Sign in to Google before saving.');
-        localStorage.setItem(pendingKey(email), JSON.stringify({ revision, data: snapshot }));
+        localStorage.setItem(pendingKey(email), JSON.stringify({
+            revision,
+            queuedAt: new Date().toISOString(),
+            baseVersion: cloudBases.get(email) ?? null,
+            data: snapshot,
+        }));
     } catch (error: any) {
         return Promise.resolve({ ok: false, error: error.message || 'Unable to preserve pending changes locally.' });
     }
     return cloudQueue(async () => {
         try {
             const request = await cloudSession(email);
-            await writeDrive(request, snapshot);
-            const sheetId = includeSheets ? await writeSheets(request, snapshot.transactions || [], snapshot.portfolios || []) : null;
+            const base = cloudBases.get(email);
+            if (base === undefined) throw new Error('Load your cloud backup before saving changes.');
+            if (cloudConflicts.has(email)) throw new Error(conflictMessage);
+            const head = await cloudHead(email, { action: 'head' });
+            if (head.revision !== base) { cloudConflicts.add(email); throw new Error(conflictMessage); }
+            const fileId = await writeDrive(request, snapshot);
+            const updatePending = (extra: Record<string, unknown>) => {
+                const pending = JSON.parse(localStorage.getItem(pendingKey(email)) || '{}');
+                if (pending.revision === revision) localStorage.setItem(pendingKey(email), JSON.stringify({ ...pending, ...extra }));
+            };
+            updatePending({ fileId, baseVersion: base });
+            const committed = await cloudHead(email, { action: 'commit', revision: base, fileId });
+            cloudBases.set(email, committed.revision);
+            updatePending({ baseVersion: committed.revision });
+            // Sheets is a derived export. The authoritative backup is the immutable, committed file.
+            const latest = await cloudHead(email, { action: 'head' });
+            const sheetId = includeSheets && latest.revision === committed.revision ? await writeSheets(request, snapshot.transactions || [], snapshot.portfolios || []) : null;
+            // Retain 20 committed versions. Only trash files carrying our snapshot marker.
+            for (const obsolete of committed.cleanupIds || []) {
+                try {
+                    const meta = await (await request(`https://www.googleapis.com/drive/v3/files/${obsolete}?fields=appProperties`)).json();
+                    if (meta.appProperties?.psxSnapshot === 'v2') await request(`https://www.googleapis.com/drive/v3/files/${obsolete}`, {
+                        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }),
+                    });
+                } catch { /* Cleanup must never turn a durable save into a failure. */ }
+            }
             if (currentEmail() !== email) throw new Error('Account changed during save.');
             const pending = JSON.parse(localStorage.getItem(pendingKey(email)) || '{}');
             if (pending.revision === revision) localStorage.removeItem(pendingKey(email));
@@ -307,13 +354,65 @@ export function saveToDrive(data: any, includeSheets = false): Promise<CloudSave
 export async function loadFromDrive() {
     const email = currentEmail();
     const request = await cloudSession(email);
-    // Keep this account's unsynced snapshot across reloads. A later successful save
-    // clears it; another account can neither load it nor send it to their Drive.
+    const head = await cloudHead(email, { action: 'head' });
     const pending = JSON.parse(localStorage.getItem(pendingKey(email)) || 'null');
+    if (pending?.data && pending.baseVersion !== head.revision && !(head.fileId && pending.fileId === head.fileId)) {
+        cloudConflicts.add(email);
+        throw new Error(conflictMessage);
+    }
+    cloudBases.set(email, head.revision);
+    cloudConflicts.delete(email);
     if (pending?.data) return pending.data;
-    const fileId = await findFile(request, DB_FILE_NAME);
+    const fileId = head.fileId || await findFile(request, DB_FILE_NAME);
     if (!fileId) return null; // Only a successful empty lookup means no backup exists.
     return (await request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json();
+}
+export type PendingCloud = { revision: string; queuedAt: string | null; data: any; baseVersion?: number | null; fileId?: string | null };
+export function getPendingCloud(): PendingCloud | null {
+    const email = currentEmail();
+    if (!email) return null;
+    try {
+        const raw = localStorage.getItem(pendingKey(email));
+        if (!raw) return null;
+        const pending = JSON.parse(raw);
+        if (!pending?.revision || !pending?.data) return null;
+        return {
+            revision: String(pending.revision),
+            queuedAt: pending.queuedAt || pending.data?.lastModified || null,
+            data: pending.data,
+            baseVersion: pending.baseVersion ?? null,
+            fileId: pending.fileId ?? null,
+        };
+    } catch {
+        return null;
+    }
+}
+export function clearPendingCloud() {
+    const email = currentEmail(), raw = localStorage.getItem(pendingKey(email));
+    if (email && raw) {
+        localStorage.setItem(`psx_cloud_recovery:${encodeURIComponent(email)}:${Date.now()}`, raw);
+        localStorage.removeItem(pendingKey(email));
+    }
+}
+export function downloadPendingCloudBackup() {
+    const raw = localStorage.getItem(pendingKey(currentEmail()));
+    if (!raw) return;
+    const data = JSON.parse(raw).data;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a'); link.href = url; link.download = 'psx-unsynced-backup.json'; link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+export async function preservePendingAndReloadCloud() {
+    try {
+        // Verify that the remote copy is readable before releasing a pending edit.
+        const email = currentEmail(), request = await cloudSession(email);
+        const head = await cloudHead(email, { action: 'head' });
+        const id = head.fileId || await findFile(request, DB_FILE_NAME);
+        if (!id) throw new Error('No cloud backup was found. Your pending changes have been kept.');
+        await (await request(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
+        clearPendingCloud();
+        window.location.reload();
+    } catch (error) { alert(error instanceof Error ? error.message : 'Could not load cloud backup. Your changes were kept.'); }
 }
 export async function getGoogleSheetId(): Promise<string | null> {
     return findFile(await cloudSession(currentEmail()), SHEET_FILE_NAME);
@@ -325,9 +424,37 @@ export function syncTransactionsToSheet(transactions: any[], portfolios: any[]) 
 }
 
 // --- GMAIL INTEGRATION FUNCTIONS ---
+let gmailToken: { token: string; email: string; expires: number } | null = null;
+async function requestGmailAccess(): Promise<string> {
+    const email = currentEmail();
+    if (!email) throw new Error('Connect Google Drive before importing Gmail attachments.');
+    if (gmailToken?.email === email && gmailToken.expires > Date.now() + 60000) return gmailToken.token;
+    if (!window.google?.accounts?.oauth2 || !CLIENT_ID) throw new Error('Google sign-in is still loading. Please retry.');
+    return new Promise((resolve, reject) => {
+        const client = window.google.accounts.oauth2.initTokenClient({
+            client_id: CLIENT_ID, scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email openid',
+            hint: email,
+            error_callback: () => reject(new Error('Gmail access was not granted. You can still import a file.')),
+            callback: async (response: any) => {
+                try {
+                    if (!response.access_token) throw new Error('Gmail access was not granted.');
+                    const identity = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                        headers: { Authorization: `Bearer ${response.access_token}` }, signal: AbortSignal.timeout(10000),
+                    });
+                    if (!identity.ok) throw new Error('Could not verify the Gmail account.');
+                    const user = await identity.json();
+                    if (user.email_verified !== true || user.email?.toLowerCase() !== email || currentEmail() !== email) throw new Error('Choose the same Google account used for this portfolio.');
+                    gmailToken = { token: response.access_token, email, expires: Date.now() + Number(response.expires_in || 3500) * 1000 };
+                    resolve(response.access_token);
+                } catch (error) { reject(error); }
+            },
+        });
+        client.requestAccessToken({ prompt: '' });
+    });
+}
 
 export const searchGmailMessages = async (query: string) => {
-    const token = await getValidToken();
+    const token = await requestGmailAccess();
     if (!token) return [];
 
     try {
@@ -379,7 +506,7 @@ const getMimeType = (filename: string, originalMime: string) => {
 };
 
 export const downloadGmailAttachment = async (messageId: string, attachmentId: string, filename: string, mimeType: string): Promise<File | null> => {
-    const token = await getValidToken();
+    const token = await requestGmailAccess();
     if (!token) return null;
 
     try {

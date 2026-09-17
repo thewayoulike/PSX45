@@ -33,7 +33,7 @@ const pct = (n: number) => `${n.toFixed(2)}%`;
 interface Insight {
   key: string;
   tone: Tone;
-  Icon: React.ComponentType<{ size?: number; className?: string }>;
+  Icon: import('lucide-react').LucideIcon;
   score: number;
   node: React.ReactNode;
 }

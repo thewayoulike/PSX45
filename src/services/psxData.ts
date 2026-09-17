@@ -268,6 +268,11 @@ export const fetchPypsxQuotes = async (symbols: string[]): Promise<Record<string
             .filter(s => s && !s.startsWith('MF:'))
     )];
     if (unique.length === 0) return {};
+    if (unique.length > 20) {
+        const result: Record<string, number> = {};
+        for (let i = 0; i < unique.length; i += 20) Object.assign(result, await fetchPypsxQuotes(unique.slice(i, i + 20)));
+        return result;
+    }
     try {
         const qs = new URLSearchParams({
             mode: 'quotes',

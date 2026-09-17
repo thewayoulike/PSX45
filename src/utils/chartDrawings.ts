@@ -154,7 +154,7 @@ function hitTestOne(x: number, y: number, d: ChartDrawing, c: DrawRenderCoords, 
   switch (d.type) {
     case 'hline': {
       const ly = yAtPrice(d.price, yMin, yMax, padTop, innerH);
-      return y >= plotTop && y <= plotBottom && Math.abs(y - ly) <= tol;
+      return x >= plotLeft && x <= plotRight && y >= c.plotTop && y <= c.plotBottom && Math.abs(y - ly) <= tol;
     }
     case 'vline': {
       const lx = xAtTime(d.time, barTimes, plotOffset, slot);
