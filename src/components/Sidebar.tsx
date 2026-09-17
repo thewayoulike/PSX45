@@ -341,10 +341,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* User Profile & Collapse Area */}
-        <div className={`border-t border-slate-200/60 dark:border-slate-800/60 flex flex-col bg-slate-50/50 dark:bg-[#0f0f0f]/50 shrink-0 transition-all ${isCollapsed ? 'p-3 pb-6 gap-3' : 'p-4 pb-8 gap-4'}`}>
+        <div className="border-t border-slate-200/60 dark:border-slate-800/60 flex flex-col bg-slate-50/50 dark:bg-[#0f0f0f]/50 shrink-0 transition-all p-3 gap-1">
 
             {driveUser ? (
-                <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-3`}>
+                <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-1`}>
                     {(() => {
                       const hasPending = !!pendingRevision;
                       const hasConflict = isCloudConflictError(cloudSyncError);
@@ -469,23 +469,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {!cloudSyncError && !hasPending && lastCloudSave && (
                             <p className="text-[10px] text-slate-500">Last saved: {new Date(lastCloudSave).toLocaleString()}</p>
                           )}
-                          {!cloudSyncError && !hasPending && <button type="button" onClick={loadLatest} disabled={isCloudSyncing} className="min-h-[44px] text-xs font-semibold text-sky-700 dark:text-sky-400 underline disabled:opacity-50">Load latest from Drive</button>}
                         </>
                       );
                     })()}
+                    <div className="flex items-center gap-1 w-full">
+                    {!isCollapsed && !cloudSyncError && !pendingRevision && <button type="button" onClick={onLoadCloud} disabled={isCloudSyncing} className="flex-1 min-h-[44px] text-[11px] font-semibold text-sky-700 dark:text-sky-400 underline disabled:opacity-50">Load latest from Drive</button>}
                     <button
                         onClick={onLogout}
                         title={isCollapsed ? "Sign Out" : undefined}
-                        className={`flex items-center justify-center text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-bold transition-all w-full rounded-xl ${isCollapsed ? 'p-2.5 hover:bg-rose-50 dark:hover:bg-rose-500/10' : 'gap-2 px-2 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/10'}`}
+                        className={`flex items-center justify-center min-h-[44px] text-xs text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 font-bold transition-all rounded-xl ${isCollapsed || cloudSyncError || pendingRevision ? 'w-full' : 'shrink-0'} ${isCollapsed ? 'p-2.5 hover:bg-rose-50 dark:hover:bg-rose-500/10' : 'gap-1.5 px-2 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/10'}`}
                     >
                         <LogOut size={18} className="shrink-0" />
                         {!isCollapsed && <span>Sign Out</span>}
                     </button>
+                    </div>
 
                 </div>
             ) : authUser ? (
                 /* Signed in with email/password (no Drive yet) */
-                <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-3`}>
+                <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-1`}>
                     <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} w-full`}>
                         <div className="w-10 h-10 bg-indigo-100 dark:bg-indigo-900/50 rounded-xl flex items-center justify-center text-indigo-700 dark:text-indigo-400 font-bold flex-shrink-0 shadow-sm uppercase">
                             {(authUser.name || authUser.email)?.[0]}
@@ -529,7 +531,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <button
                 onClick={onToggleCollapse}
-                className={`w-full flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${isCollapsed ? 'p-3' : 'py-3 gap-3'}`}
+                className={`w-full min-h-[44px] flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all ${isCollapsed ? 'p-2.5' : 'py-2 gap-2'}`}
                 title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
             >
                 {isCollapsed ? <ChevronsRight size={22} className="shrink-0" /> : <ChevronsLeft size={22} className="shrink-0" />}

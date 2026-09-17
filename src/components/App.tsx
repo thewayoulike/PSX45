@@ -68,6 +68,7 @@ import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud } from '../services/driveStorage';
+import { AppLoading } from './AppLoading';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
@@ -2217,7 +2218,7 @@ const App: React.FC = () => {
       }
   };
 
-  if (isAuthChecking || sbChecking || restoringDrive) return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col gap-4 items-center justify-center" role="status"><Loader2 className="animate-spin text-emerald-500" size={32} />{restoringDrive && <p className="text-slate-700 dark:text-slate-200">Opening your Google Drive portfolio…</p>}</div>;
+  if (isAuthChecking || sbChecking || restoringDrive) return <AppLoading />;
   if (viewSavedOffline) return <OfflinePortfolio />;
   if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
@@ -2248,7 +2249,7 @@ const App: React.FC = () => {
       return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
   }
   if (driveUser && isCloudSyncing && !isReadyToSave.current && !isLoadingLatestCloud.current) {
-      return <main className="min-h-[100dvh] p-6 flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white" role="status"><Loader2 className="animate-spin text-emerald-600" size={32}/><p>Opening your Google Drive portfolio…</p></main>;
+      return <AppLoading />;
   }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);

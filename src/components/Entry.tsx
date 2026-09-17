@@ -7,6 +7,7 @@ import { initDriveAuth, signInWithDrive } from '../services/driveStorage';
 import { useTheme } from '../hooks/useTheme';
 import { preparePortfolioAccount } from '../utils/localAccount';
 import { DriveSetupPrompt } from './DriveSetupPrompt';
+import { AppLoading } from './AppLoading';
 const App = lazy(() => import('./App'));
 const PasswordRecovery = lazy(() => import('./PasswordRecovery').then(m => ({ default: m.PasswordRecovery })));
 export default function Entry() {
@@ -33,7 +34,7 @@ export default function Entry() {
     const cleanup = initDriveAuth(user => open(user.email));
     return () => { mounted = false; cleanup(); };
   }, [recovery]);
-  return <ErrorBoundary><Suspense fallback={<div className="p-6" role="status">Opening PSX Tracker…</div>}>
+  return <ErrorBoundary><Suspense fallback={<AppLoading />}>
     <DriveSetupPrompt />
     {error ? <main className="p-6"><h1 className="text-xl font-bold">Account switch paused</h1><p className="my-4">{error}</p><button onClick={()=>window.location.reload()} className="underline p-3">Retry</button></main> : recovery ? <PasswordRecovery /> : !navigator.onLine ? <OfflinePortfolio /> : enter ? <App /> : <LoginPage compact={loginOnly} onGoogleLogin={() => signInWithDrive()} onAuthSuccess={() => window.location.reload()} />}
   </Suspense></ErrorBoundary>;
