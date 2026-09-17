@@ -55,6 +55,17 @@ it('sitemap excludes signed-in pages and hosting excludes them from indexing', (
   });
 });
 
+it('service worker navigation denylist lets crawlers see sitemap, robots, and public HTML', () => {
+  const sw = readFileSync('src/sw.js', 'utf8');
+  const match = sw.match(/denylist:\s*\[([^\]]+)\]/);
+  expect(match).toBeTruthy();
+  const denylist = match![1];
+  expect(denylist).toMatch(/sitemap\\.xml/);
+  expect(denylist).toMatch(/robots\\.txt/);
+  expect(denylist).toMatch(/guides/);
+  expect(denylist).toMatch(/about\|privacy\|terms\|contact/);
+});
+
 it('keeps API entrypoints within the 12-function deployment budget', () => {
   expect(readdirSync('api').filter((f) => /\.(js|py)$/.test(f)).length).toBeLessThanOrEqual(12);
   const config = JSON.parse(readFileSync('vercel.json', 'utf8'));

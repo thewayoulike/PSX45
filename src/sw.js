@@ -6,7 +6,7 @@ import { ExpirationPlugin } from 'workbox-expiration';
 // Use the manifest injected at build time -> real offline caching.
 precacheAndRoute(self.__WB_MANIFEST || []);
 cleanupOutdatedCaches();
-registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { denylist: [/^\/api\//, /^\/(about|privacy|terms|contact)(\/|$)/] }));
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html'), { denylist: [/^\/api\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/, /^\/(about|privacy|terms|contact|guides)(\/|$)/] }));
 registerRoute(({ request, url }) => url.origin === self.location.origin && url.pathname.startsWith('/assets/') && request.destination === 'script',
   new CacheFirst({ cacheName: 'psx-tools-v1', plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 30 * 86400 })] }));
 
