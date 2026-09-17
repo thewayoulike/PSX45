@@ -30,7 +30,6 @@ import { LoginPage } from './LoginPage';
 import { DriveConnectionGate } from './DriveConnectionGate';
 const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.ProfilePage })));
 const SuggestionsPage = lazy(() => import('./SuggestionsPage').then(m => ({ default: m.SuggestionsPage })));
-const GooglePasswordSetup = lazy(() => import('./GooglePasswordSetup').then(m => ({ default: m.GooglePasswordSetup })));
 const TickerPerformanceList = lazy(() => import('./TickerPerformanceList').then(m => ({ default: m.TickerPerformanceList })));
 const FundProfile = lazy(() => import('./FundProfile').then(m => ({ default: m.FundProfile })));
 import { TransferModal, firstBrokerHolding } from './TransferModal';
@@ -2193,7 +2192,7 @@ const App: React.FC = () => {
           // Free / trial / paid / lifetime → do not hard-lock; fall through into the app.
           // (A small effect below clears showLogin when status is active.)
           if (!active) {
-              return <><PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />{accessPendingEmail && <Suspense fallback={null}><GooglePasswordSetup email={accessPendingEmail}/></Suspense>}</>;
+              return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
           }
       } else {
           return <LoginPage compact onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
@@ -2332,7 +2331,6 @@ const App: React.FC = () => {
     <div className="flex flex-col h-[100dvh] bg-slate-100 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       {trialBanner}
-      {driveUser && <Suspense fallback={null}><GooglePasswordSetup email={driveUser.email}/></Suspense>}
 
       <div className="flex flex-1 overflow-hidden relative">
 

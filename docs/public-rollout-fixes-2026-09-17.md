@@ -55,7 +55,7 @@ About, Privacy, Terms and Contact are generated as standalone HTML with unique t
 
 ### How Google users add a password
 
-Google Drive OAuth and Supabase email authentication are separate systems. The optional first-use prompt offers a secure setup email. Supabase verifies control of that same email before the user chooses a password on `/reset-password`. The account’s existing email-based access approval still applies; the flow does not auto-approve a user. The prompt can be skipped and reopened through Profile & Security; its dismissal is remembered on this device.
+Google Drive OAuth and Supabase email authentication are separate systems. Google users can request a secure setup email through **Profile & Security**. Supabase verifies control of that same email before the user chooses a password on `/reset-password`. The account’s existing email-based access approval still applies; the flow does not auto-approve a user. The automatic first-use popup was removed at the owner's request; setup remains available when the user chooses it.
 
 This adds an alternative email login. It does not change the Google password, grant Drive permission to an email-only session, or replace an existing password silently. Signed-in password changes first verify the current password in an isolated, non-persistent session for the same email. If verification or the update fails, the UI offers the email reset route.
 

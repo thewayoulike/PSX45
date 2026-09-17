@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 
 interface Access {
-  status: 'pending' | 'trial' | 'paid' | 'lifetime' | 'expired';
+  status: 'pending' | 'trial' | 'paid' | 'lifetime' | 'free' | 'expired';
   active: boolean;
   daysLeft?: number | null;
   accessUntil?: string | null;
@@ -33,16 +33,17 @@ type Action =
 
 const SECRET_KEY = 'psx_admin_secret';
 
-const StatusBadge: React.FC<{ a?: Access }> = ({ a }) => {
+export const StatusBadge: React.FC<{ a?: Access }> = ({ a }) => {
   const s = a?.status || 'pending';
-  const map: Record<string, { cls: string; label: string }> = {
+  const map: Record<Access['status'], { cls: string; label: string }> = {
     pending:  { cls: 'bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-100 dark:border-amber-500/20', label: 'Pending / Blocked' },
     trial:    { cls: 'bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-100 dark:border-blue-500/20', label: `Trial${a?.daysLeft != null ? ` · ${a.daysLeft}d left` : ''}` },
     paid:     { cls: 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20', label: `Paid${a?.daysLeft != null ? ` · ${a.daysLeft}d left` : ''}` },
     lifetime: { cls: 'bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-100 dark:border-violet-500/20', label: 'Lifetime' },
+    free:     { cls: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700', label: 'Free' },
     expired:  { cls: 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-100 dark:border-rose-500/20', label: 'Expired' },
   };
-  const m = map[s];
+  const m = Object.hasOwn(map, s) ? map[s] : { cls: map.pending.cls, label: 'Unknown' };
   return <span className={`inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded border ${m.cls}`}>{m.label}</span>;
 };
 
@@ -287,7 +288,7 @@ export const AdminUsers: React.FC = () => {
             <div>
               <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight">Users</h2>
               <p className="text-xs text-slate-400 font-medium">
-                {users.length} total · <span className="text-blue-500 font-bold">{count('trial')} trial</span> · <span className="text-emerald-500 font-bold">{count('paid')} paid</span> · <span className="text-violet-500 font-bold">{count('lifetime')} lifetime</span> · <span className="text-amber-500 font-bold">{count('pending')} pending</span> · <span className="text-rose-500 font-bold">{count('expired')} expired</span>
+                {users.length} total · <span className="text-blue-500 font-bold">{count('trial')} trial</span> · <span className="text-emerald-500 font-bold">{count('paid')} paid</span> · <span className="text-violet-500 font-bold">{count('lifetime')} lifetime</span> · <span className="text-slate-600 dark:text-slate-300 font-bold">{count('free')} free</span> · <span className="text-amber-500 font-bold">{count('pending')} pending</span> · <span className="text-rose-500 font-bold">{count('expired')} expired</span>
               </p>
             </div>
           </div>

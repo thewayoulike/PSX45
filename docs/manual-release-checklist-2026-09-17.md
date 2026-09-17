@@ -9,7 +9,7 @@ Record each remaining check as PASS, FAIL or NOT TESTED. An automated test pass 
 ## 1. Google sign-in and password setup
 
 - [ ] In a fresh browser profile, use a Google test account that has not used the app before. Complete the normal access-request/approval step if shown.
-- [ ] Confirm **Add another way to log in** appears. Select **Maybe later** and confirm the app remains usable.
+- [ ] Confirm Google sign-in opens the app without an automatic password-setup popup.
 - [ ] Open **Settings → Profile & Security → Email me a password setup link**. Follow the email link and set a password of at least 10 characters.
 - [ ] Sign out. In a separate private window, log in with that same email and the new password. Then test Google sign-in again.
 

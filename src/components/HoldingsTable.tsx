@@ -300,10 +300,20 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">{isFund ? fmtFundUnits(holding.quantity) : holding.quantity.toLocaleString()}</div>
                     </div>
                     <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'NAV' : 'Price'}</div>
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'Current NAV' : 'Current Price'}</div>
                       <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">
                         {holding.currentPrice > 0 ? (isFund ? fmtFundNav(holding.currentPrice) : holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '—'}
                       </div>
+                    </div>
+                    <div className="min-w-0 rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'Avg NAV' : 'Avg Price'}</div>
+                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white break-words">
+                        {isFund ? fmtFundNav(roundedAvg) : roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                    </div>
+                    <div className="min-w-0 rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
+                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Total Cost</div>
+                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white break-words">{costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                     </div>
                     <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
                       <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Market Value</div>
@@ -326,15 +336,26 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/60 p-4">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Grand Total</div>
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Market</div>
-                  <div className="font-mono font-black tabular-nums text-slate-900 dark:text-white">{totals.totalMarket.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                <div className="min-w-0">
+                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Current Value</div>
+                  <div className="font-mono font-black tabular-nums text-slate-900 dark:text-white break-words">{totals.totalMarket.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
                 </div>
-                <div>
-                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">P&L</div>
-                  <div className={`font-mono font-black tabular-nums ${totals.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                <div className="min-w-0">
+                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Invested</div>
+                  <div className="font-mono font-black tabular-nums text-slate-900 dark:text-white break-words">{totals.totalCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Daily P&L</div>
+                  <div className={`font-mono font-black tabular-nums break-words ${totals.dailyPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
+                    {totals.dailyPL >= 0 ? '+' : ''}{totals.dailyPL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    <span className="block text-xs font-bold">({totalDailyPercent.toFixed(1)}%)</span>
+                  </div>
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Overall P&L</div>
+                  <div className={`font-mono font-black tabular-nums break-words ${totals.pnl >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {totals.pnl >= 0 ? '+' : ''}{totals.pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    <span className="text-xs font-bold ml-1">({totalPnlPercent.toFixed(1)}%)</span>
+                    <span className="block text-xs font-bold">({totalPnlPercent.toFixed(1)}%)</span>
                   </div>
                 </div>
               </div>
