@@ -1,4 +1,6 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
+import { readRecoveryCopies } from '../utils/recoveryStorage';
 
 let storage: Map<string, string>;
 let service: typeof import('./driveStorage');
@@ -35,12 +37,47 @@ beforeEach(async () => {
 });
 
 afterEach(() => {
+  vi.restoreAllMocks();
   vi.clearAllTimers();
   vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
 describe('cloud save outcomes and recovery', () => {
+  it('automatically loads the latest Drive file with full localStorage, keeping all local edits without reloading', async () => {
+    vi.useRealTimers();
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    const pending = JSON.stringify({revision:'old-web',baseVersion:0,data:{transactions:[{id:'pending'}],portfolios:[]}});
+    storage.set(pendingKey('a@example.com'), pending);
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new DOMException('Quota exceeded', 'QuotaExceededError'); });
+    const remote = {transactions:[{id:'phone'}],portfolios:[]};
+    const reload = vi.fn(); vi.stubGlobal('window', {location:{reload}});
+    mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:2,fileId:'latest'}) : response(remote));
+    expect(await service.readLatestFromDrive(() => ({transactions:[{id:'current'}],portfolios:[]}))).toEqual(remote);
+    expect(service.getPendingCloud()).toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+    const copies = await readRecoveryCopies('a@example.com');
+    expect(copies.map(copy => JSON.parse(copy.raw).data.transactions[0].id).sort()).toEqual(['current','pending']);
+    const requestsBefore = vi.mocked(fetch).mock.calls.length;
+    expect(await service.readLatestFromDrive(undefined, true)).toBeUndefined();
+    expect(vi.mocked(fetch).mock.calls.slice(requestsBefore).map(([url]) => url)).toEqual(['/api/cloud-sync']);
+  });
+
+  it('does not replace edits made while the recovery transaction is completing', async () => {
+    vi.useRealTimers();
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'pending',data:{marker:'keep'}}));
+    let marker='before';
+    const original = IDBObjectStore.prototype.put;
+    vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function(value, key) {
+      const request = original.call(this, value, key);
+      request.onsuccess = () => { marker = 'after'; };
+      return request;
+    });
+    mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:2,fileId:'latest'}) : response({transactions:[],portfolios:[]}));
+    await expect(service.readLatestFromDrive(() => ({marker}))).rejects.toThrow('Local edits changed');
+    expect(service.getPendingCloud()?.data.marker).toBe('keep');
+  });
   it('renews expired Drive access after password login without opening a Google popup', async () => {
     const provider=vi.fn().mockResolvedValue({connected:true,accessToken:'renewed',expiresIn:3600,user:{email:'a@example.com',name:'A',picture:''}});
     service.setDrivePasswordProviders(async()=>({email:'a@example.com',token:'password-token'}),provider);
@@ -116,7 +153,7 @@ describe('cloud save outcomes and recovery', () => {
       queuedAt: '2026-09-17T14:00:00.000Z',
       data: { marker: 'local' },
     });
-    service.clearPendingCloud();
+    await service.clearPendingCloud();
     expect(service.getPendingCloud()).toBeNull();
   });
 

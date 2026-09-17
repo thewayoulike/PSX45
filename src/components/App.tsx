@@ -67,7 +67,7 @@ import {
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, preservePendingAndReloadCloud, getPendingCloud, PendingCloud } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud } from '../services/driveStorage';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
@@ -456,6 +456,7 @@ const App: React.FC = () => {
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
   const isReadyToSave = useRef(false);
+  const skipHydrationSave = useRef(false);
   const isLoadingLatestCloud = useRef(false);
   const initialSyncDone = useRef(false);
   const initialFundSyncDone = useRef(false);
@@ -648,6 +649,60 @@ const App: React.FC = () => {
       }
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
+  const applyCloudSnapshot = (cloudData: any) => {
+  if (cloudData) {
+      skipHydrationSave.current = true;
+      if (cloudData.portfolios) setPortfolios(normalizePortfolios(cloudData.portfolios));
+      if (cloudData.transactions) {
+          const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
+          setTransactions(cleanTx);
+      }
+      if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
+      if (Array.isArray(cloudData.watchlist)) setWatchlist(cloudData.watchlist);
+      if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap);
+      if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
+      if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
+      if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
+      if (cloudData.scannerState) setScannerState(cloudData.scannerState);
+      if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
+      if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
+      if (cloudData.fundCatalog) {
+          setFundCatalog(cloudData.fundCatalog);
+          try { localStorage.setItem(FUND_CATALOG_STORAGE_KEY, JSON.stringify(cloudData.fundCatalog)); } catch { /* ignore */ }
+      }
+      if (cloudData.dashboardLayouts) {
+          setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayouts));
+      } else if (cloudData.dashboardLayout) {
+          setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayout));
+      }
+
+      if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
+          setBrokers(cloudData.brokers);
+          localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
+      }
+
+      if (cloudData.geminiApiKey) {
+          setUserApiKey(cloudData.geminiApiKey);
+          setGeminiApiKey(cloudData.geminiApiKey);
+          localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
+      }
+      if (cloudData.scrapingApiKey) {
+          setUserScraperKey(cloudData.scrapingApiKey);
+          setScrapingApiKey(cloudData.scrapingApiKey);
+          localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
+      }
+      if (cloudData.webScrapingAIKey) {
+          setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
+          setWebScrapingAIKey(cloudData.webScrapingAIKey);
+          localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
+      }
+      if (cloudData.chartSettings) {
+          applyCloudChartSettings(cloudData.chartSettings);
+      }
+  }
+
+  };
+
   useEffect(() => {
       // If the Drive token expires, log out to the login screen instead of
       // auto-popping Google. The user signs back in when they want to resume.
@@ -707,57 +762,9 @@ const App: React.FC = () => {
           setLastCloudSave(null);
           setIsCloudSyncing(true);
           try {
-              const cloudData = await loadFromDrive();
+              const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current());
               if (!stillThisAccount()) return;
-              if (cloudData) {
-                  if (cloudData.portfolios) setPortfolios(normalizePortfolios(cloudData.portfolios));
-                  if (cloudData.transactions) {
-                      const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
-                      setTransactions(cleanTx);
-                  }
-                  if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
-                  if (Array.isArray(cloudData.watchlist)) setWatchlist(cloudData.watchlist);
-                  if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap);
-                  if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
-                  if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-                  if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
-                  if (cloudData.scannerState) setScannerState(cloudData.scannerState);
-                  if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
-                  if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
-                  if (cloudData.fundCatalog) {
-                      setFundCatalog(cloudData.fundCatalog);
-                      try { localStorage.setItem(FUND_CATALOG_STORAGE_KEY, JSON.stringify(cloudData.fundCatalog)); } catch { /* ignore */ }
-                  }
-                  if (cloudData.dashboardLayouts) {
-                      setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayouts));
-                  } else if (cloudData.dashboardLayout) {
-                      setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayout));
-                  }
-
-                  if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
-                      setBrokers(cloudData.brokers);
-                      localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
-                  }
-
-                  if (cloudData.geminiApiKey) {
-                      setUserApiKey(cloudData.geminiApiKey);
-                      setGeminiApiKey(cloudData.geminiApiKey);
-                      localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
-                  }
-                  if (cloudData.scrapingApiKey) {
-                      setUserScraperKey(cloudData.scrapingApiKey);
-                      setScrapingApiKey(cloudData.scrapingApiKey);
-                      localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
-                  }
-                  if (cloudData.webScrapingAIKey) {
-                      setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
-                      setWebScrapingAIKey(cloudData.webScrapingAIKey);
-                      localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
-                  }
-                  if (cloudData.chartSettings) {
-                      applyCloudChartSettings(cloudData.chartSettings);
-                  }
-              }
+              applyCloudSnapshot(cloudData);
               if (cloudData?.lastModified && !getPendingCloud()) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
               setPendingCloud(getPendingCloud());
@@ -1745,25 +1752,57 @@ const App: React.FC = () => {
   cloudSnapshotRef.current = getCloudSnapshot;
 
   const handleLoadLatestCloud = async () => {
-      if (isLoadingLatestCloud.current) return;
+      if (isLoadingLatestCloud.current || !driveUser) return;
+      const email = driveUser.email;
       const wasReady = isReadyToSave.current;
       isLoadingLatestCloud.current = true;
       isReadyToSave.current = false;
       cloudRevision.current++;
       setIsCloudSyncing(true);
-      const loaded = await preservePendingAndReloadCloud(() => cloudSnapshotRef.current());
-      if (!loaded) {
+      try {
+          const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current(), true);
+          if (loadedEmailRef.current !== email) return;
+          if (cloudData) {
+              applyCloudSnapshot(cloudData);
+              setLastCloudSave(cloudData.lastModified || new Date().toISOString());
+          }
+          setCloudSyncError(null);
+          isReadyToSave.current = wasReady || !!cloudData;
+      } catch (error) {
+          if (loadedEmailRef.current === email) {
+              isReadyToSave.current = wasReady;
+              setCloudSyncError(error instanceof Error ? error.message : 'Could not check the latest Drive backup.');
+          }
+      } finally {
           isLoadingLatestCloud.current = false;
-          if (loadedEmailRef.current === driveUser?.email) isReadyToSave.current = wasReady;
           setPendingCloud(getPendingCloud());
           setIsCloudSyncing(false);
       }
   };
+  const refreshCloudRef = useRef(handleLoadLatestCloud);
+  refreshCloudRef.current = handleLoadLatestCloud;
+  useEffect(() => {
+      let lastCheck = 0;
+      const refresh = () => {
+          if (document.visibilityState === 'hidden' || !isReadyToSave.current || Date.now() - lastCheck < 5000) return;
+          lastCheck = Date.now();
+          void refreshCloudRef.current();
+      };
+      window.addEventListener('focus', refresh);
+      window.addEventListener('online', refresh);
+      document.addEventListener('visibilitychange', refresh);
+      return () => {
+          window.removeEventListener('focus', refresh);
+          window.removeEventListener('online', refresh);
+          document.removeEventListener('visibilitychange', refresh);
+      };
+  }, []);
 
   useEffect(() => {
       if (skipPersistRef.current) return;
       // Do not persist an empty dashboard while the saved Drive connection is loading.
       if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) return;
+      if (driveUser && !isReadyToSave.current) return;
       if (shouldPersistPortfolio({ signedIn: !!driveUser || sbApproved, checking: isAuthChecking || sbChecking, skip: skipPersistRef.current })) {
           localStorage.setItem('psx_transactions', JSON.stringify(transactions));
           localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
@@ -1782,6 +1821,8 @@ const App: React.FC = () => {
           localStorage.setItem('psx_watchlist', JSON.stringify(watchlist));
       }
 
+      // Applying a downloaded snapshot should not upload the same data again.
+      if (skipHydrationSave.current) { skipHydrationSave.current = false; return; }
       if (driveUser && isReadyToSave.current) {
           const revision = ++cloudRevision.current;
           setIsCloudSyncing(true);
@@ -1795,6 +1836,10 @@ const App: React.FC = () => {
                   if (result.sheetId) setGoogleSheetId(result.sheetId);
               } else {
                   setCloudSyncError(result.error);
+                  if (result.error.includes('Another device saved a newer version')) {
+                      await refreshCloudRef.current();
+                      return;
+                  }
               }
               setPendingCloud(getPendingCloud());
               setIsCloudSyncing(false);

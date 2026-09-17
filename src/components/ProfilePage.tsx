@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { changeAccountPassword, requestPasswordReset, requestPasswordSetup, disconnectRememberedDrive } from '../services/auth';
 import { SiteFooter } from './SiteFooter';
+import { downloadRecoveryCopies } from '../utils/recoveryStorage';
 export function ProfilePage({email,name,googleConnected,onDriveDisconnected}:{email:string;name?:string;googleConnected:boolean;onDriveDisconnected?:()=>void}) {
   const [current,setCurrent]=useState(''),[password,setPassword]=useState(''),[confirm,setConfirm]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('');
   const run=async(action:()=>Promise<void>,success:string)=>{setBusy(true);setMessage('');try{await action();setMessage(success);setCurrent('');setPassword('');setConfirm('');}catch(e){setMessage(e instanceof Error?e.message:'Please try again.');}finally{setBusy(false);}};
@@ -15,5 +16,5 @@ export function ProfilePage({email,name,googleConnected,onDriveDisconnected}:{em
       <button disabled={busy} className="bg-emerald-600 text-white rounded-xl px-5 py-3 font-bold disabled:opacity-60">{busy?'Please wait…':'Change password'}</button>
       <div className="border-t border-slate-200 dark:border-slate-700 pt-4"><p className="text-sm text-slate-600 dark:text-slate-400">Signed in with Google and haven’t added a password?</p><button disabled={busy} type="button" className="underline py-3 text-emerald-700 dark:text-emerald-400" onClick={()=>void run(()=>requestPasswordSetup(email),'Check your email for a secure link to set up a password. Your Google sign-in will still work.')}>Email me a password setup link</button><br/><button disabled={busy} type="button" className="underline py-2" onClick={()=>void run(()=>requestPasswordReset(email),'If this email has a password account, a reset link is on its way. Check your inbox and spam folder.')}>Forgot your password?</button></div>
       {message&&<p role="status" className="text-sm rounded-xl p-3 bg-slate-100 dark:bg-slate-800">{message}</p>}
-    </form><div className="mt-8"><SiteFooter /></div></section>;
+    </form><div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 p-5"><h2 className="text-xl font-bold">Local recovery copies</h2><p className="mt-2 text-sm text-slate-600 dark:text-slate-400">Load latest keeps a copy of this device’s previous data before opening your Drive backup. Download those copies here if you need to recover an earlier edit.</p><button type="button" disabled={busy} className="min-h-[44px] mt-3 underline disabled:opacity-50" onClick={()=>void run(()=>downloadRecoveryCopies(email),'Recovery download started. Check your browser downloads.')}>Download recovery copies</button><p className="mt-2 text-xs text-slate-500">Copies stay on this device and can be removed by clearing this site’s browser data.</p></div><div className="mt-8"><SiteFooter /></div></section>;
 }

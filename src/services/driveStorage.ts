@@ -1,5 +1,6 @@
 import { buildSheetSyncRequests } from '../utils/sheetSync';
 import { createSerialQueue } from '../utils/serialQueue';
+import { saveRecoveryCopies } from '../utils/recoveryStorage';
 // src/services/driveStorage.ts
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
@@ -489,10 +490,11 @@ export function getPendingCloud(): PendingCloud | null {
         return null;
     }
 }
-export function clearPendingCloud() {
+export async function clearPendingCloud() {
     const email = currentEmail(), raw = localStorage.getItem(pendingKey(email));
     if (email && raw) {
-        localStorage.setItem(`psx_cloud_recovery:${encodeURIComponent(email)}:${Date.now()}`, raw);
+        await saveRecoveryCopies(email, [{ key: `psx_cloud_recovery:${encodeURIComponent(email)}:${crypto.randomUUID()}`, raw }]);
+        if (currentEmail() !== email || localStorage.getItem(pendingKey(email)) !== raw) throw new Error('Account or pending changes changed. Please retry.');
         localStorage.removeItem(pendingKey(email));
     }
 }
@@ -504,39 +506,58 @@ export function downloadPendingCloudBackup() {
     const link = document.createElement('a'); link.href = url; link.download = 'psx-unsynced-backup.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export async function preservePendingAndReloadCloud(getLocalSnapshot?: () => any): Promise<boolean> {
+export async function readLatestFromDrive(getLocalSnapshot?: () => any, onlyIfNewer = false): Promise<any | undefined> {
     const email = currentEmail();
-    if (cloudRestores.has(email)) return false;
+    if (cloudRestores.has(email)) return undefined;
     cloudRestores.add(email);
     try {
         return await cloudQueue(async () => {
             // Wait for any existing save, and read a usable remote copy before clearing pending data.
             const request = await cloudSession(email);
             const head = await cloudHead(email, { action: 'head' });
+            if (onlyIfNewer && cloudBases.get(email) === head.revision) return undefined;
             const id = head.fileId || await findFile(request, DB_FILE_NAME);
-            if (!id) throw new Error('No cloud backup was found. Your pending changes have been kept.');
+            if (!id) { cloudBases.set(email, head.revision); return null; }
             const data = await (await request(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
             if (!data || !Array.isArray(data.transactions) || !Array.isArray(data.portfolios)) {
                 throw new Error('The cloud backup is incomplete. Your local changes have been kept.');
             }
             if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
             // Include edits made after a failed startup load or while the download was in progress.
-            // A full browser store must stop recovery before any pending data is removed.
-            if (getLocalSnapshot) {
-                localStorage.setItem(`psx_cloud_recovery:${encodeURIComponent(email)}:${Date.now()}:current`, JSON.stringify({
-                    revision: crypto.randomUUID(), queuedAt: new Date().toISOString(), data: getLocalSnapshot(),
-                }));
+            // Use the larger browser database; existing recovery copies migrate only after commit.
+            const pendingRaw = localStorage.getItem(pendingKey(email));
+            const currentRaw = getLocalSnapshot ? JSON.stringify(getLocalSnapshot()) : null;
+            const recoveryKey = `psx_cloud_recovery:${encodeURIComponent(email)}:${crypto.randomUUID()}`;
+            const copies = [];
+            if (currentRaw !== null) copies.push({ key: `${recoveryKey}:current`, raw: JSON.stringify({
+                revision: crypto.randomUUID(), queuedAt: new Date().toISOString(), data: JSON.parse(currentRaw),
+            }) });
+            if (pendingRaw) copies.push({ key: `${recoveryKey}:pending`, raw: pendingRaw });
+            await saveRecoveryCopies(email, copies);
+            if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
+            if (localStorage.getItem(pendingKey(email)) !== pendingRaw || (getLocalSnapshot && JSON.stringify(getLocalSnapshot()) !== currentRaw)) {
+                throw new Error('Local edits changed while keeping the recovery copy. Tap Load latest again after finishing your edits.');
             }
-            clearPendingCloud();
-            cloudBases.delete(email);
+            if (pendingRaw) localStorage.removeItem(pendingKey(email));
+            cloudBases.set(email, head.revision);
             cloudConflicts.delete(email);
-            window.location.reload();
-            return true;
+            return data;
         });
+    } finally { cloudRestores.delete(email); }
+}
+
+// Compatibility for older callers; the app now applies the downloaded data without reloading.
+export async function preservePendingAndReloadCloud(getLocalSnapshot?: () => any): Promise<boolean> {
+    try {
+        const data = await readLatestFromDrive(getLocalSnapshot);
+        if (data === undefined) return false;
+        if (data === null) throw new Error('No cloud backup was found. Your pending changes have been kept.');
+        window.location.reload();
+        return true;
     } catch (error) {
         alert(error instanceof Error ? error.message : 'Could not load cloud backup. Your changes were kept.');
         return false;
-    } finally { cloudRestores.delete(email); }
+    }
 }
 export async function getGoogleSheetId(): Promise<string | null> {
     return findFile(await cloudSession(currentEmail()), SHEET_FILE_NAME);

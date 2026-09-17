@@ -360,12 +360,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       const pendingMeta = hasPending
                         ? `${pendingQueuedAt ? formatPendingAge(pendingQueuedAt) : '…'} · ${shortenRevision(pendingRevision!)}`
                         : null;
-                      const confirmRestore = () => {
-                        if (!onLoadCloud) return;
-                        if (window.confirm('Load the latest backup from Google Drive, including changes saved on your other device? A recovery copy of the data currently on this device will be kept before reloading.')) {
-                          onLoadCloud();
-                        }
-                      };
+                      const loadLatest = () => onLoadCloud?.();
                       const syncActions = (
                         <>
                           {!hasConflict && <button
@@ -378,7 +373,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           </button>}
                           <button
                             type="button"
-                            onClick={confirmRestore}
+                            onClick={loadLatest}
                             disabled={isCloudSyncing}
                             className={`flex-1 min-h-[44px] disabled:opacity-50 text-xs font-bold py-1.5 rounded-lg ${hasConflict ? 'bg-sky-600 hover:bg-sky-700 text-white' : 'border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'}`}
                           >
@@ -411,7 +406,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                   type="button"
                                   aria-label={hasConflict || (!cloudSyncError && !hasPending) ? 'Load latest from Google Drive' : 'Retry cloud save'}
                                   title={cloudSyncError ? shortenCloudError(cloudSyncError) : 'Pending local changes'}
-                                  onClick={hasConflict || (!cloudSyncError && !hasPending) ? confirmRestore : onCloudRetry}
+                                  onClick={hasConflict || (!cloudSyncError && !hasPending) ? loadLatest : onCloudRetry}
                                   disabled={isCloudSyncing}
                                   className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300/70 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 flex items-center justify-center disabled:opacity-50"
                                 >
@@ -474,7 +469,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           {!cloudSyncError && !hasPending && lastCloudSave && (
                             <p className="text-[10px] text-slate-500">Last saved: {new Date(lastCloudSave).toLocaleString()}</p>
                           )}
-                          {!cloudSyncError && !hasPending && <button type="button" onClick={confirmRestore} disabled={isCloudSyncing} className="min-h-[44px] text-xs font-semibold text-sky-700 dark:text-sky-400 underline disabled:opacity-50">Load latest from Drive</button>}
+                          {!cloudSyncError && !hasPending && <button type="button" onClick={loadLatest} disabled={isCloudSyncing} className="min-h-[44px] text-xs font-semibold text-sky-700 dark:text-sky-400 underline disabled:opacity-50">Load latest from Drive</button>}
                         </>
                       );
                     })()}
