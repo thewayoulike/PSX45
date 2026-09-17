@@ -18,4 +18,4 @@
 
 ## Release
 
-Deployment pending. Reload the app on both devices after publication, then save on one and return to the other. The latest portfolio should appear automatically. Existing Google permission is still required; this does not bypass Google authorization.
+Production deployment `AKeBptRE6ijrQWWwgcm2MxyXS9UL` is Ready and assigned to the canonical domain, using commit `baa5eb3aa37a709db3b5afd4ee2f40cbcc18ef2c`. The public application assets include the new mobile totals. Local and production chunk hashes differ because their build-time configuration differs; deployment source was verified in Vercel. Reload the app on both devices, then save on one and return to the other. The latest portfolio should appear automatically. Existing Google permission is still required; this does not bypass Google authorization. The actual owner phone flow remains to be verified.

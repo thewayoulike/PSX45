@@ -18,4 +18,4 @@
 
 ## Deployment
 
-The admin/mobile/popup changes were pushed at `18eeed7b9eab4a5b77d4849ad1b7bf2c2773cc0e`. The live owner-signed-in admin page still requires the owner's reload check; the available browser session is signed out.
+The admin/mobile/popup changes were pushed at `18eeed7b9eab4a5b77d4849ad1b7bf2c2773cc0e` and deployment `4YLPqyr6qnng5SgxqmrhP5GMtDub` was verified Ready. They are also included in the subsequent automatic-Drive release at `baa5eb3a`. The live owner-signed-in admin page still requires the owner's reload check; the available browser session is signed out.
