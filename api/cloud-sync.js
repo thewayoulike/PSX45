@@ -9,7 +9,7 @@ export default async function handler(req, res) {
   let body;
   try { body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {}; }
   catch { return res.status(400).json({ error: 'Invalid sync request' }); }
-  if (['drive-config', 'drive-connect', 'drive-bind', 'drive-token', 'drive-disconnect'].includes(body?.action)) return handleDriveConnection(req, res, body);
+  if (['drive-config', 'drive-status', 'drive-connect', 'drive-bind', 'drive-token', 'drive-disconnect'].includes(body?.action)) return handleDriveConnection(req, res, body);
   const auth = await requireOnlineUser(req);
   if (!auth.ok) return res.status(401).json({ error: 'Sign in to sync.' });
   try {

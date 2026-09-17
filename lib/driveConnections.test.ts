@@ -66,6 +66,24 @@ it('rejects anonymous and unverifiable password tokens',async()=>{
   mock.user={id:'different',email};expect((await run(req('drive-token'))).code).toBe(401);
   expect(fetch).not.toHaveBeenCalled();
 });
+it('returning Google sign-in checks only its own saved connection and returns no credentials',async()=>{
+  mock.user=null;
+  const r=req('drive-status',{}, {email:'victim@example.invalid'});r.headers.authorization='Bearer google-access';
+  const result=await run(r);
+  expect(result.code).toBe(200);expect(result.body).toEqual({connected:true});
+  expect(mock.writes).toEqual([]);expect(fetch).toHaveBeenCalledTimes(1);
+  expect(fetch).toHaveBeenCalledWith('https://www.googleapis.com/oauth2/v3/userinfo',expect.objectContaining({headers:{Authorization:'Bearer google-access'}}));
+});
+it('a missing connection or different Google subject requires first-time setup',async()=>{
+  mock.row.google_sub='different';expect((await run(req('drive-status'))).body).toEqual({connected:false});
+  mock.row=null;expect((await run(req('drive-status'))).body).toEqual({connected:false});
+});
+it('anonymous or unverified Google sign-ins cannot check saved connections',async()=>{
+  const r=req('drive-status');delete (r.headers as any).authorization;
+  expect((await run(r)).code).toBe(401);expect(fetch).not.toHaveBeenCalled();
+  vi.mocked(fetch).mockResolvedValueOnce(response({},401));expect((await run(req('drive-status'))).code).toBe(401);
+  vi.mocked(fetch).mockResolvedValueOnce(response({sub,email,email_verified:false}));expect((await run(req('drive-status'))).code).toBe(401);
+});
 it('password login on a new device renews access for the same linked account only',async()=>{
   const result=await run(req('drive-token',{}, {email:'victim@example.invalid'}));
   expect(result.code).toBe(200);expect(result.body).toMatchObject({connected:true,accessToken:'fresh-access',user:{email}});

@@ -155,6 +155,76 @@ describe('cloud save outcomes and recovery', () => {
     expect(onLogin).toHaveBeenCalledWith(expect.objectContaining({email:'a@example.com'}));
     expect(storage.get('psx_drive_access_token')).toBe('same-account-token');
   });
+  async function returningLogin(connected = true) {
+    let callback!: (value: any) => Promise<void>;
+    const requestAccessToken = vi.fn();
+    const requestCode = vi.fn();
+    const initCodeClient = vi.fn(() => ({ requestCode }));
+    const initTokenClient = vi.fn((options: any) => { callback = options.callback; return { requestAccessToken }; });
+    vi.stubGlobal('alert', vi.fn());
+    vi.stubGlobal('window', { google: { accounts: { oauth2: { initTokenClient, initCodeClient } } } });
+    const onLogin = vi.fn(), onSetup = vi.fn();
+    service.initDriveAuth(onLogin); onLogin.mockClear();
+    service.setDriveSetupRequiredHandler(onSetup);
+    mockCloud((url, init) => url.includes('/userinfo')
+      ? response({ email: 'returning@example.com', email_verified: true, name: 'Returning member' })
+      : JSON.parse(String(init?.body)).action === 'drive-config'
+        ? response({ enabled: true, clientId: 'configured-client' }) : response({ connected }));
+    await service.getRememberedDriveConfig();
+    service.signInWithDrive();
+    return { callback, requestAccessToken, requestCode, initCodeClient, initTokenClient, onLogin, onSetup };
+  }
+  it('returning Google login reuses consent without requesting another authorization code', async () => {
+    const flow = await returningLogin();
+    expect(flow.requestAccessToken).toHaveBeenCalledWith({ prompt: '' });
+    expect(flow.initTokenClient).toHaveBeenLastCalledWith(expect.objectContaining({ client_id: 'configured-client' }));
+    await flow.callback({ access_token: 'returning-access', expires_in: 3600 });
+    expect(flow.onLogin).toHaveBeenCalledWith(expect.objectContaining({ email: 'returning@example.com' }));
+    expect(flow.initCodeClient).not.toHaveBeenCalled();
+    expect(flow.onSetup).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenLastCalledWith('/api/cloud-sync', expect.objectContaining({
+      headers: expect.objectContaining({ Authorization: 'Bearer returning-access' }), body: JSON.stringify({ action: 'drive-status' }),
+    }));
+    service.clearDriveSession();
+    flow.initCodeClient.mockClear();
+    service.signInWithDrive();
+    expect(flow.requestAccessToken).toHaveBeenCalledTimes(2);
+    expect(flow.initCodeClient).not.toHaveBeenCalled();
+  });
+  it('a new connection waits for an explicit setup click, then keeps the verified Google account', async () => {
+    const flow = await returningLogin(false);
+    await flow.callback({ access_token: 'first-access', expires_in: 3600 });
+    expect(flow.onLogin).not.toHaveBeenCalled();
+    expect(flow.onSetup).toHaveBeenCalledWith('returning@example.com');
+    expect(flow.initCodeClient).not.toHaveBeenCalled();
+    service.completeDriveSetup();
+    expect(flow.requestCode).toHaveBeenCalledOnce();
+    expect(flow.initCodeClient).toHaveBeenCalledWith(expect.objectContaining({ login_hint: 'returning@example.com' }));
+  });
+  it('cancelling first-time setup does not install or authorize the account', async () => {
+    const flow = await returningLogin(false);
+    await flow.callback({ access_token: 'first-access', expires_in: 3600 });
+    service.cancelDriveSetup(); service.completeDriveSetup();
+    expect(flow.initCodeClient).not.toHaveBeenCalled();
+    expect(flow.onLogin).not.toHaveBeenCalled();
+    expect(storage.get('psx_drive_access_token')).toBe('test-token');
+  });
+  it('ignores a Google sign-in result that arrives after sign-out', async () => {
+    const flow = await returningLogin();
+    service.clearDriveSession();
+    await flow.callback({ access_token: 'obsolete', expires_in: 3600 });
+    expect(flow.onLogin).not.toHaveBeenCalled();
+    expect(storage.has('psx_drive_access_token')).toBe(false);
+  });
+  it('a failed saved-connection check cannot silently replace an account or start authorization', async () => {
+    const flow = await returningLogin();
+    mockCloud(url => url.includes('/userinfo') ? response({ email: 'returning@example.com', email_verified: true }) : response({ error: 'Please retry.' }, 503));
+    await flow.callback({ access_token: 'unused-access', expires_in: 3600 });
+    expect(flow.onLogin).not.toHaveBeenCalled();
+    expect(flow.initCodeClient).not.toHaveBeenCalled();
+    expect(storage.get('psx_drive_access_token')).toBe('test-token');
+    expect(alert).toHaveBeenCalledWith('Please retry.');
+  });
   it('exposes pending revision metadata and can clear it', async () => {
     storage.set(pendingKey('a@example.com'), JSON.stringify({
       revision: 'a3f9c21e-1234-5678-9abc-def012345678',
