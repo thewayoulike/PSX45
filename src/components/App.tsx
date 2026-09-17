@@ -650,56 +650,56 @@ const App: React.FC = () => {
   }, [isCombinedView, portfolios, combinedPortfolioIds.size]);
 
   const applyCloudSnapshot = (cloudData: any) => {
-  if (cloudData) {
-      skipHydrationSave.current = true;
-      if (cloudData.portfolios) setPortfolios(normalizePortfolios(cloudData.portfolios));
-      if (cloudData.transactions) {
-          const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
-          setTransactions(cleanTx);
-      }
-      if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
-      if (Array.isArray(cloudData.watchlist)) setWatchlist(cloudData.watchlist);
-      if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap);
-      if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
-      if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-      if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
-      if (cloudData.scannerState) setScannerState(cloudData.scannerState);
-      if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
-      if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
-      if (cloudData.fundCatalog) {
-          setFundCatalog(cloudData.fundCatalog);
-          try { localStorage.setItem(FUND_CATALOG_STORAGE_KEY, JSON.stringify(cloudData.fundCatalog)); } catch { /* ignore */ }
-      }
-      if (cloudData.dashboardLayouts) {
-          setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayouts));
-      } else if (cloudData.dashboardLayout) {
-          setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayout));
-      }
+      if (cloudData) {
+          skipHydrationSave.current = true;
+          if (cloudData.portfolios) setPortfolios(normalizePortfolios(cloudData.portfolios));
+          if (cloudData.transactions) {
+              const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
+              setTransactions(cleanTx);
+          }
+          if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
+          if (Array.isArray(cloudData.watchlist)) setWatchlist(cloudData.watchlist);
+          if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap);
+          if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
+          if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
+          if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
+          if (cloudData.scannerState) setScannerState(cloudData.scannerState);
+          if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
+          if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
+          if (cloudData.fundCatalog) {
+              setFundCatalog(cloudData.fundCatalog);
+              try { localStorage.setItem(FUND_CATALOG_STORAGE_KEY, JSON.stringify(cloudData.fundCatalog)); } catch { /* ignore */ }
+          }
+          if (cloudData.dashboardLayouts) {
+              setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayouts));
+          } else if (cloudData.dashboardLayout) {
+              setDashboardLayouts(normalizeLayoutsByType(cloudData.dashboardLayout));
+          }
 
-      if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
-          setBrokers(cloudData.brokers);
-          localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
-      }
+          if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
+              setBrokers(cloudData.brokers);
+              localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
+          }
 
-      if (cloudData.geminiApiKey) {
-          setUserApiKey(cloudData.geminiApiKey);
-          setGeminiApiKey(cloudData.geminiApiKey);
-          localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
+          if (cloudData.geminiApiKey) {
+              setUserApiKey(cloudData.geminiApiKey);
+              setGeminiApiKey(cloudData.geminiApiKey);
+              localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
+          }
+          if (cloudData.scrapingApiKey) {
+              setUserScraperKey(cloudData.scrapingApiKey);
+              setScrapingApiKey(cloudData.scrapingApiKey);
+              localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
+          }
+          if (cloudData.webScrapingAIKey) {
+              setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
+              setWebScrapingAIKey(cloudData.webScrapingAIKey);
+              localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
+          }
+          if (cloudData.chartSettings) {
+              applyCloudChartSettings(cloudData.chartSettings);
+          }
       }
-      if (cloudData.scrapingApiKey) {
-          setUserScraperKey(cloudData.scrapingApiKey);
-          setScrapingApiKey(cloudData.scrapingApiKey);
-          localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
-      }
-      if (cloudData.webScrapingAIKey) {
-          setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
-          setWebScrapingAIKey(cloudData.webScrapingAIKey);
-          localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
-      }
-      if (cloudData.chartSettings) {
-          applyCloudChartSettings(cloudData.chartSettings);
-      }
-  }
 
   };
 
@@ -2247,7 +2247,7 @@ const App: React.FC = () => {
   if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) {
       return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
   }
-  if (driveUser && isCloudSyncing && !isReadyToSave.current) {
+  if (driveUser && isCloudSyncing && !isReadyToSave.current && !isLoadingLatestCloud.current) {
       return <main className="min-h-[100dvh] p-6 flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white" role="status"><Loader2 className="animate-spin text-emerald-600" size={32}/><p>Opening your Google Drive portfolio…</p></main>;
   }
 

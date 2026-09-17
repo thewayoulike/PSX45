@@ -18,4 +18,4 @@
 
 ## Deployment
 
-Publication in progress. The live owner-signed-in admin page still requires the owner's reload check; the available browser session is signed out.
+The admin/mobile/popup changes were pushed at `18eeed7b9eab4a5b77d4849ad1b7bf2c2773cc0e`. The live owner-signed-in admin page still requires the owner's reload check; the available browser session is signed out.
