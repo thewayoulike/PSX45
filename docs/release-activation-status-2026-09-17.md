@@ -1,60 +1,77 @@
 # Release activation status — 17 September 2026
 
-The requested app features and audit fixes are implemented and tested locally. The owner has signed in to both production dashboards. Authentication configuration has been updated as listed below; app deployment and database migrations have not occurred.
+The rollout implementation has been activated in production and basic live checks passed. This is not yet unrestricted public-release acceptance: the owner reported a real phone-to-web sync conflict, and signed-in device testing remains open.
 
-## Storage clarification
+## Production activation verified
 
-The owner confirmed that portfolio data belongs in each user's Google Drive; the existing database is used for alerts. The code also uses Supabase authentication and an access-approval allowlist.
+- Vercel project `psx-45-naeh`, repository `thewayoulike/PSX45`, production branch `main`. Initial activation was verified at commit `47f40ba7890b29f793b6022761350221a04899fc`. After the owner's subsequent pushes, the sync fix and regression tests were verified in production at commit `82e63cccc8a0e26813d3ce1e52abb853a177a404`, deployment `77saje3kPCLLxiovsjTSW7jT7gAU`, status Ready. The agent did not push or trigger a separate deployment.
+- Canonical domain: `https://www.psx-tracker.com`. The apex redirects there with HTTP 301.
+- The owner saved the Production `ADMIN_SECRET` and Brevo SMTP credentials directly in the dashboards. Secret values were not inspected. Other required server/client variable names were present. An unauthenticated admin request returned 401; authenticated admin acceptance remains open.
+- With explicit owner approval, applied `20260914_alert_safety.sql` and `20260917_public_rollout.sql` together in a transaction through the Supabase SQL editor. Execution succeeded. Existing alert/account rows were preserved; no portfolio content was moved into Supabase and no Drive file was changed during activation.
+- Read-only verification confirmed all four required functions match the locally tested definitions. `service_role` can execute them; `anon` and `authenticated` cannot. RLS is enabled on `alert_store`, `allowlist`, `approval_tokens`, `request_limits` and `cloud_heads`, with no anonymous/authenticated SELECT/INSERT/UPDATE/DELETE grants.
+- Verification is reproducible with [verify-rollout-schema.sql](../scripts/verify-rollout-schema.sql). These migrations were applied as SQL, not through the Supabase CLI migration-history mechanism.
 
-The earlier proposed `cloud_heads` table stores only revision numbers and Drive backup IDs, never portfolio contents. Whether to use those metadata records or keep sync metadata entirely in Drive is awaiting the owner's choice. **Do not apply `20260917_public_rollout.sql` or deploy the current cloud protocol until that choice is resolved.** The migration and protocol must remain consistent.
+| Function | Normalized body hash verified in production |
+|---|---|
+| `psx_cloud_head` | `c2c8fcd37940d1bce518a3af1b197368` |
+| `psx_consume_approval` | `982c607b2b182c47ca102eaa69b93c1f` |
+| `psx_mutate_alerts` | `e72495ef4e23f5952aa2a9b125fd6429` |
+| `psx_rate_limit` | `002a0bf93de4d52b15617907a07f2ef2` |
 
-No production table contents or Drive files have been modified. No emails or messages have been sent.
+## Authentication and email
 
-## Verified production state
+- Site URL is `https://www.psx-tracker.com`, with the exact allowed redirect `https://www.psx-tracker.com/reset-password`.
+- Confirm email is enabled; minimum password length is 10; Secure password change and Secure email change are enabled. Anonymous sign-in and manual linking remain disabled.
+- Supabase's Google provider remains disabled because this app uses its separate Google Drive OAuth flow.
+- Custom SMTP is enabled with sender `itruth2011@gmail.com`, name `PSX Tracker`, the Brevo relay on port 587 and a 60-second per-user interval.
+- The owner explicitly authorized **one** recovery test email to `itruth2011@gmail.com`. Submitted the live Forgot password form once; it returned the expected neutral success message. The owner replied **“worked.”** This confirms the recovery email test, not every setup/reset/login case. No new password was entered by the agent and no second test email was sent.
+- Live login had no observed JavaScript errors. At 390 × 844, the forgot-password form had no horizontal document overflow.
 
-- The local workspace contains the public Supabase/Google client configuration, but no server database credential, Supabase management credential or Vercel deployment credential was found in the checked project configuration.
-- Vercel project `psx-45-naeh` is linked to `thewayoulike/PSX45`, production branch `main`. Current production is commit `d5d87769876e2cccbe05c4801ef71cef39b50e51` (NAV catalog update), not the uncommitted rollout work.
-- Vercel confirms `www.psx-tracker.com` is the production domain; the apex domain redirects there with HTTP 301.
-- Supabase project `sxtqoiywnrurgwdmhnua` (`PSX`) currently lists only `alert_store`, `allowlist`, and `profiles` in the public schema. Its function list contains `handle_new_user` and `rls_auto_enable`; the alert mutation, approval, request-limit, and cloud-version functions required by the new code are absent.
-- Existing production/preview environment-variable names include Supabase server/client configuration, Google client ID, Brevo key/sender, `APP_URL`, `OWNER_EMAIL`, scheduler and VAPID settings. Their secret values were not revealed. The owner has now saved **`ADMIN_SECRET` as a Production secret**, confirmed by the Vercel variable list and success message. It requires a new deployment to take effect. The legacy `APPROVE_SECRET` remains separate.
-- A read-only production SQL check reported **11 MB total database size**, **112 kB public tables including indexes**, and RLS enabled on all three existing public tables. All four required `psx_*` functions remain missing. The query did not read account records or change data.
-- Vercel reports **19.51 GB function storage against the Hobby 10 GB allowance**. No deployments were deleted and no plan was purchased. Resolve capacity before attempting the release; inspect retention and function packaging first. [Vercel storage documentation](https://vercel.com/docs/deployment-storage).
+## Live smoke checks
 
-## Authentication changes applied
+| Check | Observed result |
+|---|---|
+| Home, About, Privacy, Terms and Contact | HTTP 200 with expected page titles |
+| Login and reset-password routes | HTTP 200 and `X-Robots-Tag: noindex, follow` |
+| Anonymous cloud-sync, check-access, request-access and admin-users | HTTP 401 |
+| Fund NAV endpoint | HTTP 200, 528 records, source `synced` |
+| Python HBL quote | HTTP 200, source `pypsx:quote`; deployed subprocess exercised |
+| Invalid stock symbol | HTTP 400 |
 
-- Site URL changed from `https://psx-tracker.com` to the verified canonical domain `https://www.psx-tracker.com`.
-- Added the exact allowed redirect `https://www.psx-tracker.com/reset-password`. There were no allowed redirects before this change. No wildcard or third-party callback was added.
-- Enabled **Confirm email**, which was previously disabled. New email accounts must now prove email ownership. Anonymous sign-in and manual linking remain disabled.
-- Set the minimum password length to 10 and enabled **Secure password change** (recent sign-in required), matching the new app flow. Secure email change was already enabled and remains enabled.
-- Supabase's Google provider is disabled. The app uses its separate Google Drive OAuth flow, so enabling this provider is not required for the implemented design.
-- The owner completed and saved custom SMTP. The dashboard showed **Successfully updated settings**, SMTP enabled, sender `itruth2011@gmail.com`, name `PSX Tracker`, Brevo relay host, port 587, and a 60-second per-user interval. No SMTP key was revealed. Saving configuration is not proof of email delivery; an end-to-end test remains pending.
-
-## Remaining activation requirements
-
-1. **Production email delivery:** SMTP configuration is saved. Test delivery with an explicitly authorized tester after the reset page is deployed; verify Brevo accepts the sender and the delivered link returns to the app. No test email has been sent. [Supabase SMTP](https://supabase.com/docs/guides/auth/auth-smtp), [Brevo SMTP configuration](https://help.brevo.com/hc/en-us/articles/7924908994450-Send-transactional-emails-using-Brevo-SMTP).
-2. **Existing account verification:** enabling Confirm email only protects future signups. Accounts created while confirmation was disabled may already be marked confirmed without an email ownership check. Review these existing accounts and complete controlled ownership verification before treating `email_confirmed_at` alone as sufficient release evidence. No account has been deleted or had its password changed.
-3. **Sync storage decision:** the owner is concerned about free-plan capacity. The measurements below show the small metadata footprint. No sync tables have been created; finalize this decision before applying the migration.
-4. **Admin secret:** Production configuration is saved. Verify the new admin route after deploying. Configure a separate preview secret only if preview admin tests need one.
-5. **Database and deployment:** apply the matching migrations, verify protected permissions, resolve hosting storage, then deploy backend/frontend together and complete the controlled acceptance checks. The dashboard sign-ins alone do not deploy local files.
-
-See [the implementation report](public-rollout-fixes-2026-09-17.md) for the complete release checks and the already-passing local test evidence.
-
-## Completed credential handoff
-
-- The owner entered and saved both credentials directly in the dashboards. Only their configured state was checked; secret values were not inspected.
-- The sync-storage question is awaiting resolution of the owner's free-plan concern; completing the two credential forms was not approval for a database migration.
+Earlier dashboard logs included 503s before database activation. Fresh checks after activation passed; this is a smoke test, not a production load or uptime guarantee.
 
 ## Free-plan footprint and cleanup
 
-Supabase currently includes a **500 MB database allowance** and a separate **1 GB file-storage allowance** on Free. The proposed sync design consumes **zero Supabase file storage**: all snapshots remain in Google Drive. [Official pricing](https://supabase.com/pricing).
+The owner approved storing only sync revision numbers and Drive backup IDs after reviewing the measurements. Portfolio snapshots remain in each user's Google Drive. This design uses **zero Supabase file storage**.
 
-`node scripts/measure-sync-storage.mjs` builds a fresh, isolated local PostgreSQL database using the actual migration and synthetic accounts. It does not connect to production.
+Read-only production checks reported **11 MB total database size before and after activation**. The three new empty tables and indexes totaled approximately **64 kB** at verification time; subsequent traffic creates short-lived request-limit records.
+
+`node scripts/measure-sync-storage.mjs` uses isolated local PostgreSQL with synthetic accounts, not production:
 
 | Sample | Accounts | Backup IDs/account | Table + indexes + TOAST |
 |---|---:|---:|---:|
 | 44-character IDs | 1,000 | 20 | 1,302,528 bytes (about 1.3 MB) |
 | Maximum accepted 200-character IDs | 1,000 | 20 | 6,012,928 bytes (about 6 MB) |
 
-These are fresh-table estimates, not a total-project size guarantee. Production update bloat, auth, alerts and other tables require separate monitoring. One sync row per account is reused; its history stays capped at 20 IDs.
+One sync row per account is reused, with at most 20 backup IDs. These fresh-table estimates exclude update bloat, authentication, alerts and other tables. The applied rate-limit function cleans expired request-limit and approval-token rows during normal traffic; no additional scheduler is required.
 
-The local rollout migration now cleans expired request-limit rows and expired approval-token rows during normal traffic, using their expiry indexes. No extra scheduler is required. With no traffic, cleanup waits until the next request, and those tables do not receive new rows during that inactivity. The PostgreSQL suite passes the new cleanup checks and preserves unexpired records. This migration is **not yet applied to production**.
+At activation, Supabase's published Free allowances were 500 MB database and 1 GB file storage. [Official pricing](https://supabase.com/pricing).
+
+## Phone-to-web conflict follow-up
+
+The owner reported that a phone save was not loading on the web, where an old pending snapshot and “Another device saved a newer version” remained after Retry. Source review confirmed that Retry attempted the stale upload again (or reloaded the same conflicting pending snapshot). The shortened error hid the recovery instructions.
+
+The follow-up replaces Retry with **Load latest** for this conflict, explains that another device has newer data, and keeps **Download local copy** visible. A manual Load latest action is also available when synced. Recovery waits for in-flight saves, pauses new saves, verifies a readable backup with transaction/portfolio arrays, and preserves both the pending snapshot and current in-memory web data before reloading. A failed read, account change or storage failure leaves pending data intact.
+
+Validation: **250 tests passed across 41 files**, TypeScript passed, and the production build passed. Service regressions simulate loading a newer phone snapshot after a web conflict, preserving newer local edits, invalid/missing backups, account switching and storage failure. The actual sidebar's expanded mobile layout, collapsed Details popover and confirmation callback were checked with synthetic data. The owner's real phone/web recovery still needs confirmation; no real portfolio was modified during these tests.
+
+## Remaining acceptance and operations
+
+1. Confirm the owner's actual phone-to-web recovery, then test two-device saves, conflict recovery, account switches, token expiry, offline/reconnect and imported/empty portfolios. Use iPhone Safari/PWA, Android Chrome and desktop, including chart scrolling, stock tables and keyboard-open forms.
+2. Verify first-time Google password setup, existing password users, expired/reused links and wrong-current-password handling. Confirm email was previously disabled; review ownership of legacy accounts before relying solely on their existing confirmed flags.
+3. Complete authenticated admin and controlled alert-notification acceptance. No live notification was sent during these checks.
+4. Confirm Google OAuth publication/verification requirements, review operator/legal/payment/refund/retention details, and assign support/deletion and monitoring ownership.
+5. Review Vercel capacity: the dashboard reported **19.51 GB function storage against a Hobby 10 GB allowance**. Deployment succeeded, but the warning remains unresolved. No deployments were deleted and no plan was purchased. [Vercel storage documentation](https://vercel.com/docs/deployment-storage).
+6. Require updated tabs on both devices before testing the new sync protocol. Preserve legacy Drive backups during acceptance; do not roll back to a writer that blindly overwrites them.
+
+See [the implementation report](public-rollout-fixes-2026-09-17.md) for detailed changes and the original release checklist.

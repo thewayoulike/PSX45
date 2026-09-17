@@ -1,10 +1,10 @@
 # PSX Tracker — rollout fixes and release checklist
 
-**Updated:** 17 September 2026. **Status:** implementation complete locally; production rollout still requires the configuration and acceptance checks below. No production database migration, deployment, account creation, email, WhatsApp message or Google Drive write was performed during this work.
+**Updated:** 17 September 2026. **Status:** rollout implementation activated in production; device and operational acceptance remain open. Both database migrations were applied with owner approval, the owner's deployment was verified, and one authorized recovery email test worked. No real portfolio/Drive write, WhatsApp message or new test account was created during these checks.
 
 This follows the [16 September audit](public-rollout-audit-2026-09-16.md). That report records the original findings; it is not the current implementation status.
 
-**Activation follow-up:** both production dashboards are accessible. Authentication URLs, verification/password policy, custom SMTP and the Production admin secret are configured. Email delivery testing, existing-account ownership verification, hosting storage, database migrations and the sync-metadata decision remain release prerequisites. Production database size is currently 11 MB; measured sync metadata is about 1.3 MB per 1,000 synthetic accounts with 20 44-character IDs each. See [activation status](release-activation-status-2026-09-17.md) before applying the migration or deploying.
+**Activation follow-up:** authentication URLs, verification/password policy, custom SMTP and the Production admin secret are configured. The owner approved the small sync-metadata records; database functions and permissions were verified after migration. Public routes, the deployed Python quote worker and anonymous API rejection passed live checks. Database size remained 11 MB. A subsequent phone-to-web conflict exposed confusing Retry behavior; the follow-up provides Load latest and preserves both pending and current local data. See [activation status](release-activation-status-2026-09-17.md) for deployment evidence and outstanding real-device acceptance.
 
 ## Audit fixes
 
@@ -16,7 +16,7 @@ This follows the [16 September audit](public-rollout-audit-2026-09-16.md). That 
 | R04 — cloud conflicts | Immutable Drive snapshots plus a database compare-and-swap revision prevent a stale client from replacing the current backup. Pending data is retained, including after failed/ambiguous saves. Restore reads the remote backup first and archives local pending data before reload. | Drive tests cover stale preflight, concurrent commit, offline/error recovery, serialized saves, ambiguous responses, account switching during a request, download and Restore. PostgreSQL tests cover competing writers, idempotency, isolation and retention. |
 | R05 — chart drawings | Horizontal-line hit testing uses the supplied chart plot bounds. | Bounds regression and type check. Real touch drawing remains a device check. |
 | R06 — account lookup | Verified Google or verified-email Supabase identity is required. Lookup is read-only; access requests are separate authenticated writes. Shared database limits replace process-only protection on these routes. | Anonymous/mismatched requests are rejected; lookup cannot insert. Unverified Supabase emails are rejected. |
-| R07 — password recovery | Forgot password, email-link password setup, new-password confirmation, expired-link recovery and signed-in password changes. Persistent labels and 16px mobile inputs. | Password service tests and browser form checks. Actual email delivery remains a release check. |
+| R07 — password recovery | Forgot password, email-link password setup, new-password confirmation, expired-link recovery and signed-in password changes. Persistent labels and 16px mobile inputs. | Password service tests, browser form checks and one owner-confirmed live recovery email. Complete setup/reset/login acceptance remains open. |
 | R08 — release validation | Fixed the TypeScript baseline; production build now runs type checking. Added CI for TypeScript, unit tests, production build, Python tests and both SQL suites. | All local checks pass. Configure the CI job as a required branch/deployment check. |
 | R09 — request budgets | Public market endpoints validate symbols, batches (20), periods and intervals; apply shared limits and timeouts. Python work runs in a subprocess with a 35-second deadline, four per-process slots and a bounded response cache. Redirects stay within the allowed upstream hosts, including Sheets export redirects. | Mocked parameter/deadline tests. No production load test performed. Per-process concurrency is not a global cap across all serverless instances. |
 | R10 — outages | Access checks distinguish unavailable/429/503/offline from genuine pending approval. Retry and deliberate read-only cached viewing are available. | Auth outage tests and invalid password-link browser check. Installed-PWA offline startup still needs a device test. |
@@ -33,6 +33,7 @@ The other task’s compact footer, pending age/ID, short error, Retry, Restore a
 - Sign-out preserves account-specific pending/recovery copies while clearing the active local portfolio. Shared-device users should remove these copies through browser storage controls after exporting anything they need.
 - Up to 20 committed Drive snapshots are retained. Older app-marked snapshots are moved to trash on a best-effort basis. A failed/conflicted upload can leave an extra recovery file.
 - The Google Sheet is a derived export. It is not the authoritative transaction store and simultaneous exports can require another refresh. Restore and conflict decisions use the immutable Drive backup and server revision.
+- After the reported phone-to-web conflict, the conflict action was changed from Retry to **Load latest**, with explicit recovery guidance. **Download local copy** replaces the ambiguous Keep pending label. Recovery also archives current web edits, pauses new writes, waits for existing saves and rejects incomplete cloud backups before clearing pending data. These follow-up changes still need confirmation with the owner's actual devices.
 
 ## New public and account pages
 
@@ -60,7 +61,7 @@ This adds an alternative email login. It does not change the Google password, gr
 
 ## Local evidence
 
-- **242 unit tests passed across 41 files**, including **16 Drive tests** and the sync-health helpers. The previously reported two SEO failures now pass.
+- **250 unit tests passed across 41 files**, including **23 Drive tests** and the sync-health helpers. The previously reported two SEO failures now pass.
 - **TypeScript and production build passed.**
 - Both isolated PostgreSQL suites passed: alert migration/ownership/races and rollout approval/rate-limit/cloud-version behavior.
 - **Two Python tests passed** for input bounds and subprocess deadline behavior. The external market SDK itself was not exercised by those tests.
@@ -70,7 +71,9 @@ This adds an alternative email login. It does not change the Google password, gr
 
 Initial landing JavaScript is approximately **146.5 kB gzip**, down from **711.2 kB** at audit time (about **79% less**). PWA precache is approximately **673 KiB**, down from **3,273 KiB**. These are generated asset sizes, not measured phone load times. The authenticated app remains larger and still needs a low-end-phone performance check.
 
-## Required before release
+## Release checklist
+
+**Completed activation:** the two migrations and protected grants/functions, authentication URL/password/SMTP settings, Production admin-secret configuration and the owner's backend/frontend deployment were verified. Live public routes, private noindex headers, the request-access alias and the Python subprocess passed smoke checks; one authorized recovery email test worked. The original checklist below records the requirements and operating constraints. Remaining acceptance is listed in [activation status](release-activation-status-2026-09-17.md); not every signed-in journey has passed yet.
 
 1. **Apply database migrations to the production database before deploying this code.** Verify `20260914_alert_safety.sql` first, then apply `20260917_public_rollout.sql`. The latter requires the existing allowlist table and creates approval tokens, shared request limits, cloud heads and service-role-only functions. Confirm anonymous/authenticated clients cannot access protected tables or RPCs. The new endpoints deliberately return unavailable if this migration is missing.
 2. **Set server configuration:** `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, a separate nonempty `ADMIN_SECRET`, `APP_URL=https://www.psx-tracker.com`, `OWNER_EMAIL`, `BREVO_API_KEY` and the verified `BREVO_SENDER`. Retain correct scheduler/VAPID settings for alerts. Never expose service/admin secrets through `VITE_` variables. Old reusable `APPROVE_SECRET` URLs are intentionally rejected; issue fresh links or use authenticated admin approval.
@@ -87,4 +90,4 @@ Initial landing JavaScript is approximately **146.5 kB gzip**, down from **711.2
 - [Supabase password security](https://supabase.com/docs/guides/auth/password-security) and [updateUser](https://supabase.com/docs/reference/javascript/auth-updateuser) inform the password/recovery configuration checks.
 - [Vercel function runtimes](https://vercel.com/docs/functions/runtimes) and [Python runtime packaging](https://vercel.com/docs/functions/runtimes/python) inform the API entrypoint budget and staging checks.
 
-These are configuration references, not evidence that the production dashboard settings have been inspected or changed.
+These references inform the checklist. Actual production changes and observed results are recorded separately in the activation report.
