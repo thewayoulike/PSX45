@@ -2,8 +2,10 @@ export const SITE_URL = 'https://www.psx-tracker.com';
 export const SUPPORT_EMAIL = 'itruth2011@gmail.com';
 export const SUPPORT_PHONE = '+92 347 4440983';
 export const WHATSAPP_URL = 'https://wa.me/923474440983';
+/** Paste Google Search Console meta token here (or leave empty). */
+export const GOOGLE_SITE_VERIFICATION = '';
 export const PUBLIC_LINKS = [
-  ['About', '/about'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact'],
+  ['Guides', '/guides'], ['About', '/about'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact'],
 ];
 export const HOME_FAQS = [
   ['What can I track?', 'Track Pakistan Stock Exchange shares and mutual funds, including holdings, dividends, cash movements and trade history. Charts and research tools help you explore the market.'],
