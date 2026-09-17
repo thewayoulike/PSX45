@@ -1,6 +1,6 @@
 # Password login → the same Google Drive portfolio
 
-Status: implemented and tested locally; the production connection table is applied and its permissions verified. Server secret configuration, deployment and a real Google/password round trip remain pending. Do not treat this document as evidence of a live login fix.
+Status: implemented and tested locally; the production connection table is applied and its permissions verified. The owner saved both server secrets; their names and Production scope were verified without inspecting values. Deployment and a real Google/password round trip remain pending. Do not treat this document as evidence of a live login fix.
 
 ## Behavior
 
@@ -13,7 +13,7 @@ Older Google connections used access tokens only. They cannot be converted into 
 ## Activation order
 
 1. **Completed:** applied `migrations/20260917_drive_connections.sql` to the existing Supabase project through a separate SQL query, with no customer-data writes. The result verified `rls=true`, `anon_read=false`, `user_read=false`, `server_access=true`. This creates one server-only row per linked Google account and does not move portfolio data.
-2. In the Vercel project `psx-45-naeh`, add these **Production server secrets** directly in the dashboard. Never send the values in chat or prefix them with `VITE_`:
+2. **Completed by owner:** both **Production server secrets** are saved in Vercel project `psx-45-naeh`. Values were not inspected. Never send the values in chat or prefix them with `VITE_`:
    - `GOOGLE_CLIENT_SECRET`: the secret for the existing Google **Web application OAuth client** whose ID is configured as `VITE_GOOGLE_CLIENT_ID`. Keep the same client so existing Drive files remain accessible.
    - `DRIVE_TOKEN_ENCRYPTION_KEY`: 32 cryptographically random bytes encoded as Base64. Keep a secure backup. Replacing it later without re-encrypting saved rows would require users to reconnect.
 3. Verify `APP_URL` is exactly `https://www.psx-tracker.com`; it supplies the permitted browser origin and popup code-exchange redirect URI. `GOOGLE_CLIENT_ID` is optional if the existing `VITE_GOOGLE_CLIENT_ID` is available server-side.
