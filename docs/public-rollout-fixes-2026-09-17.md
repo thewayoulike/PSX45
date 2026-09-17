@@ -4,7 +4,7 @@
 
 This follows the [16 September audit](public-rollout-audit-2026-09-16.md). That report records the original findings; it is not the current implementation status.
 
-**Activation follow-up:** the owner clarified the Drive-based storage architecture. The sync-metadata location remains to be confirmed, and hosting/database dashboards require sign-in. See [activation status](release-activation-status-2026-09-17.md) before applying the migration or deploying.
+**Activation follow-up:** both production dashboards are accessible. Authentication URLs, verification/password policy, custom SMTP and the Production admin secret are configured. Email delivery testing, existing-account ownership verification, hosting storage, database migrations and the sync-metadata decision remain release prerequisites. Production database size is currently 11 MB; measured sync metadata is about 1.3 MB per 1,000 synthetic accounts with 20 44-character IDs each. See [activation status](release-activation-status-2026-09-17.md) before applying the migration or deploying.
 
 ## Audit fixes
 

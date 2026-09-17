@@ -8,8 +8,16 @@ try {
     create table allowlist(email text primary key, approved boolean, approved_at timestamptz);`);
   await db.exec(await readFile(new URL('../migrations/20260917_public_rollout.sql', import.meta.url), 'utf8'));
   const call = async (sql, params = []) => (await db.query(sql, params)).rows[0].result;
+  await db.exec(`insert into request_limits values
+    ('expired-limit',now()-interval '1 minute',2),
+    ('live-limit',now()+interval '1 hour',1);
+    insert into approval_tokens values
+    ('expired-cleanup','a@example.invalid',now()-interval '1 minute',null),
+    ('live-cleanup','a@example.invalid',now()+interval '1 hour',null);`);
   const rate = () => call('select psx_rate_limit($1,2,60) as result', ['a'.repeat(64)]);
   assert.deepEqual(await Promise.all([rate(),rate(),rate()]), [true,true,false]);
+  assert.deepEqual((await db.query("select key from request_limits where key like '%-limit' order by key")).rows, [{key:'live-limit'}]);
+  assert.deepEqual((await db.query("select token_hash from approval_tokens where token_hash like '%-cleanup' order by token_hash")).rows, [{token_hash:'live-cleanup'}]);
   await db.exec(`insert into allowlist values ('a@example.invalid',false,null);
     insert into approval_tokens values ('one','a@example.invalid',now()+interval '1 hour',null),
     ('expired','a@example.invalid',now()-interval '1 hour',null);`);
@@ -30,5 +38,5 @@ try {
     const permissions = await db.query(`select has_function_privilege($1,'psx_cloud_head(text,bigint,text)','EXECUTE') as rpc, has_table_privilege($1,'allowlist','SELECT') as account`, [role]);
     assert.deepEqual(permissions.rows[0], { rpc: false, account: false });
   }
-  console.log('PASS: single-use/expired approvals, shared rate limits, concurrent cloud CAS, idempotent commits, account isolation, retention, denied client permissions.');
+  console.log('PASS: single-use/expired approvals, expiry cleanup, shared rate limits, concurrent cloud CAS, idempotent commits, account isolation, retention, denied client permissions.');
 } finally { await db.close(); }

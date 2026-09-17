@@ -25,7 +25,10 @@ returns boolean language plpgsql security definer set search_path = public, pg_t
 declare n integer;
 begin
   if length(p_key) <> 64 or p_max < 1 or p_max > 1000 or p_seconds < 1 or p_seconds > 86400 then raise exception 'Invalid limit'; end if;
-  delete from request_limits where expires_at < now() - interval '1 day';
+  -- Temporary records must not accumulate on the free database plan.
+  -- Indexed expiry cleanup runs with traffic, so no paid scheduler is needed.
+  delete from request_limits where expires_at <= now();
+  delete from approval_tokens where expires_at <= now();
   insert into request_limits as r values (p_key, now() + make_interval(secs => p_seconds), 1)
   on conflict (key) do update set
     hits = case when r.expires_at <= now() then 1 else least(r.hits + 1, p_max + 1) end,
