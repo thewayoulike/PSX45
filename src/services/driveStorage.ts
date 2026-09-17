@@ -14,8 +14,10 @@ const STORAGE_TOKEN_KEY = 'psx_drive_access_token';
 const STORAGE_USER_KEY = 'psx_drive_user_profile';
 const STORAGE_EXPIRY_KEY = 'psx_drive_token_expiry';
 
+// drive.file also permits Sheets API operations on the spreadsheet this app creates.
+// Broad spreadsheets access is sensitive and causes an unverified-app warning.
 // Gmail is requested separately, only when the user opens Gmail import.
-const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/spreadsheets openid';
+const SCOPES = 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile openid';
 const DB_FILE_NAME = 'psx_tracker_data.json';
 const SHEET_FILE_NAME = 'PSX_Portfolio_Transactions'; // Name of the Google Sheet
 
@@ -141,6 +143,7 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promis
                 tokenClient = window.google.accounts.oauth2.initTokenClient({
                     client_id: CLIENT_ID,
                     scope: SCOPES,
+                    include_granted_scopes: false,
                     error_callback: () => {
                         requestedDriveEmail = null;
                         alert('Google Drive was not connected. Your password login and saved portfolio are unchanged. Try Connect Drive again.');
@@ -578,6 +581,7 @@ async function requestGmailAccess(): Promise<string> {
     return new Promise((resolve, reject) => {
         const client = window.google.accounts.oauth2.initTokenClient({
             client_id: CLIENT_ID, scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email openid',
+            include_granted_scopes: false,
             hint: email,
             error_callback: () => reject(new Error('Gmail access was not granted. You can still import a file.')),
             callback: async (response: any) => {

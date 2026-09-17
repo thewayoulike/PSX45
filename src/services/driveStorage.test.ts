@@ -10,6 +10,17 @@ function pendingKey(email: string) {
   return 'psx_pending_cloud_v1:' + encodeURIComponent(email);
 }
 
+function expectOnlyAppFilePermissions(options: { scope: string; include_granted_scopes?: boolean }) {
+  expect(options.scope.split(' ').sort()).toEqual([
+    'https://www.googleapis.com/auth/drive.file',
+    'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/userinfo.profile',
+    'openid',
+  ].sort());
+  // Do not carry a previously granted Gmail or broad Sheets scope into sign-in.
+  expect(options.include_granted_scopes).toBe(false);
+}
+
 async function login(email = 'a@example.com') {
   storage.set('psx_drive_access_token', 'test-token');
   storage.set('psx_drive_user_profile', JSON.stringify({ email }));
@@ -108,6 +119,7 @@ describe('cloud save outcomes and recovery', () => {
       : response({connected:true,accessToken:'linked-google-token',expiresIn:3600,user:{email:'a@example.com',name:'A',picture:''}}));
     await service.getRememberedDriveConfig();service.signInWithDrive('a@example.com');
     expect(requestCode).toHaveBeenCalledOnce();expect(initCodeClient).toHaveBeenCalledWith(expect.objectContaining({ux_mode:'popup',login_hint:'a@example.com',include_granted_scopes:false}));
+    expectOnlyAppFilePermissions(initCodeClient.mock.calls[0][0]);
     await callback({code:'one-time-code'});
     expect(fetch).toHaveBeenLastCalledWith('/api/cloud-sync',expect.objectContaining({headers:expect.objectContaining({Authorization:'Bearer password-token','X-Requested-With':'PSXTracker'}),body:JSON.stringify({action:'drive-connect',code:'one-time-code',expectedEmail:'a@example.com'})}));
     expect(onLogin).toHaveBeenCalledWith(expect.objectContaining({email:'a@example.com'}));expect(storage.get('psx_drive_access_token')).toBe('linked-google-token');
@@ -131,11 +143,13 @@ describe('cloud save outcomes and recovery', () => {
   it('legacy Google sign-in still verifies and normalizes the Google identity', async () => {
     let callback!:(response:any)=>Promise<void>;
     const onLogin=vi.fn();
-    vi.stubGlobal('window',{google:{accounts:{oauth2:{initTokenClient:(options:any)=>{callback=options.callback;return {requestAccessToken:vi.fn()};}}}}});
+    const initTokenClient=vi.fn((options:any)=>{callback=options.callback;return {requestAccessToken:vi.fn()};});
+    vi.stubGlobal('window',{google:{accounts:{oauth2:{initTokenClient}}}});
     service.initDriveAuth(onLogin); onLogin.mockClear();
     await vi.advanceTimersByTimeAsync(500);
     mockCloud(()=>response({enabled:false}));await service.getRememberedDriveConfig();
     service.signInWithDrive();
+    expectOnlyAppFilePermissions(initTokenClient.mock.calls[0][0]);
     mockCloud(()=>response({email:'A@example.com',email_verified:true,name:'Existing member'}));
     await callback({access_token:'same-account-token',expires_in:3600});
     expect(onLogin).toHaveBeenCalledWith(expect.objectContaining({email:'a@example.com'}));
