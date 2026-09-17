@@ -12,6 +12,7 @@ import {
 import { Logo } from './ui/Logo';
 import {
   formatPendingAge,
+  isCloudConflictError,
   shortenCloudError,
   shortenRevision,
   syncHealthStatus,
@@ -346,13 +347,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <div className={`flex ${isCollapsed ? 'flex-col items-center' : 'flex-col'} gap-3`}>
                     {(() => {
                       const hasPending = !!pendingRevision;
+                      const hasConflict = isCloudConflictError(cloudSyncError);
                       const status = syncHealthStatus({
                         isSyncing: isCloudSyncing,
                         error: cloudSyncError ?? null,
                         lastSave: lastCloudSave ?? null,
                         hasPending,
                       });
-                      const statusTone = status === 'Not synced' || status === 'Pending'
+                      const statusTone = status === 'Not synced' || status === 'Pending' || hasConflict
                         ? 'text-amber-600 dark:text-amber-400'
                         : 'text-emerald-600 dark:text-emerald-400';
                       const pendingMeta = hasPending
@@ -360,26 +362,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         : null;
                       const confirmRestore = () => {
                         if (!onLoadCloud) return;
-                        if (window.confirm('Restore the cloud backup? A recovery copy of unsynced local changes will be kept, then the page will reload.')) {
+                        if (window.confirm('Load the latest backup from Google Drive, including changes saved on your other device? A recovery copy of the data currently on this device will be kept before reloading.')) {
                           onLoadCloud();
                         }
                       };
                       const syncActions = (
                         <>
-                          <button
+                          {!hasConflict && <button
                             type="button"
                             onClick={onCloudRetry}
                             disabled={isCloudSyncing}
                             className="flex-1 min-h-[44px] bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold py-1.5 rounded-lg"
                           >
                             Retry
-                          </button>
+                          </button>}
                           <button
                             type="button"
                             onClick={confirmRestore}
-                            className="flex-1 border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 text-[11px] font-bold py-1.5 rounded-lg"
+                            disabled={isCloudSyncing}
+                            className={`flex-1 min-h-[44px] disabled:opacity-50 text-xs font-bold py-1.5 rounded-lg ${hasConflict ? 'bg-sky-600 hover:bg-sky-700 text-white' : 'border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'}`}
                           >
-                            Restore
+                            {isCloudSyncing && hasConflict ? 'Loading…' : 'Load latest'}
                           </button>
                         </>
                       );
@@ -402,13 +405,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 <span className="absolute -right-0.5 -top-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 border-2 border-slate-50 dark:border-[#0f0f0f]" aria-hidden />
                               )}
                             </div>
-                            {(cloudSyncError || hasPending) && (
+                            {(
                               <div className="relative flex flex-col items-center gap-1.5 w-full">
                                 <button
                                   type="button"
-                                  aria-label="Retry cloud save"
+                                  aria-label={hasConflict || (!cloudSyncError && !hasPending) ? 'Load latest from Google Drive' : 'Retry cloud save'}
                                   title={cloudSyncError ? shortenCloudError(cloudSyncError) : 'Pending local changes'}
-                                  onClick={onCloudRetry}
+                                  onClick={hasConflict || (!cloudSyncError && !hasPending) ? confirmRestore : onCloudRetry}
                                   disabled={isCloudSyncing}
                                   className="w-9 h-9 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-300/70 dark:border-amber-500/40 text-amber-600 dark:text-amber-400 flex items-center justify-center disabled:opacity-50"
                                 >
@@ -426,7 +429,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                     <div className={`text-[10px] font-bold uppercase tracking-widest ${statusTone}`}>{status}{pendingMeta ? ` · ${pendingMeta}` : ''}</div>
                                     {cloudSyncError && <p className="text-[11px] text-amber-700 dark:text-amber-400 mt-1 mb-2">{shortenCloudError(cloudSyncError)}</p>}
                                     <div className="flex gap-1.5">{syncActions}</div>
-                                    <button type="button" onClick={onDownloadPending} className="mt-2 min-h-[44px] text-xs text-slate-600 dark:text-slate-300 underline w-full text-left">Keep pending</button>
+                                    {hasPending && <button type="button" onClick={onDownloadPending} className="mt-2 min-h-[44px] text-xs text-slate-600 dark:text-slate-300 underline w-full text-left">Download local copy</button>}
                                   </Popover.Content>
                                 </Popover.Portal></Popover.Root>
                               </div>
@@ -464,13 +467,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                               <div className="flex gap-1.5">{syncActions}</div>
                               <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500">
                                 <span>{lastCloudSave ? `Last OK · ${new Date(lastCloudSave).toLocaleString()}` : 'Not yet saved to cloud'}</span>
-                                <button type="button" onClick={onDownloadPending} className="underline shrink-0">Keep pending</button>
+                                {hasPending && <button type="button" onClick={onDownloadPending} className="underline shrink-0">Download local copy</button>}
                               </div>
                             </div>
                           )}
                           {!cloudSyncError && !hasPending && lastCloudSave && (
                             <p className="text-[10px] text-slate-500">Last saved: {new Date(lastCloudSave).toLocaleString()}</p>
                           )}
+                          {!cloudSyncError && !hasPending && <button type="button" onClick={confirmRestore} disabled={isCloudSyncing} className="min-h-[44px] text-xs font-semibold text-sky-700 dark:text-sky-400 underline disabled:opacity-50">Load latest from Drive</button>}
                         </>
                       );
                     })()}

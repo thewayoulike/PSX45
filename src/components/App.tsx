@@ -453,6 +453,7 @@ const App: React.FC = () => {
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
 
   const isReadyToSave = useRef(false);
+  const isLoadingLatestCloud = useRef(false);
   const initialSyncDone = useRef(false);
   const initialFundSyncDone = useRef(false);
   const loadedEmailRef = useRef<string | null>(null); // which Google account's data is currently loaded
@@ -740,6 +741,7 @@ const App: React.FC = () => {
                       applyCloudChartSettings(cloudData.chartSettings);
                   }
               }
+              if (cloudData?.lastModified && !getPendingCloud()) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
               setPendingCloud(getPendingCloud());
           } catch (e) {
@@ -1715,6 +1717,32 @@ const App: React.FC = () => {
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, priceTimestamps, fundNavDayMap, fundCatalog, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
+  const getCloudSnapshot = () => ({
+      transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps,
+      brokers, sectorOverrides, scannerState, performanceHistory, fairValueCache, watchlist,
+      dashboardLayouts, dashboardLayout: dashboardLayouts.PSX, fundCatalog,
+      geminiApiKey: userApiKey, scrapingApiKey: userScraperKey, webScrapingAIKey: userWebScrapingAIKey,
+      chartSettings: loadChartSettings(),
+  });
+  const cloudSnapshotRef = useRef(getCloudSnapshot);
+  cloudSnapshotRef.current = getCloudSnapshot;
+
+  const handleLoadLatestCloud = async () => {
+      if (isLoadingLatestCloud.current) return;
+      const wasReady = isReadyToSave.current;
+      isLoadingLatestCloud.current = true;
+      isReadyToSave.current = false;
+      cloudRevision.current++;
+      setIsCloudSyncing(true);
+      const loaded = await preservePendingAndReloadCloud(() => cloudSnapshotRef.current());
+      if (!loaded) {
+          isLoadingLatestCloud.current = false;
+          if (loadedEmailRef.current === driveUser?.email) isReadyToSave.current = wasReady;
+          setPendingCloud(getPendingCloud());
+          setIsCloudSyncing(false);
+      }
+  };
+
   useEffect(() => {
       if (skipPersistRef.current) return;
       if (shouldPersistPortfolio({ signedIn: !!driveUser || sbApproved, checking: isAuthChecking || sbChecking, skip: skipPersistRef.current })) {
@@ -1739,28 +1767,8 @@ const App: React.FC = () => {
           const revision = ++cloudRevision.current;
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
-              const result = await saveToDrive({
-                  transactions,
-                  portfolios,
-                  currentPortfolioId,
-                  manualPrices,
-                  ldcpMap,
-                  priceTimestamps,
-                  brokers,
-                  sectorOverrides,
-                  scannerState,
-                  performanceHistory,
-                  fairValueCache,
-                  watchlist,
-                  dashboardLayouts,
-                  // legacy alias for older clients
-                  dashboardLayout: dashboardLayouts.PSX,
-                  fundCatalog,
-                  geminiApiKey: userApiKey,
-                  scrapingApiKey: userScraperKey,
-                  webScrapingAIKey: userWebScrapingAIKey,
-                  chartSettings: loadChartSettings(),
-              }, true);
+              if (isLoadingLatestCloud.current || !isReadyToSave.current) return;
+              const result = await saveToDrive(getCloudSnapshot(), true);
               if (cloudRevision.current !== revision) return;
               if (result.ok === true) {
                   setLastCloudSave(result.savedAt);
@@ -2326,7 +2334,7 @@ const App: React.FC = () => {
              pendingQueuedAt={pendingCloud?.queuedAt ?? null}
              onCloudRetry={() => isReadyToSave.current ? setCloudRetryTick(t => t + 1) : window.location.reload()}
              onDownloadPending={downloadPendingCloudBackup}
-             onLoadCloud={preservePendingAndReloadCloud}
+             onLoadCloud={handleLoadLatestCloud}
              hasApiKeys={!!userApiKey && !!userScraperKey}
           />
 

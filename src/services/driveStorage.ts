@@ -214,7 +214,8 @@ export const getValidToken = async (): Promise<string | null> => {
 const cloudQueue = createSerialQueue();
 const cloudBases = new Map<string, number>();
 const cloudConflicts = new Set<string>();
-const conflictMessage = 'Another device saved a newer version. Download your changes, then load the cloud version to reconcile them.';
+const cloudRestores = new Set<string>();
+const conflictMessage = 'Another device saved a newer version. Choose Load latest to read it. A recovery copy of this device’s changes will be kept.';
 const currentEmail = () => {
     try { return String(JSON.parse(localStorage.getItem(STORAGE_USER_KEY) || '{}').email || '').toLowerCase(); }
     catch { return ''; }
@@ -299,6 +300,7 @@ async function writeSheets(request: CloudRequest, transactions: any[], portfolio
 /** Persists the pending snapshot before scheduling any network writes. */
 export function saveToDrive(data: any, includeSheets = false): Promise<CloudSaveResult> {
     const email = currentEmail();
+    if (cloudRestores.has(email)) return Promise.resolve({ ok: false, error: 'Loading the latest cloud backup. Saving is paused.' });
     const revision = crypto.randomUUID();
     const snapshot = JSON.parse(JSON.stringify({ ...data, lastModified: new Date().toISOString() }));
     try {
@@ -360,12 +362,16 @@ export async function loadFromDrive() {
         cloudConflicts.add(email);
         throw new Error(conflictMessage);
     }
+    let data = pending?.data;
+    if (!data) {
+        const fileId = head.fileId || await findFile(request, DB_FILE_NAME);
+        // Only a successful empty lookup means no backup exists.
+        data = fileId ? await (await request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json() : null;
+    }
+    if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
     cloudBases.set(email, head.revision);
     cloudConflicts.delete(email);
-    if (pending?.data) return pending.data;
-    const fileId = head.fileId || await findFile(request, DB_FILE_NAME);
-    if (!fileId) return null; // Only a successful empty lookup means no backup exists.
-    return (await request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json();
+    return data;
 }
 export type PendingCloud = { revision: string; queuedAt: string | null; data: any; baseVersion?: number | null; fileId?: string | null };
 export function getPendingCloud(): PendingCloud | null {
@@ -402,17 +408,39 @@ export function downloadPendingCloudBackup() {
     const link = document.createElement('a'); link.href = url; link.download = 'psx-unsynced-backup.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-export async function preservePendingAndReloadCloud() {
+export async function preservePendingAndReloadCloud(getLocalSnapshot?: () => any): Promise<boolean> {
+    const email = currentEmail();
+    if (cloudRestores.has(email)) return false;
+    cloudRestores.add(email);
     try {
-        // Verify that the remote copy is readable before releasing a pending edit.
-        const email = currentEmail(), request = await cloudSession(email);
-        const head = await cloudHead(email, { action: 'head' });
-        const id = head.fileId || await findFile(request, DB_FILE_NAME);
-        if (!id) throw new Error('No cloud backup was found. Your pending changes have been kept.');
-        await (await request(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
-        clearPendingCloud();
-        window.location.reload();
-    } catch (error) { alert(error instanceof Error ? error.message : 'Could not load cloud backup. Your changes were kept.'); }
+        return await cloudQueue(async () => {
+            // Wait for any existing save, and read a usable remote copy before clearing pending data.
+            const request = await cloudSession(email);
+            const head = await cloudHead(email, { action: 'head' });
+            const id = head.fileId || await findFile(request, DB_FILE_NAME);
+            if (!id) throw new Error('No cloud backup was found. Your pending changes have been kept.');
+            const data = await (await request(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
+            if (!data || !Array.isArray(data.transactions) || !Array.isArray(data.portfolios)) {
+                throw new Error('The cloud backup is incomplete. Your local changes have been kept.');
+            }
+            if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
+            // Include edits made after a failed startup load or while the download was in progress.
+            // A full browser store must stop recovery before any pending data is removed.
+            if (getLocalSnapshot) {
+                localStorage.setItem(`psx_cloud_recovery:${encodeURIComponent(email)}:${Date.now()}:current`, JSON.stringify({
+                    revision: crypto.randomUUID(), queuedAt: new Date().toISOString(), data: getLocalSnapshot(),
+                }));
+            }
+            clearPendingCloud();
+            cloudBases.delete(email);
+            cloudConflicts.delete(email);
+            window.location.reload();
+            return true;
+        });
+    } catch (error) {
+        alert(error instanceof Error ? error.message : 'Could not load cloud backup. Your changes were kept.');
+        return false;
+    } finally { cloudRestores.delete(email); }
 }
 export async function getGoogleSheetId(): Promise<string | null> {
     return findFile(await cloudSession(currentEmail()), SHEET_FILE_NAME);
