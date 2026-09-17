@@ -33,6 +33,6 @@ export default function Entry() {
     return () => { mounted = false; cleanup(); };
   }, [recovery]);
   return <ErrorBoundary><Suspense fallback={<div className="p-6" role="status">Opening PSX Tracker…</div>}>
-    {error ? <main className="p-6"><h1 className="text-xl font-bold">Account switch paused</h1><p className="my-4">{error}</p><button onClick={()=>window.location.reload()} className="underline p-3">Retry</button></main> : recovery ? <PasswordRecovery /> : !navigator.onLine ? <OfflinePortfolio /> : enter ? <App /> : <LoginPage compact={loginOnly} onGoogleLogin={signInWithDrive} onAuthSuccess={() => window.location.reload()} />}
+    {error ? <main className="p-6"><h1 className="text-xl font-bold">Account switch paused</h1><p className="my-4">{error}</p><button onClick={()=>window.location.reload()} className="underline p-3">Retry</button></main> : recovery ? <PasswordRecovery /> : !navigator.onLine ? <OfflinePortfolio /> : enter ? <App /> : <LoginPage compact={loginOnly} onGoogleLogin={() => signInWithDrive()} onAuthSuccess={() => window.location.reload()} />}
   </Suspense></ErrorBoundary>;
 }

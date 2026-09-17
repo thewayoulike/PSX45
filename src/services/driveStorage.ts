@@ -22,7 +22,41 @@ let tokenClient: any = null;
 let accessToken: string | null = null;
 let tokenExpiryTime: number = 0;
 
-let refreshTokenResolver: ((token: string) => void) | null = null;
+let requestedDriveEmail: string | null = null;
+export type LinkedDriveSession = { connected: true; accessToken: string; expiresIn: number; user: DriveUser };
+let driveSessionListener: ((user: DriveUser) => void | Promise<void>) | null = null;
+let passwordSessionProvider: (() => Promise<{ email: string; token: string } | null>) | null = null;
+let linkedTokenProvider: ((email: string) => Promise<LinkedDriveSession | null>) | null = null;
+let linkedRefresh: { email: string; attempt: number; promise: Promise<string | null> } | null = null;
+let rememberedDriveConfig: { enabled: boolean; clientId?: string } | null = null;
+let rememberedConfigRequest: Promise<{ enabled: boolean; clientId?: string }> | null = null;
+let driveLoginAttempt = 0;
+export function setDrivePasswordProviders(session: typeof passwordSessionProvider, token: typeof linkedTokenProvider) {
+    passwordSessionProvider = session; linkedTokenProvider = token;
+}
+export function getRememberedDriveConfig() {
+    if (!rememberedConfigRequest) rememberedConfigRequest = fetch('/api/cloud-sync', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'drive-config' }), signal: AbortSignal.timeout(10000),
+    }).then(async response => {
+        if (!response.ok) throw new Error('Drive connection check unavailable.');
+        const config = await response.json();
+        rememberedDriveConfig = { enabled: config.enabled === true, clientId: config.clientId };
+        return rememberedDriveConfig;
+    }).catch(error => { rememberedConfigRequest = null; throw error; });
+    return rememberedConfigRequest;
+}
+export function installLinkedDriveSession(session: LinkedDriveSession, expectedEmail: string, notify = true) {
+    const email = String(session.user?.email || '').trim().toLowerCase();
+    if (email !== expectedEmail.trim().toLowerCase() || !session.accessToken || !(session.expiresIn > 60)) throw new Error('Drive connection does not match this account.');
+    const user = { ...session.user, email };
+    const expiry = Date.now() + session.expiresIn * 1000;
+    localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
+    localStorage.setItem(STORAGE_TOKEN_KEY, session.accessToken);
+    localStorage.setItem(STORAGE_EXPIRY_KEY, String(expiry));
+    accessToken = session.accessToken; tokenExpiryTime = expiry; expiredNotified = false;
+    if (notify) return driveSessionListener?.(user);
+}
 let onSessionExpired: (() => void) | null = null;
 let expiredNotified = false;
 // App registers this so an expired Drive token logs the user out to the login
@@ -67,8 +101,10 @@ const loadGoogleScript = () => {
     document.body.appendChild(script);
 };
 
-export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
+export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promise<void>) => {
+    driveSessionListener = onUserLoggedIn;
     loadGoogleScript();
+    if (typeof window.location?.origin === 'string') void getRememberedDriveConfig().catch(() => {});
 
     try {
         const storedToken = localStorage.getItem(STORAGE_TOKEN_KEY);
@@ -103,41 +139,41 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
                 tokenClient = window.google.accounts.oauth2.initTokenClient({
                     client_id: CLIENT_ID,
                     scope: SCOPES,
+                    error_callback: () => {
+                        requestedDriveEmail = null;
+                        alert('Google Drive was not connected. Your password login and saved portfolio are unchanged. Try Connect Drive again.');
+                    },
                     callback: async (tokenResponse: any) => {
+                        const expectedEmail = requestedDriveEmail;
+                        requestedDriveEmail = null;
                         if (tokenResponse && tokenResponse.access_token) {
-                            accessToken = tokenResponse.access_token;
-                            const expiresIn = (tokenResponse.expires_in || 3599) * 1000;
-                            tokenExpiryTime = Date.now() + expiresIn;
-                            expiredNotified = false;
-
-                            localStorage.setItem(STORAGE_TOKEN_KEY, accessToken!);
-                            localStorage.setItem(STORAGE_EXPIRY_KEY, tokenExpiryTime.toString());
-
-                            if (refreshTokenResolver) {
-                                refreshTokenResolver(accessToken!);
-                                refreshTokenResolver = null;
-                            }
-
-                            const storedUser = localStorage.getItem(STORAGE_USER_KEY);
-                            if (!storedUser || !refreshTokenResolver) {
-                                try {
-                                    const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-                                        headers: { Authorization: `Bearer ${accessToken}` }
-                                    });
-                                    if (response.ok) {
-                                        const user = await response.json();
-                                        const userData = {
-                                            name: user.name,
-                                            email: user.email,
-                                            picture: user.picture
-                                        };
-                                        localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(userData));
-                                        onUserLoggedIn(userData);
-                                    }
-                                } catch (e) {
-                                    console.error("Failed to fetch user info", e);
+                            try {
+                                // Verify the chosen Google account BEFORE replacing the active identity/token.
+                                const response = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                                    headers: { Authorization: `Bearer ${tokenResponse.access_token}` },
+                                    signal: AbortSignal.timeout(10000),
+                                });
+                                if (!response.ok) throw new Error('Could not verify the Google account. Please try again.');
+                                const user = await response.json();
+                                const email = String(user.email || '').trim().toLowerCase();
+                                if (!email || user.email_verified !== true) throw new Error('Choose a verified Google account to connect Drive.');
+                                if (expectedEmail && email !== expectedEmail) {
+                                    throw new Error(`You are signed in as ${expectedEmail}. Choose that same Google account to open its portfolio. To use another account, sign out first.`);
                                 }
+                                const userData = { name: user.name || email, email, picture: user.picture || '' };
+                                const expiry = Date.now() + (tokenResponse.expires_in || 3599) * 1000;
+                                localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(userData));
+                                localStorage.setItem(STORAGE_TOKEN_KEY, tokenResponse.access_token);
+                                localStorage.setItem(STORAGE_EXPIRY_KEY, expiry.toString());
+                                accessToken = tokenResponse.access_token;
+                                tokenExpiryTime = expiry;
+                                expiredNotified = false;
+                                onUserLoggedIn(userData);
+                            } catch (error) {
+                                alert(error instanceof Error ? error.message : 'Google Drive could not be connected. Please try again.');
                             }
+                        } else {
+                            alert('Google Drive access was not granted. You can try connecting again.');
                         }
                     },
                 });
@@ -149,15 +185,53 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void) => {
     return () => clearInterval(checkInterval);
 };
 
-export const signInWithDrive = () => {
+export const signInWithDrive = (email?: string) => {
+    const expectedEmail = typeof email === 'string' ? email.trim().toLowerCase() || null : null;
+    // Do not accidentally use a non-remembered grant while the server check is still loading.
+    if (!rememberedDriveConfig) {
+        void getRememberedDriveConfig().catch(() => {});
+        alert('Google sign-in is still preparing. Please try again in a moment.');
+        return;
+    }
+    if (rememberedDriveConfig?.enabled && window.google?.accounts?.oauth2) {
+        const attempt = ++driveLoginAttempt;
+        const codeClient = window.google.accounts.oauth2.initCodeClient({
+            client_id: rememberedDriveConfig.clientId || CLIENT_ID, scope: SCOPES,
+            include_granted_scopes: false, ux_mode: 'popup',
+            ...(expectedEmail ? { login_hint: expectedEmail } : {}),
+            error_callback: () => alert('Google authorization was not completed. Your portfolio is unchanged.'),
+            callback: async (result: any) => {
+                try {
+                    if (attempt !== driveLoginAttempt) return;
+                    if (!result.code) throw new Error('Google authorization was not completed. Please try again.');
+                    const password = await passwordSessionProvider?.();
+                    if (expectedEmail && password && password.email.toLowerCase() !== expectedEmail) throw new Error('Account changed. Please sign in again.');
+                    const response = await fetch('/api/cloud-sync', {
+                        method: 'POST', signal: AbortSignal.timeout(30000),
+                        headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'PSXTracker',
+                            ...(expectedEmail && password ? { Authorization: `Bearer ${password.token}` } : {}) },
+                        body: JSON.stringify({ action: 'drive-connect', code: result.code, expectedEmail }),
+                    });
+                    const data = await response.json();
+                    if (attempt !== driveLoginAttempt) return;
+                    if (!response.ok) throw new Error(data.error || 'Could not remember the Drive connection.');
+                    await installLinkedDriveSession(data, expectedEmail || data.user?.email);
+                } catch (error) { alert(error instanceof Error ? error.message : 'Could not connect Google Drive.'); }
+            },
+        });
+        codeClient.requestCode();
+        return;
+    }
     if (!tokenClient) {
         alert("Google Service initializing... please wait 2 seconds and try again.");
         return;
     }
-    tokenClient.requestAccessToken({ prompt: '' });
+    requestedDriveEmail = expectedEmail;
+    tokenClient.requestAccessToken({ prompt: '', ...(requestedDriveEmail ? { login_hint: requestedDriveEmail } : {}) });
 };
 
 export const clearDriveSession = () => {
+    driveLoginAttempt++;
     gmailToken = null;
     localStorage.removeItem(STORAGE_TOKEN_KEY);
     localStorage.removeItem(STORAGE_USER_KEY);
@@ -186,6 +260,23 @@ export const getValidToken = async (): Promise<string | null> => {
     const now = Date.now();
     if (accessToken && tokenExpiryTime > now + 60000) {
         return accessToken;
+    }
+
+    const email = currentEmail();
+    if (email && linkedTokenProvider) {
+        const requestingAttempt = driveLoginAttempt;
+        if (!linkedRefresh || linkedRefresh.email !== email || linkedRefresh.attempt !== requestingAttempt) {
+            const attempt = driveLoginAttempt;
+            const promise = linkedTokenProvider(email).then(session => {
+                if (!session || currentEmail() !== email || attempt !== driveLoginAttempt) return null;
+                installLinkedDriveSession(session, email, false);
+                return session.accessToken;
+            }).finally(() => { if (linkedRefresh?.promise === promise) linkedRefresh = null; });
+            linkedRefresh = { email, attempt, promise };
+        }
+        const refreshed = await linkedRefresh.promise;
+        if (requestingAttempt !== driveLoginAttempt || currentEmail() !== email) return null;
+        if (refreshed) return refreshed;
     }
 
     if (!tokenClient) return null;

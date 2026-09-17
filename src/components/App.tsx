@@ -27,6 +27,7 @@ const DividendScanner = lazy(() => import('./DividendScanner').then(m => ({ defa
 const UpcomingEventsScanner = lazy(() => import('./UpcomingEventsScanner').then(m => ({ default: m.UpcomingEventsScanner })));
 import { ApiKeyManager } from './ApiKeyManager';
 import { LoginPage } from './LoginPage';
+import { DriveConnectionGate } from './DriveConnectionGate';
 const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.ProfilePage })));
 const SuggestionsPage = lazy(() => import('./SuggestionsPage').then(m => ({ default: m.SuggestionsPage })));
 const GooglePasswordSetup = lazy(() => import('./GooglePasswordSetup').then(m => ({ default: m.GooglePasswordSetup })));
@@ -69,7 +70,7 @@ import { ThemeToggle } from './ui/ThemeToggle';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, loadFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, preservePendingAndReloadCloud, getPendingCloud, PendingCloud } from '../services/driveStorage';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
-import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser } from '../services/auth';
+import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { UpgradeModal } from './UpgradeModal';
 import { FreemiumProvider } from './FreemiumContext';
@@ -189,6 +190,9 @@ const App: React.FC = () => {
   // Set before child components read their soft browser counters.
   setQuotaAccount(driveUser?.email || sbUser?.email);
   const [sbApproved, setSbApproved] = useState(false);
+  const [localOnlyEmail, setLocalOnlyEmail] = useState<string | null>(null);
+  const [restoringDrive, setRestoringDrive] = useState(false);
+  const [driveRestoreError, setDriveRestoreError] = useState<string | null>(null);
   const [viewSavedOffline, setViewSavedOffline] = useState(false);
   const [sbChecking, setSbChecking] = useState(true);
   const [sbStatus, setSbStatus] = useState<AccessStatus | null>(null);      // access status of the signed-in user
@@ -514,6 +518,8 @@ const App: React.FC = () => {
       setGoogleSheetId(null);
       setSbUser(null);
       setSbApproved(false);
+      setLocalOnlyEmail(null);
+      setDriveRestoreError(null);
       setSbStatus(null);
       markWipeFlag();
       clearPortfolioLocalStorage();
@@ -540,7 +546,7 @@ const App: React.FC = () => {
   });
 
   const handleManualLogout = () => { if (window.confirm("Log out and clear active local data? Unsynced recovery copies will be kept for this account on this device.")) { performLogout(); } };
-  const handleLogin = () => { signInWithDrive(); };
+  const handleLogin = () => { signInWithDrive(sbUser?.email); };
 
   // A Google user who authenticated but isn't approved yet (blocks entry).
   const [accessPendingEmail, setAccessPendingEmail] = useState<string | null>(null);
@@ -557,7 +563,16 @@ const App: React.FC = () => {
           const st = await getAccessStatus(u.email, u.name, true);
           setSbStatus(st);
           setSbApproved(st.active);
-          if (st.active) { setShowLogin(false); }
+          if (st.active) {
+              setShowLogin(false);
+              if (!hasValidSession()) {
+                  setRestoringDrive(true);
+                  setDriveRestoreError(null);
+                  try { await restorePasswordDriveSession(u.email); }
+                  catch (error) { setDriveRestoreError(error instanceof Error ? error.message : 'Could not open your saved Drive connection. Please retry.'); }
+                  finally { setRestoringDrive(false); }
+              }
+          }
       } else {
           setSbApproved(false);
           setSbStatus(null);
@@ -644,10 +659,12 @@ const App: React.FC = () => {
           setShowLogin(true);
       });
       initDriveAuth(async (user) => {
+          const stillThisAccount = () => { try { return JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email?.toLowerCase() === user.email.toLowerCase(); } catch { return false; } };
           try { if (preparePortfolioAccount(user.email)) { window.location.reload(); return; } }
           catch { setIsAuthChecking(false); setCloudSyncError('Account switch paused: previous local records could not be archived.'); setShowLogin(true); return; }
           // Gate Google sign-in by owner approval + subscription (same allowlist).
           const st = await getAccessStatus(user.email, user.name, true);
+          if (!stillThisAccount()) return;
           setSbStatus(st);
           if (!st.active) {
               setAccessPendingEmail(user.email);
@@ -692,6 +709,7 @@ const App: React.FC = () => {
           setIsCloudSyncing(true);
           try {
               const cloudData = await loadFromDrive();
+              if (!stillThisAccount()) return;
               if (cloudData) {
                   if (cloudData.portfolios) setPortfolios(normalizePortfolios(cloudData.portfolios));
                   if (cloudData.transactions) {
@@ -1745,6 +1763,8 @@ const App: React.FC = () => {
 
   useEffect(() => {
       if (skipPersistRef.current) return;
+      // Do not persist an empty dashboard while the saved Drive connection is loading.
+      if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) return;
       if (shouldPersistPortfolio({ signedIn: !!driveUser || sbApproved, checking: isAuthChecking || sbChecking, skip: skipPersistRef.current })) {
           localStorage.setItem('psx_transactions', JSON.stringify(transactions));
           localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
@@ -1782,7 +1802,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => { clearTimeout(timer); cloudRevision.current++; };
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking]);
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -2153,7 +2173,7 @@ const App: React.FC = () => {
       }
   };
 
-  if (isAuthChecking || sbChecking) return <div className="min-h-screen bg-slate-50 flex items-center justify-center"><Loader2 className="animate-spin text-emerald-500" size={32} /></div>;
+  if (isAuthChecking || sbChecking || restoringDrive) return <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col gap-4 items-center justify-center" role="status"><Loader2 className="animate-spin text-emerald-500" size={32} />{restoringDrive && <p className="text-slate-700 dark:text-slate-200">Opening your Google Drive portfolio…</p>}</div>;
   if (viewSavedOffline) return <OfflinePortfolio />;
   if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
@@ -2178,6 +2198,13 @@ const App: React.FC = () => {
       } else {
           return <LoginPage compact onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
       }
+  }
+
+  if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) {
+      return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
+  }
+  if (driveUser && isCloudSyncing && !isReadyToSave.current) {
+      return <main className="min-h-[100dvh] p-6 flex flex-col items-center justify-center gap-4 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-white" role="status"><Loader2 className="animate-spin text-emerald-600" size={32}/><p>Opening your Google Drive portfolio…</p></main>;
   }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
@@ -2402,9 +2429,9 @@ const App: React.FC = () => {
                                       <AlertTriangle size={20} />
                                   </div>
                                   <div className="min-w-0">
-                                      <h4 className="font-display font-black text-slate-900 dark:text-white text-sm md:text-base tracking-tight">Connect Google Drive to save your data</h4>
+                                      <h4 className="font-display font-black text-slate-900 dark:text-white text-sm md:text-base tracking-tight">Your Google Drive portfolio is not loaded</h4>
                                       <p className="text-xs md:text-sm text-slate-600 dark:text-slate-300 leading-snug mt-0.5">
-                                          Your portfolio is currently stored only on this device. <span className="font-semibold">It won't be backed up or synced across devices — and could be lost if you clear your browser</span> — until you connect Google Drive.
+                                          You are viewing this device’s records. Connect Google Drive as <span className="font-semibold break-all">{sbUser.email}</span> to load your existing saved portfolio and sync changes. Your password login uses the same account.
                                       </p>
                                   </div>
                               </div>
@@ -2578,7 +2605,7 @@ const App: React.FC = () => {
                       )}
 
                       {currentView === 'ADMIN_USERS' && isOwner && <AdminUsers />}
-                      {currentView === 'PROFILE_SETTINGS' && <ProfilePage email={driveUser?.email || sbUser?.email || ''} name={driveUser?.name || sbUser?.name} googleConnected={!!driveUser} />}
+                      {currentView === 'PROFILE_SETTINGS' && <ProfilePage email={driveUser?.email || sbUser?.email || ''} name={driveUser?.name || sbUser?.name} googleConnected={!!driveUser} onDriveDisconnected={() => { isReadyToSave.current = false; setDriveUser(null); setGoogleSheetId(null); setLocalOnlyEmail(null); setDriveRestoreError(null); }} />}
                       {currentView === 'SUGGESTIONS' && <SuggestionsPage />}
 
                       {currentView === 'HOLDINGS' && (

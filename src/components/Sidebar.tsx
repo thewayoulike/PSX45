@@ -497,7 +497,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         </div>
                         {!isCollapsed && (
                             <div className="flex flex-col min-w-0 overflow-hidden">
-                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-widest">Local · not synced</span>
+                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-widest">Drive not connected</span>
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">{authUser.name || authUser.email}</span>
                             </div>
                         )}
@@ -509,7 +509,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all w-full ${isCollapsed ? 'p-2.5' : 'px-3 py-2.5 text-xs'}`}
                     >
                         <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 flex-shrink-0" alt="Google" />
-                        {!isCollapsed && <span>Connect Drive</span>}
+                        {!isCollapsed && <span>Connect Drive · load portfolio</span>}
                     </button>
 
                     <button

@@ -263,7 +263,7 @@ export const AdminUsers: React.FC = () => {
             Unlock
           </button>
           {error && <p className="mt-3 text-xs text-rose-500 font-medium flex items-center gap-1.5"><AlertCircle size={13} /> {error}</p>}
-          <p className="mt-4 text-[11px] text-slate-400">This is your <span className="font-mono">APPROVE_SECRET</span> (same key used in the approval email links).</p>
+          <p className="mt-4 text-[11px] text-slate-400">Use the separate admin key saved as <span className="font-mono">ADMIN_SECRET</span> in your hosting settings.</p>
         </div>
       </div>
     );

@@ -1,6 +1,6 @@
 # PSX Tracker — rollout fixes and release checklist
 
-**Updated:** 17 September 2026. **Status:** rollout implementation activated in production; device and operational acceptance remain open. Both database migrations were applied with owner approval, the owner's deployment was verified, and one authorized recovery email test worked. No real portfolio/Drive write, WhatsApp message or new test account was created during these checks.
+**Updated:** 17 September 2026. **Status:** earlier rollout fixes activated; the subsequent password-to-Drive integration is tested locally and its new server-only table is applied, but server secrets, deployment and live acceptance remain pending. See [remembered-drive activation](remembered-drive-activation-2026-09-17.md). The earlier database migrations, deployment and one authorized recovery email test were verified. No real portfolio/Drive write, WhatsApp message or new test account was created during these checks.
 
 This follows the [16 September audit](public-rollout-audit-2026-09-16.md). That report records the original findings; it is not the current implementation status.
 
@@ -33,7 +33,7 @@ The other task’s compact footer, pending age/ID, short error, Retry, Restore a
 - Sign-out preserves account-specific pending/recovery copies while clearing the active local portfolio. Shared-device users should remove these copies through browser storage controls after exporting anything they need.
 - Up to 20 committed Drive snapshots are retained. Older app-marked snapshots are moved to trash on a best-effort basis. A failed/conflicted upload can leave an extra recovery file.
 - The Google Sheet is a derived export. It is not the authoritative transaction store and simultaneous exports can require another refresh. Restore and conflict decisions use the immutable Drive backup and server revision.
-- After the reported phone-to-web conflict, the conflict action was changed from Retry to **Load latest**, with explicit recovery guidance. **Download local copy** replaces the ambiguous Keep pending label. Recovery also archives current web edits, pauses new writes, waits for existing saves and rejects incomplete cloud backups before clearing pending data. These follow-up changes still need confirmation with the owner's actual devices.
+- After the reported phone-to-web conflict, the conflict action was changed from Retry to **Load latest**, with explicit recovery guidance. **Download local copy** replaces the ambiguous Keep pending label. Recovery also archives current web edits, pauses new writes, waits for existing saves and rejects incomplete cloud backups before clearing pending data. The owner confirmed actual phone-to-web recovery works after the fix.
 
 ## New public and account pages
 

@@ -1,6 +1,6 @@
 # Release activation status — 17 September 2026
 
-The rollout implementation has been activated in production and basic live checks passed. This is not yet unrestricted public-release acceptance: the owner reported a real phone-to-web sync conflict, and signed-in device testing remains open.
+The earlier rollout implementation was activated in production and basic live checks passed. The owner confirmed that phone-to-web sync recovery works. A subsequent password-login report revealed that the old Google permission was not retained across password logins. The remembered-Drive fix is implemented and tested locally, and its server-only connection table is applied with permissions verified. It still needs server secrets, deployment and live acceptance described in [remembered-drive activation](remembered-drive-activation-2026-09-17.md). Public rollout should wait for this and the remaining device/operational checks.
 
 ## Production activation verified
 
@@ -63,11 +63,13 @@ The owner reported that a phone save was not loading on the web, where an old pe
 
 The follow-up replaces Retry with **Load latest** for this conflict, explains that another device has newer data, and keeps **Download local copy** visible. A manual Load latest action is also available when synced. Recovery waits for in-flight saves, pauses new saves, verifies a readable backup with transaction/portfolio arrays, and preserves both the pending snapshot and current in-memory web data before reloading. A failed read, account change or storage failure leaves pending data intact.
 
-Validation: **250 tests passed across 41 files**, TypeScript passed, and the production build passed. Service regressions simulate loading a newer phone snapshot after a web conflict, preserving newer local edits, invalid/missing backups, account switching and storage failure. The actual sidebar's expanded mobile layout, collapsed Details popover and confirmation callback were checked with synthetic data. The owner's real phone/web recovery still needs confirmation; no real portfolio was modified during these tests.
+Validation: **250 tests passed across 41 files**, TypeScript passed, and the production build passed. Service regressions simulate loading a newer phone snapshot after a web conflict, preserving newer local edits, invalid/missing backups, account switching and storage failure. The actual sidebar's expanded mobile layout, collapsed Details popover and confirmation callback were checked with synthetic data. The owner then confirmed the actual phone-to-web recovery: **“its good now.”** No real portfolio was modified by the agent during these tests.
 
 ## Remaining acceptance and operations
 
-1. Confirm the owner's actual phone-to-web recovery, then test two-device saves, conflict recovery, account switches, token expiry, offline/reconnect and imported/empty portfolios. Use iPhone Safari/PWA, Android Chrome and desktop, including chart scrolling, stock tables and keyboard-open forms.
+Follow the [manual release checklist](manual-release-checklist-2026-09-17.md) for exact steps and expected results. Its unchecked items are instructions, not completed test evidence.
+
+1. Phone-to-web recovery is owner-confirmed. Complete broader two-device save, account-switch, token-expiry, offline/reconnect and imported/empty-portfolio checks. Use iPhone Safari/PWA, Android Chrome and desktop, including chart scrolling, stock tables and keyboard-open forms.
 2. Verify first-time Google password setup, existing password users, expired/reused links and wrong-current-password handling. Confirm email was previously disabled; review ownership of legacy accounts before relying solely on their existing confirmed flags.
 3. Complete authenticated admin and controlled alert-notification acceptance. No live notification was sent during these checks.
 4. Confirm Google OAuth publication/verification requirements, review operator/legal/payment/refund/retention details, and assign support/deletion and monitoring ownership.

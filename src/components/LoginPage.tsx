@@ -155,7 +155,7 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
         Sign in with Google
         <span className="hidden sm:inline text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Recommended</span>
       </button>
-      <p className="text-[11px] text-slate-400 text-center mt-1.5">Syncs securely to your own Google Drive across devices.</p>
+      <p className="text-[11px] text-slate-400 text-center mt-1.5">Your portfolio stays in your Drive. We retain encrypted Google permission so linked password logins can reopen it. Disconnect anytime in Profile & security.</p>
       <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-4 leading-relaxed">By creating an account, you agree to our <a href="/terms" className="underline">Terms & Conditions</a>. Read how your information is used in our <a href="/privacy" className="underline">Privacy Policy</a>.</p>
     </div>
   );

@@ -3,7 +3,7 @@
 // Google Drive stays the data store — this only controls WHO can get in.
 
 import { createClient, Session } from '@supabase/supabase-js';
-import { getValidToken } from './driveStorage';
+import { getValidToken, getRememberedDriveConfig, installLinkedDriveSession, setDrivePasswordProviders, clearDriveSession, LinkedDriveSession } from './driveStorage';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
@@ -79,7 +79,8 @@ export const getAccessStatus = async (email: string, name?: string, notify = fal
       ]);
     } catch { token = undefined; }
     // The Google identity being checked must not accidentally use another email session.
-    const googleToken = await getValidToken();
+    let googleToken: string | null = null;
+    try { googleToken = await getValidToken(); } catch { /* The password session may still verify account access. */ }
     let googleEmail = '';
     try { googleEmail = JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email || ''; } catch { /* ignore */ }
     if (googleToken && googleEmail.toLowerCase() === email.toLowerCase()) token = googleToken;
@@ -156,12 +157,20 @@ export async function completePasswordReset(password: string) {
   if (!data.session) throw new Error('This link expired. Request a new password reset.');
   const { error } = await supabase.auth.updateUser({ password });
   if (error) throw new Error('Password could not be updated. Request a fresh link and try again.');
+  // A fresh email recovery/setup session proves ownership before linking remembered Drive access.
+  let driveLinkFailed = false;
+  try { await passwordDriveRequest('drive-bind'); } catch { driveLinkFailed = true; }
   await supabase.auth.signOut();
+  return { driveLinkFailed };
 }
 
 export const signIn = async (email: string, password: string) => {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
+  try {
+    const driveEmail = JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email;
+    if (driveEmail && driveEmail.toLowerCase() !== email.trim().toLowerCase()) clearDriveSession();
+  } catch { /* No existing Drive identity. */ }
   return data;
 };
 
@@ -173,6 +182,66 @@ export const getSession = async (): Promise<Session | null> => {
   const { data } = await supabase.auth.getSession();
   return data.session;
 };
+
+async function passwordDriveRequest(action: string, expectedEmail?: string) {
+  const session = await getSession();
+  if (!session?.access_token || !session.user?.email || (expectedEmail && session.user.email.toLowerCase() !== expectedEmail.toLowerCase())) return null;
+  const config = await getRememberedDriveConfig();
+  if (!config.enabled) return null;
+  const response = await fetch('/api/cloud-sync', {
+    method: 'POST', signal: AbortSignal.timeout(30000),
+    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'X-Requested-With': 'PSXTracker' },
+    body: JSON.stringify({ action }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'Your saved Drive connection is temporarily unavailable.');
+  return data;
+}
+export async function restorePasswordDriveSession(email: string): Promise<boolean> {
+  const data = await passwordDriveRequest('drive-token', email);
+  if (!data?.connected) return false;
+  const session = await getSession();
+  if (session?.user.email?.toLowerCase() !== email.toLowerCase()) throw new Error('Account changed. Drive restore cancelled.');
+  await installLinkedDriveSession(data, email);
+  return true;
+}
+setDrivePasswordProviders(async () => {
+  const session = await getSession();
+  return session?.user?.email && session.access_token ? { email: session.user.email, token: session.access_token } : null;
+}, async email => {
+  const data = await passwordDriveRequest('drive-token', email);
+  return data?.connected ? data as LinkedDriveSession : null;
+});
+
+export async function disconnectRememberedDrive() {
+  const headers = await getAuthHeaders();
+  const response = await fetch('/api/cloud-sync', {
+    method: 'POST', signal: AbortSignal.timeout(30000),
+    headers: { ...headers, 'X-Requested-With': 'PSXTracker' }, body: JSON.stringify({ action: 'drive-disconnect' }),
+  });
+  if (!response.ok) throw new Error('Could not disconnect the saved Drive connection. Please retry.');
+  clearDriveSession();
+}
+
+/** Checks the existing backup pointer using the password identity, without reading portfolio contents. */
+export async function getPasswordAccountBackupStatus(email: string): Promise<'saved' | 'unknown'> {
+  const session = await getSession();
+  if (!session?.access_token || session.user.email?.trim().toLowerCase() !== email.trim().toLowerCase()) {
+    throw new Error('Sign in to this account again to check its backup.');
+  }
+  const res = await fetch('/api/cloud-sync', {
+    method: 'POST', signal: AbortSignal.timeout(10000),
+    headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'head' }),
+  });
+  if (!res.ok) throw new Error('The backup check is temporarily unavailable. You can still connect Google Drive to load it.');
+  const head = await res.json();
+  if (!Number.isSafeInteger(head.revision) || head.revision < 0 || (head.fileId !== null && typeof head.fileId !== 'string')) {
+    throw new Error('The backup check could not be completed. Connect Google Drive to load your portfolio.');
+  }
+  // No versioned pointer may simply mean a legacy Drive backup, so never report "no portfolio".
+  return head.fileId ? 'saved' : 'unknown';
+}
 
 export const getAuthUser = async (): Promise<AppAuthUser | null> => {
   const { data } = await supabase.auth.getUser();
