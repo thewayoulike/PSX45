@@ -23,10 +23,16 @@ describe('cloudSyncHealth', () => {
   });
 
   it('maps syncing / error / synced / pending statuses', () => {
-    expect(syncHealthStatus({ isSyncing: true, error: null, lastSave: null, hasPending: false })).toBe('Saving…');
+    expect(syncHealthStatus({ isSyncing: true, error: null, lastSave: null, hasPending: false })).toBe('Syncing…');
     expect(syncHealthStatus({ isSyncing: false, error: 'fail', lastSave: 'x', hasPending: true })).toBe('Not synced');
     expect(syncHealthStatus({ isSyncing: false, error: null, lastSave: 'x', hasPending: false })).toBe('Synced');
     expect(syncHealthStatus({ isSyncing: false, error: null, lastSave: null, hasPending: true })).toBe('Pending');
     expect(syncHealthStatus({ isSyncing: false, error: null, lastSave: null, hasPending: false })).toBe('Not yet saved');
+  });
+  it('explains how to load another device’s newer backup instead of retrying a stale upload', () => {
+    const error = 'Another device saved a newer version. Download your changes, then load the cloud version to reconcile them.';
+    expect(shortenCloudError(error)).toContain('Load latest');
+    expect(shortenCloudError(error)).toContain('recovery copy');
+    expect(syncHealthStatus({ isSyncing: false, error, lastSave: null, hasPending: true })).toBe('Newer cloud copy');
   });
 });

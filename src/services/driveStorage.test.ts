@@ -167,7 +167,7 @@ describe('cloud save outcomes and recovery', () => {
     const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
     mockCloud(()=>response({},503));
     await service.preservePendingAndReloadCloud(); expect(reload).not.toHaveBeenCalled(); expect(service.getPendingCloud()).not.toBeNull();
-    mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:1,fileId:'remote-file'}) : response({marker:'remote'}));
+    mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:1,fileId:'remote-file'}) : response({transactions:[],portfolios:[],marker:'remote'}));
     await service.preservePendingAndReloadCloud();
     expect(reload).toHaveBeenCalledOnce(); expect(service.getPendingCloud()).toBeNull();
     const recovery=[...storage.entries()].find(([key])=>key.startsWith('psx_cloud_recovery:'));
@@ -200,5 +200,62 @@ describe('cloud save outcomes and recovery', () => {
     const reload=vi.fn();vi.stubGlobal('window',{location:{reload}});vi.stubGlobal('alert',vi.fn());
     mockCloud(url=>url.includes('/api/cloud-sync')?response({revision:0,fileId:null}):response({files:[]}));
     await service.preservePendingAndReloadCloud();expect(reload).not.toHaveBeenCalled();expect(service.getPendingCloud()?.data.marker).toBe('only-copy');
+  });
+  it('loads the phone backup after a web conflict and keeps both pending and current web edits', async () => {
+    const remote = {transactions:[{id:'phone-trade'}],portfolios:[{id:'main'}]};
+    storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'old-web',baseVersion:0,data:{transactions:[{id:'old-web-trade'}],portfolios:[]}}));
+    const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
+    mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:2,fileId:'phone-snapshot'}) : response(remote));
+    await expect(service.loadFromDrive()).rejects.toThrow('Another device');
+    expect(await service.preservePendingAndReloadCloud(() => ({transactions:[{id:'new-web-trade'}],portfolios:[]}))).toBe(true);
+    const recoveries=[...storage].filter(([key])=>key.startsWith('psx_cloud_recovery:')).map(([,value])=>JSON.parse(value).data);
+    expect(recoveries).toHaveLength(2);
+    expect(recoveries.map(data=>data.transactions[0].id).sort()).toEqual(['new-web-trade','old-web-trade']);
+    expect(reload).toHaveBeenCalledOnce();
+    expect(await service.loadFromDrive()).toEqual(remote);
+    expect(vi.mocked(fetch).mock.calls.every(([,init])=> !init?.body || JSON.parse(String(init.body)).action === 'head')).toBe(true);
+  });
+  it.each([null, {}, {transactions:[],portfolios:'broken'}])('keeps pending data if the remote backup is invalid: %j', async data => {
+    storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'web',data:{marker:'keep'}}));
+    const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
+    mockCloud(url=>url.includes('/api/cloud-sync')?response({revision:1,fileId:'remote-file'}):response(data));
+    expect(await service.preservePendingAndReloadCloud()).toBe(false);
+    expect(reload).not.toHaveBeenCalled(); expect(service.getPendingCloud()?.data.marker).toBe('keep');
+  });
+  it('stops loading latest if a local recovery copy cannot be stored', async () => {
+    storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'web',data:{marker:'keep'}}));
+    const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
+    mockCloud(url=>url.includes('/api/cloud-sync')?response({revision:1,fileId:'remote-file'}):response({transactions:[],portfolios:[]}));
+    vi.spyOn(localStorage,'setItem').mockImplementation(()=>{throw new Error('Storage full');});
+    expect(await service.preservePendingAndReloadCloud(()=>({transactions:[],portfolios:[]}))).toBe(false);
+    expect(reload).not.toHaveBeenCalled(); expect(service.getPendingCloud()?.data.marker).toBe('keep');
+  });
+  it('pauses new saves while loading latest and captures edits made during the download', async () => {
+    const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
+    let finish!:(value:Response)=>void, downloading=false, current='before';
+    mockCloud(async url=>{
+      if(url.includes('/api/cloud-sync')) return response({revision:1,fileId:'remote-file'});
+      downloading=true; return new Promise<Response>(resolve=>{finish=resolve;});
+    });
+    const loading=service.preservePendingAndReloadCloud(()=>({marker:current}));
+    await vi.waitFor(()=>expect(downloading).toBe(true));
+    expect((await service.saveToDrive({marker:'must-not-upload'})).ok).toBe(false);
+    expect(service.getPendingCloud()).toBeNull();
+    current='after'; finish(response({transactions:[],portfolios:[]}));
+    expect(await loading).toBe(true);
+    const recovery=[...storage].find(([key])=>key.endsWith(':current'));
+    expect(JSON.parse(recovery![1]).data.marker).toBe('after');
+  });
+  it('does not clear the next account’s pending data when switching during a cloud download', async () => {
+    storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'a',data:{marker:'keep-a'}}));
+    storage.set(pendingKey('b@example.com'),JSON.stringify({revision:'b',data:{marker:'keep-b'}}));
+    const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
+    mockCloud(url=>url.includes('/api/cloud-sync')?response({revision:1,fileId:'remote-file'}):({
+      ok:true,json:async()=>{await login('b@example.com');return {transactions:[],portfolios:[]};},
+    } as Response));
+    expect(await service.preservePendingAndReloadCloud()).toBe(false);
+    expect(reload).not.toHaveBeenCalled();
+    expect(storage.get(pendingKey('a@example.com'))).toContain('keep-a');
+    expect(service.getPendingCloud()?.data.marker).toBe('keep-b');
   });
 });
