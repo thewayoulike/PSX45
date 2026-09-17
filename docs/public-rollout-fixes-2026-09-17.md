@@ -1,6 +1,6 @@
 # PSX Tracker — rollout fixes and release checklist
 
-**Updated:** 17 September 2026. **Status:** earlier rollout fixes activated; the subsequent password-to-Drive integration is tested locally and its new server-only table is applied, but server secrets, deployment and live acceptance remain pending. See [remembered-drive activation](remembered-drive-activation-2026-09-17.md). The earlier database migrations, deployment and one authorized recovery email test were verified. No real portfolio/Drive write, WhatsApp message or new test account was created during these checks.
+**Updated:** 17 September 2026. **Status:** earlier rollout fixes activated; the subsequent password-to-Drive integration, server-only table and corrected server settings are deployed. Live configuration/origin checks pass and the Google client-secret error has cleared. Real Google approval and subsequent password-login acceptance remain pending. See [remembered-drive activation](remembered-drive-activation-2026-09-17.md). The earlier database migrations, deployment and one authorized recovery email test were verified. No real portfolio/Drive write, WhatsApp message or new test account was created during these checks.
 
 This follows the [16 September audit](public-rollout-audit-2026-09-16.md). That report records the original findings; it is not the current implementation status.
 

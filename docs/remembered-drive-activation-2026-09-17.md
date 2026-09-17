@@ -1,6 +1,13 @@
 # Password login → the same Google Drive portfolio
 
-Status: the connection table and implementation are deployed. The first live configuration check returned disabled because the owner used four digits for the encryption key. A valid random 32-byte Base64 key was generated locally in an ignored file, and the owner replaced the setting. The live configuration then returned `enabled: true`. The follow-up guard was pushed at `60c9370e` and prevents temporary-only password connections when server setup is invalid. A second live check found a server-origin mismatch; `APP_URL` was corrected to the canonical domain. Redeployment with that setting and a real Google/password round trip remain pending.
+Status: the connection table, implementation and corrected server settings are deployed. Production deployment `6ZzTeET8wWgWacrsPATUHxdnGXN8` is Ready, using commit `f66428921400237ad01bc2a342c9f5cd576692a5`. The owner replaced the invalid encryption key and then updated the Google client secret; `APP_URL` was corrected to the canonical domain. Live configuration and origin checks pass, and Google's client-credential error has cleared. A real Google authorization followed by password logout/login acceptance remains pending; automatic portfolio loading is not yet owner-confirmed.
+
+## Live activation evidence
+
+- `drive-config`: HTTP 200, `enabled: true`, matching public OAuth client ID. No secret values were read or returned.
+- Anonymous `drive-token` from the canonical origin: HTTP 401, as expected. An unrelated origin receives HTTP 403.
+- A deliberately invalid diagnostic authorization code previously returned the client-credential configuration error (HTTP 503). After the owner updated the secret and the agent redeployed, the same diagnostic reached Google's `invalid_grant` response (mapped to HTTP 409). This confirms the earlier client-secret error cleared; it does not prove a real user's permission or portfolio load.
+- The diagnostic used no user authorization code, accessed no portfolio, and created no remembered connection. One real Google approval is still needed for accounts whose older connection was never successfully retained.
 
 ## Behavior
 
@@ -18,7 +25,7 @@ Older Google connections used access tokens only. They cannot be converted into 
    - `DRIVE_TOKEN_ENCRYPTION_KEY`: 32 cryptographically random bytes encoded as Base64. Keep a secure backup. Replacing it later without re-encrypting saved rows would require users to reconnect.
 3. **Corrected in Vercel:** `APP_URL` is `https://www.psx-tracker.com`; it supplies the permitted browser origin and popup code-exchange redirect URI. `GOOGLE_CLIENT_ID` is optional if the existing `VITE_GOOGLE_CLIENT_ID` is available server-side. The canonical JavaScript origin and matching public client ID were verified in Google Cloud. Google publishing status is In production.
 4. In that same Google OAuth client, verify `https://www.psx-tracker.com` is an authorized JavaScript origin. This implementation uses Google's popup code flow; do not substitute the Supabase callback URL or enable a second Google provider. Review OAuth publishing/verification status: Google's Testing status can cause refresh permissions to expire after seven days for these scopes.
-5. Deploy the complete source change after the schema and settings are ready. A config request with action `drive-config` should return `enabled: true` and the public client ID, never secret values.
+5. **Completed:** deployed the complete source change and redeployed after the owner updated the Google secret. A config request with action `drive-config` returns `enabled: true` and the public client ID, never secret values. Complete the signed-in acceptance below before declaring this journey verified.
 
 To generate the encryption key privately in a local terminal, the owner can run:
 
