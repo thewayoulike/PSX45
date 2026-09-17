@@ -28,8 +28,8 @@ let driveSessionListener: ((user: DriveUser) => void | Promise<void>) | null = n
 let passwordSessionProvider: (() => Promise<{ email: string; token: string } | null>) | null = null;
 let linkedTokenProvider: ((email: string) => Promise<LinkedDriveSession | null>) | null = null;
 let linkedRefresh: { email: string; attempt: number; promise: Promise<string | null> } | null = null;
-let rememberedDriveConfig: { enabled: boolean; clientId?: string } | null = null;
-let rememberedConfigRequest: Promise<{ enabled: boolean; clientId?: string }> | null = null;
+let rememberedDriveConfig: { enabled: boolean; clientId?: string; error?: string } | null = null;
+let rememberedConfigRequest: Promise<{ enabled: boolean; clientId?: string; error?: string }> | null = null;
 let driveLoginAttempt = 0;
 export function setDrivePasswordProviders(session: typeof passwordSessionProvider, token: typeof linkedTokenProvider) {
     passwordSessionProvider = session; linkedTokenProvider = token;
@@ -41,7 +41,8 @@ export function getRememberedDriveConfig() {
     }).then(async response => {
         if (!response.ok) throw new Error('Drive connection check unavailable.');
         const config = await response.json();
-        rememberedDriveConfig = { enabled: config.enabled === true, clientId: config.clientId };
+        rememberedDriveConfig = { enabled: config.enabled === true, clientId: config.clientId, error: config.error };
+        if (!rememberedDriveConfig.enabled) rememberedConfigRequest = null;
         return rememberedDriveConfig;
     }).catch(error => { rememberedConfigRequest = null; throw error; });
     return rememberedConfigRequest;
@@ -191,6 +192,10 @@ export const signInWithDrive = (email?: string) => {
     if (!rememberedDriveConfig) {
         void getRememberedDriveConfig().catch(() => {});
         alert('Google sign-in is still preparing. Please try again in a moment.');
+        return;
+    }
+    if (expectedEmail && !rememberedDriveConfig.enabled) {
+        alert(rememberedDriveConfig.error || 'Remembered Drive access is unavailable. Please contact support before reconnecting.');
         return;
     }
     if (rememberedDriveConfig?.enabled && window.google?.accounts?.oauth2) {

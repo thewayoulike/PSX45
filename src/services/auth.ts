@@ -187,7 +187,7 @@ async function passwordDriveRequest(action: string, expectedEmail?: string) {
   const session = await getSession();
   if (!session?.access_token || !session.user?.email || (expectedEmail && session.user.email.toLowerCase() !== expectedEmail.toLowerCase())) return null;
   const config = await getRememberedDriveConfig();
-  if (!config.enabled) return null;
+  if (!config.enabled) throw new Error(config.error || 'Remembered Drive access is not enabled yet. Please contact support before reconnecting.');
   const response = await fetch('/api/cloud-sync', {
     method: 'POST', signal: AbortSignal.timeout(30000),
     headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'X-Requested-With': 'PSXTracker' },

@@ -1,6 +1,6 @@
 # Password login → the same Google Drive portfolio
 
-Status: implemented and tested locally; the production connection table is applied and its permissions verified. The owner saved both server secrets; their names and Production scope were verified without inspecting values. Deployment and a real Google/password round trip remain pending. Do not treat this document as evidence of a live login fix.
+Status: the connection table and initial implementation are deployed. The first live configuration check returned disabled because the owner used four digits for the encryption key. A valid random 32-byte Base64 key was generated locally in an ignored file, and the owner confirmed replacing the setting. The follow-up rejects temporary-only password connections when server setup is invalid and reports a specific configuration error. Deployment of that guard, a fresh configuration check and a real Google/password round trip remain pending.
 
 ## Behavior
 
@@ -41,7 +41,7 @@ Copy the result directly into the Vercel secret field. Do not commit it, include
 ## Local verification completed
 
 - TypeScript check passed.
-- Full test suite: 283 tests passed in 42 files, including 18 backend connection tests and new client/password regression cases.
+- Full test suite: 284 tests passed in 42 files, including 18 backend connection tests, client/password regressions and invalid-configuration behavior.
 - Production Vite build passed; existing chunk-size/dynamic-import advisory remains.
 - Migration applied twice in isolated PostgreSQL-compatible PGlite: idempotent, RLS enabled, anon/authenticated access denied, service role CRUD allowed.
 - Mobile preview at 390 × 844: fallback screen and Profile control readable in light/dark appearance. Google approval was not executed in the synthetic preview.

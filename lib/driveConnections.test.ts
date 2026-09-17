@@ -54,7 +54,7 @@ it('encrypts differently each time and binds ciphertext to both email and Google
 });
 it('public configuration reveals neither secrets nor credentials and disables incomplete setup',async()=>{
   expect((await run(req('drive-config'))).body).toEqual({enabled:true,clientId:'unit-client'});
-  vi.stubEnv('DRIVE_TOKEN_ENCRYPTION_KEY','');expect((await run(req('drive-config'))).body).toEqual({enabled:false});
+  vi.stubEnv('DRIVE_TOKEN_ENCRYPTION_KEY','1234');expect((await run(req('drive-config'))).body).toEqual({enabled:false,error:expect.stringContaining('32-byte random key')});
 });
 it('rejects foreign origins and missing CSRF headers before contacting Google',async()=>{
   const a=req('drive-token');a.headers.origin='https://foreign.invalid';expect((await run(a)).code).toBe(403);

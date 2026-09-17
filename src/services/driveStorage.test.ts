@@ -76,7 +76,7 @@ describe('cloud save outcomes and recovery', () => {
     expect(onLogin).toHaveBeenCalledWith(expect.objectContaining({email:'a@example.com'}));expect(storage.get('psx_drive_access_token')).toBe('linked-google-token');
     expect([...storage.keys()].some(k=>k.includes('refresh'))).toBe(false);
   });
-  it('hints the password email and rejects another Google account before changing the Drive identity', async () => {
+  it('blocks temporary-only Google linking from password login when remembered access is unavailable', async () => {
     let callback!:(response:any)=>Promise<void>;
     const requestAccessToken=vi.fn(), onLogin=vi.fn();
     vi.stubGlobal('alert',vi.fn());
@@ -85,22 +85,20 @@ describe('cloud save outcomes and recovery', () => {
     await vi.advanceTimersByTimeAsync(500);
     mockCloud(()=>response({enabled:false}));await service.getRememberedDriveConfig();
     service.signInWithDrive(' A@example.com ');
-    expect(requestAccessToken).toHaveBeenCalledWith({prompt:'',login_hint:'a@example.com'});
-    mockCloud(()=>response({email:'b@example.com',email_verified:true,name:'B'}));
-    await callback({access_token:'wrong-account-token',expires_in:3600});
+    expect(requestAccessToken).not.toHaveBeenCalled();
     expect(onLogin).not.toHaveBeenCalled();
     expect(storage.get('psx_drive_access_token')).toBe('test-token');
     expect(JSON.parse(storage.get('psx_drive_user_profile')!).email).toBe('a@example.com');
-    expect(alert).toHaveBeenCalledWith(expect.stringContaining('same Google account'));
+    expect(alert).toHaveBeenCalledWith(expect.stringContaining('before reconnecting'));
   });
-  it('connects the matching verified Google identity after password login', async () => {
+  it('legacy Google sign-in still verifies and normalizes the Google identity', async () => {
     let callback!:(response:any)=>Promise<void>;
     const onLogin=vi.fn();
     vi.stubGlobal('window',{google:{accounts:{oauth2:{initTokenClient:(options:any)=>{callback=options.callback;return {requestAccessToken:vi.fn()};}}}}});
     service.initDriveAuth(onLogin); onLogin.mockClear();
     await vi.advanceTimersByTimeAsync(500);
     mockCloud(()=>response({enabled:false}));await service.getRememberedDriveConfig();
-    service.signInWithDrive('a@example.com');
+    service.signInWithDrive();
     mockCloud(()=>response({email:'A@example.com',email_verified:true,name:'Existing member'}));
     await callback({access_token:'same-account-token',expires_in:3600});
     expect(onLogin).toHaveBeenCalledWith(expect.objectContaining({email:'a@example.com'}));

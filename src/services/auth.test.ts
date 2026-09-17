@@ -81,6 +81,12 @@ it('missing remembered permission shows the linking fallback, never an empty clo
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({connected:false,reason:'not-linked'}))));
   expect(await restorePasswordDriveSession('a@example.invalid')).toBe(false);expect(installLinkedDriveSession).not.toHaveBeenCalled();
 });
+it('invalid server setup reports its error instead of asking for a connection that cannot be remembered',async()=>{
+  mock.session.mockResolvedValue({data:{session:{access_token:'password-token',user:{email:'a@example.invalid'}}}});
+  vi.mocked(getRememberedDriveConfig).mockResolvedValue({enabled:false,error:'The server encryption key needs correction.'});
+  await expect(restorePasswordDriveSession('a@example.invalid')).rejects.toThrow('encryption key needs correction');
+  expect(installLinkedDriveSession).not.toHaveBeenCalled();
+});
 it('password setup links Drive while fresh email proof is available, then signs out',async()=>{
   mock.session.mockResolvedValue({data:{session:{access_token:'email-proof',user:{email:'a@example.invalid'}}}});
   mock.update.mockResolvedValue({error:null});vi.mocked(getRememberedDriveConfig).mockResolvedValue({enabled:true});
