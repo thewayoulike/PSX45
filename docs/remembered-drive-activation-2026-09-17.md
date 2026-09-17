@@ -1,6 +1,6 @@
 # Password login → the same Google Drive portfolio
 
-Status: the connection table and initial implementation are deployed. The first live configuration check returned disabled because the owner used four digits for the encryption key. A valid random 32-byte Base64 key was generated locally in an ignored file, and the owner confirmed replacing the setting. The follow-up rejects temporary-only password connections when server setup is invalid and reports a specific configuration error. Deployment of that guard, a fresh configuration check and a real Google/password round trip remain pending.
+Status: the connection table and implementation are deployed. The first live configuration check returned disabled because the owner used four digits for the encryption key. A valid random 32-byte Base64 key was generated locally in an ignored file, and the owner replaced the setting. The live configuration then returned `enabled: true`. The follow-up guard was pushed at `60c9370e` and prevents temporary-only password connections when server setup is invalid. A second live check found a server-origin mismatch; `APP_URL` was corrected to the canonical domain. Redeployment with that setting and a real Google/password round trip remain pending.
 
 ## Behavior
 
@@ -16,7 +16,7 @@ Older Google connections used access tokens only. They cannot be converted into 
 2. **Completed by owner:** both **Production server secrets** are saved in Vercel project `psx-45-naeh`. Values were not inspected. Never send the values in chat or prefix them with `VITE_`:
    - `GOOGLE_CLIENT_SECRET`: the secret for the existing Google **Web application OAuth client** whose ID is configured as `VITE_GOOGLE_CLIENT_ID`. Keep the same client so existing Drive files remain accessible.
    - `DRIVE_TOKEN_ENCRYPTION_KEY`: 32 cryptographically random bytes encoded as Base64. Keep a secure backup. Replacing it later without re-encrypting saved rows would require users to reconnect.
-3. Verify `APP_URL` is exactly `https://www.psx-tracker.com`; it supplies the permitted browser origin and popup code-exchange redirect URI. `GOOGLE_CLIENT_ID` is optional if the existing `VITE_GOOGLE_CLIENT_ID` is available server-side.
+3. **Corrected in Vercel:** `APP_URL` is `https://www.psx-tracker.com`; it supplies the permitted browser origin and popup code-exchange redirect URI. `GOOGLE_CLIENT_ID` is optional if the existing `VITE_GOOGLE_CLIENT_ID` is available server-side. The canonical JavaScript origin and matching public client ID were verified in Google Cloud. Google publishing status is In production.
 4. In that same Google OAuth client, verify `https://www.psx-tracker.com` is an authorized JavaScript origin. This implementation uses Google's popup code flow; do not substitute the Supabase callback URL or enable a second Google provider. Review OAuth publishing/verification status: Google's Testing status can cause refresh permissions to expire after seven days for these scopes.
 5. Deploy the complete source change after the schema and settings are ready. A config request with action `drive-config` should return `enabled: true` and the public client ID, never secret values.
 
@@ -41,7 +41,7 @@ Copy the result directly into the Vercel secret field. Do not commit it, include
 ## Local verification completed
 
 - TypeScript check passed.
-- Full test suite: 284 tests passed in 42 files, including 18 backend connection tests, client/password regressions and invalid-configuration behavior.
+- Full suite: 284 tests passed in 42 files. A subsequent Google client-credential error regression brings the total to 285; all 19 backend connection tests passed after that change. Client/password and invalid-configuration tests are included.
 - Production Vite build passed; existing chunk-size/dynamic-import advisory remains.
 - Migration applied twice in isolated PostgreSQL-compatible PGlite: idempotent, RLS enabled, anon/authenticated access denied, service role CRUD allowed.
 - Mobile preview at 390 × 844: fallback screen and Profile control readable in light/dark appearance. Google approval was not executed in the synthetic preview.

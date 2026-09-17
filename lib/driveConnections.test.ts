@@ -119,6 +119,11 @@ it('revoked permission returns a reconnect error without exposing Google diagnos
   vi.mocked(fetch).mockResolvedValueOnce(response({error:'invalid_grant',error_description:'private-provider-detail'},400));
   const r=await run(req('drive-token'));expect(r.code).toBe(409);expect(r.body.error).toContain('revoked');expect(JSON.stringify(r.body)).not.toContain('private-provider-detail');
 });
+it('invalid Google client credentials show a setup error without exposing credential values',async()=>{
+  vi.mocked(fetch).mockResolvedValueOnce(response({error:'invalid_client',error_description:'private-provider-detail'},401));
+  const r=await run(req('drive-connect',{}, {code:'authorization-code'}));expect(r.code).toBe(503);expect(r.body.error).toContain('client ID and client secret');
+  expect(JSON.stringify(r.body)).not.toContain('private-provider-detail');expect(mock.writes).toHaveLength(0);
+});
 it('a refreshed token with mismatched Google identity is not delivered',async()=>{
   vi.mocked(fetch).mockResolvedValueOnce(response({access_token:'access',expires_in:3600})).mockResolvedValueOnce(response({email,sub:'wrong-sub',email_verified:true}));
   expect((await run(req('drive-token'))).code).toBe(403);
