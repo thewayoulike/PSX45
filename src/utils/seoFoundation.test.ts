@@ -3,6 +3,8 @@ import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TRIAL_DAYS } from '../../config/product.js';
+import { guidePages } from '../../config/guidePages.js';
+import { homeJsonLdScriptTags, verificationMetaTag } from '../../lib/seoJsonLd.js';
 
 const root = process.cwd();
 
@@ -16,6 +18,13 @@ function read(rel: string): string {
   return readFileSync(join(root, rel), 'utf8');
 }
 
+function expandHome(html: string): string {
+  return html
+    .replaceAll('%TRIAL_DAYS%', String(TRIAL_DAYS))
+    .replaceAll('%SEO_JSON_LD%', homeJsonLdScriptTags())
+    .replaceAll('%GOOGLE_SITE_VERIFICATION_META%', verificationMetaTag());
+}
+
 describe('SEO foundation', () => {
   it('ships robots.txt that allows crawl and points at sitemap', () => {
     const robots = read('public/robots.txt');
@@ -24,14 +33,18 @@ describe('SEO foundation', () => {
     expect(robots).toContain('Sitemap: https://www.psx-tracker.com/sitemap.xml');
   });
 
-  it('ships sitemap.xml with the canonical homepage', () => {
+  it('ships sitemap.xml with homepage, legal pages and guides', () => {
     const sitemap = read('public/sitemap.xml');
     expect(sitemap).toContain('<urlset');
     expect(sitemap).toContain(`<loc>${CANONICAL}</loc>`);
+    expect(sitemap).toContain('<loc>https://www.psx-tracker.com/guides</loc>');
+    for (const slug of Object.keys(guidePages)) {
+      expect(sitemap).toContain(`<loc>https://www.psx-tracker.com/guides/${slug}</loc>`);
+    }
   });
 
-  it('index.html has title, description, canonical, robots, and social tags', () => {
-    const html = read('index.html').replaceAll('%TRIAL_DAYS%', String(TRIAL_DAYS));
+  it('index.html has title, description, canonical, robots, social tags and JSON-LD', () => {
+    const html = expandHome(read('index.html'));
     expect(html).toContain(`<title>${TITLE}</title>`);
     expect(html).toContain(`content="${DESCRIPTION}"`);
     expect(html).toContain(`rel="canonical" href="${CANONICAL}"`);
@@ -45,6 +58,9 @@ describe('SEO foundation', () => {
     expect(html).toContain(`name="twitter:title" content="${TITLE}"`);
     expect(html).toContain(`name="twitter:description" content="${DESCRIPTION}"`);
     expect(html).toContain(`name="twitter:image" content="${OG_IMAGE}"`);
+    expect(html).toContain('application/ld+json');
+    expect(html).toContain('FAQPage');
+    expect(html).toContain('href="/guides"');
   });
 
   it('keeps src/index.html identical to root index.html', () => {
