@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Transaction, FoundDividend, DividendAnnouncement } from '../types';
-import { fetchDividends } from '../services/gemini';
 import { fetchDividendsForScan } from '../services/financials';
 import { Coins, Loader2, CheckCircle, Calendar, Search, X, History, Sparkles, Building2, Clock, RefreshCw, AlertCircle } from 'lucide-react';
 
@@ -48,6 +47,7 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
           try {
               announcements = await fetchDividendsForScan(months);
           } catch (sheetErr) {
+              const { fetchDividends } = await import('../services/gemini');
               announcements = await fetchDividends(tickers, months);
           }
 

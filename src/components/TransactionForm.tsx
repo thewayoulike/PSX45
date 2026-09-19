@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade, PortfolioType } from '../types';
 import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon, Info, BookOpen } from 'lucide-react';
 import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
-import { parseTradeDocument, parseFundBalanceDocument } from '../services/gemini';
 import { fundScanToTrades } from '../services/fundImport';
 import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
 import { exportToCSV } from '../utils/export';
@@ -14,7 +13,6 @@ import { MutualFundRecord } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { formatTransactionLabel } from '../utils/fundDisplay';
 import { dpFundNav, dpFundUnits, fmtFundNav, fmtFundUnits, roundFundNav, roundFundUnits } from '../utils/fundFormat';
-import * as XLSX from 'xlsx';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
@@ -441,7 +439,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       } 
   };
   
-  const handleImportFile = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { const data = await selectedFile.arrayBuffer(); const workbook = XLSX.read(data); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); const trades: EditableTrade[] = jsonData.map((row: any) => { const comm = getRowValue(row, ['Commission', 'Comm', 'Brokerage', 'Trading Fee']); const tax = getRowValue(row, ['Tax', 'SST', 'WHT', 'Sales Tax', 'Govt Tax']); const cdc = getRowValue(row, ['CDC Charges', 'CDC', 'CDC Fee', 'Regulatory Fee', 'Reg Fee']); const other = getRowValue(row, ['Other Fees', 'Other', 'FED', 'Service Charges', 'Misc', 'Tax 2']); const price = getRowValue(row, ['Price', 'Rate', 'Exec Price']); const qty = getRowValue(row, ['Quantity', 'Qty', 'Volume']); const type = row['Type'] ? row['Type'].toString().toUpperCase() : 'BUY'; const ticker = row['Ticker'] ? row['Ticker'].toString().toUpperCase() : row['Symbol'] ? row['Symbol'].toString().toUpperCase() : ''; const dateVal = row['Date'] || row['Trade Date']; return { date: normalizeDate(dateVal), type, ticker, broker: row['Broker'], quantity: qty || 0, price: dp2(price), commission: dp2(comm), tax: dp2(tax), cdcCharges: dp2(cdc), otherFees: dp2(other), brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id }; }).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0); if (trades.length === 0) throw new Error("No valid trades found. Please check column headers."); updateScannedTrades(trades); } catch (e: any) { setScanError("Failed to parse file. Ensure it is a valid Excel/CSV."); } finally { setIsScanning(false); } };
+  const handleImportFile = async () => { if (!selectedFile) return; setIsScanning(true); setScanError(null); updateScannedTrades([]); try { const XLSX = await import('xlsx'); const data = await selectedFile.arrayBuffer(); const workbook = XLSX.read(data); const worksheet = workbook.Sheets[workbook.SheetNames[0]]; const jsonData = XLSX.utils.sheet_to_json(worksheet); const trades: EditableTrade[] = jsonData.map((row: any) => { const comm = getRowValue(row, ['Commission', 'Comm', 'Brokerage', 'Trading Fee']); const tax = getRowValue(row, ['Tax', 'SST', 'WHT', 'Sales Tax', 'Govt Tax']); const cdc = getRowValue(row, ['CDC Charges', 'CDC', 'CDC Fee', 'Regulatory Fee', 'Reg Fee']); const other = getRowValue(row, ['Other Fees', 'Other', 'FED', 'Service Charges', 'Misc', 'Tax 2']); const price = getRowValue(row, ['Price', 'Rate', 'Exec Price']); const qty = getRowValue(row, ['Quantity', 'Qty', 'Volume']); const type = row['Type'] ? row['Type'].toString().toUpperCase() : 'BUY'; const ticker = row['Ticker'] ? row['Ticker'].toString().toUpperCase() : row['Symbol'] ? row['Symbol'].toString().toUpperCase() : ''; const dateVal = row['Date'] || row['Trade Date']; return { date: normalizeDate(dateVal), type, ticker, broker: row['Broker'], quantity: qty || 0, price: dp2(price), commission: dp2(comm), tax: dp2(tax), cdcCharges: dp2(cdc), otherFees: dp2(other), brokerId: brokers.find(b => b.name.toLowerCase() === (row['Broker'] || '').toLowerCase())?.id }; }).filter((t: any) => t.ticker && t.quantity > 0 && t.price > 0); if (trades.length === 0) throw new Error("No valid trades found. Please check column headers."); updateScannedTrades(trades); } catch (e: any) { setScanError("Failed to parse file. Ensure it is a valid Excel/CSV."); } finally { setIsScanning(false); } };
   
   const handleProcessScan = async () => { 
       if (!selectedFile) return; 
@@ -454,6 +452,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       try { 
           if (isFundPortfolio && mode === 'AI_SCAN') {
               try { localStorage.setItem('psx_fund_scan_instructions', fundScanInstructions); } catch { /* ignore */ }
+              const { parseFundBalanceDocument } = await import('../services/gemini');
               const scan = await parseFundBalanceDocument(selectedFile, { customInstructions: fundScanInstructions });
               const hasHoldings = (scan.holdings?.length || 0) > 0;
               const hasFlows = (scan.cashFlows?.length || 0) > 0;
@@ -486,7 +485,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
           let trades: ParsedTrade[] = []; 
           if (mode === 'AI_SCAN') { 
-              trades = await parseTradeDocument(selectedFile); 
+              const { parseTradeDocument } = await import('../services/gemini');
+              trades = await parseTradeDocument(selectedFile);
           } else { 
               const res = await parseTradeDocumentOCRSpace(selectedFile); 
               trades = res.trades; 

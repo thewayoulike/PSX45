@@ -1,7 +1,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ParsedTrade, DividendAnnouncement } from '../types';
 import type { FundBalanceScan } from './fundImport';
-import * as XLSX from 'xlsx';
 
 import { getGeminiConfig } from './geminiConfig';
 export { setGeminiApiKey } from './geminiConfig';
@@ -222,13 +221,14 @@ const getAi = (): GoogleGenAI | null => {
 const readSpreadsheetAsText = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (e) => {
             try {
                 const data = e.target?.result;
                 if (!data) return reject("Empty file");
                 if (file.name.toLowerCase().endsWith('.csv')) {
                     resolve(data as string);
                 } else {
+                    const XLSX = await import('xlsx');
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
