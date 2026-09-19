@@ -3,29 +3,29 @@ import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Portfol
 import { setCanSaveAlerts } from '../services/alertAccess';
 import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
-import { AllocationChart } from './AllocationChart';
-import { PerformanceChart } from './PerformanceChart';
+const AllocationChart = lazy(() => import('./AllocationChart').then(m => ({ default: m.AllocationChart })));
+const PerformanceChart = lazy(() => import('./PerformanceChart').then(m => ({ default: m.PerformanceChart })));
 const RealizedTable = lazy(() => import('./RealizedTable').then(m => ({ default: m.RealizedTable })));
 import { TransactionList } from './TransactionList';
 import { PortfolioSummary } from './PortfolioSummary';
 import { TopHoldings } from './TopHoldings';
 import { IndexBar } from './IndexBar';
-import { BenchmarkPanel } from './BenchmarkPanel';
+const BenchmarkPanel = lazy(() => import('./BenchmarkPanel').then(m => ({ default: m.BenchmarkPanel })));
 const AiAgent = lazy(() => import('./AiAgent').then(m => ({ default: m.AiAgent })));
 import { Watchlist } from './Watchlist';
 import { UpcomingDividends } from './UpcomingDividends';
 import { TopMovers } from './TopMovers';
 import { BoardMeetings } from './BoardMeetings';
-import { DashboardGrid } from './DashboardGrid';
-import { DashboardCustomizer } from './DashboardCustomizer';
+const DashboardGrid = lazy(() => import('./DashboardGrid').then(m => ({ default: m.DashboardGrid })));
+const DashboardCustomizer = lazy(() => import('./DashboardCustomizer').then(m => ({ default: m.DashboardCustomizer })));
 const AdminUsers = lazy(() => import('./AdminUsers').then(m => ({ default: m.AdminUsers })));
 import { DashboardLayout, DashboardLayoutsByType, normalizeLayoutsByType, DEFAULT_LAYOUTS_BY_TYPE, defaultLayoutFor, applyPortfolioToLayout, PSX_ONLY_CARD_IDS } from './dashboard';
 const TransactionForm = lazy(() => import('./TransactionForm').then(m => ({ default: m.TransactionForm })));
-import { BrokerManager } from './BrokerManager';
-import { PriceEditor } from './PriceEditor';
+const BrokerManager = lazy(() => import('./BrokerManager').then(m => ({ default: m.BrokerManager })));
+const PriceEditor = lazy(() => import('./PriceEditor').then(m => ({ default: m.PriceEditor })));
 const DividendScanner = lazy(() => import('./DividendScanner').then(m => ({ default: m.DividendScanner })));
 const UpcomingEventsScanner = lazy(() => import('./UpcomingEventsScanner').then(m => ({ default: m.UpcomingEventsScanner })));
-import { ApiKeyManager } from './ApiKeyManager';
+const ApiKeyManager = lazy(() => import('./ApiKeyManager').then(m => ({ default: m.ApiKeyManager })));
 import { LoginPage } from './LoginPage';
 import { DriveConnectionGate } from './DriveConnectionGate';
 const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.ProfilePage })));
@@ -2915,7 +2915,8 @@ const App: React.FC = () => {
           </div>
       )}
 
-      <TransactionForm
+      {showAddModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
+          <TransactionForm
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           onAddTransaction={handleAddTransaction}
@@ -2932,9 +2933,13 @@ const App: React.FC = () => {
           savedScannedTrades={tradeScanResults}
           onSaveScannedTrades={handleUpdateTradeScanResults}
       />
-      <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
+      </Suspense>}
+      {showBrokerManager && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
+          <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
+      </Suspense>}
 
-      <ApiKeyManager
+      {showApiKeyManager && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
+          <ApiKeyManager
           isOpen={showApiKeyManager}
           onClose={() => setShowApiKeyManager(false)}
           apiKey={userApiKey}
@@ -2943,9 +2948,13 @@ const App: React.FC = () => {
           onSave={handleSaveApiKey}
           isDriveConnected={!!driveUser}
       />
-      <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
+      </Suspense>}
+      {showPriceEditor && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
+          <PriceEditor isOpen={showPriceEditor} onClose={() => setShowPriceEditor(false)} holdings={holdings} onUpdatePrices={handleUpdatePrices} />
+      </Suspense>}
 
-      <DividendScanner
+      {showDividendScanner && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
+          <DividendScanner
           key={currentPortfolioId}
           isOpen={showDividendScanner}
           onClose={() => setShowDividendScanner(false)}
@@ -2955,12 +2964,15 @@ const App: React.FC = () => {
           savedResults={scannerState[currentPortfolioId] || []}
           onSaveResults={handleScannerUpdate}
       />
-      <UpcomingEventsScanner
+      </Suspense>}
+      {showUpcomingScanner && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
+          <UpcomingEventsScanner
           isOpen={showUpcomingScanner}
           onClose={() => setShowUpcomingScanner(false)}
           holdings={holdings}
           watchlist={watchlist}
       />
+      </Suspense>}
       <TransferModal
           isOpen={showTransferModal}
           onClose={() => setShowTransferModal(false)}

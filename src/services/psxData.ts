@@ -1,3 +1,4 @@
+import { cachedMarketFetch, mapConcurrent } from './marketCache';
 import { SECTOR_CODE_MAP } from './sectors';
 import { formatDatePK } from '../utils/dates';
 
@@ -23,8 +24,8 @@ export const getWebScrapingAIKey = () => userWebScrapingAIKey;
 
 // FREE PROXIES (Tried First)
 const FREE_PROXIES = [
-    (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}&t=${Date.now()}`,
-    (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}&t=${Date.now()}`,
+    (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+    (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
     (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}&_t=${Date.now()}`,
     (url: string) => `https://thingproxy.freeboard.io/fetch/${url}?t=${Date.now()}`,
 ];
@@ -39,7 +40,7 @@ const getShuffledFreeProxies = () => {
     return array;
 };
 
-const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout = 10000) => {
+const fetchWithTimeout = (url: string, options: RequestInit = {}, timeout = 10000) => cachedMarketFetch(url, async () => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     try {
@@ -50,13 +51,13 @@ const fetchWithTimeout = async (url: string, options: RequestInit = {}, timeout 
         clearTimeout(id);
         throw error;
     }
-};
+});
 
 export const fetchUrlWithFallback = async (targetUrl: string, minLength = 500): Promise<string | null> => {
     
     // 1. THE ULTIMATE FIX: Try your own Vercel Serverless Proxy first
     try {
-        const vercelProxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}&t=${Date.now()}`;
+        const vercelProxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
         const response = await fetchWithTimeout(vercelProxyUrl, {}, 10000);
         if (response.ok) {
             const text = await response.text();
@@ -179,7 +180,7 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
     const clean = symbol.toUpperCase().replace('PSX:', '').trim();
     if (!clean) return [];
     try {
-        const res = await fetchWithTimeout(`/api/proxy?ohlc=${encodeURIComponent(clean)}&t=${Date.now()}`, {}, 45000);
+        const res = await fetchWithTimeout(`/api/proxy?ohlc=${encodeURIComponent(clean)}`, {}, 45000);
         if (!res.ok) throw new Error(`ohlc ${res.status}`);
         const json = await res.json();
         if (json?.error) throw new Error(json.error);
@@ -266,18 +267,19 @@ export const fetchPypsxQuotes = async (symbols: string[]): Promise<Record<string
         symbols
             .map(s => (s || '').toUpperCase().replace(/^PSX:/, '').trim())
             .filter(s => s && !s.startsWith('MF:'))
-    )];
+    )].sort();
     if (unique.length === 0) return {};
     if (unique.length > 20) {
         const result: Record<string, number> = {};
-        for (let i = 0; i < unique.length; i += 20) Object.assign(result, await fetchPypsxQuotes(unique.slice(i, i + 20)));
+        const batches: string[][] = [];
+        for (let i = 0; i < unique.length; i += 20) batches.push(unique.slice(i, i + 20));
+        for (const batch of await mapConcurrent(batches, 3, fetchPypsxQuotes)) Object.assign(result, batch);
         return result;
     }
     try {
         const qs = new URLSearchParams({
             mode: 'quotes',
             symbols: unique.join(','),
-            t: String(Date.now()),
         });
         const res = await fetchWithTimeout(`/api/pypsx?${qs.toString()}`, {}, 60000);
         const json = await res.json().catch(() => ({}));
@@ -293,7 +295,7 @@ export const fetchPypsxQuotes = async (symbols: string[]): Promise<Record<string
 /** Refresh KSE-100 / KMI-30 constituents from pypsx (no API key). */
 export const fetchPypsxIndexSymbols = async (): Promise<{ KSE100?: string[]; KMI30?: string[] }> => {
     try {
-        const qs = new URLSearchParams({ mode: 'indices', t: String(Date.now()) });
+        const qs = new URLSearchParams({ mode: 'indices' });
         const res = await fetchWithTimeout(`/api/pypsx?${qs.toString()}`, {}, 30000);
         const json = await res.json().catch(() => ({}));
         if (!res.ok || json?.error) return {};
@@ -322,7 +324,7 @@ export const fetchLatestCloses = async (
         symbols
             .map(s => (s || '').toUpperCase().replace(/^PSX:/, '').trim())
             .filter(s => s && !s.startsWith('MF:'))
-    )];
+    )].sort();
     const out: Record<string, number> = {};
     if (unique.length === 0) return out;
 
@@ -358,7 +360,7 @@ export const fetchChartAnalysis = async (
     if (!clean) return [];
     try {
         const res = await fetchWithTimeout(
-            `/api/proxy?analysis=${encodeURIComponent(clean)}&period=${encodeURIComponent(period)}&t=${Date.now()}`,
+            `/api/proxy?analysis=${encodeURIComponent(clean)}&period=${encodeURIComponent(period)}`,
             {},
             60000
         );
