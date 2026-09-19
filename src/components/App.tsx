@@ -44,7 +44,7 @@ import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
 import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, fetchPypsxQuotes, fetchPypsxIndexSymbols, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
-import { mergePriceOverlays } from '../utils/priceOverlay';
+import { progressivePrices, marketPollDelay } from '../services/progressivePrices';
 import { stocksPathForTicker, tickerFromStocksPath, normalizeStockDeepLink } from '../utils/stocksPath';
 import { applyIndexConstituents } from '../services/indices';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
@@ -52,6 +52,7 @@ import { isFundTicker } from '../utils/fundId';
 import { formatTransactionLabel } from '../utils/fundDisplay';
 import { OfflinePortfolio } from './OfflinePortfolio';
 import { shouldPersistPortfolio } from '../utils/portfolioPersistence';
+import { createSliceWriter, mergeChanged } from '../utils/slicePersistence';
 import { preparePortfolioAccount } from '../utils/localAccount';
 import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
@@ -70,7 +71,7 @@ import { ThemeToggle } from './ui/ThemeToggle';
 const HowItWorksPage = React.lazy(() => import('./HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
 import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState } from '../services/driveStorage';
 import { AppLoading } from './AppLoading';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
@@ -206,6 +207,19 @@ const App: React.FC = () => {
   const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
   const [lastCloudSave, setLastCloudSave] = useState<string | null>(null);
   const [cloudRetryTick, setCloudRetryTick] = useState(0);
+  const [manualPriceEditTick, setManualPriceEditTick] = useState(0);
+  const sliceWriter = useRef<ReturnType<typeof createSliceWriter>>();
+  if (!sliceWriter.current) sliceWriter.current = createSliceWriter(localStorage);
+  const sheetInputs = useRef<{ transactions: Transaction[]; portfolios: Portfolio[] } | null>(null);
+  const [sheetExportState, setSheetExportState] = useState(getSheetExportState);
+  useEffect(() => {
+      const update = () => { setSheetExportState(getSheetExportState()); };
+      const retry = () => { if (document.visibilityState !== 'hidden') retrySheetExport(); };
+      window.addEventListener('psx-sheet-export', update);
+      window.addEventListener('online', retry);
+      document.addEventListener('visibilitychange', retry);
+      return () => { window.removeEventListener('psx-sheet-export', update); window.removeEventListener('online', retry); document.removeEventListener('visibilitychange', retry); };
+  }, []);
   const [pendingCloud, setPendingCloud] = useState<PendingCloud | null>(null);
   const cloudRevision = useRef(0);
   const [stocksFocusTicker, setStocksFocusTicker] = useState<string | null>(() => absorbStockDeepLink());
@@ -464,6 +478,7 @@ const App: React.FC = () => {
   const skipHydrationSave = useRef(false);
   const isLoadingLatestCloud = useRef(false);
   const initialSyncDone = useRef(false);
+  const priceSyncRun = useRef<{ email: string | null; id: symbol } | null>(null);
   const initialFundSyncDone = useRef(false);
   const loadedEmailRef = useRef<string | null>(null); // which Google account's data is currently loaded
   const skipPersistRef = useRef(false);
@@ -496,6 +511,7 @@ const App: React.FC = () => {
       initialSyncDone.current = false;
       initialFundSyncDone.current = false;
       loadedEmailRef.current = null;
+      priceSyncRun.current = null;
       setTransactions([]);
       setPortfolios([DEFAULT_PORTFOLIO]);
       setCurrentPortfolioId(DEFAULT_PORTFOLIO.id);
@@ -772,6 +788,7 @@ const App: React.FC = () => {
               applyCloudSnapshot(cloudData);
               if (cloudData?.lastModified && !getPendingCloud()) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
+              retrySheetExport();
               setPendingCloud(getPendingCloud());
           } catch (e) {
               setCloudSyncError(e instanceof Error ? e.message : 'Could not load your backup. Reload to retry before saving changes.');
@@ -1100,7 +1117,7 @@ const App: React.FC = () => {
       }
   };
   const handleEditClick = (tx: Transaction) => { setEditingTransaction(tx); setShowAddModal(true); };
-  const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
+  const handleUpdatePrices = (newPrices: Record<string, number>) => { setManualPriceEditTick(v => v + 1); setManualPrices(prev => ({ ...prev, ...newPrices })); const now = new Date().toISOString(); const newTimestamps: Record<string, string> = {}; Object.keys(newPrices).forEach(k => newTimestamps[k] = now); setPriceTimestamps(prev => ({ ...prev, ...newTimestamps })); };
   const handleScannerUpdate = (results: FoundDividend[]) => { setScannerState(prev => ({ ...prev, [currentPortfolioId]: results })); };
   const handleUpdateTradeScanResults = (results: EditableTrade[]) => { setTradeScanResults(results); };
   const openCreatePortfolioModal = () => {
@@ -1170,111 +1187,46 @@ const App: React.FC = () => {
   const handleSelectAllPortfolios = () => { setCombinedPortfolioIds(new Set(portfolios.map(p => p.id))); };
 
   const handleSyncPrices = useCallback(async () => {
-      // 1) Market-watch: whole board (LDCP, sector, listedIn, baseline).
-      // 2) Chart OHLC last-close for holdings/watchlist (backup / fresher close).
-      // 3) pypsx.get_quote overlay for holdings/watchlist (preferred when keys work).
-      setIsSyncing(true);
-      setPriceError(false);
-      setFailedTickers(new Set());
-
+      const email = loadedEmailRef.current;
+      if (priceSyncRun.current?.email === email) return;
+      const run = { email, id: Symbol() };
+      priceSyncRun.current = run;
+      const current = () => priceSyncRun.current === run && loadedEmailRef.current === email;
+      const tickers = [...new Set([...holdings.map(h => h.ticker), ...watchlist].filter(t => t && !isFundTicker(t)))];
+      setIsSyncing(true); setPriceError(false); setFailedTickers(new Set());
+      // Index membership is independent of showing a usable quote.
+      void fetchPypsxIndexSymbols().then(data => { if (loadedEmailRef.current === email) applyIndexConstituents(data); }).catch(() => {});
       try {
-          const newResults = await fetchAllPSXPrices();
-          const marketTickers = Object.keys(newResults);
-          console.log(`[App.tsx] PSX market sync: ${marketTickers.length} symbols`);
-
-          const validUpdates: Record<string, number> = {};
-          const ldcpUpdates: Record<string, number> = {};
-          const newSectors: Record<string, string> = {};
-          const listedInUpdates: Record<string, string> = {};
-          const now = new Date().toISOString();
-          const timestampUpdates: Record<string, string> = {};
-
-          marketTickers.forEach(ticker => {
-              const data = newResults[ticker];
-              if (data && data.price > 0) {
-                  validUpdates[ticker] = data.price;
-                  timestampUpdates[ticker] = now;
-                  if (data.ldcp > 0) ldcpUpdates[ticker] = data.ldcp;
-                  if (data.sector && data.sector !== 'Unknown Sector') {
-                      newSectors[ticker] = data.sector;
+          const prices = await progressivePrices({
+              baseline: fetchAllPSXPrices,
+              pricesFromBaseline: data => Object.fromEntries(Object.entries(data).filter(([, d]) => d.price > 0).map(([t, d]) => [t, d.price])),
+              closes: () => fetchLatestCloses(tickers),
+              quotes: () => fetchPypsxQuotes(tickers),
+              current,
+              publish: (prices, baseline) => {
+                  if (Object.keys(prices).length) {
+                      const now = new Date().toISOString();
+                      setManualPrices(prev => ({ ...prev, ...prices }));
+                      setPriceTimestamps(prev => ({ ...prev, ...Object.fromEntries(Object.keys(prices).map(t => [t, now])) }));
                   }
-                  if (data.listedIn) {
-                      listedInUpdates[ticker] = data.listedIn;
+                  if (baseline) {
+                      const ldcp: Record<string, number> = {}, sectors: Record<string, string> = {}, listed: Record<string, string> = {};
+                      for (const [ticker, data] of Object.entries(baseline)) {
+                          if (data.ldcp > 0) ldcp[ticker] = data.ldcp;
+                          if (data.sector && data.sector !== 'Unknown Sector') sectors[ticker] = data.sector;
+                          if (data.listedIn) listed[ticker] = data.listedIn;
+                      }
+                      if (Object.keys(ldcp).length) setLdcpMap(prev => ({ ...prev, ...ldcp }));
+                      if (Object.keys(sectors).length) setSectorOverrides(prev => mergeChanged(prev, sectors));
+                      if (Object.keys(listed).length) setListedInMap(prev => mergeChanged(prev, listed));
                   }
-              }
+              },
           });
-
-          const heldTickers = holdings
-              .map(h => h.ticker)
-              .filter(t => t && !isFundTicker(t));
-          const watchTickers = (watchlist || []).filter(t => t && !isFundTicker(t));
-          const preferLive = [...new Set([...heldTickers, ...watchTickers])];
-
-          let ohlcCloses: Record<string, number> = {};
-          let quoteCloses: Record<string, number> = {};
-
-          if (preferLive.length > 0) {
-              try {
-                  ohlcCloses = await fetchLatestCloses(preferLive);
-                  console.log(`[App.tsx] Chart OHLC overlay: ${Object.keys(ohlcCloses).length}/${preferLive.length}`);
-              } catch (e) {
-                  console.warn('[App.tsx] OHLC overlay failed — keeping market-watch prices', e);
-              }
-              try {
-                  quoteCloses = await fetchPypsxQuotes(preferLive);
-                  console.log(`[App.tsx] pyPSX quote overlay: ${Object.keys(quoteCloses).length}/${preferLive.length}`);
-              } catch (e) {
-                  console.warn('[App.tsx] pyPSX quotes failed — using market-watch/OHLC backup', e);
-              }
-          }
-
-          // market-watch → OHLC → get_quote (quote wins when present)
-          const merged = mergePriceOverlays(validUpdates, ohlcCloses, quoteCloses);
-          Object.entries(merged).forEach(([ticker, price]) => {
-              if (price > 0) {
-                  validUpdates[ticker] = price;
-                  timestampUpdates[ticker] = now;
-              }
-          });
-
-          // Best-effort index constituent refresh (no key required).
-          try {
-              const idx = await fetchPypsxIndexSymbols();
-              applyIndexConstituents(idx);
-          } catch (e) {
-              console.warn('[App.tsx] index constituents refresh skipped', e);
-          }
-
-          if (Object.keys(validUpdates).length > 0) {
-              setManualPrices(prev => ({ ...prev, ...validUpdates }));
-              setLdcpMap(prev => ({ ...prev, ...ldcpUpdates }));
-              setPriceTimestamps(prev => ({ ...prev, ...timestampUpdates }));
-          }
-
-          if (Object.keys(newSectors).length > 0) {
-              setSectorOverrides(prev => ({ ...prev, ...newSectors }));
-          }
-
-          if (Object.keys(listedInUpdates).length > 0) {
-              setListedInMap(prev => ({ ...prev, ...listedInUpdates }));
-          }
-
-          if (marketTickers.length === 0) {
-              setPriceError(true);
-          } else {
-              const failedHoldings = new Set(
-                  holdings.map(h => h.ticker).filter(t => t && !(validUpdates[t] > 0))
-              );
-              if (failedHoldings.size > 0) {
-                  setFailedTickers(failedHoldings);
-                  setPriceError(true);
-              }
-          }
-      } catch (e) {
-          console.error(e);
-          setPriceError(true);
+          if (!current()) return;
+          const failed = new Set(holdings.map(h => h.ticker).filter(t => !isFundTicker(t) && !(prices[t] > 0)));
+          setFailedTickers(failed); setPriceError(!Object.keys(prices).length || failed.size > 0);
       } finally {
-          setIsSyncing(false);
+          if (current()) { priceSyncRun.current = null; setIsSyncing(false); }
       }
   }, [holdings, watchlist]);
 
@@ -1394,19 +1346,25 @@ const App: React.FC = () => {
       }
   }, [holdings, priceTimestamps, fundNavDayMap]);
 
+  const refreshPricesRef = useRef(handleSyncPrices);
+  refreshPricesRef.current = handleSyncPrices;
+  const hasStockHoldings = holdings.some(h => !isFundTicker(h.ticker));
   useEffect(() => {
-      if (!driveUser || holdings.length === 0) return;
-      const psxHoldings = holdings.filter(h => !isFundTicker(h.ticker));
-      if (psxHoldings.length === 0) return;
-      if (!initialSyncDone.current) {
-          handleSyncPrices();
-          initialSyncDone.current = true;
-      }
+      if (!driveUser || !hasStockHoldings) return;
+      let last = 0;
+      const refresh = () => {
+          if (document.visibilityState === 'hidden' || !navigator.onLine || Date.now() - last < 60000) return;
+          last = Date.now();
+          void refreshPricesRef.current();
+      };
+      if (!initialSyncDone.current) { refresh(); initialSyncDone.current = true; }
       const interval = setInterval(() => {
-          handleSyncPrices();
-      }, 60 * 1000);
-      return () => clearInterval(interval);
-  }, [driveUser, holdings.length, handleSyncPrices]);
+          if (Date.now() - last >= marketPollDelay()) refresh();
+      }, 60000);
+      window.addEventListener('online', refresh);
+      document.addEventListener('visibilitychange', refresh);
+      return () => { clearInterval(interval); window.removeEventListener('online', refresh); document.removeEventListener('visibilitychange', refresh); };
+  }, [driveUser?.email, hasStockHoldings]);
 
   useEffect(() => {
       const hasFundHoldings = holdings.some(h => isFundTicker(h.ticker));
@@ -1809,33 +1767,34 @@ const App: React.FC = () => {
       if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) return;
       if (driveUser && !isReadyToSave.current) return;
       if (shouldPersistPortfolio({ signedIn: !!driveUser || sbApproved, checking: isAuthChecking || sbChecking, skip: skipPersistRef.current })) {
-          localStorage.setItem('psx_transactions', JSON.stringify(transactions));
-          localStorage.setItem('psx_portfolios', JSON.stringify(portfolios));
-          localStorage.setItem('psx_current_portfolio_id', currentPortfolioId);
-          localStorage.setItem('psx_manual_prices', JSON.stringify(manualPrices));
-          localStorage.setItem('psx_ldcp_map', JSON.stringify(ldcpMap));
-          localStorage.setItem('psx_listed_in_map', JSON.stringify(listedInMap));
-          localStorage.setItem('psx_price_timestamps', JSON.stringify(priceTimestamps));
-          localStorage.setItem('psx_brokers', JSON.stringify(brokers));
-          localStorage.setItem('psx_sector_overrides', JSON.stringify(sectorOverrides));
-          localStorage.setItem('psx_fund_catalog', JSON.stringify(fundCatalog));
-          localStorage.setItem('psx_scanner_state', JSON.stringify(scannerState));
-          localStorage.setItem('psx_trade_scan_results', JSON.stringify(tradeScanResults));
-          localStorage.setItem('psx_performance_history', JSON.stringify(performanceHistory));
-          localStorage.setItem('psx_fair_value_cache', JSON.stringify(fairValueCache));
-          localStorage.setItem('psx_watchlist', JSON.stringify(watchlist));
+          try {
+              sliceWriter.current!(localStorage.getItem('psx_local_account') || '', {
+                  psx_transactions: transactions, psx_portfolios: portfolios, psx_current_portfolio_id: currentPortfolioId,
+                  psx_manual_prices: manualPrices, psx_ldcp_map: ldcpMap, psx_listed_in_map: listedInMap,
+                  psx_price_timestamps: priceTimestamps, psx_brokers: brokers, psx_sector_overrides: sectorOverrides,
+                  psx_fund_catalog: fundCatalog, psx_scanner_state: scannerState, psx_trade_scan_results: tradeScanResults,
+                  psx_performance_history: performanceHistory, psx_fair_value_cache: fairValueCache, psx_watchlist: watchlist,
+              });
+          } catch { setCloudSyncError('Device storage is full. Keep this page open and download a local copy before retrying.'); }
       }
+  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, driveUser, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
 
+  useEffect(() => {
+      if (skipPersistRef.current || (driveUser && !isReadyToSave.current)) return;
+      if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) return;
       // Applying a downloaded snapshot should not upload the same data again.
-      if (skipHydrationSave.current) { skipHydrationSave.current = false; return; }
+      if (skipHydrationSave.current) { skipHydrationSave.current = false; sheetInputs.current = { transactions, portfolios }; return; }
       if (driveUser && isReadyToSave.current) {
           const revision = ++cloudRevision.current;
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
               if (isLoadingLatestCloud.current || !isReadyToSave.current) return;
-              const result = await saveToDrive(getCloudSnapshot(), true);
+              const snapshot = cloudSnapshotRef.current();
+              const exportChanged = !sheetInputs.current || sheetInputs.current.transactions !== snapshot.transactions || sheetInputs.current.portfolios !== snapshot.portfolios;
+              const result = await saveToDrive(snapshot, exportChanged);
               if (cloudRevision.current !== revision) return;
               if (result.ok === true) {
+                  sheetInputs.current = { transactions: snapshot.transactions, portfolios: snapshot.portfolios };
                   setLastCloudSave(result.savedAt);
                   setCloudSyncError(null);
                   if (result.sheetId) setGoogleSheetId(result.sheetId);
@@ -1851,7 +1810,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => { clearTimeout(timer); cloudRevision.current++; };
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
+  }, [transactions, portfolios, currentPortfolioId, manualPriceEditTick, brokers, sectorOverrides, fundCatalog, scannerState, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -2241,9 +2200,10 @@ const App: React.FC = () => {
           );
           // Free / trial / paid / lifetime → do not hard-lock; fall through into the app.
           // (A small effect below clears showLogin when status is active.)
-          if (!active) {
+          if (!active && st === 'pending') {
               return <PendingApproval email={pendingEmail} onRefresh={refreshPending} onSignOut={handlePendingSignOut} />;
           }
+          if (!active) return <main className="min-h-screen p-6"><h1 className="text-xl font-bold">Checking account access</h1><p className="my-4">The account check has not finished. This does not mean you need approval again.</p><button className="p-3 underline" onClick={() => void refreshPending()}>Retry account check</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
       } else {
           return <LoginPage compact onGoogleLogin={handleLogin} onAuthSuccess={refreshAuthStatus} />;
       }
@@ -2916,6 +2876,11 @@ const App: React.FC = () => {
           </div>
       )}
 
+      {driveUser && sheetExportState !== 'idle' && (
+          <div className="fixed bottom-3 right-3 z-40 max-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" role="status">
+              {sheetExportState === 'error' ? <><span>Portfolio saved. Sheet export needs a retry.</span><button className="ml-2 underline" onClick={retrySheetExport}>Retry export</button></> : 'Updating Google Sheet in the background�'}
+          </div>
+      )}
       {showAddModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
           <TransactionForm
           isOpen={showAddModal}

@@ -3,6 +3,7 @@
 // Google Drive stays the data store — this only controls WHO can get in.
 
 import { createClient, Session } from '@supabase/supabase-js';
+import { readApiJson } from './apiResponse';
 import { getValidToken, getRememberedDriveConfig, installLinkedDriveSession, setDrivePasswordProviders, clearDriveSession, LinkedDriveSession } from './driveStorage';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -67,20 +68,31 @@ export interface AccessStatus {
  * `notify` is true and the email is new, it's added as pending and the owner
  * is emailed an approve link (unchanged behaviour).
  */
-export const getAccessStatus = async (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {
+const accessRequests = new Map<string, Promise<AccessStatus>>();
+export const getAccessStatus = (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {
+  const normalized = email.trim().toLowerCase();
+  const key = `${normalized}:${notify}:${resend}`;
+  let request = accessRequests.get(key);
+  if (!request) {
+    request = fetchAccessStatus(normalized, name, notify, resend).finally(() => accessRequests.delete(key));
+    accessRequests.set(key, request);
+  }
+  return request;
+};
+const fetchAccessStatus = async (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {
   try {
     // Attach the user's session token if it's readily available, but never let
     // this block boot: getSession() can stall (auth-lock/refresh), so cap it.
     let token: string | undefined;
     try {
       token = await Promise.race([
-        supabase.auth.getSession().then(r => r.data?.session?.access_token || undefined).catch(() => undefined),
+        getSession().then(s => s?.user.email?.toLowerCase() === email ? s.access_token : undefined).catch(() => undefined),
         new Promise<undefined>(res => setTimeout(() => res(undefined), 1200)),
       ]);
     } catch { token = undefined; }
     // The Google identity being checked must not accidentally use another email session.
     let googleToken: string | null = null;
-    try { googleToken = await getValidToken(); } catch { /* The password session may still verify account access. */ }
+    if (!token) try { googleToken = await getValidToken(); } catch { /* The password session may still verify account access. */ }
     let googleEmail = '';
     try { googleEmail = JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email || ''; } catch { /* ignore */ }
     if (googleToken && googleEmail.toLowerCase() === email.toLowerCase()) token = googleToken;
@@ -178,9 +190,10 @@ export const signOutAuth = async () => {
   try { await supabase.auth.signOut(); } catch { /* ignore */ }
 };
 
-export const getSession = async (): Promise<Session | null> => {
-  const { data } = await supabase.auth.getSession();
-  return data.session;
+let sessionRequest: Promise<Session | null> | null = null;
+export const getSession = (): Promise<Session | null> => {
+  if (!sessionRequest) sessionRequest = supabase.auth.getSession().then(({ data }) => data.session).finally(() => { sessionRequest = null; });
+  return sessionRequest;
 };
 
 async function passwordDriveRequest(action: string, expectedEmail?: string) {
@@ -193,7 +206,7 @@ async function passwordDriveRequest(action: string, expectedEmail?: string) {
     headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json', 'X-Requested-With': 'PSXTracker' },
     body: JSON.stringify({ action }),
   });
-  const data = await response.json();
+  const data = await readApiJson(response, 'Could not open the saved Drive connection. Please retry.');
   if (!response.ok) throw new Error(data.error || 'Your saved Drive connection is temporarily unavailable.');
   return data;
 }
@@ -235,7 +248,7 @@ export async function getPasswordAccountBackupStatus(email: string): Promise<'sa
     body: JSON.stringify({ action: 'head' }),
   });
   if (!res.ok) throw new Error('The backup check is temporarily unavailable. You can still connect Google Drive to load it.');
-  const head = await res.json();
+  const head = await readApiJson(res, 'Could not check the saved Drive backup. Please retry.');
   if (!Number.isSafeInteger(head.revision) || head.revision < 0 || (head.fileId !== null && typeof head.fileId !== 'string')) {
     throw new Error('The backup check could not be completed. Connect Google Drive to load your portfolio.');
   }
@@ -244,8 +257,9 @@ export async function getPasswordAccountBackupStatus(email: string): Promise<'sa
 }
 
 export const getAuthUser = async (): Promise<AppAuthUser | null> => {
-  const { data } = await supabase.auth.getUser();
-  const u = data.user;
+  // Identity is a startup hint only. getAccessStatus verifies its token server-side
+  // before the app grants access; avoid a second identity network request here.
+  const u = (await getSession())?.user;
   if (!u) return null;
   return { id: u.id, email: u.email || '', name: (u.user_metadata as any)?.full_name };
 };

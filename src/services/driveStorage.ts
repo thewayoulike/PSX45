@@ -1,6 +1,7 @@
 import { buildSheetSyncRequests } from '../utils/sheetSync';
 import { createSerialQueue } from '../utils/serialQueue';
 import { saveRecoveryCopies } from '../utils/recoveryStorage';
+import { readApiJson } from './apiResponse';
 // src/services/driveStorage.ts
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
@@ -276,6 +277,8 @@ export const signInWithDrive = (email?: string) => {
 };
 
 export const clearDriveSession = () => {
+    if (sheetTimer) clearTimeout(sheetTimer);
+    setSheetState('idle');
     cancelDriveSetup();
     gmailToken = null;
     localStorage.removeItem(STORAGE_TOKEN_KEY);
@@ -357,6 +360,60 @@ const currentEmail = () => {
     catch { return ''; }
 };
 const pendingKey = (email: string) => 'psx_pending_cloud_v1:' + encodeURIComponent(email);
+const sheetIds = new Map<string, string>();
+const sheetQueue = createSerialQueue();
+let sheetTimer: ReturnType<typeof setTimeout> | undefined;
+let sheetRunning = false;
+let sheetState: 'idle' | 'pending' | 'syncing' | 'error' = 'idle';
+const sheetJobKey = (email: string) => 'psx_sheet_export_v1:' + encodeURIComponent(email);
+export const getSheetExportState = () => sheetState;
+const setSheetState = (state: typeof sheetState) => {
+    sheetState = state;
+    if (typeof window.dispatchEvent === 'function') window.dispatchEvent(new Event('psx-sheet-export'));
+};
+const sheetContentKey = async (data: any) => {
+    const bytes = new TextEncoder().encode(JSON.stringify([data.transactions || [], data.portfolios || []]));
+    return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))).map(b => b.toString(16).padStart(2, '0')).join('');
+};
+async function queueSheetExport(email: string, head: CloudHead, data: any) {
+    const contentKey = await sheetContentKey(data);
+    if (currentEmail() !== email) return;
+    const completed = localStorage.getItem(sheetJobKey(email) + ':completed');
+    if (completed === contentKey && !localStorage.getItem(sheetJobKey(email))) return;
+    // Only a pointer/hash is retained. The committed portfolio stays in Drive.
+    localStorage.setItem(sheetJobKey(email), JSON.stringify({ revision: head.revision, fileId: head.fileId, contentKey }));
+    retrySheetExport();
+}
+export function retrySheetExport() {
+    if (sheetTimer) clearTimeout(sheetTimer);
+    const email = currentEmail();
+    if (!email || !localStorage.getItem(sheetJobKey(email))) return;
+    setSheetState('pending');
+    sheetTimer = setTimeout(() => void sheetQueue(async () => {
+        if (currentEmail() !== email || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+        sheetRunning = true;
+        setSheetState('syncing');
+        const job = localStorage.getItem(sheetJobKey(email));
+        try {
+            if (!job) { setSheetState('idle'); return; }
+            const request = await cloudSession(email);
+            const head = await cloudHead(email, { action: 'head' });
+            if (!head.fileId) throw new Error('No committed backup');
+            const data = await (await request(`https://www.googleapis.com/drive/v3/files/${head.fileId}?alt=media`)).json();
+            if (!Array.isArray(data.transactions) || !Array.isArray(data.portfolios)) throw new Error('Invalid export source');
+            const contentKey = await sheetContentKey(data);
+            if (localStorage.getItem(sheetJobKey(email) + ':completed') !== contentKey) {
+                await writeSheets(request, data.transactions, data.portfolios, email);
+            }
+            const latest = await cloudHead(email, { action: 'head' });
+            if (latest.revision !== head.revision) { retrySheetExport(); return; }
+            localStorage.setItem(sheetJobKey(email) + ':completed', contentKey);
+            if (localStorage.getItem(sheetJobKey(email)) === job) localStorage.removeItem(sheetJobKey(email));
+            setSheetState(localStorage.getItem(sheetJobKey(email)) ? 'pending' : 'idle');
+        } catch { if (currentEmail() === email) setSheetState('error'); }
+        finally { sheetRunning = false; }
+    }), 5000);
+}
 export type CloudSaveResult = { ok: true; savedAt: string; sheetId: string | null } | { ok: false; error: string };
 
 async function cloudSession(email: string) {
@@ -409,14 +466,13 @@ async function cloudHead(email: string, body: Record<string, unknown>): Promise<
     const res = await fetch('/api/cloud-sync', { method: 'POST', signal: AbortSignal.timeout(15000),
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (res.status === 409) { cloudConflicts.add(email); throw new Error(conflictMessage); }
-    if (!res.ok) throw new Error('Cloud version check unavailable. Your changes remain on this device.');
-    const head = await res.json();
+    const head = await readApiJson(res, 'Cloud version check unavailable. Your changes remain on this device.');
     if (currentEmail() !== email) throw new Error('Account changed. Cloud version check cancelled.');
     if (!Number.isSafeInteger(head.revision) || head.revision < 0 || (head.fileId !== null && typeof head.fileId !== 'string')) throw new Error('Invalid cloud version response.');
     return head;
 }
-async function writeSheets(request: CloudRequest, transactions: any[], portfolios: any[]) {
-    let sheetId = await findFile(request, SHEET_FILE_NAME);
+async function writeSheets(request: CloudRequest, transactions: any[], portfolios: any[], email = currentEmail()) {
+    let sheetId = sheetIds.get(email) || await findFile(request, SHEET_FILE_NAME);
     if (!sheetId) {
         const created = await request('https://www.googleapis.com/drive/v3/files', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -425,7 +481,15 @@ async function writeSheets(request: CloudRequest, transactions: any[], portfolio
         sheetId = (await created.json()).id;
         if (!sheetId) throw new Error('Google did not return a spreadsheet ID.');
     }
-    const meta = await (await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties,developerMetadata)`)).json();
+    let metadata: Response;
+    try { metadata = await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}?fields=sheets(properties,developerMetadata)`); }
+    catch (error) {
+        // A deleted cached file may be replaced without poisoning future exports.
+        if (sheetIds.has(email) && /HTTP 404/.test(String(error))) { sheetIds.delete(email); return writeSheets(request, transactions, portfolios, email); }
+        throw error;
+    }
+    const meta = await metadata.json();
+    sheetIds.set(email, sheetId);
     const requests = buildSheetSyncRequests(meta, transactions, portfolios);
     if (requests.length) await request(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}:batchUpdate`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requests }),
@@ -468,8 +532,11 @@ export function saveToDrive(data: any, includeSheets = false): Promise<CloudSave
             cloudBases.set(email, committed.revision);
             updatePending({ baseVersion: committed.revision });
             // Sheets is a derived export. The authoritative backup is the immutable, committed file.
-            const latest = await cloudHead(email, { action: 'head' });
-            const sheetId = includeSheets && latest.revision === committed.revision ? await writeSheets(request, snapshot.transactions || [], snapshot.portfolios || []) : null;
+            if (includeSheets) {
+                try { await queueSheetExport(email, { ...committed, fileId }, snapshot); }
+                catch { setSheetState('error'); /* A derived export must not fail a committed backup. */ }
+            }
+            const sheetId = sheetIds.get(email) || null;
             // Retain 20 committed versions. Only trash files carrying our snapshot marker.
             for (const obsolete of committed.cleanupIds || []) {
                 try {
@@ -599,7 +666,11 @@ export async function preservePendingAndReloadCloud(getLocalSnapshot?: () => any
     }
 }
 export async function getGoogleSheetId(): Promise<string | null> {
-    return findFile(await cloudSession(currentEmail()), SHEET_FILE_NAME);
+    const email = currentEmail();
+    if (sheetIds.has(email)) return sheetIds.get(email)!;
+    const id = await findFile(await cloudSession(email), SHEET_FILE_NAME);
+    if (id && currentEmail() === email) sheetIds.set(email, id);
+    return id;
 }
 export function syncTransactionsToSheet(transactions: any[], portfolios: any[]) {
     const email = currentEmail();

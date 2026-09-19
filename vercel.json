@@ -18,14 +18,130 @@
       "destination": "/api/notify-signup"
     },
     {
-      "source": "/(.*)",
+      "source": "/login/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/reset-password/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/suggestions/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/settings/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/holdings/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/stocks/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/stock/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/fund/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/sector/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/realized/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/history/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/watchlist/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/signals/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/alerts/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/assistant/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/simulator/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/calculator/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/charts/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/backtest/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/daily-scan/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/dashboard/:path*",
+      "destination": "/index"
+    },
+    {
+      "source": "/admin/:path*",
       "destination": "/index"
     }
   ],
   "headers": [
     {
+      "source": "/assets/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/fonts/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
       "source": "/(login|reset-password|suggestions|settings|holdings|stocks|stock|fund|sector|realized|history|watchlist|signals|alerts|assistant|simulator|calculator|charts|backtest|daily-scan|dashboard|admin)(.*)",
-      "headers": [{ "key": "X-Robots-Tag", "value": "noindex, follow" }]
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
     },
     {
       "source": "/(.*)",
