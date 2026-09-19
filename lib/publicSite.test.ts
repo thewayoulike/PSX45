@@ -12,6 +12,7 @@ it.each(Object.keys(publicPages))('%s has unique server-rendered content and its
   expect(html).toContain('href="/login"');
   expect(html).not.toContain('src="/src/');
   expect(html.match(/<h1>/g)).toHaveLength(1);
+  expect(html).toContain('googletagmanager.com/gtag/js');
 });
 
 it('guide hub and each guide have unique canonical URLs and CTAs', () => {

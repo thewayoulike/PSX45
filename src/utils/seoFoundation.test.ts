@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TRIAL_DAYS } from '../../config/product.js';
 import { guidePages } from '../../config/guidePages.js';
-import { homeJsonLdScriptTags, verificationMetaTag } from '../../lib/seoJsonLd.js';
+import { GOOGLE_ANALYTICS_ID } from '../../config/site.js';
+import { homeJsonLdScriptTags, verificationMetaTag, analyticsScriptTags } from '../../lib/seoJsonLd.js';
 
 const root = process.cwd();
 
@@ -22,7 +23,8 @@ function expandHome(html: string): string {
   return html
     .replaceAll('%TRIAL_DAYS%', String(TRIAL_DAYS))
     .replaceAll('%SEO_JSON_LD%', homeJsonLdScriptTags())
-    .replaceAll('%GOOGLE_SITE_VERIFICATION_META%', verificationMetaTag());
+    .replaceAll('%GOOGLE_SITE_VERIFICATION_META%', verificationMetaTag())
+    .replaceAll('%GOOGLE_ANALYTICS%', analyticsScriptTags());
 }
 
 describe('SEO foundation', () => {
@@ -61,6 +63,20 @@ describe('SEO foundation', () => {
     expect(html).toContain('application/ld+json');
     expect(html).toContain('FAQPage');
     expect(html).toContain('href="/guides"');
+  });
+
+  it('ships GA4 tags when a Measurement ID is configured', () => {
+    expect(GOOGLE_ANALYTICS_ID).toMatch(/^G-[A-Z0-9]+$/i);
+    expect(analyticsScriptTags('')).toBe('');
+    expect(analyticsScriptTags('bad')).toBe('');
+    const tags = analyticsScriptTags();
+    expect(tags).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
+    expect(tags).toContain(`/ga-init.js?id=${GOOGLE_ANALYTICS_ID}`);
+    const html = expandHome(read('index.html'));
+    expect(html).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
+    expect(existsSync(join(root, 'public/ga-init.js'))).toBe(true);
+    expect(read('vercel.json')).toContain('googletagmanager.com');
+    expect(read('vercel.json')).toContain('google-analytics.com');
   });
 
   it('keeps src/index.html identical to root index.html', () => {
