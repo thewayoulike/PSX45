@@ -91,7 +91,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     DASHBOARD: 'Menu', HOLDINGS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
     SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
-    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', SUGGESTIONS: 'Settings',
+    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', SUGGESTIONS: 'Settings', HOW_IT_WORKS: 'Settings',
   };
 
   // Everything collapsed by default — only the group holding the active view is open.
@@ -151,6 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       },
       {
         key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
+          { id: 'HOW_IT_WORKS', label: 'How it works', icon: <CirclePlay size={22} /> },
           { id: 'PROFILE_SETTINGS', label: 'Profile & Security', icon: <UserRound size={22} /> },
           { id: 'SUGGESTIONS', label: 'Suggestions', icon: <MessageSquare size={22} /> },
           { id: 'DASH_CUSTOMIZE', label: 'Dashboard Layout', icon: <LayoutGrid size={22} /> },
@@ -195,16 +196,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </button>
     );
   };
-
-  const HowItWorksLink = () => (
-    <a href="/how-it-works" target="_blank" rel="noopener noreferrer"
-      title="How it works — video and feature guide (opens in a new tab)"
-      aria-label="How it works — video and feature guide (opens in a new tab)"
-      className={`flex items-center gap-3 min-h-[44px] py-2.5 px-3 rounded-xl text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 focus-visible:outline-2 focus-visible:outline-emerald-600 ${isCollapsed ? 'justify-center' : ''}`}>
-      <CirclePlay size={21} className="shrink-0" aria-hidden="true" />
-      {!isCollapsed && <span>How it works</span>}
-    </a>
-  );
 
   return (
     <>
@@ -269,7 +260,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                     {/* Group items (icons). Profile stays a single icon that expands to its children. */}
                     <div className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${open ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
-                      {group.key === 'Settings' && <HowItWorksLink />}
+
                       {group.items.map(item => {
                         if (item.children) {
                           const parentActive = isProfileView;
@@ -317,7 +308,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                   {/* Group items */}
                   <div className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${open ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                    {settings && <HowItWorksLink />}
+
                     {group.items.map(item => {
                       if (item.children) {
                         // Expandable parent (Profile → Stocks / Sector)

@@ -2,6 +2,8 @@ import { expect, it } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { renderPublicPage, renderGuideHub, renderGuidePage, resolvePublicHtml } from './publicSite.js';
 import { videoGuide, videoChapters } from './videoGuide.js';
+import { featureSections } from '../config/howItWorks.js';
+import { renderHowItWorksBody } from './howItWorks.js';
 import { publicPages } from '../config/publicPages.js';
 import { guidePages } from '../config/guidePages.js';
 import { feedbackLinks, SUPPORT_EMAIL, PUBLIC_LINKS } from '../config/site.js';
@@ -45,9 +47,28 @@ it('serves the tutorial without authentication and keeps its media opt-in', () =
     expect(existsSync(`public${asset}`), asset).toBe(true);
   }
   expect(readFileSync(`public${videoGuide.captions}`, 'utf8')).toMatch(/^WEBVTT/);
-  expect(readFileSync('vite.config.ts', 'utf8')).toContain("globIgnores: ['**/media/tutorial/**']");
+  expect(readFileSync('vite.config.ts', 'utf8')).toContain("'**/media/tutorial/**'");
   expect(readFileSync('src/sw.js', 'utf8')).toContain('guides|how-to-use');
   expect(readFileSync('public/sitemap.xml', 'utf8')).toContain('https://www.psx-tracker.com/how-to-use');
+});
+
+it('shares the illustrated guide between public and signed-in pages with opt-in media', () => {
+  const html = resolvePublicHtml('/how-it-works');
+  expect(html).toContain('rel="canonical" href="https://www.psx-tracker.com/how-it-works"');
+  expect(html).toContain(renderHowItWorksBody());
+  expect(html).toContain('controls playsinline preload="none"');
+  expect(html).not.toContain('autoplay');
+  expect(html).not.toContain('Download video');
+  expect(html).not.toContain('Read the full transcript');
+  for (const section of featureSections) {
+    expect(html).toContain(`id="guide-${section.id}"`);
+    for (const image of section.images) {
+      expect(existsSync(`public/media/features/${image.file}`), image.file).toBe(true);
+      expect(existsSync(`public/media/features/${image.file.replace('.webp', '-preview.webp')}`)).toBe(true);
+    }
+  }
+  expect(readFileSync('vite.config.ts', 'utf8')).toContain("'**/media/features/**'");
+  expect(readFileSync('public/sitemap.xml', 'utf8')).toContain('/how-it-works');
 });
 
 it('keeps video chapters ordered within the runtime and provides a direct-file fallback', () => {

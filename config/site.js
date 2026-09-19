@@ -7,7 +7,7 @@ export const GOOGLE_SITE_VERIFICATION = '';
 /** GA4 Measurement ID (G-…). Empty disables the tag. */
 export const GOOGLE_ANALYTICS_ID = 'G-QB2NMMSH9X';
 export const PUBLIC_LINKS = [
-  ['How to use', '/how-to-use'], ['Guides', '/guides'], ['About', '/about'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact'],
+  ['How it works', '/how-it-works'], ['Video guide', '/how-to-use'], ['Guides', '/guides'], ['About', '/about'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact'],
 ];
 export const HOME_FAQS = [
   ['What can I track?', 'Track Pakistan Stock Exchange shares and mutual funds, including holdings, dividends, cash movements and trade history. Charts and research tools help you explore the market.'],

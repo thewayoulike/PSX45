@@ -10,7 +10,12 @@ import { DriveSetupPrompt } from './DriveSetupPrompt';
 import { AppLoading } from './AppLoading';
 const App = lazy(() => import('./App'));
 const PasswordRecovery = lazy(() => import('./PasswordRecovery').then(m => ({ default: m.PasswordRecovery })));
+const PublicGuideFallback = lazy(() => import('./PublicGuideFallback'));
 export default function Entry() {
+  const publicGuide = /^\/how-(?:to-use|it-works)\/?$/.test(window.location.pathname);
+  return publicGuide ? <Suspense fallback={<AppLoading />}><PublicGuideFallback /></Suspense> : <AuthEntry />;
+}
+function AuthEntry() {
   useTheme();
   const [enter, setEnter] = useState(false);
   const [error, setError] = useState('');

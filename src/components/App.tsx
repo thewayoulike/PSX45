@@ -66,6 +66,7 @@ import {
 } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
+const HowItWorksPage = React.lazy(() => import('./HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
 import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud } from '../services/driveStorage';
@@ -127,7 +128,7 @@ const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', '
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
@@ -152,6 +153,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   API_KEYS: '/settings/api-keys',
   PROFILE_SETTINGS: '/settings/profile',
   SUGGESTIONS: '/suggestions',
+  HOW_IT_WORKS: '/settings/how-it-works',
 };
 const PATH_TO_VIEW: Record<string, string> = Object.fromEntries(
   Object.entries(VIEW_TO_PATH).map(([v, p]) => [p, v])
@@ -2420,7 +2422,7 @@ const App: React.FC = () => {
                          <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
                             <Menu size={20} />
                          </button>
-                         <VideoGuideLink />
+                         <VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />
                       </div>
 
                       <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 md:flex-none md:w-auto bg-white/80 dark:bg-slate-900/80 p-1 sm:p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
@@ -2463,7 +2465,7 @@ const App: React.FC = () => {
                           >
                             <Menu size={18} />
                           </button>
-                          <VideoGuideLink />
+                          <VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />
                           <ThemeToggle />
                         </header>
                       )}
@@ -2500,7 +2502,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      {!isChartsView && (
+                      {!isChartsView && currentView !== 'HOW_IT_WORKS' && (
                       <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
                             <div className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2">
@@ -2654,6 +2656,7 @@ const App: React.FC = () => {
                       {currentView === 'ADMIN_USERS' && isOwner && <AdminUsers />}
                       {currentView === 'PROFILE_SETTINGS' && <ProfilePage email={driveUser?.email || sbUser?.email || ''} name={driveUser?.name || sbUser?.name} googleConnected={!!driveUser} onDriveDisconnected={() => { isReadyToSave.current = false; setDriveUser(null); setGoogleSheetId(null); setLocalOnlyEmail(null); setDriveRestoreError(null); }} />}
                       {currentView === 'SUGGESTIONS' && <SuggestionsPage />}
+                      {currentView === 'HOW_IT_WORKS' && <HowItWorksPage />}
 
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

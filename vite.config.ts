@@ -208,7 +208,7 @@ export default defineConfig({
       strategies: 'injectManifest',
       injectManifest: {
         // The tutorial downloads only when a visitor chooses to watch it.
-        globIgnores: ['**/media/tutorial/**'],
+        globIgnores: ['**/media/tutorial/**', '**/media/features/**'],
         // Cache the landing/offline shell immediately; tools cache after first use.
         manifestTransforms: [async entries => ({
           manifest: entries.filter(entry => !entry.url.endsWith('.js') || /(?:^|\/)(?:index-|vendor-|registerSW|site-theme)/.test(entry.url)),
