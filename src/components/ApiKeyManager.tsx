@@ -71,9 +71,9 @@ export const ApiKeyManager: React.FC<ApiKeyManagerProps> = ({
                 <div className="bg-emerald-50/50 dark:bg-emerald-500/10 border border-emerald-200/60 dark:border-emerald-500/20 rounded-2xl p-4 flex items-start gap-3 shadow-sm">
                     <ShieldCheck className="text-emerald-500 dark:text-emerald-400 mt-0.5" size={20} />
                     <div> 
-                        <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">Secure Storage Active</h4> 
+                        <h4 className="font-bold text-emerald-800 dark:text-emerald-300 text-sm">Your saved API keys</h4>
                         <p className="text-xs font-medium text-emerald-700/80 dark:text-emerald-400/80 mt-1 leading-snug"> 
-                            Your API keys are encrypted and saved to your personal Drive. 
+                            Keys are kept on this device and backed up to your Google Drive when sync completes.
                         </p> 
                     </div>
                 </div>
