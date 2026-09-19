@@ -1,7 +1,7 @@
 import type { Plugin } from 'vite';
 import { publicPages } from '../config/publicPages.js';
 import { guidePages } from '../config/guidePages.js';
-import { renderPublicPage, renderGuideHub, renderGuidePage, resolvePublicHtml } from '../lib/publicSite.js';
+import { renderPublicPage, renderGuideHub, renderGuidePage, renderVideoGuide, resolvePublicHtml } from '../lib/publicSite.js';
 
 export function publicPagesPlugin(): Plugin {
   return {
@@ -16,6 +16,7 @@ export function publicPagesPlugin(): Plugin {
       });
     },
     generateBundle() {
+      this.emitFile({ type: 'asset', fileName: 'how-to-use.html', source: renderVideoGuide() });
       for (const slug of Object.keys(publicPages)) {
         this.emitFile({ type: 'asset', fileName: `${slug}.html`, source: renderPublicPage(slug) });
       }

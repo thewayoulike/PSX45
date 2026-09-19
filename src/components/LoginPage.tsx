@@ -9,7 +9,7 @@ import {
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
   Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target,
   Mail, Lock, Loader2, AlertCircle, Star, Upload, FolderOpen, History, LayoutGrid,
-  CandlestickChart, FlaskConical
+  CandlestickChart, FlaskConical, CirclePlay
 } from 'lucide-react';
 import { signUp, signIn, isAuthConfigured, requestPasswordReset } from '../services/auth';
 
@@ -214,11 +214,17 @@ const SectionHead: React.FC<{ eyebrow: string; title: string; sub?: string }> = 
 
 /* ---------- page ---------- */
 
+const VideoGuideLink = () => <a href="/how-to-use" className="flex items-center gap-3 max-w-md mx-auto mt-5 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-left hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-600">
+  <CirclePlay size={28} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+  <span><strong className="block text-sm text-slate-900 dark:text-white">New here? Watch the video guide</strong><span className="block text-xs mt-1 text-slate-600 dark:text-slate-300">Portfolio, broker setup & AI scan · 6 minutes</span></span>
+  <ArrowRight size={17} className="shrink-0 ml-auto text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+</a>;
+
 export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSuccess, compact = false }) => {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   if (compact) return <main className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
-    <div className="max-w-md mx-auto"><a href="/" aria-label="PSX Tracker home" className="inline-block mb-8"><Logo variant="horizontal" /></a><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><div className="mt-7"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
+    <div className="max-w-md mx-auto"><a href="/" aria-label="PSX Tracker home" className="inline-block mb-8"><Logo variant="horizontal" /></a><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><VideoGuideLink/><div className="mt-7"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
   </main>;
 
   return (
@@ -232,7 +238,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             <a href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
             <a href="#tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</a>
             <a href="#pricing" className="hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</a>
-            <a href="/about" className="hover:text-slate-900 dark:hover:text-white transition-colors">About</a>
+            <a href="/how-to-use" className="hover:text-slate-900 dark:hover:text-white transition-colors">How to use</a>
             <a href="/login" className="hover:text-slate-900 dark:hover:text-white transition-colors">Log in</a>
           </nav>
           <button
@@ -693,6 +699,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           />
 
           <EmailAuth onAuthSuccess={onAuthSuccess} onGoogleLogin={onGoogleLogin} />
+          <VideoGuideLink />
         </div>
       </section>
 

@@ -7,7 +7,7 @@ import {
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2, RefreshCw,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical, UserRound, MessageSquare
+  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical, UserRound, MessageSquare, CirclePlay
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 import {
@@ -239,6 +239,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
         {/* Navigation Area */}
         <div className="flex-1 overflow-y-auto py-2 px-3 space-y-5 custom-scrollbar">
+
+          <a href="/how-to-use" target="_blank" rel="noopener noreferrer"
+            title="How to use — video guide (opens in a new tab)"
+            aria-label="How to use — video guide (opens in a new tab)"
+            className={`flex items-center gap-3 min-h-[44px] py-2.5 px-3 rounded-xl text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 focus-visible:outline-2 focus-visible:outline-emerald-600 ${isCollapsed ? 'justify-center' : ''}`}>
+            <CirclePlay size={21} className="shrink-0" aria-hidden="true" />
+            {!isCollapsed && <span>How to use</span>}
+          </a>
 
           {isCollapsed ? (
             /* Collapsed: icon-only, but each group header still expands/collapses its icons */

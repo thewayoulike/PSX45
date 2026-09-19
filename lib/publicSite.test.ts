@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
-import { readFileSync, readdirSync } from 'node:fs';
-import { renderPublicPage, renderGuideHub, renderGuidePage } from './publicSite.js';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { renderPublicPage, renderGuideHub, renderGuidePage, resolvePublicHtml } from './publicSite.js';
+import { videoGuide, videoChapters } from './videoGuide.js';
 import { publicPages } from '../config/publicPages.js';
 import { guidePages } from '../config/guidePages.js';
 import { feedbackLinks, SUPPORT_EMAIL, PUBLIC_LINKS } from '../config/site.js';
@@ -32,6 +33,34 @@ it('guide hub and each guide have unique canonical URLs and CTAs', () => {
 
 it('public footer links include Guides', () => {
   expect(PUBLIC_LINKS.some(([label, href]) => label === 'Guides' && href === '/guides')).toBe(true);
+});
+
+it('serves the tutorial without authentication and keeps its media opt-in', () => {
+  const html = resolvePublicHtml('/how-to-use?t=23.08');
+  expect(html).toContain('rel="canonical" href="https://www.psx-tracker.com/how-to-use"');
+  expect(html).toContain('controls playsinline preload="none"');
+  expect(html).not.toContain('autoplay');
+  expect(html).toContain('kind="captions"');
+  for (const asset of [videoGuide.video, videoGuide.poster, videoGuide.captions, '/media/tutorial/transcript-v1.txt']) {
+    expect(existsSync(`public${asset}`), asset).toBe(true);
+  }
+  expect(readFileSync(`public${videoGuide.captions}`, 'utf8')).toMatch(/^WEBVTT/);
+  expect(readFileSync('vite.config.ts', 'utf8')).toContain("globIgnores: ['**/media/tutorial/**']");
+  expect(readFileSync('src/sw.js', 'utf8')).toContain('guides|how-to-use');
+  expect(readFileSync('public/sitemap.xml', 'utf8')).toContain('https://www.psx-tracker.com/how-to-use');
+});
+
+it('keeps video chapters ordered within the runtime and provides a direct-file fallback', () => {
+  expect(videoChapters.slice(0, 2).map(([title]) => title)).toEqual(['Create a portfolio', 'Set up your broker']);
+  const html = resolvePublicHtml('/how-to-use');
+  let previous = -1;
+  for (const [title, start] of videoChapters) {
+    expect(start).toBeGreaterThan(previous);
+    expect(start).toBeLessThan(videoGuide.duration);
+    expect(html).toContain(`href="${videoGuide.video}#t=${start}"`);
+    expect(html).toContain(title);
+    previous = Number(start);
+  }
 });
 
 it('feedback encodes draft text and uses the authorized support destination', () => {
