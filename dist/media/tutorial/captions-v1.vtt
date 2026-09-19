@@ -1,0 +1,313 @@
+WEBVTT
+
+1
+00:00:00.350 --> 00:00:02.531
+First, create your portfolio.
+
+2
+00:00:02.531 --> 00:00:05.803
+This walkthrough uses a demo account.
+
+3
+00:00:05.803 --> 00:00:09.620
+Click the plus beside the portfolio selector.
+
+4
+00:00:09.620 --> 00:00:17.799
+Enter a portfolio name, keep P S X Stocks selected, and choose an available broker.
+
+5
+00:00:17.799 --> 00:00:19.435
+Click Create Portfolio.
+
+6
+00:00:19.435 --> 00:00:22.161
+Next, configure your broker charges.
+
+7
+00:00:23.430 --> 00:00:25.516
+Open Settings, then Broker Setup.
+
+8
+00:00:25.516 --> 00:00:29.271
+Add New Broker lets you enter a new broker.
+
+9
+00:00:29.271 --> 00:00:35.112
+Here, click the pencil to configure the Demo Broker already selected for our portfolio.
+
+10
+00:00:35.112 --> 00:00:41.370
+Check the name and enter the email sender address if you want to import confirmations.
+
+11
+00:00:41.370 --> 00:00:44.708
+Choose the commission rule from your broker tariff.
+
+12
+00:00:44.708 --> 00:00:50.131
+This example uses the higher of a percentage or a rate per share.
+
+13
+00:00:50.131 --> 00:00:55.555
+Check both rates, the sales tax percentage, and the C D C charge.
+
+14
+00:00:55.555 --> 00:00:59.310
+These are example figures; use your own broker charges.
+
+15
+00:00:59.310 --> 00:01:03.482
+Add annual maintenance only if applicable, then click Update Config.
+
+16
+00:01:05.550 --> 00:01:08.609
+Click the pencil beside your portfolio name.
+
+17
+00:01:08.609 --> 00:01:12.104
+Confirm the default broker and save your changes.
+
+18
+00:01:12.104 --> 00:01:15.163
+New transactions use that broker fee configuration.
+
+19
+00:01:15.163 --> 00:01:19.532
+You are now ready to add your cash and trades.
+
+20
+00:01:20.790 --> 00:01:22.312
+Open Add Transaction.
+
+21
+00:01:22.312 --> 00:01:26.876
+In the Manual tab, choose Cash, Deposit or Withdrawal.
+
+22
+00:01:26.876 --> 00:01:31.948
+Keep Add Funds selected, enter your deposit amount, and save.
+
+23
+00:01:31.948 --> 00:01:36.512
+This records your cash; it does not transfer money.
+
+24
+00:01:37.790 --> 00:01:41.113
+Open Add Transaction again, and switch to Buy.
+
+25
+00:01:41.113 --> 00:01:44.020
+Enter the stock symbol, quantity, and price.
+
+26
+00:01:44.020 --> 00:01:49.834
+Here we enter one hundred O G D C shares at two hundred rupees.
+
+27
+00:01:49.834 --> 00:01:53.572
+Always use your actual trade date and broker records.
+
+28
+00:01:54.830 --> 00:01:59.913
+Scroll down and check the fees and taxes against your contract note.
+
+29
+00:01:59.913 --> 00:02:02.031
+The total includes those charges.
+
+30
+00:02:02.031 --> 00:02:06.267
+Click Save Transaction to add the purchase to your portfolio.
+
+31
+00:02:07.550 --> 00:02:10.287
+Your purchase now appears in Holdings.
+
+32
+00:02:10.287 --> 00:02:13.024
+Average price includes the purchase costs.
+
+33
+00:02:13.024 --> 00:02:15.761
+Current value uses the current price.
+
+34
+00:02:15.761 --> 00:02:20.779
+Daily profit and loss measures the change from the previous close.
+
+35
+00:02:20.779 --> 00:02:26.710
+Total profit and loss compares value with the cost of your open position.
+
+36
+00:02:26.710 --> 00:02:28.991
+These prices are demonstration figures.
+
+37
+00:02:30.270 --> 00:02:31.796
+Open Reports, then Transactions.
+
+38
+00:02:31.796 --> 00:02:35.611
+Both the cash deposit and stock purchase are listed here.
+
+39
+00:02:35.611 --> 00:02:42.097
+This is where you can review your entries and use Edit when you need to correct one.
+
+40
+00:02:43.350 --> 00:02:46.911
+Check for the green Synced status in the sidebar.
+
+41
+00:02:46.911 --> 00:02:51.659
+On the live app, your portfolio backup stays in your Google Drive.
+
+42
+00:02:51.659 --> 00:02:54.825
+Use the same account on your next device.
+
+43
+00:02:54.825 --> 00:02:58.782
+Next, let us look at faster ways to enter trades.
+
+44
+00:03:00.070 --> 00:03:05.615
+For A I scanning, you need to add your own Gemini A P I key.
+
+45
+00:03:05.615 --> 00:03:08.203
+Open Settings, then A P I Keys.
+
+46
+00:03:08.203 --> 00:03:14.857
+Get Key opens Google A I Studio, where you can create a key for a free tier project.
+
+47
+00:03:14.857 --> 00:03:16.336
+Free usage has limits.
+
+48
+00:03:16.336 --> 00:03:20.772
+Paste your key into Gemini A I Key and click Save Configuration.
+
+49
+00:03:20.772 --> 00:03:24.469
+The other keys are not required for A I scan.
+
+50
+00:03:24.469 --> 00:03:28.166
+Keep your key private; this example uses a dummy key.
+
+51
+00:03:30.070 --> 00:03:33.309
+Open Add Transaction and choose A I Scan.
+
+52
+00:03:33.309 --> 00:03:34.928
+Upload a broker confirmation.
+
+53
+00:03:34.928 --> 00:03:40.595
+You can use a screenshot, P D F, Excel, or C S V file.
+
+54
+00:03:40.595 --> 00:03:44.239
+Here we use a sample C S V confirmation.
+
+55
+00:03:44.239 --> 00:03:46.263
+Click Analyze with A I.
+
+56
+00:03:46.263 --> 00:03:49.906
+Gemini reads the document and prepares trades for review.
+
+57
+00:03:51.190 --> 00:03:57.290
+Check the trade date, symbol, quantity, price, and each fee against your broker's confirmation.
+
+58
+00:03:57.290 --> 00:03:59.905
+Correct any mistakes in the table.
+
+59
+00:03:59.905 --> 00:04:01.648
+Scanning can make errors.
+
+60
+00:04:01.648 --> 00:04:06.441
+Select the rows you want to keep, then click Add Selected.
+
+61
+00:04:06.441 --> 00:04:09.927
+Close the window to see the updated holdings.
+
+62
+00:04:11.190 --> 00:04:15.440
+You can also scan a confirmation directly from Gmail.
+
+63
+00:04:15.440 --> 00:04:17.800
+Open Add Transaction, then Email.
+
+64
+00:04:17.800 --> 00:04:23.466
+Enter your broker's sender address and a subject keyword, such as Confirmation.
+
+65
+00:04:23.466 --> 00:04:25.827
+Click Find Emails with Attachments.
+
+66
+00:04:25.827 --> 00:04:32.438
+If Google asks for Gmail permission, review and approve it using the same account.
+
+67
+00:04:32.438 --> 00:04:35.271
+This demonstration uses a sample email.
+
+68
+00:04:36.550 --> 00:04:38.144
+Click the broker attachment.
+
+69
+00:04:38.144 --> 00:04:43.325
+It opens in A I Scan, using the Gemini key you saved earlier.
+
+70
+00:04:43.325 --> 00:04:50.499
+Click Analyze with A I, review the extracted rows, and add only trades you have not already recorded.
+
+71
+00:04:50.499 --> 00:04:56.477
+This is the same confirmation we imported earlier, so we will not add it again.
+
+72
+00:04:56.477 --> 00:05:02.455
+You can now record trades manually, scan a document, or import a broker email attachment.
+
+73
+00:05:03.710 --> 00:05:12.360
+When Drive sync completes, your portfolio data, settings, and saved A P I keys are backed up to your own Google Drive.
+
+74
+00:05:12.360 --> 00:05:16.292
+P S X Tracker does not make these backups public.
+
+75
+00:05:16.292 --> 00:05:21.404
+Access follows your Google account permissions, including access you grant to the app.
+
+76
+00:05:21.404 --> 00:05:24.943
+A local copy is also kept on your device.
+
+77
+00:05:24.943 --> 00:05:29.661
+Login, alert, and connection records are stored separately to run those features.
+
+78
+00:05:29.661 --> 00:05:35.559
+When you use A I scanning, the selected document is sent to Google for processing.

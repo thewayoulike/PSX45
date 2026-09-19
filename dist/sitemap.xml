@@ -2,7 +2,26 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.psx-tracker.com/</loc>
+    <lastmod>2026-09-17</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
+  <url><loc>https://www.psx-tracker.com/about</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/privacy</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/terms</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/contact</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides</loc><lastmod>2026-09-19</lastmod><priority>0.8</priority></url>
+  <url><loc>https://www.psx-tracker.com/how-to-use</loc><lastmod>2026-09-19</lastmod><priority>0.8</priority></url>
+  <url><loc>https://www.psx-tracker.com/guides/fifo-cost-basis-psx</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/cgt-basics-pakistan-stocks</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/mutual-fund-nav-tracking</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/google-drive-backup-restore</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/psx-charts-in-app</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/free-vs-paid-trial</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/importing-broker-trades</loc><lastmod>2026-09-17</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/tracking-psx-dividends</loc><lastmod>2026-09-19</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/multi-portfolio-stocks-vs-funds</loc><lastmod>2026-09-19</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/watchlists-and-alerts</loc><lastmod>2026-09-19</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/psx-portfolio-export-reconcile</loc><lastmod>2026-09-19</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/guides/understanding-unrealized-vs-realized</loc><lastmod>2026-09-19</lastmod></url>
 </urlset>

@@ -1,0 +1,48 @@
+PSX Tracker — Video guide transcript
+Demo account. Sample trades, email and AI results.
+
+0:00 — Create a portfolio
+First, create your portfolio. This walkthrough uses a demo account. Click the plus beside the portfolio selector. Enter a portfolio name, keep P S X Stocks selected, and choose an available broker. Click Create Portfolio. Next, configure your broker charges.
+
+0:23 — Set up your broker
+Open Settings, then Broker Setup. Add New Broker lets you enter a new broker. Here, click the pencil to configure the Demo Broker already selected for our portfolio. Check the name and enter the email sender address if you want to import confirmations. Choose the commission rule from your broker tariff. This example uses the higher of a percentage or a rate per share. Check both rates, the sales tax percentage, and the C D C charge. These are example figures; use your own broker charges. Add annual maintenance only if applicable, then click Update Config.
+
+1:05 — Choose the portfolio's default broker
+Click the pencil beside your portfolio name. Confirm the default broker and save your changes. New transactions use that broker fee configuration. You are now ready to add your cash and trades.
+
+1:20 — Record a cash deposit
+Open Add Transaction. In the Manual tab, choose Cash, Deposit or Withdrawal. Keep Add Funds selected, enter your deposit amount, and save. This records your cash; it does not transfer money.
+
+1:37 — Enter a purchase
+Open Add Transaction again, and switch to Buy. Enter the stock symbol, quantity, and price. Here we enter one hundred O G D C shares at two hundred rupees. Always use your actual trade date and broker records.
+
+1:54 — Review and save
+Scroll down and check the fees and taxes against your contract note. The total includes those charges. Click Save Transaction to add the purchase to your portfolio.
+
+2:07 — Read your holdings
+Your purchase now appears in Holdings. Average price includes the purchase costs. Current value uses the current price. Daily profit and loss measures the change from the previous close. Total profit and loss compares value with the cost of your open position. These prices are demonstration figures.
+
+2:29 — Check transaction history
+Open Reports, then Transactions. Both the cash deposit and stock purchase are listed here. This is where you can review your entries and use Edit when you need to correct one.
+
+2:43 — Confirm your save
+Check for the green Synced status in the sidebar. On the live app, your portfolio backup stays in your Google Drive. Use the same account on your next device. Next, let us look at faster ways to enter trades.
+
+2:59 — Add your Gemini API key
+For A I scanning, you need to add your own Gemini A P I key. Open Settings, then A P I Keys. Get Key opens Google A I Studio, where you can create a key for a free tier project. Free usage has limits. Paste your key into Gemini A I Key and click Save Configuration. The other keys are not required for A I scan. Keep your key private; this example uses a dummy key.
+
+3:29 — Scan a broker document
+Open Add Transaction and choose A I Scan. Upload a broker confirmation. You can use a screenshot, P D F, Excel, or C S V file. Here we use a sample C S V confirmation. Click Analyze with A I. Gemini reads the document and prepares trades for review.
+
+3:50 — Review and add scanned trades
+Check the trade date, symbol, quantity, price, and each fee against your broker's confirmation. Correct any mistakes in the table. Scanning can make errors. Select the rows you want to keep, then click Add Selected. Close the window to see the updated holdings.
+
+4:10 — Find a broker email
+You can also scan a confirmation directly from Gmail. Open Add Transaction, then Email. Enter your broker's sender address and a subject keyword, such as Confirmation. Click Find Emails with Attachments. If Google asks for Gmail permission, review and approve it using the same account. This demonstration uses a sample email.
+
+4:36 — Analyze the email attachment
+Click the broker attachment. It opens in A I Scan, using the Gemini key you saved earlier. Click Analyze with A I, review the extracted rows, and add only trades you have not already recorded. This is the same confirmation we imported earlier, so we will not add it again. You can now record trades manually, scan a document, or import a broker email attachment.
+
+5:03 — Your Drive backup and privacy
+When Drive sync completes, your portfolio data, settings, and saved A P I keys are backed up to your own Google Drive. P S X Tracker does not make these backups public. Access follows your Google account permissions, including access you grant to the app. A local copy is also kept on your device. Login, alert, and connection records are stored separately to run those features. When you use A I scanning, the selected document is sent to Google for processing.
+
