@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Clock, RefreshCw, LogOut, Loader2 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 
@@ -10,11 +10,23 @@ interface Props {
 
 export const PendingApproval: React.FC<Props> = ({ email, onRefresh, onSignOut }) => {
   const [checking, setChecking] = useState(false);
+  const running = useRef(false);
+  const refreshRef = useRef(onRefresh);
+  refreshRef.current = onRefresh;
 
   const check = async () => {
+    if (running.current) return;
+    running.current = true;
     setChecking(true);
-    try { await onRefresh(); } finally { setChecking(false); }
+    try { await refreshRef.current(); } finally { running.current = false; setChecking(false); }
   };
+  useEffect(() => {
+    const refresh = () => { if (document.visibilityState !== 'hidden' && navigator.onLine) void check(); };
+    const timer = setInterval(refresh, 60000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('online', refresh);
+    return () => { clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('online', refresh); };
+  }, [email]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] flex flex-col items-center justify-center p-6 text-center font-sans">

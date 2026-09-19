@@ -53,6 +53,7 @@ import { formatTransactionLabel } from '../utils/fundDisplay';
 import { OfflinePortfolio } from './OfflinePortfolio';
 import { shouldPersistPortfolio } from '../utils/portfolioPersistence';
 import { createSliceWriter, mergeChanged } from '../utils/slicePersistence';
+import { markStartup, beginStage } from '../utils/performance';
 import { preparePortfolioAccount } from '../utils/localAccount';
 import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
@@ -786,6 +787,7 @@ const App: React.FC = () => {
               const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current());
               if (!stillThisAccount()) return;
               applyCloudSnapshot(cloudData);
+              markStartup('cached_portfolio');
               if (cloudData?.lastModified && !getPendingCloud()) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
               retrySheetExport();
@@ -1191,6 +1193,7 @@ const App: React.FC = () => {
       if (priceSyncRun.current?.email === email) return;
       const run = { email, id: Symbol() };
       priceSyncRun.current = run;
+      const endPriceMeasure = beginStage('price_refresh');
       const current = () => priceSyncRun.current === run && loadedEmailRef.current === email;
       const tickers = [...new Set([...holdings.map(h => h.ticker), ...watchlist].filter(t => t && !isFundTicker(t)))];
       setIsSyncing(true); setPriceError(false); setFailedTickers(new Set());
@@ -1226,6 +1229,7 @@ const App: React.FC = () => {
           const failed = new Set(holdings.map(h => h.ticker).filter(t => !isFundTicker(t) && !(prices[t] > 0)));
           setFailedTickers(failed); setPriceError(!Object.keys(prices).length || failed.size > 0);
       } finally {
+          endPriceMeasure(current() ? 'ok' : 'error');
           if (current()) { priceSyncRun.current = null; setIsSyncing(false); }
       }
   }, [holdings, watchlist]);
@@ -2878,7 +2882,7 @@ const App: React.FC = () => {
 
       {driveUser && sheetExportState !== 'idle' && (
           <div className="fixed bottom-3 right-3 z-40 max-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" role="status">
-              {sheetExportState === 'error' ? <><span>Portfolio saved. Sheet export needs a retry.</span><button className="ml-2 underline" onClick={retrySheetExport}>Retry export</button></> : 'Updating Google Sheet in the background…'}
+              {sheetExportState === 'error' ? <><span>Google Sheet export needs a retry.</span><button className="ml-2 underline" onClick={retrySheetExport}>Retry export</button></> : 'Updating Google Sheet in the background…'}
           </div>
       )}
       {showAddModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening toolâ€¦</div>}>
