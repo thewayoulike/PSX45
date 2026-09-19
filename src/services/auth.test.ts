@@ -5,7 +5,7 @@ vi.mock('./driveStorage', () => ({ getValidToken:async () => null, getRemembered
 import { getRememberedDriveConfig, installLinkedDriveSession } from './driveStorage';
 import { getAccessStatus, requestPasswordReset, completePasswordReset, requestPasswordSetup, changeAccountPassword, getPasswordAccountBackupStatus, restorePasswordDriveSession } from './auth';
 beforeEach(() => {
-  vi.clearAllMocks(); mock.session.mockResolvedValue({data:{session:{access_token:'test-token'}}});
+  vi.clearAllMocks(); mock.session.mockResolvedValue({data:{session:{access_token:'test-token',user:{email:'a@example.invalid'}}}});
   vi.mocked(getRememberedDriveConfig).mockResolvedValue({enabled:false});
   mock.out.mockResolvedValue({error:null});
   vi.stubGlobal('localStorage',{getItem:() => null});
@@ -25,6 +25,18 @@ it('network errors are unavailable while a valid pending response remains pendin
   expect((await getAccessStatus('a@example.invalid')).status).toBe('unavailable');
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({status:'pending',active:false}))));
   expect((await getAccessStatus('a@example.invalid')).status).toBe('pending');
+});
+it('shares simultaneous access checks but rechecks a newly approved lifetime account', async () => {
+  let release!: (response: Response) => void;
+  const request = vi.fn(() => new Promise<Response>(resolve => { release = resolve; }));
+  vi.stubGlobal('fetch', request);
+  const a = getAccessStatus('a@example.invalid'), b = getAccessStatus(' A@example.invalid ');
+  expect(a).toBe(b);
+  await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+  release(new Response(JSON.stringify({ status: 'pending', approved: false, active: false })));
+  expect((await a).status).toBe('pending');
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ status: 'lifetime', approved: true, active: true, lifetime: true }))));
+  expect(await getAccessStatus('a@example.invalid')).toMatchObject({ status: 'lifetime', active: true, lifetime: true });
 });
 it('expired recovery sessions cannot update a password', async () => {
   mock.session.mockResolvedValue({data:{session:null}});

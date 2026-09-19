@@ -173,4 +173,6 @@ export interface CompanyPayout {
     details: string; 
     bookClosure: string; 
     isUpcoming: boolean;
+    bonus?: string;
+    right?: string;
 }

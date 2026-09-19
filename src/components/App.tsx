@@ -1,3 +1,4 @@
+import { setUnsavedLocalChanges } from '../utils/chunkRecovery';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
@@ -33,7 +34,8 @@ const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.P
 const SuggestionsPage = lazy(() => import('./SuggestionsPage').then(m => ({ default: m.SuggestionsPage })));
 const TickerPerformanceList = lazy(() => import('./TickerPerformanceList').then(m => ({ default: m.TickerPerformanceList })));
 const FundProfile = lazy(() => import('./FundProfile').then(m => ({ default: m.FundProfile })));
-import { TransferModal, firstBrokerHolding } from './TransferModal';
+import { firstBrokerHolding } from '../utils/brokerHolding';
+const TransferModal = lazy(() => import('./TransferModal').then(m => ({ default: m.TransferModal }))); 
 const TradingSimulator = lazy(() => import('./TradingSimulator').then(m => ({ default: m.TradingSimulator })));
 const FairValueCalculator = lazy(() => import('./FairValueCalculator').then(m => ({ default: m.FairValueCalculator })));
 const AlertsPage = lazy(() => import('./AlertsPage').then(m => ({ default: m.AlertsPage })));
@@ -72,7 +74,7 @@ import { ThemeToggle } from './ui/ThemeToggle';
 const HowItWorksPage = React.lazy(() => import('./HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
 import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
 import { AppLoading } from './AppLoading';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
@@ -214,7 +216,11 @@ const App: React.FC = () => {
   const sheetInputs = useRef<{ transactions: Transaction[]; portfolios: Portfolio[] } | null>(null);
   const [sheetExportState, setSheetExportState] = useState(getSheetExportState);
   useEffect(() => {
-      const update = () => { setSheetExportState(getSheetExportState()); };
+      const update = () => {
+          const state = getSheetExportState();
+          setSheetExportState(state);
+          if (state === 'idle') { const id = getCachedGoogleSheetId(); if (id) setGoogleSheetId(id); }
+      };
       const retry = () => { if (document.visibilityState !== 'hidden') retrySheetExport(); };
       window.addEventListener('psx-sheet-export', update);
       window.addEventListener('online', retry);
@@ -575,7 +581,14 @@ const App: React.FC = () => {
   const [driveBannerDismissed, setDriveBannerDismissed] = useState(false);
 
   // Re-check Supabase session + approval (after email login/signup, or "check now").
-  const refreshAuthStatus = async () => {
+  const authRefresh = useRef<Promise<void> | null>(null);
+  const approvedDriveHandoff = useRef<{ email: string; status: AccessStatus; until: number } | null>(null);
+  const driveBoots = useRef(new Map<string, Promise<void>>());
+  const refreshAuthStatus = () => {
+      if (!authRefresh.current) authRefresh.current = performAuthRefresh().finally(() => { authRefresh.current = null; });
+      return authRefresh.current;
+  };
+  const performAuthRefresh = async () => {
       const u = await getAuthUser();
       const driveEmail = (() => { try { return JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email; } catch { return null; } })();
       if (driveEmail && u?.email && driveEmail.toLowerCase() !== u.email.toLowerCase()) { setSbUser(null); setSbApproved(false); return; }
@@ -590,6 +603,7 @@ const App: React.FC = () => {
               if (!hasValidSession()) {
                   setRestoringDrive(true);
                   setDriveRestoreError(null);
+                  approvedDriveHandoff.current = { email: u.email.toLowerCase(), status: st, until: Date.now() + 30000 };
                   try { await restorePasswordDriveSession(u.email); }
                   catch (error) { setDriveRestoreError(error instanceof Error ? error.message : 'Could not open your saved Drive connection. Please retry.'); }
                   finally { setRestoringDrive(false); }
@@ -734,12 +748,15 @@ const App: React.FC = () => {
           setIsCloudSyncing(false);
           setShowLogin(true);
       });
-      initDriveAuth(async (user) => {
+      const bootDrive = async (user: DriveUser) => {
           const stillThisAccount = () => { try { return JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email?.toLowerCase() === user.email.toLowerCase(); } catch { return false; } };
           try { if (preparePortfolioAccount(user.email)) { window.location.reload(); return; } }
           catch { setIsAuthChecking(false); setCloudSyncError('Account switch paused: previous local records could not be archived.'); setShowLogin(true); return; }
           // Gate Google sign-in by owner approval + subscription (same allowlist).
-          const st = await getAccessStatus(user.email, user.name, true);
+          const handoff = approvedDriveHandoff.current;
+          approvedDriveHandoff.current = null;
+          const st = handoff?.email === user.email.toLowerCase() && handoff.until > Date.now()
+              ? handoff.status : await getAccessStatus(user.email, user.name, true);
           if (!stillThisAccount()) return;
           setSbStatus(st);
           if (!st.active) {
@@ -778,7 +795,7 @@ const App: React.FC = () => {
           }
           loadedEmailRef.current = user.email;
 
-          getGoogleSheetId().then(id => setGoogleSheetId(id)).catch(() => setGoogleSheetId(null));
+          getGoogleSheetId().then(id => { if (stillThisAccount()) setGoogleSheetId(id); }).catch(() => { if (stillThisAccount()) setGoogleSheetId(null); });
           isReadyToSave.current = false;
           setCloudSyncError(null);
           setLastCloudSave(null);
@@ -787,7 +804,8 @@ const App: React.FC = () => {
               const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current());
               if (!stillThisAccount()) return;
               applyCloudSnapshot(cloudData);
-              markStartup('cached_portfolio');
+              markStartup('cloud_portfolio');
+              setUnsavedLocalChanges(false);
               if (cloudData?.lastModified && !getPendingCloud()) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
               retrySheetExport();
@@ -796,10 +814,17 @@ const App: React.FC = () => {
               setCloudSyncError(e instanceof Error ? e.message : 'Could not load your backup. Reload to retry before saving changes.');
               setPendingCloud(getPendingCloud());
           } finally {
-              setIsCloudSyncing(false);
+              if (stillThisAccount()) setIsCloudSyncing(false);
           }
+      };
+      const cleanup = initDriveAuth(user => {
+          const key = user.email.toLowerCase();
+          let boot = driveBoots.current.get(key);
+          if (!boot) { boot = bootDrive(user).finally(() => driveBoots.current.delete(key)); driveBoots.current.set(key, boot); }
+          return boot;
       });
       if (!hasValidSession()) { setIsAuthChecking(false); setShowLogin(true); }
+      return () => { cleanup(); setDriveSessionExpiredHandler(null); };
   }, []);
 
   const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => {
@@ -1790,6 +1815,7 @@ const App: React.FC = () => {
       if (skipHydrationSave.current) { skipHydrationSave.current = false; sheetInputs.current = { transactions, portfolios }; return; }
       if (driveUser && isReadyToSave.current) {
           const revision = ++cloudRevision.current;
+          setUnsavedLocalChanges(true);
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
               if (isLoadingLatestCloud.current || !isReadyToSave.current) return;
@@ -1798,6 +1824,7 @@ const App: React.FC = () => {
               const result = await saveToDrive(snapshot, exportChanged);
               if (cloudRevision.current !== revision) return;
               if (result.ok === true) {
+                  setUnsavedLocalChanges(false);
                   sheetInputs.current = { transactions: snapshot.transactions, portfolios: snapshot.portfolios };
                   setLastCloudSave(result.savedAt);
                   setCloudSyncError(null);
@@ -2185,7 +2212,10 @@ const App: React.FC = () => {
       }
   };
 
-  if (isAuthChecking || sbChecking || restoringDrive) return <AppLoading />;
+  // Only expose a cache after the matching identity has passed the access gate.
+  const cacheOwner = driveUser?.email || sbUser?.email;
+  const canPreviewCache = !!(sbStatus?.active && cacheOwner && cacheOwner.toLowerCase() === localStorage.getItem('psx_local_account') && transactions.length);
+  if (isAuthChecking || sbChecking || restoringDrive) return canPreviewCache ? <OfflinePortfolio refreshing /> : <AppLoading />;
   if (viewSavedOffline) return <OfflinePortfolio />;
   if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
@@ -2216,8 +2246,9 @@ const App: React.FC = () => {
   if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) {
       return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
   }
-  if (driveUser && isCloudSyncing && !isReadyToSave.current && !isLoadingLatestCloud.current) {
-      return <AppLoading />;
+  if (driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
+      if (isCloudSyncing) return canPreviewCache ? <OfflinePortfolio refreshing /> : <AppLoading />;
+      return <OfflinePortfolio error={cloudSyncError || "The latest backup could not be opened. Retry before making changes."} />;
   }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);
@@ -2943,6 +2974,7 @@ const App: React.FC = () => {
           watchlist={watchlist}
       />
       </Suspense>}
+      {showTransferModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening transfer…</div>}>
       <TransferModal
           isOpen={showTransferModal}
           onClose={() => setShowTransferModal(false)}
@@ -2957,7 +2989,9 @@ const App: React.FC = () => {
           onTransfer={handleTransferStock}
           onConvertFunds={isFundPortfolio ? handleConvertFunds : undefined}
       />
+      </Suspense>}
       {fundProfileData && (
+          <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening fund…</div>}>
           <FundProfile
               ticker={fundProfileData.canon}
               fundName={fundProfileData.fundName}
@@ -2971,6 +3005,7 @@ const App: React.FC = () => {
               lastUpdated={fundProfileData.lastUpdated}
               onClose={() => setViewFundTicker(null)}
           />
+          </Suspense>
       )}
       {showUpgrade && (
           <UpgradeModal

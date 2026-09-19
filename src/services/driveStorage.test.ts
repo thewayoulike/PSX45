@@ -32,6 +32,50 @@ function mockCloud(handlers: (url: string, init?: RequestInit) => Response | Pro
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => handlers(String(url), init)));
 }
 
+it('commits the Drive backup before Sheets work, retaining a retry job if export fails', async () => {
+  let revision = 0;
+  mockCloud((url, init) => {
+    if (url === '/api/cloud-sync') {
+      if (JSON.parse(String(init?.body)).action === 'commit') revision++;
+      return response({ revision, fileId: revision ? 'snapshot' : null });
+    }
+    if (url.includes('/upload/')) return response({ id: 'snapshot' });
+    if (url.includes('alt=media')) return response({ transactions: [], portfolios: [] });
+    if (url.startsWith('https://sheets.googleapis.com/')) return response({}, 503);
+    if (init?.method === 'POST') return response({ id: 'sheet' });
+    return response({ files: [] });
+  });
+  await service.loadFromDrive();
+  expect((await service.saveToDrive({ transactions: [], portfolios: [] }, true)).ok).toBe(true);
+  expect(service.getPendingCloud()).toBeNull();
+  expect(service.getSheetExportState()).toBe('pending');
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).startsWith('https://sheets.googleapis.com/'))).toBe(false);
+  await vi.advanceTimersByTimeAsync(5001);
+  await vi.waitFor(() => expect(service.getSheetExportState()).toBe('error'));
+  expect(storage.has('psx_sheet_export_v1:a%40example.com')).toBe(true);
+  expect(service.getPendingCloud()).toBeNull();
+});
+
+it('does not export quote-only saves and cancels a queued export on account sign-out', async () => {
+  let revision = 0;
+  mockCloud((url, init) => {
+    if (url === '/api/cloud-sync') {
+      if (JSON.parse(String(init?.body)).action === 'commit') revision++;
+      return response({ revision, fileId: revision ? 'snapshot' : null });
+    }
+    if (url.includes('/upload/')) return response({ id: 'snapshot' });
+    return response({ files: [] });
+  });
+  await service.loadFromDrive();
+  expect((await service.saveToDrive({ transactions: [], portfolios: [], manualPrices: { FFC: 1 } }, false)).ok).toBe(true);
+  expect(service.getSheetExportState()).toBe('idle');
+  await service.saveToDrive({ transactions: [], portfolios: [] }, true);
+  const before = vi.mocked(fetch).mock.calls.length;
+  service.clearDriveSession(); await vi.advanceTimersByTimeAsync(10000);
+  expect(vi.mocked(fetch).mock.calls.length).toBe(before);
+  expect(storage.has('psx_sheet_export_v1:a%40example.com')).toBe(true);
+});
+
 beforeEach(async () => {
   vi.resetModules();
   vi.useFakeTimers();

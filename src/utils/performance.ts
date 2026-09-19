@@ -1,4 +1,4 @@
-type Stage = 'session_ready' | 'access_check' | 'cached_portfolio' | 'drive_head' | 'drive_read' | 'drive_commit' | 'price_refresh';
+type Stage = 'session_ready' | 'access_check' | 'cached_portfolio' | 'cloud_portfolio' | 'drive_head' | 'drive_read' | 'drive_commit' | 'price_refresh';
 declare global { interface Window { psxPerformance?: { record: (name: string, value: number, outcome?: string) => void; entries: () => unknown[] } } }
 export function beginStage(name: Stage) {
   const start = performance.now();

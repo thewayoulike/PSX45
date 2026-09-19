@@ -3,6 +3,7 @@
 // Google Drive stays the data store — this only controls WHO can get in.
 
 import { createClient, Session } from '@supabase/supabase-js';
+import { beginStage } from '../utils/performance';
 import { readApiJson } from './apiResponse';
 import { getValidToken, getRememberedDriveConfig, installLinkedDriveSession, setDrivePasswordProviders, clearDriveSession, LinkedDriveSession } from './driveStorage';
 
@@ -80,6 +81,7 @@ export const getAccessStatus = (email: string, name?: string, notify = false, re
   return request;
 };
 const fetchAccessStatus = async (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {
+  const endMeasure = beginStage('access_check');
   try {
     // Attach the user's session token if it's readily available, but never let
     // this block boot: getSession() can stall (auth-lock/refresh), so cap it.
@@ -111,6 +113,7 @@ const fetchAccessStatus = async (email: string, name?: string, notify = false, r
     // Legacy API returned "expired"; treat as free.
     const raw = (d.status || d.accessStatus || (d.approved ? 'trial' : 'pending')) as string;
     const status = (raw === 'expired' ? 'free' : raw) as AccessState;
+    endMeasure();
     return {
       approved: !!d.approved,
       active: d.active != null ? !!d.active : (status !== 'pending'),
@@ -124,6 +127,7 @@ const fetchAccessStatus = async (email: string, name?: string, notify = false, r
       isNew: !!d.new,
     };
   } catch {
+    endMeasure('error');
     return {
       approved: false, active: false, status: 'unavailable', plan: 'unavailable',
       lifetime: false, accessUntil: null, trialEnds: null, daysLeft: null, quotas: null,
@@ -210,7 +214,14 @@ async function passwordDriveRequest(action: string, expectedEmail?: string) {
   if (!response.ok) throw new Error(data.error || 'Your saved Drive connection is temporarily unavailable.');
   return data;
 }
-export async function restorePasswordDriveSession(email: string): Promise<boolean> {
+const driveRestores = new Map<string, Promise<boolean>>();
+export function restorePasswordDriveSession(email: string): Promise<boolean> {
+  const key = email.trim().toLowerCase();
+  let request = driveRestores.get(key);
+  if (!request) { request = restoreDrive(key).finally(() => driveRestores.delete(key)); driveRestores.set(key, request); }
+  return request;
+}
+async function restoreDrive(email: string): Promise<boolean> {
   const data = await passwordDriveRequest('drive-token', email);
   if (!data?.connected) return false;
   const session = await getSession();

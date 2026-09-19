@@ -32,6 +32,7 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        self.cache_seconds = 15
         params = parse_qs(urlparse(self.path).query)
         keys = {'mode','symbol','symbols','company','dividends','analysis','intraday','quote','period','interval','index','name'}
         q = {k: v[0] for k, v in params.items() if k in keys}
@@ -44,6 +45,7 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(429, {'error': 'Too many requests. Please retry shortly.'})
         except Exception:
             return self._json(503, {'error': 'Market-data service temporarily unavailable.'})
+        self.cache_seconds = 21600 if q['mode'] == 'indices' else 300 if q['mode'] in {'company', 'dividends', 'analysis'} else 15
         key = json.dumps(q, sort_keys=True)
         with _LOCK:
             cached = _CACHE.get(key)
@@ -56,7 +58,7 @@ class handler(BaseHTTPRequestHandler):
             if payload.get('error') and not payload.get('quotes'):
                 return self._json(502, {'error': 'Market data is temporarily unavailable.'})
             with _LOCK:
-                _CACHE[key] = (time.monotonic() + (15 if q['mode'] in {'quote','quotes'} else 60), payload)
+                _CACHE[key] = (time.monotonic() + self.cache_seconds, payload)
                 _CACHE.move_to_end(key)
                 while len(_CACHE) > 128:
                     _CACHE.popitem(last=False)
@@ -73,7 +75,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(status)
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Cache-Control', 's-maxage=15, stale-while-revalidate=60' if status == 200 else 'no-store')
+        self.send_header('Cache-Control', f's-maxage={self.cache_seconds}, stale-while-revalidate=60' if status == 200 else 'no-store')
         if status in (429, 503): self.send_header('Retry-After', '60')
         self.end_headers()
         self.wfile.write(body)

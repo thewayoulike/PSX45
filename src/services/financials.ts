@@ -1,5 +1,6 @@
 import { CompanyPayout, DividendAnnouncement } from '../types';
-import { getValidToken } from './driveStorage';
+import { readDividendRows, readBoardMeetingRows } from './publicDividends';
+import { cachedMarketFetch } from './marketCache';
 import { fetchUrlWithFallback } from './psxData';
 import { percentToRs } from '../utils/faceValues';
 import { isFundTicker } from '../utils/fundId';
@@ -202,9 +203,8 @@ export const fetchCompanyInfo = async (ticker: string): Promise<CompanyInfoData 
   if (!clean) return null;
 
   try {
-    const res = await fetch(
-      `/api/pypsx?mode=company&symbol=${encodeURIComponent(clean)}&t=${Date.now()}`
-    );
+    const url = `/api/pypsx?mode=company&symbol=${encodeURIComponent(clean)}`;
+    const res = await cachedMarketFetch(url, () => fetch(url, { signal: AbortSignal.timeout(15000) }));
     if (!res.ok) {
       console.warn(`Company info fetch failed for ${clean}:`, res.status);
       return null;
@@ -223,30 +223,13 @@ export const fetchCompanyInfo = async (ticker: string): Promise<CompanyInfoData 
 
 // --- 2. Fetch Market Wide Dividends from Google Sheet ---
 export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
-  const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
-  const RANGE = "Sheet1!A3:F";
-
   try {
-    const token = await getValidToken();
-    if (!token) {
-      console.warn('Upcoming dividends: sign in with Google to load the dividend sheet.');
-      return [];
-    }
-
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}`;
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-
-    if (!response.ok) throw new Error(`Google Sheets API Error: ${response.status}`);
-
-    const json = await response.json();
-    const rows = json.values || [];
+    const rows = await readDividendRows();
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    return rows.map((row: any[]) => {
+    return rows.map((row: string[]): (CompanyPayout & { isDueToday: boolean }) | null => {
         const ticker = (row[0] || 'Unknown').toString().trim().toUpperCase();
         
         // Grab Dividend, Bonus, and Right from their respective columns
@@ -271,7 +254,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
 
         return {
             ticker: ticker || 'Unknown',
-            announceDate: row[1] || '-',
+            announceDate: '-', // Column B is the company name, not an announcement date.
             financialResult: '-',
             details: detailsText,
             bonus: rawBonus || '-',
@@ -289,7 +272,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
     });
 
   } catch (e) {
-    console.warn('Google Sheet fetch failed:', e);
+    console.warn('Shared dividend data is temporarily unavailable; using company announcements.');
     return [];
   }
 };
@@ -315,9 +298,8 @@ export const fetchPypsxDividendSnapshot = async (ticker: string): Promise<Divide
   const clean = ticker.toUpperCase().replace(/^PSX:/, '').trim();
   if (!clean || isFundTicker(clean)) return null;
   try {
-    const res = await fetch(
-      `/api/pypsx?mode=dividends&symbol=${encodeURIComponent(clean)}&t=${Date.now()}`
-    );
+    const url = `/api/pypsx?mode=dividends&symbol=${encodeURIComponent(clean)}`;
+    const res = await cachedMarketFetch(url, () => fetch(url, { signal: AbortSignal.timeout(15000) }));
     if (!res.ok) return null;
     const json = await res.json();
     if (json?.error) return null;
@@ -363,18 +345,7 @@ export const fetchUpcomingXDates = async (
 // returns PAST dividends within the lookback window so the scanner can catch ones you
 // already earned. THROWS on auth/HTTP failure so the caller can fall back to AI search.
 export const fetchDividendsForScan = async (months: number = 6): Promise<DividendAnnouncement[]> => {
-  const SPREADSHEET_ID = "1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g";
-  const RANGE = "Sheet1!A3:F";
-
-  const token = await getValidToken();
-  if (!token) throw new Error("SHEET_AUTH_REQUIRED"); // -> triggers AI fallback
-
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}`;
-  const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
-  if (!response.ok) throw new Error(`SHEET_HTTP_${response.status}`); // -> triggers AI fallback
-
-  const json = await response.json();
-  const rows = json.values || [];
+  const rows = await readDividendRows();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -506,37 +477,6 @@ export interface BoardMeeting {
   daysTo: number;
 }
 
-const BOARD_MEETINGS_CSV =
-  'https://docs.google.com/spreadsheets/d/1Z-Qd8g__vCqRkaSWpcIx-qf6uKgE9ZxO4Bw2FFRWr9g/gviz/tq?tqx=out:csv&gid=516127681';
-
-// Minimal CSV parser that respects quoted fields and escaped quotes ("").
-const parseCSV = (text: string): string[][] => {
-  const rows: string[][] = [];
-  let row: string[] = [];
-  let field = '';
-  let inQuotes = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inQuotes) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else inQuotes = false;
-      } else field += c;
-    } else if (c === '"') {
-      inQuotes = true;
-    } else if (c === ',') {
-      row.push(field); field = '';
-    } else if (c === '\n' || c === '\r') {
-      if (c === '\r' && text[i + 1] === '\n') i++;
-      row.push(field); field = '';
-      if (row.length > 1 || row[0] !== '') rows.push(row);
-      row = [];
-    } else field += c;
-  }
-  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
-  return rows;
-};
-
 // Parse "M/D/YYYY" (as stored in the sheet) into a local Date, or null.
 const parseSheetDate = (s: string): Date | null => {
   const parts = (s || '').trim().split('/');
@@ -552,10 +492,7 @@ const parseSheetDate = (s: string): Date | null => {
 
 export const fetchBoardMeetings = async (): Promise<BoardMeeting[]> => {
   try {
-    const raw = await fetchUrlWithFallback(BOARD_MEETINGS_CSV);
-    if (!raw) return [];
-
-    const rows = parseCSV(raw);
+    const rows = await readBoardMeetingRows();
     if (rows.length < 2) return [];
 
     const header = rows[0].map(h => h.trim().toLowerCase());

@@ -1,7 +1,7 @@
 (() => {
   if (window.psxPerformance) return;
   const entries = [];
-  const allowed = new Set(['session_ready', 'access_check', 'cached_portfolio', 'drive_head', 'drive_read', 'drive_commit', 'price_refresh', 'LCP', 'INP', 'CLS']);
+  const allowed = new Set(['session_ready', 'access_check', 'cached_portfolio', 'cloud_portfolio', 'drive_head', 'drive_read', 'drive_commit', 'price_refresh', 'LCP', 'INP', 'CLS']);
   const sampled = Math.random() < 0.1;
   function record(name, value, outcome = 'ok') {
     if (!allowed.has(name) || !Number.isFinite(value)) return;

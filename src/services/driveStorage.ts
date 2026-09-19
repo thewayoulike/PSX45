@@ -1,3 +1,4 @@
+import { beginStage } from '../utils/performance';
 import { buildSheetSyncRequests } from '../utils/sheetSync';
 import { createSerialQueue } from '../utils/serialQueue';
 import { saveRecoveryCopies } from '../utils/recoveryStorage';
@@ -56,7 +57,7 @@ export function getRememberedDriveConfig() {
         body: JSON.stringify({ action: 'drive-config' }), signal: AbortSignal.timeout(10000),
     }).then(async response => {
         if (!response.ok) throw new Error('Drive connection check unavailable.');
-        const config = await response.json();
+        const config = await readApiJson(response, 'Drive connection check unavailable.');
         rememberedDriveConfig = { enabled: config.enabled === true, clientId: config.clientId, error: config.error };
         if (!rememberedDriveConfig.enabled) rememberedConfigRequest = null;
         return rememberedDriveConfig;
@@ -146,7 +147,7 @@ function createDriveTokenClient(expectedEmail: string | null, attempt: number) {
                         headers: { Authorization: `Bearer ${tokenResponse.access_token}`, 'Content-Type': 'application/json', 'X-Requested-With': 'PSXTracker' },
                         body: JSON.stringify({ action: 'drive-status' }),
                     });
-                    const status = await check.json();
+                    const status = await readApiJson(check, 'Could not check your saved Drive connection.');
                     if (!check.ok) throw new Error(status.error || 'Could not check your saved Drive connection. Please retry.');
                     if (attempt !== driveLoginAttempt) return;
                     if (status.connected !== true) {
@@ -189,7 +190,7 @@ function requestRememberedDriveConnection(expectedEmail: string | null, bindPass
                             ...(expectedEmail && password ? { Authorization: `Bearer ${password.token}` } : {}) },
                         body: JSON.stringify({ action: 'drive-connect', code: result.code, expectedEmail }),
                     });
-                    const data = await response.json();
+                    const data = await readApiJson(response, 'Could not remember the Drive connection.');
                     if (attempt !== driveLoginAttempt) return;
                     if (!response.ok) throw new Error(data.error || 'Could not remember the Drive connection.');
                     pendingSetupEmail = null;
@@ -206,6 +207,7 @@ function requestRememberedDriveConnection(expectedEmail: string | null, bindPass
     alert('Google sign-in is still preparing. Please try again in a moment.');
 }
 
+let googleInitTimer: ReturnType<typeof setInterval> | undefined;
 export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promise<void>) => {
     driveSessionListener = onUserLoggedIn;
     loadGoogleScript();
@@ -235,7 +237,8 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promis
         console.error("Error restoring session", e);
     }
 
-    const checkInterval = setInterval(() => {
+    if (googleInitTimer) clearInterval(googleInitTimer);
+    const checkInterval = googleInitTimer = setInterval(() => {
         if (window.google && window.google.accounts && window.google.accounts.oauth2) {
             clearInterval(checkInterval);
             if (!CLIENT_ID) return;
@@ -247,7 +250,7 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promis
             }
         }
     }, 500);
-    return () => clearInterval(checkInterval);
+    return () => { clearInterval(checkInterval); if (driveSessionListener === onUserLoggedIn) driveSessionListener = null; };
 };
 
 export const signInWithDrive = (email?: string) => {
@@ -278,7 +281,6 @@ export const signInWithDrive = (email?: string) => {
 
 export const clearDriveSession = () => {
     if (sheetTimer) clearTimeout(sheetTimer);
-    setSheetState('idle');
     cancelDriveSetup();
     gmailToken = null;
     localStorage.removeItem(STORAGE_TOKEN_KEY);
@@ -286,6 +288,7 @@ export const clearDriveSession = () => {
     localStorage.removeItem(STORAGE_EXPIRY_KEY);
     accessToken = null;
     tokenExpiryTime = 0;
+    setSheetState('idle');
 };
 
 export const signOutDrive = () => {
@@ -361,9 +364,9 @@ const currentEmail = () => {
 };
 const pendingKey = (email: string) => 'psx_pending_cloud_v1:' + encodeURIComponent(email);
 const sheetIds = new Map<string, string>();
+export const getCachedGoogleSheetId = () => sheetIds.get(currentEmail()) || null;
 const sheetQueue = createSerialQueue();
 let sheetTimer: ReturnType<typeof setTimeout> | undefined;
-let sheetRunning = false;
 let sheetState: 'idle' | 'pending' | 'syncing' | 'error' = 'idle';
 const sheetJobKey = (email: string) => 'psx_sheet_export_v1:' + encodeURIComponent(email);
 export const getSheetExportState = () => sheetState;
@@ -391,7 +394,6 @@ export function retrySheetExport() {
     setSheetState('pending');
     sheetTimer = setTimeout(() => void sheetQueue(async () => {
         if (currentEmail() !== email || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
-        sheetRunning = true;
         setSheetState('syncing');
         const job = localStorage.getItem(sheetJobKey(email));
         try {
@@ -411,7 +413,6 @@ export function retrySheetExport() {
             if (localStorage.getItem(sheetJobKey(email)) === job) localStorage.removeItem(sheetJobKey(email));
             setSheetState(localStorage.getItem(sheetJobKey(email)) ? 'pending' : 'idle');
         } catch { if (currentEmail() === email) setSheetState('error'); }
-        finally { sheetRunning = false; }
     }), 5000);
 }
 export type CloudSaveResult = { ok: true; savedAt: string; sheetId: string | null } | { ok: false; error: string };
@@ -461,6 +462,8 @@ async function writeDrive(request: CloudRequest, data: any) {
 }
 type CloudHead = { revision: number; fileId: string | null; cleanupIds?: string[] };
 async function cloudHead(email: string, body: Record<string, unknown>): Promise<CloudHead> {
+    const endMeasure = beginStage(body.action === 'commit' ? 'drive_commit' : 'drive_head');
+    try {
     const token = await getValidToken();
     if (!token || currentEmail() !== email) throw new Error('Sign in to the same Google account to sync.');
     const res = await fetch('/api/cloud-sync', { method: 'POST', signal: AbortSignal.timeout(15000),
@@ -469,7 +472,9 @@ async function cloudHead(email: string, body: Record<string, unknown>): Promise<
     const head = await readApiJson(res, 'Cloud version check unavailable. Your changes remain on this device.');
     if (currentEmail() !== email) throw new Error('Account changed. Cloud version check cancelled.');
     if (!Number.isSafeInteger(head.revision) || head.revision < 0 || (head.fileId !== null && typeof head.fileId !== 'string')) throw new Error('Invalid cloud version response.');
+    endMeasure();
     return head;
+    } catch (error) { endMeasure('error'); throw error; }
 }
 async function writeSheets(request: CloudRequest, transactions: any[], portfolios: any[], email = currentEmail()) {
     let sheetId = sheetIds.get(email) || await findFile(request, SHEET_FILE_NAME);
@@ -616,6 +621,7 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, onlyIfNe
     const email = currentEmail();
     if (cloudRestores.has(email)) return undefined;
     cloudRestores.add(email);
+    const endMeasure = beginStage('drive_read');
     try {
         return await cloudQueue(async () => {
             // Wait for any existing save, and read a usable remote copy before clearing pending data.
@@ -649,7 +655,8 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, onlyIfNe
             cloudConflicts.delete(email);
             return data;
         });
-    } finally { cloudRestores.delete(email); }
+    } catch (error) { endMeasure('error'); throw error; }
+    finally { endMeasure(); cloudRestores.delete(email); }
 }
 
 // Compatibility for older callers; the app now applies the downloaded data without reloading.
