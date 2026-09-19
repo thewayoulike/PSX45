@@ -205,6 +205,7 @@ export default defineConfig({
     localPsxApi(),
     react(),
     VitePWA({
+      injectRegister: false,
       strategies: 'injectManifest',
       injectManifest: {
         // The tutorial downloads only when a visitor chooses to watch it.
