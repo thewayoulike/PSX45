@@ -71,12 +71,13 @@ describe('SEO foundation', () => {
     expect(analyticsScriptTags('bad')).toBe('');
     const tags = analyticsScriptTags();
     expect(tags).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
-    expect(tags).toContain(`/ga-init.js?id=${GOOGLE_ANALYTICS_ID}`);
+    expect(tags).toContain(`gtag('config', '${GOOGLE_ANALYTICS_ID}')`);
     const html = expandHome(read('index.html'));
     expect(html).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
-    expect(existsSync(join(root, 'public/ga-init.js'))).toBe(true);
+    expect(html).toContain(`gtag('config', '${GOOGLE_ANALYTICS_ID}')`);
     expect(read('vercel.json')).toContain('googletagmanager.com');
     expect(read('vercel.json')).toContain('google-analytics.com');
+    expect(read('vercel.json')).toMatch(/script-src[^"]*unsafe-inline|sha256-/);
   });
 
   it('keeps src/index.html identical to root index.html', () => {
