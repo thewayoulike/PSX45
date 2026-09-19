@@ -196,6 +196,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
     );
   };
 
+  const HowItWorksLink = () => (
+    <a href="/how-it-works" target="_blank" rel="noopener noreferrer"
+      title="How it works — video and feature guide (opens in a new tab)"
+      aria-label="How it works — video and feature guide (opens in a new tab)"
+      className={`flex items-center gap-3 min-h-[44px] py-2.5 px-3 rounded-xl text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 focus-visible:outline-2 focus-visible:outline-emerald-600 ${isCollapsed ? 'justify-center' : ''}`}>
+      <CirclePlay size={21} className="shrink-0" aria-hidden="true" />
+      {!isCollapsed && <span>How it works</span>}
+    </a>
+  );
+
   return (
     <>
       {/* Mobile Backdrop */}
@@ -240,14 +250,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Navigation Area */}
         <div className="flex-1 overflow-y-auto py-2 px-3 space-y-5 custom-scrollbar">
 
-          <a href="/how-to-use" target="_blank" rel="noopener noreferrer"
-            title="Video guide — how PSX Tracker works (opens in a new tab)"
-            aria-label="Video guide — how PSX Tracker works (opens in a new tab)"
-            className={`flex items-center gap-3 min-h-[44px] py-2.5 px-3 rounded-xl text-sm font-semibold text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 focus-visible:outline-2 focus-visible:outline-emerald-600 ${isCollapsed ? 'justify-center' : ''}`}>
-            <CirclePlay size={21} className="shrink-0" aria-hidden="true" />
-            {!isCollapsed && <span>Video guide</span>}
-          </a>
-
           {isCollapsed ? (
             /* Collapsed: icon-only, but each group header still expands/collapses its icons */
             <div className="space-y-1">
@@ -267,6 +269,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                     {/* Group items (icons). Profile stays a single icon that expands to its children. */}
                     <div className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${open ? 'max-h-[600px] opacity-100 mt-1' : 'max-h-0 opacity-0'}`}>
+                      {group.key === 'Settings' && <HowItWorksLink />}
                       {group.items.map(item => {
                         if (item.children) {
                           const parentActive = isProfileView;
@@ -314,6 +317,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
                   {/* Group items */}
                   <div className={`space-y-1 overflow-hidden transition-all duration-300 ease-in-out ${open ? 'max-h-[600px] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    {settings && <HowItWorksLink />}
                     {group.items.map(item => {
                       if (item.children) {
                         // Expandable parent (Profile → Stocks / Sector)
