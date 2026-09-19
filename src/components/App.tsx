@@ -801,7 +801,10 @@ const App: React.FC = () => {
           setLastCloudSave(null);
           setIsCloudSyncing(true);
           try {
-              const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current());
+              // The startup preview is read-only. Keep its opening snapshot stable
+              // while derived prices/history and the recovery transaction complete.
+              const openingSnapshot = cloudSnapshotRef.current();
+              const cloudData = await readLatestFromDrive(() => openingSnapshot);
               if (!stillThisAccount()) return;
               applyCloudSnapshot(cloudData);
               markStartup('cloud_portfolio');
@@ -1253,6 +1256,7 @@ const App: React.FC = () => {
           if (!current()) return;
           const failed = new Set(holdings.map(h => h.ticker).filter(t => !isFundTicker(t) && !(prices[t] > 0)));
           setFailedTickers(failed); setPriceError(!Object.keys(prices).length || failed.size > 0);
+          endPriceMeasure(Object.keys(prices).length ? 'ok' : 'error');
       } finally {
           endPriceMeasure(current() ? 'ok' : 'error');
           if (current()) { priceSyncRun.current = null; setIsSyncing(false); }
@@ -1378,8 +1382,9 @@ const App: React.FC = () => {
   const refreshPricesRef = useRef(handleSyncPrices);
   refreshPricesRef.current = handleSyncPrices;
   const hasStockHoldings = holdings.some(h => !isFundTicker(h.ticker));
+  const marketReady = !isAuthChecking && !sbChecking && (!driveUser || isReadyToSave.current);
   useEffect(() => {
-      if (!driveUser || !hasStockHoldings) return;
+      if (!marketReady || !driveUser || !hasStockHoldings) return;
       let last = 0;
       const refresh = () => {
           if (document.visibilityState === 'hidden' || !navigator.onLine || Date.now() - last < 60000) return;
@@ -1393,9 +1398,10 @@ const App: React.FC = () => {
       window.addEventListener('online', refresh);
       document.addEventListener('visibilitychange', refresh);
       return () => { clearInterval(interval); window.removeEventListener('online', refresh); document.removeEventListener('visibilitychange', refresh); };
-  }, [driveUser?.email, hasStockHoldings]);
+  }, [driveUser?.email, hasStockHoldings, marketReady]);
 
   useEffect(() => {
+      if (!marketReady) return;
       const hasFundHoldings = holdings.some(h => isFundTicker(h.ticker));
       const hasFundPortfolio = portfolios.some(p => getPortfolioType(p) === 'MUTUAL_FUND');
       if (!hasFundHoldings && !hasFundPortfolio) return;
@@ -1407,7 +1413,7 @@ const App: React.FC = () => {
           handleSyncFundNav();
       }, 6 * 60 * 60 * 1000);
       return () => clearInterval(interval);
-  }, [holdings.length, portfolios.length, handleSyncFundNav]);
+  }, [holdings.length, portfolios.length, handleSyncFundNav, marketReady]);
 
   useEffect(() => {
       if (brokers.length === 0) return;
@@ -2913,7 +2919,7 @@ const App: React.FC = () => {
 
       {driveUser && sheetExportState !== 'idle' && (
           <div className="fixed bottom-3 right-3 z-40 max-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" role="status">
-              {sheetExportState === 'error' ? <><span>Google Sheet export needs a retry.</span><button className="ml-2 underline" onClick={retrySheetExport}>Retry export</button></> : 'Updating Google Sheet in the background…'}
+              {sheetExportState === 'error' ? <><span>Google Sheet export needs a retry.</span><button className="ml-2 underline" onClick={retrySheetExport}>Retry export</button></> : 'Updating Google Sheet in the backgroundâ€¦'}
           </div>
       )}
       {showAddModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening toolâ€¦</div>}>
@@ -2974,7 +2980,7 @@ const App: React.FC = () => {
           watchlist={watchlist}
       />
       </Suspense>}
-      {showTransferModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening transfer…</div>}>
+      {showTransferModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening transferâ€¦</div>}>
       <TransferModal
           isOpen={showTransferModal}
           onClose={() => setShowTransferModal(false)}
@@ -2991,7 +2997,7 @@ const App: React.FC = () => {
       />
       </Suspense>}
       {fundProfileData && (
-          <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening fund…</div>}>
+          <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening fundâ€¦</div>}>
           <FundProfile
               ticker={fundProfileData.canon}
               fundName={fundProfileData.fundName}
