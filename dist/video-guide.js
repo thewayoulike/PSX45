@@ -21,7 +21,7 @@
     });
   });
   video.addEventListener('error', () => {
-    status.textContent = 'The video could not load. Try the download link, or read the transcript below.';
+    status.textContent = 'The video could not load. Check your connection and refresh this page to try again.';
   });
   links.forEach((link) => link.addEventListener('click', (event) => {
     if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;

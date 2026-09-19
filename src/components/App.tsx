@@ -66,6 +66,7 @@ import {
 } from 'lucide-react';
 import { useIdleTimer } from '../hooks/useIdleTimer';
 import { ThemeToggle } from './ui/ThemeToggle';
+import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud } from '../services/driveStorage';
 import { AppLoading } from './AppLoading';
@@ -2413,12 +2414,13 @@ const App: React.FC = () => {
               <div className={`w-full min-w-0 ${isChartsView ? 'px-1 sm:px-2 pt-1 pb-2 h-full flex flex-col min-h-0' : 'px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-6 pb-20'}`}>
 
                   {!isChartsView && (
-                  <header className="flex flex-row justify-between items-center gap-2 sm:gap-4 mb-4 sm:mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
+                  <header className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-2 sm:gap-4 mb-4 sm:mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
 
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between w-full sm:w-auto gap-3">
                          <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
                             <Menu size={20} />
                          </button>
+                         <VideoGuideLink />
                       </div>
 
                       <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 md:flex-none md:w-auto bg-white/80 dark:bg-slate-900/80 p-1 sm:p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
@@ -2461,6 +2463,7 @@ const App: React.FC = () => {
                           >
                             <Menu size={18} />
                           </button>
+                          <VideoGuideLink />
                           <ThemeToggle />
                         </header>
                       )}
