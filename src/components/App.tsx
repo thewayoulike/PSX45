@@ -5,7 +5,7 @@ import { Dashboard } from './DashboardStats';
 import { HoldingsTable } from './HoldingsTable';
 import { AllocationChart } from './AllocationChart';
 import { PerformanceChart } from './PerformanceChart';
-import { RealizedTable } from './RealizedTable';
+const RealizedTable = lazy(() => import('./RealizedTable').then(m => ({ default: m.RealizedTable })));
 import { TransactionList } from './TransactionList';
 import { PortfolioSummary } from './PortfolioSummary';
 import { TopHoldings } from './TopHoldings';
@@ -35,7 +35,7 @@ const FundProfile = lazy(() => import('./FundProfile').then(m => ({ default: m.F
 import { TransferModal, firstBrokerHolding } from './TransferModal';
 const TradingSimulator = lazy(() => import('./TradingSimulator').then(m => ({ default: m.TradingSimulator })));
 const FairValueCalculator = lazy(() => import('./FairValueCalculator').then(m => ({ default: m.FairValueCalculator })));
-import { AlertsPage } from './AlertsPage';
+const AlertsPage = lazy(() => import('./AlertsPage').then(m => ({ default: m.AlertsPage })));
 const MarketSignalScanner = lazy(() => import('./MarketSignalScanner').then(m => ({ default: m.MarketSignalScanner })));
 const StrategyBacktest = lazy(() => import('./StrategyBacktest').then(m => ({ default: m.StrategyBacktest })));
 const ChartsExplorer = lazy(() => import('./ChartsExplorer').then(m => ({ default: m.ChartsExplorer })));
@@ -58,7 +58,7 @@ import { mergeFundHoldingsByCanon, computeFundBucketAverageCost } from '../utils
 import { roundFundNav, roundFundUnits, fmtFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
-import { setGeminiApiKey } from '../services/gemini';
+import { setGeminiApiKey } from '../services/geminiConfig';
 import {
   Edit3, Plus, Trash2, PlusCircle, X, RefreshCw, Loader2, Coins,
   Pencil, Layers, ChevronDown, CheckSquare, Square, Menu,

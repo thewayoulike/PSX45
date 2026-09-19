@@ -3,21 +3,10 @@ import { ParsedTrade, DividendAnnouncement } from '../types';
 import type { FundBalanceScan } from './fundImport';
 import * as XLSX from 'xlsx';
 
-let userProvidedKey: string | null = null;
+import { getGeminiConfig } from './geminiConfig';
+export { setGeminiApiKey } from './geminiConfig';
 let aiClient: GoogleGenAI | null = null;
-
-const sanitizeKey = (key: string): string => {
-    return key.replace(/[^\x00-\x7F]/g, "").trim();
-};
-
-export const setGeminiApiKey = (key: string | null) => {
-    userProvidedKey = key ? sanitizeKey(key) : null;
-    aiClient = null;
-    discoveredModels = null; // re-discover available models for the new key
-    deadModels.clear();      // forget which models were unavailable/quota-capped
-};
-
-const getApiKey = () => userProvidedKey;
+let configRevision = -1;
 
 /* ---------------------------------------------------------------------------
    MODEL FALLBACK
@@ -212,8 +201,14 @@ export const generateWithFallback = async (
 };
 
 const getAi = (): GoogleGenAI | null => {
+    const { key, revision } = getGeminiConfig();
+    if (configRevision !== revision) {
+        aiClient = null;
+        discoveredModels = null;
+        deadModels.clear();
+        configRevision = revision;
+    }
     if (aiClient) return aiClient;
-    const key = getApiKey();
     if (!key) return null;
     try {
         aiClient = new GoogleGenAI({ apiKey: key });
