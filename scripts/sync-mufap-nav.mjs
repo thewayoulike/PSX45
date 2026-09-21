@@ -8,7 +8,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import * as XLSX from 'xlsx';
 import { parseMufapNavHtml, isMufapBlockedPage } from '../lib/mufapParse.js';
-import { pkToday, addDaysYmd, candidateNavDates } from '../lib/mufapSyncDates.js';
+import {
+  pkToday,
+  addDaysYmd,
+  candidateNavDates,
+  candidatePrevNavDates,
+} from '../lib/mufapSyncDates.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -28,8 +33,17 @@ function packFromHtml(html, dateYmd, source) {
   if (isMufapBlockedPage(html)) throw new Error(`Blocked/empty page for ${dateYmd}`);
   const funds = parseMufapNavHtml(html);
   if (funds.length < 50) throw new Error(`Only ${funds.length} funds for ${dateYmd}`);
-  const reportDate = (html.match(/Report Date:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/i) || [])[1] || null;
-  return { html, funds, reportDate, dateYmd, source };
+  // Prefer majority fund validity over the page header — dated URL filters can leave a stale header.
+  const counts = {};
+  for (const f of funds) {
+    const v = (f.validityDate || '').trim();
+    if (!v) continue;
+    counts[v] = (counts[v] || 0) + 1;
+  }
+  const majorityValidity =
+    Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  const headerDate = (html.match(/Report Date:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/i) || [])[1] || null;
+  return { html, funds, reportDate: majorityValidity || headerDate, dateYmd, source };
 }
 
 async function fetchDayHtmlPlaywright(dateYmd) {
@@ -48,13 +62,13 @@ async function fetchDayHtmlPlaywright(dateYmd) {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     });
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90_000 });
-    // MUFAP fills the table after load; wait for NAV cells or a short grace period.
     try {
-      await page.waitForSelector('table tr td', { timeout: 25_000 });
+      await page.waitForSelector('table tr.fund-block td, table tr td', { timeout: 30_000 });
     } catch {
       /* parse will fail loudly if still empty */
     }
-    await sleep(1500);
+    // Table rows hydrate after first paint; short grace so AMC group headers land.
+    await sleep(2500);
     const html = await page.content();
     return packFromHtml(html, dateYmd, 'playwright');
   } finally {
@@ -197,17 +211,39 @@ async function main() {
   console.log(`[sync-mufap] Anchor day=${anchor} lookback=${LOOKBACK_DAYS}`);
 
   const todayPack = await fetchLatestAvailable(anchor);
-  const yday = process.env.MUFAP_PREV_DATE || addDaysYmd(todayPack.dateYmd, -1);
-  const ydayPack = await fetchDayHtml(yday, { required: false });
+  // Daily P&L “yesterday” = prior business/NAV day (Mon → Fri), not calendar -1.
+  const prevDates = process.env.MUFAP_PREV_DATE
+    ? [process.env.MUFAP_PREV_DATE]
+    : candidatePrevNavDates(todayPack.dateYmd, LOOKBACK_DAYS);
+
+  let ydayPack = null;
+  let yesterdayUsed = prevDates[0] || addDaysYmd(todayPack.dateYmd, -1);
+  for (const dateYmd of prevDates) {
+    const pack = await fetchDayHtml(dateYmd, { required: false });
+    if (!pack) continue;
+    // Skip if MUFAP/relay echoed the same report as “today” (weekend / SPA date ignore).
+    if (
+      todayPack.reportDate &&
+      pack.reportDate &&
+      pack.reportDate === todayPack.reportDate
+    ) {
+      console.warn(
+        `[sync-mufap] Skipping ${dateYmd}: same Report Date as today (${pack.reportDate})`,
+      );
+      continue;
+    }
+    ydayPack = pack;
+    yesterdayUsed = dateYmd;
+    break;
+  }
 
   writeExcel(todayPack.funds, path.join(ROOT, 'data', `mufap-nav-${todayPack.dateYmd}.xlsx`), `NAV ${todayPack.dateYmd}`);
   if (ydayPack) {
-    writeExcel(ydayPack.funds, path.join(ROOT, 'data', `mufap-nav-${yday}.xlsx`), `NAV ${yday}`);
+    writeExcel(ydayPack.funds, path.join(ROOT, 'data', `mufap-nav-${yesterdayUsed}.xlsx`), `NAV ${yesterdayUsed}`);
   }
 
   let previousNavs = ydayPack ? previousNavMap(ydayPack.funds) : {};
   let previousReportDate = ydayPack?.reportDate || null;
-  let yesterdayUsed = yday;
 
   if (Object.keys(previousNavs).length < 50) {
     const fb = loadFallbackPreviousNavs();

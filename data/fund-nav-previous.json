@@ -1,1748 +1,1753 @@
 {
-  "updatedAt": "2026-09-09T18:05:47.469Z",
-  "date": "2026-09-08",
-  "reportDate": "Sep 09, 2026",
-  "count": 348,
+  "updatedAt": "2026-09-21T20:35:53.621Z",
+  "date": "2026-09-18",
+  "reportDate": "Sep 18, 2026",
+  "count": 349,
   "previousNavs": {
     "MF:786-investments-limited-786-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 102.464,
-      "repurchase": 102.464,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.7144,
+      "repurchase": 102.7144,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:786-investments-limited-786-smart-fund-shariah-compliant-income": {
-      "nav": 85.8553,
-      "repurchase": 85.8553,
-      "validityDate": "Sep 08, 2026"
+      "nav": 86.0336,
+      "repurchase": 86.0336,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-cash-fund-money-market": {
-      "nav": 10.4691,
-      "repurchase": 10.4691,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.4986,
+      "repurchase": 10.4986,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-financial-sector-fund-plan-i-income": {
-      "nav": 10.2219,
-      "repurchase": 10.2219,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.251,
+      "repurchase": 10.251,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-fixed-rate-plan-xxix-fixed-rate-return": {
-      "nav": 10.0919,
-      "repurchase": 10.0919,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.1212,
+      "repurchase": 10.1212,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-fixed-rate-plan-xxvii-fixed-rate-return": {
-      "nav": 10.22,
-      "repurchase": 10.22,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2515,
+      "repurchase": 10.2515,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-fixed-rate-plan-xxviii-fixed-rate-return": {
-      "nav": 10.1705,
-      "repurchase": 10.1705,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2016,
+      "repurchase": 10.2016,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-fixed-rate-plan-xxx-fixed-rate-return": {
-      "nav": 10.0729,
-      "repurchase": 10.0729,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.1025,
+      "repurchase": 10.1025,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-government-securities-fund-income": {
-      "nav": 10.387,
-      "repurchase": 10.387,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.4156,
+      "repurchase": 10.4156,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-income-fund-income": {
-      "nav": 10.413,
-      "repurchase": 10.413,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.4421,
+      "repurchase": 10.4421,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-asset-allocation-fund-shariah-compliant-asset-a": {
-      "nav": 10.154,
-      "repurchase": 10.154,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.1549,
+      "repurchase": 10.1549,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 10.2314,
-      "repurchase": 10.2314,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2623,
+      "repurchase": 10.2623,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-active-allocation-plan-": {
-      "nav": 80.0985,
-      "repurchase": 80.0985,
-      "validityDate": "Sep 08, 2026"
+      "nav": 79.2797,
+      "repurchase": 79.2797,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-capital-preservation-pl": {
-      "nav": 100.8448,
-      "repurchase": 100.8448,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.8384,
+      "repurchase": 100.8384,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-conservative-allocation": {
-      "nav": 117.9703,
-      "repurchase": 117.9703,
-      "validityDate": "Sep 08, 2026"
+      "nav": 118.284,
+      "repurchase": 118.284,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-income-fund-shariah-compliant-income": {
-      "nav": 10.4733,
-      "repurchase": 10.4733,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.4931,
+      "repurchase": 10.4931,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-money-market-plan-i-shariah-compliant-money-mar": {
-      "nav": 10.2238,
-      "repurchase": 10.2238,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2536,
+      "repurchase": 10.2536,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-sovereign-plan-i-shariah-compliant-income": {
-      "nav": 10.2811,
-      "repurchase": 10.2811,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2543,
+      "repurchase": 10.2543,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 31.4042,
-      "repurchase": 31.4042,
-      "validityDate": "Sep 08, 2026"
+      "nav": 30.9256,
+      "repurchase": 30.9256,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-money-market-plan-i-money-market": {
-      "nav": 10.2265,
-      "repurchase": 10.2265,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2574,
+      "repurchase": 10.2574,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-optimal-asset-allocation-fund-asset-allocation": {
-      "nav": 9.806,
-      "repurchase": 9.806,
-      "validityDate": "Sep 08, 2026"
+      "nav": 9.6904,
+      "repurchase": 9.6904,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-special-saving-fund-abl-special-saving-plan-i-capital-p": {
-      "nav": 10.3307,
-      "repurchase": 10.3307,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3609,
+      "repurchase": 10.3609,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-special-saving-fund-abl-special-saving-plan-ii-capital-": {
-      "nav": 10.9794,
-      "repurchase": 10.9794,
-      "validityDate": "Sep 08, 2026"
+      "nav": 11.0125,
+      "repurchase": 11.0125,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-special-saving-fund-abl-special-saving-plan-iii-capital": {
-      "nav": 10.4449,
-      "repurchase": 10.4449,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.4766,
+      "repurchase": 10.4766,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-special-saving-fund-abl-special-saving-plan-iv-capital-": {
-      "nav": 10.3759,
-      "repurchase": 10.3759,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.4074,
+      "repurchase": 10.4074,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-special-saving-fund-abl-special-saving-plan-v-capital-p": {
-      "nav": 10.3499,
-      "repurchase": 10.3499,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3821,
+      "repurchase": 10.3821,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-special-saving-fund-abl-special-saving-plan-vi-capital-": {
-      "nav": 10.294,
-      "repurchase": 10.294,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3302,
+      "repurchase": 10.3302,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-stock-fund-equity": {
-      "nav": 36.3818,
-      "repurchase": 36.3818,
-      "validityDate": "Sep 08, 2026"
+      "nav": 35.735,
+      "repurchase": 35.735,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:abl-asset-management-company-limited-allied-finergy-fund-asset-allocation": {
-      "nav": 16.1781,
-      "repurchase": 16.1781,
-      "validityDate": "Sep 08, 2026"
+      "nav": 15.7876,
+      "repurchase": 15.7876,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-aggressive-income-fund-aggressive-fixed-income": {
       "nav": 56,
       "repurchase": 56,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-alpha-income-fund-aggressive-fixed-income": {
-      "nav": 52.5887,
-      "repurchase": 52.5887,
-      "validityDate": "Sep 08, 2026"
+      "nav": 52.7379,
+      "repurchase": 52.7379,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-cash-fund-money-market": {
       "nav": 53,
       "repurchase": 53,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-index-tracker-fund-index-tracker": {
-      "nav": 40,
-      "repurchase": 40,
-      "validityDate": "Sep 08, 2026"
+      "nav": 39,
+      "repurchase": 39,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 51.3534,
-      "repurchase": 51.3534,
-      "validityDate": "Sep 08, 2026"
+      "nav": 51.5076,
+      "repurchase": 51.5076,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-islamic-income-fund-shariah-compliant-income": {
       "nav": 54,
       "repurchase": 54,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 106,
-      "repurchase": 106,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104,
+      "repurchase": 104,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-akd-opportunity-fund-equity": {
-      "nav": 222,
-      "repurchase": 222,
-      "validityDate": "Sep 08, 2026"
+      "nav": 217,
+      "repurchase": 217,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:akd-investment-management-limited-golden-arrow-stock-fund-equity": {
-      "nav": 36,
-      "repurchase": 36,
-      "validityDate": "Sep 08, 2026"
+      "nav": 35,
+      "repurchase": 35,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-asset-allocation-fund-asset-allocation": {
-      "nav": 102.4471,
-      "repurchase": 102.4471,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.9381,
+      "repurchase": 100.9381,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-cash-fund-money-market": {
-      "nav": 103.972,
-      "repurchase": 103.972,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.2851,
+      "repurchase": 104.2851,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-fixed-return-fund-plan-19-fixed-rate-return": {
-      "nav": 101.932,
-      "repurchase": 101.932,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.2165,
+      "repurchase": 102.2165,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-fixed-return-fund-plan-28-fixed-rate-return": {
-      "nav": 102.1698,
-      "repurchase": 102.1698,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.4918,
+      "repurchase": 102.4918,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-fixed-return-fund-plan-31-fixed-rate-return": {
-      "nav": 101.8468,
-      "repurchase": 101.8468,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.1715,
+      "repurchase": 102.1715,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-fixed-return-fund-plan-33-fixed-rate-return": {
-      "nav": 101.3269,
-      "repurchase": 101.3269,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.6218,
+      "repurchase": 101.6218,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-fixed-return-fund-plan-34-fixed-rate-return": {
-      "nav": 100.3278,
-      "repurchase": 100.3278,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.6193,
+      "repurchase": 100.6193,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-government-securities-fund-income": {
-      "nav": 102.8996,
-      "repurchase": 102.8996,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.1909,
+      "repurchase": 103.1909,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-income-fund-income": {
-      "nav": 105.218,
-      "repurchase": 105.218,
-      "validityDate": "Sep 08, 2026"
+      "nav": 105.4875,
+      "repurchase": 105.4875,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 102.9079,
-      "repurchase": 102.9079,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.1893,
+      "repurchase": 103.1893,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-islamic-income-fund-shariah-compliant-income": {
-      "nav": 104.1476,
-      "repurchase": 104.1476,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.4409,
+      "repurchase": 104.4409,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-islamic-money-market-fund-shariah-compliant-money-mar": {
-      "nav": 102.3008,
-      "repurchase": 102.3008,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.5939,
+      "repurchase": 102.5939,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-islamic-munafa-fund-plan-8-shariah-compliant-fixed-ra": {
-      "nav": 102.1794,
-      "repurchase": 102.1794,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.4771,
+      "repurchase": 102.4771,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-islamic-munafa-fund-plan-9-shariah-compliant-fixed-ra": {
-      "nav": 101.2912,
-      "repurchase": 101.2912,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.5938,
+      "repurchase": 101.5938,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-islamic-savings-fund-shariah-compliant-income": {
-      "nav": 102.9857,
-      "repurchase": 102.9857,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.2468,
+      "repurchase": 103.2468,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 161.7308,
-      "repurchase": 161.7308,
-      "validityDate": "Sep 08, 2026"
+      "nav": 158.5524,
+      "repurchase": 158.5524,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-money-market-fund-money-market": {
-      "nav": 103.1667,
-      "repurchase": 103.1667,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.4594,
+      "repurchase": 103.4594,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-sovereign-income-fund-plan-1-income": {
-      "nav": 102.4824,
-      "repurchase": 102.4824,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.7911,
+      "repurchase": 102.7911,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-sovereign-income-fund-plan-2-income": {
-      "nav": 102.4014,
-      "repurchase": 102.4014,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.675,
+      "repurchase": 102.675,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-sovereign-income-fund-plan-3-income": {
-      "nav": 102.4298,
-      "repurchase": 102.4298,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.703,
+      "repurchase": 102.703,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-habib-asset-management-limited-al-habib-stock-fund-equity": {
-      "nav": 150.8761,
-      "repurchase": 150.8761,
-      "validityDate": "Sep 08, 2026"
+      "nav": 148.2967,
+      "repurchase": 148.2967,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-al-meezan-mutual-fund-shariah-compliant-equity": {
-      "nav": 49.4166,
-      "repurchase": 49.4166,
-      "validityDate": "Sep 08, 2026"
+      "nav": 48.4863,
+      "repurchase": 48.4863,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-kse-meezan-index-fund-shariah-compliant-index-tracker": {
-      "nav": 176.3271,
-      "repurchase": 176.3271,
-      "validityDate": "Sep 08, 2026"
+      "nav": 174.146,
+      "repurchase": 174.146,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-asset-allocation-fund-shariah-compliant-asset-all": {
-      "nav": 114.8716,
-      "repurchase": 114.8716,
-      "validityDate": "Sep 08, 2026"
+      "nav": 113.0185,
+      "repurchase": 113.0185,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-balanced-fund-shariah-compliant-balanced": {
-      "nav": 27.2744,
-      "repurchase": 27.2744,
-      "validityDate": "Sep 08, 2026"
+      "nav": 26.9797,
+      "repurchase": 26.9797,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-capital-protected-fund-iii-meezan-capital-secure-": {
-      "nav": 50.1916,
-      "repurchase": 50.1916,
-      "validityDate": "Sep 08, 2026"
+      "nav": 49.9712,
+      "repurchase": 49.9712,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-cash-fund-shariah-compliant-money-market": {
-      "nav": 52.5903,
-      "repurchase": 52.5903,
-      "validityDate": "Sep 08, 2026"
+      "nav": 52.7355,
+      "repurchase": 52.7355,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-daily-income-fund-mdip-i-shariah-compliant-income": {
       "nav": 50,
       "repurchase": 50,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-daily-income-fund-meezan-mahana-munafa-plan-shari": {
       "nav": 50,
       "repurchase": 50,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-daily-income-fund-meezan-munafa-plan-i-shariah-co": {
-      "nav": 51.5458,
-      "repurchase": 51.5458,
-      "validityDate": "Sep 08, 2026"
+      "nav": 51.6886,
+      "repurchase": 51.6886,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-daily-income-fund-meezan-sehl-account-plan-mshp-s": {
-      "nav": 51.5897,
-      "repurchase": 51.5897,
-      "validityDate": "Sep 08, 2026"
+      "nav": 51.7164,
+      "repurchase": 51.7164,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-daily-income-fund-meezan-super-saver-plan-mssp-sh": {
-      "nav": 51.5572,
-      "repurchase": 51.5572,
-      "validityDate": "Sep 08, 2026"
+      "nav": 51.6838,
+      "repurchase": 51.6838,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-dynamic-asset-allocation-fund-meezan-dividend-yie": {
-      "nav": 83.2489,
-      "repurchase": 83.2489,
-      "validityDate": "Sep 08, 2026"
+      "nav": 82.3974,
+      "repurchase": 82.3974,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-energy-fund-shariah-compliant-equity": {
-      "nav": 64.9357,
-      "repurchase": 64.9357,
-      "validityDate": "Sep 08, 2026"
+      "nav": 64.4905,
+      "repurchase": 64.4905,
+      "validityDate": "Sep 18, 2026"
     },
-    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-aggressive-shari": {
-      "nav": 181.3025,
-      "repurchase": 181.3025,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha": {
-      "nav": 126.4292,
-      "repurchase": 126.4292,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c": {
-      "nav": 139.4528,
-      "repurchase": 139.4528,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-moderate-shariah": {
-      "nav": 145.6851,
-      "repurchase": 145.6851,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-very-conservativ": {
-      "nav": 53.5174,
-      "repurchase": 53.5174,
-      "validityDate": "Sep 08, 2026"
+    "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities": {
+      "nav": 284.873,
+      "repurchase": 284.873,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-government-securities-fund-plan-i-shariah-complia": {
-      "nav": 51.1021,
-      "repurchase": 51.1021,
-      "validityDate": "Sep 08, 2026"
+      "nav": 51.2423,
+      "repurchase": 51.2423,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-islamic-asaan-cash-fund-shariah-compliant-money-m": {
-      "nav": 51.0509,
-      "repurchase": 51.0509,
-      "validityDate": "Sep 08, 2026"
+      "nav": 51.1906,
+      "repurchase": 51.1906,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-islamic-fund-shariah-compliant-equity": {
-      "nav": 160.8015,
-      "repurchase": 160.8015,
-      "validityDate": "Sep 08, 2026"
+      "nav": 157.931,
+      "repurchase": 157.931,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-islamic-income-fund-shariah-compliant-income": {
-      "nav": 52.9208,
-      "repurchase": 52.9208,
-      "validityDate": "Sep 08, 2026"
+      "nav": 53.0613,
+      "repurchase": 53.0613,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-rozana-amdani-fund-shariah-compliant-money-market": {
       "nav": 50,
       "repurchase": 50,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-sovereign-fund-shariah-compliant-income": {
-      "nav": 53.4286,
-      "repurchase": 53.4286,
-      "validityDate": "Sep 08, 2026"
+      "nav": 53.5492,
+      "repurchase": 53.5492,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-asset-allocation-fund-asset-allocation": {
-      "nav": 62.498,
-      "repurchase": 62.498,
-      "validityDate": "Sep 08, 2026"
+      "nav": 61.4554,
+      "repurchase": 61.4554,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-cash-fund-ii-money-market": {
-      "nav": 105.164,
-      "repurchase": 105.164,
-      "validityDate": "Sep 08, 2026"
+      "nav": 105.4723,
+      "repurchase": 105.4723,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-financial-sector-income-fund-income": {
-      "nav": 102.7388,
-      "repurchase": 102.7388,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.0353,
+      "repurchase": 103.0353,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-financial-sector-opportunity-fund-income": {
-      "nav": 117.3218,
-      "repurchase": 117.3218,
-      "validityDate": "Sep 08, 2026"
+      "nav": 117.6807,
+      "repurchase": 117.6807,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-financial-value-fund-alfalah-financial-value-plan-i-ass": {
-      "nav": 156.1753,
-      "repurchase": 156.1753,
-      "validityDate": "Sep 08, 2026"
+      "nav": 156.627,
+      "repurchase": 156.627,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-financial-value-fund-ii-asset-allocation": {
-      "nav": 111.879,
-      "repurchase": 111.879,
-      "validityDate": "Sep 08, 2026"
+      "nav": 110.3694,
+      "repurchase": 110.3694,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-alpha-fund-equity": {
-      "nav": 112.0649,
-      "repurchase": 112.0649,
-      "validityDate": "Sep 08, 2026"
+      "nav": 109.9218,
+      "repurchase": 109.9218,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-cash-fund-money-market": {
-      "nav": 516.6342,
-      "repurchase": 516.6342,
-      "validityDate": "Sep 08, 2026"
+      "nav": 517.9296,
+      "repurchase": 517.9296,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-income-fund-income": {
-      "nav": 116.8337,
-      "repurchase": 116.8337,
-      "validityDate": "Sep 08, 2026"
+      "nav": 117.1991,
+      "repurchase": 117.1991,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-income-multiplier-fund-aggressive-fixed-income": {
-      "nav": 55.9216,
-      "repurchase": 55.9216,
-      "validityDate": "Sep 08, 2026"
+      "nav": 56.1025,
+      "repurchase": 56.1025,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-income-fund-shariah-compliant-income": {
-      "nav": 105.8729,
-      "repurchase": 105.8729,
-      "validityDate": "Sep 08, 2026"
+      "nav": 105.9652,
+      "repurchase": 105.9652,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-prosperity-planning-fund-alfalah-ghp-islami": {
-      "nav": 100.7945,
-      "repurchase": 100.7945,
-      "validityDate": "Sep 08, 2026"
+      "nav": 99.4026,
+      "repurchase": 99.4026,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 71.776,
-      "repurchase": 71.776,
-      "validityDate": "Sep 08, 2026"
+      "nav": 70.516,
+      "repurchase": 70.516,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-value-fund-shariah-compliant-asset-allocati": {
-      "nav": 144.4402,
-      "repurchase": 144.4402,
-      "validityDate": "Sep 08, 2026"
+      "nav": 144.6306,
+      "repurchase": 144.6306,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-money-market-fund-money-market": {
-      "nav": 101.3859,
-      "repurchase": 101.3859,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.6772,
+      "repurchase": 101.6772,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-active-allocat": {
-      "nav": 117.8411,
-      "repurchase": 117.8411,
-      "validityDate": "Sep 08, 2026"
+      "nav": 115.8905,
+      "repurchase": 115.8905,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-conservative-a": {
-      "nav": 115.4009,
-      "repurchase": 115.4009,
-      "validityDate": "Sep 08, 2026"
+      "nav": 115.3355,
+      "repurchase": 115.3355,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-moderate-alloc": {
-      "nav": 99.0532,
-      "repurchase": 99.0532,
-      "validityDate": "Sep 08, 2026"
+      "nav": 98.6178,
+      "repurchase": 98.6178,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-sovereign-fund-income": {
-      "nav": 110.1067,
-      "repurchase": 110.1067,
-      "validityDate": "Sep 08, 2026"
+      "nav": 110.2545,
+      "repurchase": 110.2545,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-stock-fund-equity": {
-      "nav": 192.6364,
-      "repurchase": 192.6364,
-      "validityDate": "Sep 08, 2026"
+      "nav": 189.2362,
+      "repurchase": 189.2362,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-value-fund-asset-allocation": {
-      "nav": 86.35,
-      "repurchase": 86.35,
-      "validityDate": "Sep 08, 2026"
+      "nav": 85.2938,
+      "repurchase": 85.2938,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-government-securities-fund-ii-income": {
-      "nav": 139.2825,
-      "repurchase": 139.2825,
-      "validityDate": "Sep 08, 2026"
+      "nav": 139.3895,
+      "repurchase": 139.3895,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-government-securities-fund-plan-i-income": {
-      "nav": 102.0893,
-      "repurchase": 102.0893,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.1168,
+      "repurchase": 102.1168,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-government-securities-fund-plan-ii-income": {
-      "nav": 107.5778,
-      "repurchase": 107.5778,
-      "validityDate": "Sep 08, 2026"
+      "nav": 107.6367,
+      "repurchase": 107.6367,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-income-growth-fund-aggressive-fixed-income": {
-      "nav": 120.7471,
-      "repurchase": 120.7471,
-      "validityDate": "Sep 08, 2026"
+      "nav": 121.117,
+      "repurchase": 121.117,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-islamic-amdani-fund-shariah-compliant-money-market": {
-      "nav": 102.5553,
-      "repurchase": 102.5553,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.8636,
+      "repurchase": 102.8636,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-islamic-asset-allocation-fund-plan-i-shariah-compliant-": {
-      "nav": 102.6633,
-      "repurchase": 102.6633,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.9523,
+      "repurchase": 102.9523,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-islamic-income-growth-fund-shariah-compliant-aggressive": {
-      "nav": 102.4545,
-      "repurchase": 102.4545,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.7616,
+      "repurchase": 102.7616,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-islamic-money-market-fund-shariah-compliant-money-marke": {
-      "nav": 102.6694,
-      "repurchase": 102.6694,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.9654,
+      "repurchase": 102.9654,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-islamic-sovereign-fund-alfalah-islamic-sovereign-plan-i": {
-      "nav": 101.2192,
-      "repurchase": 101.2192,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.5065,
+      "repurchase": 101.5065,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-islamic-stable-return-fund-plan-xix-shariah-compliant-f": {
-      "nav": 101.5128,
-      "repurchase": 101.5128,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.8207,
+      "repurchase": 101.8207,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ktrade-islamic-plan-vii-shariah-compliant-fund-of-funds": {
-      "nav": 130.0815,
-      "repurchase": 130.0815,
-      "validityDate": "Sep 08, 2026"
+      "nav": 130.478,
+      "repurchase": 130.478,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-money-market-fund-ii-money-market": {
-      "nav": 105.9673,
-      "repurchase": 105.9673,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.2844,
+      "repurchase": 106.2844,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-mts-fund-income": {
-      "nav": 106.0974,
-      "repurchase": 106.0974,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.3957,
+      "repurchase": 106.3957,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-savings-growth-fund-income": {
-      "nav": 106.5128,
-      "repurchase": 106.5128,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.6898,
+      "repurchase": 106.6898,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-special-savings-fund-i-capital-protected": {
-      "nav": 150.2635,
-      "repurchase": 150.2635,
-      "validityDate": "Sep 08, 2026"
+      "nav": 150.4827,
+      "repurchase": 150.4827,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-special-savings-fund-ii-capital-protected": {
-      "nav": 119.7096,
-      "repurchase": 119.7096,
-      "validityDate": "Sep 08, 2026"
+      "nav": 120.062,
+      "repurchase": 120.062,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xx-fixed-rate-return": {
-      "nav": 102.0927,
-      "repurchase": 102.0927,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.3516,
+      "repurchase": 102.3516,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xxvi-fixed-rate-return": {
-      "nav": 102.4582,
-      "repurchase": 102.4582,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.7709,
+      "repurchase": 102.7709,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xxvii-fixed-rate-return": {
-      "nav": 102.0822,
-      "repurchase": 102.0822,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.402,
+      "repurchase": 102.402,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xxviii-fixed-rate-return": {
-      "nav": 103.9517,
-      "repurchase": 103.9517,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.2732,
+      "repurchase": 104.2732,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xxx-fixed-rate-return": {
-      "nav": 102.1815,
-      "repurchase": 102.1815,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.4868,
+      "repurchase": 102.4868,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xxxi-fixed-rate-return": {
-      "nav": 101.1191,
-      "repurchase": 101.1191,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xxxii-fixed-rate-return": {
-      "nav": 101.0873,
-      "repurchase": 101.0873,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.4276,
+      "repurchase": 101.4276,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stable-return-fund-plan-xxxiii-fixed-rate-return": {
-      "nav": 100.0015,
-      "repurchase": 100.0015,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.2849,
+      "repurchase": 100.2849,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-stock-fund-ii-equity": {
-      "nav": 80.3936,
-      "repurchase": 80.3936,
-      "validityDate": "Sep 08, 2026"
+      "nav": 79.3057,
+      "repurchase": 79.3057,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-capital-preservation-plan-ii-fund-": {
-      "nav": 98.8813,
-      "repurchase": 98.8813,
-      "validityDate": "Sep 08, 2026"
+      "nav": 98.3002,
+      "repurchase": 98.3002,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-capital-preservation-plan-iii-fund": {
-      "nav": 99.651,
-      "repurchase": 99.651,
-      "validityDate": "Sep 08, 2026"
+      "nav": 99.3023,
+      "repurchase": 99.3023,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-fund-plan-i-fund-of-funds": {
-      "nav": 102.0334,
-      "repurchase": 102.0334,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.302,
+      "repurchase": 102.302,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity": {
-      "nav": 93.9286,
-      "repurchase": 93.9286,
-      "validityDate": "Sep 08, 2026"
+      "nav": 93.3934,
+      "repurchase": 93.3934,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-financial-sector-fund-equity": {
-      "nav": 98.8206,
-      "repurchase": 98.8206,
-      "validityDate": "Sep 08, 2026"
+      "nav": 98.3054,
+      "repurchase": 98.3054,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-income-fund-income": {
-      "nav": 542.82,
-      "repurchase": 542.82,
-      "validityDate": "Sep 08, 2026"
+      "nav": 544.2933,
+      "repurchase": 544.2933,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-building-materials-fund-shariah-compliant-equity": {
-      "nav": 103.3937,
-      "repurchase": 103.3937,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.7658,
+      "repurchase": 100.7658,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 513.9085,
-      "repurchase": 513.9085,
-      "validityDate": "Sep 08, 2026"
+      "nav": 515.4327,
+      "repurchase": 515.4327,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-energy-fund-shariah-compliant-equity": {
-      "nav": 104.9797,
-      "repurchase": 104.9797,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.1424,
+      "repurchase": 104.1424,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-fund-of-funds-atlas-aggressive-allocation-islamic-p": {
-      "nav": 1431.0396,
-      "repurchase": 1431.0396,
-      "validityDate": "Sep 08, 2026"
+      "nav": 1419.3231,
+      "repurchase": 1419.3231,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-fund-of-funds-atlas-conservative-allocation-islamic": {
-      "nav": 949.3104,
-      "repurchase": 949.3104,
-      "validityDate": "Sep 08, 2026"
+      "nav": 947.4875,
+      "repurchase": 947.4875,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-fund-of-funds-atlas-moderate-allocation-islamic-pla": {
-      "nav": 1224.8803,
-      "repurchase": 1224.8803,
-      "validityDate": "Sep 08, 2026"
+      "nav": 1218.0005,
+      "repurchase": 1218.0005,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-income-fund-shariah-compliant-income": {
-      "nav": 526.8828,
-      "repurchase": 526.8828,
-      "validityDate": "Sep 08, 2026"
+      "nav": 528.2967,
+      "repurchase": 528.2967,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 517.8577,
-      "repurchase": 517.8577,
-      "validityDate": "Sep 08, 2026"
+      "nav": 519.4518,
+      "repurchase": 519.4518,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 1518.1303,
-      "repurchase": 1518.1303,
-      "validityDate": "Sep 08, 2026"
+      "nav": 1499.5795,
+      "repurchase": 1499.5795,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-liquid-fund-money-market": {
-      "nav": 514.0437,
-      "repurchase": 514.0437,
-      "validityDate": "Sep 08, 2026"
+      "nav": 515.5576,
+      "repurchase": 515.5576,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-money-market-fund-money-market": {
-      "nav": 525.5821,
-      "repurchase": 525.5821,
-      "validityDate": "Sep 08, 2026"
+      "nav": 527.141,
+      "repurchase": 527.141,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-sovereign-fund-income": {
-      "nav": 105.308,
-      "repurchase": 105.308,
-      "validityDate": "Sep 08, 2026"
+      "nav": 105.6275,
+      "repurchase": 105.6275,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-stock-market-fund-equity": {
-      "nav": 2081.998,
-      "repurchase": 2081.998,
-      "validityDate": "Sep 08, 2026"
+      "nav": 2058.2204,
+      "repurchase": 2058.2204,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:awt-investments-limited-awt-islamic-asset-allocation-fund-shariah-compliant-asset-allocation": {
-      "nav": 168.9751,
-      "repurchase": 168.9751,
-      "validityDate": "Sep 08, 2026"
+      "nav": 167.4681,
+      "repurchase": 167.4681,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:awt-investments-limited-awt-islamic-income-fund-shariah-compliant-income": {
-      "nav": 107.9897,
-      "repurchase": 107.9897,
-      "validityDate": "Sep 08, 2026"
+      "nav": 108.2959,
+      "repurchase": 108.2959,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:awt-investments-limited-awt-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 120.4225,
-      "repurchase": 120.4225,
-      "validityDate": "Sep 08, 2026"
+      "nav": 120.7848,
+      "repurchase": 120.7848,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:awt-investments-limited-awt-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 181.9615,
-      "repurchase": 181.9615,
-      "validityDate": "Sep 08, 2026"
+      "nav": 179.5136,
+      "repurchase": 179.5136,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:bma-investment-advisors-limited-bma-islamic-noor-cash-fund-shariah-compliant-money-market": {
-      "nav": 102.2111,
-      "repurchase": 102.2111,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.5077,
+      "repurchase": 102.5077,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:bma-investment-advisors-limited-bma-money-market-fund-money-market": {
-      "nav": 102.2451,
-      "repurchase": 102.2451,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.537,
+      "repurchase": 102.537,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:bma-investment-advisors-limited-bma-stock-fund-equity": {
-      "nav": 101.177,
-      "repurchase": 101.177,
-      "validityDate": "Sep 08, 2026"
+      "nav": 99.8936,
+      "repurchase": 99.8936,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-halal-amdani-fund-shariah-compliant-money-market": {
-      "nav": 104.0108,
-      "repurchase": 104.0108,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.2928,
+      "repurchase": 104.2928,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-halal-amdani-fund-ii-shariah-compliant-income": {
-      "nav": 101.9299,
-      "repurchase": 101.9299,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.2139,
+      "repurchase": 102.2139,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-halal-amdani-fund-iii-shariah-compliant-income": {
-      "nav": 102.2777,
-      "repurchase": 102.2777,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.5758,
+      "repurchase": 102.5758,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-asset-allocation-fund-shariah-compliant-asset-all": {
-      "nav": 92.0533,
-      "repurchase": 92.0533,
-      "validityDate": "Sep 08, 2026"
+      "nav": 92.2374,
+      "repurchase": 92.2374,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-asset-allocation-fund-ii-shariah-compliant-asset-": {
-      "nav": 115.1878,
-      "repurchase": 115.1878,
-      "validityDate": "Sep 08, 2026"
+      "nav": 113.0507,
+      "repurchase": 113.0507,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-asset-allocation-fund-iii-faysal-shariah-flex-pla": {
-      "nav": 110.049,
-      "repurchase": 110.049,
-      "validityDate": "Sep 08, 2026"
+      "nav": 110.3804,
+      "repurchase": 110.3804,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-asset-allocation-fund-iv-faysal-shariah-flex-plan": {
-      "nav": 103.7636,
-      "repurchase": 103.7636,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.0729,
+      "repurchase": 104.0729,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 102.3697,
-      "repurchase": 102.3697,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.6308,
+      "repurchase": 102.6308,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-financial-growth-fund-faysal-islamic-financial-gr": {
-      "nav": 102.5343,
-      "repurchase": 102.5343,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.7879,
+      "repurchase": 102.7879,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-financial-growth-fund-ii-shariah-compliant-aggres": {
-      "nav": 102.1669,
-      "repurchase": 102.1669,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.4763,
+      "repurchase": 102.4763,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-financial-planning-fund-ii-faysal-priority-ascend": {
-      "nav": 118.6335,
-      "repurchase": 118.6335,
-      "validityDate": "Sep 08, 2026"
+      "nav": 118.2437,
+      "repurchase": 118.2437,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-mustakil-munafa-fund-faysal-islamic-mehdood-mudda": {
-      "nav": 103.6475,
-      "repurchase": 103.6475,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.8432,
+      "repurchase": 103.8432,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-savings-growth-fund-shariah-compliant-income": {
-      "nav": 107.6626,
-      "repurchase": 107.6626,
-      "validityDate": "Sep 08, 2026"
+      "nav": 107.9483,
+      "repurchase": 107.9483,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-sovereign-fund-faysal-islamic-sovereign-plan-i-sh": {
-      "nav": 102.7974,
-      "repurchase": 102.7974,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.0147,
+      "repurchase": 103.0147,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-sovereign-fund-faysal-islamic-sovereign-plan-ii-s": {
-      "nav": 102.6111,
-      "repurchase": 102.6111,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.8601,
+      "repurchase": 102.8601,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-special-income-plan-i-shariah-compliant-income": {
-      "nav": 10.3013,
-      "repurchase": 10.3013,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3116,
+      "repurchase": 10.3116,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 117.3712,
-      "repurchase": 117.3712,
-      "validityDate": "Sep 08, 2026"
+      "nav": 115.367,
+      "repurchase": 115.367,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-stock-fund-ii-shariah-compliant-equity": {
-      "nav": 131.3443,
-      "repurchase": 131.3443,
-      "validityDate": "Sep 08, 2026"
+      "nav": 129.4022,
+      "repurchase": 129.4022,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-khushal-mustaqbil-fund-faysal-barak-ah-women-savers-plan-": {
-      "nav": 110.8794,
-      "repurchase": 110.8794,
-      "validityDate": "Sep 08, 2026"
+      "nav": 111.1149,
+      "repurchase": 111.1149,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-khushal-mustaqbil-fund-faysal-nu-umah-women-savers-plan-s": {
-      "nav": 111.1701,
-      "repurchase": 111.1701,
-      "validityDate": "Sep 08, 2026"
+      "nav": 111.4197,
+      "repurchase": 111.4197,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:first-capital-investments-limited-first-capital-mutual-fund-equity": {
-      "nav": 16.9309,
-      "repurchase": 16.9309,
-      "validityDate": "Sep 08, 2026"
+      "nav": 16.7782,
+      "repurchase": 16.7782,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-cash-fund-money-market": {
-      "nav": 105.7924,
-      "repurchase": 105.7924,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.0953,
+      "repurchase": 106.0953,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-energy-fund-equity": {
-      "nav": 38.4621,
-      "repurchase": 38.4621,
-      "validityDate": "Sep 08, 2026"
+      "nav": 37.9869,
+      "repurchase": 37.9869,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-equity-fund-equity": {
-      "nav": 247.7442,
-      "repurchase": 247.7442,
-      "validityDate": "Sep 08, 2026"
+      "nav": 240.639,
+      "repurchase": 240.639,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-financial-sector-income-fund-plan-i-income": {
-      "nav": 104.5954,
-      "repurchase": 104.5954,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.8786,
+      "repurchase": 104.8786,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-financial-sector-income-fund-plan-ii-income": {
-      "nav": 102.6597,
-      "repurchase": 102.6597,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.9686,
+      "repurchase": 102.9686,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-government-securities-fund-income": {
-      "nav": 116.5893,
-      "repurchase": 116.5893,
-      "validityDate": "Sep 08, 2026"
+      "nav": 116.8498,
+      "repurchase": 116.8498,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-growth-fund-class-a-equity": {
-      "nav": 39.383,
-      "repurchase": 39.383,
-      "validityDate": "Sep 08, 2026"
+      "nav": 38.271,
+      "repurchase": 38.271,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-growth-fund-class-b-equity": {
-      "nav": 47.0133,
-      "repurchase": 47.0133,
-      "validityDate": "Sep 08, 2026"
+      "nav": 45.4035,
+      "repurchase": 45.4035,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-income-fund-income": {
-      "nav": 115.8346,
-      "repurchase": 115.8346,
-      "validityDate": "Sep 08, 2026"
+      "nav": 116.1547,
+      "repurchase": 116.1547,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-investment-fund-class-a-equity": {
-      "nav": 14.22,
-      "repurchase": 14.22,
-      "validityDate": "Sep 08, 2026"
+      "nav": 13.8274,
+      "repurchase": 13.8274,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-investment-fund-class-b-equity": {
-      "nav": 22.2215,
-      "repurchase": 22.2215,
-      "validityDate": "Sep 08, 2026"
+      "nav": 21.5098,
+      "repurchase": 21.5098,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-islamic-asset-allocation-fund-shariah-compliant-asset-allocatio": {
-      "nav": 331.4145,
-      "repurchase": 331.4145,
-      "validityDate": "Sep 08, 2026"
+      "nav": 325.0862,
+      "repurchase": 325.0862,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-islamic-equity-fund-shariah-compliant-equity": {
-      "nav": 212.4709,
-      "repurchase": 212.4709,
-      "validityDate": "Sep 08, 2026"
+      "nav": 206.978,
+      "repurchase": 206.978,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-islamic-fixed-term-fund-plan-11-shariah-compliant-fixed-rate-re": {
-      "nav": 100.6121,
-      "repurchase": 100.6121,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.6037,
+      "repurchase": 100.6037,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-islamic-income-fund-shariah-compliant-income": {
-      "nav": 107.143,
-      "repurchase": 107.143,
-      "validityDate": "Sep 08, 2026"
+      "nav": 107.4348,
+      "repurchase": 107.4348,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 103.9792,
-      "repurchase": 103.9792,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.2434,
+      "repurchase": 104.2434,
+      "validityDate": "Sep 18, 2026"
     },
-    "MF:hbl-asset-management-limited-hbl-islamic-regualar-income-fund-shariah-compliant-income": {
+    "MF:hbl-asset-management-limited-hbl-islamic-regular-income-fund-shariah-compliant-income": {
       "nav": 100,
       "repurchase": 100,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-islamic-savings-plan-i-shariah-compliant-money-market": {
-      "nav": 102.9429,
-      "repurchase": 102.9429,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.1728,
+      "repurchase": 103.1728,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 264.5624,
-      "repurchase": 264.5624,
-      "validityDate": "Sep 08, 2026"
+      "nav": 257.8503,
+      "repurchase": 257.8503,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-money-market-fund-money-market": {
-      "nav": 105.9443,
-      "repurchase": 105.9443,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.2398,
+      "repurchase": 106.2398,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-multi-asset-fund-balanced": {
-      "nav": 233.9636,
-      "repurchase": 233.9636,
-      "validityDate": "Sep 08, 2026"
+      "nav": 228.9637,
+      "repurchase": 228.9637,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-regular-income-fund-income": {
-      "nav": 100,
-      "repurchase": 100,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.2101,
+      "repurchase": 100.2101,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-stock-fund-equity": {
-      "nav": 237.3411,
-      "repurchase": 237.3411,
-      "validityDate": "Sep 08, 2026"
+      "nav": 229.7321,
+      "repurchase": 229.7321,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-cash-fund-money-market": {
-      "nav": 108.7798,
-      "repurchase": 108.7798,
-      "validityDate": "Sep 08, 2026"
+      "nav": 109.0764,
+      "repurchase": 109.0764,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:js-investments-limited-js-fixed-term-munafa-fund-js-fixed-term-munafa-plan-i-fixed-rate-return": {
+      "nav": 124.8586,
+      "repurchase": 124.8586,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:js-investments-limited-js-fixed-term-munafa-fund-js-fixed-term-munafa-plan-xx-fixed-rate-return": {
+      "nav": 107.5991,
+      "repurchase": 107.5991,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:js-investments-limited-js-fixed-term-munafa-fund-ii-js-fixed-term-munafa-plan-vi-fixed-rate-retu": {
+      "nav": 109.8123,
+      "repurchase": 109.8123,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:js-investments-limited-js-fixed-term-munafa-fund-ii-js-fixed-term-munafa-plan-vii-fixed-rate-ret": {
+      "nav": 102.1211,
+      "repurchase": 102.1211,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:js-investments-limited-js-fixed-term-munafa-fund-plan-23-fixed-rate-return": {
+      "nav": 102.7593,
+      "repurchase": 102.7593,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:js-investments-limited-js-fixed-term-munafa-fund-plan-24-fixed-rate-return": {
+      "nav": 101.3083,
+      "repurchase": 101.3083,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-fund-of-funds-fund-of-funds": {
-      "nav": 147.1588,
-      "repurchase": 147.1588,
-      "validityDate": "Sep 08, 2026"
+      "nav": 146.6625,
+      "repurchase": 146.6625,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-government-securities-fund-income": {
-      "nav": 115.78,
-      "repurchase": 115.78,
-      "validityDate": "Sep 08, 2026"
+      "nav": 115.9,
+      "repurchase": 115.9,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-growth-fund-equity": {
-      "nav": 480.48,
-      "repurchase": 480.48,
-      "validityDate": "Sep 08, 2026"
+      "nav": 473.28,
+      "repurchase": 473.28,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-income-fund-income": {
-      "nav": 127.1745,
-      "repurchase": 127.1745,
-      "validityDate": "Sep 08, 2026"
+      "nav": 127.409,
+      "repurchase": 127.409,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-islamic-fund-shariah-compliant-equity": {
-      "nav": 239.4685,
-      "repurchase": 239.4685,
-      "validityDate": "Sep 08, 2026"
+      "nav": 234.8043,
+      "repurchase": 234.8043,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-islamic-income-fund-shariah-compliant-income": {
-      "nav": 108.4734,
-      "repurchase": 108.4734,
-      "validityDate": "Sep 08, 2026"
+      "nav": 108.819,
+      "repurchase": 108.819,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 106.2691,
-      "repurchase": 106.2691,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.5911,
+      "repurchase": 106.5911,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-islamic-sarmaya-mehfooz-fund-js-islamic-sarmaya-mehfooz-plan-1-shariah": {
-      "nav": 99.5998,
-      "repurchase": 99.5998,
-      "validityDate": "Sep 08, 2026"
+      "nav": 98.9424,
+      "repurchase": 98.9424,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-islamic-sarmaya-mehfooz-fund-plan-2-2020-shariah-compliant-capital-pro": {
-      "nav": 97.3471,
-      "repurchase": 97.3471,
-      "validityDate": "Sep 08, 2026"
+      "nav": 97.1753,
+      "repurchase": 97.1753,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-large-cap-fund-equity": {
-      "nav": 402.4875,
-      "repurchase": 402.4875,
-      "validityDate": "Sep 08, 2026"
+      "nav": 396.3048,
+      "repurchase": 396.3048,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-microfinance-sector-fund-income": {
-      "nav": 123.4143,
-      "repurchase": 123.4143,
-      "validityDate": "Sep 08, 2026"
+      "nav": 123.817,
+      "repurchase": 123.817,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-js-money-market-fund-money-market": {
-      "nav": 124.27,
-      "repurchase": 124.27,
-      "validityDate": "Sep 08, 2026"
+      "nav": 124.6543,
+      "repurchase": 124.6543,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:js-investments-limited-unit-trust-of-pakistan-balanced": {
-      "nav": 410.5627,
-      "repurchase": 410.5627,
-      "validityDate": "Sep 08, 2026"
+      "nav": 406.6811,
+      "repurchase": 406.6811,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lakson-investments-limited-lakson-asset-allocation-developed-markets-fund-asset-allocation": {
-      "nav": 195.858,
-      "repurchase": 195.858,
-      "validityDate": "Sep 08, 2026"
+      "nav": 195.1269,
+      "repurchase": 195.1269,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lakson-investments-limited-lakson-equity-fund-equity": {
-      "nav": 318.2953,
-      "repurchase": 318.2953,
-      "validityDate": "Sep 08, 2026"
+      "nav": 312.3352,
+      "repurchase": 312.3352,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lakson-investments-limited-lakson-income-fund-income": {
-      "nav": 104.6234,
-      "repurchase": 104.6234,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.8917,
+      "repurchase": 104.8917,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lakson-investments-limited-lakson-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 103.1922,
-      "repurchase": 103.1922,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.5028,
+      "repurchase": 103.5028,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lakson-investments-limited-lakson-islamic-tactical-fund-shariah-compliant-asset-allocation": {
-      "nav": 91.2775,
-      "repurchase": 91.2775,
-      "validityDate": "Sep 08, 2026"
+      "nav": 90.3638,
+      "repurchase": 90.3638,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lakson-investments-limited-lakson-money-market-fund-money-market": {
-      "nav": 104.9008,
-      "repurchase": 104.9008,
-      "validityDate": "Sep 08, 2026"
+      "nav": 105.2063,
+      "repurchase": 105.2063,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lakson-investments-limited-lakson-tactical-fund-asset-allocation": {
-      "nav": 102.9073,
-      "repurchase": 102.9073,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.9271,
+      "repurchase": 101.9271,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 102.1294,
-      "repurchase": 102.1294,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.4405,
+      "repurchase": 102.4405,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-dividend-yield-fund-shariah-compliant-equity": {
-      "nav": 93.49,
-      "repurchase": 93.49,
-      "validityDate": "Sep 08, 2026"
+      "nav": 92.84,
+      "repurchase": 92.84,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-energy-fund-shariah-compliant-equity": {
-      "nav": 98.56,
-      "repurchase": 98.56,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:lucky-investments-limited-lucky-islamic-fixed-term-fund-plan-22-shariah-compliant-fixed-rate-ret": {
-      "nav": 100.924,
-      "repurchase": 100.924,
-      "validityDate": "Sep 08, 2026"
+      "nav": 97.44,
+      "repurchase": 97.44,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-fixed-term-fund-plan-24-shariah-compliant-fixed-rate-ret": {
-      "nav": 101.047,
-      "repurchase": 101.047,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.3934,
+      "repurchase": 101.3934,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-fixed-term-fund-plan-25-shariah-compliant-fixed-rate-ret": {
-      "nav": 100.47,
-      "repurchase": 100.47,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.7845,
+      "repurchase": 100.7845,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-fixed-term-fund-plan-26-shariah-compliant-fixed-rate-ret": {
+      "nav": 100,
+      "repurchase": 100,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-fixed-term-fund-plan-29-shariah-compliant-fixed-rate-ret": {
+      "nav": 100.0695,
+      "repurchase": 100.0695,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-income-fund-shariah-compliant-income": {
-      "nav": 102.2848,
-      "repurchase": 102.2848,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.529,
+      "repurchase": 102.529,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 102.4165,
-      "repurchase": 102.4165,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.6898,
+      "repurchase": 102.6898,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 131.19,
-      "repurchase": 131.19,
-      "validityDate": "Sep 08, 2026"
+      "nav": 129.55,
+      "repurchase": 129.55,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mahaana-wealth-limited-mahaana-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 109.2958,
-      "repurchase": 109.2958,
-      "validityDate": "Sep 08, 2026"
+      "nav": 109.6057,
+      "repurchase": 109.6057,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-cash-management-optimizer-shariah-compliant-money-mark": {
-      "nav": 102.6207,
-      "repurchase": 102.6207,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.9045,
+      "repurchase": 102.9045,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-daily-dividend-fund-shariah-compliant-income": {
       "nav": 100,
       "repurchase": 100,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-government-securities-plan-i-shariah-compliant-income": {
-      "nav": 104.2809,
-      "repurchase": 104.2809,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.0542,
+      "repurchase": 104.0542,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-asset-allocation-fund-shariah-compliant-asset-": {
-      "nav": 212.3653,
-      "repurchase": 212.3653,
-      "validityDate": "Sep 08, 2026"
+      "nav": 209.1728,
+      "repurchase": 209.1728,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 100,
-      "repurchase": 100,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.1949,
+      "repurchase": 100.1949,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-energy-fund-shariah-compliant-equity": {
-      "nav": 94.7886,
-      "repurchase": 94.7886,
-      "validityDate": "Sep 08, 2026"
+      "nav": 94.7526,
+      "repurchase": 94.7526,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-income-fund-shariah-compliant-income": {
-      "nav": 108.0575,
-      "repurchase": 108.0575,
-      "validityDate": "Sep 08, 2026"
+      "nav": 107.9559,
+      "repurchase": 107.9559,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-investment-savings-fund-shariah-compliant-inco": {
-      "nav": 102.1825,
-      "repurchase": 102.1825,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.4897,
+      "repurchase": 102.4897,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-money-market-fund-shariah-compliant-money-mark": {
       "nav": 99.51,
       "repurchase": 99.51,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 29.85,
-      "repurchase": 29.85,
-      "validityDate": "Sep 08, 2026"
+      "nav": 29.38,
+      "repurchase": 29.38,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-opportunity-fund-dividend-strategy-plan-shariah-compli": {
-      "nav": 215.503,
-      "repurchase": 215.503,
-      "validityDate": "Sep 08, 2026"
+      "nav": 213.1596,
+      "repurchase": 213.1596,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-smart-portfolio-shariah-compliant-fund-of-funds": {
-      "nav": 173.9359,
-      "repurchase": 173.9359,
-      "validityDate": "Sep 08, 2026"
+      "nav": 173.1224,
+      "repurchase": 173.1224,
+      "validityDate": "Sep 18, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-wada-plan-xxii-shariah-compliant-fixed-rate-return": {
+      "nav": 100.2694,
+      "repurchase": 100.2694,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-cash-management-optimizer-money-market": {
-      "nav": 104.652,
-      "repurchase": 104.652,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.9437,
+      "repurchase": 104.9437,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-dcf-fixed-return-plan-xi-fixed-rate-return": {
-      "nav": 102.0186,
-      "repurchase": 102.0186,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.33,
+      "repurchase": 102.33,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-dcf-fixed-return-plan-xii-fixed-rate-return": {
-      "nav": 101.7467,
-      "repurchase": 101.7467,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.0651,
+      "repurchase": 102.0651,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-dcf-fixed-return-plan-xiii-fixed-rate-return": {
-      "nav": 100.5409,
-      "repurchase": 100.5409,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.8279,
+      "repurchase": 100.8279,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-dcf-fixed-return-plan-xiv-fixed-rate-return": {
-      "nav": 100.3571,
-      "repurchase": 100.3571,
-      "validityDate": "Sep 08, 2026"
+      "nav": 100.6617,
+      "repurchase": 100.6617,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-dcf-income-fund-income": {
-      "nav": 111.898,
-      "repurchase": 111.898,
-      "validityDate": "Sep 08, 2026"
+      "nav": 112.1224,
+      "repurchase": 112.1224,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-financial-sector-fund-equity": {
-      "nav": 92.7561,
-      "repurchase": 92.7561,
-      "validityDate": "Sep 08, 2026"
+      "nav": 92.4311,
+      "repurchase": 92.4311,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-government-securities-plan-i-income": {
-      "nav": 102.8349,
-      "repurchase": 102.8349,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.9769,
+      "repurchase": 102.9769,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-investment-savings-plan-i-aggressive-fixed-income": {
-      "nav": 102.8301,
-      "repurchase": 102.8301,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.1402,
+      "repurchase": 103.1402,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-money-market-fund-money-market": {
-      "nav": 101.8443,
-      "repurchase": 101.8443,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.1444,
+      "repurchase": 102.1444,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-pakistan-asset-allocation-fund-asset-allocation": {
-      "nav": 237.7001,
-      "repurchase": 237.7001,
-      "validityDate": "Sep 08, 2026"
+      "nav": 235.3391,
+      "repurchase": 235.3391,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-pakistan-opportunity-fund-mcb-pakistan-dividend-yield-plan": {
-      "nav": 345.5041,
-      "repurchase": 345.5041,
-      "validityDate": "Sep 08, 2026"
+      "nav": 346.0713,
+      "repurchase": 346.0713,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-pakistan-sovereign-fund-income": {
-      "nav": 56.17,
-      "repurchase": 56.17,
-      "validityDate": "Sep 08, 2026"
+      "nav": 56.22,
+      "repurchase": 56.22,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-pakistan-stock-market-fund-equity": {
-      "nav": 366.0069,
-      "repurchase": 366.0069,
-      "validityDate": "Sep 08, 2026"
+      "nav": 362.7502,
+      "repurchase": 362.7502,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-pakistan-capital-market-fund-balanced": {
-      "nav": 30.21,
-      "repurchase": 30.21,
-      "validityDate": "Sep 08, 2026"
+      "nav": 30.07,
+      "repurchase": 30.07,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-pakistan-cash-management-fund-money-market": {
       "nav": 50.4678,
       "repurchase": 50.4678,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-pakistan-income-enhancement-fund-aggressive-fixed-income": {
-      "nav": 56.2681,
-      "repurchase": 56.2681,
-      "validityDate": "Sep 08, 2026"
+      "nav": 56.3759,
+      "repurchase": 56.3759,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:mcb-investment-management-limited-pakistan-income-fund-income": {
-      "nav": 56.5207,
-      "repurchase": 56.5207,
-      "validityDate": "Sep 08, 2026"
+      "nav": 56.6497,
+      "repurchase": 56.6497,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-national-investment-unit-trust-equity": {
-      "nav": 149.05,
-      "repurchase": 149.05,
-      "validityDate": "Sep 08, 2026"
+      "nav": 146.27,
+      "repurchase": 146.27,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-government-bond-fund-income": {
-      "nav": 10.326,
-      "repurchase": 10.326,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3508,
+      "repurchase": 10.3508,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-income-fund-income": {
-      "nav": 10.5209,
-      "repurchase": 10.5209,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.5235,
+      "repurchase": 10.5235,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-asset-allocation-fund-asset-allocation": {
-      "nav": 16.3252,
-      "repurchase": 16.3252,
-      "validityDate": "Sep 08, 2026"
+      "nav": 16.2083,
+      "repurchase": 16.2083,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-islamic-equity-fund-shariah-compliant-equity": {
-      "nav": 18.65,
-      "repurchase": 18.65,
-      "validityDate": "Sep 08, 2026"
+      "nav": 18.37,
+      "repurchase": 18.37,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-islamic-income-fund-shariah-compliant-income": {
-      "nav": 9.9083,
-      "repurchase": 9.9083,
-      "validityDate": "Sep 08, 2026"
+      "nav": 9.9358,
+      "repurchase": 9.9358,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 103.6736,
-      "repurchase": 103.6736,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.9738,
+      "repurchase": 103.9738,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-money-market-fund-money-market": {
-      "nav": 9.9701,
-      "repurchase": 9.9701,
-      "validityDate": "Sep 08, 2026"
+      "nav": 9.9997,
+      "repurchase": 9.9997,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:national-investment-trust-limited-nit-social-impact-fund-income": {
-      "nav": 10.5463,
-      "repurchase": 10.5463,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.5814,
+      "repurchase": 10.5814,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-balanced-fund-balanced": {
-      "nav": 42.7947,
-      "repurchase": 42.7947,
-      "validityDate": "Sep 08, 2026"
+      "nav": 42.4796,
+      "repurchase": 42.4796,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-cash-plan-i-money-market": {
-      "nav": 10.3208,
-      "repurchase": 10.3208,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3496,
+      "repurchase": 10.3496,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-cash-plan-ii-money-market": {
       "nav": 10,
       "repurchase": 10,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-financial-sector-fund-equity": {
-      "nav": 24.6269,
-      "repurchase": 24.6269,
-      "validityDate": "Sep 08, 2026"
+      "nav": 24.3439,
+      "repurchase": 24.3439,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-financial-sector-income-fund-income": {
-      "nav": 10.9429,
-      "repurchase": 10.9429,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.974,
+      "repurchase": 10.974,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-financial-sector-income-plus-fund-income": {
-      "nav": 10.2429,
-      "repurchase": 10.2429,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2746,
+      "repurchase": 10.2746,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-fixed-term-munafa-plan-vib-nbp-mustahkam-fund-i-fixed-rate-retur": {
       "nav": 10.1976,
       "repurchase": 10.1976,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-fixed-term-munafa-plan-viib-nbp-mustahkam-fund-i-fixed-rate-retu": {
       "nav": 10.163,
       "repurchase": 10.163,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-fixed-term-munafa-plan-xiib-nbp-mustahkam-fund-ii-fixed-rate-ret": {
       "nav": 10.2411,
       "repurchase": 10.2411,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-fixed-term-munafa-plan-xiii-nbp-mustahkam-fund-ii-fixed-rate-ret": {
       "nav": 10.1963,
       "repurchase": 10.1963,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-fixed-term-munafa-plan-xiiib-nbp-mustahkam-fund-ii-fixed-rate-re": {
       "nav": 10.1872,
       "repurchase": 10.1872,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-fixed-term-munafa-plan-xivb-fixed-rate-return": {
       "nav": 10.2118,
       "repurchase": 10.2118,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-fixed-term-munafa-plan-xxa-nbp-mustahkam-fund-ii-fixed-rate-retu": {
       "nav": 10.4411,
       "repurchase": 10.4411,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-government-securities-liquid-fund-money-market": {
-      "nav": 10.5406,
-      "repurchase": 10.5406,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.5704,
+      "repurchase": 10.5704,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-government-securities-plan-iv-income": {
-      "nav": 10.2914,
-      "repurchase": 10.2914,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-government-securities-plan-viii-income": {
-      "nav": 13.2341,
-      "repurchase": 13.2341,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3042,
+      "repurchase": 10.3042,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-government-securities-savings-fund-income": {
-      "nav": 10.7277,
-      "repurchase": 10.7277,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.7347,
+      "repurchase": 10.7347,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-income-opportunity-fund-income": {
-      "nav": 11.1574,
-      "repurchase": 11.1574,
-      "validityDate": "Sep 08, 2026"
+      "nav": 11.1864,
+      "repurchase": 11.1864,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-income-plan-i-income": {
-      "nav": 10.1807,
-      "repurchase": 10.1807,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.209,
+      "repurchase": 10.209,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-daily-dividend-fund-shariah-compliant-money-market": {
       "nav": 10,
       "repurchase": 10,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-energy-fund-shariah-compliant-equity": {
-      "nav": 23.0231,
-      "repurchase": 23.0231,
-      "validityDate": "Sep 08, 2026"
+      "nav": 22.7914,
+      "repurchase": 22.7914,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-fixed-term-munafa-plan-iib-nbp-islamic-mustahkam-fund-sh": {
       "nav": 10.1506,
       "repurchase": 10.1506,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-fixed-term-munafa-plan-vib-nbp-islamic-mustahkam-fund-sh": {
       "nav": 10.0113,
       "repurchase": 10.0113,
-      "validityDate": "Sep 08, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-islamic-fixed-term-munafa-plan-vb-nbp-islamic-mustahkam-fund-sha": {
-      "nav": 10.0652,
-      "repurchase": 10.0652,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-gold-fund-shariah-compliant-commodities": {
-      "nav": 9.6611,
-      "repurchase": 9.6611,
-      "validityDate": "Sep 08, 2026"
+      "nav": 9.5976,
+      "repurchase": 9.5976,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-government-securities-plan-iii-shariah-compliant-income": {
-      "nav": 10.2733,
-      "repurchase": 10.2733,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2923,
+      "repurchase": 10.2923,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-income-fund-shariah-compliant-income": {
-      "nav": 10.3492,
-      "repurchase": 10.3492,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3774,
+      "repurchase": 10.3774,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-mahana-amdani-fund-shariah-compliant-income": {
-      "nav": 10.3551,
-      "repurchase": 10.3551,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3839,
+      "repurchase": 10.3839,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-money-market-fund-shariah-compliant-money-market": {
-      "nav": 10.4086,
-      "repurchase": 10.4086,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.4396,
+      "repurchase": 10.4396,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-principal-protection-fund-i-nbp-islamic-principal-protec": {
-      "nav": 10.0995,
-      "repurchase": 10.0995,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.0801,
+      "repurchase": 10.0801,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-sarmaya-izafa-fund-shariah-compliant-asset-allocation": {
-      "nav": 34.5938,
-      "repurchase": 34.5938,
-      "validityDate": "Sep 08, 2026"
+      "nav": 34.2244,
+      "repurchase": 34.2244,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-savings-fund-shariah-compliant-income": {
-      "nav": 9.8003,
-      "repurchase": 9.8003,
-      "validityDate": "Sep 08, 2026"
+      "nav": 9.8273,
+      "repurchase": 9.8273,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 24.505,
-      "repurchase": 24.505,
-      "validityDate": "Sep 08, 2026"
+      "nav": 24.1566,
+      "repurchase": 24.1566,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-mahana-amdani-fund-income": {
-      "nav": 10.5556,
-      "repurchase": 10.5556,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.5871,
+      "repurchase": 10.5871,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-money-market-fund-money-market": {
-      "nav": 10.2738,
-      "repurchase": 10.2738,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.3031,
+      "repurchase": 10.3031,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-money-market-liquid-fund-money-market": {
-      "nav": 10.2066,
-      "repurchase": 10.2066,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.2376,
+      "repurchase": 10.2376,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-riba-free-savings-fund-shariah-compliant-income": {
-      "nav": 10.5887,
-      "repurchase": 10.5887,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.619,
+      "repurchase": 10.619,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-sarmaya-izafa-fund-asset-allocation": {
-      "nav": 39.463,
-      "repurchase": 39.463,
-      "validityDate": "Sep 08, 2026"
+      "nav": 39.0284,
+      "repurchase": 39.0284,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-savings-fund-income": {
-      "nav": 10.134,
-      "repurchase": 10.134,
-      "validityDate": "Sep 08, 2026"
+      "nav": 10.1623,
+      "repurchase": 10.1623,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-stock-fund-equity": {
-      "nav": 42.0775,
-      "repurchase": 42.0775,
-      "validityDate": "Sep 08, 2026"
+      "nav": 41.5689,
+      "repurchase": 41.5689,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-askari-cash-fund-money-market": {
-      "nav": 105.7865,
-      "repurchase": 105.7865,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.0634,
+      "repurchase": 106.0634,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-askari-high-yield-scheme-aggressive-fixed-income": {
       "nav": 109.1701,
       "repurchase": 109.1701,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-askari-sovereign-yield-enhancer-income": {
-      "nav": 106.5831,
-      "repurchase": 106.5831,
-      "validityDate": "Sep 08, 2026"
+      "nav": 106.8643,
+      "repurchase": 106.8643,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-pak-oman-advantage-asset-allocation-fund-asset-allocat": {
-      "nav": 39.4154,
-      "repurchase": 39.4154,
-      "validityDate": "Sep 08, 2026"
+      "nav": 38.5386,
+      "repurchase": 38.5386,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-pak-oman-advantage-islamic-income-fund-shariah-complia": {
-      "nav": 54.1693,
-      "repurchase": 54.1693,
-      "validityDate": "Sep 08, 2026"
+      "nav": 54.2316,
+      "repurchase": 54.2316,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-pak-oman-daily-dividend-fund-shariah-compliant-money-m": {
-      "nav": 9.9667,
-      "repurchase": 9.9667,
-      "validityDate": "Sep 08, 2026"
+      "nav": 9.966,
+      "repurchase": 9.966,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-pak-oman-income-fund-income": {
-      "nav": 11.0739,
-      "repurchase": 11.0739,
-      "validityDate": "Sep 08, 2026"
+      "nav": 11.0931,
+      "repurchase": 11.0931,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-pak-oman-islamic-asset-allocation-fund-shariah-complia": {
-      "nav": 38.1744,
-      "repurchase": 38.1744,
-      "validityDate": "Sep 08, 2026"
+      "nav": 37.5049,
+      "repurchase": 37.5049,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-oman-asset-management-company-limited-pak-oman-micro-finance-fund-income": {
-      "nav": 103.3176,
-      "repurchase": 103.3176,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.6283,
+      "repurchase": 103.6283,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-i-pqaap-ia-shariah-co": {
-      "nav": 120.9718,
-      "repurchase": 120.9718,
-      "validityDate": "Sep 08, 2026"
+      "nav": 121.3369,
+      "repurchase": 121.3369,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-ii-pqaap-iia-shariah-": {
-      "nav": 118.2656,
-      "repurchase": 118.2656,
-      "validityDate": "Sep 08, 2026"
+      "nav": 118.5313,
+      "repurchase": 118.5313,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-cash-plan-shariah-compliant-money-market": {
-      "nav": 118.8839,
-      "repurchase": 118.8839,
-      "validityDate": "Sep 08, 2026"
+      "nav": 119.2344,
+      "repurchase": 119.2344,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-daily-dividend-plan-shariah-compliant-money": {
       "nav": 100,
       "repurchase": 100,
-      "validityDate": "Sep 08, 2026"
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-income-plan-shariah-compliant-income": {
-      "nav": 120.2227,
-      "repurchase": 120.2227,
-      "validityDate": "Sep 08, 2026"
+      "nav": 120.5145,
+      "repurchase": 120.5145,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-islamic-fixed-term-fund-plan-ii-shariah-com": {
-      "nav": 100.84,
-      "repurchase": 100.84,
-      "validityDate": "Sep 08, 2026"
+      "nav": 101.1513,
+      "repurchase": 101.1513,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-islamic-stock-fund-shariah-compliant-equity": {
-      "nav": 208.3669,
-      "repurchase": 208.3669,
-      "validityDate": "Sep 08, 2026"
+      "nav": 205.1013,
+      "repurchase": 205.1013,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-iii-pqaap-iiia-sharia": {
-      "nav": 134.2566,
-      "repurchase": 134.2566,
-      "validityDate": "Sep 08, 2026"
+      "nav": 132.5313,
+      "repurchase": 132.5313,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-aggressive-income-fund-shariah-compliant-aggressive-f": {
-      "nav": 103.4287,
-      "repurchase": 103.4287,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.423,
+      "repurchase": 103.423,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-aggressive-income-plan-i-shariah-compliant-aggressive": {
-      "nav": 101.8509,
-      "repurchase": 101.8509,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.0816,
+      "repurchase": 102.0816,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-asset-allocation-fund-shariah-compliant-asset-allocat": {
-      "nav": 199.1149,
-      "repurchase": 199.1149,
-      "validityDate": "Sep 08, 2026"
+      "nav": 198.1595,
+      "repurchase": 198.1595,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-cash-fund-shariah-compliant-money-market": {
-      "nav": 103.402,
-      "repurchase": 103.402,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.6664,
+      "repurchase": 103.6664,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-cash-plan-i-shariah-compliant-money-market": {
-      "nav": 102.5537,
-      "repurchase": 102.5537,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.8523,
+      "repurchase": 102.8523,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-energy-fund-shariah-compliant-equity": {
-      "nav": 333.2704,
-      "repurchase": 333.2704,
-      "validityDate": "Sep 08, 2026"
+      "nav": 330.1209,
+      "repurchase": 330.1209,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-income-fund-shariah-compliant-income": {
-      "nav": 102.6398,
-      "repurchase": 102.6398,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.9591,
+      "repurchase": 102.9591,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-sovereign-fund-shariah-compliant-income": {
-      "nav": 104.0134,
-      "repurchase": 104.0134,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.1202,
+      "repurchase": 104.1202,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-shariah-stock-fund-shariah-compliant-equity": {
-      "nav": 476.26,
-      "repurchase": 476.26,
-      "validityDate": "Sep 08, 2026"
+      "nav": 469.64,
+      "repurchase": 469.64,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-asset-allocation-fund-asset-allocation": {
-      "nav": 303.8396,
-      "repurchase": 303.8396,
-      "validityDate": "Sep 08, 2026"
+      "nav": 300.7284,
+      "repurchase": 300.7284,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-cash-fund-money-market": {
-      "nav": 102.8558,
-      "repurchase": 102.8558,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.1711,
+      "repurchase": 103.1711,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-financial-sector-fund-equity": {
-      "nav": 314.8514,
-      "repurchase": 314.8514,
-      "validityDate": "Sep 08, 2026"
+      "nav": 311.6695,
+      "repurchase": 311.6695,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-fixed-return-plan-iii-y-fixed-rate-return": {
-      "nav": 123.8955,
-      "repurchase": 123.8955,
-      "validityDate": "Sep 08, 2026"
+      "nav": 124.5306,
+      "repurchase": 124.5306,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-fixed-return-plan-iii-z-fixed-rate-return": {
-      "nav": 103.0426,
-      "repurchase": 103.0426,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.068,
+      "repurchase": 103.068,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-government-securities-fund-income": {
-      "nav": 108.7294,
-      "repurchase": 108.7294,
-      "validityDate": "Sep 08, 2026"
+      "nav": 108.7909,
+      "repurchase": 108.7909,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-growth-income-fund-aggressive-fixed-income": {
-      "nav": 87.4501,
-      "repurchase": 87.4501,
-      "validityDate": "Sep 08, 2026"
+      "nav": 87.6325,
+      "repurchase": 87.6325,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-income-opportunity-fund-income": {
-      "nav": 113.3264,
-      "repurchase": 113.3264,
-      "validityDate": "Sep 08, 2026"
+      "nav": 113.5708,
+      "repurchase": 113.5708,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-liquidity-fund-money-market": {
-      "nav": 102.0799,
-      "repurchase": 102.0799,
-      "validityDate": "Sep 08, 2026"
+      "nav": 102.3951,
+      "repurchase": 102.3951,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-liquidity-plus-fund-money-market": {
-      "nav": 103.5301,
-      "repurchase": 103.5301,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.8186,
+      "repurchase": 103.8186,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-money-market-fund-money-market": {
-      "nav": 103.2862,
-      "repurchase": 103.2862,
-      "validityDate": "Sep 08, 2026"
+      "nav": 103.5596,
+      "repurchase": 103.5596,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-special-savings-plan-x-capital-protected-income": {
-      "nav": 104.2157,
-      "repurchase": 104.2157,
-      "validityDate": "Sep 08, 2026"
+      "nav": 104.4222,
+      "repurchase": 104.4222,
+      "validityDate": "Sep 18, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-stock-advantage-fund-equity": {
-      "nav": 252.61,
-      "repurchase": 252.61,
-      "validityDate": "Sep 08, 2026"
+      "nav": 249.24,
+      "repurchase": 249.24,
+      "validityDate": "Sep 18, 2026"
     }
   }
 }

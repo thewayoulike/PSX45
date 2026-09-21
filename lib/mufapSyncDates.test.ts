@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { addDaysYmd, candidateNavDates, pkToday } from './mufapSyncDates.js';
+import {
+  addDaysYmd,
+  candidateNavDates,
+  candidatePrevNavDates,
+  pkToday,
+  previousBusinessDay,
+} from './mufapSyncDates.js';
 
 describe('mufapSyncDates', () => {
   it('adds calendar days across month boundaries', () => {
@@ -12,6 +18,21 @@ describe('mufapSyncDates', () => {
       '2026-09-21',
       '2026-09-20',
       '2026-09-19',
+    ]);
+  });
+
+  it('previous business day skips Sat/Sun (Mon → Fri)', () => {
+    // 2026-09-21 is Monday; prior NAV day is Friday 2026-09-18
+    expect(previousBusinessDay('2026-09-21')).toBe('2026-09-18');
+    expect(previousBusinessDay('2026-09-22')).toBe('2026-09-21');
+    expect(previousBusinessDay('2026-09-19')).toBe('2026-09-18'); // Sat → Fri
+  });
+
+  it('prev-NAV candidates prefer business days before weekends', () => {
+    expect(candidatePrevNavDates('2026-09-21', 3)).toEqual([
+      '2026-09-18',
+      '2026-09-17',
+      '2026-09-16',
     ]);
   });
 
