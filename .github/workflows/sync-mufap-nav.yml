@@ -2,8 +2,9 @@ name: Sync MUFAP Fund NAV
 
 on:
   schedule:
-    # Weekdays ~6 PM PKT (13:00 UTC) — after AMCs publish NAV
+    # Weekdays: after typical AMC publish (6 PM PKT) and a late retry (9 PM PKT)
     - cron: '0 13 * * 1-5'
+    - cron: '0 16 * * 1-5'
   workflow_dispatch:
 
 permissions:
@@ -19,15 +20,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
 
-      - name: Install Playwright
+      - name: Install dependencies
         run: |
-          npm install playwright
-          npx playwright install chromium
+          npm install playwright xlsx --no-save
+          npx playwright install --with-deps chromium
 
       - name: Sync MUFAP NAV catalog
         run: node scripts/sync-mufap-nav.mjs
+        env:
+          MUFAP_LOOKBACK_DAYS: '5'
 
       - name: Commit updated catalog
         uses: stefanzweifel/git-auto-commit-action@v5
