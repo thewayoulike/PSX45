@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   resolveInitialChartSymbol,
   resolveSelectedAfterMarketLoad,
+  isChartIndexSymbol,
+  CHART_INDEX_SYMBOLS,
 } from './chartExplorerSelection';
 
 describe('resolveInitialChartSymbol', () => {
@@ -49,5 +51,18 @@ describe('resolveSelectedAfterMarketLoad', () => {
 
   it('keeps empty selection empty', () => {
     expect(resolveSelectedAfterMarketLoad('', ['OGDC', 'HBL'])).toBe('');
+  });
+
+  it('keeps KSE100 and KMI30 even when they are not in the stock list', () => {
+    expect(resolveSelectedAfterMarketLoad('KSE100', ['OGDC', 'HBL'])).toBe('KSE100');
+    expect(resolveSelectedAfterMarketLoad('KMI30', ['OGDC', 'HBL'])).toBe('KMI30');
+  });
+});
+
+describe('chart index symbols', () => {
+  it('recognizes pinned index chart symbols', () => {
+    expect(CHART_INDEX_SYMBOLS).toEqual(['KSE100', 'KMI30']);
+    expect(isChartIndexSymbol('kse100')).toBe(true);
+    expect(isChartIndexSymbol('OGDC')).toBe(false);
   });
 });

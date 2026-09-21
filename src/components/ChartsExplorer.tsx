@@ -13,6 +13,8 @@ import { fetchAllPSXPrices } from '../services/psxData';
 import {
   resolveInitialChartSymbol,
   resolveSelectedAfterMarketLoad,
+  CHART_INDEX_SYMBOLS,
+  isChartIndexSymbol,
 } from '../utils/chartExplorerSelection';
 import { peekChartViewsToday, tryRecordChartView } from '../utils/freemiumQuotas';
 import { StockChart } from './StockChart';
@@ -193,6 +195,8 @@ export const ChartsExplorer: React.FC<Props> = ({
   }, [rows, search, sectorFilter]);
 
   const active = rows.find((r) => r.symbol === selected);
+  const indexSelected = isChartIndexSymbol(selected);
+  const indexLabel = selected === 'KMI30' ? 'KMI-30' : selected === 'KSE100' ? 'KSE-100' : selected;
 
   return (
     <div
@@ -220,6 +224,12 @@ export const ChartsExplorer: React.FC<Props> = ({
             <span className={`text-[10px] font-bold tabular-nums ${active.changePct >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
               {active.changePct >= 0 ? '+' : ''}{active.changePct.toFixed(2)}%
             </span>
+          </div>
+        )}
+        {!active && indexSelected && (
+          <div className="flex items-center gap-2 min-w-0 text-sm">
+            <span className="font-black text-slate-900 dark:text-white">{selected}</span>
+            <span className="text-[10px] text-slate-400 truncate hidden md:inline">{indexLabel} index</span>
           </div>
         )}
         <div className="ml-auto flex items-center gap-2">
@@ -266,6 +276,31 @@ export const ChartsExplorer: React.FC<Props> = ({
         {listOpen && (
           <div id="chart-stock-list" className="w-full sm:w-[260px] lg:w-[280px] shrink-0 bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800 rounded-xl overflow-hidden flex flex-col min-h-0">
             <div className="p-2 border-b border-slate-100 dark:border-slate-800 space-y-2 shrink-0">
+              <div className="space-y-1.5">
+                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest px-0.5">Indices</p>
+                <div className="flex gap-1.5">
+                  {CHART_INDEX_SYMBOLS.map((sym) => {
+                    const on = selected === sym;
+                    const label = sym === 'KMI30' ? 'KMI-30' : 'KSE-100';
+                    return (
+                      <button
+                        key={sym}
+                        type="button"
+                        onClick={() => selectSymbol(sym)}
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-black border transition-colors ${
+                          on
+                            ? 'bg-emerald-50 dark:bg-emerald-500/15 border-emerald-500 text-emerald-800 dark:text-emerald-200'
+                            : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-emerald-300'
+                        }`}
+                        aria-pressed={on}
+                        aria-label={`Open ${label} chart`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="relative">
                 <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                 <input
@@ -338,7 +373,7 @@ export const ChartsExplorer: React.FC<Props> = ({
               <Search size={28} className="text-slate-300 dark:text-slate-600 mb-3" />
               <p className="text-sm font-bold text-slate-700 dark:text-slate-200 mb-1">Load a chart</p>
               <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed mb-4">
-                No symbol is loaded by default. Open the stock list and pick a ticker to view its chart.
+                No symbol is loaded by default. Open the stock list and pick a ticker, or choose KSE-100 / KMI-30 under Indices.
               </p>
               {!listOpen && (
                 <button
