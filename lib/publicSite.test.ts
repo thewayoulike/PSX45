@@ -33,6 +33,15 @@ it('guide hub and each guide have unique canonical URLs and CTAs', () => {
   }
 });
 
+it('every guide is a full article with multiple paragraphs', () => {
+  for (const [slug, page] of Object.entries(guidePages)) {
+    const blockCount = page.sections.reduce((n, section) => n + Math.max(0, section.length - 1), 0);
+    expect(blockCount, slug).toBeGreaterThanOrEqual(8);
+    const html = renderGuidePage(slug);
+    expect((html.match(/<p>/g) || []).length, slug).toBeGreaterThanOrEqual(6);
+  }
+});
+
 it('public footer links include Guides', () => {
   expect(PUBLIC_LINKS.some(([label, href]) => label === 'Guides' && href === '/guides')).toBe(true);
 });
