@@ -2225,10 +2225,9 @@ const App: React.FC = () => {
       }
   };
 
-  // Only expose a cache after the matching identity has passed the access gate.
-  const cacheOwner = driveUser?.email || sbUser?.email;
-  const canPreviewCache = !!(sbStatus?.active && cacheOwner && cacheOwner.toLowerCase() === localStorage.getItem('psx_local_account') && transactions.length);
-  if (isAuthChecking || sbChecking || restoringDrive) return canPreviewCache ? <OfflinePortfolio refreshing /> : <AppLoading />;
+  // While auth / Drive restore runs, always show the loader — never the cached
+  // "Saved portfolio · read only" preview (that confused refreshes with a stale book).
+  if (isAuthChecking || sbChecking || restoringDrive) return <AppLoading />;
   if (viewSavedOffline) return <OfflinePortfolio />;
   if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
@@ -2260,7 +2259,7 @@ const App: React.FC = () => {
       return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
   }
   if (driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
-      if (isCloudSyncing) return canPreviewCache ? <OfflinePortfolio refreshing /> : <AppLoading />;
+      if (isCloudSyncing) return <AppLoading />;
       return <OfflinePortfolio error={cloudSyncError || "The latest backup could not be opened. Retry before making changes."} />;
   }
 

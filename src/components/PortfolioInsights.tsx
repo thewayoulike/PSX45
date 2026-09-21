@@ -99,13 +99,13 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
     // A labelled row, e.g.:  HOLDINGS  MEBL  +1,234.00 (12.55%)
     const splitRow = (rowLabel: string, d: { ticker: string; ret: number; profit: number } | null) =>
       d ? (
-        <span className="block mt-1 leading-snug">
+        <div className="leading-snug">
           <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mr-2">{rowLabel}</span>
           {strong(label(d.ticker))}{' '}
           <span className={`font-bold ${d.profit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
             {d.profit >= 0 ? '+' : ''}{money(d.profit)} ({pct(d.ret)})
           </span>
-        </span>
+        </div>
       ) : null;
 
     // 3) Best performer — current holdings AND sold, shown together
@@ -113,8 +113,8 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       out.push({
         key: 'best', tone: 'good', Icon: TrendingUp, score: 980,
         node: (
-          <div className="text-sm text-slate-600 dark:text-slate-300">
-            <span className="font-semibold text-slate-700 dark:text-slate-200">Best performer</span>
+          <div className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5">
+            <div className="font-semibold text-slate-700 dark:text-slate-200">Best performer</div>
             {splitRow('Holdings', bestHold)}
             {splitRow('Sold', bestSold)}
           </div>
@@ -129,8 +129,8 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
       out.push({
         key: 'worst', tone: 'rose', Icon: TrendingDown, score: 970,
         node: (
-          <div className="text-sm text-slate-600 dark:text-slate-300">
-            <span className="font-semibold text-slate-700 dark:text-slate-200">Biggest drag</span>
+          <div className="text-sm text-slate-600 dark:text-slate-300 space-y-1.5">
+            <div className="font-semibold text-slate-700 dark:text-slate-200">Biggest drag</div>
             {splitRow('Holdings', dragHold)}
             {splitRow('Sold', dragSold)}
           </div>
@@ -306,16 +306,16 @@ export const PortfolioInsights: React.FC<PortfolioInsightsProps> = ({ holdings, 
         <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Insights</h3>
       </div>
 
-      <div className="flex-1 flex flex-col justify-evenly min-h-0 divide-y divide-slate-100 dark:divide-slate-800/60">
+      <div className="flex-1 overflow-y-auto min-h-0 divide-y divide-slate-100 dark:divide-slate-800/60">
         {visible.map((ins) => {
           const t = TONE[ins.tone];
           const Icon = ins.Icon;
           return (
-            <div key={ins.key} className="flex items-start gap-4 py-2 first:pt-0 flex-1 min-h-0">
+            <div key={ins.key} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
               <div className={`w-8 h-8 rounded-full ${t.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
                 <Icon size={16} className={t.fg} />
               </div>
-              <div className="min-w-0">{ins.node}</div>
+              <div className="min-w-0 flex-1">{ins.node}</div>
             </div>
           );
         })}
