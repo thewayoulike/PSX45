@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local CLI for pypsx_lib modes: quote | quotes | indices | intraday."""
+"""Local CLI for pypsx_lib modes: quote | quotes | indices | intraday | dividends."""
 import json
 import sys
 from pathlib import Path
@@ -11,6 +11,7 @@ from pypsx_lib import (  # noqa: E402
     get_quotes,
     get_index_symbols_payload,
     get_intraday_ohlcv,
+    get_dividend_snapshot,
 )
 
 
@@ -22,6 +23,9 @@ def main():
     elif mode == "quotes":
         symbols = sys.argv[2] if len(sys.argv) > 2 else ""
         print(json.dumps(get_quotes(symbols)))
+    elif mode == "dividends":
+        symbol = sys.argv[2] if len(sys.argv) > 2 else ""
+        print(json.dumps(get_dividend_snapshot(symbol)))
     elif mode == "indices":
         name = sys.argv[2] if len(sys.argv) > 2 else ""
         print(json.dumps(get_index_symbols_payload(name)))
@@ -31,7 +35,7 @@ def main():
         period = sys.argv[4] if len(sys.argv) > 4 else "5d"
         print(json.dumps(get_intraday_ohlcv(symbol, interval=interval, period=period)))
     else:
-        print(json.dumps({"error": "usage: quote|quotes|indices|intraday ..."}))
+        print(json.dumps({"error": "usage: quote|quotes|indices|intraday|dividends ..."}))
         sys.exit(1)
 
 

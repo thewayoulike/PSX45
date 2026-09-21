@@ -34,15 +34,16 @@ export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache,
         <div id={`fv-${field}-help`} className="mt-1.5 space-y-1 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
           {help && <p>{help}</p>}
           {source && <p>{source.name} · {source.name === 'Entered manually' ? 'edited' : 'retrieved'} {dateLabel(source.retrievedAt)}</p>}
+          {field === 'expectedDiv' && research.dividendSource && <p>{research.dividendSource.source} · retrieved {dateLabel(research.dividendSource.retrievedAt)}. {research.dividendSource.basis}</p>}
         </div>
       </div>
     );
   }
 
-  const estimates: { name: string; result: Calculation; formula: string; description: string }[] = [
-    { name: 'P/E estimate', result: results.peValue, formula: 'EPS × target P/E', description: 'Use a target multiple supported by comparable earnings quality, growth, payout and risk. Current market P/E is shown separately below.' },
-    { name: 'Constant-dividend estimate', result: results.dividendValue, formula: 'Annual dividend ÷ (required return / 100)', description: 'Assumes the same annual dividend continues forever, with no dividend growth. Earnings growth does not affect this estimate. A zero-dividend result is not the total value of a business.' },
-    { name: 'Graham number', result: results.grahamValue, formula: '√(22.5 × EPS × book value per share)', description: 'A traditional earnings-and-assets screening reference. It does not assess earnings quality, future growth or the safety of an investment.' },
+  const estimates: { name: string; result: Calculation; formula: string; description: string; field: InputField; action: string }[] = [
+    { name: 'P/E estimate', result: results.peValue, formula: 'EPS × target P/E', description: 'Use a target multiple supported by comparable earnings quality, growth, payout and risk. Current market P/E is shown separately below.', field: inputs.eps !== '' && inputs.eps > 0 ? 'fairPE' : 'eps', action: inputs.eps !== '' && inputs.eps > 0 ? 'Set target P/E' : 'Check EPS' },
+    { name: 'Constant-dividend estimate', result: results.dividendValue, formula: 'Annual dividend ÷ (required return / 100)', description: 'Assumes the same annual dividend continues forever, with no dividend growth. Earnings growth does not affect this estimate. A zero-dividend result is not the total value of a business.', field: inputs.expectedDiv !== '' && inputs.expectedDiv >= 0 ? 'requiredReturn' : 'expectedDiv', action: inputs.expectedDiv !== '' && inputs.expectedDiv >= 0 ? 'Set required return' : 'Check annual dividend' },
+    { name: 'Graham number', result: results.grahamValue, formula: '√(22.5 × EPS × book value per share)', description: 'A traditional earnings-and-assets screening reference. It does not assess earnings quality, future growth or the safety of an investment.', field: inputs.eps !== '' && inputs.eps > 0 ? 'bookValue' : 'eps', action: 'Check company figures' },
   ];
   const ratios: { name: string; result: Calculation; suffix: string; description: string }[] = [
     { name: 'Current P/E', result: results.pe, suffix: '×', description: 'Entered price ÷ EPS. Compare companies with similar earnings periods and business characteristics.' },
@@ -86,7 +87,7 @@ export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache,
         </p>
         {ticker && !validTicker(ticker) && <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">Use a PSX symbol such as OGDC, without spaces.</p>}
         <div role="status" aria-live="polite" className={message ? 'mt-3 rounded-lg bg-slate-100 dark:bg-slate-800 p-3 text-sm leading-relaxed' : ''}>{message}</div>
-        {research.needsReview && <p className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 p-3 text-sm text-amber-800 dark:text-amber-200">Older saved figures have no verified dates. Re-enter your assumptions: the previous calculator could copy market P/E and reported dividends into them automatically. Refresh the figures, review them, then save.</p>}
+        {research.needsReview && <p className="mt-3 rounded-lg bg-amber-50 dark:bg-amber-950/40 p-3 text-sm text-amber-800 dark:text-amber-200">Review your saved research: choose a target P/E and required return for the estimates below. These assumptions need to be set again for older saved entries. Annual dividends can fill automatically when you refresh.</p>}
         <p className="my-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">Source dates below show when figures were retrieved, not when accounts were published or a trade occurred. The fundamentals feed does not identify its reporting period. Verify annual or TTM EPS and book value against published accounts before relying on an estimate.</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {input('price', 'Share price (PKR)', 'The market quote takes priority over the feed price; either may be delayed.')}
@@ -95,29 +96,33 @@ export const FairValueCalculator: React.FC<FairValueCalculatorProps> = ({ cache,
         </div>
       </Card>
 
-      <Card title="Your valuation assumptions" icon={<SlidersHorizontal size={18} />}>
-        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">These stay under your control. Refresh never replaces them with market multiples, feed dividends or default rates.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-          {input('fairPE', 'Target P/E (×)', 'Choose a justified multiple for the EPS period above. It is not the current market P/E.')}
-          {input('expectedDiv', 'Annual dividend (PKR per share)', 'Enter the annual cash dividend you expect, not a percentage of face value or an interim payment.')}
-          {input('requiredReturn', 'Required annual return (%)', 'Your required equity return, including the risk you assume. Must be above 0%.')}
-          {input('cagr', 'Expected earnings growth (%)', 'Used only for PEG and one-year projected P/E. Enter 0 for no growth.')}
-        </div>
-        {reportedDividend && <p className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">Feed-reported dividend: <strong>{format(reportedDividend.value)}</strong> · retrieved {dateLabel(reportedDividend.retrievedAt)}. Its units and period are unverified, so it has not been used as your annual dividend. Confirm and convert it using the company’s dividend announcement first.</p>}
-      </Card>
-
       <section aria-label="Valuation estimates" className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {estimates.map(({ name, result, formula, description }) => (
+        {estimates.map(({ name, result, formula, description, field, action }) => (
           <article key={name} className="min-w-0 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-5">
             <h2 className="font-semibold text-base">{name}</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-2">{formula}</p>
             <p className="my-3 text-2xl font-bold break-words tabular-nums">{result.value === null ? 'Not available' : `Rs. ${format(result.value)}`}</p>
             <p className="text-sm text-slate-700 dark:text-slate-200">{result.reason ?? compareEstimate(result.value, inputs.price)}</p>
+            {result.value === null && <a href={`#fv-${field}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-emerald-700 dark:text-emerald-400 underline mt-1">{action}</a>}
             <p className="mt-4 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{description}</p>
           </article>
         ))}
       </section>
       <p className="text-xs text-slate-500 dark:text-slate-400">Upside/downside is (estimate − entered price) ÷ entered price. It is not the discount to estimated value.</p>
+
+      <Card title="Your valuation assumptions" icon={<SlidersHorizontal size={18} />}>
+        <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Set your target P/E and required return to complete the estimates above. Dividend auto-fill uses pyPSX annual dividends first, then a yield-based estimate, then your sheet. Editing the dividend keeps your manual override on future refreshes.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          {input('fairPE', 'Target P/E (×)', 'Choose a justified multiple for the EPS period above. It is not the current market P/E.')}
+          {input('expectedDiv', 'Annual dividend (PKR per share)', 'Auto-filled as the annual dividend assumption. You can override it; do not enter a face-value percentage or a single interim payment.')}
+          {input('requiredReturn', 'Required annual return (%)', 'Your required equity return, including the risk you assume. Must be above 0%.')}
+          {input('cagr', 'Expected earnings growth (%)', 'Used only for PEG and one-year projected P/E. Enter 0 for no growth.')}
+        </div>
+        {research.dividendMode === 'manual' && <div className="mt-4 rounded-lg bg-slate-50 dark:bg-slate-800 p-3 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
+          <p>Your manual annual dividend is being used.{reportedDividend && ` Latest source: Rs. ${format(reportedDividend.value)} per share (${reportedDividend.source}), retrieved ${dateLabel(reportedDividend.retrievedAt)}. ${reportedDividend.basis}`}</p>
+          {reportedDividend && <button type="button" onClick={state.useSourceDividend} className="min-h-11 text-sm font-semibold text-emerald-700 dark:text-emerald-400 underline">Use source dividend</button>}
+        </div>}
+      </Card>
 
       <Card title="Balance sheet figures" icon={<Activity size={18} />}>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">Use the same reporting date and scale for all amounts (for example, all in PKR millions). The feed’s scale and reporting date are unverified. Ratios are not directly comparable across sectors, especially banks and non-financial companies.</p>

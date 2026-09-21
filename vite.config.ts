@@ -26,7 +26,7 @@ function localPsxApi(): Plugin {
           const u = new URL(url, 'http://localhost');
           if (isPypsx) {
             const mode = u.searchParams.get('mode') || '';
-            if (mode === 'company') {
+            if (mode === 'company' || mode === 'dividends') {
               const symbol = u.searchParams.get('symbol') || u.searchParams.get('company') || '';
               if (!symbol) {
                 res.statusCode = 400;
@@ -35,7 +35,7 @@ function localPsxApi(): Plugin {
                 return;
               }
               const { fetchPypsxToolkit } = await import('./lib/pypsxFetch.js');
-              const payload = await fetchPypsxToolkit('company', { symbol });
+              const payload = await fetchPypsxToolkit(mode, { symbol });
               res.statusCode = 200;
               res.setHeader('Content-Type', 'application/json');
               res.end(JSON.stringify(payload));

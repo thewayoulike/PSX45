@@ -44,7 +44,16 @@ export function useFairValueResearch(cache: Record<string, any>, onSaveCache: Re
     const old = current.current;
     const sources = { ...old.research.sources };
     if ((factFields as readonly string[]).includes(field)) sources[field] = { name: 'Entered manually', retrievedAt: new Date().toISOString() };
-    update({ ...old, dirty: true, research: { ...old.research, inputs: { ...old.research.inputs, [field]: value }, sources } });
+    update({ ...old, dirty: true, research: { ...old.research, inputs: { ...old.research.inputs, [field]: value }, sources,
+      ...(field === 'expectedDiv' ? { dividendMode: 'manual' as const, dividendSource: null } : {}) } });
+  }
+
+  function useSourceDividend() {
+    const old = current.current;
+    const dividend = old.research.reportedDividend;
+    if (!dividend) return;
+    revisions.current.expectedDiv = (revisions.current.expectedDiv ?? 0) + 1;
+    update({ ...old, dirty: true, research: { ...old.research, inputs: { ...old.research.inputs, expectedDiv: dividend.value }, dividendMode: 'source', dividendSource: dividend } });
   }
 
   function persist(next: Draft) {
@@ -83,7 +92,12 @@ export function useFairValueResearch(cache: Record<string, any>, onSaveCache: Re
         inputs[field] = fetched.facts[field];
         sources[field] = fetched.sources[field];
       }
-      persist({ ...old, research: { ...old.research, inputs, sources, reportedDividend: fetched.reportedDividend ?? old.research.reportedDividend } });
+      let dividendSource = old.research.dividendSource;
+      if (old.research.dividendMode === 'source' && fetched.reportedDividend && revisions.current.expectedDiv === startingRevisions.expectedDiv) {
+        inputs.expectedDiv = fetched.reportedDividend.value;
+        dividendSource = fetched.reportedDividend;
+      }
+      persist({ ...old, research: { ...old.research, inputs, sources, dividendSource, reportedDividend: fetched.reportedDividend ?? old.research.reportedDividend } });
       setMessage(['Available company figures refreshed and research saved.', keptEdits ? 'Edits made during loading were kept.' : '', ...fetched.warnings].filter(Boolean).join(' '));
     } catch (error) {
       if (request.current.id === id && !controller.signal.aborted) setMessage(error instanceof Error ? error.message : 'Could not refresh company figures. Please retry.');
@@ -95,5 +109,5 @@ export function useFairValueResearch(cache: Record<string, any>, onSaveCache: Re
     }
   }
 
-  return { ...draft, busy, message, changeTicker, edit, save, refresh };
+  return { ...draft, busy, message, changeTicker, edit, save, refresh, useSourceDividend };
 }
