@@ -70,9 +70,12 @@ describe('SEO foundation', () => {
     expect(analyticsScriptTags('')).toBe('');
     expect(analyticsScriptTags('bad')).toBe('');
     const tags = analyticsScriptTags();
+    expect(tags.match(/<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=[^"]+"><\/script>/g)).toHaveLength(1);
     expect(tags).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
     expect(tags).toContain(`gtag('config', '${GOOGLE_ANALYTICS_ID}')`);
     const html = expandHome(read('index.html'));
+    const head = html.split('</head>')[0];
+    expect(head.match(/<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=[^"]+"><\/script>/g)).toHaveLength(1);
     expect(html).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
     expect(html).toContain(`gtag('config', '${GOOGLE_ANALYTICS_ID}')`);
     expect(read('vercel.json')).toContain('googletagmanager.com');

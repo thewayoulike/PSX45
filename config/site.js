@@ -5,7 +5,7 @@ export const WHATSAPP_URL = 'https://wa.me/923474440983';
 /** Paste Google Search Console meta token here (or leave empty). */
 export const GOOGLE_SITE_VERIFICATION = '';
 /** GA4 Measurement ID (G-…). Empty disables the tag. */
-export const GOOGLE_ANALYTICS_ID = 'G-QB2NMMSH9X';
+export const GOOGLE_ANALYTICS_ID = 'G-Q82NMWSH9X';
 export const PUBLIC_LINKS = [
   ['How it works', '/how-it-works'], ['Video guide', '/how-to-use'], ['Guides', '/guides'], ['About', '/about'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact'],
 ];
