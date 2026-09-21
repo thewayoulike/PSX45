@@ -295,7 +295,7 @@ export const ChartShot: React.FC = () => (
           <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">500+ PSX tickers</span>
           <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">Draw tools &amp; Fib</span>
           <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">Price-axis zoom</span>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white">22 Awais indicators</span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white">Technical indicators</span>
         </div>
       </div>
     </div>
