@@ -179,7 +179,7 @@ const HeroCard: React.FC<{
   colorClass: string; icon: React.ReactNode; iconWrap: string; trend: number[]; sparkColor: string;
 }> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor }) => {
   return (
-    <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
+    <div className="portfolio-summary-card relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
       <div className="relative z-10 flex items-start justify-between pointer-events-none">
         <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</span>
         <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${iconWrap}`}>

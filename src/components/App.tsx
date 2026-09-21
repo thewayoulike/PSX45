@@ -1,6 +1,7 @@
 import { setUnsavedLocalChanges } from '../utils/chunkRecovery';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
+import '../visual-theme.css';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
 import { setCanSaveAlerts } from '../services/alertAccess';
 import { Dashboard } from './DashboardStats';
