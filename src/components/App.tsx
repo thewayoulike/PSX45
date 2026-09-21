@@ -1510,10 +1510,13 @@ const App: React.FC = () => {
         totalCost += h.quantity * roundedAvg;
         const ldcpRaw = ldcpMap[h.ticker];
         if (isFundTicker(h.ticker)) {
+            const fund = fundCatalog[h.ticker];
             const ldcp = resolveFundDayNav(h.currentPrice, ldcpRaw, {
                 priceTimestamp: priceTimestamps[h.ticker],
                 dayMark: fundNavDayMap[h.ticker],
-                currentValidity: fundCatalog[h.ticker]?.validityDate,
+                currentValidity: fund?.validityDate,
+                catalogPrevNav: fund?.prevNav,
+                catalogPrevValidity: fund?.prevValidityDate,
             });
             // Day P&L from yesterday's NAV on units held at start of day (excludes today's subscribe/redeem)
             let netUnitsToday = 0;
@@ -2087,10 +2090,13 @@ const App: React.FC = () => {
           let changed = false;
           const next = { ...prev };
           fundHoldings.forEach(h => {
+              const fund = fundCatalog[h.ticker];
               const trusted = resolveFundDayNav(h.currentPrice, next[h.ticker], {
                   priceTimestamp: priceTimestamps[h.ticker],
                   dayMark: fundNavDayMap[h.ticker],
-                  currentValidity: fundCatalog[h.ticker]?.validityDate,
+                  currentValidity: fund?.validityDate,
+                  catalogPrevNav: fund?.prevNav,
+                  catalogPrevValidity: fund?.prevValidityDate,
               });
               if (Math.abs((next[h.ticker] || 0) - trusted) > 1e-8) {
                   next[h.ticker] = trusted;
@@ -2677,6 +2683,11 @@ const App: React.FC = () => {
                                   fundNavDayMap={fundNavDayMap}
                                   fundValidityById={Object.fromEntries(
                                       Object.values(fundCatalog).map(f => [f.id, f.validityDate || ''])
+                                  )}
+                                  fundPrevById={Object.fromEntries(
+                                      Object.values(fundCatalog)
+                                          .filter(f => f.prevNav != null && f.prevNav > 0 && f.prevValidityDate)
+                                          .map(f => [f.id, { nav: f.prevNav!, validityDate: f.prevValidityDate! }])
                                   )}
                               />
                           </div>

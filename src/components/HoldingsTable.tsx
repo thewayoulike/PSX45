@@ -41,6 +41,8 @@ interface HoldingsTableProps {
   priceTimestamps?: Record<string, string>;
   fundNavDayMap?: FundNavDayMap;
   fundValidityById?: Record<string, string>;
+  /** Catalog prior NAV (Fri when today is Mon) — preferred source for fund Daily P&L */
+  fundPrevById?: Record<string, { nav: number; validityDate: string }>;
 }
 
 const COLORS = ['#10b981', '#3b82f6', '#f59e0b', '#6366f1', '#ec4899', '#06b6d4', '#8b5cf6'];
@@ -77,7 +79,7 @@ const fundDayPL = (
   return { change, pct };
 };
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {} }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {}, fundPrevById = {} }) => {
   const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const isFund = portfolioType === 'MUTUAL_FUND';
   const today = todayPK();
@@ -86,6 +88,8 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           priceTimestamp: priceTimestamps[h.ticker],
           dayMark: fundNavDayMap[h.ticker],
           currentValidity: fundValidityById[h.ticker],
+          catalogPrevNav: fundPrevById[h.ticker]?.nav,
+          catalogPrevValidity: fundPrevById[h.ticker]?.validityDate,
       });
   const [searchTerm, setSearchTerm] = useState('');
   const [sortConfig, setSortConfig] = useState<SortConfig>({ key: 'ticker', direction: 'asc' });
@@ -133,7 +137,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
           return 0;
       });
-  }, [holdings, searchTerm, showBroker, sortConfig, ldcpMap, isFund, dayTransactions, today, priceTimestamps, fundNavDayMap, fundValidityById]);
+  }, [holdings, searchTerm, showBroker, sortConfig, ldcpMap, isFund, dayTransactions, today, priceTimestamps, fundNavDayMap, fundValidityById, fundPrevById]);
 
   useEffect(() => { setCurrentPage(1); }, [searchTerm]);
 
@@ -151,7 +155,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               : (h.currentPrice - ldcp) * h.quantity;
           return { totalCost: acc.totalCost + cost, totalMarket: acc.totalMarket + marketVal, pnl: acc.pnl + (marketVal - cost), dailyPL: acc.dailyPL + dailyChange };
       }, { totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0 });
-  }, [filteredAndSortedHoldings, ldcpMap, isFund, dayTransactions, today, priceTimestamps, fundNavDayMap, fundValidityById]);
+  }, [filteredAndSortedHoldings, ldcpMap, isFund, dayTransactions, today, priceTimestamps, fundNavDayMap, fundValidityById, fundPrevById]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
   const totalDailyPercent = totals.totalCost > 0 ? (totals.dailyPL / totals.totalCost) * 100 : 0;

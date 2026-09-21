@@ -159,8 +159,9 @@ export const isRecentLiveFundPrice = (isoTimestamp?: string, now = Date.now()): 
 
 /**
  * Fund "yesterday NAV" for daily P&L.
- * Only trust stored ldcp when we have a day-mark proving a prior MUFAP validity date
- * (true day-over-day). Catalog corrections must never invent daily P&L.
+ * Prefer explicit catalog prevNav when MUFAP validity rolled (e.g. Mon vs Fri).
+ * Day-marks from a prior sync are trusted when validity differs — no timestamp gate
+ * (opening the app later must not wipe a real day move back to 0%).
  */
 export const resolveFundDayNav = (
   currentNav: number,
@@ -169,25 +170,42 @@ export const resolveFundDayNav = (
     priceTimestamp?: string;
     dayMark?: FundNavDayMark;
     currentValidity?: string;
+    catalogPrevNav?: number;
+    catalogPrevValidity?: string;
   }
 ): number => {
   if (!(currentNav > 0)) return storedLdcp && storedLdcp > 0 ? storedLdcp : 0;
-  if (!(storedLdcp > 0)) return currentNav;
 
   const curV = normalizeFundValidity(opts?.currentValidity);
+  const catalogPrevV = normalizeFundValidity(opts?.catalogPrevValidity);
+  const catalogPrev = opts?.catalogPrevNav;
+
+  // GH-synced catalog: different validity + different NAV → that is yesterday for Daily P&L
+  if (
+    catalogPrev != null &&
+    catalogPrev > 0 &&
+    catalogPrevV &&
+    curV &&
+    catalogPrevV !== curV &&
+    Math.abs(catalogPrev - currentNav) > 1e-8
+  ) {
+    return catalogPrev;
+  }
+
+  if (!(storedLdcp > 0)) return currentNav;
+
   const markV = normalizeFundValidity(opts?.dayMark?.validityDate);
 
   // Same validity date as last mark → same MUFAP report day → no day move
   if (curV && markV && curV === markV) return currentNav;
 
-  // Trusted prior close only when day-mark NAV matches stored ldcp and validity differs
+  // Trusted prior close when day-mark NAV matches stored ldcp and validity differs
   if (
     opts?.dayMark &&
     markV &&
     curV &&
     markV !== curV &&
-    Math.abs(opts.dayMark.nav - storedLdcp) < 1e-6 &&
-    isRecentLiveFundPrice(opts.priceTimestamp)
+    Math.abs(opts.dayMark.nav - storedLdcp) < 1e-6
   ) {
     return storedLdcp;
   }
