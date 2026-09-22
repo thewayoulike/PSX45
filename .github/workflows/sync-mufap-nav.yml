@@ -40,20 +40,11 @@ jobs:
             data/fund-nav-catalog.json
             public/data/fund-nav-catalog.json
 
-      - name: Notify on failure
+      - name: Email owner on failure
         if: failure()
         env:
-          ALERT_WEBHOOK: ${{ secrets.MUFAP_SYNC_ALERT_WEBHOOK }}
-          SUPPORT_EMAIL: ${{ secrets.MUFAP_SYNC_ALERT_EMAIL }}
-        run: |
-          set -e
-          MSG="PSX Tracker MUFAP NAV sync FAILED on ${GITHUB_REPOSITORY} run ${GITHUB_RUN_ID} (${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID})"
-          echo "::error::$MSG"
-          if [ -n "$ALERT_WEBHOOK" ]; then
-            curl -fsS -X POST -H 'Content-Type: application/json' \
-              -d "{\"text\":$(printf '%s' "$MSG" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')}" \
-              "$ALERT_WEBHOOK" || true
-          fi
-          if [ -n "$SUPPORT_EMAIL" ]; then
-            echo "Configure mail relay separately; failure recorded for $SUPPORT_EMAIL"
-          fi
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          BREVO_SENDER: ${{ secrets.BREVO_SENDER }}
+          OWNER_EMAIL: ${{ secrets.OWNER_EMAIL }}
+          MUFAP_SYNC_ALERT_EMAIL: ${{ secrets.MUFAP_SYNC_ALERT_EMAIL }}
+        run: node scripts/notify-mufap-sync-failure.mjs
