@@ -113,7 +113,7 @@ export const learnGuidePages = {
         `How do I try PSX Tracker? Start a ${TRIAL_DAYS}-day full trial after owner approval (no card required for the trial per the homepage), then continue on Free with limits or upgrade to Paid.`,
         'Can I use ChatGPT to build a Google Sheet that tracks my PSX portfolio? Yes for scaffolding formulas and layouts, but AI-built Sheets often hide FIFO or fee bugs. You still need complete trade history, careful lot logic, and reconciliation against broker or CDC statements — treat ChatGPT output as a draft, not a finished ledger.'],
       ['Sources and further reading',
-        'Links below are the proof surface for claims in this guide (community threads, education blogs, competitor pages, and public NAV). Competitor feature language remains their marketing unless you verify it yourself.',
+        'Primary references for FIFO education, community Sheets patterns, and public fund NAVs. Named apps in the comparison above are described from their own public pages — this list does not deep-link to competitors.',
         {
           links: [
             { href: 'https://www.reddit.com/r/FIREPakistan/comments/1ijzqko/psx_portfolio_tracker_link/', label: 'r/FIREPakistan — PSX portfolio tracker Sheets thread', note: 'weighted average vs FIFO comments', external: true },
@@ -121,12 +121,6 @@ export const learnGuidePages = {
             { href: 'https://finqalab.com/blog/an-investor-guide-to-capital-gains-tax-on-psx-trades/', label: 'Finqalab — CGT / FIFO worked example', external: true },
             { href: 'https://pkrevenue.com/rules-notified-for-computation-of-capital-gain-or-loss-in-pakistan-for-tax-year-2024/', label: 'pkrevenue — capital gain/loss computation rules note', external: true },
             { href: 'https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=3', label: 'MUFAP — daily mutual fund NAV', external: true },
-            { href: 'https://smartpsx.com/', label: 'SmartPSX', external: true },
-            { href: 'https://www.foliosync.app/', label: 'FolioSync', external: true },
-            { href: 'https://upinvest.pk/', label: 'UpInvest', external: true },
-            { href: 'https://psxportfolios.com/', label: 'PSX PORTFOLIOS', note: 'FAQ: weighted average cost', external: true },
-            { href: 'https://www.investify.pk/blog/how-to-create-psx-stock-portfolio', label: 'Investify — how to create a PSX portfolio', external: true },
-            { href: 'https://psx-tracker.com', label: 'PSX Tracker', external: true },
           ],
         }],
       ['Bottom line',

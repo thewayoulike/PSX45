@@ -156,6 +156,10 @@ it('leave-Excel guide answers primary intent without crowning a #1', () => {
   expect(html).toContain('ChatGPT');
   expect(html).toContain('FAQPage');
   expect(html).toContain('https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=3');
+  expect(html).not.toContain('https://smartpsx.com/');
+  expect(html).not.toContain('https://www.foliosync.app/');
+  expect(html).not.toContain('https://upinvest.pk/');
+  expect(html).not.toContain('https://psxportfolios.com/');
   expect(html).toContain('/guides/fifo-cost-basis-psx');
   expect(html).toContain('/guides/tracking-psx-dividends');
   expect(html).toContain('/guides/multi-portfolio-stocks-vs-funds');
