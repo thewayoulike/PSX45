@@ -22,8 +22,14 @@ it('guide hub and each guide have unique canonical URLs and CTAs', () => {
   const hub = renderGuideHub();
   expect(hub).toContain('<link rel="canonical" href="https://www.psx-tracker.com/guides">');
   expect(hub).toContain('href="/login"');
+  expect(hub).toContain('use the app &amp; learn PSX investing');
+  expect(hub).toContain('id="start-here"');
+  expect(hub).toContain('id="use-the-app"');
+  expect(hub).toContain('id="learn-psx"');
+  expect(hub).toContain('/guides/best-psx-portfolio-tracker-excel-alternative');
   for (const slug of Object.keys(guidePages)) {
-    expect(hub).toContain(`/guides/${slug}`);
+    const matches = hub.match(new RegExp(`/guides/${slug}`, 'g')) || [];
+    expect(matches.length, slug).toBe(1);
     const html = renderGuidePage(slug);
     expect(html).toContain(`<link rel="canonical" href="https://www.psx-tracker.com/guides/${slug}">`);
     expect(html).toContain('<h1>');
@@ -139,6 +145,14 @@ it('leave-Excel guide answers primary intent without crowning a #1', () => {
   expect(html).toMatch(/7-day|seven-day/i);
   expect(copy.toLowerCase()).not.toMatch(/#\s*1\b|number one|best by a huge margin/);
   expect(html).toContain('not a tax filer');
+  expect(html).toContain('<table>');
+  expect(html).toContain('<h3>FIFO lots vs average / weighted cost</h3>');
+  expect(html).toContain('ChatGPT');
+  expect(html).toContain('FAQPage');
+  expect(html).toContain('https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=3');
+  expect(html).toContain('/guides/fifo-cost-basis-psx');
+  expect(html).toContain('/how-to-use');
+  expect(html).toContain('application/ld+json');
 });
 
 it('service worker navigation denylist lets crawlers see sitemap, robots, and public HTML', () => {
