@@ -167,6 +167,23 @@ it('leave-Excel guide answers primary intent without crowning a #1', () => {
   expect(html).toContain('application/ld+json');
 });
 
+it('FIFO guide teaches worked example, avg contrast, FAQ schema, and non-competitor sources', () => {
+  const html = renderGuidePage('fifo-cost-basis-psx');
+  expect(html).toContain('FIFO vs average / weighted cost');
+  expect(html).toContain('100 shares at 200');
+  expect(html).toContain('sell 50 at 225');
+  expect(html).toContain('NCCPL');
+  expect(html).toContain('FAQPage');
+  expect(html).toContain('not tax filers');
+  expect(html).toContain('https://finqalab.com/blog/an-investor-guide-to-capital-gains-tax-on-psx-trades/');
+  expect(html).toContain('https://pkrevenue.com/rules-notified-for-computation-of-capital-gain-or-loss-in-pakistan-for-tax-year-2024/');
+  expect(html).toContain('/guides/best-psx-portfolio-tracker-excel-alternative');
+  expect(html).toContain('/guides/cgt-basics-pakistan-stocks');
+  expect(html).toContain('/guides/tracking-psx-dividends');
+  expect(html).not.toContain('https://smartpsx.com/');
+  expect(html).not.toContain('https://www.foliosync.app/');
+});
+
 it('service worker navigation denylist lets crawlers see sitemap, robots, and public HTML', () => {
   const sw = readFileSync('src/sw.js', 'utf8');
   const match = sw.match(/denylist:\s*\[([^\]]+)\]/);

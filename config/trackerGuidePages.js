@@ -14,29 +14,94 @@ const disclaimer =
 export const trackerGuidePages = {
   'fifo-cost-basis-psx': {
     title: 'FIFO cost basis on the Pakistan Stock Exchange',
-    blurb: 'How first-in, first-out matching shapes average cost and realized gains.',
-    description: 'A full plain-English guide to FIFO lot matching for PSX share sales, day trades, fees in cost basis, and how PSX Tracker applies it.',
-    intro: 'When you sell shares, which purchase lots did you close? First-in, first-out (FIFO) answers that by matching sells to your oldest remaining buys first. That choice changes average cost, unrealized marks and realized profit — even when the sale price is identical. This article explains FIFO in practice and how PSX Tracker models it.',
+    blurb: 'How first-in, first-out matching shapes cost basis and realized gains (education — not a tax filing).',
+    description:
+      'FIFO vs average cost on PSX sells: how lot matching changes realized gain, fees in basis, day trades, and how PSX Tracker models it. Educational only — NCCPL, CDC and broker records stay authoritative.',
+    intro:
+      'When you sell shares, which purchase lots did you close? First-in, first-out (FIFO) answers that by matching sells to your oldest remaining buys first. That choice changes average cost, unrealized marks and realized profit — even when the sale price is identical. This article explains FIFO in practice, how it differs from weighted-average sheets, and how PSX Tracker models it. Educational only: NCCPL, CDC and broker statements remain authoritative for tax.',
+    faqs: [
+      ['Does PSX / NCCPL use FIFO or average cost when I sell shares?',
+        'Capital-gains education for listed shares often walks FIFO-style lot matching. Your broker may still show an average buy price on the position screen — that average describes the open book, not which lot a partial sell closed. For filing, rely on NCCPL, CDC and broker records, not a tracker estimate.'],
+      ['Why does my broker show average buy price but my sale profit look different?',
+        'Average cost blends all open lots into one number. FIFO assigns a partial sell to the oldest lots first, so realized gain can differ from “average × quantity sold.” Check lot order, dates and fees before assuming either number is wrong.'],
+      ['Should fees be in my FIFO cost basis?',
+        'Yes for an economic ledger: commission, sales tax, CDC and similar charges belong in what you paid. Leaving them out makes break-even look better than reality.'],
+      ['Does a portfolio tracker file my PSX capital gains tax?',
+        'No. Trackers may estimate realized gains with FIFO-style lots for personal records. They are not tax filers or personalized tax advisers — NCCPL/broker/CDC remain the source of truth.'],
+      ['What about same-day buys and sells?',
+        'Intraday churn can distort long-term average cost if every round trip stays in the lot stack. Review busy days after imports; PSX Tracker includes day-trade squaring behaviour so short-term round trips are less likely to quietly ruin the cost of shares you meant to keep.'],
+    ],
     sections: [
       ['What FIFO means in a portfolio',
         'Imagine you bought the same symbol three times at different prices, then sold part of the position. FIFO closes the earliest open lots before newer ones. Your broker may document matching rules differently for tax forms; this guide describes the lot logic investors and trackers commonly use to reconstruct a book.',
         'Without a rule, “average cost” becomes a blur. With FIFO, each sale has a clear trail back to specific buys, which makes later audits and exports easier to defend to yourself.'],
+      ['FIFO vs average / weighted cost',
+        { h3: 'Two different questions' },
+        'Average or weighted cost describes a position: what did the shares you still hold cost on average? FIFO describes a sell: which purchase lots did this disposal close?',
+        'Community Google Sheets often store only average cost. On a partial sell, that can disagree with FIFO-style lot matching used in PSX capital-gains education — a pattern repeatedly flagged on r/FIREPakistan tracker threads.',
+        { h3: 'Worked mini-example (education only)' },
+        'Buy 100 shares at 200, later buy 100 at 170, then sell 50 at 225. Under FIFO the 50 sold come from the first lot at 200, so the gain is driven by 225 − 200 (before fees), not by the blended average of 185. A sheet that only stores average cost can report a different realized figure even when the broker fill is identical.',
+        'This is education for personal ledgers — not a tax filing. Treat NCCPL, CDC and broker statements as authoritative.',
+        {
+          links: [
+            { href: '/guides/best-psx-portfolio-tracker-excel-alternative', label: 'Leave Excel: tracker criteria and FIFO mismatch context' },
+            { href: '/guides/understanding-unrealized-vs-realized', label: 'Unrealized vs realized P&L explained' },
+          ],
+        }],
       ['Why matching changes your numbers',
         'Unrealized gain compares market value with the cost of lots you still hold. Realized gain compares sale proceeds with the cost of lots you closed, including related charges when you record them.',
         'Selling into older low-cost lots can realize more taxable-looking gain than selling newer high-cost lots at the same market price. That is not a tip to trade for tax optics — it is a reminder that lot order is part of the math.',
-        'If your ledger mixes fees incorrectly or duplicates buys, FIFO will faithfully produce wrong answers. Garbage lots in, garbage P&L out.'],
+        'If your ledger mixes fees incorrectly or duplicates buys, FIFO will faithfully produce wrong answers. Garbage lots in, garbage P&L out.',
+        {
+          links: [
+            { href: '/guides/cgt-basics-pakistan-stocks', label: 'Capital gains tax basics for Pakistani stocks' },
+          ],
+        }],
       ['Same-day buys and sells',
         'Intraday churn can distort long-term average cost if every minute trade stays in the lot stack. Many investors conceptually square same-day activity before it permanently reshapes basis.',
         'PSX Tracker includes day-trade squaring behaviour so short-term round trips are less likely to quietly ruin the cost of shares you meant to keep. Still review busy days after imports.'],
       ['Fees belong in what you paid',
         'Commission, sales tax, CDC and similar charges are part of economic cost. Leaving them out makes break-even look better than reality.',
-        'Enter fees on the trade (or as your import mapping provides) so FIFO cost per share reflects what left your pocket.'],
+        'Enter fees on the trade (or as your import mapping provides) so FIFO cost per share reflects what left your pocket.',
+        {
+          links: [
+            { href: '/guides/importing-broker-trades', label: 'Importing broker trades into PSX Tracker' },
+          ],
+        }],
       ['How PSX Tracker helps',
         'You record buys, sells and fees once. The app applies FIFO-style matching, shows open holdings and realized trades, and lets you export for reconciliation against broker contract notes.',
-        'After a large import, skim holdings quantities and a few realized lines before you trust year-end totals.',
+        'After a large import, skim holdings quantities and a few realized lines before you trust year-end totals. Dividends and withholding belong in total return separately from share sells.',
+        {
+          links: [
+            { href: '/guides/tracking-psx-dividends', label: 'Tracking PSX dividends and cash income' },
+          ],
+        }],
+      ['FAQ',
+        'Does PSX / NCCPL use FIFO or average cost when I sell shares? Capital-gains education for listed shares often walks FIFO-style lot matching. Your broker may still show an average buy price on the position screen — that average describes the open book, not which lot a partial sell closed. For filing, rely on NCCPL, CDC and broker records, not a tracker estimate.',
+        'Why does my broker show average buy price but my sale profit look different? Average cost blends all open lots into one number. FIFO assigns a partial sell to the oldest lots first, so realized gain can differ from “average × quantity sold.” Check lot order, dates and fees before assuming either number is wrong.',
+        'Should fees be in my FIFO cost basis? Yes for an economic ledger: commission, sales tax, CDC and similar charges belong in what you paid. Leaving them out makes break-even look better than reality.',
+        'Does a portfolio tracker file my PSX capital gains tax? No. Trackers may estimate realized gains with FIFO-style lots for personal records. They are not tax filers or personalized tax advisers — NCCPL/broker/CDC remain the source of truth.',
+        'What about same-day buys and sells? Intraday churn can distort long-term average cost if every round trip stays in the lot stack. Review busy days after imports; PSX Tracker includes day-trade squaring behaviour so short-term round trips are less likely to quietly ruin the cost of shares you meant to keep.'],
+      ['Sources and further reading',
+        'Primary references for FIFO education and community Sheets patterns. No competitor deep-links.',
+        {
+          links: [
+            { href: 'https://finqalab.com/blog/an-investor-guide-to-capital-gains-tax-on-psx-trades/', label: 'Finqalab — CGT / FIFO worked example', external: true },
+            { href: 'https://pkrevenue.com/rules-notified-for-computation-of-capital-gain-or-loss-in-pakistan-for-tax-year-2024/', label: 'pkrevenue — capital gain/loss computation rules note', external: true },
+            { href: 'https://www.reddit.com/r/FIREPakistan/comments/1ijzqko/psx_portfolio_tracker_link/', label: 'r/FIREPakistan — PSX portfolio tracker Sheets thread', note: 'weighted average vs FIFO comments', external: true },
+          ],
+        }],
+      ['Bottom line',
+        'FIFO answers which lots a sell closed; average cost answers what the remaining position cost. Use both carefully, keep fees in the book, and reconcile against broker or CDC statements. PSX Tracker applies FIFO-style matching for your personal ledger — it does not file taxes.',
         disclaimer],
     ],
-    related: ['cgt-basics-pakistan-stocks', 'understanding-unrealized-vs-realized', 'importing-broker-trades'],
+    related: [
+      'best-psx-portfolio-tracker-excel-alternative',
+      'cgt-basics-pakistan-stocks',
+      'understanding-unrealized-vs-realized',
+      'importing-broker-trades',
+      'tracking-psx-dividends',
+    ],
   },
 
   'cgt-basics-pakistan-stocks': {
