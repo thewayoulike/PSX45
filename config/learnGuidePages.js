@@ -1,3 +1,5 @@
+import { TRIAL_DAYS } from './product.js';
+
 const disclaimer =
   'This guide is educational only. It is not investment, tax, legal or religious advice. Rules, fees and tax rates change — confirm details with your broker, SECP/PSX sources, FBR guidance and qualified advisors before you act.';
 
@@ -9,6 +11,67 @@ const disclaimer =
  * @type {Record<string, GuidePage>}
  */
 export const learnGuidePages = {
+  'best-psx-portfolio-tracker-excel-alternative': {
+    title: 'Best PSX Portfolio Tracker Alternatives to Excel and Google Sheets (2026)',
+    blurb: 'Leave fragile spreadsheets with a clear checklist: FIFO, dividends, mutual funds and honest app options.',
+    description:
+      'Compare PSX portfolio trackers vs Excel and Google Sheets: FIFO vs average cost, dividends and WHT, mutual fund NAVs, and how SmartPSX, FolioSync, UpInvest, PSX PORTFOLIOS, Investify and PSX Tracker fit.',
+    intro:
+      'There is no universal “best” PSX portfolio tracker — the right choice depends on whether you need FIFO lot matching, dividends with withholding tax, mutual funds beside shares, charts, or auto-import. Many Pakistan investors start in Excel or Google Sheets, then leave when formulas drift, lot order breaks, or a partial sell no longer matches how FIFO-style matching works in capital-gains education. This guide is a decision brief: criteria first, an honest landscape of Sheets and named apps, then where PSX Tracker fits as a freemium portfolio and charts app (not a broker, and not a tax filer).',
+    sections: [
+      ['Why PSX investors outgrow Excel and Google Sheets',
+        'A spreadsheet can work for years — until it does not. Shared community trackers and homemade Google Sheets are still common on forums such as r/FIREPakistan, and they remain valid for careful power users who maintain formulas and lots by hand.',
+        'The usual breaking points are formula drift after a copy-paste, incomplete trade history (missing fees, CDC charges, deposits or bonus shares), manual CDC dividend pastes that fall behind, no reliable mutual fund NAV pull, and multi-device fragility when the “master” file lives on one laptop.',
+        'Commenters on shared Sheets threads also flag a deeper accuracy issue: many sheets use weighted average cost while sell matching for education around PSX capital gains often follows first-in, first-out (FIFO) lots. That mismatch is a reason to switch tools — not a reason to shame anyone still on Sheets.'],
+      ['What “good enough” tracking actually requires on PSX',
+        'Before you compare apps, decide what your ledger must get right. A broker screen shows today’s positions; a personal tracker should rebuild history you can trust across years.',
+        'Complete trade history: record buys, sells, fees, CDC-related charges where you care about them, and cash deposits or withdrawals. Incomplete history quietly breaks both total P&L and FIFO lot stacks.',
+        'FIFO lots versus average or weighted cost: average cost describes a position; FIFO describes which purchase lots a sell closes. They answer different questions and can disagree on realized gain for the same partial sale.',
+        'Worked mini-example (education only, not a tax filing): buy 100 shares at 200, later buy 100 at 170, then sell 50 at 225. Under FIFO the 50 sold come from the first lot at 200, so the gain is driven by 225 − 200 (before fees), not by the blended average of 185. A sheet that only stores average cost can report a different realized figure even when the broker fill is identical. For tax, treat NCCPL, CDC and broker statements as authoritative — a tracker is a personal ledger.',
+        'Dividends, withholding tax (WHT) and total return: record gross dividend, tax withheld and net cash received. Price gains alone understate what you earned if you ignore income.',
+        'Mutual fund NAVs beside stocks: if you hold open-end funds, you need units and a current NAV (MUFAP publishes public daily NAVs). Mixing funds and shares without a clear book makes day-to-day P&L harder to read.',
+        'Broker dashboard versus personal tracker: your broker executes trades and holds the account of record for settlement. A dedicated tracker is for long-term history, allocation views, dividends and multi-portfolio books — use both rather than forcing one tool to do the other’s job.'],
+      ['Spreadsheet vs dedicated tracker — decision criteria',
+        'Rank any option against the same checklist. Prefer facts from each product’s own pages; where a feature is unclear, treat it as not stated rather than assumed.',
+        ['Cost model — free forever, freemium trial, ads, or paid subscription', 'FIFO lot support for sells — or weighted / average cost only', 'Pakistan Stock Exchange shares', 'Mutual funds / NAV tracking', 'Dividends and WHT (or at least dividend income)', 'Charts or research tools', 'Trade execution — should be no for a pure tracker', 'Tax filing — educational helpers are not NCCPL substitutes'],
+        'DIY Sheets: lowest cash cost, maximum control, highest maintenance. FIFO only if you build and keep lot logic correct.',
+        'Broker app: best for orders and official balances; often weaker as a multi-year personal ledger across brokers or funds.',
+        'SmartPSX (per its marketing): lean Excel-escape story with auto-sync from broker emails, PDF/screenshot import and dividend sync claims — strong if you want less typing; verify import coverage for your broker.',
+        'FolioSync (per its marketing): broad stocks + mutual funds surface with auto-dividends, CDC import and CGT/dividend PDF helpers — feature-rich; still a helper, not a tax authority.',
+        'UpInvest (per its marketing): freemium tracking plus AI research and fund/index tracking — useful if you want research beside a portfolio; AI summaries are not buy/sell advice.',
+        'PSX PORTFOLIOS (per its FAQ): free web tracker with multi-portfolio and live prices; its FAQ describes weighted average cost price — important if FIFO lot matching is your main reason to leave Sheets.',
+        'Investify: strong how-to education plus a tracker product narrative — excellent learning material; still separate from your licensed broker.',
+        'PSX Tracker: shares and mutual funds, FIFO-style cost basis, dividends, trade history, candlestick charts and research tools; optional Google Drive sync; does not execute trades. New approved accounts typically get a full trial, then Free limits or Paid.'],
+      ['Options people actually use (honest landscape)',
+        'Community Google Sheets and open-source trackers remain popular because they are free and editable. FIREPakistan threads show both love for shared templates and reports that weighted-average sheets disagree with FIFO-style sell intuition. ChatGPT-built Sheets can accelerate setup — they also accelerate silent formula bugs.',
+        'SmartPSX positions itself as the lazy-investor / Excel-escape app: broker-email parsing, import shortcuts and analytics, with CGT and Zakat mentions on its landing. Treat store ratings and investor counts as SmartPSX’s published claims, not independently verified here.',
+        'FolioSync markets breadth: stocks and funds, auto-dividends, WHT/Zakat-style breakdowns, imports and tax PDF helpers. That encyclopedia of features is useful when your pain is coverage, not a short “should I leave Sheets?” decision.',
+        'UpInvest blends freemium portfolio tracking with fundamentals, funds/indexes and AI summaries labeled as not recommendations. Its narrative is often wealth and compounding more than spreadsheet failure modes.',
+        'PSX PORTFOLIOS emphasizes free forever multi-portfolio tracking with commissions and live prices. If you need FIFO lots specifically, read its cost-method FAQ before you migrate.',
+        'Investify’s create-and-track guides walk FIFO examples, dividends and broker-versus-tracker thinking with soft product CTAs — education-first, not a multi-app roundup.',
+        'Where PSX Tracker fits: a Pakistan-focused portfolio and charts app for investors who want FIFO cost basis, mutual fund NAVs, dividends, trade history and research in one place without pretending to place orders or file taxes. Optional Google Drive backup helps multi-device use. Market data, calculations and any AI answers can contain errors — verify against primary records.'],
+      ['How to migrate off Excel without losing history',
+        'Export your Sheet or broker CSVs. Enter or import trades in chronological order with correct symbols, quantities, prices and fees. Verify trade dates against contract notes before you trust realized totals.',
+        'Add dividends with gross, WHT and net where you can. Add mutual fund units and purchase NAVs in a fund book if you hold funds. Reconcile quantities and cash against the latest CDC or broker statement.',
+        'Spot-check one FIFO sale: pick a partial sell and confirm the lots your tracker closed match your understanding of oldest-first buys — then compare the economic result with the broker sale detail. Fix duplicates early; FIFO will faithfully compound import mistakes.',
+        `When you are ready to rebuild the ledger in an app, start a ${TRIAL_DAYS}-day full trial of PSX Tracker after owner approval (no card required for the trial itself on the product’s published terms), then continue on Free with limits or upgrade to Paid.`],
+      ['FAQ',
+        'What is the best PSX portfolio tracker if I want to leave Excel? There isn’t a universal winner without your constraints. Rank tools by FIFO lot support, dividends/WHT, mutual funds, charts and whether you need auto-import. Compare DIY Sheets, SmartPSX, FolioSync, UpInvest, PSX PORTFOLIOS, Investify and PSX Tracker against that checklist.',
+        'Why do my Google Sheet profits disagree with a sale on PSX? Many Sheets use weighted average cost while FIFO matches earlier lots first on a partial sell — so realized gain can differ from “average × quantity.” Check lot order and dates; for tax, rely on NCCPL and broker statements.',
+        'Is a broker app enough to track my PSX portfolio long term? Brokers excel at orders. Dedicated trackers often give clearer history, dividends, allocation and multi-portfolio views. Use both: broker to trade, tracker to keep the ledger.',
+        'Can I track mutual funds and PSX shares in one place? Yes — some apps (for example FolioSync, UpInvest and PSX Tracker per their product pages) and updated community Sheets support funds; MUFAP publishes public NAVs. Confirm NAV source and update frequency in the tool you choose.',
+        'Should dividends and WHT be in my portfolio return? Yes for total return: record gross dividend, withholding tax and net received separately from price gains. CDC dividend reports are a common source investors paste into Sheets.',
+        'Does a portfolio tracker calculate or file my PSX capital gains tax? Educational trackers may estimate gains using FIFO-style lots, but NCCPL computes and collects CGT in the usual regime and broker, CDC and NCCPL records remain authoritative. A tracker is not a tax filer or personalized tax adviser.',
+        'Does PSX Tracker execute trades or replace my broker? No. PSX Tracker is a portfolio and charts app; place trades through a licensed broker.',
+        `How do I try PSX Tracker? Start a ${TRIAL_DAYS}-day full trial after owner approval (no card required for the trial per the homepage), then continue on Free with limits or upgrade to Paid.`],
+      ['Bottom line',
+        'Choose with criteria, not crowning language. Sheets remain fine until accuracy or maintenance pain shows up. If you need FIFO lots, dividends with WHT, mutual funds and charts in one PSX-focused app, evaluate PSX Tracker alongside the named alternatives above.',
+        'Always keep NCCPL, CDC and broker statements as the source of truth for tax and settlement. Soft next step: see how PSX Tracker handles FIFO, dividends and mutual funds at psx-tracker.com, or start free after approval when you are ready to rebuild the ledger.',
+        disclaimer],
+    ],
+    related: ['fifo-cost-basis-psx', 'tracking-psx-dividends', 'mutual-fund-nav-tracking', 'importing-broker-trades', 'free-vs-paid-trial'],
+  },
+
   'start-investing-on-psx': {
     title: 'How to start investing on the Pakistan Stock Exchange',
     blurb: 'Broker, KYC, funding, first buy — then keep a clean portfolio record.',

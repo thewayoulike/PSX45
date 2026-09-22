@@ -108,11 +108,28 @@ it('sitemap excludes signed-in pages and hosting excludes them from indexing', (
   expect(sitemap).not.toContain('/suggestions');
   expect(sitemap).not.toContain('/login');
   expect(sitemap).toContain('/guides/fifo-cost-basis-psx');
+  expect(sitemap).toContain('/guides/best-psx-portfolio-tracker-excel-alternative');
   const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
   expect(config.headers.find((h: any) => h.source.includes('suggestions')).headers).toContainEqual({
     key: 'X-Robots-Tag',
     value: 'noindex, follow',
   });
+});
+
+it('leave-Excel guide answers primary intent without crowning a #1', () => {
+  expect(guidePages).toHaveProperty('best-psx-portfolio-tracker-excel-alternative');
+  const page = guidePages['best-psx-portfolio-tracker-excel-alternative'];
+  const copy = [page.title, page.description, page.intro, page.blurb, ...page.sections.flat()].join('\n');
+  const html = renderGuidePage('best-psx-portfolio-tracker-excel-alternative');
+  expect(html).toContain('Best PSX Portfolio Tracker Alternatives to Excel and Google Sheets (2026)');
+  expect(html).toContain('FIFO');
+  expect(html).toContain('NCCPL');
+  expect(html).toContain('mutual fund');
+  expect(html).toContain('SmartPSX');
+  expect(html).toContain('FolioSync');
+  expect(html).toMatch(/7-day|seven-day/i);
+  expect(copy.toLowerCase()).not.toMatch(/#\s*1\b|number one|best by a huge margin/);
+  expect(html).toContain('not a tax filer');
 });
 
 it('service worker navigation denylist lets crawlers see sitemap, robots, and public HTML', () => {
