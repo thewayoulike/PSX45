@@ -33,7 +33,7 @@ const FREE_VS_PAID: { feature: string; free: string; paid: string }[] = [
   { feature: 'PSX Assistant (AI)', free: '10 messages / day', paid: 'Unlimited' },
   { feature: 'Trading Simulator', free: 'Unlimited', paid: 'Unlimited' },
   { feature: 'Fair Value Calc', free: '4 lookups / day', paid: 'Unlimited' },
-  { feature: 'Import (CSV / OCR / Gmail)', free: 'Unlimited runs · first-3 tickers only', paid: 'All tickers' },
+  { feature: 'Import (CSV / Gemini / Gmail)', free: 'Unlimited runs · first-3 tickers only', paid: 'All tickers' },
   { feature: 'Export', free: '1 / day · first-3 tickers only', paid: 'Unlimited' },
 ];
 
@@ -408,7 +408,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             </Feature>
 
             <Feature Icon={Upload} title="Trade Import" tint="bg-lime-50 dark:bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-100 dark:border-lime-500/20">
-              Add trades by hand, Excel/CSV, screenshot OCR, Gemini scan, or Gmail attachments from your broker.
+              Add trades by hand, Excel/CSV, Gemini scan of a screenshot or PDF, or Gmail attachments from your broker.
             </Feature>
 
             <Feature Icon={CloudUpload} title="Google Drive Sync" tint="bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-100 dark:border-sky-500/20">

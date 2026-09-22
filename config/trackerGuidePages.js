@@ -225,14 +225,14 @@ export const trackerGuidePages = {
   'importing-broker-trades': {
     title: 'Importing broker trades into PSX Tracker',
     blurb: 'CSV, Excel, screenshots and optional Gmail attachments.',
-    description: 'Complete guide to importing PSX trades into PSX Tracker via manual entry, spreadsheets, OCR screenshots and optional Gmail attachment import — with review steps.',
-    intro: 'Clean imports protect FIFO lots and year-end sanity. Prefer structured files when you can, and treat every AI or OCR suggestion as a draft until you approve it. This article covers the main paths inside PSX Tracker.',
+    description: 'Complete guide to importing PSX trades into PSX Tracker via manual entry, spreadsheets, Gemini document scan and optional Gmail attachment import — with review steps.',
+    intro: 'Clean imports protect FIFO lots and year-end sanity. Prefer structured files when you can, and treat every Gemini suggestion as a draft until you approve it. This article covers the main paths inside PSX Tracker.',
     sections: [
       ['Manual entry and spreadsheets',
         'You can add trades by hand or upload CSV/Excel mapped to buys, sells, dividends and cash events. Normalize ticker symbols and dates before you confirm.',
         'If your broker export uses odd column names, map carefully once and reuse the habit. A wrong sign on quantity is worse than typing three trades manually.'],
-      ['Screenshots and OCR',
-        'Optional OCR can read a statement image when a file export is painful. Optical character recognition misreads digits and skips rows — especially on blurry photos.',
+      ['Screenshots with Gemini',
+        'Gemini scan can read a statement image or PDF when a file export is painful. It still misreads digits and skips rows — especially on blurry photos.',
         'Compare every line to the image before saving. If confidence is low, fall back to CSV or manual entry.'],
       ['Gmail attachments (optional)',
         'Gmail read access is requested only when you choose that import path. You search, pick an attachment, and review the parse before anything hits the ledger.',
@@ -318,7 +318,7 @@ export const trackerGuidePages = {
     title: 'Export and reconcile your PSX portfolio',
     blurb: 'Download records and check them against your broker.',
     description: 'How to export PSX Tracker data and reconcile holdings, cash and dividends with broker statements after imports or corporate actions.',
-    intro: 'A tracker earns trust only when it matches reality. Export on a schedule and reconcile after big imports, rights issues or messy OCR days. This article is a practical checklist.',
+    intro: 'A tracker earns trust only when it matches reality. Export on a schedule and reconcile after big imports, rights issues or messy scan days. This article is a practical checklist.',
     sections: [
       ['What to export and keep',
         'Use in-app export or Sheets-related flows when available so you have a dated copy outside the browser. Store it where you can find last month’s file.',

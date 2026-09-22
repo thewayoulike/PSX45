@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Transaction, Broker, ParsedTrade, EditableTrade, PortfolioType } from '../types';
-import { X, Plus, ChevronDown, Loader2, Save, Sparkles, ScanText, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon, Info, BookOpen } from 'lucide-react';
-import { parseTradeDocumentOCRSpace } from '../services/ocrSpace';
+import { X, Plus, ChevronDown, Loader2, Save, Sparkles, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon, Info, BookOpen } from 'lucide-react';
 import { fundScanToTrades } from '../services/fundImport';
 import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
 import { exportToCSV } from '../utils/export';
@@ -71,7 +70,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 }) => {
   const { isFree, entitledTickers } = useFreemium();
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
-  const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'OCR_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
+  const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
   const [type, setType] = useState<Transaction['type']>('BUY');
   
   const [date, setDate] = useState(todayPK());
@@ -483,14 +482,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               return;
           }
 
-          let trades: ParsedTrade[] = []; 
-          if (mode === 'AI_SCAN') { 
-              const { parseTradeDocument } = await import('../services/gemini');
-              trades = await parseTradeDocument(selectedFile);
-          } else { 
-              const res = await parseTradeDocumentOCRSpace(selectedFile); 
-              trades = res.trades; 
-          } 
+          if (mode !== 'AI_SCAN') {
+              throw new Error('Choose Gemini scan or a spreadsheet import.');
+          }
+          const { parseTradeDocument } = await import('../services/gemini');
+          const trades = await parseTradeDocument(selectedFile); 
           
           if (trades.length === 0) throw new Error("No trades found in this file."); 
           
@@ -686,7 +682,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
   
   const updateSingleScannedTrade = (index: number, field: keyof EditableTrade, value: any) => { const updated = [...savedScannedTrades]; updated[index] = { ...updated[index], [field]: value }; updateScannedTrades(updated); };
-  const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />; if (mode === 'EMAIL_IMPORT') return <Mail size={32} className="text-rose-500" />; return <ScanText size={32} className="text-emerald-500" />; };
+  const getFileIcon = () => { if (selectedFile) { const isSheet = selectedFile.name.endsWith('.csv') || selectedFile.name.endsWith('.xlsx') || selectedFile.name.endsWith('.xls'); if (isSheet) return <FileSpreadsheet size={32} />; return <FileText size={32} />; } if (mode === 'AI_SCAN') return <Sparkles size={32} className="text-indigo-500" />; if (mode === 'IMPORT') return <Upload size={32} className="text-blue-500" />; if (mode === 'EMAIL_IMPORT') return <Mail size={32} className="text-rose-500" />; return <FileText size={32} className="text-slate-500" />; };
   const getThemeColor = () => { if (mode === 'AI_SCAN') return { btn: 'bg-indigo-600 hover:bg-indigo-700', text: 'text-indigo-600 dark:text-indigo-400', shadow: 'shadow-indigo-600/20', bg: 'bg-indigo-50/50 dark:bg-indigo-500/10', border: 'border-indigo-300 dark:border-indigo-500/30' }; if (mode === 'IMPORT') return { btn: 'bg-blue-600 hover:bg-blue-700', text: 'text-blue-600 dark:text-blue-400', shadow: 'shadow-blue-600/20', bg: 'bg-blue-50/50 dark:bg-blue-500/10', border: 'border-blue-300 dark:border-blue-500/30' }; return { btn: 'bg-emerald-600 hover:bg-emerald-700', text: 'text-emerald-600 dark:text-emerald-400', shadow: 'shadow-emerald-600/20', bg: 'bg-emerald-50/50 dark:bg-emerald-500/10', border: 'border-emerald-300 dark:border-emerald-500/30' }; };
   const scanTypeBadge = (txType: string) => {
       if (txType === 'BUY') return 'bg-emerald-50 text-emerald-600 border-emerald-200/60 dark:bg-emerald-500/10 dark:text-emerald-400 dark:border-emerald-500/20';
@@ -1044,7 +1040,6 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     <>
                     <button onClick={() => setMode('IMPORT')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'IMPORT' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <FileSpreadsheet size={16} /> Import </button>
                     <button onClick={() => setMode('EMAIL_IMPORT')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'EMAIL_IMPORT' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Mail size={16} /> Email </button>
-                    <button onClick={() => setMode('OCR_SCAN')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'OCR_SCAN' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <ScanText size={16} /> OCR </button>
                     </>
                     )}
                     <button onClick={() => setMode('AI_SCAN')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'AI_SCAN' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Sparkles size={16} /> {isFundPortfolio ? 'AI Scan Statement' : 'AI Scan'} </button>
@@ -1238,13 +1233,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                  </div>
                              )}
                              <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30`} rounded-3xl cursor-pointer hover:bg-white dark:hover:bg-slate-800/50 transition-all group flex flex-col items-center justify-center p-10`}> 
-                                 <input ref={fileInputRef} type="file" accept={mode === 'OCR_SCAN' ? "image/*,.pdf" : "image/*,.pdf,.csv,.xlsx,.xls"} onChange={handleFileSelect} className="hidden" />
+                                 <input ref={fileInputRef} type="file" accept="image/*,.pdf,.csv,.xlsx,.xls" onChange={handleFileSelect} className="hidden" />
                                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm border border-slate-200/60 dark:border-slate-700 ${selectedFile ? `${theme.text} bg-white dark:bg-slate-900` : 'bg-white dark:bg-slate-900 text-slate-400'}`}> {getFileIcon()} </div>
                                  <h3 className="text-lg font-display font-black text-slate-900 dark:text-white mb-1 tracking-tight">{selectedFile ? selectedFile.name : 'Click to Upload'}</h3>
                                  <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest text-center max-w-[280px]">
                                      {selectedFile 
                                          ? `${(selectedFile.size / 1024).toFixed(1)} KB - Ready` 
-                                         : mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' && isFundPortfolio ? 'AMC balance summary — screenshot, PDF or Excel' : mode === 'AI_SCAN' ? 'Screenshot, PDF, Excel or CSV (Gemini AI)' : 'Standard Image OCR'
+                                         : mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' && isFundPortfolio ? 'AMC balance summary — screenshot, PDF or Excel' : 'Screenshot, PDF, Excel or CSV (Gemini AI)'
                                      }
                                  </p>
                              </div>
@@ -1253,7 +1248,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                             
                              {scanError && ( <div className={`w-full flex-1 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 ${scanError.includes("No trades found") ? "border-amber-200 bg-amber-50/50 dark:bg-amber-500/10 dark:border-amber-500/20" : "border-rose-200 bg-rose-50/50 dark:bg-rose-500/10 dark:border-rose-500/20"}`}> <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm border ${scanError.includes("No trades found") ? "bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-500/20 dark:text-amber-400" : "bg-rose-100 text-rose-500 border-rose-200 dark:bg-rose-500/20 dark:text-rose-400"}`}> {scanError.includes("No trades found") ? <Search size={32} /> : <AlertTriangle size={32} />} </div> <h3 className={`text-lg font-display font-black mb-1 tracking-tight ${scanError.includes("No trades found") ? "text-amber-900 dark:text-amber-200" : "text-rose-900 dark:text-rose-200"}`}>{scanError.includes("No trades found") ? "No Results Found" : "Scan Failed"}</h3> <p className={`text-xs font-bold text-center max-w-[240px] mb-6 ${scanError.includes("No trades found") ? "text-amber-700 dark:text-amber-300" : "text-rose-600 dark:text-rose-300"}`}>{scanError}</p> <button onClick={() => { setScanError(null); setSelectedFile(null); }} className={`px-6 py-3 bg-white dark:bg-slate-800 border rounded-xl font-bold text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 ${scanError.includes("No trades found") ? "border-amber-200 text-amber-600 dark:border-amber-700 dark:text-amber-400" : "border-rose-200 text-rose-600 dark:border-rose-700 dark:text-rose-400"}`}> <RefreshCcw size={14} /> Try Different File </button> </div> )}
                             
-                             {!scanError && ( <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-md transition-all flex items-center justify-center gap-2 text-sm ${selectedFile ? `${theme.btn} ${theme.shadow} hover:-translate-y-0.5 active:translate-y-0 cursor-pointer` : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed shadow-none'}`}> {mode === 'AI_SCAN' ? <Sparkles size={18} /> : mode === 'IMPORT' ? <Upload size={18} /> : <ScanText size={18} />} {mode === 'AI_SCAN' ? 'Analyze with AI' : mode === 'IMPORT' ? 'Process Import' : 'Extract Text'} </button> )}
+                             {!scanError && ( <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-md transition-all flex items-center justify-center gap-2 text-sm ${selectedFile ? `${theme.btn} ${theme.shadow} hover:-translate-y-0.5 active:translate-y-0 cursor-pointer` : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed shadow-none'}`}> {mode === 'IMPORT' ? <Upload size={18} /> : <Sparkles size={18} />} {mode === 'IMPORT' ? 'Process Import' : 'Analyze with AI'} </button> )}
                         </>
                     )}
 
