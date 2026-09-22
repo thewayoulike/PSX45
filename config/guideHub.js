@@ -1,22 +1,33 @@
 /**
  * Guides hub clusters (IA only — slugs must exist in guidePages).
- * @typedef {{ slug: string, blurb?: string }} HubCard
- * @typedef {{ id: string, heading: string, intro?: string, featured?: boolean, cards: HubCard[] }} HubCluster
+ * @typedef {{ href: string, title: string, blurb: string, featured?: boolean }} HubStartCard
+ * @typedef {{ slug: string, blurb?: string, featured?: boolean }} HubCard
+ * @typedef {{ id: string, heading: string, intro?: string, cards: HubCard[] }} HubCluster
  */
 
-/** @type {HubCard[]} */
+/** Primary = video walkthrough; secondary = illustrated feature encyclopedia (not a second “start”). */
+/** @type {HubStartCard[]} */
 export const guideHubStartHere = [
   {
     href: '/how-to-use',
-    title: 'How to use PSX Tracker',
+    title: 'How to use PSX Tracker (start here)',
     blurb:
-      'Full product guide: portfolios, brokers, trades, charts, and optional AI / email helpers — with video and screenshots.',
+      'Primary walkthrough: 6-minute video plus captions — create a portfolio, set up a broker, record your first trades.',
+    featured: true,
   },
   {
     href: '/how-it-works',
-    title: 'Explore every feature',
-    blurb: 'The video and detailed written guide with screenshots.',
+    title: 'Feature guide with screenshots',
+    blurb:
+      'Deeper reference after the video: every major screen explained with stills — import, Drive, charts, research, plans.',
   },
+];
+
+/** Jump links for long hub scrolls. */
+export const guideHubToc = [
+  { id: 'start-here', label: 'Start here' },
+  { id: 'use-the-app', label: 'Use the app' },
+  { id: 'learn-psx', label: 'Learn / pick a tracker' },
 ];
 
 /** @type {HubCluster[]} */

@@ -26,6 +26,12 @@ it('guide hub and each guide have unique canonical URLs and CTAs', () => {
   expect(hub).toContain('id="start-here"');
   expect(hub).toContain('id="use-the-app"');
   expect(hub).toContain('id="learn-psx"');
+  expect(hub).toContain('class="guide-toc"');
+  expect(hub).toContain('href="#start-here"');
+  expect(hub).toContain('href="#use-the-app"');
+  expect(hub).toContain('href="#learn-psx"');
+  expect(hub).toContain('How to use PSX Tracker (start here)');
+  expect(hub).toContain('Feature guide with screenshots');
   expect(hub).toContain('/guides/best-psx-portfolio-tracker-excel-alternative');
   for (const slug of Object.keys(guidePages)) {
     const matches = hub.match(new RegExp(`/guides/${slug}`, 'g')) || [];
@@ -151,6 +157,8 @@ it('leave-Excel guide answers primary intent without crowning a #1', () => {
   expect(html).toContain('FAQPage');
   expect(html).toContain('https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=3');
   expect(html).toContain('/guides/fifo-cost-basis-psx');
+  expect(html).toContain('/guides/tracking-psx-dividends');
+  expect(html).toContain('/guides/multi-portfolio-stocks-vs-funds');
   expect(html).toContain('/how-to-use');
   expect(html).toContain('application/ld+json');
 });

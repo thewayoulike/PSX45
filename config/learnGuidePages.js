@@ -41,10 +41,27 @@ export const learnGuidePages = {
         { h3: 'FIFO lots vs average / weighted cost' },
         'Average cost describes a position; FIFO describes which purchase lots a sell closes. They answer different questions and can disagree on realized gain for the same partial sale.',
         'Worked mini-example (education only, not a tax filing): buy 100 shares at 200, later buy 100 at 170, then sell 50 at 225. Under FIFO the 50 sold come from the first lot at 200, so the gain is driven by 225 − 200 (before fees), not by the blended average of 185. A sheet that only stores average cost can report a different realized figure even when the broker fill is identical. For tax, treat NCCPL, CDC and broker statements as authoritative — a tracker is a personal ledger.',
+        {
+          links: [
+            { href: '/guides/fifo-cost-basis-psx', label: 'FIFO cost basis on the Pakistan Stock Exchange' },
+            { href: '/guides/understanding-unrealized-vs-realized', label: 'Unrealized vs realized P&L explained' },
+          ],
+        },
         { h3: 'Dividends, WHT, and total return' },
         'Record gross dividend, tax withheld and net cash received. Price gains alone understate what you earned if you ignore income.',
+        {
+          links: [
+            { href: '/guides/tracking-psx-dividends', label: 'Tracking PSX dividends and cash income' },
+          ],
+        },
         { h3: 'Mutual fund NAVs beside stocks' },
         'If you hold open-end funds, you need units and a current NAV (MUFAP publishes public daily NAVs). Mixing funds and shares without a clear book makes day-to-day P&L harder to read.',
+        {
+          links: [
+            { href: '/guides/mutual-fund-nav-tracking', label: 'Tracking mutual fund NAV and daily P&L' },
+            { href: '/guides/multi-portfolio-stocks-vs-funds', label: 'Stock vs mutual fund portfolios' },
+          ],
+        },
         { h3: 'Broker dashboard vs personal tracker' },
         'Your broker executes trades and holds the account of record for settlement. A dedicated tracker is for long-term history, allocation views, dividends and multi-portfolio books — use both rather than forcing one tool to do the other’s job.'],
       ['Spreadsheet vs dedicated tracker — decision criteria',

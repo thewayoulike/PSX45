@@ -1,6 +1,6 @@
 import { trackerGuidePages } from './trackerGuidePages.js';
 import { learnGuidePages } from './learnGuidePages.js';
-export { guideHub, guideHubClusters, guideHubStartHere } from './guideHub.js';
+export { guideHub, guideHubClusters, guideHubStartHere, guideHubToc } from './guideHub.js';
 
 /** @typedef {[string, ...(string|string[]|GuideBlock)[]]} GuideSection */
 /** @typedef {{ h3: string } | { table: { headers: string[], rows: string[][] } } | { links: { href: string, label: string, note?: string, external?: boolean }[] } | { faqs: [string, string][] }} GuideBlock */
