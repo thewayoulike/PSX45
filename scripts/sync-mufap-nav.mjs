@@ -14,6 +14,7 @@ import {
   candidateNavDates,
   candidatePrevNavDates,
 } from '../lib/mufapSyncDates.js';
+import { pruneMufapExcelFiles } from '../lib/mufapExcelPrune.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -299,6 +300,12 @@ async function main() {
     const pct = prev.nav > 0 ? (chg / prev.nav) * 100 : 0;
     console.log(`[sync-mufap] ${name}: ${prev.nav} → ${f.nav} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`);
   });
+
+  const dataDir = path.join(ROOT, 'data');
+  const pruned = pruneMufapExcelFiles(fs, dataDir, 2);
+  if (pruned.length) {
+    console.log(`[sync-mufap] Pruned ${pruned.length} old Excel dump(s): ${pruned.join(', ')}`);
+  }
 
   console.log(`[sync-mufap] Wrote ${payload.count} funds + ${Object.keys(previousNavs).length} previous NAVs (source=${payload.source}, day=${payload.today})`);
 }

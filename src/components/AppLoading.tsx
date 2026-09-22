@@ -1,9 +1,9 @@
 import React from 'react';
 import { Logo } from './ui/Logo';
 
-export function AppLoading() {
+export function AppLoading({ message }: { message?: string } = {}) {
   const placeholder = 'rounded-lg bg-slate-200/70 dark:bg-slate-800';
-  return <div role="status" aria-label="Loading" className="min-h-[100dvh] flex bg-slate-50 dark:bg-slate-950">
+  return <div role="status" aria-label={message || 'Loading'} className="min-h-[100dvh] flex bg-slate-50 dark:bg-slate-950">
     <aside aria-hidden="true" className="hidden lg:flex w-64 shrink-0 flex-col gap-8 border-r border-slate-200/60 bg-white p-6 dark:border-slate-800 dark:bg-slate-900">
       <Logo variant="stacked" />
       <div className="space-y-5 animate-pulse motion-reduce:animate-none">
@@ -16,6 +16,9 @@ export function AppLoading() {
         <div className={`${placeholder} hidden lg:block h-5 w-40`} />
         <div className={`${placeholder} h-9 w-9 rounded-full shrink-0`} />
       </header>
+      {message ? (
+        <p className="px-4 sm:px-8 pt-4 text-sm font-medium text-slate-600 dark:text-slate-300">{message}</p>
+      ) : null}
       <div aria-hidden="true" className="mx-auto max-w-7xl space-y-5 p-4 sm:p-8 animate-pulse motion-reduce:animate-none">
         <div className="flex items-center justify-between gap-5"><div className={`${placeholder} h-7 w-36 sm:w-52`} /><div className={`${placeholder} h-9 w-24`} /></div>
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-5">
@@ -29,3 +32,4 @@ export function AppLoading() {
     </div>
   </div>;
 }
+

@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspens
 import '../index.css';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
 import { setCanSaveAlerts } from '../services/alertAccess';
-import { Dashboard } from './DashboardStats';
+const Dashboard = lazy(() => import('./DashboardStats').then(m => ({ default: m.Dashboard })));
 import { HoldingsTable } from './HoldingsTable';
 const AllocationChart = lazy(() => import('./AllocationChart').then(m => ({ default: m.AllocationChart })));
 const PerformanceChart = lazy(() => import('./PerformanceChart').then(m => ({ default: m.PerformanceChart })));
@@ -45,7 +45,7 @@ const ChartsExplorer = lazy(() => import('./ChartsExplorer').then(m => ({ defaul
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, fetchPypsxQuotes, fetchPypsxIndexSymbols, setScrapingApiKey, setWebScrapingAIKey } from '../services/psxData';
+import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, fetchPypsxQuotes, fetchPypsxIndexSymbols } from '../services/psxData';
 import { progressivePrices, marketPollDelay } from '../services/progressivePrices';
 import { stocksPathForTicker, tickerFromStocksPath, normalizeStockDeepLink } from '../utils/stocksPath';
 import { applyIndexConstituents } from '../services/indices';
@@ -87,6 +87,15 @@ import { tryRecordProfileOpen, setQuotaAccount } from '../utils/freemiumQuotas';
 
 const INITIAL_TRANSACTIONS: Partial<Transaction>[] = [];
 const WIPE_FLAG = 'psx_wipe_local_data';
+
+/** Drop legacy paid-scraper keys from local storage (Gemini only). */
+const clearLegacyScraperKeys = () => {
+  try {
+    localStorage.removeItem('psx_scraping_api_key');
+    localStorage.removeItem('psx_webscraping_ai_key');
+  } catch { /* ignore */ }
+};
+clearLegacyScraperKeys();
 
 const consumeWipeFlag = () => {
     try {
@@ -462,8 +471,6 @@ const App: React.FC = () => {
   });
 
   const [userApiKey, setUserApiKey] = useState<string>(() => startEmpty ? '' : (localStorage.getItem('psx_gemini_api_key') || ''));
-  const [userScraperKey, setUserScraperKey] = useState<string>(() => startEmpty ? '' : (localStorage.getItem('psx_scraping_api_key') || ''));
-  const [userWebScrapingAIKey, setUserWebScrapingAIKey] = useState<string>(() => startEmpty ? '' : (localStorage.getItem('psx_webscraping_ai_key') || ''));
 
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
@@ -542,11 +549,7 @@ const App: React.FC = () => {
       setWatchlist([]);
       setDashboardLayouts({ ...DEFAULT_LAYOUTS_BY_TYPE });
       setUserApiKey('');
-      setUserScraperKey('');
-      setUserWebScrapingAIKey('');
       setGeminiApiKey(null);
-      setScrapingApiKey(null);
-      setWebScrapingAIKey(null);
       setDriveUser(null);
       setGoogleSheetId(null);
       setSbUser(null);
@@ -680,9 +683,7 @@ const App: React.FC = () => {
 
   useEffect(() => {
       if (userApiKey) setGeminiApiKey(userApiKey);
-      if (userScraperKey) setScrapingApiKey(userScraperKey);
-      if (userWebScrapingAIKey) setWebScrapingAIKey(userWebScrapingAIKey);
-  }, [userApiKey, userScraperKey, userWebScrapingAIKey]);
+  }, [userApiKey]);
 
   useEffect(() => {
       if (isCombinedView && combinedPortfolioIds.size === 0 && portfolios.length > 0) {
@@ -727,16 +728,7 @@ const App: React.FC = () => {
               setGeminiApiKey(cloudData.geminiApiKey);
               localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
           }
-          if (cloudData.scrapingApiKey) {
-              setUserScraperKey(cloudData.scrapingApiKey);
-              setScrapingApiKey(cloudData.scrapingApiKey);
-              localStorage.setItem('psx_scraping_api_key', cloudData.scrapingApiKey);
-          }
-          if (cloudData.webScrapingAIKey) {
-              setUserWebScrapingAIKey(cloudData.webScrapingAIKey);
-              setWebScrapingAIKey(cloudData.webScrapingAIKey);
-              localStorage.setItem('psx_webscraping_ai_key', cloudData.webScrapingAIKey);
-          }
+          // Ignore legacy scraper keys in old Drive backups — Gemini only.
           if (cloudData.chartSettings) {
               applyCloudChartSettings(cloudData.chartSettings);
           }
@@ -792,8 +784,8 @@ const App: React.FC = () => {
               setManualPrices({}); setLdcpMap({}); setListedInMap({}); setPriceTimestamps({});
               setSectorOverrides({}); setBrokers([DEFAULT_BROKER]); setScannerState({}); setTradeScanResults([]);
               setPerformanceHistory({}); setFairValueCache({}); setWatchlist([]);
-              setUserApiKey(''); setUserScraperKey(''); setUserWebScrapingAIKey('');
-              setGeminiApiKey(null); setScrapingApiKey(null); setWebScrapingAIKey(null);
+              setUserApiKey('');
+              setGeminiApiKey(null);
               try {
                   ['psx_transactions', 'psx_portfolios', 'psx_current_portfolio_id', 'psx_gemini_api_key', 'psx_scraping_api_key', 'psx_webscraping_ai_key'].forEach(k => localStorage.removeItem(k));
               } catch { /* ignore */ }
@@ -835,13 +827,11 @@ const App: React.FC = () => {
       return () => { cleanup(); setDriveSessionExpiredHandler(null); };
   }, []);
 
-  const handleSaveApiKey = (geminiKey: string, scraperKey: string, webAIKey: string) => {
-      setUserApiKey(geminiKey); setUserScraperKey(scraperKey); setUserWebScrapingAIKey(webAIKey);
-      setGeminiApiKey(geminiKey); setScrapingApiKey(scraperKey); setWebScrapingAIKey(webAIKey);
+  const handleSaveApiKey = (geminiKey: string) => {
+      setUserApiKey(geminiKey);
+      setGeminiApiKey(geminiKey);
       localStorage.setItem('psx_gemini_api_key', geminiKey);
-      localStorage.setItem('psx_scraping_api_key', scraperKey);
-      localStorage.setItem('psx_webscraping_ai_key', webAIKey);
-      // The autosave effect writes the complete snapshot, including these keys.
+      // The autosave effect writes the complete snapshot, including this key.
   };
 
   const handleAddToWatchlist = (ticker: string) => {
@@ -1768,7 +1758,7 @@ const App: React.FC = () => {
       transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps,
       brokers, sectorOverrides, scannerState, performanceHistory, fairValueCache, watchlist,
       dashboardLayouts, dashboardLayout: dashboardLayouts.PSX, fundCatalog,
-      geminiApiKey: userApiKey, scrapingApiKey: userScraperKey, webScrapingAIKey: userWebScrapingAIKey,
+      geminiApiKey: userApiKey,
       chartSettings: loadChartSettings(),
   });
   const cloudSnapshotRef = useRef(getCloudSnapshot);
@@ -1872,7 +1862,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => { clearTimeout(timer); cloudRevision.current++; };
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPriceEditTick, brokers, sectorOverrides, fundCatalog, scannerState, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, userScraperKey, userWebScrapingAIKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
+  }, [transactions, portfolios, currentPortfolioId, manualPriceEditTick, brokers, sectorOverrides, fundCatalog, scannerState, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -2248,7 +2238,9 @@ const App: React.FC = () => {
 
   // While auth / Drive restore runs, always show the loader — never the cached
   // "Saved portfolio · read only" preview (that confused refreshes with a stale book).
-  if (isAuthChecking || sbChecking || restoringDrive) return <AppLoading />;
+  if (isAuthChecking || sbChecking || restoringDrive) {
+    return <AppLoading message={restoringDrive ? 'Opening Google Drive backup…' : undefined} />;
+  }
   if (viewSavedOffline) return <OfflinePortfolio />;
   if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
@@ -2280,7 +2272,7 @@ const App: React.FC = () => {
       return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
   }
   if (driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
-      if (isCloudSyncing) return <AppLoading />;
+      if (isCloudSyncing) return <AppLoading message="Opening Google Drive backup…" />;
       return <OfflinePortfolio error={cloudSyncError || "The latest backup could not be opened. Retry before making changes."} />;
   }
 
@@ -2312,6 +2304,7 @@ const App: React.FC = () => {
                   return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
               }).filter((v: number) => !isNaN(v));
               return (
+                  <Suspense fallback={<div className="rounded-3xl border border-slate-200/60 dark:border-slate-800 p-6 text-sm text-slate-500">Loading dashboard…</div>}>
                   <Dashboard
                       stats={stats}
                       lastUpdated={lastPriceUpdate}
@@ -2322,6 +2315,7 @@ const App: React.FC = () => {
                       holdings={holdings}
                       portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                   />
+                  </Suspense>
               );
           }
           case 'benchmark':
@@ -2440,7 +2434,7 @@ const App: React.FC = () => {
              onCloudRetry={() => isReadyToSave.current ? setCloudRetryTick(t => t + 1) : window.location.reload()}
              onDownloadPending={downloadPendingCloudBackup}
              onLoadCloud={handleLoadLatestCloud}
-             hasApiKeys={!!userApiKey && !!userScraperKey}
+             hasApiKeys={!!userApiKey}
           />
 
           <div className={`app-page-scroll flex-1 min-w-0 flex flex-col relative z-10 ${isChartsView ? 'overflow-hidden min-h-0' : 'overflow-y-auto'}`}>
@@ -2985,8 +2979,6 @@ const App: React.FC = () => {
           isOpen={showApiKeyManager}
           onClose={() => setShowApiKeyManager(false)}
           apiKey={userApiKey}
-          scrapingApiKey={userScraperKey}
-          webScrapingAIKey={userWebScrapingAIKey}
           onSave={handleSaveApiKey}
           isDriveConnected={!!driveUser}
       />

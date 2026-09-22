@@ -177,7 +177,9 @@ const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: Reac
 const HeroCard: React.FC<{
   label: string; value: React.ReactNode; sub?: React.ReactNode;
   colorClass: string; icon: React.ReactNode; iconWrap: string; trend: number[]; sparkColor: string;
-}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor }) => {
+  emptyTrendHint?: string;
+}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor, emptyTrendHint }) => {
+  const hasTrend = trend.length >= 2 && trend.some((v) => v !== trend[0]);
   return (
     <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
       <div className="relative z-10 flex items-start justify-between pointer-events-none">
@@ -193,13 +195,20 @@ const HeroCard: React.FC<{
         {sub && <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{sub}</span>}
       </div>
 
-      {/* Absolute Bottom Sparkline Container */}
       <div className="absolute bottom-0 left-0 right-0 h-24 z-20 group-hover:z-30 opacity-90 group-hover:opacity-100 transition-all duration-300">
-        <Spark data={trend} color={sparkColor} />
+        {hasTrend ? (
+          <Spark data={trend} color={sparkColor} />
+        ) : (
+          <div className="flex h-full items-end px-6 pb-4">
+            <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
+              {emptyTrendHint || 'Not enough history yet'}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
-}
+};
 const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: string; children: React.ReactNode }> = ({ title, icon, colorClass, children }) => (
   <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex flex-col">
      <div className={`flex items-center gap-2 mb-4 ${colorClass}`}>
@@ -249,36 +258,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
   const roiDenom = stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : (stats.netPrincipal > 0 ? stats.netPrincipal : 1);
   if (roiDenom > 0) roiExcDiv = (((stats.roi / 100) * roiDenom - stats.totalDividends) / roiDenom) * 100;
 
-  // --- SMART 7-DAY TREND SYNTHESIZER ---
-  // Reconstructs realistic trailing 7 days if real daily snapshots aren't accumulated yet
-  const generate7DayNetWorthTrend = (): number[] => {
-    if (trend && trend.length >= 2 && trend.some(v => v !== trend[0] && v > 0)) {
-      return trend.slice(-7);
-    }
-    const today = totalNetWorth;
-    const yesterday = today - stats.dailyPL;
-    const dailyChange = stats.dailyPL !== 0 ? stats.dailyPL : (today * 0.002);
-
-    // Step back 7 days using realistic market noise curve relative to daily P&L
-    return [
-      yesterday - (dailyChange * 2.1),
-      yesterday - (dailyChange * 1.4),
-      yesterday + (dailyChange * 0.5),
-      yesterday - (dailyChange * 0.8),
-      yesterday + (dailyChange * 0.2),
-      yesterday,
-      today
-    ];
-  };
-  const netWorthTrend = generate7DayNetWorthTrend();
-
-  // Calculate Total Return % line over 7 days
-  const returnTrend = netWorthTrend.map(val => {
-    return stats.netPrincipal > 0 ? ((val - stats.netPrincipal) / stats.netPrincipal) * 100 : 0;
-  });
-  // Calculate Daily P&L delta line over 7 days
+  // Real trailing snapshots only — never invent a 7-day path
+  const hasRealTrend = !!(trend && trend.length >= 2 && trend.some((v) => v !== trend[0] && v > 0));
+  const netWorthTrend = hasRealTrend ? trend!.slice(-7) : [];
+  const returnTrend = netWorthTrend.map((val) => (
+    stats.netPrincipal > 0 ? ((val - stats.netPrincipal) / stats.netPrincipal) * 100 : 0
+  ));
   const dailyPLTrend = netWorthTrend.map((val, idx) => {
-    if (idx === 0) return stats.dailyPL * 0.5;
+    if (idx === 0) return 0;
     return val - netWorthTrend[idx - 1];
   });
   return (

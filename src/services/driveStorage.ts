@@ -16,6 +16,12 @@ const STORAGE_TOKEN_KEY = 'psx_drive_access_token';
 const STORAGE_USER_KEY = 'psx_drive_user_profile';
 const STORAGE_EXPIRY_KEY = 'psx_drive_token_expiry';
 
+/** Cap browser-stored Drive access tokens (Google often returns ~3600s). */
+export const DRIVE_TOKEN_MAX_TTL_SEC = 30 * 60;
+
+const cappedExpiresIn = (expiresIn: number) =>
+  Math.min(Math.max(60, Number(expiresIn) || 0), DRIVE_TOKEN_MAX_TTL_SEC);
+
 // drive.file also permits Sheets API operations on the spreadsheet this app creates.
 // Broad spreadsheets access is sensitive and causes an unverified-app warning.
 // Gmail is requested separately, only when the user opens Gmail import.
@@ -68,7 +74,7 @@ export function installLinkedDriveSession(session: LinkedDriveSession, expectedE
     const email = String(session.user?.email || '').trim().toLowerCase();
     if (email !== expectedEmail.trim().toLowerCase() || !session.accessToken || !(session.expiresIn > 60)) throw new Error('Drive connection does not match this account.');
     const user = { ...session.user, email };
-    const expiry = Date.now() + session.expiresIn * 1000;
+    const expiry = Date.now() + cappedExpiresIn(session.expiresIn) * 1000;
     localStorage.setItem(STORAGE_USER_KEY, JSON.stringify(user));
     localStorage.setItem(STORAGE_TOKEN_KEY, session.accessToken);
     localStorage.setItem(STORAGE_EXPIRY_KEY, String(expiry));

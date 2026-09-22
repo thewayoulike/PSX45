@@ -74,7 +74,7 @@ export const featureSections = [
     "title": "5. Add your Gemini key before using AI scan",
     "paragraphs": [
       "AI scanning needs **your own Gemini API key**. Open **Settings → API Keys**, use Get Key to visit Google AI Studio, and create a key for an eligible project. Google offers a free tier with usage limits; availability depends on the model, project and account. Check Google's current limits before enabling billing or assuming unlimited usage.",
-      "Paste the key into Gemini AI Key and choose Save Configuration. The other API-key fields are not required for this scan workflow. Keep your key private and avoid including it in screenshots or support messages.",
+      "Paste the key into Gemini AI Key and choose Save. Only the Gemini key is used — scraper tokens are no longer collected. Keep your key private and avoid including it in screenshots or support messages.",
       "Manual transaction entry does not require a Gemini key. You can start tracking first and set up scanning when you need it."
     ],
     "images": [
@@ -122,7 +122,7 @@ export const featureSections = [
     "id": "8-keep-your-records-backed-up",
     "title": "8. Keep your records backed up",
     "paragraphs": [
-      "When Drive sync completes, your portfolio records, settings, broker configurations and saved API keys are included in a backup in your own Google Drive. A local copy also remains on your device. Check the green Synced status and save time before moving to another device, then sign in with the same account there.",
+      "When Drive sync completes, your portfolio records, settings, broker configurations and your Gemini API key (if saved) are included in a backup in your own Google Drive. A local copy also remains on your device. Check the green Synced status and save time before moving to another device, then sign in with the same account there.",
       "The backup is not made public by PSX Tracker. Access follows your Google account permissions, including access you grant to the app. Login, alert and connection records are stored separately to run those features.",
       "If a save is pending, keep the app open and review the sync message. Preserve unsynced changes before replacing local records. Contact support if you are unsure which copy is newer. See the privacy page for the full explanation of storage and processing."
     ],

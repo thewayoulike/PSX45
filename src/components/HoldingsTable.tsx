@@ -9,6 +9,7 @@ import { Search, AlertTriangle, Clock, FileSpreadsheet, FileText, TrendingUp, Tr
 import { exportToExcel, exportToCSV } from '../utils/export';
 import { useFreemium } from './FreemiumContext';
 import { consumeDailyQuota } from '../utils/freemiumQuotas';
+import { isPriceStale } from '../utils/priceFreshness';
 
 // --- HYBRID FALLBACK: Static Lists (Used only if live PSX scraping fails) ---
 const FALLBACK_KMI30 = new Set([
@@ -161,6 +162,10 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
 
   const formatUpdateDate = (isoString?: string) => { if (!isoString) return null; return new Date(isoString).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); };
   const globalLastUpdate = useMemo(() => { if (holdings.length === 0) return null; const times = holdings.map(h => h.lastUpdated).filter((t): t is string => !!t).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); return times.length > 0 ? formatUpdateDate(times[0]) : null; }, [holdings]);
+  const anyStalePrices = useMemo(
+    () => !isFund && holdings.some((h) => isPriceStale(h.lastUpdated)),
+    [holdings, isFund],
+  );
 
   const handleExport = (type: 'excel' | 'csv') => {
       if (isFree) {
@@ -224,6 +229,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-500/10 px-3 py-1.5 rounded-lg border border-blue-200/60 dark:border-blue-500/20 shadow-sm"> 
                     <Clock size={14} /> <span>Updated: {globalLastUpdate}</span> 
                   </div> 
+                )}
+                {anyStalePrices && (
+                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-widest text-amber-700 dark:text-amber-300 font-bold bg-amber-50 dark:bg-amber-500/10 px-3 py-1.5 rounded-lg border border-amber-200/60 dark:border-amber-500/20 shadow-sm" title="Showing last known quotes older than 24 hours">
+                    <AlertTriangle size={14} /> <span>Stale prices</span>
+                  </div>
                 )}
              </div>
           </div>
@@ -493,6 +503,11 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                                       ? fmtFundNav(holding.currentPrice)
                                       : holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
                                   : '-'}
+                                {!isFund && holding.currentPrice > 0 && isPriceStale(holding.lastUpdated) && (
+                                  <span className="text-[9px] font-bold uppercase tracking-widest text-amber-600 dark:text-amber-400" title="Last known quote older than 24 hours">
+                                    Stale
+                                  </span>
+                                )}
                                 {holding.currentPrice > 0 && priceDelta != null && Math.abs(priceDelta) >= 0.005 && (
                                   <span
                                     className={`text-[11px] font-bold tabular-nums ${

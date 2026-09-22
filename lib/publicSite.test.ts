@@ -103,6 +103,15 @@ it('feedback encodes draft text and uses the authorized support destination', ()
   expect(wa.searchParams.get('text')).toContain('Charts & scroll');
 });
 
+it('CSP drops paid scraper hosts and blocks inline event handlers', () => {
+  const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
+  const csp = config.headers.find((h: any) => h.source === '/(.*)').headers
+    .find((h: any) => h.key === 'Content-Security-Policy').value as string;
+  expect(csp).toContain("script-src-attr 'none'");
+  expect(csp).not.toContain('api.scrape.do');
+  expect(csp).not.toContain('webscraping.ai');
+});
+
 it('sitemap excludes signed-in pages and hosting excludes them from indexing', () => {
   const sitemap = readFileSync('public/sitemap.xml', 'utf8');
   expect(sitemap).not.toContain('/suggestions');

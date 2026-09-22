@@ -1,4 +1,3 @@
-import { getScrapingApiKey, getWebScrapingAIKey } from './psxData';
 import {
   parseMufapNavHtml as parseMufapNavHtmlShared,
   isMufapBlockedPage as isMufapBlockedPageShared,
@@ -294,44 +293,10 @@ const fetchLiveMufapViaCors = async (): Promise<CatalogPayload | null> => {
   return null;
 };
 
-/** Paid scrapers (user API keys) — best chance past Cloudflare. */
-const fetchLiveMufapViaScrapers = async (): Promise<CatalogPayload | null> => {
-  const scrapeDo = getScrapingApiKey();
-  if (scrapeDo) {
-    try {
-      const url = `https://api.scrape.do/?token=${encodeURIComponent(scrapeDo)}&url=${encodeURIComponent(MUFAP_NAV_URL)}&render=true`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (res.ok) {
-        const parsed = parseLiveHtml(await res.text(), 'cors-live');
-        if (parsed) return parsed;
-      }
-    } catch { /* fall through */ }
-  }
-
-  const webAi = getWebScrapingAIKey();
-  if (webAi) {
-    try {
-      const url = `https://api.webscraping.ai/html?api_key=${encodeURIComponent(webAi)}&url=${encodeURIComponent(MUFAP_NAV_URL)}&js=true`;
-      const res = await fetch(url, { cache: 'no-store' });
-      if (res.ok) {
-        const parsed = parseLiveHtml(await res.text(), 'cors-live');
-        if (parsed) return parsed;
-      }
-    } catch { /* fall through */ }
-  }
-
-  return null;
-};
-
-/** Live browser/CORS attempts — skip paid scrapers unless keys exist. */
+/** Paid scrapers removed — rely on catalog sync + free browser/CORS paths. */
 const fetchAnyLiveMufap = async (): Promise<CatalogPayload | null> => {
   const browser = await fetchLiveMufapFromBrowser();
   if (browser) return browser;
-  // Only hit paid scrapers if the user actually configured keys
-  if (getScrapingApiKey() || getWebScrapingAIKey()) {
-    const scraped = await fetchLiveMufapViaScrapers();
-    if (scraped) return scraped;
-  }
   return fetchLiveMufapViaCors();
 };
 

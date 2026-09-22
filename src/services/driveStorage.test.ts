@@ -152,6 +152,22 @@ describe('cloud save outcomes and recovery', () => {
     expect(()=>service.installLinkedDriveSession({connected:true,accessToken:'wrong',expiresIn:3600,user:{email:'b@example.com',name:'B',picture:''}},'a@example.com')).toThrow('does not match');
     expect(storage.get('psx_drive_access_token')).toBe('test-token');
   });
+
+  it('caps stored Drive token TTL at DRIVE_TOKEN_MAX_TTL_SEC', () => {
+    service.clearDriveSession();
+    const before = Date.now();
+    service.installLinkedDriveSession({
+      connected: true,
+      accessToken: 'tok',
+      expiresIn: 3600,
+      user: { email: 'a@example.com', name: 'A', picture: '' },
+    }, 'a@example.com', false);
+    const expiry = Number(storage.get('psx_drive_token_expiry'));
+    const maxMs = service.DRIVE_TOKEN_MAX_TTL_SEC * 1000;
+    expect(expiry - before).toBeLessThanOrEqual(maxMs);
+    expect(expiry - before).toBeGreaterThanOrEqual(maxMs - 1000);
+  });
+
   it('exchanges a Google authorization code with the same password identity and never stores a refresh credential', async () => {
     let callback!:(response:any)=>Promise<void>;
     const requestCode=vi.fn(),onLogin=vi.fn(),initCodeClient=vi.fn((opts:any)=>{callback=opts.callback;return {requestCode};});

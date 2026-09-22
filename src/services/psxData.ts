@@ -6,21 +6,11 @@ const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VO
 
 export type TimeRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y';
 
-// --- KEY STORAGE (In Memory) ---
-let userScrapingKey: string | null = null;      // Scrape.do
-let userWebScrapingAIKey: string | null = null; // WebScraping.AI
-
-export const setScrapingApiKey = (key: string | null) => {
-    userScrapingKey = key ? key.trim() : null;
-};
-
-export const getScrapingApiKey = () => userScrapingKey;
-
-export const setWebScrapingAIKey = (key: string | null) => {
-    userWebScrapingAIKey = key ? key.trim() : null;
-};
-
-export const getWebScrapingAIKey = () => userWebScrapingAIKey;
+// --- KEY STORAGE (legacy no-ops; scraper providers removed — Gemini only in Settings) ---
+export const setScrapingApiKey = (_key: string | null) => {};
+export const getScrapingApiKey = () => null as string | null;
+export const setWebScrapingAIKey = (_key: string | null) => {};
+export const getWebScrapingAIKey = () => null as string | null;
 
 // FREE PROXIES (Tried First)
 const FREE_PROXIES = [
@@ -87,27 +77,6 @@ export const fetchUrlWithFallback = async (targetUrl: string, minLength = 500): 
                 if (text && text.length > 500) return text; 
             }
         } catch (e) { /* Try next */ }
-    }
-
-    // 3. FALLBACK: Scrape.do (HTTPS — required on production; HTTP is blocked as mixed content)
-    if (userScrapingKey) {
-        try {
-            const premiumUrl = `https://api.scrape.do/?token=${encodeURIComponent(userScrapingKey)}&url=${encodeURIComponent(targetUrl)}&render=true`;
-            const response = await fetchWithTimeout(premiumUrl, {}, 25000);
-            if (response.ok) {
-                const text = await response.text();
-                if (text && text.length > minLength) return text;
-            }
-        } catch (e) {}
-    }
-
-    // 4. FALLBACK: WebScraping.AI
-    if (userWebScrapingAIKey) {
-        try {
-            const wsUrl = `https://api.webscraping.ai/html?api_key=${userWebScrapingAIKey}&url=${encodeURIComponent(targetUrl)}`;
-            const response = await fetchWithTimeout(wsUrl, {}, 25000);
-            if (response.ok) return await response.text();
-        } catch (e) {}
     }
 
     return null; 
