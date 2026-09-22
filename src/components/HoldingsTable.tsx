@@ -60,7 +60,7 @@ const fundDayPL = (
   ldcp: number,
   dayTxs: Transaction[],
   today: string
-): { change: number; pct: number } => {
+): { change: number; pct: number; base: number } => {
   let netUnitsToday = 0;
   let divToday = 0;
   dayTxs.forEach(t => {
@@ -76,7 +76,7 @@ const fundDayPL = (
   const change = navChange + divToday;
   const base = startQty * (ldcp > 0 ? ldcp : h.currentPrice);
   const pct = base > 0 ? (change / base) * 100 : 0;
-  return { change, pct };
+  return { change, pct, base };
 };
 
 export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {}, fundPrevById = {} }) => {
@@ -150,15 +150,14 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           const cost = h.quantity * roundedAvg;
           const marketVal = h.quantity * h.currentPrice;
           const ldcp = isFund ? fundLdcp(h) : (ldcpMap[h.ticker] || h.currentPrice);
-          const dailyChange = isFund
-              ? fundDayPL(h, ldcp, dayTransactions, today).change
-              : (h.currentPrice - ldcp) * h.quantity;
-          return { totalCost: acc.totalCost + cost, totalMarket: acc.totalMarket + marketVal, pnl: acc.pnl + (marketVal - cost), dailyPL: acc.dailyPL + dailyChange };
-      }, { totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0 });
+          const day = isFund ? fundDayPL(h, ldcp, dayTransactions, today) : { change: (h.currentPrice - ldcp) * h.quantity, base: ldcp * h.quantity };
+          const missing = h.priceAvailable === false || (!isFund && !(ldcpMap[h.ticker] > 0));
+          return { totalCost: acc.totalCost + cost, totalMarket: acc.totalMarket + marketVal, pnl: acc.pnl + (marketVal - cost), dailyPL: acc.dailyPL + day.change, previousValue: acc.previousValue + day.base, missing: acc.missing || missing };
+      }, { totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0, previousValue: 0, missing: false });
   }, [filteredAndSortedHoldings, ldcpMap, isFund, dayTransactions, today, priceTimestamps, fundNavDayMap, fundValidityById, fundPrevById]);
 
   const totalPnlPercent = totals.totalCost > 0 ? (totals.pnl / totals.totalCost) * 100 : 0;
-  const totalDailyPercent = totals.totalCost > 0 ? (totals.dailyPL / totals.totalCost) * 100 : 0;
+  const totalDailyPercent = !totals.missing && totals.previousValue > 0 ? (totals.dailyPL / totals.previousValue) * 100 : null;
 
   const formatUpdateDate = (isoString?: string) => { if (!isoString) return null; return new Date(isoString).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }); };
   const globalLastUpdate = useMemo(() => { if (holdings.length === 0) return null; const times = holdings.map(h => h.lastUpdated).filter((t): t is string => !!t).sort((a, b) => new Date(b).getTime() - new Date(a).getTime()); return times.length > 0 ? formatUpdateDate(times[0]) : null; }, [holdings]);
@@ -352,7 +351,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   <div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Daily P&L</div>
                   <div className={`font-mono font-black tabular-nums break-words ${totals.dailyPL >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
                     {totals.dailyPL >= 0 ? '+' : ''}{totals.dailyPL.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    <span className="block text-xs font-bold">({totalDailyPercent.toFixed(1)}%)</span>
+                    <span className="block text-xs font-bold">{totalDailyPercent === null ? 'Previous prices incomplete' : `(${totalDailyPercent.toFixed(2)}%)`}</span>
                   </div>
                 </div>
                 <div className="min-w-0">
@@ -567,7 +566,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                               {totals.dailyPL >= 0 ? '+' : ''}{totals.dailyPL.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span> 
                             <span className="text-[10px] font-bold mt-1 opacity-90 tracking-widest tabular-nums">
-                              {totalDailyPercent.toFixed(2)}%
+                              {totalDailyPercent === null ? 'Previous prices incomplete' : `${totalDailyPercent.toFixed(2)}%`}
                             </span> 
                           </div> 
                         </td>

@@ -246,7 +246,7 @@ const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = f
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <div>
             <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Realized P&amp;L</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Track your closed positions and realized performance</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Sales appear as matched purchase lots; one sale can create several entries. Historical adjustments appear separately.</p>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 px-2.5 py-1 rounded-md border border-blue-200/60 dark:border-blue-500/20 font-bold uppercase tracking-widest">Sold Positions</span>
@@ -304,17 +304,17 @@ const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = f
           <div className={`text-xl font-black ${netAfterCgt >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>Rs. {f0(netAfterCgt)}</div>
           <div className="text-[10px] text-slate-400 font-semibold mt-1">CGT −Rs {f0(totalCGT)}</div>
         </StatCard>
-        <StatCard label="Total Trades">
+        <StatCard label="Realized Entries">
           <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{summary.count}</div>
-          <div className="text-[10px] text-slate-400 font-semibold mt-1">Closed Positions</div>
+          <div className="text-[10px] text-slate-400 font-semibold mt-1">Matched lots / adjustments</div>
         </StatCard>
-        <StatCard label="Winning Trades">
+        <StatCard label="Winning Entries">
           <div className="flex items-center justify-between">
             <div><div className="text-xl font-black text-emerald-600 dark:text-emerald-400">{summary.wins}</div><div className="text-[10px] font-bold text-slate-400">{summary.winRate.toFixed(1)}%</div></div>
             <Ring pct={summary.winRate} color="#10b981" />
           </div>
         </StatCard>
-        <StatCard label="Losing Trades">
+        <StatCard label="Losing Entries">
           <div className="flex items-center justify-between">
             <div><div className="text-xl font-black text-rose-500">{summary.losses}</div><div className="text-[10px] font-bold text-slate-400">{summary.lossRate.toFixed(1)}%</div></div>
             <Ring pct={summary.lossRate} color="#f43f5e" />
@@ -326,9 +326,9 @@ const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = f
           <div className={`text-xl font-black ${pf >= 1.5 ? 'text-emerald-600 dark:text-emerald-400' : pf >= 1 ? 'text-amber-500' : 'text-rose-500'}`}>{pf === Infinity ? '∞' : pf.toFixed(2)}</div>
           <div className="text-[10px] text-slate-400 font-semibold mt-1">gross win ÷ gross loss</div>
         </StatCard>
-        <StatCard label="Expectancy / Trade">
+        <StatCard label="Expectancy / Entry">
           <div className={`text-xl font-black ${summary.expectancy >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>{summary.expectancy >= 0 ? '+' : ''}Rs. {f0(summary.expectancy)}</div>
-          <div className="text-[10px] text-slate-400 font-semibold mt-1">avg P&L per trade</div>
+          <div className="text-[10px] text-slate-400 font-semibold mt-1">avg P&L per entry</div>
         </StatCard>
         <StatCard label="Win / Loss Ratio">
           <div className="text-xl font-black text-slate-900 dark:text-slate-100">{summary.winLoss === Infinity ? '∞' : summary.winLoss.toFixed(2)}</div>

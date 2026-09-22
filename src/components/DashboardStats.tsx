@@ -335,7 +335,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           label="Today's P&L"
           value={<>{isDailyProfitable ? '+' : '-'}{rs(Math.abs(stats.dailyPL))} {isDailyProfitable ? <ArrowUpRight size={24} className="inline -mt-2 opacity-80" /> : <ArrowDownRight size={24} className="inline -mt-2 opacity-80" />}</>}
           colorClass={posNeg(stats.dailyPL)}
-          sub={`${spct(stats.dailyPLPercent || 0)}`}
+          sub={stats.dailyMissingPrevious ? 'Previous prices incomplete' : `${spct(stats.dailyPLPercent || 0)}`}
           icon={<Activity size={16} className={isDailyProfitable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'} />}
           iconWrap={isDailyProfitable ? 'bg-emerald-50 dark:bg-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/20'}
           trend={dailyPLTrend}

@@ -26,6 +26,7 @@ interface TransactionListProps {
   googleSheetId?: string | null;
   displayNames?: Record<string, string>;
   portfolioType?: PortfolioType;
+  initialTypeFilter?: string;
 }
 
 type SortKey = keyof Transaction | 'netAmount';
@@ -40,12 +41,13 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   googleSheetId,
   displayNames = {},
   portfolioType = 'PSX',
+  initialTypeFilter = 'ALL',
 }) => {
   const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const isFund = portfolioType === 'MUTUAL_FUND';
   const colSpan = isFund ? 10 : 13;
   const [searchTerm, setSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<string>('ALL');
+  const [filterType, setFilterType] = useState<string>(initialTypeFilter);
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -61,6 +63,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const matchesTypeFilter = (tx: Transaction) => {
     const conv = conversionMap.get(tx.id);
     if (filterType === 'ALL') return true;
+    if (filterType === 'DIVIDEND_INCOME') return tx.type === 'DIVIDEND' || tx.type === 'DIVIDEND_REINVEST';
     if (filterType === 'CONVERT') return !!conv;
     if (filterType === 'BUY') return tx.type === 'BUY' && !conv;
     if (filterType === 'SELL') return tx.type === 'SELL' && !conv;
@@ -252,6 +255,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
                         <option value="SELL">Sell</option> 
                         {isFund && <option value="CONVERT">Convert</option>}
                         <option value="DIVIDEND">Dividend</option> 
+                        <option value="DIVIDEND_INCOME">Dividend income (cash + reinvested)</option>
                         <option value="TAX">Tax / CGT</option> 
                         <option value="HISTORY">History</option> 
                         <option value="DEPOSIT">Deposit</option> 

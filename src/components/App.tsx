@@ -1,4 +1,4 @@
-import { setUnsavedLocalChanges } from '../utils/chunkRecovery';
+import { setUnsavedLocalChanges, setRecoveryEditorOpen } from '../utils/chunkRecovery';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
@@ -480,6 +480,11 @@ const App: React.FC = () => {
   const [showApiKeyManager, setShowApiKeyManager] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [failedTickers, setFailedTickers] = useState<Set<string>>(new Set());
+  const [historyInitialFilter, setHistoryInitialFilter] = useState('ALL');
+  useEffect(() => { if (currentView !== 'HISTORY') setHistoryInitialFilter('ALL'); }, [currentView]);
+  useEffect(() => {
+      setRecoveryEditorOpen(showAddModal || showPriceEditor || showDividendScanner || showUpcomingScanner || showBrokerManager || showApiKeyManager || isPortfolioModalOpen || showTransferModal);
+  }, [showAddModal, showPriceEditor, showDividendScanner, showUpcomingScanner, showBrokerManager, showApiKeyManager, isPortfolioModalOpen, showTransferModal]);
 
   const isReadyToSave = useRef(false);
   const skipHydrationSave = useRef(false);
@@ -1496,6 +1501,9 @@ const App: React.FC = () => {
     let fundReinvestIncome = 0;
     let fundTaxWithheld = 0;
     let dailyPL = 0;
+    let dailyPreviousValue = 0;
+    let dailyMissingPrevious = false;
+    const dailyByTicker: Record<string, number> = {};
     let totalAdjustments = 0;
     const today = todayPK();
     const fundPortfolio = portfolios.some(p =>
@@ -1504,6 +1512,7 @@ const App: React.FC = () => {
     );
 
     holdings.forEach(h => {
+        if (h.priceAvailable === false) dailyMissingPrevious = true;
         totalValue += h.quantity * h.currentPrice;
         const roundedAvg = isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
         totalCost += h.quantity * roundedAvg;
@@ -1525,10 +1534,19 @@ const App: React.FC = () => {
                 if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') netUnitsToday -= t.quantity;
             });
             const startQty = Math.max(0, h.quantity - netUnitsToday);
-            dailyPL += (h.currentPrice - ldcp) * startQty;
+            const change = (h.currentPrice - ldcp) * startQty;
+            dailyPL += change;
+            dailyByTicker[h.ticker] = (dailyByTicker[h.ticker] || 0) + change;
+            dailyPreviousValue += ldcp * startQty;
+            if (!(ldcpRaw > 0) && !(fund?.prevNav > 0)) dailyMissingPrevious = true;
         } else {
             const ldcp = ldcpRaw || h.currentPrice;
-            dailyPL += (h.currentPrice - ldcp) * h.quantity;
+            const change = (h.currentPrice - ldcp) * h.quantity;
+            dailyPL += change;
+            if (ldcpRaw > 0) {
+                dailyByTicker[h.ticker] = (dailyByTicker[h.ticker] || 0) + change;
+                dailyPreviousValue += ldcpRaw * h.quantity;
+            } else dailyMissingPrevious = true;
         }
     });
 
@@ -1537,9 +1555,13 @@ const App: React.FC = () => {
         portfolioTransactions.forEach(t => {
             if (t.date !== today) return;
             if (t.type === 'DIVIDEND') {
-                dailyPL += (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
+                const income = (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
+                dailyPL += income;
+                dailyByTicker[t.ticker] = (dailyByTicker[t.ticker] || 0) + income;
             } else if (t.type === 'DIVIDEND_REINVEST') {
-                dailyPL += reinvestAmount(t);
+                const income = reinvestAmount(t);
+                dailyPL += income;
+                dailyByTicker[t.ticker] = (dailyByTicker[t.ticker] || 0) + income;
             }
         });
     }
@@ -1730,13 +1752,13 @@ const App: React.FC = () => {
     }
     const mwrr = calculateXIRR(cashFlowsForXIRR);
 
-    const dailyPLPercent = totalCost > 0 ? (dailyPL / totalCost) * 100 : 0;
+    const dailyPLPercent = dailyPreviousValue > 0 && !dailyMissingPrevious ? (dailyPL / dailyPreviousValue) * 100 : 0;
     const reinvestedProfits = Math.max(0, totalCost - Math.max(0, netPrincipal));
     if (dividendSum !== totalDividends) setTotalDividends(dividendSum);
     if (divTaxSum !== totalDividendTax) setTotalDividendTax(divTaxSum);
     return {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL,
-        totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, totalCommission, totalSalesTax, totalCDC,
+        totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, dailyPreviousValue, dailyMissingPrevious, dailyByTicker, totalCommission, totalSalesTax, totalCDC,
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
         netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
     };
@@ -2074,7 +2096,7 @@ const App: React.FC = () => {
       const finalHoldings = Object.values(mergedHoldings).filter(h => h.quantity > 0.0001).map(h => {
           const current = manualPrices[h.ticker] || h.avgPrice;
           const lastUpdated = priceTimestamps[h.ticker];
-          return { ...h, currentPrice: current, lastUpdated };
+          return { ...h, currentPrice: current, lastUpdated, priceAvailable: manualPrices[h.ticker] > 0 };
       });
       setHoldings(finalHoldings);
       setRealizedTrades(tempRealized);
@@ -2327,7 +2349,9 @@ const App: React.FC = () => {
                   />
               );
           case 'insights':
-              return <PortfolioInsights holdings={holdings} realizedTrades={realizedTrades} stats={stats} displayNames={fundDisplayNames} />;
+              return <PortfolioInsights holdings={holdings} realizedTrades={realizedTrades} transactions={portfolioTransactions} stats={stats} displayNames={fundDisplayNames}
+                  onViewReport={() => setCurrentView('REALIZED')}
+                  onViewDividends={() => { setHistoryInitialFilter('DIVIDEND_INCOME'); setCurrentView('HISTORY'); }} />;
           case 'dividends':
               return <UpcomingDividends holdings={holdings} watchlist={watchlist} days={90} />;
           case 'topMovers':
@@ -2770,6 +2794,7 @@ const App: React.FC = () => {
                                   </div>
                               )}
                               <TransactionList
+                                  initialTypeFilter={historyInitialFilter}
                                   transactions={portfolioTransactions}
                                   onDelete={handleDeleteTransaction}
                                   onDeleteMultiple={handleDeleteTransactions}

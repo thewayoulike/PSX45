@@ -38,6 +38,8 @@ export interface Holding {
   avgPrice: number;
   currentPrice: number;
   lastUpdated?: string;
+  /** False when currentPrice is only the purchase-cost fallback, not a quote. */
+  priceAvailable?: boolean;
   listedIn?: string; // <--- ADDED THIS FOR DYNAMIC INDEX TAGS
   totalCommission: number;
   totalTax: number;
@@ -95,6 +97,9 @@ export interface PortfolioStats {
   totalDividendTax: number;
   dailyPL: number;
   dailyPLPercent: number;
+  dailyPreviousValue?: number;
+  dailyMissingPrevious?: boolean;
+  dailyByTicker?: Record<string, number>;
   totalCommission: number;
   totalSalesTax: number; 
   totalCDC: number;
