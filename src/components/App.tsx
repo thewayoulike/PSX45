@@ -78,6 +78,10 @@ import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLat
 import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } from '../services/panelCache';
 import { stockDayChange } from '../utils/stockDayPL';
 import { oversellCashCredit } from '../utils/oversellCash';
+import { peakNetInvested } from '../utils/peakCapital';
+import { principalAndCash } from '../utils/cashFlows';
+import { fifoTransferSlices } from '../utils/transferLots';
+import { sellTaxAllocation } from '../utils/sellTax';
 import { latestPreviousCloses } from '../services/psxData';
 import { AppLoading } from './AppLoading';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
@@ -998,39 +1002,49 @@ const App: React.FC = () => {
           : undefined) || firstBrokerHolding(ticker, holdings, brokers);
 
       if (!sourcePortfolio || !destPortfolio || !holding) return;
-      const transferPrice = holding.avgPrice;
       const sourceBrokerName = holding.broker || (sourcePortfolio.defaultBrokerId ? brokers.find(b => b.id === sourcePortfolio.defaultBrokerId)?.name : 'Transfer');
       const sourceBrokerId = brokers.find(b => b.name === sourceBrokerName)?.id || sourcePortfolio.defaultBrokerId;
-      const transferId = Date.now().toString();
-      const transferOut: Transaction = {
-          id: `tx-out-${transferId}`,
-          createdAt: nextCreatedAt(),
-          portfolioId: currentPortfolioId,
-          type: 'TRANSFER_OUT',
-          ticker,
-          quantity,
-          price: transferPrice,
-          date,
-          broker: sourceBrokerName,
-          brokerId: sourceBrokerId,
-          commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
-          notes: `Transfer to ${destPortfolio.name}`
-      };
-      const transferIn: Transaction = {
-          id: `tx-in-${transferId}`,
-          createdAt: nextCreatedAt(),
-          portfolioId: destPortfolioId,
-          type: 'TRANSFER_IN',
-          ticker,
-          quantity,
-          price: transferPrice,
-          date,
-          broker: destPortfolio.defaultBrokerId ? (brokers.find(b => b.id === destPortfolio.defaultBrokerId)?.name) : 'Transfer',
-          brokerId: destPortfolio.defaultBrokerId,
-          commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
-          notes: `Transfer from ${sourcePortfolio.name}`
-      };
-      setTransactions(prev => [...prev, transferOut, transferIn]);
+      const sourceTrades = transactions.filter(t =>
+          t.portfolioId === currentPortfolioId && t.ticker === ticker
+          && (t.brokerId ? t.brokerId === sourceBrokerId : t.broker === sourceBrokerName)
+      );
+      const slices = fifoTransferSlices(sourceTrades, quantity, date);
+      const covered = slices.reduce((sum, slice) => sum + slice.quantity, 0);
+      if (covered + 0.0001 < quantity) slices.push({ quantity: quantity - covered, price: holding.avgPrice });
+      const stamp = Date.now().toString();
+      const rows: Transaction[] = [];
+      slices.forEach((slice, index) => {
+          const transferId = `${stamp}-${index}`;
+          rows.push({
+              id: `tx-out-${transferId}`,
+              createdAt: nextCreatedAt(),
+              portfolioId: currentPortfolioId,
+              type: 'TRANSFER_OUT',
+              ticker,
+              quantity: slice.quantity,
+              price: slice.price,
+              date,
+              broker: sourceBrokerName,
+              brokerId: sourceBrokerId,
+              commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+              notes: `Transfer to ${destPortfolio.name}`
+          });
+          rows.push({
+              id: `tx-in-${transferId}`,
+              createdAt: nextCreatedAt(),
+              portfolioId: destPortfolioId,
+              type: 'TRANSFER_IN',
+              ticker,
+              quantity: slice.quantity,
+              price: slice.price,
+              date,
+              broker: destPortfolio.defaultBrokerId ? (brokers.find(b => b.id === destPortfolio.defaultBrokerId)?.name) : 'Transfer',
+              brokerId: destPortfolio.defaultBrokerId,
+              commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+              notes: `Transfer from ${sourcePortfolio.name}`
+          });
+      });
+      setTransactions(prev => [...prev, ...rows]);
   };
 
   /** Switch units from one fund to another inside the same portfolio (redeem + subscribe). */
@@ -1549,7 +1563,7 @@ const App: React.FC = () => {
   }, [portfolioTransactionsRaw, entitledTickers]);
 
   const stats: PortfolioStats = useMemo(() => {
-    let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let historyPnL = 0; let totalReinvest = 0;
+    let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let transferInValue = 0; let transferOutValue = 0; let historyPnL = 0; let totalReinvest = 0;
     let operationalExpenses = 0;
     let fundReinvestIncome = 0;
     let fundTaxWithheld = 0;
@@ -1567,8 +1581,8 @@ const App: React.FC = () => {
     holdings.forEach(h => {
         if (h.priceAvailable === false) dailyMissingPrevious = true;
         totalValue += h.quantity * h.currentPrice;
-        const roundedAvg = isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100;
-        totalCost += h.quantity * roundedAvg;
+        const costAvg = isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : h.avgPrice;
+        totalCost += h.quantity * costAvg;
         const ldcpRaw = ldcpMap[h.ticker];
         if (isFundTicker(h.ticker)) {
             const fund = fundCatalog[h.ticker];
@@ -1700,17 +1714,18 @@ const App: React.FC = () => {
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
         }
         else if (t.type === 'TRANSFER_IN') {
-            totalDeposits += t.price * t.quantity;
+            transferInValue += t.price * t.quantity;
             events.push({ date: t.date, type: 'IN', amount: t.price * t.quantity, originalIndex: idx });
         }
         else if (t.type === 'TRANSFER_OUT') {
-            totalWithdrawals += t.price * t.quantity;
+            transferOutValue += t.price * t.quantity;
             events.push({ date: t.date, type: 'OUT', amount: t.price * t.quantity, originalIndex: idx });
         }
-        else if (t.type === 'SELL' && isFundTicker(t.ticker) && (t.tax || 0) > 0) {
-            totalCGT += (t.tax || 0);
-            fundTaxWithheld += (t.tax || 0);
-            totalSalesTax += (t.tax || 0);
+        else if (t.type === 'SELL' && (t.tax || 0) > 0) {
+            const allocated = sellTaxAllocation(isFundTicker(t.ticker), t.tax || 0);
+            totalCGT += allocated.cgt;
+            fundTaxWithheld += allocated.withheld;
+            totalSalesTax += allocated.salesTax;
         }
         else {
             totalSalesTax += (t.tax || 0);
@@ -1731,35 +1746,17 @@ const App: React.FC = () => {
     // here. Fund withholding deducted from a dividend is reported under Total CGT but
     // must not show up as a realized loss on a position you never sold.
     const netRealizedPL = realizedPL - (totalCGT - fundTaxWithheld);
-    let runningCapital = 0;
-    let runningReinvest = 0;
-    let peakInvested = 0;
-    events.forEach(e => {
-        if (e.type === 'IN') {
-            if (e.kind === 'reinvest') runningReinvest += e.amount;
-            else runningCapital += e.amount;
-            // In a fund the reinvested dividend is profit that stayed invested, not
-            // capital you put in, so it must not inflate the ROI denominator.
-            const total = fundPortfolio ? runningCapital : runningCapital + runningReinvest;
-            if (total > peakInvested) peakInvested = total;
-        }
-        else if (e.type === 'OUT') {
-            let out = e.amount;
-            const fromReinvest = Math.min(out, Math.max(0, runningReinvest));
-            runningReinvest -= fromReinvest;
-            out -= fromReinvest;
-            runningCapital -= out;
-        }
-    });
+    const peakInvested = peakNetInvested(events, fundPortfolio);
     // Net Invested = capital − withdrawals, where a withdrawal is funded first from
     // TOTAL realized gain (net of CGT), then reinvested dividends, then capital.
     // Only the capital-funded portion of withdrawals reduces Net Invested — so
     // cashing out your gains leaves Net Invested unchanged.
-    let wLeft = totalWithdrawals;
+    const flows = principalAndCash({ deposits: totalDeposits, withdrawals: totalWithdrawals, transferIn: transferInValue, transferOut: transferOutValue });
+    let wLeft = flows.principalOut;
     wLeft -= Math.min(wLeft, Math.max(0, netRealizedPL));            // realized gain first
     const reinvestUsed = Math.min(wLeft, Math.max(0, totalReinvest));
     wLeft -= reinvestUsed;                                           // then reinvested dividends
-    const capitalRemaining = totalDeposits - wLeft;                 // then capital
+    const capitalRemaining = flows.principalIn - wLeft;              // then capital
     const reinvestRemaining = Math.max(0, totalReinvest - reinvestUsed);
     // Withdrawals still draw down reinvested profit before capital above; funds just
     // never count that profit as principal in the first place.
@@ -1777,10 +1774,10 @@ const App: React.FC = () => {
         else if (isUnitReinvest(t)) tradingCashFlow -= val;
     });
 
-    let cashIn = totalDeposits + totalReinvest;
+    let cashIn = flows.cashIn + totalReinvest;
     // Fund withholding is deducted at source, so it reduces CGT and return but was
     // never money sitting in the portfolio to pay out.
-    let cashOut = totalWithdrawals + (totalCGT - fundTaxWithheld) + operationalExpenses;
+    let cashOut = flows.cashOut + (totalCGT - fundTaxWithheld) + operationalExpenses;
     const matchedSellCash = oversellCashCredit(portfolioTransactions);
     const bookedSellCash = portfolioTransactions.reduce((sum, t) => {
         if (t.type !== 'SELL') return sum;

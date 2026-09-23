@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, TrendingDown } from 'lucide-react';
-import { fetchStockHistory } from '../services/psxData';
+import { fetchIndexQuote } from '../services/psxData';
 
 // Each entry: { rawDate, Portfolio, KSE100, KMI30 }  (daily return %)
 interface Props {
@@ -17,14 +17,6 @@ const posNeg = (v: number) => (v >= 0 ? 'text-emerald-600 dark:text-emerald-400'
 // Compound daily % returns into a cumulative % for the window.
 const cum = (rows: any[], key: string) => (rows.reduce((acc, d) => acc * (1 + (Number(d[key]) || 0) / 100), 1) - 1) * 100;
 
-// Close-to-close % from a fetchStockHistory series (last vs previous point).
-const lastChangePct = (arr: { time: number; price: number }[] | undefined): number | null => {
-  if (!arr || arr.length < 2) return null;
-  const a = arr[arr.length - 1].price;
-  const b = arr[arr.length - 2].price;
-  return b > 0 ? ((a - b) / b) * 100 : null;
-};
-
 export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => {
   const [win, setWin] = useState<Win>('1M');
   // Live today's index moves — same source as the Index bar, so the "Today" tab
@@ -37,11 +29,11 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
     (async () => {
       try {
         const [kse, kmi] = await Promise.all([
-          fetchStockHistory('KSE100', '1M'),
-          fetchStockHistory('KMI30', '1M'),
+          fetchIndexQuote('KSE100'),
+          fetchIndexQuote('KMI30'),
         ]);
         if (alive) {
-          setLive({ kse: lastChangePct(kse), kmi: lastChangePct(kmi) });
+          setLive({ kse: kse?.changePct ?? null, kmi: kmi?.changePct ?? null });
           setLastUpdated(new Date());
         }
       } catch { 

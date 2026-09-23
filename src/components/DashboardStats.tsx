@@ -1,5 +1,6 @@
 import React from 'react';
 import { Holding, PortfolioStats, PortfolioType } from '../types';
+import { healthReturnPct } from '../utils/healthScore';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
   Activity, Coins, Receipt, Building2, FileText, PiggyBank, Scale, TrendingUp, TrendingDown,
@@ -72,9 +73,8 @@ const dailyReturns = (series?: number[]): number[] => {
 };
 const computeHealth = (stats: PortfolioStats, holdings?: Holding[], trend?: number[], benchmark?: number[]): Health => {
   const pillars: Pillar[] = [];
-  const invested = stats.netPrincipal || stats.totalCost || 0;
-  const totalReturnRs = stats.unrealizedPL + stats.netRealizedPL;
-  const retPct = invested > 0 ? (totalReturnRs / invested) * 100 : 0;
+  const totalReturnRs = stats.totalNetReturn ?? (stats.unrealizedPL + stats.netRealizedPL);
+  const retPct = healthReturnPct(stats);
   const pr = dailyReturns(trend);
   const br = dailyReturns(benchmark);
   const absScore = clamp(50 + retPct * 2);

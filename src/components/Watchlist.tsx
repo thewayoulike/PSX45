@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { getSector } from '../services/sectors';
+import { canonicalSector } from '../utils/sectorName';
 import { SetAlert } from './SetAlert';
 import {
   Star, Plus, Trash2, Bell, RefreshCw, Loader2, Search, TrendingUp, TrendingDown, X, Eye,
@@ -93,7 +94,7 @@ export const Watchlist: React.FC<Props> = ({ watchlist, onAdd, onRemove, onSelec
     q && q.ldcp > 0 ? ((q.price - q.ldcp) / q.ldcp) * 100 : null;
 
   // Sector for a ticker: prefer the live PSX sector, fall back to the static map.
-  const sectorOf = (t: string) => (quotes[t]?.sector || getSector(t) || 'Other');
+  const sectorOf = (t: string) => canonicalSector(quotes[t]?.sector || getSector(t) || 'Other');
 
   const sectorGroups = useMemo(() => {
     const map: Record<string, string[]> = {};

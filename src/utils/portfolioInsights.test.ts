@@ -20,8 +20,8 @@ describe('verified Insights calculations', () => {
     expect(result.topPercent).toBe(100);
     expect(result.totalValue).toBe(3300);
   });
-  it('matches Holdings rounding for stocks while retaining four-place fund NAV precision', () => {
-    expect(holdingCost(holding({ avgPrice: 123.4567 }))).toBe(1234.6);
+  it('keeps the unrounded stock cost so it matches realized lots, and four-place fund NAV', () => {
+    expect(holdingCost(holding({ avgPrice: 10.004, quantity: 30000 }))).toBeCloseTo(300120, 5);
     expect(holdingCost(holding({ ticker: 'MF:test', avgPrice: 123.4567 }))).toBe(1234.567);
   });
   it('distinguishes a small percentage loss from the largest rupee loss', () => {

@@ -114,6 +114,7 @@ export interface PortfolioStats {
   reinvestedProfits: number;
   dividendReinvested?: number;
   roi: number;
+  totalNetReturn?: number;
   
   mwrr: number | null;
 }

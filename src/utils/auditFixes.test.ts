@@ -37,6 +37,13 @@ describe('audit regressions', () => {
     ])).toBe(1200);
   });
 
+  it('still credits a sale of shares that arrived by transfer', () => {
+    expect(oversellCashCredit([
+      { type: 'TRANSFER_IN', ticker: 'OGDC', quantity: 100, price: 10, date: '2026-01-01' },
+      { type: 'SELL', ticker: 'OGDC', quantity: 100, price: 12, date: '2026-02-01' },
+    ])).toBe(1200);
+  });
+
   it('keeps the live price when the session is open', () => {
     expect(applyPriceStack({ OGDC: 111 }, { OGDC: 90 }, {}, true)).toEqual({ OGDC: 111 });
     expect(applyPriceStack({}, { OGDC: 90 }, {}, true)).toEqual({ OGDC: 90 });

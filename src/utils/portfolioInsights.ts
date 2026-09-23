@@ -5,7 +5,7 @@ import { formatDatePK } from './dates';
 
 const finite = (value: number) => Number.isFinite(value) ? value : 0;
 export const holdingCost = (h: Holding) => h.quantity * (
-  isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : Math.round(h.avgPrice * 100) / 100
+  isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : h.avgPrice
 );
 export interface InsightPosition { ticker: string; cost: number; profit: number; value: number; percent: number | null }
 const rank = (positions: InsightPosition[]) => positions.filter(p => p.cost >= 500)

@@ -3,6 +3,7 @@ import { readDividendRows, readBoardMeetingRows } from './publicDividends';
 import { cachedMarketFetch } from './marketCache';
 import { fetchUrlWithFallback } from './psxData';
 import { percentToRs } from '../utils/faceValues';
+import { formatDatePK } from '../utils/dates';
 import { isFundTicker } from '../utils/fundId';
 import {
   companyInfoToUpcomingPayouts,
@@ -240,9 +241,9 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         const cleanPercent = parseFloat(rawDiv.replace('%', ''));
         // Dividends are a % of FACE VALUE. Most PSX stocks are Rs. 10 face value
         // (so percent/10), but low-face-value stocks (Rs. 5 / 3.5 / 1) pay less.
-        const pkrAmount = percentToRs(cleanPercent, ticker);
         const dateStr = row[5] || '';
         const xDate = new Date(dateStr);
+        const pkrAmount = percentToRs(cleanPercent, ticker, Number.isNaN(xDate.getTime()) ? undefined : formatDatePK(xDate));
         xDate.setHours(0, 0, 0, 0);
 
         if (isNaN(xDate.getTime()) || xDate < today) return null;
@@ -360,7 +361,8 @@ export const fetchDividendsForScan = async (months: number = 6): Promise<Dividen
       if (!ticker) return null;
 
       const cleanPercent = parseFloat((row[2] || '0').toString().replace('%', ''));
-      const amount = percentToRs(cleanPercent, ticker); // face-value aware
+      const exForFace = new Date(row[5] || '');
+      const amount = percentToRs(cleanPercent, ticker, Number.isNaN(exForFace.getTime()) ? undefined : formatDatePK(exForFace));
       if (!isFinite(amount) || amount <= 0) return null;
 
       const ex = new Date(row[5] || '');

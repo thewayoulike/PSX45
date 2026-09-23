@@ -17,6 +17,7 @@ import { isFundTicker } from '../utils/fundId';
 import { fmtFundNav, fmtFundUnits } from '../utils/fundFormat';
 import { formatTransactionLabel, formatTransactionSubtext, formatConversionSubtext } from '../utils/fundDisplay';
 import { buildFundConversionMap, getFundTradeDisplayType, type FundConversionLeg } from '../utils/fundCash';
+import { visibleSelection } from '../utils/visibleSelection';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -119,7 +120,25 @@ export const TransactionList: React.FC<TransactionListProps> = ({
 
   const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => { if (e.target.checked) setSelectedIds(new Set(filteredAndSortedTransactions.map(t => t.id))); else setSelectedIds(new Set()); };
   const handleSelectOne = (id: string) => { const newSelected = new Set(selectedIds); if (newSelected.has(id)) newSelected.delete(id); else newSelected.add(id); setSelectedIds(newSelected); };
-  const executeBulkDelete = () => { if (onDeleteMultiple && selectedIds.size > 0) { onDeleteMultiple(Array.from(selectedIds)); setSelectedIds(new Set()); } };
+  const executeBulkDelete = () => {
+    const ids = visibleSelection(Array.from(selectedIds), filteredAndSortedTransactions.map(t => t.id));
+    if (onDeleteMultiple && ids.length > 0) {
+      onDeleteMultiple(ids);
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        ids.forEach(id => next.delete(id));
+        return next;
+      });
+    }
+  };
+  useEffect(() => {
+    const visible = filteredAndSortedTransactions.map(t => t.id);
+    setSelectedIds(prev => {
+      const kept = visibleSelection(Array.from(prev), visible);
+      if (kept.length === prev.size && kept.every(id => prev.has(id))) return prev;
+      return new Set(kept);
+    });
+  }, [filteredAndSortedTransactions]);
   const clearFilters = () => { setSearchTerm(''); setFilterType('ALL'); setDateFrom(''); setDateTo(''); };
   const hasActiveFilters = searchTerm || dateFrom || dateTo || filterType !== 'ALL';
 

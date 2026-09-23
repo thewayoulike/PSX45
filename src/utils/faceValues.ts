@@ -41,17 +41,26 @@ export const FACE_VALUES: Record<string, number> = {
   TSBL: 1,     // Trust Securities & Brokerage Limited
 };
 
+// Face value changes that are not the current map. BAFL subdivided Rs 10 shares into Rs 5
+// on the first session after the 18 Apr 2026 book closure (PSX notice, trading from 20 Apr 2026).
+const FACE_VALUE_FROM: Record<string, { from: string; previous: number }> = {
+  BAFL: { from: '2026-04-20', previous: 10 },
+};
+
 /** Face value (Rs.) for a ticker. Defaults to Rs. 10 when not in the exception map. */
-export const getFaceValue = (ticker: string): number => {
+export const getFaceValue = (ticker: string, asOf?: string): number => {
   const key = String(ticker || '').trim().toUpperCase();
-  return FACE_VALUES[key] ?? DEFAULT_FACE_VALUE;
+  const current = FACE_VALUES[key] ?? DEFAULT_FACE_VALUE;
+  const change = FACE_VALUE_FROM[key];
+  if (change && asOf && asOf < change.from) return change.previous;
+  return current;
 };
 
 /**
  * Convert a declared dividend percentage into rupees-per-share, using the stock's
  * actual face value. e.g. 100% on a Rs. 10 stock = Rs. 10; 100% on KEL (Rs. 3.5) = Rs. 3.50.
  */
-export const percentToRs = (percent: number, ticker: string): number => {
+export const percentToRs = (percent: number, ticker: string, asOf?: string): number => {
   if (!isFinite(percent)) return NaN;
-  return (percent / 100) * getFaceValue(ticker);
+  return (percent / 100) * getFaceValue(ticker, asOf);
 };

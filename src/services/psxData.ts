@@ -1,6 +1,7 @@
 import { cachedMarketFetch, mapConcurrent } from './marketCache';
 import { SECTOR_CODE_MAP } from './sectors';
 import { formatDatePK, isPsxMarketHours, todayPK } from '../utils/dates';
+import { clipHistory } from '../utils/historyRange';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
@@ -113,7 +114,7 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
         try {
             const rawData = JSON.parse(htmlOrJson);
             if (rawData && rawData.data && Array.isArray(rawData.data)) {
-                return rawData.data
+                return clipHistory(rawData.data
                     .map((point: any[]) => {
                         const priceIndex = point.length >= 5 ? 4 : 1;
                         return {
@@ -121,7 +122,7 @@ export const fetchStockHistory = async (symbol: string, range: TimeRange = '1D')
                             price: Number(point[priceIndex])
                         };
                     })
-                    .sort((a: any, b: any) => a.time - b.time);
+                    .sort((a: any, b: any) => a.time - b.time), range);
             }
         } catch (e) { /* ignore */ }
     }

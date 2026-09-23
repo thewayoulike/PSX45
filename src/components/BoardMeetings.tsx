@@ -4,6 +4,7 @@ import { fetchBoardMeetings, BoardMeeting } from '../services/financials';
 import { CalendarClock, RefreshCw, Loader2, Star, MapPin, Clock, ExternalLink } from 'lucide-react';
 import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
 import { PanelRefreshNote } from './PanelRefreshNote';
+import { daysUntilMeeting } from '../utils/meetingDays';
 
 interface Props {
   holdings: Holding[];
@@ -22,6 +23,7 @@ export const BoardMeetings: React.FC<Props> = ({ holdings, onSelectTicker }) => 
   const [lastUpdated, setLastUpdated] = useState<Date | null>(() => initial ? new Date(initial.savedAt) : null);
 
   const owned = useMemo(() => new Set(holdings.map(h => h.ticker.toUpperCase())), [holdings]);
+  const upcoming = useMemo(() => items.filter(m => daysUntilMeeting(m.date instanceof Date ? m.date : new Date(m.date)) >= 0), [items]);
 
   const load = async () => {
     const cached = readPanel<BoardMeeting[]>(panelKeys.meetings());
@@ -87,11 +89,12 @@ export const BoardMeetings: React.FC<Props> = ({ holdings, onSelectTicker }) => 
           <Loader2 size={22} className="animate-spin mb-2" />
           <span className="text-xs font-medium">Loading upcoming board meetings…</span>
         </div>
-      ) : items.length === 0 && loaded ? (
+      ) : upcoming.length === 0 && loaded ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-10">No upcoming board meetings found.</p>
       ) : (
         <div className="max-h-[26rem] overflow-y-auto -mx-1 px-1 divide-y divide-slate-50 dark:divide-slate-800/60">
-          {items.map((m, i) => {
+          {upcoming.map((m, i) => {
+            const daysTo = daysUntilMeeting(m.date instanceof Date ? m.date : new Date(m.date));
             const isOwned = owned.has(m.ticker);
             return (
               <button
@@ -119,8 +122,8 @@ export const BoardMeetings: React.FC<Props> = ({ holdings, onSelectTicker }) => 
                   <div className="text-sm font-bold text-slate-700 dark:text-slate-200 tabular-nums">
                     {m.date.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
                   </div>
-                  <div className={`text-[10px] font-semibold tabular-nums ${m.daysTo <= 3 ? 'text-rose-500' : 'text-slate-400'}`}>
-                    {dayLabel(m.daysTo)}
+                  <div className={`text-[10px] font-semibold tabular-nums ${daysTo <= 3 ? 'text-rose-500' : 'text-slate-400'}`}>
+                    {dayLabel(daysTo)}
                   </div>
                 </div>
               </button>

@@ -7,6 +7,7 @@ import {
 import { Megaphone, FileText, CalendarClock, Loader2, RefreshCw, Coins, CalendarDays } from 'lucide-react';
 import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
 import { PanelRefreshNote } from './PanelRefreshNote';
+import { daysUntilMeeting } from '../utils/meetingDays';
 
 interface Props { ticker: string | null; }
 
@@ -101,7 +102,7 @@ export const StockAnnouncements: React.FC<Props> = ({ ticker }) => {
           <div className="text-sm text-slate-700 dark:text-slate-200">
             <span className="font-bold">Upcoming board meeting</span> · {meeting.date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })}
             {meeting.time ? ` · ${meeting.time}` : ''}{meeting.place ? ` · ${meeting.place}` : ''}
-            <span className="text-slate-400"> (in {meeting.daysTo}d)</span>
+            <span className="text-slate-400"> (in {daysUntilMeeting(meeting.date instanceof Date ? meeting.date : new Date(meeting.date))}d)</span>
           </div>
         </div>
       )}

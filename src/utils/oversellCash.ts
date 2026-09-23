@@ -14,7 +14,7 @@ type LotTx = {
 export function oversellCashCredit(txs: LotTx[]): number {
   const byTicker = new Map<string, LotTx[]>();
   for (const t of txs) {
-    if (t.type !== 'BUY' && t.type !== 'SELL') continue;
+    if (t.type !== 'BUY' && t.type !== 'SELL' && t.type !== 'TRANSFER_IN' && t.type !== 'TRANSFER_OUT') continue;
     const key = t.ticker.toUpperCase();
     const list = byTicker.get(key) || [];
     list.push(t);
@@ -24,7 +24,7 @@ export function oversellCashCredit(txs: LotTx[]): number {
   for (const list of byTicker.values()) {
     const lots: number[] = [];
     for (const t of [...list].sort((a, b) => a.date.localeCompare(b.date))) {
-      if (t.type === 'BUY') lots.push(t.quantity);
+      if (t.type === 'BUY' || t.type === 'TRANSFER_IN') lots.push(t.quantity);
       else {
         let left = t.quantity;
         while (left > 0.0001 && lots.length) {
@@ -34,9 +34,11 @@ export function oversellCashCredit(txs: LotTx[]): number {
           if (lots[0] <= 0.0001) lots.shift();
         }
         const matched = t.quantity - left;
-        const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-        const feePer = t.quantity > 0 ? fees / t.quantity : 0;
-        credit += matched * (t.price - feePer);
+        if (t.type === 'SELL') {
+          const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+          const feePer = t.quantity > 0 ? fees / t.quantity : 0;
+          credit += matched * (t.price - feePer);
+        }
       }
     }
   }

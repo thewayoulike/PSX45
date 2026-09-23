@@ -8,6 +8,8 @@ import { exportToCSV } from '../utils/export';
 import { useFreemium } from './FreemiumContext';
 import { filterImportTickersForFree } from '../utils/freemiumQuotas';
 import { todayPK, toDatePK } from '../utils/dates';
+import { batchNetCashNeed } from '../utils/batchCash';
+import { normalizeScannedTrade } from '../utils/scanNormalize';
 import { FundPicker } from './FundPicker';
 import { MutualFundRecord } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
@@ -506,7 +508,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           if (trades.length === 0) throw new Error("No trades found in this file."); 
           
           const enrichedTrades: EditableTrade[] = trades.map(t => ({ 
-              ...t, 
+              ...normalizeScannedTrade(t), 
               price: dp2(t.price), 
               commission: dp2(t.commission), 
               tax: dp2(t.tax), 
@@ -671,10 +673,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       // Buying power is checked on the NET of the batch (buys minus sell proceeds),
       // so an intraday set that squares off can be added together even when the
       // gross buy cost alone exceeds available cash.
-      const totalBuyCost = selectedTrades.reduce((acc, t) => t.type === 'BUY' ? acc + getTradeCost(t) : acc, 0); 
-      const totalSellProceeds = selectedTrades.reduce((acc, t) => t.type === 'SELL' ? acc + getTradeProceeds(t) : acc, 0); 
-      const totalDepositInBatch = selectedTrades.reduce((acc, t) => t.type === 'DEPOSIT' ? acc + Number(t.price) : acc, 0);
-      const netCost = totalBuyCost - totalSellProceeds - totalDepositInBatch; 
+      const netCost = batchNetCashNeed(selectedTrades); 
       if (freeCash !== undefined && !canAfford(netCost, freeCash)) { 
           setFormError(`Insufficient Buying Power! These trades need Rs. ${money2(netCost)} net but you have Rs. ${money2(freeCash)}.`); 
           scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' }); 
