@@ -129,7 +129,7 @@ export interface Portfolio {
   type?: PortfolioType;
 }
 
-export type AppView = 'HOLDINGS' | 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'BROKERS' | 'API_KEYS' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
+export type AppView = 'HOLDINGS' | 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'BROKERS' | 'API_KEYS' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
 
 export interface DividendAnnouncement {
     ticker: string;

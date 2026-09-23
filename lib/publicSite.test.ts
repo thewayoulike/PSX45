@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { renderPublicPage, renderGuideHub, renderGuidePage, resolvePublicHtml } from './publicSite.js';
+import { renderPublicPage, renderGuideHub, renderGuidePage, renderEditorialPage, resolvePublicHtml } from './publicSite.js';
 import { buildSitemapXml } from './sitemap.js';
 import { videoGuide, videoChapters } from './videoGuide.js';
 import { featureSections } from '../config/howItWorks.js';
@@ -194,7 +194,32 @@ it('service worker navigation denylist lets crawlers see sitemap, robots, and pu
   expect(denylist).toMatch(/robots\\.txt/);
   expect(denylist).toMatch(/llms\\.txt/);
   expect(denylist).toMatch(/guides/);
+  expect(denylist).toMatch(/markets\|tools/);
   expect(denylist).toMatch(/about\|privacy\|terms\|contact/);
+});
+
+it('expands the guides and publishes markets and calculators', () => {
+  const words = (html: string) => {
+    const main = html.split('<main id="main">')[1]?.split('</main>')[0] || '';
+    return main.replace(/<script[\s\S]*?<\/script>/g, ' ').replace(/<[^>]+>/g, ' ').split(/\s+/).filter(Boolean).length;
+  };
+  for (const slug of Object.keys(guidePages)) {
+    if (slug === 'best-psx-portfolio-tracker-excel-alternative') continue;
+    expect(words(renderGuidePage(slug)), slug).toBeGreaterThanOrEqual(1100);
+  }
+  const ogdc = renderEditorialPage('/markets/shares/ogdc');
+  expect(ogdc).toContain('No live price');
+  expect(ogdc).toContain('Oil and Gas Development Company');
+  expect(ogdc).not.toContain('current price');
+  const gain = renderEditorialPage('/tools/capital-gains');
+  expect(gain).toContain('id="capital-gains"');
+  expect(gain).toContain('src="/calculators.js"');
+  expect(gain).toContain('Active Taxpayers List');
+  expect(gain).toContain('NCCPL');
+  expect(resolvePublicHtml('/tools/sip')).toContain('id="sip"');
+  expect(resolvePublicHtml('/tools/zakat')).toContain('612.36 grams');
+  expect(renderEditorialPage('/markets')).toContain('/markets/funds/meezan-islamic-fund');
+  expect(resolvePublicHtml('/tools/fifo-vs-average')).toContain('id="fifo-vs-average"');
 });
 
 it('ships llms.txt, short titles, article schema, and real sitemap dates', () => {

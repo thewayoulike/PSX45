@@ -63,6 +63,16 @@ describe('SEO foundation', () => {
     expect(html).toContain('application/ld+json');
     expect(html).toContain('FAQPage');
     expect(html).toContain('href="/guides"');
+    expect(html).toContain('PSX portfolio tracker for Pakistan Stock Exchange investors');
+    expect(html).toContain('href="/guides/is-psx-investing-halal"');
+    expect(html).toContain('href="/guides/cgt-basics-pakistan-stocks"');
+    expect(html).toContain('href="/guides/choosing-a-psx-broker"');
+    expect(html).toContain('href="/markets"');
+    expect(html).toContain('href="/tools"');
+    expect(read('src/components/LoginPage.tsx')).toContain('href="/guides/fifo-cost-basis-psx"');
+    expect(read('src/components/LoginPage.tsx')).toContain('href="/tools"');
+    expect(read('src/components/Sidebar.tsx')).toContain("id: 'CALCS'");
+    expect(read('src/components/App.tsx')).toContain("CALCS: '/calculators'");
   });
 
   it('ships GA4 tags when a Measurement ID is configured', () => {

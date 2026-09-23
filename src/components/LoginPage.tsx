@@ -224,7 +224,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   if (compact) return <main className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
-    <div className="max-w-md mx-auto"><a href="/" aria-label="PSX Tracker home" className="inline-block mb-8"><Logo variant="horizontal" /></a><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><VideoGuideLink/><div className="mt-7"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
+    <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><a href="/tools" className="text-sm font-bold underline">Calculators</a></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Calculators stay in the menu after you sign in.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><VideoGuideLink/><div className="mt-7"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
   </main>;
 
   return (
@@ -234,7 +234,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
       <header className="landing-header sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-6xl mx-auto px-3 sm:px-5 min-h-16 flex items-center justify-between gap-2">
           <Logo variant="horizontal" className="brand-logo--header" />
+          <a href="/tools" className="md:hidden shrink-0 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Calculators</a>
           <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-500 dark:text-slate-400">
+            <a href="/tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Calculators</a>
             <a href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
             <a href="#tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</a>
             <a href="#pricing" className="hover:text-slate-900 dark:hover:text-white transition-colors">Pricing</a>
@@ -267,7 +269,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           </h1>
 
           <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
-            Live PSX prices, true FIFO cost basis, realized P&amp;L with CGT, dividends and X-dates,
+            PSX portfolio tracker for Pakistan Stock Exchange investors. Live PSX prices, true FIFO cost basis, realized P&amp;L with CGT, dividends and X-dates,
             market tools — plus <span className="font-bold text-teal-700 dark:text-teal-400">mutual fund portfolios</span> with NAV sync and daily P&amp;L,
             and <span className="font-bold text-emerald-700 dark:text-emerald-400">candlestick charts</span> with indicators and draw tools.
           </p>
@@ -624,6 +626,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             </Feature>
           </div>
           <p className="text-center mt-6"><a href="/privacy" className="underline text-sm text-emerald-700 dark:text-emerald-400">Read our full Privacy Policy</a></p>
+        </div>
+      </section>
+
+      <section id="guides" className="px-5 py-20">
+        <div className="max-w-5xl mx-auto">
+          <SectionHead
+            eyebrow="Learn the ledger"
+            title="Guides for Pakistan Stock Exchange investors"
+            sub="Public notes on getting started, brokers, halal screening, capital gains, dividends, and FIFO. No account required to read them."
+          />
+          <ul className="grid sm:grid-cols-2 gap-3 text-sm">
+            <li><a className="underline" href="/guides/start-investing-on-psx">How to start investing on PSX</a></li>
+            <li><a className="underline" href="/guides/choosing-a-psx-broker">Choosing a PSX broker</a></li>
+            <li><a className="underline" href="/guides/is-psx-investing-halal">Is PSX investing halal?</a></li>
+            <li><a className="underline" href="/guides/cgt-basics-pakistan-stocks">Capital gains tax basics</a></li>
+            <li><a className="underline" href="/guides/tracking-psx-dividends">Tracking dividends</a></li>
+            <li><a className="underline" href="/guides/fifo-cost-basis-psx">FIFO cost basis</a></li>
+            <li><a className="underline" href="/markets">Company and fund notes</a></li>
+            <li><a className="underline" href="/tools">Calculators</a></li>
+          </ul>
         </div>
       </section>
 

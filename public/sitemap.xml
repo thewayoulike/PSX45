@@ -2,7 +2,7 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://www.psx-tracker.com/</loc>
-    <lastmod>2026-09-17</lastmod>
+    <lastmod>2026-09-23</lastmod>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
@@ -48,6 +48,34 @@
   <url><loc>https://www.psx-tracker.com/guides/graham-style-margin-of-safety</loc><lastmod>2026-09-23</lastmod></url>
   <url><loc>https://www.psx-tracker.com/guides/analyze-cement-stocks-psx</loc><lastmod>2026-09-23</lastmod></url>
   <url><loc>https://www.psx-tracker.com/guides/analyze-pakistani-banks-psx</loc><lastmod>2026-09-23</lastmod></url>
+  <url>
+    <loc>https://www.psx-tracker.com/markets</loc>
+    <lastmod>2026-09-23</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/ogdc</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/ppl</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/pol</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/hubc</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/luck</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/ffc</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/mcb</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/mebl</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/shares/sys</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/funds/meezan-islamic-fund</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/funds/al-meezan-mutual-fund</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/markets/funds/ubl-stock-advantage-fund</loc><lastmod>2026-09-23</lastmod></url>
+  <url>
+    <loc>https://www.psx-tracker.com/tools</loc>
+    <lastmod>2026-09-23</lastmod>
+    <priority>0.8</priority>
+  </url>
+  <url><loc>https://www.psx-tracker.com/tools/capital-gains</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/tools/fifo-vs-average</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/tools/dividend-yield</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/tools/trade-costs</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/tools/sip</loc><lastmod>2026-09-23</lastmod></url>
+  <url><loc>https://www.psx-tracker.com/tools/zakat</loc><lastmod>2026-09-23</lastmod></url>
   <url>
     <loc>https://www.psx-tracker.com/how-it-works</loc>
     <lastmod>2026-09-19</lastmod>

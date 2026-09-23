@@ -38,6 +38,7 @@ import { firstBrokerHolding } from '../utils/brokerHolding';
 const TransferModal = lazy(() => import('./TransferModal').then(m => ({ default: m.TransferModal }))); 
 const TradingSimulator = lazy(() => import('./TradingSimulator').then(m => ({ default: m.TradingSimulator })));
 const FairValueCalculator = lazy(() => import('./FairValueCalculator').then(m => ({ default: m.FairValueCalculator })));
+const LedgerCalculators = lazy(() => import('./LedgerCalculators').then(m => ({ default: m.LedgerCalculators })));
 const AlertsPage = lazy(() => import('./AlertsPage').then(m => ({ default: m.AlertsPage })));
 const MarketSignalScanner = lazy(() => import('./MarketSignalScanner').then(m => ({ default: m.MarketSignalScanner })));
 const StrategyBacktest = lazy(() => import('./StrategyBacktest').then(m => ({ default: m.StrategyBacktest })));
@@ -162,7 +163,7 @@ const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', '
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
+type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
@@ -178,6 +179,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   AI_AGENT: '/assistant',
   SIMULATOR: '/simulator',
   CALCULATOR: '/calculator',
+  CALCS: '/calculators',
   CHARTS: '/charts',
   BACKTEST: '/backtest',
   DAILY_SCAN: '/daily-scan',
@@ -2921,6 +2923,11 @@ const App: React.FC = () => {
                                   cache={fairValueCache}
                                   onSaveCache={setFairValueCache}
                               />
+                          </div>
+                      )}
+                      {currentView === 'CALCS' && (
+                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              <LedgerCalculators />
                           </div>
                       )}
                       {currentView === 'SIMULATOR' && (

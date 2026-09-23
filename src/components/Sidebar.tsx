@@ -88,7 +88,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Which group each view belongs to (so we can auto-open the active one).
   const groupOfView: Record<string, string> = {
-    DASHBOARD: 'Menu', HOLDINGS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
+    DASHBOARD: 'Menu', HOLDINGS: 'Menu', CALCS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu',
     SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
     BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', SUGGESTIONS: 'Settings', HOW_IT_WORKS: 'Settings',
@@ -116,6 +116,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const menuItems: NavItem[] = [
       { id: 'DASHBOARD', label: 'Dashboard', icon: <LayoutDashboard size={22} /> },
       { id: 'HOLDINGS', label: isFundPortfolio ? 'Fund Holdings' : 'Holdings', icon: <FolderOpen size={22} /> },
+      { id: 'CALCS', label: 'Calculators', icon: <Calculator size={22} /> },
     ];
     if (!isFundPortfolio) {
       menuItems.push({

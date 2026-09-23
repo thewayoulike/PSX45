@@ -15,4 +15,6 @@ PSX Tracker helps individual investors in Pakistan keep a personal ledger of PSX
 - Choosing a broker: https://www.psx-tracker.com/guides/choosing-a-psx-broker
 - Is PSX investing halal: https://www.psx-tracker.com/guides/is-psx-investing-halal
 - Tracking dividends: https://www.psx-tracker.com/guides/tracking-psx-dividends
+- Tools: https://www.psx-tracker.com/tools
+- Companies and funds: https://www.psx-tracker.com/markets
 - About: https://www.psx-tracker.com/about
