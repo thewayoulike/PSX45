@@ -118,6 +118,16 @@ describe('cloud save outcomes and recovery', () => {
     expect(vi.mocked(fetch).mock.calls.slice(requestsBefore).map(([url]) => url)).toEqual(['/api/cloud-sync']);
   });
 
+  it('reapplies an unsynced save when Drive has not changed', async () => {
+    vi.useRealTimers();
+    vi.stubGlobal('indexedDB', new IDBFactory());
+    const pending = { transactions: [{ id: 'offline-trade' }], portfolios: [] };
+    storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'local', baseVersion: 2, data: pending }));
+    mockCloud(url => url.includes('/api/cloud-sync') ? response({ revision: 2, fileId: 'latest' }) : response({ transactions: [], portfolios: [] }));
+    expect(await service.readLatestFromDrive(() => ({ transactions: [], portfolios: [] }))).toEqual(pending);
+    expect(service.getPendingCloud()?.data).toEqual(pending);
+  });
+
   it('does not replace edits made while the recovery transaction is completing', async () => {
     vi.useRealTimers();
     vi.stubGlobal('indexedDB', new IDBFactory());

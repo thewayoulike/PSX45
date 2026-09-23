@@ -26,6 +26,13 @@ describe('panel cache', () => {
     expect(readPanel<{ companyInfo: { symbol: string } }>(panelKeys.profile('OGDC'), storage)?.data.companyInfo.symbol).toBe('OGDC');
   });
 
+  it('does not replace a saved list with an empty failure', () => {
+    const storage = memoryStorage();
+    savePanel('meetings:market', [{ ticker: 'OGDC' }], storage, () => '2026-09-22T10:00:00.000Z');
+    expect(savePanel('meetings:market', [], storage, () => '2026-09-22T11:00:00.000Z')).toBe(false);
+    expect(readPanel<Array<{ ticker: string }>>('meetings:market', storage)?.data[0].ticker).toBe('OGDC');
+  });
+
   it('does not rewrite an unchanged panel', () => {
     const storage = memoryStorage();
     const now = () => '2026-09-22T12:00:00.000Z';

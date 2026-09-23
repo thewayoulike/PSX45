@@ -40,6 +40,11 @@ describe('delivery claims', () => {
     await deliverAlerts(record(), { AAA: 11 }, send);
     expect(send).toHaveBeenCalledTimes(1);
   });
+  it('drops an alert when the push subscription is gone', async () => {
+    const send = vi.fn().mockRejectedValue({ statusCode: 410 });
+    await deliverAlerts(record(), { AAA: 11 }, send);
+    expect(alerts).toEqual([]);
+  });
   it('retries an explicit rate-limit rejection', async () => {
     const send = vi.fn().mockRejectedValueOnce({ statusCode: 429 }).mockResolvedValueOnce(undefined);
     await deliverAlerts(record(), { AAA: 11 }, send);

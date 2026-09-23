@@ -28,8 +28,8 @@ export const DividendScanner: React.FC<DividendScannerProps> = ({
 
   const getHoldingsBreakdownOnDate = (ticker: string, targetDate: string) => {
       const breakdown: Record<string, number> = {};
-      const relevantTx = transactions.filter(t => t.ticker === ticker && t.date < targetDate && (t.type === 'BUY' || t.type === 'SELL'));
-      relevantTx.forEach(t => { const brokerName = t.broker || 'Unknown Broker'; if (!breakdown[brokerName]) breakdown[brokerName] = 0; if (t.type === 'BUY') breakdown[brokerName] += t.quantity; if (t.type === 'SELL') breakdown[brokerName] -= t.quantity; });
+      const relevantTx = transactions.filter(t => t.ticker === ticker && t.date < targetDate && (t.type === 'BUY' || t.type === 'SELL' || t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT'));
+      relevantTx.forEach(t => { const brokerName = t.broker || 'Unknown Broker'; if (!breakdown[brokerName]) breakdown[brokerName] = 0; if (t.type === 'BUY' || t.type === 'TRANSFER_IN') breakdown[brokerName] += t.quantity; if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') breakdown[brokerName] -= t.quantity; });
       Object.keys(breakdown).forEach(key => { if (breakdown[key] <= 0) delete breakdown[key]; });
       return breakdown;
   };

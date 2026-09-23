@@ -76,6 +76,9 @@ import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
 import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } from '../services/panelCache';
+import { stockDayChange } from '../utils/stockDayPL';
+import { oversellCashCredit } from '../utils/oversellCash';
+import { latestPreviousCloses } from '../services/psxData';
 import { AppLoading } from './AppLoading';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
@@ -123,6 +126,17 @@ const clearPortfolioLocalStorage = () => {
         toRemove.forEach(k => localStorage.removeItem(k));
     } catch { /* ignore */ }
 };
+
+const SKIPPED_FEE_KEY = 'psx_skipped_auto_fees';
+function skippedAutoFees(): Set<string> {
+    try { return new Set(JSON.parse(localStorage.getItem(SKIPPED_FEE_KEY) || '[]')); } catch { return new Set(); }
+}
+function rememberSkippedFees(ids: Set<string>) {
+    const next = skippedAutoFees();
+    let changed = false;
+    ids.forEach((id) => { if (id.startsWith('auto-fee-')) { next.add(id); changed = true; } });
+    if (changed) localStorage.setItem(SKIPPED_FEE_KEY, JSON.stringify([...next]));
+}
 
 const startEmpty = consumeWipeFlag();
 const DEFAULT_BROKER: Broker = {
@@ -655,8 +669,19 @@ const App: React.FC = () => {
   // check stalls (network, Google/Supabase lock, blocked request), force the
   // loading gates open after a few seconds so the user at least reaches the
   // app or the login screen instead of an endless loader.
+  const saveDeferred = useRef(false);
+  const driveBootRef = useRef(false);
+  const authPendingRef = useRef(true);
+  driveBootRef.current = restoringDrive || isCloudSyncing;
+  authPendingRef.current = isAuthChecking || sbChecking;
   useEffect(() => {
-      const t = setTimeout(() => { setIsAuthChecking(false); setSbChecking(false); }, 5000);
+      const t = setTimeout(() => {
+          if (driveBootRef.current) return;
+          if (!authPendingRef.current) return;
+          setIsAuthChecking(false);
+          setSbChecking(false);
+          setShowLogin(true);
+      }, 5000);
       return () => clearTimeout(t);
   }, []);
 
@@ -1134,12 +1159,14 @@ const App: React.FC = () => {
   const handleDeleteTransaction = (id: string) => {
       const doomed = linkedIdsFor([id], transactions);
       if (window.confirm(deleteConfirmMessage(1, doomed, transactions))) {
+          rememberSkippedFees(doomed);
           setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
       }
   };
   const handleDeleteTransactions = (ids: string[]) => {
       const doomed = linkedIdsFor(ids, transactions);
       if (window.confirm(deleteConfirmMessage(ids.length, doomed, transactions))) {
+          rememberSkippedFees(doomed);
           setTransactions(prev => prev.filter(t => !doomed.has(t.id)));
       }
   };
@@ -1204,7 +1231,18 @@ const App: React.FC = () => {
           const idToDelete = currentPortfolioId;
           setCurrentPortfolioId(portfolios.find(p => p.id !== idToDelete)?.id || portfolios[0].id);
           setPortfolios(prev => prev.filter(p => p.id !== idToDelete));
-          setTransactions(prev => prev.filter(t => t.portfolioId !== idToDelete));
+          setCombinedPortfolioIds(prev => { const next = new Set(prev); next.delete(idToDelete); return next; });
+          setTransactions(prev => {
+              const partnerKeys = new Set(
+                  prev.filter(t => t.portfolioId === idToDelete && (t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT'))
+                      .map(t => t.id.replace(/^tx-(?:in|out)-/, ''))
+              );
+              return prev.filter(t => {
+                  if (t.portfolioId === idToDelete) return false;
+                  const key = t.id.replace(/^tx-(?:in|out)-/, '');
+                  return !(partnerKeys.has(key) && (t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT') && t.id !== key);
+              });
+          });
           setScannerState(prev => { const newState = { ...prev }; delete newState[idToDelete]; return newState; });
           setIsPortfolioModalOpen(false);
       }
@@ -1245,12 +1283,32 @@ const App: React.FC = () => {
                           if (data.listedIn) listed[ticker] = data.listedIn;
                       }
                       if (Object.keys(ldcp).length) setLdcpMap(prev => ({ ...prev, ...ldcp }));
+                      const prevCloses = latestPreviousCloses();
+                      if (Object.keys(prevCloses).length) {
+                          setLdcpMap(prev => {
+                              const next = { ...prev };
+                              for (const [ticker, close] of Object.entries(prevCloses)) {
+                                  if (!(next[ticker] > 0) && close > 0) next[ticker] = close;
+                              }
+                              return next;
+                          });
+                      }
                       if (Object.keys(sectors).length) setSectorOverrides(prev => mergeChanged(prev, sectors));
                       if (Object.keys(listed).length) setListedInMap(prev => mergeChanged(prev, listed));
                   }
               },
           });
           if (!current()) return;
+          const prevCloses = latestPreviousCloses();
+          if (Object.keys(prevCloses).length) {
+              setLdcpMap(prev => {
+                  const next = { ...prev };
+                  for (const [ticker, close] of Object.entries(prevCloses)) {
+                      if (!(next[ticker] > 0) && close > 0) next[ticker] = close;
+                  }
+                  return next;
+              });
+          }
           const failed = new Set(holdings.map(h => h.ticker).filter(t => !isFundTicker(t) && !(prices[t] > 0)));
           setFailedTickers(failed); setPriceError(!Object.keys(prices).length || failed.size > 0);
           endPriceMeasure(Object.keys(prices).length ? 'ok' : 'error');
@@ -1421,13 +1479,16 @@ const App: React.FC = () => {
               let nextDueDate = new Date(broker.feeStartDate);
               nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
               const today = new Date();
+              const home = portfolios.find(p => p.defaultBrokerId === broker.id);
+              const feePortfolioId = home?.id || currentPortfolioId;
               while (nextDueDate <= today) {
                   const feeYear = nextDueDate.getFullYear();
-                  const txId = `auto-fee-${broker.id}-${feeYear}`;
-                  const exists = transactions.some(t => t.id === txId);
-                  if (!exists) {
+                  const txId = `auto-fee-${broker.id}-${feePortfolioId}-${feeYear}`;
+                  const legacyId = `auto-fee-${broker.id}-${feeYear}`;
+                  const exists = transactions.some(t => t.id === txId || t.id === legacyId);
+                  if (!exists && !skippedAutoFees().has(txId) && !skippedAutoFees().has(legacyId)) {
                       const feeDateStr = nextDueDate.toISOString().split('T')[0];
-                      const newTx: Transaction = { id: txId, portfolioId: currentPortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})`, createdAt: new Date(feeDateStr + 'T00:00:00Z').toISOString() };
+                      const newTx: Transaction = { id: txId, portfolioId: feePortfolioId, ticker: 'ANNUAL FEE', type: 'ANNUAL_FEE', quantity: 1, price: broker.annualFee, date: feeDateStr, broker: broker.name, brokerId: broker.id, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, notes: `Annual Broker Fee (${feeYear})`, createdAt: new Date(feeDateStr + 'T00:00:00Z').toISOString() };
                       newTransactions.push(newTx);
                   }
                   nextDueDate.setFullYear(nextDueDate.getFullYear() + 1);
@@ -1533,7 +1594,13 @@ const App: React.FC = () => {
             if (!(ldcpRaw > 0) && !(fund?.prevNav > 0)) dailyMissingPrevious = true;
         } else {
             const ldcp = ldcpRaw || h.currentPrice;
-            const change = (h.currentPrice - ldcp) * h.quantity;
+            const todayTrades = portfolioTransactions.filter(t => t.ticker === h.ticker && t.date === today);
+            const change = stockDayChange({
+                quantity: h.quantity,
+                current: h.currentPrice,
+                ldcp,
+                trades: todayTrades,
+            });
             dailyPL += change;
             if (ldcpRaw > 0) {
                 dailyByTicker[h.ticker] = (dailyByTicker[h.ticker] || 0) + change;
@@ -1633,9 +1700,11 @@ const App: React.FC = () => {
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
         }
         else if (t.type === 'TRANSFER_IN') {
+            totalDeposits += t.price * t.quantity;
             events.push({ date: t.date, type: 'IN', amount: t.price * t.quantity, originalIndex: idx });
         }
         else if (t.type === 'TRANSFER_OUT') {
+            totalWithdrawals += t.price * t.quantity;
             events.push({ date: t.date, type: 'OUT', amount: t.price * t.quantity, originalIndex: idx });
         }
         else if (t.type === 'SELL' && isFundTicker(t.ticker) && (t.tax || 0) > 0) {
@@ -1695,7 +1764,7 @@ const App: React.FC = () => {
     // Withdrawals still draw down reinvested profit before capital above; funds just
     // never count that profit as principal in the first place.
     const netPrincipal = Math.max(0, fundPortfolio ? capitalRemaining : capitalRemaining + reinvestRemaining);
-    const peakNetPrincipal = peakInvested;
+    const peakNetPrincipal = Math.max(peakInvested, netPrincipal);
     const dividendReinvested = reinvestRemaining;
     let tradingCashFlow = 0;
     portfolioTransactions.forEach(t => {
@@ -1712,7 +1781,13 @@ const App: React.FC = () => {
     // Fund withholding is deducted at source, so it reduces CGT and return but was
     // never money sitting in the portfolio to pay out.
     let cashOut = totalWithdrawals + (totalCGT - fundTaxWithheld) + operationalExpenses;
-    const freeCash = cashIn - cashOut + tradingCashFlow + historyPnL + totalAdjustments;
+    const matchedSellCash = oversellCashCredit(portfolioTransactions);
+    const bookedSellCash = portfolioTransactions.reduce((sum, t) => {
+        if (t.type !== 'SELL') return sum;
+        const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
+        return sum + (t.price * t.quantity - fees);
+    }, 0);
+    const freeCash = cashIn - cashOut + tradingCashFlow - (bookedSellCash - matchedSellCash) + historyPnL + totalAdjustments;
 
     // Fund dividend withholding is already netted out of the income it was taken
     // from — cash dividends record the net payout, and reinvested units are issued
@@ -1732,6 +1807,9 @@ const App: React.FC = () => {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price), date: new Date(t.date) });
         } else if (t.type === 'WITHDRAWAL') {
              cashFlowsForXIRR.push({ amount: Math.abs(t.price), date: new Date(t.date) });
+        } else if (t.type === 'DIVIDEND') {
+             const netDiv = (t.quantity * t.price) - (t.tax || 0) - (t.otherFees || 0);
+             if (netDiv !== 0) cashFlowsForXIRR.push({ amount: netDiv, date: new Date(t.date) });
         } else if (t.type === 'TRANSFER_IN') {
              cashFlowsForXIRR.push({ amount: -Math.abs(t.price * t.quantity), date: new Date(t.date) });
         } else if (t.type === 'TRANSFER_OUT') {
@@ -1793,6 +1871,10 @@ const App: React.FC = () => {
           isLoadingLatestCloud.current = false;
           setPendingCloud(getPendingCloud());
           setIsCloudSyncing(false);
+          if (saveDeferred.current && isReadyToSave.current) {
+              saveDeferred.current = false;
+              setCloudRetryTick((tick) => tick + 1);
+          }
       }
   };
   const refreshCloudRef = useRef(handleLoadLatestCloud);
@@ -1849,7 +1931,11 @@ const App: React.FC = () => {
           setUnsavedLocalChanges(true);
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
-              if (isLoadingLatestCloud.current || !isReadyToSave.current) return;
+              if (isLoadingLatestCloud.current || !isReadyToSave.current) {
+                  saveDeferred.current = true;
+                  setIsCloudSyncing(false);
+                  return;
+              }
               const snapshot = cloudSnapshotRef.current();
               const exportChanged = !sheetInputs.current || sheetInputs.current.transactions !== snapshot.transactions || sheetInputs.current.portfolios !== snapshot.portfolios;
               const result = await saveToDrive(snapshot, exportChanged);
@@ -1862,10 +1948,6 @@ const App: React.FC = () => {
                   if (result.sheetId) setGoogleSheetId(result.sheetId);
               } else {
                   setCloudSyncError(result.error);
-                  if (result.error.includes('Another device saved a newer version')) {
-                      await refreshCloudRef.current();
-                      return;
-                  }
               }
               setPendingCloud(getPendingCloud());
               setIsCloudSyncing(false);
@@ -2009,6 +2091,7 @@ const App: React.FC = () => {
                   const sellFees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
                   const sellFeePerShare = sellTx.quantity > 0 ? sellFees / sellTx.quantity : 0;
                   const pushRealized = (lotCost: number, matched: number, lotDate?: string) => {
+                      if (sellTx.type === 'TRANSFER_OUT') return;
                       const revenue = matched * sellTx.price;
                       const cost = matched * lotCost;
                       const matchedSellFees = matched * sellFeePerShare;
@@ -2967,7 +3050,7 @@ const App: React.FC = () => {
           onClose={() => setShowAddModal(false)}
           onAddTransaction={handleAddTransaction}
           onUpdateTransaction={handleUpdateTransaction}
-          existingTransactions={transactions}
+          existingTransactions={portfolioTransactions}
           editingTransaction={editingTransaction}
           brokers={brokers}
           onManageBrokers={() => setShowBrokerManager(true)}

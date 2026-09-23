@@ -35,8 +35,9 @@ export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard }) =
   // Mobile is a reading flow, not a scaled desktop canvas. Preserve visibility
   // and order, but let content determine height so text never shrinks or clips.
   if (device === 'mobile') {
+    const mobileCards = [...cards].sort((a, b) => a.y - b.y || a.x - b.x);
     return <div className="mobile-dashboard grid grid-cols-1 gap-4 min-w-0">
-      {cards.map(c => <section key={c.id} className="min-w-0" data-dashboard-card={c.id}>
+      {mobileCards.map(c => <section key={c.id} className="min-w-0" data-dashboard-card={c.id}>
         {renderCard(c.id)}
       </section>)}
     </div>;

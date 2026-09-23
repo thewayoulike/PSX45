@@ -146,7 +146,7 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
     const totalPct = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0;
     const totalProceeds = t.reduce((s, x) => s + (x.sellPrice || 0) * x.quantity, 0);
     const redemptionTax = t.reduce((s, x) => s + (x.tax || 0), 0);
-    const netAfterCgt = totalProfit - redemptionTax;
+    const netAfterCgt = totalProfit;
     const withHold = t.filter(x => x.holdDays != null && x.eventType !== 'history');
     const avgHoldDays = withHold.length ? withHold.reduce((s, x) => s + (x.holdDays || 0), 0) / withHold.length : 0;
     const wins = t.filter(x => x.profit > 0);

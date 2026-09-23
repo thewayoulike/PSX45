@@ -4,11 +4,13 @@ export const useIdleTimer = (timeout: number, onIdle: () => void) => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const lastActivity = useRef<number>(Date.now());
   const throttleRef = useRef<number>(0);
+  const onIdleRef = useRef(onIdle);
+  onIdleRef.current = onIdle;
 
   useEffect(() => {
     const startTimer = () => {
       if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(onIdle, timeout);
+      timerRef.current = setTimeout(() => onIdleRef.current(), timeout);
     };
 
     const handleActivity = () => {

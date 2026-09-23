@@ -1,6 +1,6 @@
 import { cachedMarketFetch, mapConcurrent } from './marketCache';
 import { SECTOR_CODE_MAP } from './sectors';
-import { formatDatePK } from '../utils/dates';
+import { formatDatePK, isPsxMarketHours, todayPK } from '../utils/dates';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
@@ -285,6 +285,11 @@ export const fetchPypsxIndexSymbols = async (): Promise<{ KSE100?: string[]; KMI
  *
  * Fetches symbols in small parallel batches so Sync stays responsive.
  */
+const previousCloses: Record<string, number> = {};
+export function latestPreviousCloses(): Record<string, number> {
+    return { ...previousCloses };
+}
+
 export const fetchLatestCloses = async (
     symbols: string[],
     concurrency = 4
@@ -297,12 +302,18 @@ export const fetchLatestCloses = async (
     const out: Record<string, number> = {};
     if (unique.length === 0) return out;
 
+    const marketOpen = isPsxMarketHours();
     for (let i = 0; i < unique.length; i += concurrency) {
         const chunk = unique.slice(i, i + concurrency);
         await Promise.all(chunk.map(async (sym) => {
             const bars = await fetchOHLCV(sym);
             const last = bars[bars.length - 1];
-            if (last && last.close > 0) out[sym] = last.close;
+            const prev = bars.length >= 2 ? bars[bars.length - 2] : null;
+            if (prev && prev.close > 0) previousCloses[sym] = prev.close;
+            if (!last || !(last.close > 0)) return;
+            const barDay = formatDatePK(new Date(last.time > 1e12 ? last.time : last.time * 1000));
+            if (marketOpen && barDay !== todayPK()) return;
+            out[sym] = last.close;
         }));
     }
     return out;
@@ -569,8 +580,8 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
                 let matchedTicker: string | null = null;
                 if (targetTickers === null) {
                     // Whole-market mode: take the first token of the symbol cell as the ticker.
-                    const sym = symbolText.split(/[\s-]/)[0];
-                    if (sym && !TICKER_BLACKLIST.includes(sym) && sym.length <= 8 && isNaN(Number(sym))) {
+                    const sym = symbolText.split(/\s+/)[0];
+                    if (sym && !TICKER_BLACKLIST.includes(sym) && sym.length <= 12 && !results[sym]) {
                         matchedTicker = sym;
                     }
                 } else {

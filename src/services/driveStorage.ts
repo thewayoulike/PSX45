@@ -641,9 +641,17 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, onlyIfNe
                 throw new Error('The cloud backup is incomplete. Your local changes have been kept.');
             }
             if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
+            // Cloud has not moved since this edit was queued. Keep the pending copy and show it.
+            const pendingRaw = localStorage.getItem(pendingKey(email));
+            let pendingParsed: { data?: any; baseVersion?: number } | null = null;
+            try { pendingParsed = pendingRaw ? JSON.parse(pendingRaw) : null; } catch { pendingParsed = null; }
+            if (pendingParsed?.data && pendingParsed.baseVersion === head.revision) {
+                cloudBases.set(email, head.revision);
+                cloudConflicts.delete(email);
+                return pendingParsed.data;
+            }
             // Include edits made after a failed startup load or while the download was in progress.
             // Use the larger browser database; existing recovery copies migrate only after commit.
-            const pendingRaw = localStorage.getItem(pendingKey(email));
             const currentRaw = getLocalSnapshot ? JSON.stringify(getLocalSnapshot()) : null;
             const recoveryKey = `psx_cloud_recovery:${encodeURIComponent(email)}:${crypto.randomUUID()}`;
             const copies = [];

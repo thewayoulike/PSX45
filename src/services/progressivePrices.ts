@@ -1,4 +1,5 @@
-import { mergePriceOverlays } from '../utils/priceOverlay';
+import { applyPriceStack } from '../../lib/priceStack.js';
+import { isPsxMarketHours } from '../utils/dates';
 type Prices = Record<string, number>;
 export async function progressivePrices<T>(sources: {
   baseline: () => Promise<T>;
@@ -9,13 +10,14 @@ export async function progressivePrices<T>(sources: {
   current: () => boolean;
 }) {
   let base: Prices = {}, closes: Prices = {}, quotes: Prices = {};
-  const publish = (data?: T) => { if (sources.current()) sources.publish(mergePriceOverlays(base, closes, quotes), data); };
+  const stack = (): Prices => applyPriceStack(base, closes, quotes, isPsxMarketHours()) as Prices;
+  const publish = (data?: T) => { if (sources.current()) sources.publish(stack(), data); };
   await Promise.allSettled([
     sources.baseline().then(data => { base = sources.pricesFromBaseline(data); publish(data); }),
     sources.closes().then(data => { closes = data; publish(); }),
     sources.quotes().then(data => { quotes = data; publish(); }),
   ]);
-  return mergePriceOverlays(base, closes, quotes);
+  return stack();
 }
 
 // A deliberately broad Pakistan weekday daytime window; manual/focus refresh

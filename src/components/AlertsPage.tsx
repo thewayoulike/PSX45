@@ -38,6 +38,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
 
   const [activeAlerts, setActiveAlerts] = useState<any[]>([]);
   const [loadingAlerts, setLoadingAlerts] = useState(false);
+  const [replaceIds, setReplaceIds] = useState<string[]>([]);
 
   const uniqueHoldings = Array.from(new Set(holdings.map(h => h.ticker)));
   const currentPrice = currentPrices[ticker] || 0;
@@ -153,6 +154,12 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
     if (allAlerts.length === 0) {
         setStatus('error'); setMessage('Please enter at least one Target Price or Stop Loss.'); return;
     }
+    const live = currentPrices[ticker] || 0;
+    if (live > 0 && (validTps.some(a => a.price <= live) || validSls.some(a => a.price >= live))) {
+        setStatus('error');
+        setMessage('A target above the price must be higher than the current price, and a stop loss must be lower.');
+        return;
+    }
 
     const existingTickers = Object.keys(groupedAlerts);
     if (!existingTickers.includes(ticker) && existingTickers.length >= maxTickers) {
@@ -187,6 +194,10 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
       const data = await res.json();
 
       if (res.ok) {
+        if (replaceIds.length) {
+            for (const id of replaceIds) await handleDeleteAlert(id);
+            setReplaceIds([]);
+        }
         setStatus('success');
         setMessage(data.message || 'Alerts activated successfully!');
         setTps(['']);
@@ -221,8 +232,7 @@ export const AlertsPage: React.FC<AlertsPageProps> = ({ holdings, currentPrices,
       setTicker(editTicker);
       setTps(data.tps.length > 0 ? data.tps.map((a: any) => a.targetPrice.toString()) : ['']);
       setSls(data.sls.length > 0 ? data.sls.map((a: any) => a.targetPrice.toString()) : []);
-      data.tps.forEach((a: any) => handleDeleteAlert(a.id));
-      data.sls.forEach((a: any) => handleDeleteAlert(a.id));
+      setReplaceIds([...(data.tps || []), ...(data.sls || [])].map((a: any) => a.id).filter(Boolean));
       window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 

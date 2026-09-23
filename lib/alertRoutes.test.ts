@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ gate: vi.fn(), rpc: vi.fn(), lookup: vi.fn() }));
+const mocks = vi.hoisted(() => ({ gate: vi.fn(), rpc: vi.fn(), lookup: vi.fn(), records: vi.fn() }));
 vi.mock('./requireOnlineUser.js', () => ({ requireOnlineUser: mocks.gate }));
-vi.mock('./alertsStore.js', () => ({ sidFor: (s: string) => s, mutateAlerts: mocks.rpc }));
+vi.mock('./alertsStore.js', () => ({ sidFor: (s: string) => s, mutateAlerts: mocks.rpc, getAllRecords: mocks.records }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.lookup }) }) }) }) }));
 import save from '../api/save-alert.js';
 import list from '../api/get-alerts.js';
@@ -19,16 +19,27 @@ beforeEach(() => {
   mocks.gate.mockResolvedValue({ ok: true, user: { email: 'a@example.com' } });
   mocks.lookup.mockResolvedValue({ data: { approved: true, approved_at: '2020-01-01' }, error: null });
   mocks.rpc.mockResolvedValue({ alerts: [] });
+  mocks.records.mockResolvedValue([]);
 });
 describe('alert route authorization and validation', () => {
   it.each([save, list, remove])('requires authentication', async handler => {
     mocks.gate.mockResolvedValue({ ok: false, status: 401, error: 'Sign in' });
     expect((await call(handler)).code).toBe(401); expect(mocks.rpc).not.toHaveBeenCalled();
   });
-  it.each([save, list, remove])('passes the verified owner and propagates ownership rejection', async handler => {
+  it.each([save, remove])('passes the verified owner and propagates ownership rejection', async handler => {
     mocks.rpc.mockRejectedValue(Object.assign(new Error('Wrong owner'), { status: 403 }));
     expect((await call(handler, { ...body(), userEmail: 'victim@example.com' })).code).toBe(403);
     expect(mocks.rpc.mock.calls[0][1]).toBe('a@example.com');
+  });
+  it('lists alerts for the signed-in owner across devices', async () => {
+    mocks.records.mockResolvedValue([
+      { sid: 'mine', rec: { userEmail: 'a@example.com', alerts: [{ id: 'one' }] } },
+      { sid: 'other', rec: { userEmail: 'victim@example.com', alerts: [{ id: 'two' }] } },
+    ]);
+    const res = await call(list, { ...body(), userEmail: 'victim@example.com' });
+    expect(res.code).toBe(200);
+    expect(res.data.alerts.map((alert: { id: string }) => alert.id)).toEqual(['one']);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
   it('denies pending accounts and lookup outages without storage mutations', async () => {
     mocks.lookup.mockResolvedValue({ data: { approved: false } });

@@ -115,6 +115,7 @@ export function savePanel(
   const cache = readAll(storage);
   const previous = cache[key];
   if (previous && JSON.stringify(previous.data) === JSON.stringify(data)) return false;
+  if (Array.isArray(data) && data.length === 0 && Array.isArray(previous?.data) && previous.data.length > 0) return false;
   cache[key] = { savedAt: now(), data };
   writeAll(storage, trim(cache, { ...DEFAULT_LIMITS, ...limits }));
   if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(PANEL_CACHE_EVENT));

@@ -259,6 +259,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   }, [transactions, currentPrices]);
 
   const calculateEnrichedRows = (ticker: string, txs: Transaction[]): ActivityRow[] => {
+      const brokerKeys = new Set(txs.map(t => t.brokerId || t.broker || ''));
+      if (brokerKeys.size > 1) {
+          return [...brokerKeys].flatMap((brokerKey) => calculateEnrichedRows(ticker, txs.filter(t => (t.brokerId || t.broker || '') === brokerKey)));
+      }
       const txsByDate: Record<string, Transaction[]> = {};
       txs.forEach(t => {
           if (!txsByDate[t.date]) txsByDate[t.date] = [];
@@ -292,13 +296,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           // Build all same-day buy lots up front so a SELL can be covered by ANY
           // same-day BUY (prevents phantom held shares from a sell entered before
           // its covering buy). The leftover lot still follows createdAt order.
-          const dayBuyLots = dayTxs.filter(t => t.type === 'BUY').map(t => {
+          const dayBuyLots = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN').map(t => {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
               const effRate = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
               buyRemainingMap[t.id] = t.quantity;
               return { id: t.id, quantity: t.quantity, costPerShare: effRate };
           });
-          const daySells = dayTxs.filter(t => t.type === 'SELL');
+          const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
           daySells.forEach(sellTx => {
               const fees = (sellTx.commission || 0) + (sellTx.tax || 0) + (sellTx.cdcCharges || 0) + (sellTx.otherFees || 0);
               const netProceeds = (sellTx.quantity * sellTx.price) - fees;
@@ -327,8 +331,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               }
               const filledQty = sellTx.quantity - qtyToFill;
               const avgBuy = filledQty > 0 ? totalCostBasis / filledQty : 0;
-              const gain = netProceeds - totalCostBasis;
-              sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: filledQty > 0 ? 'REALIZED' : 'NONE' };
+              const proceedsPer = sellTx.quantity > 0 ? netProceeds / sellTx.quantity : 0;
+              const gain = sellTx.type === 'TRANSFER_OUT' ? 0 : proceedsPer * filledQty - totalCostBasis;
+              sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: sellTx.type === 'TRANSFER_OUT' ? 'NONE' : (filledQty > 0 ? 'REALIZED' : 'NONE') };
           });
           dayBuyLots.forEach(lot => {
               if (lot.quantity > 0.0001) {
@@ -395,7 +400,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let totalComm = 0; let totalTradingTax = 0; let totalCDC = 0; let totalOther = 0;
           let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0;
           let totalCostBasis = 0; 
-          let totalHeldFees = 0; 
 
           const activeBuys = enrichedRows.filter(r => r.type === 'BUY' && (r.remainingQty || 0) > 0);
           const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null;
@@ -408,8 +412,6 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                   
                   if ((row.remainingQty || 0) > 0) {
                       totalCostBasis += (row.remainingQty || 0) * row.avgBuyPrice;
-                      const feePerShare = row.avgBuyPrice - row.price;
-                      totalHeldFees += (row.remainingQty || 0) * feePerShare;
                   }
 
                   tradeCount++; buyCount++;
@@ -440,10 +442,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
           
           let breakEvenPrice = 0;
-          if (ownedQty > 0) {
-              const avgBuyFeePerShare = totalHeldFees / ownedQty;
-              breakEvenPrice = currentAvgPrice + avgBuyFeePerShare;
-          }
+          if (ownedQty > 0) breakEvenPrice = currentAvgPrice;
 
           const dividendYieldOnCost = lifetimeBuyCost > 0 ? (totalDividends / lifetimeBuyCost) * 100 : 0;
           const avgDPS = dividendSharesCount > 0 ? totalDividends / dividendSharesCount : 0;

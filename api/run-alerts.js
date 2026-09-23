@@ -3,6 +3,7 @@ import { getAllRecords } from '../lib/alertsStore.js';
 import { deliverAlerts } from '../lib/deliverAlerts.js';
 import { isCronAuthorized } from '../lib/cronAuth.js';
 import { fetchPsxLatestCloses } from '../lib/psxOhlc.js';
+import { applyPriceStack } from '../lib/priceStack.js';
 import { fetchPypsxQuotePrices } from '../lib/pypsxQuotes.js';
 
 // Fetch the PSX market-watch page once and return { TICKER: price }.
@@ -73,7 +74,9 @@ export default async function handler(req, res) {
 
     // Offline-safe price stack (app closed):
     // 1) market-watch  2) OHLC last close  3) pypsx.get_quote (preferred when keys work)
-    const livePrices = await fetchLivePrices();
+    const marketWatch = await fetchLivePrices();
+    let ohlcCloses = {};
+    let quoteCloses = {};
     const alertTickers = [
       ...new Set(
         records.flatMap(({ rec }) =>
@@ -82,20 +85,23 @@ export default async function handler(req, res) {
       ),
     ];
     try {
-      const ohlcCloses = await fetchPsxLatestCloses(alertTickers);
-      Object.assign(livePrices, ohlcCloses);
+      ohlcCloses = await fetchPsxLatestCloses(alertTickers);
       console.log(`[run-alerts] OHLC overlay: ${Object.keys(ohlcCloses).length}/${alertTickers.length} alert tickers`);
     } catch (e) {
       console.warn('[run-alerts] OHLC overlay failed — using market-watch only', e);
     }
     try {
-      const quoteCloses = await fetchPypsxQuotePrices(alertTickers);
-      Object.assign(livePrices, quoteCloses);
+      quoteCloses = await fetchPypsxQuotePrices(alertTickers);
       console.log(`[run-alerts] pyPSX quote overlay: ${Object.keys(quoteCloses).length}/${alertTickers.length}`);
     } catch (e) {
       console.warn('[run-alerts] pyPSX quotes failed — keeping market-watch/OHLC backup', e);
     }
 
+    const pakistan = new Date(Date.now() + 5 * 3600000);
+    const day = pakistan.getUTCDay();
+    const hour = pakistan.getUTCHours();
+    const marketOpen = day > 0 && day < 6 && hour >= 9 && hour < 16;
+    const livePrices = applyPriceStack(marketWatch, ohlcCloses, quoteCloses, marketOpen);
     const result = await deliverAlerts(records, livePrices, (...args) => webpush.sendNotification(...args));
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
