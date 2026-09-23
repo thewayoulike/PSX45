@@ -8,6 +8,7 @@ import {
   formatCompactPkAmount,
   parsePercentValue,
 } from '../utils/companyInfoParse';
+import { PanelRefreshNote } from './PanelRefreshNote';
 
 interface StockStatsLite {
   ticker: string;
@@ -23,6 +24,7 @@ interface Props {
   financialPeriod: 'Annual' | 'Quarterly';
   onPeriodChange: (p: 'Annual' | 'Quarterly') => void;
   loading: boolean;
+  refreshFailed?: boolean;
   onRefresh: () => void;
   currentPrice: number;
   selectedStockStats: StockStatsLite | null;
@@ -36,6 +38,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
   financialPeriod,
   onPeriodChange,
   loading,
+  refreshFailed = false,
   onRefresh,
   currentPrice,
   selectedStockStats,
@@ -60,6 +63,8 @@ export const StockFinancialsPanel: React.FC<Props> = ({
     (companyInfo?.dividendHistory?.length ?? 0) > 0 ||
     (companyInfo?.reports?.length ?? 0) > 0 ||
     (companyInfo?.statements?.annual?.financials?.length ?? 0) > 0;
+
+  const showBlocks = hasAny;
 
   const periodToggle = (
     <div className="flex items-center gap-2">
@@ -108,10 +113,11 @@ export const StockFinancialsPanel: React.FC<Props> = ({
           <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">
             Company Financials
           </h3>
+          <PanelRefreshNote updating={loading && showBlocks} failed={!!refreshFailed && showBlocks && !loading} />
         </div>
       </div>
 
-      {loading && (
+      {loading && !showBlocks && (
         <Card className="!p-12 flex items-center justify-center gap-3 text-slate-400 font-medium text-sm">
           <Loader2 size={18} className="animate-spin" /> Loading financials…
         </Card>
@@ -123,7 +129,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {!loading && (equitySnap.marketCapRaw || companyInfo?.latestDividend || companyInfo?.statements?.annual?.financials?.[0]) && (
+      {showBlocks && (equitySnap.marketCapRaw || companyInfo?.latestDividend || companyInfo?.statements?.annual?.financials?.[0]) && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Snapshot</h4>
@@ -161,7 +167,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {!loading && companyInfo?.latestDividend && (
+      {showBlocks && companyInfo?.latestDividend && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
@@ -199,7 +205,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {!loading &&
+      {showBlocks &&
         selectedStockStats &&
         (selectedStockStats.dividendCount > 0 || selectedStockStats.ownedQty > 0) && (
           <Card className="!p-0 overflow-hidden">
@@ -257,7 +263,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
           </Card>
         )}
 
-      {!loading && companyInfo && companyInfo.dividendHistory.length > 0 && (
+      {showBlocks && companyInfo && companyInfo.dividendHistory.length > 0 && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
@@ -296,7 +302,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {!loading &&
+      {showBlocks &&
         companyInfo?.statements?.annual?.financials &&
         companyInfo.statements.annual.financials.length > 0 && (
           <Card className="!p-0 overflow-hidden">
@@ -342,7 +348,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
           </Card>
         )}
 
-      {!loading && displayFinancials && displayFinancials.financials.length > 0 && (
+      {showBlocks && displayFinancials && displayFinancials.financials.length > 0 && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
@@ -408,7 +414,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
       )}
 
       {/* When Results card is empty but user still needs the period toggle */}
-      {!loading && !(displayFinancials && displayFinancials.financials.length > 0) && (
+      {showBlocks && !(displayFinancials && displayFinancials.financials.length > 0) && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 flex flex-wrap items-center justify-between gap-3">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
@@ -420,7 +426,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {!loading && showKeyRatios && (
+      {showBlocks && showKeyRatios && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
@@ -490,7 +496,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {!loading && (companyInfo?.reports?.length ?? 0) > 0 && (
+      {showBlocks && (companyInfo?.reports?.length ?? 0) > 0 && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Filings</h4>

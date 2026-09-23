@@ -5,6 +5,8 @@ import {
   fetchMarketWideDividends,
 } from '../services/financials';
 import { Megaphone, FileText, CalendarClock, Loader2, RefreshCw, Coins, CalendarDays } from 'lucide-react';
+import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
+import { PanelRefreshNote } from './PanelRefreshNote';
 
 interface Props { ticker: string | null; }
 
@@ -17,28 +19,61 @@ const KIND_STYLE: Record<CompanyAnnouncement['kind'], { cls: string; label: stri
 
 const clean = (v: any) => { const s = String(v ?? '').trim(); return (!s || s === '-') ? '' : s; };
 
+type FilingsCache = { items: CompanyAnnouncement[]; meeting: BoardMeeting | null; payouts: any[] };
+
 export const StockAnnouncements: React.FC<Props> = ({ ticker }) => {
-  const [items, setItems] = useState<CompanyAnnouncement[]>([]);
-  const [meeting, setMeeting] = useState<BoardMeeting | null>(null);
-  const [payouts, setPayouts] = useState<any[]>([]);
+  const initial = ticker ? readPanel<FilingsCache>(panelKeys.filings(ticker)) : null;
+  const [items, setItems] = useState<CompanyAnnouncement[]>(() => initial?.data.items || []);
+  const [meeting, setMeeting] = useState<BoardMeeting | null>(() => initial?.data.meeting || null);
+  const [payouts, setPayouts] = useState<any[]>(() => initial?.data.payouts || []);
   const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(() => initial != null);
+  const [failed, setFailed] = useState(false);
+  const [known, setKnown] = useState(() => initial != null);
+
+  const applyCached = (t: string) => {
+    const cached = readPanel<FilingsCache>(panelKeys.filings(t));
+    if (!cached) return false;
+    setItems(cached.data.items || []);
+    setMeeting(cached.data.meeting || null);
+    setPayouts(cached.data.payouts || []);
+    setLoaded(true);
+    setKnown(true);
+    return true;
+  };
 
   const load = async () => {
     if (!ticker) return;
     const t = ticker.toUpperCase();
+    const hadSaved = applyCached(t);
+    if (!hadSaved) {
+      setItems([]);
+      setMeeting(null);
+      setPayouts([]);
+      setLoaded(false);
+      setKnown(false);
+    }
     setLoading(true);
+    setFailed(false);
     try {
       const [ann, meetings, divs] = await Promise.all([
-        fetchCompanyAnnouncements(t).catch(() => [] as CompanyAnnouncement[]),
-        fetchBoardMeetings().catch(() => [] as BoardMeeting[]),
-        fetchMarketWideDividends().catch(() => [] as any[]),
+        fetchCompanyAnnouncements(t),
+        fetchBoardMeetings(),
+        fetchMarketWideDividends(),
       ]);
-      setItems(ann || []);
-      setMeeting((meetings || []).find(m => m.ticker === t) || null);
-      setPayouts((divs || []).filter((d: any) => (d.ticker || '').toUpperCase() === t));
+      const next = {
+        items: ann || [],
+        meeting: (meetings || []).find(m => m.ticker === t) || null,
+        payouts: (divs || []).filter((d: any) => (d.ticker || '').toUpperCase() === t),
+      };
+      setItems(next.items);
+      setMeeting(next.meeting);
+      setPayouts(next.payouts);
+      savePanel(panelKeys.filings(t), next);
+      setKnown(true);
     } catch (e) {
       console.error('StockAnnouncements load failed', e);
+      setFailed(hadSaved);
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -48,6 +83,13 @@ export const StockAnnouncements: React.FC<Props> = ({ ticker }) => {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ticker]);
+
+  useEffect(() => {
+    if (!ticker) return;
+    const apply = () => { applyCached(ticker.toUpperCase()); };
+    window.addEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
+    return () => window.removeEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
   }, [ticker]);
 
   return (
@@ -95,12 +137,15 @@ export const StockAnnouncements: React.FC<Props> = ({ ticker }) => {
           <h3 className="font-display font-black text-lg text-slate-900 dark:text-white tracking-tight flex items-center gap-2">
             <Megaphone size={18} className="text-rose-500" /> Announcements &amp; Board Meetings
           </h3>
-          <button onClick={load} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors disabled:opacity-40" title="Refresh">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <div className="flex items-center gap-2">
+            <PanelRefreshNote updating={loading && known} failed={failed && !loading} />
+            <button onClick={load} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors disabled:opacity-40" title="Refresh">
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
 
-        {loading && items.length === 0 ? (
+        {loading && !known ? (
           <div className="flex flex-col items-center justify-center py-14 text-slate-400">
             <Loader2 size={22} className="animate-spin mb-2" />
             <span className="text-xs font-medium">Loading PSX filings for {ticker}…</span>

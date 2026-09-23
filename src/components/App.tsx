@@ -75,6 +75,7 @@ const HowItWorksPage = React.lazy(() => import('./HowItWorksPage').then(m => ({ 
 import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
+import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } from '../services/panelCache';
 import { AppLoading } from './AppLoading';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
@@ -728,6 +729,7 @@ const App: React.FC = () => {
               setGeminiApiKey(cloudData.geminiApiKey);
               localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
           }
+          if (cloudData.marketPanels) applyDrivePanelCache(cloudData.marketPanels);
           // Ignore legacy scraper keys in old Drive backups — Gemini only.
           if (cloudData.chartSettings) {
               applyCloudChartSettings(cloudData.chartSettings);
@@ -1760,6 +1762,7 @@ const App: React.FC = () => {
       dashboardLayouts, dashboardLayout: dashboardLayouts.PSX, fundCatalog,
       geminiApiKey: userApiKey,
       chartSettings: loadChartSettings(),
+      marketPanels: exportPanelCacheForDrive(),
   });
   const cloudSnapshotRef = useRef(getCloudSnapshot);
   cloudSnapshotRef.current = getCloudSnapshot;
@@ -1829,6 +1832,13 @@ const App: React.FC = () => {
       }
   }, [transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, listedInMap, priceTimestamps, brokers, sectorOverrides, fundCatalog, scannerState, tradeScanResults, performanceHistory, fairValueCache, watchlist, driveUser, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
 
+  const [panelCacheTick, setPanelCacheTick] = useState(0);
+  useEffect(() => {
+      const bump = () => setPanelCacheTick((tick) => tick + 1);
+      window.addEventListener(PANEL_CACHE_EVENT, bump);
+      return () => window.removeEventListener(PANEL_CACHE_EVENT, bump);
+  }, []);
+
   useEffect(() => {
       if (skipPersistRef.current || (driveUser && !isReadyToSave.current)) return;
       if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) return;
@@ -1862,7 +1872,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => { clearTimeout(timer); cloudRevision.current++; };
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPriceEditTick, brokers, sectorOverrides, fundCatalog, scannerState, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, chartSettingsTick, cloudRetryTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
+  }, [transactions, portfolios, currentPortfolioId, manualPriceEditTick, brokers, sectorOverrides, fundCatalog, scannerState, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, chartSettingsTick, cloudRetryTick, panelCacheTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};

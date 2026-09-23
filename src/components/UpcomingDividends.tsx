@@ -1,6 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Holding } from '../types';
 import { fetchUpcomingXDates } from '../services/financials';
+import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
+import { PanelRefreshNote } from './PanelRefreshNote';
 import { Coins, CalendarClock, Loader2 } from 'lucide-react';
 
 interface Props {
@@ -13,31 +15,57 @@ const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionD
 const rs2 = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], days = 90 }) => {
-  const [payouts, setPayouts] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
   const holdingTickersKey = useMemo(
     () => holdings.map((h) => h.ticker).sort().join(','),
     [holdings]
   );
   const watchKey = useMemo(() => [...watchlist].map((t) => t.toUpperCase()).sort().join(','), [watchlist]);
+  const cacheKey = useMemo(
+    () => panelKeys.dividends(holdingTickersKey ? holdingTickersKey.split(',') : [], watchKey ? watchKey.split(',') : []),
+    [holdingTickersKey, watchKey]
+  );
+  const [payouts, setPayouts] = useState<any[] | null>(() => readPanel<any[]>(cacheKey)?.data ?? null);
+  const [loading, setLoading] = useState(() => payouts === null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const cached = readPanel<any[]>(cacheKey);
+    if (cached) setPayouts(cached.data);
+  }, [cacheKey]);
+
+  useEffect(() => {
+    const apply = () => {
+      const cached = readPanel<any[]>(cacheKey);
+      if (cached) setPayouts(cached.data);
+    };
+    window.addEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
+    return () => window.removeEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
+  }, [cacheKey]);
 
   // Sheet (market-wide) + pyPSX gap-fill for holdings ∪ watchlist.
   useEffect(() => {
     let alive = true;
+    const cached = readPanel<any[]>(cacheKey);
+    setPayouts(cached ? cached.data : null);
     setLoading(true);
+    setFailed(false);
     (async () => {
       try {
         const data = await fetchUpcomingXDates(
           holdings.map((h) => h.ticker),
           watchlist
         );
-        if (alive) setPayouts(data || []);
-      } catch { /* ignore */ }
+        if (!alive) return;
+        const next = data || [];
+        setPayouts(next);
+        savePanel(cacheKey, next);
+      } catch {
+        if (alive) setFailed(cached != null);
+      }
       finally { if (alive) setLoading(false); }
     })();
     return () => { alive = false; };
-  }, [holdingTickersKey, watchKey]);
+  }, [cacheKey]);
 
   // Total quantity you hold per ticker (across brokers).
   const heldQty = useMemo(() => {
@@ -69,10 +97,13 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
         <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <CalendarClock size={16} className="text-indigo-500" /> Upcoming Dividends
         </h3>
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Next {days}d</span>
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+          <PanelRefreshNote updating={loading && payouts !== null} failed={failed && !loading} />
+          Next {days}d
+        </span>
       </div>
 
-      {loading ? (
+      {loading && payouts === null ? (
         <div className="flex-1 flex items-center justify-center py-10 text-slate-400">
           <Loader2 size={22} className="animate-spin" />
         </div>

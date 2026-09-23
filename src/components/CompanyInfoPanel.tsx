@@ -3,15 +3,17 @@ import { Building2, ExternalLink, Link2, Loader2, RefreshCw } from 'lucide-react
 import { Card } from './ui/Card';
 import type { CompanyInfoData } from '../services/financials';
 import { equitySnapshotFromSections } from '../utils/companyInfoParse';
+import { PanelRefreshNote } from './PanelRefreshNote';
 
 interface Props {
   companyInfo: CompanyInfoData | null;
   loading: boolean;
+  refreshFailed?: boolean;
   onRefresh: () => void;
 }
 
 /** Profile-only: description, website, governance, equity listing — no financials. */
-export const CompanyInfoPanel: React.FC<Props> = ({ companyInfo, loading, onRefresh }) => {
+export const CompanyInfoPanel: React.FC<Props> = ({ companyInfo, loading, refreshFailed = false, onRefresh }) => {
   const [descExpanded, setDescExpanded] = useState(false);
   const equitySnap = equitySnapshotFromSections(companyInfo?.fundamentals || []);
   const hasProfile =
@@ -25,6 +27,7 @@ export const CompanyInfoPanel: React.FC<Props> = ({ companyInfo, loading, onRefr
             <Building2 size={20} />
           </div>
           <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Company Info</h3>
+          <PanelRefreshNote updating={loading && hasProfile} failed={!!refreshFailed && hasProfile && !loading} />
         </div>
         <button
           onClick={onRefresh}
@@ -35,7 +38,7 @@ export const CompanyInfoPanel: React.FC<Props> = ({ companyInfo, loading, onRefr
         </button>
       </div>
 
-      {loading && (
+      {loading && !hasProfile && (
         <Card className="!p-12 flex items-center justify-center gap-3 text-slate-400 font-medium text-sm">
           <Loader2 size={18} className="animate-spin" /> Loading company info…
         </Card>
@@ -47,7 +50,7 @@ export const CompanyInfoPanel: React.FC<Props> = ({ companyInfo, loading, onRefr
         </Card>
       )}
 
-      {!loading && companyInfo?.businessDescription && (
+      {hasProfile && companyInfo?.businessDescription && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
@@ -73,7 +76,7 @@ export const CompanyInfoPanel: React.FC<Props> = ({ companyInfo, loading, onRefr
         </Card>
       )}
 
-      {!loading && equitySnap.website && (
+      {hasProfile && equitySnap.website && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
             <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Website</h4>
@@ -91,7 +94,7 @@ export const CompanyInfoPanel: React.FC<Props> = ({ companyInfo, loading, onRefr
         </Card>
       )}
 
-      {!loading &&
+      {hasProfile &&
         (companyInfo?.fundamentals ?? [])
           .map((section) => {
             const items =

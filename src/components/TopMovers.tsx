@@ -3,6 +3,8 @@ import { Holding } from '../types';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import { KSE100, KMI30 } from '../services/indices';
 import { TrendingUp, TrendingDown, RefreshCw, Loader2, Star, Flame } from 'lucide-react';
+import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
+import { PanelRefreshNote } from './PanelRefreshNote';
 
 interface Props {
   holdings: Holding[];
@@ -29,16 +31,31 @@ const vol = (n: number) =>
 export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
   const [index, setIndex] = useState<IndexKey>('KSE100');
   const [dir, setDir] = useState<Dir>('gainers');
-  const [rows, setRows] = useState<Row[]>([]);
+  const [rows, setRows] = useState<Row[]>(() => readPanel<Row[]>(panelKeys.movers('KSE100'))?.data ?? []);
   const [loading, setLoading] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(() => {
+    const cached = readPanel<Row[]>(panelKeys.movers('KSE100'));
+    return cached ? new Date(cached.savedAt) : null;
+  });
+  const [failed, setFailed] = useState(false);
+  const [known, setKnown] = useState(() => readPanel<Row[]>(panelKeys.movers('KSE100')) != null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const owned = useMemo(() => new Set(holdings.map(h => h.ticker.toUpperCase())), [holdings]);
 
   const load = async (idx: IndexKey) => {
     const universe = idx === 'KSE100' ? KSE100 : KMI30;
+    const cached = readPanel<Row[]>(panelKeys.movers(idx));
+    if (cached?.data?.length) {
+      setRows(cached.data);
+      setKnown(true);
+      setLastUpdated(new Date(cached.savedAt));
+    } else {
+      setRows([]);
+      setKnown(cached != null);
+    }
     setLoading(true);
+    setFailed(false);
     try {
       const data = await fetchBatchPSXPrices(universe);
       const out: Row[] = [];
@@ -57,8 +74,11 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
       });
       setRows(out);
       setLastUpdated(new Date());
+      savePanel(panelKeys.movers(idx), out);
+      setKnown(true);
     } catch (e) {
       console.error('TopMovers fetch failed', e);
+      setFailed(cached != null);
     } finally {
       setLoading(false);
     }
@@ -69,7 +89,18 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
     load(index);
     if (timer.current) clearInterval(timer.current);
     timer.current = setInterval(() => load(index), REFRESH_MS);
-    return () => { if (timer.current) clearInterval(timer.current); };
+    const apply = () => {
+      const cached = readPanel<Row[]>(panelKeys.movers(index));
+      if (!cached) return;
+      setRows(cached.data);
+      setKnown(true);
+      setLastUpdated(new Date(cached.savedAt));
+    };
+    window.addEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
+    return () => {
+      if (timer.current) clearInterval(timer.current);
+      window.removeEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
@@ -98,9 +129,12 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
             <button onClick={() => setIndex('KSE100')} className={idxChip('KSE100')}>KSE-100</button>
             <button onClick={() => setIndex('KMI30')} className={idxChip('KMI30')}>KMI-30</button>
           </div>
-          <button onClick={() => load(index)} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors disabled:opacity-40" title="Refresh">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-          </button>
+          <div className="flex items-center gap-2">
+            <PanelRefreshNote updating={loading && known} failed={failed && !loading} />
+            <button onClick={() => load(index)} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-orange-500 hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors disabled:opacity-40" title="Refresh">
+              <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -111,7 +145,7 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
       </div>
 
       {/* Table */}
-      {loading && rows.length === 0 ? (
+      {loading && !known ? (
         <div className="flex items-center justify-center py-12 text-slate-400"><Loader2 size={22} className="animate-spin" /></div>
       ) : list.length === 0 ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 text-center py-10">No data available. Try refreshing during market hours.</p>

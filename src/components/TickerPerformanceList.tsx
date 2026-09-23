@@ -33,6 +33,7 @@ import { exportToCSV } from '../utils/export';
 import { fetchCompanyFundamentals, fetchCompanyInfo, FundamentalsData, CompanyInfoData } from '../services/financials';
 import { CompanyInfoPanel } from './CompanyInfoPanel';
 import { StockFinancialsPanel } from './StockFinancialsPanel';
+import { panelKeys, readPanel, savePanel } from '../services/panelCache';
 
 // --- HYBRID FALLBACK: Static Lists ---
 const FALLBACK_KMI30 = new Set([
@@ -194,13 +195,21 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
   const [fundamentals, setFundamentals] = useState<FundamentalsData | null>(null);
   const [companyInfo, setCompanyInfo] = useState<CompanyInfoData | null>(null);
   const [loadingFundamentals, setLoadingFundamentals] = useState(false);
+  const [profileRefreshFailed, setProfileRefreshFailed] = useState(false);
   const [financialPeriod, setFinancialPeriod] = useState<'Annual' | 'Quarterly'>('Annual');
 
   const loadFundamentals = useCallback(async () => {
       if (analysisMode === 'STOCK' && selectedTicker) {
+          const cached = readPanel<{ companyInfo: CompanyInfoData | null; fundamentals: FundamentalsData | null }>(panelKeys.profile(selectedTicker));
+          if (cached) {
+              setCompanyInfo(cached.data.companyInfo);
+              setFundamentals(cached.data.fundamentals);
+          } else {
+              setCompanyInfo(null);
+              setFundamentals(null);
+          }
           setLoadingFundamentals(true);
-          setFundamentals(null);
-          setCompanyInfo(null);
+          setProfileRefreshFailed(false);
           try {
               const [data, info] = await Promise.all([
                   fetchCompanyFundamentals(selectedTicker),
@@ -211,16 +220,20 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               const toolkitHas =
                   (toolkit?.annual?.financials?.length || 0) > 0 ||
                   (toolkit?.quarterly?.financials?.length || 0) > 0;
-              setFundamentals(toolkitHas && toolkit ? toolkit : data);
+              const nextFundamentals = toolkitHas && toolkit ? toolkit : data;
+              setFundamentals(nextFundamentals);
               setCompanyInfo(info);
+              savePanel(panelKeys.profile(selectedTicker), { companyInfo: info, fundamentals: nextFundamentals });
           } catch (err) {
               console.error("Failed to fetch fundamentals", err);
+              setProfileRefreshFailed(!!cached);
           } finally {
               setLoadingFundamentals(false);
           }
       } else {
           setFundamentals(null);
           setCompanyInfo(null);
+          setProfileRefreshFailed(false);
       }
   }, [selectedTicker, analysisMode]);
 
@@ -827,6 +840,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     <CompanyInfoPanel
                         companyInfo={companyInfo}
                         loading={loadingFundamentals}
+                        refreshFailed={profileRefreshFailed}
                         onRefresh={loadFundamentals}
                     />
                 )}
@@ -838,6 +852,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                         financialPeriod={financialPeriod}
                         onPeriodChange={setFinancialPeriod}
                         loading={loadingFundamentals}
+                        refreshFailed={profileRefreshFailed}
                         onRefresh={loadFundamentals}
                         currentPrice={selectedStockStats && currentPrices[selectedStockStats.ticker] > 0 ? currentPrices[selectedStockStats.ticker] : 0}
                         selectedStockStats={selectedStockStats ? {

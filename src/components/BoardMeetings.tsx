@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Holding } from '../types';
 import { fetchBoardMeetings, BoardMeeting } from '../services/financials';
 import { CalendarClock, RefreshCw, Loader2, Star, MapPin, Clock, ExternalLink } from 'lucide-react';
+import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
+import { PanelRefreshNote } from './PanelRefreshNote';
 
 interface Props {
   holdings: Holding[];
@@ -11,21 +13,36 @@ interface Props {
 const SHOW = 80;
 
 export const BoardMeetings: React.FC<Props> = ({ holdings, onSelectTicker }) => {
-  const [items, setItems] = useState<BoardMeeting[]>([]);
+  const initial = readPanel<BoardMeeting[]>(panelKeys.meetings());
+  const [items, setItems] = useState<BoardMeeting[]>(() => initial?.data ?? []);
   const [loading, setLoading] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [loaded, setLoaded] = useState(() => initial != null);
+  const [known, setKnown] = useState(() => initial != null);
+  const [failed, setFailed] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(() => initial ? new Date(initial.savedAt) : null);
 
   const owned = useMemo(() => new Set(holdings.map(h => h.ticker.toUpperCase())), [holdings]);
 
   const load = async () => {
+    const cached = readPanel<BoardMeeting[]>(panelKeys.meetings());
+    if (cached) {
+      setItems(cached.data);
+      setKnown(true);
+      setLoaded(true);
+      setLastUpdated(new Date(cached.savedAt));
+    }
     setLoading(true);
+    setFailed(false);
     try {
       const data = await fetchBoardMeetings();
-      setItems(data.slice(0, SHOW));
+      const next = data.slice(0, SHOW);
+      setItems(next);
       setLastUpdated(new Date());
+      savePanel(panelKeys.meetings(), next);
+      setKnown(true);
     } catch (e) {
       console.error('BoardMeetings load failed', e);
+      setFailed(cached != null);
     } finally {
       setLoading(false);
       setLoaded(true);
@@ -34,6 +51,15 @@ export const BoardMeetings: React.FC<Props> = ({ holdings, onSelectTicker }) => 
 
   useEffect(() => {
     load();
+    const apply = () => {
+      const cached = readPanel<BoardMeeting[]>(panelKeys.meetings());
+      if (!cached) return;
+      setItems(cached.data);
+      setKnown(true);
+      setLoaded(true);
+    };
+    window.addEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
+    return () => window.removeEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -48,12 +74,15 @@ export const BoardMeetings: React.FC<Props> = ({ holdings, onSelectTicker }) => 
           <CalendarClock size={16} className="text-rose-500" /> Board Meetings
           <span className="text-[10px] font-bold text-slate-400 normal-case tracking-normal">· upcoming, market-wide</span>
         </h3>
-        <button onClick={load} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors disabled:opacity-40" title="Refresh">
-          <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
-        </button>
+        <div className="flex items-center gap-2">
+          <PanelRefreshNote updating={loading && known} failed={failed && !loading} />
+          <button onClick={load} disabled={loading} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-500/10 transition-colors disabled:opacity-40" title="Refresh">
+            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
+          </button>
+        </div>
       </div>
 
-      {loading && items.length === 0 ? (
+      {loading && !known ? (
         <div className="flex flex-col items-center justify-center py-12 text-slate-400">
           <Loader2 size={22} className="animate-spin mb-2" />
           <span className="text-xs font-medium">Loading upcoming board meetings…</span>
