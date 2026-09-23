@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-09-23T17:49:32.447Z",
+  "updatedAt": "2026-09-23T19:29:39.625Z",
   "reportDate": "Sep 23, 2026",
   "previousReportDate": "Sep 22, 2026",
-  "source": "playwright",
-  "count": 379,
-  "today": "2026-09-23",
+  "source": "relay:jina",
+  "count": 533,
+  "today": "2026-09-24",
   "yesterday": "2026-09-22",
   "catalog": {
     "MF:786-investments-limited-786-islamic-money-market-fund-shariah-compliant-money-market": {
@@ -37,6 +37,198 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 86.1279,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Aug 20, 2014",
+      "offer": 244.4561,
+      "repurchase": 236.2351,
+      "nav": 236.2351,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 236.0526,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Aug 20, 2014",
+      "offer": 610.157,
+      "repurchase": 589.6376,
+      "nav": 589.6376,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 585.5151,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gob-islamic-pension-fund-vps-shariah-compliant-money-ma": {
+      "id": "MF:abl-asset-management-company-limited-abl-gob-islamic-pension-fund-vps-shariah-compliant-money-ma",
+      "sector": "Employer Pension Funds",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL GOB Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jul 27, 2026",
+      "offer": 101.0797,
+      "repurchase": 101.0797,
+      "nav": 101.0797,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.061,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gokp-islamic-pension-fund-vps-shariah-compliant-money-m": {
+      "id": "MF:abl-asset-management-company-limited-abl-gokp-islamic-pension-fund-vps-shariah-compliant-money-m",
+      "sector": "Employer Pension Funds",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL GOKP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Apr 23, 2024",
+      "offer": 127.3991,
+      "repurchase": 127.3991,
+      "nav": 127.3991,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 127.3631,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gopb-islamic-pension-fund-vps-shariah-compliant-money-m": {
+      "id": "MF:abl-asset-management-company-limited-abl-gopb-islamic-pension-fund-vps-shariah-compliant-money-m",
+      "sector": "Employer Pension Funds",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL GOPB Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Nov 26, 2025",
+      "offer": 105.8993,
+      "repurchase": 105.8993,
+      "nav": 105.8993,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 105.8703,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Aug 20, 2014",
+      "offer": 248.013,
+      "repurchase": 239.6724,
+      "nav": 239.6724,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 239.6033,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-debt": {
+      "id": "MF:abl-asset-management-company-limited-abl-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Aug 20, 2014",
+      "offer": 404.3821,
+      "repurchase": 390.7829,
+      "nav": 390.7829,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 390.6509,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-equity": {
+      "id": "MF:abl-asset-management-company-limited-abl-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Aug 20, 2014",
+      "offer": 655.6803,
+      "repurchase": 633.63,
+      "nav": 633.63,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 630.6991,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gob-pension-fund-vps-money-market": {
+      "id": "MF:abl-asset-management-company-limited-abl-gob-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL GOB Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jul 27, 2026",
+      "offer": 101.5552,
+      "repurchase": 101.5552,
+      "nav": 101.5552,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.5284,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gokp-pension-fund-vps-money-market": {
+      "id": "MF:abl-asset-management-company-limited-abl-gokp-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL GOKP Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Apr 23, 2024",
+      "offer": 135.7343,
+      "repurchase": 135.7343,
+      "nav": 135.7343,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 135.6933,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gopb-pension-fund-vps-money-market": {
+      "id": "MF:abl-asset-management-company-limited-abl-gopb-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL GOPB Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Nov 26, 2025",
+      "offer": 108.182,
+      "repurchase": 108.182,
+      "nav": 108.182,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 108.153,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-money-market": {
+      "id": "MF:abl-asset-management-company-limited-abl-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Aug 20, 2014",
+      "offer": 305.6899,
+      "repurchase": 295.4096,
+      "nav": 295.4096,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 295.3238,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-cash-fund-money-market": {
@@ -211,6 +403,22 @@
       "frontEndLoad": 1,
       "backEndLoad": 0,
       "prevNav": 10.2747,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-dedicated-stock-fund-shariah-compliant-dedicate": {
+      "id": "MF:abl-asset-management-company-limited-abl-islamic-dedicated-stock-fund-shariah-compliant-dedicate",
+      "sector": "Dedicated Equity Funds",
+      "amc": "ABL Asset Management Company Limited",
+      "fundName": "ABL Islamic Dedicated Stock Fund",
+      "category": "Shariah Compliant Dedicated Equity",
+      "inceptionDate": "Dec 19, 2016",
+      "offer": 16.9463,
+      "repurchase": 16.9463,
+      "nav": 16.9463,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 16.8302,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-active-allocation-plan-": {
@@ -629,6 +837,134 @@
       "prevNav": 35,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Sep 05, 2022",
+      "offer": 176.8245,
+      "repurchase": 171.6743,
+      "nav": 171.6743,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 171.6338,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Sep 05, 2022",
+      "offer": 458.146,
+      "repurchase": 444.8019,
+      "nav": 444.8019,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 440.9159,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-gokp-islamic-pension-fund-vps-shariah-compliant-money": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-gokp-islamic-pension-fund-vps-shariah-compliant-money",
+      "sector": "Employer Pension Funds",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib GOKP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jan 03, 2024",
+      "offer": 137.9933,
+      "repurchase": 137.9933,
+      "nav": 137.9933,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 137.9524,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-money-mark": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-money-mark",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Sep 05, 2022",
+      "offer": 175.6846,
+      "repurchase": 170.5676,
+      "nav": 170.5676,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 170.5253,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-debt": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Jun 30, 2022",
+      "offer": 197.1233,
+      "repurchase": 191.3818,
+      "nav": 191.3818,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 191.3288,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-equity": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Jun 30, 2022",
+      "offer": 534.6511,
+      "repurchase": 519.0787,
+      "nav": 519.0787,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 514.8782,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-gokp-pension-fund-vps-money-market": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-gokp-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib GOKP Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jan 03, 2024",
+      "offer": 143.7246,
+      "repurchase": 143.7246,
+      "nav": 143.7246,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 143.6832,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-money-market": {
+      "id": "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AL Habib Asset Management Limited",
+      "fundName": "AL Habib Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jun 30, 2022",
+      "offer": 192.5574,
+      "repurchase": 186.9489,
+      "nav": 186.9489,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 186.9008,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:al-habib-asset-management-limited-al-habib-asset-allocation-fund-asset-allocation": {
       "id": "MF:al-habib-asset-management-limited-al-habib-asset-allocation-fund-asset-allocation",
       "sector": "Open-End Funds",
@@ -981,6 +1317,102 @@
       "prevNav": 149.0307,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Tahaffuz Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Jun 28, 2007",
+      "offer": 540.16,
+      "repurchase": 540.16,
+      "nav": 540.16,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 539.8748,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-equit": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-equit",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Tahaffuz Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Jun 28, 2007",
+      "offer": 1773.1216,
+      "repurchase": 1773.1216,
+      "nav": 1773.1216,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1759.6345,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-gokp-pension-fund-vps-shariah-compliant-money-mar": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-gokp-pension-fund-vps-shariah-compliant-money-mar",
+      "sector": "Employer Pension Funds",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan GOKP Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 147.3912,
+      "repurchase": 147.3912,
+      "nav": 147.3912,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 147.3457,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-balochistan-pension-fund-vp": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-balochistan-pension-fund-vp",
+      "sector": "Employer Pension Funds",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Islamic Government of Balochistan Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jul 22, 2026",
+      "offer": 101.7855,
+      "repurchase": 101.7855,
+      "nav": 101.7855,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 109.3557,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-punjab-pension-fund-vps-sha": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-punjab-pension-fund-vps-sha",
+      "sector": "Employer Pension Funds",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Islamic Government of Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Nov 21, 2025",
+      "offer": 109.3858,
+      "repurchase": 109.3858,
+      "nav": 109.3858,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 109.3557,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-money": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-money",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Tahaffuz Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jun 28, 2007",
+      "offer": 539.1579,
+      "repurchase": 539.1579,
+      "nav": 539.1579,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 538.9967,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:al-meezan-investment-management-limited-al-meezan-mutual-fund-shariah-compliant-equity": {
       "id": "MF:al-meezan-investment-management-limited-al-meezan-mutual-fund-shariah-compliant-equity",
       "sector": "Open-End Funds",
@@ -1052,10 +1484,10 @@
       "fundName": "Meezan Capital Protected Fund III (Meezan Capital Secure Plan I)",
       "category": "Shariah Compliant Capital Protected",
       "inceptionDate": "Mar 12, 2026",
-      "offer": 51.8354,
-      "repurchase": 50.1068,
-      "nav": 50.1068,
-      "validityDate": "Sep 22, 2026",
+      "offer": 51.9283,
+      "repurchase": 50.1966,
+      "nav": 50.1966,
+      "validityDate": "Sep 23, 2026",
       "frontEndLoad": 3,
       "backEndLoad": 0,
       "prevNav": 50.1068,
@@ -1155,6 +1587,22 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 51.7344,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-dedicated-equity-fund-shariah-compliant-dedicated": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-dedicated-equity-fund-shariah-compliant-dedicated",
+      "sector": "Dedicated Equity Funds",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Dedicated Equity Fund",
+      "category": "Shariah Compliant Dedicated Equity",
+      "inceptionDate": "Oct 06, 2017",
+      "offer": 96.4855,
+      "repurchase": 93.2678,
+      "nav": 93.2678,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 92.5517,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-dynamic-asset-allocation-fund-meezan-dividend-yie": {
@@ -1330,10 +1778,10 @@
       "fundName": "Meezan Islamic Income Fund",
       "category": "Shariah Compliant Income",
       "inceptionDate": "Jan 15, 2007",
-      "offer": 53.7235,
-      "repurchase": 53.1128,
-      "nav": 53.1128,
-      "validityDate": "Sep 22, 2026",
+      "offer": 53.7376,
+      "repurchase": 53.1267,
+      "nav": 53.1267,
+      "validityDate": "Sep 23, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 53.1128,
@@ -1479,6 +1927,22 @@
       "frontEndLoad": 0,
       "backEndLoad": 0
     },
+    "MF:al-meezan-investment-management-limited-meezan-pakistan-etf-shariah-compliant-exchange-traded-fu": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-pakistan-etf-shariah-compliant-exchange-traded-fu",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Pakistan ETF",
+      "category": "Shariah Compliant Exchange Traded Fund",
+      "inceptionDate": "Oct 06, 2020",
+      "offer": 17.5699,
+      "repurchase": 17.5699,
+      "nav": 17.5699,
+      "validityDate": "Sep 24, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 17.3775,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:al-meezan-investment-management-limited-meezan-rozana-amdani-fund-shariah-compliant-money-market": {
       "id": "MF:al-meezan-investment-management-limited-meezan-rozana-amdani-fund-shariah-compliant-money-market",
       "sector": "Open-End Funds",
@@ -1581,6 +2045,214 @@
       "frontEndLoad": 0,
       "backEndLoad": 0
     },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-commo": {
+      "id": "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-commo",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Al Meezan Investment Management Limited",
+      "fundName": "Meezan Tahaffuz Pension Fund",
+      "category": "VPS-Shariah Compliant Commodities / Gold",
+      "inceptionDate": "Aug 04, 2016",
+      "offer": 532.2133,
+      "repurchase": 532.2133,
+      "nav": 532.2133,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 532.2133,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Nov 08, 2016",
+      "offer": 230.0045,
+      "repurchase": 222.334,
+      "nav": 222.334,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 222.2768,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Nov 08, 2016",
+      "offer": 329.9113,
+      "repurchase": 318.9089,
+      "nav": 318.9089,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 317.5424,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-balochistan-islamic-pension-fund-vps-shariah-compliant-": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-balochistan-islamic-pension-fund-vps-shariah-compliant-",
+      "sector": "Employer Pension Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah Balochistan Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jul 29, 2026",
+      "offer": 101.5999,
+      "repurchase": 101.5999,
+      "nav": 101.5999,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.5695,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-money-ma": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-money-ma",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Nov 08, 2016",
+      "offer": 238.0041,
+      "repurchase": 230.0668,
+      "nav": 230.0668,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 229.9945,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-gopb-islamic-pension-fund-vps-shariah-compliant-money-m": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-gopb-islamic-pension-fund-vps-shariah-compliant-money-m",
+      "sector": "Employer Pension Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GOPB Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Mar 04, 2026",
+      "offer": 103.6762,
+      "repurchase": 103.6762,
+      "nav": 103.6762,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 103.6479,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-islamic-kpk-employee-pension-fund-vps-shariah-compliant": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-islamic-kpk-employee-pension-fund-vps-shariah-compliant",
+      "sector": "Employer Pension Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah Islamic KPK Employee Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 136.9872,
+      "repurchase": 136.9872,
+      "nav": 136.9872,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 136.9479,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-debt": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Nov 08, 2016",
+      "offer": 265.1589,
+      "repurchase": 256.316,
+      "nav": 256.316,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 256.2258,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-equity": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Nov 08, 2016",
+      "offer": 338.0211,
+      "repurchase": 326.7483,
+      "nav": 326.7483,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 325.4087,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-balochistan-pension-fund-vps-money-market": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-balochistan-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah Balochistan Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jul 29, 2026",
+      "offer": 101.5935,
+      "repurchase": 101.5935,
+      "nav": 101.5935,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.5631,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-money-market": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Nov 08, 2016",
+      "offer": 271.7807,
+      "repurchase": 262.717,
+      "nav": 262.717,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 262.6421,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-gopb-pension-fund-vps-money-market": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-gopb-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GOPB Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Mar 04, 2026",
+      "offer": 106.0497,
+      "repurchase": 106.0497,
+      "nav": 106.0497,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 106.022,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-kpk-employee-pension-fund-vps-money-market": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-kpk-employee-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah KPK Employee Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 142.338,
+      "repurchase": 142.338,
+      "nav": 142.338,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 142.3013,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:alfalah-asset-management-limited-alfalah-asset-allocation-fund-asset-allocation": {
       "id": "MF:alfalah-asset-management-limited-alfalah-asset-allocation-fund-asset-allocation",
       "sector": "Open-End Funds",
@@ -1611,6 +2283,22 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 105.6049,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-consumer-index-exchange-traded-fund-exchange-traded-fun": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-consumer-index-exchange-traded-fund-exchange-traded-fun",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah Consumer Index Exchange Traded Fund",
+      "category": "Exchange Traded Fund",
+      "inceptionDate": "Jan 17, 2022",
+      "offer": 16.68,
+      "repurchase": 16.6834,
+      "nav": 16.68,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 16.6092,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-financial-sector-income-fund-income": {
@@ -1709,6 +2397,22 @@
       "prevNav": 518.3713,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-dedicated-equity-fund-dedicated-equity": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-dedicated-equity-fund-dedicated-equity",
+      "sector": "Dedicated Equity Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Dedicated Equity Fund",
+      "category": "Dedicated Equity",
+      "inceptionDate": "Nov 28, 2022",
+      "offer": 202.5892,
+      "repurchase": 198.0344,
+      "nav": 198.0344,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 197.2576,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:alfalah-asset-management-limited-alfalah-ghp-income-fund-income": {
       "id": "MF:alfalah-asset-management-limited-alfalah-ghp-income-fund-income",
       "sector": "Open-End Funds",
@@ -1739,6 +2443,22 @@
       "frontEndLoad": 6,
       "backEndLoad": 6,
       "prevNav": 56.1739,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-dedicated-equity-fund-shariah-compliant-ded": {
+      "id": "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-dedicated-equity-fund-shariah-compliant-ded",
+      "sector": "Dedicated Equity Funds",
+      "amc": "Alfalah Asset Management Limited",
+      "fundName": "Alfalah GHP Islamic Dedicated Equity Fund",
+      "category": "Shariah Compliant Dedicated Equity",
+      "inceptionDate": "May 25, 2017",
+      "offer": 116.6841,
+      "repurchase": 114.7054,
+      "nav": 114.7054,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 114.1552,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-income-fund-shariah-compliant-income": {
@@ -2363,6 +3083,182 @@
       "prevNav": 102.3309,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-debt": {
+      "id": "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Pension Islamic Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Nov 06, 2007",
+      "offer": 497.74,
+      "repurchase": 497.74,
+      "nav": 497.74,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 497.6,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-equity": {
+      "id": "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Pension Islamic Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Nov 06, 2007",
+      "offer": 2659.84,
+      "repurchase": 2659.84,
+      "nav": 2659.84,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 2639.37,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-balochistan-islamic-pension-fund-vps-shariah-compliant-mone": {
+      "id": "MF:atlas-asset-management-limited-atlas-balochistan-islamic-pension-fund-vps-shariah-compliant-mone",
+      "sector": "Employer Pension Funds",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Balochistan Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Sep 15, 2026",
+      "offer": 100.2394,
+      "repurchase": 100.2394,
+      "nav": 100.2394,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 100.2096,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:atlas-asset-management-limited-atlas-kpk-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas KPK Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 13, 2023",
+      "offer": 142.9618,
+      "repurchase": 142.9618,
+      "nav": 142.9618,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 142.9182,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Pension Islamic Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Nov 06, 2007",
+      "offer": 526.21,
+      "repurchase": 526.21,
+      "nav": 526.21,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 526.06,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-punjab-islamic-pension-fund-vps-shariah-compliant-money-mar": {
+      "id": "MF:atlas-asset-management-limited-atlas-punjab-islamic-pension-fund-vps-shariah-compliant-money-mar",
+      "sector": "Employer Pension Funds",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Punjab Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Nov 21, 2025",
+      "offer": 109.9904,
+      "repurchase": 109.9904,
+      "nav": 109.9904,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 109.9527,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-debt": {
+      "id": "MF:atlas-asset-management-limited-atlas-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Jun 28, 2007",
+      "offer": 680.91,
+      "repurchase": 680.91,
+      "nav": 680.91,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 680.7,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-equity": {
+      "id": "MF:atlas-asset-management-limited-atlas-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Jun 28, 2007",
+      "offer": 2448.06,
+      "repurchase": 2448.06,
+      "nav": 2448.06,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 2434.3,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-balochistan-pension-fund-vps-money-market": {
+      "id": "MF:atlas-asset-management-limited-atlas-balochistan-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Balochistan Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Sep 15, 2026",
+      "offer": 100.2438,
+      "repurchase": 100.2438,
+      "nav": 100.2438,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 100.2134,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-money-market": {
+      "id": "MF:atlas-asset-management-limited-atlas-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jun 28, 2007",
+      "offer": 632.62,
+      "repurchase": 632.62,
+      "nav": 632.62,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 632.43,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-punjab-pension-fund-vps-money-market": {
+      "id": "MF:atlas-asset-management-limited-atlas-punjab-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Punjab Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Nov 21, 2025",
+      "offer": 108.8253,
+      "repurchase": 108.8253,
+      "nav": 108.8253,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 108.7972,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity": {
       "id": "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity",
       "sector": "Open-End Funds",
@@ -2441,6 +3337,22 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 516.0104,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-islamic-dedicated-stock-fund-shariah-compliant-dedicated-eq": {
+      "id": "MF:atlas-asset-management-limited-atlas-islamic-dedicated-stock-fund-shariah-compliant-dedicated-eq",
+      "sector": "Dedicated Equity Funds",
+      "amc": "Atlas Asset Management Limited",
+      "fundName": "Atlas Islamic Dedicated Stock Fund",
+      "category": "Shariah Compliant Dedicated Equity",
+      "inceptionDate": "Jan 10, 2019",
+      "offer": 1562.5503,
+      "repurchase": 1562.5503,
+      "nav": 1562.5503,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1550.349,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-energy-fund-shariah-compliant-equity": {
@@ -2619,6 +3531,70 @@
       "prevNav": 2067.7995,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AWT Investments Limited",
+      "fundName": "AWT Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Apr 07, 2025",
+      "offer": 117.5865,
+      "repurchase": 117.5865,
+      "nav": 117.5865,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 117.5512,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AWT Investments Limited",
+      "fundName": "AWT Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Apr 07, 2025",
+      "offer": 127.7495,
+      "repurchase": 127.7495,
+      "nav": 127.7495,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 126.673,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "AWT Investments Limited",
+      "fundName": "AWT Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Apr 07, 2025",
+      "offer": 116.2682,
+      "repurchase": 116.2682,
+      "nav": 116.2682,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 116.234,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:awt-investments-limited-awt-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:awt-investments-limited-awt-islamic-punjab-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "AWT Investments Limited",
+      "fundName": "AWT Islamic Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Aug 10, 2026",
+      "offer": 100.6709,
+      "repurchase": 100.6709,
+      "nav": 100.6709,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 100.6478,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:awt-investments-limited-awt-islamic-asset-allocation-fund-shariah-compliant-asset-allocation": {
       "id": "MF:awt-investments-limited-awt-islamic-asset-allocation-fund-shariah-compliant-asset-allocation",
       "sector": "Open-End Funds",
@@ -2729,6 +3705,134 @@
       "frontEndLoad": 3,
       "backEndLoad": 0,
       "prevNav": 100.0616,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "EFU Life Assurance Limited",
+      "fundName": "EFU Hemayah Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Dec 01, 2025",
+      "offer": 106,
+      "repurchase": 103,
+      "nav": 103.3664,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 103,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "EFU Life Assurance Limited",
+      "fundName": "EFU Hemayah Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Dec 01, 2025",
+      "offer": 93,
+      "repurchase": 90,
+      "nav": 90.2555,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 90,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "EFU Life Assurance Limited",
+      "fundName": "EFU Hemayah Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 01, 2025",
+      "offer": 109,
+      "repurchase": 106,
+      "nav": 105.5977,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 106,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Faysal Asset Management Limited",
+      "fundName": "Faysal Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Oct 05, 2021",
+      "offer": 193.1794,
+      "repurchase": 186.737,
+      "nav": 186.737,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 186.6826,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Faysal Asset Management Limited",
+      "fundName": "Faysal Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Oct 05, 2021",
+      "offer": 363.9814,
+      "repurchase": 351.8428,
+      "nav": 351.8428,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 349.6516,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-kpk-government-pension-fund-vps-shariah-compliant": {
+      "id": "MF:faysal-asset-management-limited-faysal-islamic-kpk-government-pension-fund-vps-shariah-compliant",
+      "sector": "Employer Pension Funds",
+      "amc": "Faysal Asset Management Limited",
+      "fundName": "Faysal Islamic KPK Government Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 20, 2023",
+      "offer": 138.6354,
+      "repurchase": 138.6354,
+      "nav": 138.6354,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 138.5945,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Faysal Asset Management Limited",
+      "fundName": "Faysal Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Oct 05, 2021",
+      "offer": 199.4935,
+      "repurchase": 192.8405,
+      "nav": 192.8405,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 192.7779,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-punjab-pension-fund-vps-shariah-compliant-money-m": {
+      "id": "MF:faysal-asset-management-limited-faysal-islamic-punjab-pension-fund-vps-shariah-compliant-money-m",
+      "sector": "Employer Pension Funds",
+      "amc": "Faysal Asset Management Limited",
+      "fundName": "Faysal Islamic Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 16, 2025",
+      "offer": 105.8341,
+      "repurchase": 105.8341,
+      "nav": 105.8341,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 105.8014,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-halal-amdani-fund-shariah-compliant-money-market": {
@@ -2857,6 +3961,22 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 102.7267,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-dedicated-equity-fund-shariah-compliant-dedicated": {
+      "id": "MF:faysal-asset-management-limited-faysal-islamic-dedicated-equity-fund-shariah-compliant-dedicated",
+      "sector": "Dedicated Equity Funds",
+      "amc": "Faysal Asset Management Limited",
+      "fundName": "Faysal Islamic Dedicated Equity Fund",
+      "category": "Shariah Compliant Dedicated Equity",
+      "inceptionDate": "Jan 03, 2020",
+      "offer": 118.7548,
+      "repurchase": 114.7944,
+      "nav": 114.7944,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 114.093,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-financial-growth-fund-faysal-islamic-financial-gr": {
@@ -3065,6 +4185,166 @@
       "frontEndLoad": 2,
       "backEndLoad": 0,
       "prevNav": 16.878,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Dec 15, 2011",
+      "offer": 363.178,
+      "repurchase": 349.3188,
+      "nav": 349.3188,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 349.2126,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Dec 15, 2011",
+      "offer": 1297.3302,
+      "repurchase": 1247.8228,
+      "nav": 1247.8228,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1236.2571,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 15, 2011",
+      "offer": 344.7429,
+      "repurchase": 331.5872,
+      "nav": 331.5872,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 331.488,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:hbl-asset-management-limited-hbl-islamic-punjab-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Islamic Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Mar 12, 2026",
+      "offer": 104.2687,
+      "repurchase": 104.2687,
+      "nav": 104.2687,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 104.2469,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:hbl-asset-management-limited-hbl-kpk-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL KPK Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 140.8348,
+      "repurchase": 139.2336,
+      "nav": 139.2336,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 139.1922,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-debt": {
+      "id": "MF:hbl-asset-management-limited-hbl-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Dec 15, 2011",
+      "offer": 470.7875,
+      "repurchase": 452.8218,
+      "nav": 452.8218,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 452.6904,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-equity": {
+      "id": "MF:hbl-asset-management-limited-hbl-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Dec 15, 2011",
+      "offer": 1179.3577,
+      "repurchase": 1134.3523,
+      "nav": 1134.3523,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1125.4526,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-kpk-pension-fund-vps-money-market": {
+      "id": "MF:hbl-asset-management-limited-hbl-kpk-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL KPK Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 144.7524,
+      "repurchase": 143.1067,
+      "nav": 143.1067,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 143.0547,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-money-market": {
+      "id": "MF:hbl-asset-management-limited-hbl-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 15, 2011",
+      "offer": 396.5171,
+      "repurchase": 381.3856,
+      "nav": 381.3856,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 381.2861,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-punjab-pension-fund-vps-money-market": {
+      "id": "MF:hbl-asset-management-limited-hbl-punjab-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Punjab Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Mar 12, 2026",
+      "offer": 104.2673,
+      "repurchase": 104.2673,
+      "nav": 104.2673,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 104.2455,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-cash-fund-money-market": {
@@ -3499,6 +4779,262 @@
       "prevNav": 229.9904,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:hbl-asset-management-limited-hbl-total-treasury-exchange-traded-fund-exchange-traded-fund": {
+      "id": "MF:hbl-asset-management-limited-hbl-total-treasury-exchange-traded-fund-exchange-traded-fund",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "HBL Asset Management Limited",
+      "fundName": "HBL Total Treasury Exchange Traded Fund",
+      "category": "Exchange Traded Fund",
+      "inceptionDate": "Sep 12, 2022",
+      "offer": 106.2668,
+      "repurchase": 106.2668,
+      "nav": 106.2668,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 106.2396,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-debt": {
+      "id": "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "IGI Life Insurance Limited",
+      "fundName": "Mahaana IGI Islamic Retirement Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "May 26, 2025",
+      "offer": 11.4431,
+      "repurchase": 11.4431,
+      "nav": 11.4431,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 11.4312,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-equity": {
+      "id": "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "IGI Life Insurance Limited",
+      "fundName": "Mahaana IGI Islamic Retirement Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "May 26, 2025",
+      "offer": 12.3474,
+      "repurchase": 12.3474,
+      "nav": 12.3474,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 12.2598,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-money-marke": {
+      "id": "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-money-marke",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "IGI Life Insurance Limited",
+      "fundName": "Mahaana IGI Islamic Retirement Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "May 26, 2025",
+      "offer": 11.3123,
+      "repurchase": 11.3123,
+      "nav": 11.3123,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 11.3031,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-debt": {
+      "id": "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Islamic Pension Savings Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Mar 17, 2008",
+      "offer": 452.35,
+      "repurchase": 452.3472,
+      "nav": 452.3472,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 452.4328,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-equity": {
+      "id": "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Islamic Pension Savings Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Mar 17, 2008",
+      "offer": 1827.56,
+      "repurchase": 1827.5573,
+      "nav": 1827.5573,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1818.7404,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-balochistan-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:js-investments-limited-js-balochistan-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Balochistan Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jul 22, 2026",
+      "offer": 100.96,
+      "repurchase": 100.9615,
+      "nav": 100.9615,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 100.9453,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Islamic Pension Savings Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Mar 17, 2008",
+      "offer": 437.99,
+      "repurchase": 437.99,
+      "nav": 437.99,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 437.8716,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:js-investments-limited-js-kpk-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "JS Investments Limited",
+      "fundName": "JS KPK Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 143.37,
+      "repurchase": 143.37,
+      "nav": 143.3665,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 143.33,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-punjab-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:js-investments-limited-js-punjab-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Punjab Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 25, 2025",
+      "offer": 101.51,
+      "repurchase": 101.5102,
+      "nav": 101.5102,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.4938,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-pension-savings-fund-vps-debt": {
+      "id": "MF:js-investments-limited-js-pension-savings-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Pension Savings Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Jun 25, 2007",
+      "offer": 619.73,
+      "repurchase": 619.73,
+      "nav": 619.7278,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 619.49,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-pension-savings-fund-vps-equity": {
+      "id": "MF:js-investments-limited-js-pension-savings-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Pension Savings Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Jun 25, 2007",
+      "offer": 1743.19,
+      "repurchase": 1743.19,
+      "nav": 1743.1876,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1735.6,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-balochistan-pension-fund-vps-money-market": {
+      "id": "MF:js-investments-limited-js-balochistan-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Balochistan Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jul 22, 2026",
+      "offer": 101.73,
+      "repurchase": 101.729,
+      "nav": 101.729,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.7032,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-kpk-pension-fund-vps-money-market": {
+      "id": "MF:js-investments-limited-js-kpk-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "JS Investments Limited",
+      "fundName": "JS KPK Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 145.54,
+      "repurchase": 145.54,
+      "nav": 145.544,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 145.51,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-pension-savings-fund-vps-money-market": {
+      "id": "MF:js-investments-limited-js-pension-savings-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Pension Savings Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jun 25, 2007",
+      "offer": 512.15,
+      "repurchase": 512.15,
+      "nav": 512.1474,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 512.01,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-punjab-pension-fund-vps-money-market": {
+      "id": "MF:js-investments-limited-js-punjab-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Punjab Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 25, 2025",
+      "offer": 104.63,
+      "repurchase": 104.6341,
+      "nav": 104.6341,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 104.6119,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:js-investments-limited-js-cash-fund-money-market": {
       "id": "MF:js-investments-limited-js-cash-fund-money-market",
       "sector": "Open-End Funds",
@@ -3787,6 +5323,22 @@
       "prevNav": 123.9776,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:js-investments-limited-js-momentum-factor-exchange-traded-fund-exchange-traded-fund": {
+      "id": "MF:js-investments-limited-js-momentum-factor-exchange-traded-fund-exchange-traded-fund",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "JS Investments Limited",
+      "fundName": "JS Momentum Factor Exchange Traded Fund",
+      "category": "Exchange Traded Fund",
+      "inceptionDate": "Jan 07, 2022",
+      "offer": 11.019,
+      "repurchase": 11.019,
+      "nav": 11.019,
+      "validityDate": "Sep 24, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 10.5607,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:js-investments-limited-js-money-market-fund-money-market": {
       "id": "MF:js-investments-limited-js-money-market-fund-money-market",
       "sector": "Open-End Funds",
@@ -3929,6 +5481,70 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 102.2134,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Lucky Investments Limited",
+      "fundName": "Lucky Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Nov 10, 2025",
+      "offer": 112.5364,
+      "repurchase": 108.7834,
+      "nav": 108.7834,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 3,
+      "prevNav": 108.7547,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Lucky Investments Limited",
+      "fundName": "Lucky Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Nov 10, 2025",
+      "offer": 111.4878,
+      "repurchase": 107.7697,
+      "nav": 107.7697,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 3,
+      "prevNav": 106.6869,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Lucky Investments Limited",
+      "fundName": "Lucky Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Nov 10, 2025",
+      "offer": 112.45,
+      "repurchase": 108.6998,
+      "nav": 108.6998,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 108.6727,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:lucky-investments-limited-lucky-islamic-punjab-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "Lucky Investments Limited",
+      "fundName": "Lucky Islamic Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 22, 2025",
+      "offer": 107.4742,
+      "repurchase": 107.4742,
+      "nav": 107.4742,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 107.4414,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-cash-fund-shariah-compliant-money-market": {
@@ -4075,6 +5691,22 @@
       "prevNav": 102.8107,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-commodities-gold": {
+      "id": "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-commodities-gold",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Lucky Investments Limited",
+      "fundName": "Lucky Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Commodities / Gold",
+      "inceptionDate": "Nov 10, 2025",
+      "offer": 105.8934,
+      "repurchase": 102.3619,
+      "nav": 102.3619,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 3,
+      "prevNav": 102.3619,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:lucky-investments-limited-lucky-islamic-stock-fund-shariah-compliant-equity": {
       "id": "MF:lucky-investments-limited-lucky-islamic-stock-fund-shariah-compliant-equity",
       "sector": "Open-End Funds",
@@ -4121,6 +5753,182 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 9.9533,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mahaana-wealth-limited-mahaana-islamic-index-exchange-traded-fund-shariah-compliant-exchange-tra": {
+      "id": "MF:mahaana-wealth-limited-mahaana-islamic-index-exchange-traded-fund-shariah-compliant-exchange-tra",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "Mahaana Wealth Limited",
+      "fundName": "Mahaana Islamic Index Exchange Traded Fund",
+      "category": "Shariah Compliant Exchange Traded Fund",
+      "inceptionDate": "Mar 11, 2024",
+      "offer": 16.19,
+      "repurchase": 16.19,
+      "nav": 16.19,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 16.19,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "Alhamra Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Nov 02, 2007",
+      "offer": 476.49,
+      "repurchase": 476.49,
+      "nav": 476.49,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 476.33,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "Alhamra Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Nov 02, 2007",
+      "offer": 2123.46,
+      "repurchase": 2123.46,
+      "nav": 2123.46,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 2107.73,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-money-marke": {
+      "id": "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-money-marke",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "Alhamra Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Nov 02, 2007",
+      "offer": 441.08,
+      "repurchase": 441.08,
+      "nav": 441.08,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 440.94,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-punjab-pension-fund-vps-shariah-compliant-mone": {
+      "id": "MF:mcb-investment-management-limited-alhamra-islamic-punjab-pension-fund-vps-shariah-compliant-mone",
+      "sector": "Employer Pension Funds",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "Alhamra Islamic Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jan 16, 2026",
+      "offer": 107.1989,
+      "repurchase": 107.1989,
+      "nav": 107.1989,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 107.1676,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-mcb-alhamra-kpk-govt-employees-pension-fund-vps-shariah-compli": {
+      "id": "MF:mcb-investment-management-limited-mcb-alhamra-kpk-govt-employees-pension-fund-vps-shariah-compli",
+      "sector": "Employer Pension Funds",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "MCB Alhamra KPK Govt Employees Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 13, 2023",
+      "offer": 142.4382,
+      "repurchase": 142.4382,
+      "nav": 142.4382,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 142.3984,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-debt": {
+      "id": "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "Pakistan Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Jun 27, 2007",
+      "offer": 662.2,
+      "repurchase": 662.2,
+      "nav": 662.2,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 662.02,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-equity": {
+      "id": "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "Pakistan Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Jun 27, 2007",
+      "offer": 2414.39,
+      "repurchase": 2414.39,
+      "nav": 2414.39,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 2401.14,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-mcb-kpk-govt-employees-pension-fund-vps-money-market": {
+      "id": "MF:mcb-investment-management-limited-mcb-kpk-govt-employees-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "MCB KPK Govt Employees Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 13, 2023",
+      "offer": 144.8942,
+      "repurchase": 144.8942,
+      "nav": 144.8942,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 144.8545,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-mcb-punjab-pension-fund-vps-money-market": {
+      "id": "MF:mcb-investment-management-limited-mcb-punjab-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "MCB Punjab Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 08, 2025",
+      "offer": 108.4197,
+      "repurchase": 108.4197,
+      "nav": 108.4197,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 108.3905,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-money-market": {
+      "id": "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "MCB Investment Management Limited",
+      "fundName": "Pakistan Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jun 27, 2007",
+      "offer": 574.35,
+      "repurchase": 574.35,
+      "nav": 574.35,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 574.19,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-cash-management-optimizer-shariah-compliant-money-mark": {
@@ -4511,7 +6319,7 @@
       "id": "MF:mcb-investment-management-limited-mcb-pakistan-opportunity-fund-mcb-pakistan-dividend-yield-plan",
       "sector": "Open-End Funds",
       "amc": "MCB Investment Management Limited",
-      "fundName": "MCB Pakistan Opportunity Fund (MCB Pakistan  Dividend Yield Plan)",
+      "fundName": "MCB Pakistan Opportunity Fund (MCB Pakistan Dividend Yield Plan)",
       "category": "Asset Allocation",
       "inceptionDate": "Jun 29, 2022",
       "offer": 359.4404,
@@ -4617,6 +6425,134 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 56.6894,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Jun 19, 2015",
+      "offer": 26.8556,
+      "repurchase": 26.8556,
+      "nav": 26.8556,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 26.8487,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Jun 19, 2015",
+      "offer": 32.0412,
+      "repurchase": 32.0412,
+      "nav": 32.0412,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 31.8366,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jun 19, 2015",
+      "offer": 26.6144,
+      "repurchase": 26.6144,
+      "nav": 26.6144,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 26.6085,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-kp-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:national-investment-trust-limited-nit-kp-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT KP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 138.7606,
+      "repurchase": 138.7606,
+      "nav": 138.7606,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 138.7294,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-debt": {
+      "id": "MF:national-investment-trust-limited-nit-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Jun 19, 2015",
+      "offer": 30.9209,
+      "repurchase": 30.9209,
+      "nav": 30.9209,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 30.9109,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-equity": {
+      "id": "MF:national-investment-trust-limited-nit-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Jun 19, 2015",
+      "offer": 33.4087,
+      "repurchase": 33.4087,
+      "nav": 33.4087,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 33.2472,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-kp-pension-fund-vps-money-market": {
+      "id": "MF:national-investment-trust-limited-nit-kp-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT KP Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 143.0171,
+      "repurchase": 143.0171,
+      "nav": 143.0171,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 142.9767,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-money-market": {
+      "id": "MF:national-investment-trust-limited-nit-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jun 19, 2015",
+      "offer": 30.1476,
+      "repurchase": 30.1476,
+      "nav": 30.1476,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 30.1392,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:national-investment-trust-limited-national-investment-unit-trust-equity": {
@@ -4747,6 +6683,38 @@
       "prevNav": 10.0113,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:national-investment-trust-limited-nit-pakistan-gateway-exchange-traded-fund-exchange-traded-fund": {
+      "id": "MF:national-investment-trust-limited-nit-pakistan-gateway-exchange-traded-fund-exchange-traded-fund",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Pakistan Gateway Exchange Traded Fund",
+      "category": "Exchange Traded Fund",
+      "inceptionDate": "Mar 21, 2020",
+      "offer": 33.2955,
+      "repurchase": 33.2955,
+      "nav": 33.2955,
+      "validityDate": "Sep 24, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 33.0968,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-commodities-gold": {
+      "id": "MF:national-investment-trust-limited-nit-pension-fund-vps-commodities-gold",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "National Investment Trust Limited",
+      "fundName": "NIT Pension Fund",
+      "category": "VPS-Commodities / Gold",
+      "inceptionDate": "Jun 19, 2015",
+      "offer": 51.6002,
+      "repurchase": 51.6002,
+      "nav": 51.6002,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 51.6002,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:national-investment-trust-limited-nit-social-impact-fund-income": {
       "id": "MF:national-investment-trust-limited-nit-social-impact-fund-income",
       "sector": "Open-End Funds",
@@ -4761,6 +6729,198 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 10.595,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NAFA Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Jul 02, 2013",
+      "offer": 305.695,
+      "repurchase": 305.695,
+      "nav": 305.695,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 305.695,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NAFA Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Jul 02, 2013",
+      "offer": 1215.0863,
+      "repurchase": 1215.0863,
+      "nav": 1215.0863,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1215.0863,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NAFA Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jul 02, 2013",
+      "offer": 312.0809,
+      "repurchase": 312.0809,
+      "nav": 312.0809,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 312.0809,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-gokp-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:nbp-fund-management-limited-nbp-gokp-islamic-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NBP GoKP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 13, 2023",
+      "offer": 143.5022,
+      "repurchase": 143.5022,
+      "nav": 143.5022,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 143.5022,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-islamic-balochistan-pension-fund-vps-shariah-compliant-money-mar": {
+      "id": "MF:nbp-fund-management-limited-nbp-islamic-balochistan-pension-fund-vps-shariah-compliant-money-mar",
+      "sector": "Employer Pension Funds",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NBP Islamic Balochistan Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Aug 11, 2026",
+      "offer": 101.2207,
+      "repurchase": 101.2207,
+      "nav": 101.2207,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.2207,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "id": "MF:nbp-fund-management-limited-nbp-islamic-punjab-pension-fund-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NBP Islamic Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jan 14, 2026",
+      "offer": 107.1418,
+      "repurchase": 107.1418,
+      "nav": 107.1418,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 107.1418,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-debt": {
+      "id": "MF:nbp-fund-management-limited-nafa-pension-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NAFA Pension Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "Jul 02, 2013",
+      "offer": 408.9125,
+      "repurchase": 408.9125,
+      "nav": 408.9125,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 408.9125,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-equity": {
+      "id": "MF:nbp-fund-management-limited-nafa-pension-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NAFA Pension Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "Jul 02, 2013",
+      "offer": 1411.2262,
+      "repurchase": 1411.2262,
+      "nav": 1411.2262,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 1411.2262,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-money-market": {
+      "id": "MF:nbp-fund-management-limited-nafa-pension-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NAFA Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jul 02, 2013",
+      "offer": 350.6216,
+      "repurchase": 350.6216,
+      "nav": 350.6216,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 350.6216,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-balochistan-pension-fund-vps-money-market": {
+      "id": "MF:nbp-fund-management-limited-nbp-balochistan-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NBP Balochistan Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Aug 11, 2026",
+      "offer": 101.2369,
+      "repurchase": 101.2369,
+      "nav": 101.2369,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 101.2369,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-gokp-pension-fund-vps-money-market": {
+      "id": "MF:nbp-fund-management-limited-nbp-gokp-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NBP GoKP Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 13, 2023",
+      "offer": 145.6824,
+      "repurchase": 145.6824,
+      "nav": 145.6824,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 145.6824,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-punjab-pension-fund-vps-money-market": {
+      "id": "MF:nbp-fund-management-limited-nbp-punjab-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NBP Punjab Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Jan 14, 2026",
+      "offer": 107.598,
+      "repurchase": 107.598,
+      "nav": 107.598,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 107.598,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-balanced-fund-balanced": {
@@ -5323,6 +7483,22 @@
       "prevNav": 10.25,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:nbp-fund-management-limited-nbp-pakistan-growth-exchange-traded-fund-exchange-traded-fund": {
+      "id": "MF:nbp-fund-management-limited-nbp-pakistan-growth-exchange-traded-fund-exchange-traded-fund",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "NBP Fund Management Limited",
+      "fundName": "NBP Pakistan Growth Exchange Traded Fund",
+      "category": "Exchange Traded Fund",
+      "inceptionDate": "Oct 06, 2020",
+      "offer": 25.7022,
+      "repurchase": 25.7022,
+      "nav": 25.7022,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 25.642,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:nbp-fund-management-limited-nbp-riba-free-savings-fund-shariah-compliant-income": {
       "id": "MF:nbp-fund-management-limited-nbp-riba-free-savings-fund-shariah-compliant-income",
       "sector": "Open-End Funds",
@@ -5551,7 +7727,7 @@
       "id": "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-i-pqaap-ia-shariah-co",
       "sector": "Open-End Funds",
       "amc": "Pak-Qatar Asset Management Company Limited",
-      "fundName": "Pak Qatar Asset Allocation Plan I (PQAAP  IA)",
+      "fundName": "Pak Qatar Asset Allocation Plan I (PQAAP IA)",
       "category": "Shariah Compliant Asset Allocation",
       "inceptionDate": "Aug 18, 2023",
       "offer": 125.7001,
@@ -5567,7 +7743,7 @@
       "id": "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-ii-pqaap-iia-shariah-",
       "sector": "Open-End Funds",
       "amc": "Pak-Qatar Asset Management Company Limited",
-      "fundName": "Pak Qatar Asset Allocation Plan II (PQAAP  IIA)",
+      "fundName": "Pak Qatar Asset Allocation Plan II (PQAAP IIA)",
       "category": "Shariah Compliant Asset Allocation",
       "inceptionDate": "Aug 18, 2023",
       "offer": 122.6422,
@@ -5663,7 +7839,7 @@
       "id": "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-iii-pqaap-iiia-sharia",
       "sector": "Open-End Funds",
       "amc": "Pak-Qatar Asset Management Company Limited",
-      "fundName": "Pak-Qatar Asset Allocation Plan III (PQAAP  IIIA)",
+      "fundName": "Pak-Qatar Asset Allocation Plan III (PQAAP IIIA)",
       "category": "Shariah Compliant Asset Allocation",
       "inceptionDate": "Sep 24, 2024",
       "offer": 138.8776,
@@ -5673,6 +7849,262 @@
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 133.2078,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "id": "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Pak-Qatar Family Takaful Limited",
+      "fundName": "Pak Qatar Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "Dec 01, 2022",
+      "offer": 180.0279,
+      "repurchase": 174.0241,
+      "nav": 174.0241,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 174.0734,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "id": "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Pak-Qatar Family Takaful Limited",
+      "fundName": "Pak Qatar Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "Dec 01, 2022",
+      "offer": 322.578,
+      "repurchase": 311.8202,
+      "nav": 311.8202,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 309.8715,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-gob-islamic-pension-fund-vps-shariah-compliant-money-": {
+      "id": "MF:pak-qatar-family-takaful-limited-pak-qatar-gob-islamic-pension-fund-vps-shariah-compliant-money-",
+      "sector": "Employer Pension Funds",
+      "amc": "Pak-Qatar Family Takaful Limited",
+      "fundName": "Pak Qatar GoB Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jul 13, 2026",
+      "offer": 104.1733,
+      "repurchase": 100.6991,
+      "nav": 100.6991,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 100.6688,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-gokp-islamic-pension-fund-vps-shariah-compliant-money": {
+      "id": "MF:pak-qatar-family-takaful-limited-pak-qatar-gokp-islamic-pension-fund-vps-shariah-compliant-money",
+      "sector": "Employer Pension Funds",
+      "amc": "Pak-Qatar Family Takaful Limited",
+      "fundName": "Pak Qatar GoKP Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 12, 2025",
+      "offer": 110.9846,
+      "repurchase": 107.2833,
+      "nav": 107.2833,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 107.248,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-gopb-islamic-pension-fund-vps-shariah-compliant-money": {
+      "id": "MF:pak-qatar-family-takaful-limited-pak-qatar-gopb-islamic-pension-fund-vps-shariah-compliant-money",
+      "sector": "Employer Pension Funds",
+      "amc": "Pak-Qatar Family Takaful Limited",
+      "fundName": "Pak Qatar GoPB Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Jan 09, 2026",
+      "offer": 110.1201,
+      "repurchase": 106.4476,
+      "nav": 106.4476,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 106.4161,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-money-mark": {
+      "id": "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-money-mark",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "Pak-Qatar Family Takaful Limited",
+      "fundName": "Pak Qatar Islamic Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 01, 2022",
+      "offer": 176.466,
+      "repurchase": 170.581,
+      "nav": 170.581,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 170.5661,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-debt": {
+      "id": "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "Al Ameen Islamic Retirement Savings Fund",
+      "category": "VPS-Shariah Compliant Debt",
+      "inceptionDate": "May 19, 2010",
+      "offer": 388.4457,
+      "repurchase": 388.4457,
+      "nav": 388.4457,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 388.0832,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-equity": {
+      "id": "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "Al Ameen Islamic Retirement Savings Fund",
+      "category": "VPS-Shariah Compliant Equity",
+      "inceptionDate": "May 19, 2010",
+      "offer": 2883.5278,
+      "repurchase": 2883.5278,
+      "nav": 2883.5278,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 2863.8117,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-punjab-pension-fund-vps-shariah-compliant-money-marke": {
+      "id": "MF:ubl-fund-managers-limited-al-ameen-islamic-punjab-pension-fund-vps-shariah-compliant-money-marke",
+      "sector": "Employer Pension Funds",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "Al Ameen Islamic Punjab Pension Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 24, 2025",
+      "offer": 104.9437,
+      "repurchase": 104.9437,
+      "nav": 104.9437,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 104.9219,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-money-m": {
+      "id": "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-money-m",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "Al Ameen Islamic Retirement Savings Fund",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "May 19, 2010",
+      "offer": 374.6236,
+      "repurchase": 374.6236,
+      "nav": 374.6236,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 374.5333,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-voluntary-pension-fund-kpk-vps-shariah-compliant-money-market": {
+      "id": "MF:ubl-fund-managers-limited-al-ameen-voluntary-pension-fund-kpk-vps-shariah-compliant-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "Al Ameen Voluntary Pension Fund KPK",
+      "category": "VPS-Shariah Compliant Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 138.0886,
+      "repurchase": 138.0886,
+      "nav": 138.0886,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 138.0478,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-debt": {
+      "id": "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-debt",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "UBL Retirement Saving Fund",
+      "category": "VPS-Debt",
+      "inceptionDate": "May 19, 2010",
+      "offer": 575.8793,
+      "repurchase": 575.8793,
+      "nav": 575.8793,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 575.6378,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-equity": {
+      "id": "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-equity",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "UBL Retirement Saving Fund",
+      "category": "VPS-Equity",
+      "inceptionDate": "May 19, 2010",
+      "offer": 3458.1424,
+      "repurchase": 3458.1424,
+      "nav": 3458.1424,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 3438.8159,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-punjab-pension-fund-vps-money-market": {
+      "id": "MF:ubl-fund-managers-limited-ubl-punjab-pension-fund-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "UBL Punjab Pension Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 24, 2025",
+      "offer": 107.7065,
+      "repurchase": 107.7065,
+      "nav": 107.7065,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 107.6664,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-money-market": {
+      "id": "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-money-market",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "UBL Retirement Saving Fund",
+      "category": "VPS-Money Market",
+      "inceptionDate": "May 19, 2010",
+      "offer": 443.123,
+      "repurchase": 443.123,
+      "nav": 443.123,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 442.9964,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-voluntary-pension-fund-kpk-vps-money-market": {
+      "id": "MF:ubl-fund-managers-limited-ubl-voluntary-pension-fund-kpk-vps-money-market",
+      "sector": "Employer Pension Funds",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "UBL Voluntary Pension Fund KPK",
+      "category": "VPS-Money Market",
+      "inceptionDate": "Dec 14, 2023",
+      "offer": 146.3843,
+      "repurchase": 146.3843,
+      "nav": 146.3843,
+      "validityDate": "Sep 23, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 146.3432,
       "prevValidityDate": "Sep 22, 2026"
     },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-aggressive-income-fund-shariah-compliant-aggressive-f": {
@@ -5995,6 +8427,38 @@
       "prevNav": 103.6712,
       "prevValidityDate": "Sep 22, 2026"
     },
+    "MF:ubl-fund-managers-limited-ubl-pakistan-enterprise-exchange-traded-fund-exchange-traded-fund": {
+      "id": "MF:ubl-fund-managers-limited-ubl-pakistan-enterprise-exchange-traded-fund-exchange-traded-fund",
+      "sector": "Exchange Traded Fund (ETF)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "UBL Pakistan Enterprise Exchange Traded Fund",
+      "category": "Exchange Traded Fund",
+      "inceptionDate": "Mar 24, 2020",
+      "offer": 28.631,
+      "repurchase": 28.631,
+      "nav": 28.631,
+      "validityDate": "Sep 24, 2026",
+      "frontEndLoad": 0,
+      "backEndLoad": 0,
+      "prevNav": 28.4296,
+      "prevValidityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-commodities-gold": {
+      "id": "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-commodities-gold",
+      "sector": "Voluntary Pension Scheme (VPS)",
+      "amc": "UBL Fund Managers Limited",
+      "fundName": "UBL Retirement Saving Fund",
+      "category": "VPS-Commodities / Gold",
+      "inceptionDate": "Apr 21, 2014",
+      "offer": 428.08,
+      "repurchase": 428.08,
+      "nav": 428.08,
+      "validityDate": "Sep 22, 2026",
+      "frontEndLoad": 3,
+      "backEndLoad": 0,
+      "prevNav": 428.08,
+      "prevValidityDate": "Sep 22, 2026"
+    },
     "MF:ubl-fund-managers-limited-ubl-special-savings-plan-x-capital-protected-income": {
       "id": "MF:ubl-fund-managers-limited-ubl-special-savings-plan-x-capital-protected-income",
       "sector": "Open-End Funds",
@@ -6037,6 +8501,66 @@
     "MF:786-investments-limited-786-smart-fund-shariah-compliant-income": {
       "nav": 86.1279,
       "repurchase": 86.1279,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 236.0526,
+      "repurchase": 236.0526,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 585.5151,
+      "repurchase": 585.5151,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gob-islamic-pension-fund-vps-shariah-compliant-money-ma": {
+      "nav": 101.061,
+      "repurchase": 101.061,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gokp-islamic-pension-fund-vps-shariah-compliant-money-m": {
+      "nav": 127.3631,
+      "repurchase": 127.3631,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gopb-islamic-pension-fund-vps-shariah-compliant-money-m": {
+      "nav": 105.8703,
+      "repurchase": 105.8703,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 239.6033,
+      "repurchase": 239.6033,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-debt": {
+      "nav": 390.6509,
+      "repurchase": 390.6509,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-equity": {
+      "nav": 630.6991,
+      "repurchase": 630.6991,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gob-pension-fund-vps-money-market": {
+      "nav": 101.5284,
+      "repurchase": 101.5284,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gokp-pension-fund-vps-money-market": {
+      "nav": 135.6933,
+      "repurchase": 135.6933,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-gopb-pension-fund-vps-money-market": {
+      "nav": 108.153,
+      "repurchase": 108.153,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-money-market": {
+      "nav": 295.3238,
+      "repurchase": 295.3238,
       "validityDate": "Sep 22, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-cash-fund-money-market": {
@@ -6087,6 +8611,11 @@
     "MF:abl-asset-management-company-limited-abl-islamic-cash-fund-shariah-compliant-money-market": {
       "nav": 10.2747,
       "repurchase": 10.2747,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-dedicated-stock-fund-shariah-compliant-dedicate": {
+      "nav": 16.8302,
+      "repurchase": 16.8302,
       "validityDate": "Sep 22, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-active-allocation-plan-": {
@@ -6219,6 +8748,46 @@
       "repurchase": 35,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 171.6338,
+      "repurchase": 171.6338,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 440.9159,
+      "repurchase": 440.9159,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-gokp-islamic-pension-fund-vps-shariah-compliant-money": {
+      "nav": 137.9524,
+      "repurchase": 137.9524,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-money-mark": {
+      "nav": 170.5253,
+      "repurchase": 170.5253,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-debt": {
+      "nav": 191.3288,
+      "repurchase": 191.3288,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-equity": {
+      "nav": 514.8782,
+      "repurchase": 514.8782,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-gokp-pension-fund-vps-money-market": {
+      "nav": 143.6832,
+      "repurchase": 143.6832,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-money-market": {
+      "nav": 186.9008,
+      "repurchase": 186.9008,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:al-habib-asset-management-limited-al-habib-asset-allocation-fund-asset-allocation": {
       "nav": 101.4077,
       "repurchase": 101.4077,
@@ -6329,6 +8898,36 @@
       "repurchase": 149.0307,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 539.8748,
+      "repurchase": 539.8748,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-equit": {
+      "nav": 1759.6345,
+      "repurchase": 1759.6345,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-gokp-pension-fund-vps-shariah-compliant-money-mar": {
+      "nav": 147.3457,
+      "repurchase": 147.3457,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-balochistan-pension-fund-vp": {
+      "nav": 109.3557,
+      "repurchase": 109.3557,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-punjab-pension-fund-vps-sha": {
+      "nav": 109.3557,
+      "repurchase": 109.3557,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-money": {
+      "nav": 538.9967,
+      "repurchase": 538.9967,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:al-meezan-investment-management-limited-al-meezan-mutual-fund-shariah-compliant-equity": {
       "nav": 48.8341,
       "repurchase": 48.8341,
@@ -6384,6 +8983,11 @@
       "repurchase": 51.7344,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:al-meezan-investment-management-limited-meezan-dedicated-equity-fund-shariah-compliant-dedicated": {
+      "nav": 92.5517,
+      "repurchase": 92.5517,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:al-meezan-investment-management-limited-meezan-dynamic-asset-allocation-fund-meezan-dividend-yie": {
       "nav": 82.7385,
       "repurchase": 82.7385,
@@ -6419,6 +9023,11 @@
       "repurchase": 53.1128,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:al-meezan-investment-management-limited-meezan-pakistan-etf-shariah-compliant-exchange-traded-fu": {
+      "nav": 17.3775,
+      "repurchase": 17.3775,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:al-meezan-investment-management-limited-meezan-rozana-amdani-fund-shariah-compliant-money-market": {
       "nav": 50,
       "repurchase": 50,
@@ -6429,6 +9038,71 @@
       "repurchase": 53.573,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-commo": {
+      "nav": 532.2133,
+      "repurchase": 532.2133,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 222.2768,
+      "repurchase": 222.2768,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 317.5424,
+      "repurchase": 317.5424,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-balochistan-islamic-pension-fund-vps-shariah-compliant-": {
+      "nav": 101.5695,
+      "repurchase": 101.5695,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-money-ma": {
+      "nav": 229.9945,
+      "repurchase": 229.9945,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-gopb-islamic-pension-fund-vps-shariah-compliant-money-m": {
+      "nav": 103.6479,
+      "repurchase": 103.6479,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-islamic-kpk-employee-pension-fund-vps-shariah-compliant": {
+      "nav": 136.9479,
+      "repurchase": 136.9479,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-debt": {
+      "nav": 256.2258,
+      "repurchase": 256.2258,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-equity": {
+      "nav": 325.4087,
+      "repurchase": 325.4087,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-balochistan-pension-fund-vps-money-market": {
+      "nav": 101.5631,
+      "repurchase": 101.5631,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-money-market": {
+      "nav": 262.6421,
+      "repurchase": 262.6421,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-gopb-pension-fund-vps-money-market": {
+      "nav": 106.022,
+      "repurchase": 106.022,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-kpk-employee-pension-fund-vps-money-market": {
+      "nav": 142.3013,
+      "repurchase": 142.3013,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:alfalah-asset-management-limited-alfalah-asset-allocation-fund-asset-allocation": {
       "nav": 61.677,
       "repurchase": 61.677,
@@ -6437,6 +9111,11 @@
     "MF:alfalah-asset-management-limited-alfalah-cash-fund-ii-money-market": {
       "nav": 105.6049,
       "repurchase": 105.6049,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-consumer-index-exchange-traded-fund-exchange-traded-fun": {
+      "nav": 16.6092,
+      "repurchase": 16.6092,
       "validityDate": "Sep 22, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-financial-sector-income-fund-income": {
@@ -6469,6 +9148,11 @@
       "repurchase": 518.3713,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-dedicated-equity-fund-dedicated-equity": {
+      "nav": 197.2576,
+      "repurchase": 197.2576,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:alfalah-asset-management-limited-alfalah-ghp-income-fund-income": {
       "nav": 117.2982,
       "repurchase": 117.2982,
@@ -6477,6 +9161,11 @@
     "MF:alfalah-asset-management-limited-alfalah-ghp-income-multiplier-fund-aggressive-fixed-income": {
       "nav": 56.1739,
       "repurchase": 56.1739,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-dedicated-equity-fund-shariah-compliant-ded": {
+      "nav": 114.1552,
+      "repurchase": 114.1552,
       "validityDate": "Sep 22, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-income-fund-shariah-compliant-income": {
@@ -6669,6 +9358,61 @@
       "repurchase": 102.3309,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-debt": {
+      "nav": 497.6,
+      "repurchase": 497.6,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-equity": {
+      "nav": 2639.37,
+      "repurchase": 2639.37,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-balochistan-islamic-pension-fund-vps-shariah-compliant-mone": {
+      "nav": 100.2096,
+      "repurchase": 100.2096,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 142.9182,
+      "repurchase": 142.9182,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-money-market": {
+      "nav": 526.06,
+      "repurchase": 526.06,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-punjab-islamic-pension-fund-vps-shariah-compliant-money-mar": {
+      "nav": 109.9527,
+      "repurchase": 109.9527,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-debt": {
+      "nav": 680.7,
+      "repurchase": 680.7,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-equity": {
+      "nav": 2434.3,
+      "repurchase": 2434.3,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-balochistan-pension-fund-vps-money-market": {
+      "nav": 100.2134,
+      "repurchase": 100.2134,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-money-market": {
+      "nav": 632.43,
+      "repurchase": 632.43,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-punjab-pension-fund-vps-money-market": {
+      "nav": 108.7972,
+      "repurchase": 108.7972,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity": {
       "nav": 93.7443,
       "repurchase": 93.7443,
@@ -6692,6 +9436,11 @@
     "MF:atlas-asset-management-limited-atlas-islamic-cash-fund-shariah-compliant-money-market": {
       "nav": 516.0104,
       "repurchase": 516.0104,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:atlas-asset-management-limited-atlas-islamic-dedicated-stock-fund-shariah-compliant-dedicated-eq": {
+      "nav": 1550.349,
+      "repurchase": 1550.349,
       "validityDate": "Sep 22, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-energy-fund-shariah-compliant-equity": {
@@ -6749,6 +9498,26 @@
       "repurchase": 2067.7995,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 117.5512,
+      "repurchase": 117.5512,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 126.673,
+      "repurchase": 126.673,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 116.234,
+      "repurchase": 116.234,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:awt-investments-limited-awt-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 100.6478,
+      "repurchase": 100.6478,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:awt-investments-limited-awt-islamic-asset-allocation-fund-shariah-compliant-asset-allocation": {
       "nav": 168.2796,
       "repurchase": 168.2796,
@@ -6782,6 +9551,46 @@
     "MF:bma-investment-advisors-limited-bma-stock-fund-equity": {
       "nav": 100.0616,
       "repurchase": 100.0616,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 103,
+      "repurchase": 103,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 90,
+      "repurchase": 90,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 106,
+      "repurchase": 106,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 186.6826,
+      "repurchase": 186.6826,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 349.6516,
+      "repurchase": 349.6516,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-kpk-government-pension-fund-vps-shariah-compliant": {
+      "nav": 138.5945,
+      "repurchase": 138.5945,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 192.7779,
+      "repurchase": 192.7779,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-punjab-pension-fund-vps-shariah-compliant-money-m": {
+      "nav": 105.8014,
+      "repurchase": 105.8014,
       "validityDate": "Sep 22, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-halal-amdani-fund-shariah-compliant-money-market": {
@@ -6822,6 +9631,11 @@
     "MF:faysal-asset-management-limited-faysal-islamic-cash-fund-shariah-compliant-money-market": {
       "nav": 102.7267,
       "repurchase": 102.7267,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-islamic-dedicated-equity-fund-shariah-compliant-dedicated": {
+      "nav": 114.093,
+      "repurchase": 114.093,
       "validityDate": "Sep 22, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-financial-growth-fund-faysal-islamic-financial-gr": {
@@ -6887,6 +9701,56 @@
     "MF:first-capital-investments-limited-first-capital-mutual-fund-equity": {
       "nav": 16.878,
       "repurchase": 16.878,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 349.2126,
+      "repurchase": 349.2126,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 1236.2571,
+      "repurchase": 1236.2571,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 331.488,
+      "repurchase": 331.488,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 104.2469,
+      "repurchase": 104.2469,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 139.1922,
+      "repurchase": 139.1922,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-debt": {
+      "nav": 452.6904,
+      "repurchase": 452.6904,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-equity": {
+      "nav": 1125.4526,
+      "repurchase": 1125.4526,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-kpk-pension-fund-vps-money-market": {
+      "nav": 143.0547,
+      "repurchase": 143.0547,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-money-market": {
+      "nav": 381.2861,
+      "repurchase": 381.2861,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:hbl-asset-management-limited-hbl-punjab-pension-fund-vps-money-market": {
+      "nav": 104.2455,
+      "repurchase": 104.2455,
       "validityDate": "Sep 22, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-cash-fund-money-market": {
@@ -7024,6 +9888,86 @@
       "repurchase": 229.9904,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:hbl-asset-management-limited-hbl-total-treasury-exchange-traded-fund-exchange-traded-fund": {
+      "nav": 106.2396,
+      "repurchase": 106.2396,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-debt": {
+      "nav": 11.4312,
+      "repurchase": 11.4312,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-equity": {
+      "nav": 12.2598,
+      "repurchase": 12.2598,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-money-marke": {
+      "nav": 11.3031,
+      "repurchase": 11.3031,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-debt": {
+      "nav": 452.4328,
+      "repurchase": 452.4328,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-equity": {
+      "nav": 1818.7404,
+      "repurchase": 1818.7404,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-balochistan-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 100.9453,
+      "repurchase": 100.9453,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-money-market": {
+      "nav": 437.8716,
+      "repurchase": 437.8716,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 143.33,
+      "repurchase": 143.33,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-punjab-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 101.4938,
+      "repurchase": 101.4938,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-pension-savings-fund-vps-debt": {
+      "nav": 619.49,
+      "repurchase": 619.49,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-pension-savings-fund-vps-equity": {
+      "nav": 1735.6,
+      "repurchase": 1735.6,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-balochistan-pension-fund-vps-money-market": {
+      "nav": 101.7032,
+      "repurchase": 101.7032,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-kpk-pension-fund-vps-money-market": {
+      "nav": 145.51,
+      "repurchase": 145.51,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-pension-savings-fund-vps-money-market": {
+      "nav": 512.01,
+      "repurchase": 512.01,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:js-investments-limited-js-punjab-pension-fund-vps-money-market": {
+      "nav": 104.6119,
+      "repurchase": 104.6119,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:js-investments-limited-js-cash-fund-money-market": {
       "nav": 109.1798,
       "repurchase": 109.1798,
@@ -7114,6 +10058,11 @@
       "repurchase": 123.9776,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:js-investments-limited-js-momentum-factor-exchange-traded-fund-exchange-traded-fund": {
+      "nav": 10.5607,
+      "repurchase": 10.5607,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:js-investments-limited-js-money-market-fund-money-market": {
       "nav": 124.8002,
       "repurchase": 124.8002,
@@ -7157,6 +10106,26 @@
     "MF:lakson-investments-limited-lakson-tactical-fund-asset-allocation": {
       "nav": 102.2134,
       "repurchase": 102.2134,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 108.7547,
+      "repurchase": 108.7547,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 106.6869,
+      "repurchase": 106.6869,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 108.6727,
+      "repurchase": 108.6727,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:lucky-investments-limited-lucky-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 107.4414,
+      "repurchase": 107.4414,
       "validityDate": "Sep 22, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-cash-fund-shariah-compliant-money-market": {
@@ -7204,6 +10173,11 @@
       "repurchase": 102.8107,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-commodities-gold": {
+      "nav": 102.3619,
+      "repurchase": 102.3619,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:lucky-investments-limited-lucky-islamic-stock-fund-shariah-compliant-equity": {
       "nav": 130.47,
       "repurchase": 130.47,
@@ -7217,6 +10191,61 @@
     "MF:mahaana-wealth-limited-mahaana-islamic-gold-fund-shariah-compliant-commodities": {
       "nav": 9.9533,
       "repurchase": 9.9533,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mahaana-wealth-limited-mahaana-islamic-index-exchange-traded-fund-shariah-compliant-exchange-tra": {
+      "nav": 16.19,
+      "repurchase": 16.19,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 476.33,
+      "repurchase": 476.33,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 2107.73,
+      "repurchase": 2107.73,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-pension-fund-vps-shariah-compliant-money-marke": {
+      "nav": 440.94,
+      "repurchase": 440.94,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-punjab-pension-fund-vps-shariah-compliant-mone": {
+      "nav": 107.1676,
+      "repurchase": 107.1676,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-mcb-alhamra-kpk-govt-employees-pension-fund-vps-shariah-compli": {
+      "nav": 142.3984,
+      "repurchase": 142.3984,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-debt": {
+      "nav": 662.02,
+      "repurchase": 662.02,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-equity": {
+      "nav": 2401.14,
+      "repurchase": 2401.14,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-mcb-kpk-govt-employees-pension-fund-vps-money-market": {
+      "nav": 144.8545,
+      "repurchase": 144.8545,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-mcb-punjab-pension-fund-vps-money-market": {
+      "nav": 108.3905,
+      "repurchase": 108.3905,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:mcb-investment-management-limited-pakistan-pension-fund-vps-money-market": {
+      "nav": 574.19,
+      "repurchase": 574.19,
       "validityDate": "Sep 22, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-cash-management-optimizer-shariah-compliant-money-mark": {
@@ -7374,6 +10403,46 @@
       "repurchase": 56.6894,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 26.8487,
+      "repurchase": 26.8487,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 31.8366,
+      "repurchase": 31.8366,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 26.6085,
+      "repurchase": 26.6085,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-kp-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 138.7294,
+      "repurchase": 138.7294,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-debt": {
+      "nav": 30.9109,
+      "repurchase": 30.9109,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-equity": {
+      "nav": 33.2472,
+      "repurchase": 33.2472,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-kp-pension-fund-vps-money-market": {
+      "nav": 142.9767,
+      "repurchase": 142.9767,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-money-market": {
+      "nav": 30.1392,
+      "repurchase": 30.1392,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:national-investment-trust-limited-national-investment-unit-trust-equity": {
       "nav": 147.11,
       "repurchase": 147.11,
@@ -7414,9 +10483,79 @@
       "repurchase": 10.0113,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:national-investment-trust-limited-nit-pakistan-gateway-exchange-traded-fund-exchange-traded-fund": {
+      "nav": 33.0968,
+      "repurchase": 33.0968,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:national-investment-trust-limited-nit-pension-fund-vps-commodities-gold": {
+      "nav": 51.6002,
+      "repurchase": 51.6002,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:national-investment-trust-limited-nit-social-impact-fund-income": {
       "nav": 10.595,
       "repurchase": 10.595,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 305.695,
+      "repurchase": 305.695,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 1215.0863,
+      "repurchase": 1215.0863,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 312.0809,
+      "repurchase": 312.0809,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-gokp-islamic-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 143.5022,
+      "repurchase": 143.5022,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-islamic-balochistan-pension-fund-vps-shariah-compliant-money-mar": {
+      "nav": 101.2207,
+      "repurchase": 101.2207,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
+      "nav": 107.1418,
+      "repurchase": 107.1418,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-debt": {
+      "nav": 408.9125,
+      "repurchase": 408.9125,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-equity": {
+      "nav": 1411.2262,
+      "repurchase": 1411.2262,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-money-market": {
+      "nav": 350.6216,
+      "repurchase": 350.6216,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-balochistan-pension-fund-vps-money-market": {
+      "nav": 101.2369,
+      "repurchase": 101.2369,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-gokp-pension-fund-vps-money-market": {
+      "nav": 145.6824,
+      "repurchase": 145.6824,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:nbp-fund-management-limited-nbp-punjab-pension-fund-vps-money-market": {
+      "nav": 107.598,
+      "repurchase": 107.598,
       "validityDate": "Sep 22, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-balanced-fund-balanced": {
@@ -7594,6 +10733,11 @@
       "repurchase": 10.25,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:nbp-fund-management-limited-nbp-pakistan-growth-exchange-traded-fund-exchange-traded-fund": {
+      "nav": 25.642,
+      "repurchase": 25.642,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:nbp-fund-management-limited-nbp-riba-free-savings-fund-shariah-compliant-income": {
       "nav": 10.631,
       "repurchase": 10.631,
@@ -7704,6 +10848,86 @@
       "repurchase": 133.2078,
       "validityDate": "Sep 22, 2026"
     },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-debt": {
+      "nav": 174.0734,
+      "repurchase": 174.0734,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-equity": {
+      "nav": 309.8715,
+      "repurchase": 309.8715,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-gob-islamic-pension-fund-vps-shariah-compliant-money-": {
+      "nav": 100.6688,
+      "repurchase": 100.6688,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-gokp-islamic-pension-fund-vps-shariah-compliant-money": {
+      "nav": 107.248,
+      "repurchase": 107.248,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-gopb-islamic-pension-fund-vps-shariah-compliant-money": {
+      "nav": 106.4161,
+      "repurchase": 106.4161,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-money-mark": {
+      "nav": 170.5661,
+      "repurchase": 170.5661,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-debt": {
+      "nav": 388.0832,
+      "repurchase": 388.0832,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-equity": {
+      "nav": 2863.8117,
+      "repurchase": 2863.8117,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-punjab-pension-fund-vps-shariah-compliant-money-marke": {
+      "nav": 104.9219,
+      "repurchase": 104.9219,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-money-m": {
+      "nav": 374.5333,
+      "repurchase": 374.5333,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-al-ameen-voluntary-pension-fund-kpk-vps-shariah-compliant-money-market": {
+      "nav": 138.0478,
+      "repurchase": 138.0478,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-debt": {
+      "nav": 575.6378,
+      "repurchase": 575.6378,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-equity": {
+      "nav": 3438.8159,
+      "repurchase": 3438.8159,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-punjab-pension-fund-vps-money-market": {
+      "nav": 107.6664,
+      "repurchase": 107.6664,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-money-market": {
+      "nav": 442.9964,
+      "repurchase": 442.9964,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-voluntary-pension-fund-kpk-vps-money-market": {
+      "nav": 146.3432,
+      "repurchase": 146.3432,
+      "validityDate": "Sep 22, 2026"
+    },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-aggressive-income-fund-shariah-compliant-aggressive-f": {
       "nav": 103.4373,
       "repurchase": 103.4373,
@@ -7802,6 +11026,16 @@
     "MF:ubl-fund-managers-limited-ubl-money-market-fund-money-market": {
       "nav": 103.6712,
       "repurchase": 103.6712,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-pakistan-enterprise-exchange-traded-fund-exchange-traded-fund": {
+      "nav": 28.4296,
+      "repurchase": 28.4296,
+      "validityDate": "Sep 22, 2026"
+    },
+    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-commodities-gold": {
+      "nav": 428.08,
+      "repurchase": 428.08,
       "validityDate": "Sep 22, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-special-savings-plan-x-capital-protected-income": {
