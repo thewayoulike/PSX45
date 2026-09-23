@@ -37,6 +37,13 @@ describe('audit regressions', () => {
     ])).toBe(1200);
   });
 
+  it('credits a same-day sale that is listed before its buy', () => {
+    expect(oversellCashCredit([
+      { type: 'SELL', ticker: 'OGDC', quantity: 100, price: 12, date: '2026-01-01' },
+      { type: 'BUY', ticker: 'OGDC', quantity: 100, price: 10, date: '2026-01-01' },
+    ])).toBe(1200);
+  });
+
   it('still credits a sale of shares that arrived by transfer', () => {
     expect(oversellCashCredit([
       { type: 'TRANSFER_IN', ticker: 'OGDC', quantity: 100, price: 10, date: '2026-01-01' },
