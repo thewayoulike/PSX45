@@ -102,9 +102,11 @@ function GainForm({ onResult }: { onResult: (text: string) => void }) {
         sold: String(data.get('sold') || ''),
         onAtl: String(data.get('onAtl') || 'yes') !== 'no',
       });
-      onResult(row.error
-        ? row.error
-        : `${row.band}. ${row.onAtl ? 'On the Active Taxpayers List' : 'Not on the Active Taxpayers List'}: ${money(row.rate)}%, tax Rs. ${money(row.tax)}, after tax Rs. ${money(row.net)}. Filer tax Rs. ${money(row.filer.tax)} at ${money(row.filer.rate)}%. Non-filer tax Rs. ${money(row.nonFiler.tax)} at ${money(row.nonFiler.rate)}%. Gain Rs. ${money(row.gain)}. NCCPL collects on the year’s net gains. Super tax is not included.`);
+      if ('error' in row) {
+        onResult(row.error);
+        return;
+      }
+      onResult(`${row.band}. ${row.onAtl ? 'On the Active Taxpayers List' : 'Not on the Active Taxpayers List'}: ${money(row.rate)}%, tax Rs. ${money(row.tax)}, after tax Rs. ${money(row.net)}. Filer tax Rs. ${money(row.filer.tax)} at ${money(row.filer.rate)}%. Non-filer tax Rs. ${money(row.nonFiler.tax)} at ${money(row.nonFiler.rate)}%. Gain Rs. ${money(row.gain)}. NCCPL collects on the year’s net gains. Super tax is not included.`);
     }}>
       <Field label="Quantity"><TextInput name="quantity" type="number" inputMode="decimal" step="any" required /></Field>
       <Field label="Buy price"><TextInput name="buyPrice" type="number" inputMode="decimal" step="any" required /></Field>
