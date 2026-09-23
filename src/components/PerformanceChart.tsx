@@ -13,6 +13,7 @@ import {
 import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
 import { formatDatePK } from '../utils/dates';
+import { holdingsDailyReturn } from '../utils/holdingsDailyReturn';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -74,35 +75,6 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
     });
 
     return validHoldings;
-  };
-
-  const getAvgCostOnDate = (dateStr: string) => {
-    const costAgg: Record<string, { qty: number; cost: number }> = {};
-    const orderedTx = [...transactions]
-      .filter(t => t.date <= dateStr)
-      .sort((a, b) => {
-        const d = a.date.localeCompare(b.date);
-        if (d !== 0) return d;
-        return Date.parse(a.createdAt || '0') - Date.parse(b.createdAt || '0');
-      });
-    orderedTx.forEach(t => {
-      if (t.type === 'BUY' || t.type === 'TRANSFER_IN') {
-        const c = (costAgg[t.ticker] ||= { qty: 0, cost: 0 });
-        const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-        c.qty += t.quantity;
-        c.cost += t.quantity * t.price + fees;
-      } else if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') {
-        const c = costAgg[t.ticker];
-        if (!c || c.qty <= 0) return;
-        const avg = c.cost / c.qty;
-        const q = Math.min(t.quantity, c.qty);
-        c.qty -= q;
-        c.cost -= avg * q;
-      }
-    });
-    const avgCostByTicker: Record<string, number> = {};
-    Object.entries(costAgg).forEach(([tk, c]) => { avgCostByTicker[tk] = c.qty > 0 ? c.cost / c.qty : 0; });
-    return avgCostByTicker;
   };
 
   const handleFetchAndCalculate = async () => {
@@ -167,34 +139,21 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
             }
         }
         
-        const heldBalances = getHeldBalancesOnDate(dateStr);
-        const avgCostByTicker = getAvgCostOnDate(dateStr);
-        let yesterdayTotalValue = 0;
-        let todayTotalValue = 0;
-        let dayCostBasis = 0;
+        const heldAtPriorClose = getHeldBalancesOnDate(prevKse.dateStr);
+        const prevClose: Record<string, number> = {};
+        const close: Record<string, number> = {};
         let validStockCount = 0;
-        
-        Object.entries(heldBalances).forEach(([ticker, qty]) => {
+        Object.keys(heldAtPriorClose).forEach((ticker) => {
             const stockHist = historyData[ticker];
-            if (stockHist && stockHist.length > 0) {
-                const todayIdx = stockHist.findIndex(d => d.dateStr === dateStr);
-                if (todayIdx > 0) {
-                    const todayPrice = stockHist[todayIdx].price;
-                    const prevPrice = stockHist[todayIdx - 1].price;
-
-                    yesterdayTotalValue += (prevPrice * qty);
-                    todayTotalValue += (todayPrice * qty);
-                    dayCostBasis += (avgCostByTicker[ticker] || 0) * qty;
-                    validStockCount++;
-                }
-            }
+            if (!stockHist || stockHist.length === 0) return;
+            const todayIdx = stockHist.findIndex(d => d.dateStr === dateStr);
+            if (todayIdx <= 0) return;
+            prevClose[ticker] = stockHist[todayIdx - 1].price;
+            close[ticker] = stockHist[todayIdx].price;
+            validStockCount++;
         });
-        
-        let portfolioChange = 0;
-        // Daily P&L as % of invested cost — same method as the Today's P&L card.
-        if (dayCostBasis > 0) {
-            portfolioChange = ((todayTotalValue - yesterdayTotalValue) / dayCostBasis) * 100;
-        }
+        const dayReturn = holdingsDailyReturn(heldAtPriorClose, prevClose, close);
+        const portfolioChange = dayReturn ?? 0;
         
         if (!isNaN(kseChange) && !isNaN(portfolioChange)) {
             newChartData.push({
@@ -292,14 +251,14 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
                 formatter={(value: number, name: string) => [
                   <span className="font-mono">{value}%</span>,
-                  name === 'Portfolio' ? 'Portfolio Avg' : name === 'KSE100' ? 'KSE-100' : 'KMI-30'
+                  name === 'Holdings' || name === 'Portfolio' ? 'Your holdings' : name === 'KSE100' ? 'KSE-100' : 'KMI-30'
                 ]}
                 labelStyle={{ fontWeight: '900', color: '#0f172a', marginBottom: '6px', fontSize: '13px' }}
                 itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
               />
               <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '15px' }} />
 
-              <Line isAnimationActive={!compact && !reduceMotion} type="monotone" name="Portfolio" dataKey="Portfolio" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />
+              <Line isAnimationActive={!compact && !reduceMotion} type="monotone" name="Holdings" dataKey="Portfolio" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />
 
               {showKSE100 && (
                 <Line isAnimationActive={!compact && !reduceMotion} type="monotone" name="KSE100" dataKey="KSE100" stroke="#6366f1" strokeWidth={2.5} dot={false} activeDot={{ r: 6, fill: "#6366f1", strokeWidth: 0 }} />
