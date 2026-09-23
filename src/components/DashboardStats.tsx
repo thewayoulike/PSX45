@@ -12,7 +12,9 @@ interface DashboardProps {
   userName?: string;
   onRefresh?: () => void;
   onCustomize?: () => void;
-  trend?: number[];        // portfolio value series
+  trend?: number[];        // net worth, last sessions
+  returnSeries?: number[]; // total return rupees, same sessions
+  dailySeries?: number[];  // daily return %, same sessions as the 30-day chart
   benchmark?: number[];    // KSE-100 value series
   holdings?: Holding[];
   portfolioType?: PortfolioType;
@@ -239,7 +241,7 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, benchmark, holdings, portfolioType = 'PSX' }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX' }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const totalNetWorth = stats.totalValue + stats.freeCash;
   // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
@@ -258,16 +260,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
   const roiDenom = stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : (stats.netPrincipal > 0 ? stats.netPrincipal : 1);
   if (roiDenom > 0) roiExcDiv = (((stats.roi / 100) * roiDenom - stats.totalDividends) / roiDenom) * 100;
 
-  // Real trailing snapshots only — never invent a 7-day path
-  const hasRealTrend = !!(trend && trend.length >= 2 && trend.some((v) => v !== trend[0] && v > 0));
-  const netWorthTrend = hasRealTrend ? trend!.slice(-7) : [];
-  const returnTrend = netWorthTrend.map((val) => (
-    stats.netPrincipal > 0 ? ((val - stats.netPrincipal) / stats.netPrincipal) * 100 : 0
-  ));
-  const dailyPLTrend = netWorthTrend.map((val, idx) => {
-    if (idx === 0) return 0;
-    return val - netWorthTrend[idx - 1];
-  });
+  const usable = (series?: number[]) => (series && series.length >= 2 ? series.slice(-7) : []);
+  const netWorthTrend = usable(trend);
+  const returnTrend = usable(returnSeries);
+  const dailyPLTrend = usable(dailySeries);
   return (
     <div className="space-y-6 mb-8">
       {/* Greeting - Animated */}

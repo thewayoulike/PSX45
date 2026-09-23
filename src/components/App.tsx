@@ -79,6 +79,7 @@ import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } fro
 import { stockDayChange } from '../utils/stockDayPL';
 import { oversellCashCredit } from '../utils/oversellCash';
 import { peakNetInvested } from '../utils/peakCapital';
+import { cardSparklines } from '../utils/cardHistory';
 import { principalAndCash } from '../utils/cashFlows';
 import { fifoTransferSlices } from '../utils/transferLots';
 import { sellTaxAllocation } from '../utils/sellTax';
@@ -2389,10 +2390,7 @@ const App: React.FC = () => {
       switch (id) {
           case 'stats': {
               const historyData = performanceHistory[perfKey] || [];
-              const trendLine = historyData.map((d: any) => {
-                  if (typeof d === 'number') return d;
-                  return d.totalValue ?? d.netWorth ?? d.value ?? d.y ?? 0;
-              }).filter((v: number) => !isNaN(v));
+              const series = cardSparklines(historyData);
               return (
                   <Suspense fallback={<div className="rounded-3xl border border-slate-200/60 dark:border-slate-800 p-6 text-sm text-slate-500">Loading dashboard…</div>}>
                   <Dashboard
@@ -2401,7 +2399,9 @@ const App: React.FC = () => {
                       userName={driveUser?.name?.split(' ')[0]}
                       onRefresh={handleSyncMarket}
                       onCustomize={() => setCurrentView('DASH_CUSTOMIZE')}
-                      trend={trendLine}
+                      trend={series.netWorth}
+                      returnSeries={series.totalReturn}
+                      dailySeries={series.dailyReturn}
                       holdings={holdings}
                       portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                   />

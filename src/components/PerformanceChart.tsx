@@ -14,6 +14,7 @@ import { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
 import { formatDatePK } from '../utils/dates';
 import { holdingsDailyReturn } from '../utils/holdingsDailyReturn';
+import { daySnapshot, ledgerAsOf } from '../utils/cardHistory';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
 import { useMediaQuery } from '../hooks/useMediaQuery';
@@ -154,6 +155,19 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
         });
         const dayReturn = holdingsDailyReturn(heldAtPriorClose, prevClose, close);
         const portfolioChange = dayReturn ?? 0;
+        const heldAtClose = getHeldBalancesOnDate(dateStr);
+        let marketValue = 0;
+        Object.entries(heldAtClose).forEach(([ticker, qty]) => {
+            const bars = historyData[ticker];
+            if (!bars) return;
+            let price = 0;
+            for (const bar of bars) {
+                if (bar.dateStr <= dateStr && bar.price > 0) price = bar.price;
+                if (bar.dateStr > dateStr) break;
+            }
+            if (price > 0) marketValue += price * qty;
+        });
+        const snapshot = daySnapshot(marketValue, ledgerAsOf(transactions, dateStr));
         
         if (!isNaN(kseChange) && !isNaN(portfolioChange)) {
             newChartData.push({
@@ -162,6 +176,8 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions
                 KSE100: parseFloat(kseChange.toFixed(2)),
                 KMI30: parseFloat(kmiChange.toFixed(2)),
                 Portfolio: parseFloat(portfolioChange.toFixed(2)),
+                netWorth: snapshot.netWorth,
+                totalReturn: snapshot.totalReturn,
                 heldCount: validStockCount
             });
         }
