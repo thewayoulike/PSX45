@@ -13,9 +13,10 @@ const disclaimer =
 export const learnGuidePages = {
   'best-psx-portfolio-tracker-excel-alternative': {
     title: 'Best PSX Portfolio Tracker Alternatives to Excel and Google Sheets (2026)',
+    seoTitle: 'Best PSX Portfolio Tracker vs Excel & Google Sheets (2026)',
     blurb: 'Leave fragile spreadsheets with a clear checklist: FIFO, dividends, mutual funds, and honest app options.',
     description:
-      'Leaving Excel or Google Sheets for PSX? Compare FIFO lots, dividends with WHT, mutual funds, and honest app options — including when a spreadsheet still works. Educational only.',
+      'Leave Excel or Google Sheets for a PSX portfolio tracker: FIFO, dividends, mutual funds, and when a spreadsheet still works.',
     intro:
       'There is no universal “best” PSX portfolio tracker — the right choice depends on whether you need FIFO lot matching, dividends with withholding tax, mutual funds beside shares, charts, or auto-import. Many Pakistan investors start in Excel or Google Sheets, then leave when formulas drift, lot order breaks, or a partial sell no longer matches how FIFO-style matching works in capital-gains education. This guide is a decision brief: criteria first, an honest landscape of Sheets and named apps, then where PSX Tracker fits as a freemium portfolio and charts app (not a broker, and not a tax filer).',
     faqs: [

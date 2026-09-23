@@ -77,7 +77,7 @@ export const guideHub = {
   pageTitle: 'PSX Tracker guides — use the app & learn PSX investing',
   eyebrow: 'Learn the investing workflow',
   description:
-    'How-tos for PSX Tracker, plus guides on leaving Excel, FIFO, dividends, mutual funds, and starting on the Pakistan Stock Exchange. Educational only — not investment or tax advice.',
+    'Guides for PSX Tracker and Pakistan Stock Exchange investing: Excel, FIFO, dividends, funds, and getting started.',
   intro:
     'Practical guides for Pakistan Stock Exchange investors — how to use PSX Tracker day to day, and how to learn PSX investing or choose a tracker when you outgrow spreadsheets. Educational only: not investment, tax, or religious advice. Start with the deep product walkthrough, or jump to leaving Excel, FIFO, dividends, and stocks-plus-funds if you are still deciding how to keep your ledger.',
 };

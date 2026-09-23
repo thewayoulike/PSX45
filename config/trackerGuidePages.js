@@ -16,7 +16,7 @@ export const trackerGuidePages = {
     title: 'FIFO cost basis on the Pakistan Stock Exchange',
     blurb: 'How first-in, first-out matching shapes cost basis and realized gains (education — not a tax filing).',
     description:
-      'FIFO vs average cost on PSX sells: how lot matching changes realized gain, fees in basis, day trades, and how PSX Tracker models it. Educational only — NCCPL, CDC and broker records stay authoritative.',
+      'FIFO vs average cost on PSX sells: lot matching, fees in basis, and day trades. Educational only — not a tax filing.',
     intro:
       'When you sell shares, which purchase lots did you close? First-in, first-out (FIFO) answers that by matching sells to your oldest remaining buys first. That choice changes average cost, unrealized marks and realized profit — even when the sale price is identical. This article explains FIFO in practice, how it differs from weighted-average sheets, and how PSX Tracker models it. Educational only: NCCPL, CDC and broker statements remain authoritative for tax.',
     faqs: [
@@ -225,7 +225,7 @@ export const trackerGuidePages = {
   'importing-broker-trades': {
     title: 'Importing broker trades into PSX Tracker',
     blurb: 'CSV, Excel, screenshots and optional Gmail attachments.',
-    description: 'Complete guide to importing PSX trades into PSX Tracker via manual entry, spreadsheets, Gemini document scan and optional Gmail attachment import — with review steps.',
+    description: 'Import PSX trades into PSX Tracker by hand, spreadsheet, Gemini scan, or Gmail, then review before saving.',
     intro: 'Clean imports protect FIFO lots and year-end sanity. Prefer structured files when you can, and treat every Gemini suggestion as a draft until you approve it. This article covers the main paths inside PSX Tracker.',
     sections: [
       ['Manual entry and spreadsheets',

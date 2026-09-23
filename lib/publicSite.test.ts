@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { renderPublicPage, renderGuideHub, renderGuidePage, resolvePublicHtml } from './publicSite.js';
+import { buildSitemapXml } from './sitemap.js';
 import { videoGuide, videoChapters } from './videoGuide.js';
 import { featureSections } from '../config/howItWorks.js';
 import { renderHowItWorksBody } from './howItWorks.js';
@@ -191,8 +192,44 @@ it('service worker navigation denylist lets crawlers see sitemap, robots, and pu
   const denylist = match![1];
   expect(denylist).toMatch(/sitemap\\.xml/);
   expect(denylist).toMatch(/robots\\.txt/);
+  expect(denylist).toMatch(/llms\\.txt/);
   expect(denylist).toMatch(/guides/);
   expect(denylist).toMatch(/about\|privacy\|terms\|contact/);
+});
+
+it('ships llms.txt, short titles, article schema, and real sitemap dates', () => {
+  const llms = readFileSync('public/llms.txt', 'utf8');
+  expect(llms).toContain('PSX Tracker');
+  expect(llms).toContain('https://www.psx-tracker.com/guides/fifo-cost-basis-psx');
+  expect(llms).toContain('https://www.psx-tracker.com/guides/start-investing-on-psx');
+  const hub = renderGuideHub();
+  const hubDescription = hub.match(/<meta name="description" content="([^"]*)"/)?.[1] || '';
+  expect(hubDescription.length).toBeLessThanOrEqual(160);
+  const video = resolvePublicHtml('/how-to-use') || '';
+  const videoDescription = video.match(/<meta name="description" content="([^"]*)"/)?.[1] || '';
+  expect(videoDescription.length).toBeLessThanOrEqual(160);
+  for (const slug of Object.keys(guidePages)) {
+    const html = renderGuidePage(slug);
+    const description = html.match(/<meta name="description" content="([^"]*)"/)?.[1] || '';
+    expect(description.length, slug).toBeLessThanOrEqual(160);
+    expect(html).toContain('property="og:type" content="article"');
+    expect(html).toContain('"@type":"Article"');
+    expect(html).toContain('"@type":"BreadcrumbList"');
+    expect(html).toContain('FAQPage');
+    expect(html).toContain('By PSX Tracker · Updated');
+    expect(html).toContain('Common questions');
+    expect(html).toContain('"dateModified"');
+  }
+  const excel = renderGuidePage('best-psx-portfolio-tracker-excel-alternative');
+  expect(excel).toContain('<title>Best PSX Portfolio Tracker vs Excel &amp; Google Sheets (2026)</title>');
+  expect('Best PSX Portfolio Tracker vs Excel & Google Sheets (2026)'.length).toBeLessThanOrEqual(60);
+  const sitemap = buildSitemapXml();
+  expect(readFileSync('public/sitemap.xml', 'utf8')).toBe(sitemap);
+  expect(sitemap).toContain('<loc>https://www.psx-tracker.com/about</loc><lastmod>2026-09-17</lastmod>');
+  expect(sitemap).toContain('<loc>https://www.psx-tracker.com/privacy</loc><lastmod>2026-09-19</lastmod>');
+  expect(sitemap).toContain('/guides/fifo-cost-basis-psx</loc><lastmod>2026-09-23</lastmod>');
+  const dates = [...sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
+  expect(new Set(dates).size).toBeGreaterThan(1);
 });
 
 it('keeps API entrypoints within the 12-function deployment budget', () => {

@@ -20,7 +20,7 @@ registerRoute(new NavigationRoute(async (context) => {
     if (response && response.ok && /text\/html/i.test(response.headers.get('Content-Type') || '')) return response;
   } catch { /* Network and runtime cache unavailable: use the installed offline shell. */ }
   return createHandlerBoundToURL('/index.html')(context);
-}, { denylist: [/^\/(?:api|assets|fonts|media)\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/, /^\/(about|privacy|terms|contact|guides|how-to-use|how-it-works)(\/|$)/] }));
+}, { denylist: [/^\/(?:api|assets|fonts|media)\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/, /^\/llms\.txt$/, /^\/(about|privacy|terms|contact|guides|how-to-use|how-it-works)(\/|$)/] }));
 addRoute();
 registerRoute(({ request, url }) => url.origin === self.location.origin && url.pathname.startsWith('/assets/') && request.destination === 'script',
   new CacheFirst({ cacheName: 'psx-tools-v1', plugins: [{

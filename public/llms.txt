@@ -1,0 +1,18 @@
+# PSX Tracker
+
+> Portfolio and research app for Pakistan Stock Exchange investors. Track shares and mutual funds with FIFO cost basis, dividends, charts, and optional Google Drive backup. It does not place trades and it is not a tax filer.
+
+PSX Tracker helps individual investors in Pakistan keep a personal ledger of PSX shares and open-end mutual funds. Records can be entered by hand, imported from a spreadsheet, or scanned with Gemini. Prices and calculations can be wrong. Broker, CDC, NCCPL, and FBR records stay authoritative.
+
+- Home: https://www.psx-tracker.com/
+- How it works: https://www.psx-tracker.com/how-it-works
+- Video guide: https://www.psx-tracker.com/how-to-use
+- All guides: https://www.psx-tracker.com/guides
+- Leave Excel and Google Sheets: https://www.psx-tracker.com/guides/best-psx-portfolio-tracker-excel-alternative
+- FIFO cost basis: https://www.psx-tracker.com/guides/fifo-cost-basis-psx
+- Capital gains tax basics: https://www.psx-tracker.com/guides/cgt-basics-pakistan-stocks
+- Start investing on PSX: https://www.psx-tracker.com/guides/start-investing-on-psx
+- Choosing a broker: https://www.psx-tracker.com/guides/choosing-a-psx-broker
+- Is PSX investing halal: https://www.psx-tracker.com/guides/is-psx-investing-halal
+- Tracking dividends: https://www.psx-tracker.com/guides/tracking-psx-dividends
+- About: https://www.psx-tracker.com/about
