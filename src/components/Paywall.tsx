@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, RefreshCw, LogOut, Loader2, Copy, Check, Mail, CreditCard } from 'lucide-react';
 import { Logo } from './ui/Logo';
+import { PAID_PLAN_PRICES } from '../../config/product.js';
 
 interface Props {
   email: string;
@@ -12,11 +13,12 @@ interface Props {
 const PAY_EMAIL = ((import.meta as any).env?.VITE_OWNER_EMAIL || 'itruth2011@gmail.com');
 
 // Per-month pricing (cheaper the longer you commit). Edit here if prices change.
-const PLANS: { label: string; perMonth: string; total: string; best?: boolean }[] = [
-  { label: '1 Month', perMonth: 'Rs. 500', total: 'Rs. 500' },
-  { label: '3 Months', perMonth: 'Rs. 400', total: 'Rs. 1,200' },
-  { label: '1 Year', perMonth: 'Rs. 350', total: 'Rs. 4,200', best: true },
-];
+const PLANS: { label: string; perMonth: string; total: string; best?: boolean }[] = PAID_PLAN_PRICES.map((p) => ({
+  label: p.label,
+  perMonth: `Rs. ${p.perMonth.toLocaleString('en-US')}`,
+  total: `Rs. ${p.total.toLocaleString('en-US')}`,
+  best: p.best,
+}));
 
 const ACCOUNTS: { bank: string; iban: string }[] = [
   { bank: 'Naya Pay', iban: 'PK96NAYA1234503367580244' },

@@ -13,14 +13,23 @@ describe('computeAccess freemium', () => {
     expect(r.plan).toBe('free');
   });
 
-  it('uses 7-day trial by default', () => {
-    expect(TRIAL_DAYS).toBe(7);
-    const approvedAt = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
+  it('uses a 15-day full trial, then Free caps of 5 stocks, 3 funds, and 10 profiles', () => {
+    expect(TRIAL_DAYS).toBe(15);
+    const approvedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
     const r = computeAccess({ approved: true, approved_at: approvedAt, lifetime: false });
     expect(r.status).toBe('trial');
     expect(r.active).toBe(true);
     expect(r.daysLeft).toBeGreaterThan(0);
-    expect(r.daysLeft).toBeLessThanOrEqual(7);
+    expect(r.daysLeft).toBeLessThanOrEqual(15);
+    const free = computeAccess({
+      approved: true,
+      approved_at: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000).toISOString(),
+      lifetime: false,
+    });
+    expect(free.status).toBe('free');
+    expect(free.quotas.stockTickers).toBe(5);
+    expect(free.quotas.fundTickers).toBe(3);
+    expect(free.quotas.stockProfiles).toBe(10);
   });
 
   it('keeps paid active when access_until is in the future', () => {

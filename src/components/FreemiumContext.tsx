@@ -12,10 +12,10 @@ export interface FreemiumContextValue {
 
 /** Free plan caps (finite). */
 const FREE_QUOTAS: FreemiumQuotas = {
-  stockTickers: 3,
+  stockTickers: 5,
   fundTickers: 3,
   portfolios: 1,
-  stockProfiles: 7,
+  stockProfiles: 10,
   chartViewsPerDay: 5,
   signalsPerDay: 1,
   signalsVisible: 5,

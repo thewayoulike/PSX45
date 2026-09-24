@@ -760,7 +760,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                     <Lock className="mx-auto mb-3 text-slate-400" size={28} />
                     <h3 className="text-lg font-display font-black text-slate-900 dark:text-white mb-2">Positions locked on Free</h3>
                     <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 max-w-md mx-auto">
-                      Company info stays available. Position, gains, and trade history unlock for your first-3 entitled holdings, or with Paid.
+                      Company info stays available. Position, gains, and trade history unlock for your Free entitled holdings, or with Paid.
                     </p>
                     <button type="button" onClick={requestUpgrade} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">
                       Upgrade

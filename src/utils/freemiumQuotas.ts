@@ -139,13 +139,20 @@ export function tryRecordProfileOpen(
   return { ok: true, used: next.length, remaining: Math.max(0, max - next.length) };
 }
 
-/** Filter import rows to first-3 entitlement, filling empty slots in first-seen order. */
+/** Filter import rows into the Free stock and fund caps, filling empty slots in first-seen order. */
 export function filterImportTickersForFree<T extends { ticker?: string }>(
   rows: T[],
   alreadyEntitled: string[],
   limit: number,
+  fundLimit: number = limit,
 ): { accepted: T[]; skipped: T[] } {
-  const entitled = new Set(alreadyEntitled.map((s) => s.toUpperCase()));
+  const stocks = new Set<string>();
+  const funds = new Set<string>();
+  for (const raw of alreadyEntitled) {
+    const sym = raw.trim().toUpperCase();
+    if (!sym) continue;
+    (sym.startsWith('MF:') ? funds : stocks).add(sym);
+  }
   const accepted: T[] = [];
   const skipped: T[] = [];
   for (const row of rows) {
@@ -154,12 +161,10 @@ export function filterImportTickersForFree<T extends { ticker?: string }>(
       accepted.push(row);
       continue;
     }
-    if (entitled.has(sym)) {
-      accepted.push(row);
-      continue;
-    }
-    if (entitled.size < limit) {
-      entitled.add(sym);
+    const bucket = sym.startsWith('MF:') ? funds : stocks;
+    const cap = sym.startsWith('MF:') ? fundLimit : limit;
+    if (bucket.has(sym) || bucket.size < cap) {
+      bucket.add(sym);
       accepted.push(row);
       continue;
     }

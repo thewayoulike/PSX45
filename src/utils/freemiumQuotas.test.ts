@@ -88,4 +88,21 @@ describe('filterImportTickersForFree', () => {
     expect(accepted.map((r) => r.ticker)).toEqual(['OGDC', 'PPL', 'HBL']);
     expect(skipped.map((r) => r.ticker)).toEqual(['SYS']);
   });
+
+  it('keeps a separate fund cap from the stock cap', () => {
+    const { accepted, skipped } = filterImportTickersForFree(
+      [
+        { ticker: 'OGDC' },
+        { ticker: 'MF:meezan-islamic-fund' },
+        { ticker: 'MF:al-meezan' },
+        { ticker: 'MF:ubl-stock' },
+        { ticker: 'MF:extra-fund' },
+      ],
+      [],
+      5,
+      3,
+    );
+    expect(accepted.map((r) => r.ticker)).toEqual(['OGDC', 'MF:meezan-islamic-fund', 'MF:al-meezan', 'MF:ubl-stock']);
+    expect(skipped.map((r) => r.ticker)).toEqual(['MF:extra-fund']);
+  });
 });

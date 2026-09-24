@@ -149,7 +149,7 @@ it('leave-Excel guide answers primary intent without crowning a #1', () => {
   expect(html).toContain('mutual fund');
   expect(html).toContain('SmartPSX');
   expect(html).toContain('FolioSync');
-  expect(html).toMatch(/7-day|seven-day/i);
+  expect(html).toMatch(/15-day|fifteen-day/i);
   expect(copy.toLowerCase()).not.toMatch(/#\s*1\b|number one|best by a huge margin/);
   expect(html).toContain('not a tax filer');
   expect(html).toContain('<table>');

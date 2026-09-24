@@ -1542,14 +1542,14 @@ const App: React.FC = () => {
       if (!isFreePlan) return null;
       const stocks = firstEntitledTickers(
           portfolioTransactionsRaw.filter(t => t.ticker && !isFundTicker(t.ticker)),
-          3,
+          sbStatus?.quotas?.stockTickers ?? 5,
       );
       const funds = firstEntitledTickers(
           portfolioTransactionsRaw.filter(t => t.ticker && isFundTicker(t.ticker)),
-          3,
+          sbStatus?.quotas?.fundTickers ?? 3,
       );
       return new Set([...stocks, ...funds]);
-  }, [isFreePlan, portfolioTransactionsRaw]);
+  }, [isFreePlan, portfolioTransactionsRaw, sbStatus?.quotas?.stockTickers, sbStatus?.quotas?.fundTickers]);
 
   const entitledTickerList = useMemo(
       () => (entitledTickers ? [...entitledTickers] : null),
@@ -2235,7 +2235,7 @@ const App: React.FC = () => {
       if (isFundTicker(ticker)) { setViewFundTicker(canonicalFundTicker(ticker, fundCanonMap)); return; }
       const t = ticker.trim().toUpperCase();
       if ((sbStatus?.plan || sbStatus?.status) === 'free') {
-          const limit = sbStatus?.quotas?.stockProfiles ?? 7;
+          const limit = sbStatus?.quotas?.stockProfiles ?? 10;
           const result = tryRecordProfileOpen(t, limit);
           if (!result.ok) {
               setShowUpgrade(true);
@@ -2459,7 +2459,7 @@ const App: React.FC = () => {
       if (st.status === 'free') {
           return (
               <div className="shrink-0 text-center text-xs font-bold py-1.5 px-4 bg-slate-800 text-white flex items-center justify-center gap-2 flex-wrap">
-                  <span>Free plan · first 3 tickers · limited tools</span>
+                  <span>Free plan · first 5 stocks and 3 funds · limited tools</span>
                   <button
                       type="button"
                       onClick={() => setShowUpgrade(true)}

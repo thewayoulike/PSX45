@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { TRIAL_DAYS } from '../../config/product.js';
+import { PAID_PLAN_PRICES, TRIAL_DAYS } from '../../config/product.js';
 import { Logo } from './ui/Logo';
 import { SiteFooter } from './SiteFooter';
 import { HOME_FAQS } from '../../config/site.js';
@@ -20,10 +20,10 @@ interface LoginPageProps {
 }
 
 const FREE_VS_PAID: { feature: string; free: string; paid: string }[] = [
-  { feature: 'Holdings (stocks)', free: 'First 3 tickers ever (open or sold)', paid: 'Unlimited · full history' },
+  { feature: 'Holdings (stocks)', free: 'First 5 tickers ever (open or sold)', paid: 'Unlimited · full history' },
   { feature: 'Mutual funds', free: 'First 3 funds ever', paid: 'Unlimited · full history' },
   { feature: 'Portfolios / brokers', free: '1 portfolio (1 broker)', paid: 'Unlimited' },
-  { feature: 'Stock profiles', free: '7 lifetime · positions only on first-3', paid: 'Unlimited · full positions' },
+  { feature: 'Stock profiles', free: '10 lifetime · positions only on the first 5 stocks', paid: 'Unlimited · full positions' },
   { feature: 'Sector pages', free: 'Unlimited', paid: 'Unlimited' },
   { feature: 'Charts', free: '5 symbol views / day · pick to load', paid: 'Unlimited · pick to load' },
   { feature: 'Market Signals', free: '1 run / day · top 5 shown', paid: 'Unlimited · full list' },
@@ -33,8 +33,8 @@ const FREE_VS_PAID: { feature: string; free: string; paid: string }[] = [
   { feature: 'PSX Assistant (AI)', free: '10 messages / day', paid: 'Unlimited' },
   { feature: 'Trading Simulator', free: 'Unlimited', paid: 'Unlimited' },
   { feature: 'Fair Value Calc', free: '4 lookups / day', paid: 'Unlimited' },
-  { feature: 'Import (CSV / Gemini / Gmail)', free: 'Unlimited runs · first-3 tickers only', paid: 'All tickers' },
-  { feature: 'Export', free: '1 / day · first-3 tickers only', paid: 'Unlimited' },
+  { feature: 'Import (CSV / Gemini / Gmail)', free: 'Unlimited runs · first 5 stocks and 3 funds', paid: 'All tickers' },
+  { feature: 'Export', free: '1 / day · first 5 stocks and 3 funds', paid: 'Unlimited' },
 ];
 
 /* ---------- email/password auth (Supabase) ---------- */
@@ -686,9 +686,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           <p className="text-center text-sm font-bold text-slate-600 dark:text-slate-300 mb-5">Paid billing options</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
             {[
-              { label: '1 Month', pm: '500', total: '500', save: null as string | null, best: false },
-              { label: '3 Months', pm: '400', total: '1,200', save: '20% off', best: false },
-              { label: '1 Year', pm: '350', total: '4,200', save: '30% off', best: true },
+              ...PAID_PLAN_PRICES.map((p) => ({
+                label: p.label,
+                pm: p.perMonth.toLocaleString('en-US'),
+                total: p.total.toLocaleString('en-US'),
+                save: p.save,
+                best: p.best,
+              })),
             ].map(p => (
               <div key={p.label} className={`relative rounded-3xl border p-6 text-center shadow-sm ${p.best ? 'border-emerald-400 dark:border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-500/5 shadow-lg' : 'border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900'}`}>
                 {p.best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest shadow-md">Best value</span>}

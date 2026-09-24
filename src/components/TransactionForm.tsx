@@ -71,7 +71,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   savedScannedTrades = [],
   onSaveScannedTrades
 }) => {
-  const { isFree, entitledTickers } = useFreemium();
+  const { isFree, entitledTickers, quotas } = useFreemium();
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
   const [type, setType] = useState<Transaction['type']>('BUY');
@@ -623,7 +623,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setFormError(null);
       let toAdd = trade;
       if (isFree) {
-          const { accepted, skipped } = filterImportTickersForFree([trade], entitledTickers || [], 3);
+          const { accepted, skipped } = filterImportTickersForFree([trade], entitledTickers || [], quotas.stockTickers ?? 5, quotas.fundTickers ?? 3);
           if (skipped.length > 0 || accepted.length === 0) {
               setFormError(`Skipped 1 trade outside your Free ticker limit. Upgrade to import more symbols.`);
               scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -661,7 +661,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       setFormError(null); 
       let selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i));
       if (isFree) {
-          const { accepted, skipped } = filterImportTickersForFree(selectedTrades, entitledTickers || [], 3);
+          const { accepted, skipped } = filterImportTickersForFree(selectedTrades, entitledTickers || [], quotas.stockTickers ?? 5, quotas.fundTickers ?? 3);
           if (skipped.length > 0) {
               setFormError(`Skipped ${skipped.length} trade(s) outside your Free ticker limit. Upgrade to import more symbols.`);
               scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
