@@ -14,7 +14,7 @@ export function emailAttachmentKey(messageId: string, attachment: { id: string; 
 }
 
 export function attachEmailImportSource(
-  trades: EditableTrade[], attachment: EmailAttachmentIdentity | null, batchId = crypto.randomUUID(),
+  trades: EditableTrade[], attachment: EmailAttachmentIdentity | null, batchId: string = crypto.randomUUID(),
 ): EditableTrade[] {
   if (!attachment) return trades;
   return trades.map((trade, rowIndex) => ({

@@ -32,6 +32,34 @@ function mockCloud(handlers: (url: string, init?: RequestInit) => Response | Pro
   vi.stubGlobal('fetch', vi.fn(async (url: string, init?: RequestInit) => handlers(String(url), init)));
 }
 
+it('retains email attachment provenance in the committed Drive backup and restored portfolio', async () => {
+  let head = { revision: 0, fileId: null as string | null };
+  let backup: any;
+  mockCloud(async (url, init) => {
+    if (url === '/api/cloud-sync') {
+      const body = JSON.parse(String(init?.body));
+      if (body.action === 'commit') head = { revision: head.revision + 1, fileId: body.fileId };
+      return response(head);
+    }
+    if (url.includes('/upload/')) {
+      backup = JSON.parse(await ((init!.body as FormData).get('file') as Blob).text());
+      return response({ id: 'email-trades-backup' });
+    }
+    if (url.includes('alt=media')) return response(backup);
+    return response({ files: [] });
+  });
+  const { attachEmailImportSource, emailAttachmentKey, emailImportHistory } = await import('../utils/emailImportHistory');
+  const attachmentKey = emailAttachmentKey('email-1', { id: 'attachment-1', partId: '1' });
+  const rows = attachEmailImportSource([{ ticker: 'FFC', type: 'BUY', quantity: 10, price: 500, date: '2026-09-25' }], { attachmentKey, filename: 'CONTRACT.PDF' });
+  const snapshot = { portfolios: [{ id: 'p1', name: 'Test' }], transactions: rows.map(row => ({ ...row, id: 't1', portfolioId: 'p1', commission: 0, tax: 0, cdcCharges: 0, otherFees: 0 })) };
+  await service.loadFromDrive();
+  expect((await service.saveToDrive(snapshot, false)).ok).toBe(true);
+  const restored = await service.loadFromDrive();
+  expect(restored.transactions[0].importSource).toEqual(snapshot.transactions[0].importSource);
+  expect(emailImportHistory(restored.transactions, 'p1').get(attachmentKey)).toEqual({ state: 'complete', added: 1, total: 1 });
+  expect(emailImportHistory(restored.transactions, 'p2').size).toBe(0);
+});
+
 it('commits the Drive backup before Sheets work, retaining a retry job if export fails', async () => {
   let revision = 0;
   mockCloud((url, init) => {
