@@ -1,3 +1,13 @@
+/** Import provenance is saved with the portfolio, never inferred from a filename. */
+export interface EmailImportSource {
+  kind: 'gmail';
+  attachmentKey: string;
+  filename: string;
+  batchId: string;
+  rowIndex: number;
+  rowCount: number;
+}
+
 export interface Transaction {
   id: string;
   portfolioId: string;
@@ -28,6 +38,7 @@ export interface Transaction {
   linkId?: string;
   /** True on the cash half of a linked pair, i.e. the row the app created itself. */
   autoCash?: boolean;
+  importSource?: EmailImportSource;
 }
 
 export interface Holding {
@@ -84,6 +95,7 @@ export interface ParsedTrade {
 
 export interface EditableTrade extends ParsedTrade {
     brokerId?: string;
+    importSource?: EmailImportSource;
 }
 
 export interface PortfolioStats {

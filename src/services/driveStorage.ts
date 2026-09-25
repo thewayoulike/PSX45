@@ -754,7 +754,7 @@ export const searchGmailMessages = async (query: string) => {
             const traverseParts = (partList: any[]) => {
                 partList.forEach((part: any) => {
                     if (part.body && part.body.attachmentId) {
-                        attachments.push({ id: part.body.attachmentId, filename: part.filename, mimeType: part.mimeType, messageId: msg.id, size: part.body.size });
+                        attachments.push({ id: part.body.attachmentId, partId: part.partId, filename: part.filename, mimeType: part.mimeType, messageId: msg.id, size: part.body.size });
                     }
                     if (part.parts) traverseParts(part.parts);
                 });

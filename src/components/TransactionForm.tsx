@@ -15,6 +15,8 @@ import { MutualFundRecord } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
 import { formatTransactionLabel } from '../utils/fundDisplay';
 import { dpFundNav, dpFundUnits, fmtFundNav, fmtFundUnits, roundFundNav, roundFundUnits } from '../utils/fundFormat';
+import { attachEmailImportSource, emailAttachmentKey, emailImportHistory, isEmailRowSaved, type EmailAttachmentIdentity } from '../utils/emailImportHistory';
+import { EmailAttachmentButton } from './EmailAttachmentButton';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
@@ -23,6 +25,8 @@ interface TransactionFormProps {
   isOpen: boolean;
   onClose: () => void;
   existingTransactions?: Transaction[];
+  importHistoryTransactions?: Transaction[];
+  portfolioId?: string;
   editingTransaction?: Transaction | null;
   brokers?: Broker[]; 
   portfolioDefaultBrokerId?: string;
@@ -61,6 +65,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   isOpen, 
   onClose, 
   existingTransactions = [], 
+  importHistoryTransactions = existingTransactions,
+  portfolioId,
   editingTransaction,
   brokers = [],
   portfolioDefaultBrokerId,
@@ -115,6 +121,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [showFundScanHelp, setShowFundScanHelp] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedEmailAttachment, setSelectedEmailAttachment] = useState<EmailAttachmentIdentity | null>(null);
+  const attachmentHistory = useMemo(() => emailImportHistory(importHistoryTransactions, portfolioId), [importHistoryTransactions, portfolioId]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
   const [selectedScanIndices, setSelectedScanIndices] = useState<Set<number>>(new Set());
@@ -208,10 +216,18 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   };
 
   const handleSelectAttachment = async (msgId: string, att: any) => {
+      const attachmentKey = emailAttachmentKey(msgId, att);
+      const status = attachmentHistory.get(attachmentKey);
+      if (status && !window.confirm(`${status.state === 'complete' ? 'This attachment was already added' : `${status.added} of ${status.total} scanned rows from this attachment are already saved`} in this portfolio. Scanning it again may create duplicate transactions. Continue to review it?`)) return;
       setDownloadingAttachment(true);
       try {
           const file = await downloadGmailAttachment(msgId, att.id, att.filename, att.mimeType);
-          if (file) { setSelectedFile(file); setMode('AI_SCAN'); setScanError(null); } else { setScanError("Failed to download attachment."); }
+          if (file) {
+              setSelectedFile(file);
+              setSelectedEmailAttachment({ attachmentKey, filename: att.filename });
+              updateScannedTrades([]);
+              setMode('AI_SCAN'); setScanError(null);
+          } else { setScanError("Failed to download attachment."); }
       } catch (e) { setScanError("Error processing attachment."); } finally { setDownloadingAttachment(false); }
   };
 
@@ -223,6 +239,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
   useEffect(() => {
     if (isOpen) {
+        setSelectedEmailAttachment(null);
         setFormError(null); 
         setFundScanHint(null);
         const activeBroker = brokers.find(b => b.id === selectedBrokerId);
@@ -450,6 +467,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { 
       if (e.target.files && e.target.files[0]) { 
           setSelectedFile(e.target.files[0]); 
+          setSelectedEmailAttachment(null);
           setScanError(null); 
           updateScannedTrades([]); 
       } 
@@ -478,7 +496,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               const { trades, warnings } = fundScanToTrades(scan, fundCatalog, todayPK());
               if (trades.length === 0) throw new Error("No importable rows found in the statement.");
               const cashLike = new Set(['DEPOSIT', 'HISTORY', 'WITHDRAWAL', 'TAX', 'DIVIDEND', 'DIVIDEND_REINVEST', 'OTHER']);
-              updateScannedTrades(trades.map(t => ({
+              updateScannedTrades(attachEmailImportSource(trades.map(t => ({
                   ...t,
                   quantity: isFundPortfolio && !cashLike.has(t.type)
                       ? roundFundUnits(Number(t.quantity))
@@ -488,7 +506,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                       : Number(t.price),
                   brokerId: isFundPortfolio ? undefined : (selectedBrokerId || undefined),
                   broker: isFundPortfolio ? undefined : (selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker),
-              })));
+              })), selectedEmailAttachment));
               const hintParts = [
                   hasFlows
                       ? 'Activity statement detected — review Deposit / Withdrawal / Subscribe / Redeem / Dividend / Tax rows.'
@@ -518,7 +536,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               broker: isFundPortfolio ? undefined : (selectedBrokerId ? brokers.find(b => b.id === selectedBrokerId)?.name : t.broker),
           })); 
           
-          updateScannedTrades(enrichedTrades); 
+          updateScannedTrades(attachEmailImportSource(enrichedTrades, selectedEmailAttachment)); 
       } catch (err: any) { 
           setScanError(err.message || "Failed to scan document."); 
       } finally { 
@@ -568,6 +586,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           cdcCharges: Number(trade.cdcCharges) || 0,
           otherFees: Number(trade.otherFees) || 0,
           notes: trade.notes,
+          importSource: trade.importSource,
       };
       if (trade.type === 'DEPOSIT') {
           onAddTransaction({ ...base, ticker: 'CASH', type: 'DEPOSIT', quantity: 1, price: Number(trade.price) });
@@ -621,6 +640,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const handleAcceptTrade = (trade: EditableTrade) => { 
       setFormError(null);
+      if (isEmailRowSaved(trade, importHistoryTransactions, portfolioId)) {
+          setFormError('This scanned row is already saved in this portfolio. It has been removed from the review list.');
+          updateScannedTrades(savedScannedTrades.filter(t => t !== trade));
+          scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          return;
+      }
       let toAdd = trade;
       if (isFree) {
           const { accepted, skipped } = filterImportTickersForFree([trade], entitledTickers || [], quotas.stockTickers ?? 5, quotas.fundTickers ?? 3);
@@ -660,6 +685,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleAcceptSelected = () => { 
       setFormError(null); 
       let selectedTrades = savedScannedTrades.filter((_, i) => selectedScanIndices.has(i));
+      const alreadySaved = selectedTrades.filter(t => isEmailRowSaved(t, importHistoryTransactions, portfolioId));
+      if (alreadySaved.length) {
+          const duplicates = new Set(alreadySaved);
+          selectedTrades = selectedTrades.filter(t => !duplicates.has(t));
+          setFormError(`${alreadySaved.length} selected row(s) are already saved in this portfolio and will not be added again.`);
+          scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+          if (!selectedTrades.length) return;
+      }
       if (isFree) {
           const { accepted, skipped } = filterImportTickersForFree(selectedTrades, entitledTickers || [], quotas.stockTickers ?? 5, quotas.fundTickers ?? 3);
           if (skipped.length > 0) {
@@ -1171,7 +1204,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
 
                             <div className="space-y-3">
                                 {emailMessages.length > 0 && (
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Recent Matches</p>
+                                    <div className="ml-1 space-y-1">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent Matches</p>
+                                        <p className="text-[11px] text-slate-500 dark:text-slate-400">Status is for the selected portfolio. Older imports and files added another way may show “Not tracked”. “Already added” means all rows from a scan were saved; review the scan for missing trades.</p>
+                                    </div>
                                 )}
                                 
                                 {emailMessages.map(msg => (
@@ -1185,25 +1221,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                         
                                         <div className="space-y-2">
                                             {msg.attachments.map((att: any) => (
-                                                <button 
+                                                <EmailAttachmentButton
                                                     key={att.id}
-                                                    onClick={() => handleSelectAttachment(msg.id, att)}
+                                                    filename={att.filename}
+                                                    size={att.size}
+                                                    status={attachmentHistory.get(emailAttachmentKey(msg.id, att))}
+                                                    onSelect={() => handleSelectAttachment(msg.id, att)}
                                                     disabled={downloadingAttachment}
-                                                    className="w-full flex items-center justify-between bg-slate-50 dark:bg-slate-800/60 border border-slate-200/60 dark:border-slate-700/60 hover:border-emerald-500 hover:bg-emerald-50/50 dark:hover:bg-emerald-500/10 p-3 rounded-xl group transition-all text-left shadow-sm"
-                                                >
-                                                    <div className="flex items-center gap-3 overflow-hidden">
-                                                        <Paperclip size={16} className="text-slate-400 group-hover:text-emerald-500 shrink-0" />
-                                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-300 group-hover:text-emerald-700 dark:group-hover:text-emerald-400 truncate">
-                                                            {att.filename}
-                                                        </span>
-                                                        <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                                                            ({Math.round(att.size / 1024)} KB)
-                                                        </span>
-                                                    </div>
-                                                    <div className="text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                        {downloadingAttachment ? <Loader2 size={16} className="animate-spin" /> : <DownloadCloud size={16} />}
-                                                    </div>
-                                                </button>
+                                                />
                                             ))}
                                         </div>
                                     </div>
