@@ -1,6 +1,7 @@
 // Only allow proxying to trusted hosts.
 // Also serves OHLCV via ?ohlc=SYMBOL (keeps Hobby plan under the 12-function limit).
 import { fetchPsxOhlc } from '../lib/psxOhlc.js';
+import { fetchPsx } from '../lib/psxPortal.js';
 import { fetchPypsxCompanyInfo } from '../lib/pypsxCompanyInfo.js';
 import { fetchPypsxChartAnalysis } from '../lib/pypsxChartAnalysis.js';
 import { fetchPypsxIntraday } from '../lib/pypsxIntraday.js';
@@ -137,9 +138,12 @@ export default async function handler(req, res) {
       fetchOptions.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
     }
 
+    const isDps = () => target.hostname === 'dps.psx.com.pk';
     let response;
     for (let redirects = 0; redirects <= 3; redirects++) {
-      response = await fetch(target.toString(), fetchOptions);
+      response = isDps()
+        ? await fetchPsx(target.toString(), fetchOptions)
+        : await fetch(target.toString(), fetchOptions);
       if (![301, 302, 303, 307, 308].includes(response.status)) break;
       const location = response.headers.get('location');
       if (!location || redirects === 3) throw new Error('Upstream redirect limit reached');

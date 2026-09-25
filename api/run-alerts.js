@@ -3,16 +3,13 @@ import { getAllRecords } from '../lib/alertsStore.js';
 import { deliverAlerts } from '../lib/deliverAlerts.js';
 import { isCronAuthorized } from '../lib/cronAuth.js';
 import { fetchPsxLatestCloses } from '../lib/psxOhlc.js';
+import { fetchPsx } from '../lib/psxPortal.js';
 import { applyPriceStack } from '../lib/priceStack.js';
 import { fetchPypsxQuotePrices } from '../lib/pypsxQuotes.js';
 
 // Fetch the PSX market-watch page once and return { TICKER: price }.
 async function fetchLivePrices() {
-  const response = await fetch('https://dps.psx.com.pk/market-watch', {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-    }
-  });
+  const response = await fetchPsx('https://dps.psx.com.pk/market-watch');
   const html = await response.text();
 
   const livePrices = {};
