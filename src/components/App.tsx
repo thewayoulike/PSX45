@@ -2661,7 +2661,9 @@ const App: React.FC = () => {
                                       </button>
                                       <button
                                           onClick={() => setShowUpcomingScanner(true)}
-                                          className="hidden sm:flex bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
+                                          className="flex bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
+                                          title="Future X-Dates"
+                                          aria-label="Future X-Dates"
                                       >
                                           <CalendarClock size={16} /> <span className="hidden md:inline">Future X-Dates</span>
                                       </button>
