@@ -4,13 +4,13 @@ import { computePositionPeakCapital } from './positionPeakCapital';
 const t = (day: number, seq: number) => new Date(Date.UTC(2026, 0, day, 5, 0, seq)).toISOString();
 
 describe('computePositionPeakCapital', () => {
-  it('ignores shares bought and sold on the same day', () => {
-    // Buy 10,000 then sell it back, ten times over ten days.
+  it('counts a same-day round trip once so a closed day-trade still has an ROI base', () => {
+    // Buy 10,000 then sell it back, ten times over ten days. Flat at every close.
     const rows = Array.from({ length: 10 }).flatMap((_, i) => [
       { date: `2026-01-${String(i + 1).padStart(2, '0')}`, createdAt: t(i + 1, 1), costDelta: 10_000 },
       { date: `2026-01-${String(i + 1).padStart(2, '0')}`, createdAt: t(i + 1, 2), costDelta: -10_000 },
     ]);
-    expect(computePositionPeakCapital(rows)).toBe(0);
+    expect(computePositionPeakCapital(rows)).toBe(10_000); // not 0, and not 100,000
   });
 
   it('does not treat a same-day buy as peak when most of it is sold that day', () => {
