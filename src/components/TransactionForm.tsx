@@ -1207,6 +1207,12 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         );
                     })()}
 
+                    {(type === 'BUY' || type === 'SELL') && !isFundPortfolio && !editingTransaction && (
+                        <div className="mt-4 flex items-start gap-2 rounded-xl border border-sky-200/70 dark:border-sky-500/20 bg-sky-50/70 dark:bg-sky-500/10 px-3.5 py-2.5 text-[11px] leading-snug text-sky-800 dark:text-sky-300">
+                            <Info size={13} className="mt-0.5 shrink-0" />
+                            <span>Enter each trade as its own transaction — especially intraday — in the order it happened (BUY before SELL). This keeps FIFO, average cost and ROI accurate.</span>
+                        </div>
+                    )}
                     <button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3.5 rounded-xl shadow-md shadow-emerald-600/20 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-2 mt-6 text-sm">
                         <Save size={18} /> Save Transaction
                     </button>

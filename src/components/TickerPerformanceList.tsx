@@ -1,6 +1,7 @@
 import { ResponsiveTable } from './ui/ResponsiveTable';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Transaction } from '../types';
+import { computePositionPeakCapital } from '../utils/positionPeakCapital';
 import { 
   Search, 
   ChevronDown, 
@@ -22,7 +23,7 @@ import {
   TrendingUp, 
   Activity,
   Clock,
-  AlertCircle, AlertTriangle, Lock
+  AlertCircle, AlertTriangle, Lock, Info, Lightbulb
 } from 'lucide-react';
 import { useFreemium } from './FreemiumContext';
 import { consumeDailyQuota } from '../utils/freemiumQuotas';
@@ -76,6 +77,7 @@ interface ActivityRow extends Transaction {
   gainType: 'REALIZED' | 'UNREALIZED' | 'NONE';
   remainingQty?: number;
   seqWarning?: boolean;
+  costDelta?: number;      // cost this row adds to (+) or releases from (-) the open position
 }
 
 interface SectorStats {
@@ -272,7 +274,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
       const mainLots: { id: string, quantity: number, costPerShare: number }[] = [];
       const buyRemainingMap: Record<string, number> = {};
-      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE' }> = {};
+      const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE', costReleased: number }> = {};
 
       const ordVal = (t: any) => (t.createdAt ? Date.parse(t.createdAt) : 0);
       // Flag SELLs recorded before the BUY that covers them on the same day
@@ -333,7 +335,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               const avgBuy = filledQty > 0 ? totalCostBasis / filledQty : 0;
               const proceedsPer = sellTx.quantity > 0 ? netProceeds / sellTx.quantity : 0;
               const gain = sellTx.type === 'TRANSFER_OUT' ? 0 : proceedsPer * filledQty - totalCostBasis;
-              sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: sellTx.type === 'TRANSFER_OUT' ? 'NONE' : (filledQty > 0 ? 'REALIZED' : 'NONE') };
+              sellAnalysisMap[sellTx.id] = { avgBuy, gain, gainType: sellTx.type === 'TRANSFER_OUT' ? 'NONE' : (filledQty > 0 ? 'REALIZED' : 'NONE'), costReleased: totalCostBasis };
           });
           dayBuyLots.forEach(lot => {
               if (lot.quantity > 0.0001) {
@@ -352,17 +354,24 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let gainType: 'REALIZED' | 'UNREALIZED' | 'NONE' = 'NONE';
           let remainingQty = 0;
           const currentPrice = currentPrices[ticker] || 0;
+          let costDelta = 0;
 
-          if (t.type === 'BUY') {
+          if (t.type === 'BUY' || t.type === 'TRANSFER_IN') {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-              avgBuyPrice = ((t.quantity * t.price) + fees) / t.quantity;
+              avgBuyPrice = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
+              costDelta = (t.quantity * t.price) + fees;
               sellOrCurrentPrice = currentPrice;
               remainingQty = buyRemainingMap[t.id] !== undefined ? buyRemainingMap[t.id] : t.quantity;
-              if (remainingQty > 0.0001) {
+              // No live price yet (failed sync / new listing): don't mark the lot as
+              // a 100% loss - leave unrealized at 0 until a price is available.
+              if (remainingQty > 0.0001 && currentPrice > 0) {
                   gain = (sellOrCurrentPrice - avgBuyPrice) * remainingQty;
                   gainType = 'UNREALIZED';
               }
+          } else if (t.type === 'TRANSFER_OUT') {
+              costDelta = -(sellAnalysisMap[t.id]?.costReleased || 0);
           } else if (t.type === 'SELL') {
+              costDelta = -(sellAnalysisMap[t.id]?.costReleased || 0);
               const analysis = sellAnalysisMap[t.id];
               if (analysis) {
                   avgBuyPrice = analysis.avgBuy;
@@ -376,7 +385,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                gain = (t.quantity * t.price) - (t.tax || 0);
                gainType = 'NONE';
           }
-          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty, seqWarning: (t.type === 'SELL' || t.type === 'TRANSFER_OUT') && seqWarnIds.has(t.id) };
+          return { ...t, avgBuyPrice, sellOrCurrentPrice, gain, gainType, remainingQty, costDelta, seqWarning: (t.type === 'SELL' || t.type === 'TRANSFER_OUT') && seqWarnIds.has(t.id) };
       }).sort((a, b) => { const d = new Date(b.date).getTime() - new Date(a.date).getTime(); return d !== 0 ? d : (ordVal(b) - ordVal(a)); });
   };
 
@@ -401,12 +410,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0;
           let totalCostBasis = 0; 
 
-          const activeBuys = enrichedRows.filter(r => r.type === 'BUY' && (r.remainingQty || 0) > 0);
+          const isInflow = (r: ActivityRow) => r.type === 'BUY' || r.type === 'TRANSFER_IN';
+          const activeBuys = enrichedRows.filter(r => isInflow(r) && (r.remainingQty || 0) > 0);
           const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null;
           const holdingPeriod = oldestBuyDate ? getHoldingDuration(oldestBuyDate) : '-';
 
           enrichedRows.forEach(row => {
-              if (row.type === 'BUY') {
+              if (isInflow(row)) {
                   lifetimeBuyCost += (row.quantity * row.avgBuyPrice); 
                   if (row.gainType === 'UNREALIZED') unrealizedPL += row.gain;
                   
@@ -414,11 +424,13 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                       totalCostBasis += (row.remainingQty || 0) * row.avgBuyPrice;
                   }
 
-                  tradeCount++; buyCount++;
-                  totalComm += row.commission || 0; 
-                  totalTradingTax += row.tax || 0; 
-                  totalCDC += row.cdcCharges || 0; 
-                  totalOther += row.otherFees || 0;
+                  if (row.type === 'BUY') {
+                      tradeCount++; buyCount++;
+                      totalComm += row.commission || 0; 
+                      totalTradingTax += row.tax || 0; 
+                      totalCDC += row.cdcCharges || 0; 
+                      totalOther += row.otherFees || 0;
+                  }
               } else if (row.type === 'SELL') {
                   soldQty += row.quantity;
                   if (row.gainType === 'REALIZED') realizedPL += row.gain;
@@ -432,12 +444,19 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               }
           });
 
-          ownedQty = enrichedRows.filter(r => r.type === 'BUY').reduce((acc, r) => acc + (r.remainingQty || 0), 0);
+          ownedQty = enrichedRows.filter(r => isInflow(r)).reduce((acc, r) => acc + (r.remainingQty || 0), 0);
           const currentPrice = currentPrices[ticker] || 0;
           const currentValue = ownedQty * currentPrice;
           const currentAvgPrice = ownedQty > 0 ? totalCostBasis / ownedQty : 0;
           const totalNetReturn = realizedPL + unrealizedPL + (totalDividends - dividendTax);
-          const lifetimeROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
+          // Peak capital: the most cost you ever had open in this stock at one time,
+          // walked in date + entry order (buys/transfers-in add their cost, sells
+          // release the FIFO cost they closed). Money re-used across many round
+          // trips is counted once, so ROI reflects capital actually at risk.
+          const peakCapital = computePositionPeakCapital(enrichedRows);
+          const lifetimeROI = peakCapital > 0 ? (totalNetReturn / peakCapital) * 100 : 0;
+          // Secondary view: return on everything ever bought (turnover-based).
+          const turnoverROI = lifetimeBuyCost > 0 ? (totalNetReturn / lifetimeBuyCost) * 100 : 0;
           const feesPaid = totalComm + totalTradingTax + totalCDC + totalOther;
           const allocationPercent = totalPortfolioValue > 0 ? (currentValue / totalPortfolioValue) * 100 : 0;
           
@@ -459,7 +478,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               feesPaid, totalComm, totalTradingTax, totalCDC, totalOther,
               tradeCount, buyCount, sellCount,
               lifetimeROI, allocationPercent, breakEvenPrice,
-              lifetimeBuyCost,
+              lifetimeBuyCost, peakCapital, turnoverROI,
               holdingPeriod
           };
       });
@@ -480,7 +499,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
               feesPaid: 0, totalComm: 0, totalTradingTax: 0, totalCDC: 0, totalOther: 0,
               tradeCount: 0, buyCount: 0, sellCount: 0,
               lifetimeROI: 0, allocationPercent: 0, breakEvenPrice: 0,
-              lifetimeBuyCost: 0, holdingPeriod: '-',
+              lifetimeBuyCost: 0, peakCapital: 0, turnoverROI: 0, holdingPeriod: '-',
           }));
 
       return [...tradedStats, ...watchStats].sort((a, b) => a.ticker.localeCompare(b.ticker));
@@ -501,7 +520,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const sectorArray = Object.values(sectorMap);
       sectorArray.forEach(sec => {
           const totalInvestedInSector = allTickerStats.filter(t => t.sector === sec.name).reduce((sum, t) => sum + t.lifetimeBuyCost, 0);
-          sec.lifetimeROI = totalInvestedInSector > 0 ? (sec.lifetimeNet / totalInvestedInSector) * 100 : 0;
+          const peakInSector = allTickerStats.filter(t => t.sector === sec.name).reduce((sum, t: any) => sum + (t.peakCapital || 0), 0);
+          sec.lifetimeROI = peakInSector > 0 ? (sec.lifetimeNet / peakInSector) * 100 : 0;
           sec.dividendYieldOnCost = totalInvestedInSector > 0 ? (sec.totalDividends / totalInvestedInSector) * 100 : 0;
       });
       return sectorArray.sort((a, b) => b.allocationPercent - a.allocationPercent);
@@ -771,7 +791,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 <div className={`grid grid-cols-2 ${selectedStockStats.status === 'Active' ? 'md:grid-cols-3 lg:grid-cols-5' : 'md:grid-cols-3'} gap-4`}>
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="w-10 h-10 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl flex items-center justify-center border border-slate-200 dark:border-slate-700 shadow-sm shrink-0"><Activity size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Current Price</div> <div className="text-lg font-mono font-bold text-slate-900 dark:text-white tabular-nums">Rs. {formatDecimal(selectedStockStats.currentPrice)}</div> </div> </div> </div>
                     <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${Math.abs(selectedStockStats.totalNetReturn) < 0.01 ? 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' : selectedStockStats.totalNetReturn > 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}><TrendingUp size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lifetime Net</div> <div className={`text-lg font-mono font-bold tabular-nums ${getColorClass(selectedStockStats.totalNetReturn)}`}> {formatGain(selectedStockStats.totalNetReturn)} </div> </div> </div> </div>
-                    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' : selectedStockStats.lifetimeROI > 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}><Percent size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Lifetime ROI</div> <div className={`text-lg font-mono font-bold tabular-nums ${getColorClass(selectedStockStats.lifetimeROI)}`}> {Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? '0.00' : `${selectedStockStats.lifetimeROI > 0 ? '+' : ''}${formatDecimal(selectedStockStats.lifetimeROI)}`}% </div> </div> </div> </div>
+                    <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700' : selectedStockStats.lifetimeROI > 0 ? 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-200/60 dark:border-rose-500/20'}`}><Percent size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest flex items-center gap-1">Lifetime ROI <span className="relative group/roi inline-flex normal-case tracking-normal"><Info size={10} className="text-slate-400 cursor-help" /><span className="pointer-events-none absolute left-0 top-full mt-1 w-64 z-50 opacity-0 group-hover/roi:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] font-medium leading-snug rounded-lg px-2.5 py-2 shadow-xl">Lifetime net return (realized + unrealized + net dividends) divided by the most capital you ever had in this stock at one time. Money re-used across round trips is counted once. For accurate FIFO, average cost and ROI, record every trade - especially intraday - as its own transaction, in the order it happened.</span></span></div> <div className={`text-lg font-mono font-bold tabular-nums ${getColorClass(selectedStockStats.lifetimeROI)}`}> {Math.abs(selectedStockStats.lifetimeROI) < 0.01 ? '0.00' : `${selectedStockStats.lifetimeROI > 0 ? '+' : ''}${formatDecimal(selectedStockStats.lifetimeROI)}`}% </div> <div className="text-[10px] text-slate-400 mt-0.5 tabular-nums">Peak capital Rs. {formatDecimal((selectedStockStats as any).peakCapital || 0)} · On total bought {formatDecimal((selectedStockStats as any).turnoverROI || 0)}%</div> </div> </div> </div>
                     {selectedStockStats.status === 'Active' && ( <> <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="w-10 h-10 bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400 rounded-2xl flex items-center justify-center border border-sky-100 dark:border-sky-500/20 shadow-sm shrink-0"><PieChart size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Allocation</div> <div className="text-lg font-mono font-bold text-slate-900 dark:text-white tabular-nums">{selectedStockStats.allocationPercent.toFixed(1)}%</div> </div> </div> </div> <div className="bg-white dark:bg-slate-900 p-5 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark flex items-center justify-between"> <div className="flex items-center gap-3"> <div className="w-10 h-10 bg-violet-50 dark:bg-violet-500/10 text-violet-600 dark:text-violet-400 rounded-2xl flex items-center justify-center border border-violet-100 dark:border-violet-500/20 shadow-sm shrink-0"><Target size={18} /></div> <div> <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Break-Even</div> <div className="text-lg font-mono font-bold text-violet-600 dark:text-violet-400 tabular-nums">Rs. {formatDecimal(selectedStockStats.breakEvenPrice)}</div> </div> </div> </div> </> )}
                 </div>
 
@@ -1062,6 +1082,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                       <h3 className="font-display font-black text-xl text-slate-900 dark:text-white tracking-tight">Activity Log</h3> 
                     </div>
                     <button onClick={handleExportActivity} className="flex items-center gap-2 text-xs font-bold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/60 px-4 py-2.5 rounded-xl hover:bg-slate-100 dark:hover:bg-slate-700 transition-all shadow-sm hover:-translate-y-0.5"> <Download size={14} /> Export CSV </button>
+                </div>
+                <div className="mx-6 mt-4 flex items-start gap-2 rounded-xl border border-sky-200/70 dark:border-sky-500/20 bg-sky-50/70 dark:bg-sky-500/10 px-4 py-3 text-[11px] leading-snug text-sky-800 dark:text-sky-300">
+                  <Lightbulb size={14} className="mt-0.5 shrink-0" />
+                  <span><b>Tip for accurate numbers:</b> record each trade as its own transaction - especially intraday buys and sells - and enter them in the order they happened (BUY before SELL). Combining several fills into one row blurs FIFO matching, average cost and Lifetime ROI.</span>
                 </div>
                 {hasSeqWarnings && (
                   <div className="mx-6 mt-4 flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50/70 dark:bg-amber-500/10 px-4 py-3 text-[11px] leading-snug text-amber-800 dark:text-amber-300">
