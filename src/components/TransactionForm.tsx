@@ -3,7 +3,7 @@ import { Transaction, Broker, ParsedTrade, EditableTrade, PortfolioType } from '
 import { X, Plus, ChevronDown, Loader2, Save, Sparkles, Keyboard, FileText, FileSpreadsheet, Search, AlertTriangle, History, Wallet, ArrowRightLeft, Briefcase, RefreshCcw, CalendarClock, AlertCircle, Lock, CheckSquare, TrendingUp, TrendingDown, DollarSign, Download, Upload, Settings2, AlignLeft, Calculator, Mail, Paperclip, DownloadCloud, Coins, Search as SearchIcon, Info, BookOpen } from 'lucide-react';
 import { fundScanToTrades } from '../services/fundImport';
 import { firstOversell } from '../utils/holdingChecks';
-import { searchGmailMessages, downloadGmailAttachment } from '../services/driveStorage';
+import { searchGmailMessagePage, downloadGmailAttachment, readGmailMessageText } from '../services/driveStorage';
 import { exportToCSV } from '../utils/export';
 import { useFreemium } from './FreemiumContext';
 import { filterImportTickersForFree } from '../utils/freemiumQuotas';
@@ -17,6 +17,9 @@ import { formatTransactionLabel } from '../utils/fundDisplay';
 import { dpFundNav, dpFundUnits, fmtFundNav, fmtFundUnits, roundFundNav, roundFundUnits } from '../utils/fundFormat';
 import { attachEmailImportSource, emailAttachmentKey, emailImportHistory, isEmailRowSaved, type EmailAttachmentIdentity } from '../utils/emailImportHistory';
 import { EmailAttachmentButton } from './EmailAttachmentButton';
+import { EmailSearchPeriodPicker } from './EmailSearchPeriodPicker';
+import { buildEmailSearchQuery, type EmailSearchPeriod } from '../utils/emailSearch';
+import { emailBodyImportKey } from '../utils/gmailBody';
 
 interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
@@ -121,6 +124,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [showFundScanHelp, setShowFundScanHelp] = useState(false);
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedEmailText, setSelectedEmailText] = useState<string | null>(null);
   const [selectedEmailAttachment, setSelectedEmailAttachment] = useState<EmailAttachmentIdentity | null>(null);
   const attachmentHistory = useMemo(() => emailImportHistory(importHistoryTransactions, portfolioId), [importHistoryTransactions, portfolioId]);
   const [isScanning, setIsScanning] = useState(false);
@@ -134,6 +138,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   
   const [emailQuery, setEmailQuery] = useState('');
   const [emailSender, setEmailSender] = useState('');
+  const [emailAttachmentsOnly, setEmailAttachmentsOnly] = useState(false);
+  const [emailPeriod, setEmailPeriod] = useState<EmailSearchPeriod>('1m');
+  const [emailStartDate, setEmailStartDate] = useState('');
+  const [emailEndDate, setEmailEndDate] = useState(todayPK());
+  const [emailSearchSession, setEmailSearchSession] = useState<{ query: string; nextPageToken?: string } | null>(null);
+  const [emailError, setEmailError] = useState<string | null>(null);
+  const emailRequestId = useRef(0);
   const [emailMessages, setEmailMessages] = useState<any[]>([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [downloadingAttachment, setDownloadingAttachment] = useState(false);
@@ -203,16 +214,34 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       updateScannedTrades(updatedTrades);
   };
 
-  const handleEmailSearch = async (e?: React.FormEvent) => {
-      if (e) e.preventDefault();
-      if (!emailQuery && !emailSender) return;
-      setLoadingEmails(true); setEmailMessages([]); setScanError(null);
+  useEffect(() => {
+      emailRequestId.current++;
+      setEmailMessages([]); setEmailSearchSession(null); setEmailError(null); setLoadingEmails(false);
+      return () => { emailRequestId.current++; };
+  }, [emailSender, emailQuery, emailPeriod, emailStartDate, emailEndDate, emailAttachmentsOnly, portfolioId, isOpen]);
+
+  const handleEmailSearch = async (loadMore = false) => {
+      if (loadingEmails || (loadMore && !emailSearchSession?.nextPageToken)) return;
+      let query: string;
       try {
-          let q = ''; if (emailSender) q += `from:${emailSender} `; if (emailQuery) q += `subject:(${emailQuery}) `;
-          const msgs = await searchGmailMessages(q.trim());
-          setEmailMessages(msgs);
-          if (msgs.length === 0) { setScanError("No emails with attachments found matching criteria."); }
-      } catch (err: any) { setScanError(err.message); } finally { setLoadingEmails(false); }
+          query = loadMore ? emailSearchSession!.query : buildEmailSearchQuery({ sender: emailSender, subject: emailQuery, period: emailPeriod, startDate: emailStartDate, endDate: emailEndDate });
+      } catch (error) {
+          setEmailError(error instanceof Error ? error.message : 'Check your search dates.');
+          return;
+      }
+      const requestId = ++emailRequestId.current;
+      setLoadingEmails(true); setEmailError(null);
+      if (!loadMore) { setEmailMessages([]); setEmailSearchSession(null); }
+      try {
+          const page = await searchGmailMessagePage(query, loadMore ? emailSearchSession?.nextPageToken : undefined, emailAttachmentsOnly);
+          if (requestId !== emailRequestId.current) return;
+          setEmailMessages(previous => [...new Map([...(loadMore ? previous : []), ...page.messages].map(message => [message.id, message])).values()]);
+          setEmailSearchSession({ query, nextPageToken: page.nextPageToken });
+      } catch (error) {
+          if (requestId === emailRequestId.current) setEmailError(error instanceof Error ? error.message : 'Could not search Gmail. Please retry.');
+      } finally {
+          if (requestId === emailRequestId.current) setLoadingEmails(false);
+      }
   };
 
   const handleSelectAttachment = async (msgId: string, att: any) => {
@@ -224,11 +253,31 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           const file = await downloadGmailAttachment(msgId, att.id, att.filename, att.mimeType);
           if (file) {
               setSelectedFile(file);
+              setSelectedEmailText(null);
               setSelectedEmailAttachment({ attachmentKey, filename: att.filename });
               updateScannedTrades([]);
               setMode('AI_SCAN'); setScanError(null);
-          } else { setScanError("Failed to download attachment."); }
-      } catch (e) { setScanError("Error processing attachment."); } finally { setDownloadingAttachment(false); }
+          } else { setEmailError("Failed to download attachment."); }
+      } catch (e) { setEmailError("Error processing attachment."); } finally { setDownloadingAttachment(false); }
+  };
+
+  const handleSelectEmailText = async (message: any) => {
+      const attachmentKey = emailBodyImportKey(message.id);
+      const status = attachmentHistory.get(attachmentKey);
+      if (status && !window.confirm(`Trades from this email text are already saved in this portfolio (${status.added}/${status.total} scanned rows). Scanning it again may create duplicates. Continue to review it?`)) return;
+      setDownloadingAttachment(true); setEmailError(null);
+      try {
+          const text = await readGmailMessageText(message.id, message.bodyParts);
+          if (!text.trim()) throw new Error('This email has no readable text. Choose an attachment instead.');
+          const filename = `Email - ${String(message.subject).replace(/[\\/:*?"<>|]/g, '').slice(0, 100)}.txt`;
+          const content = `Email subject: ${message.subject}\n\n${text}`;
+          setSelectedFile(new File([content], filename, { type: 'text/plain' }));
+          setSelectedEmailText(content);
+          setSelectedEmailAttachment({ attachmentKey, filename });
+          updateScannedTrades([]); setMode('AI_SCAN'); setScanError(null);
+      } catch (error) {
+          setEmailError(error instanceof Error ? error.message : 'Could not read the email text.');
+      } finally { setDownloadingAttachment(false); }
   };
 
   useEffect(() => {
@@ -240,6 +289,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   useEffect(() => {
     if (isOpen) {
         setSelectedEmailAttachment(null);
+        setSelectedEmailText(null);
         setFormError(null); 
         setFundScanHint(null);
         const activeBroker = brokers.find(b => b.id === selectedBrokerId);
@@ -467,6 +517,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => { 
       if (e.target.files && e.target.files[0]) { 
           setSelectedFile(e.target.files[0]); 
+          setSelectedEmailText(null);
           setSelectedEmailAttachment(null);
           setScanError(null); 
           updateScannedTrades([]); 
@@ -484,10 +535,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       updateScannedTrades([]); 
       
       try { 
+          const scanFile = selectedEmailText === null ? selectedFile : new File([selectedEmailText], selectedFile.name, { type: 'text/plain' });
           if (isFundPortfolio && mode === 'AI_SCAN') {
               try { localStorage.setItem('psx_fund_scan_instructions', fundScanInstructions); } catch { /* ignore */ }
               const { parseFundBalanceDocument } = await import('../services/gemini');
-              const scan = await parseFundBalanceDocument(selectedFile, { customInstructions: fundScanInstructions });
+              const scan = await parseFundBalanceDocument(scanFile, { customInstructions: fundScanInstructions });
               const hasHoldings = (scan.holdings?.length || 0) > 0;
               const hasFlows = (scan.cashFlows?.length || 0) > 0;
               if (!hasHoldings && !hasFlows) {
@@ -521,7 +573,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
               throw new Error('Choose Gemini scan or a spreadsheet import.');
           }
           const { parseTradeDocument } = await import('../services/gemini');
-          const trades = await parseTradeDocument(selectedFile); 
+          const trades = await parseTradeDocument(scanFile);
           
           if (trades.length === 0) throw new Error("No trades found in this file."); 
           
@@ -1093,7 +1145,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                     <button onClick={() => setMode('MANUAL')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'MANUAL' ? 'bg-white dark:bg-slate-700 shadow-sm text-slate-900 dark:text-white' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Keyboard size={16} /> Manual </button>
                     {!isFundPortfolio && (
                     <>
-                    <button onClick={() => setMode('IMPORT')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'IMPORT' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <FileSpreadsheet size={16} /> Import </button>
+                    <button onClick={() => { if (selectedEmailText !== null) { setSelectedFile(null); setSelectedEmailText(null); setSelectedEmailAttachment(null); setScanError(null); } setMode('IMPORT'); }} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'IMPORT' ? 'bg-white dark:bg-slate-700 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <FileSpreadsheet size={16} /> Import </button>
                     <button onClick={() => setMode('EMAIL_IMPORT')} className={`flex-1 py-2.5 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all whitespace-nowrap ${mode === 'EMAIL_IMPORT' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'}`}> <Mail size={16} /> Email </button>
                     </>
                     )}
@@ -1170,13 +1222,14 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <h4 className="text-sm font-display font-black text-rose-900 dark:text-rose-200 flex items-center gap-2.5 mb-3">
                                     <Mail size={18} /> Search Inbox
                                 </h4>
-                                <div className="grid grid-cols-2 gap-3 mb-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
                                     <div>
                                         <label className="block text-[10px] font-bold text-rose-500 uppercase tracking-widest mb-1.5 ml-1">Sender (Optional)</label>
                                         <input 
                                             type="text" 
                                             placeholder="e.g. alerts@scstrade.com" 
                                             value={emailSender}
+                                            disabled={loadingEmails}
                                             onChange={e => setEmailSender(e.target.value)}
                                             className="w-full text-xs p-3 rounded-xl border border-rose-200/80 dark:border-rose-700/60 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 focus:border-rose-400 outline-none shadow-sm transition-all"
                                         />
@@ -1187,25 +1240,33 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                             type="text" 
                                             placeholder="e.g. Confirmation" 
                                             value={emailQuery}
+                                            disabled={loadingEmails}
                                             onChange={e => setEmailQuery(e.target.value)}
                                             className="w-full text-xs p-3 rounded-xl border border-rose-200/80 dark:border-rose-700/60 bg-white dark:bg-slate-900/50 text-slate-900 dark:text-slate-100 focus:border-rose-400 outline-none shadow-sm transition-all"
                                         />
                                     </div>
                                 </div>
+                                <EmailSearchPeriodPicker period={emailPeriod} startDate={emailStartDate} endDate={emailEndDate}
+                                    disabled={loadingEmails} onPeriodChange={setEmailPeriod} onStartChange={setEmailStartDate} onEndChange={setEmailEndDate} />
+                                <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300 mb-3 min-h-8">
+                                    <input type="checkbox" checked={emailAttachmentsOnly} disabled={loadingEmails} onChange={e => setEmailAttachmentsOnly(e.target.checked)} className="rounded text-rose-600" /> Attachments only
+                                </label>
                                 <button 
                                     onClick={() => handleEmailSearch()} 
                                     disabled={loadingEmails}
                                     className="w-full bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md shadow-rose-600/20"
                                 >
                                     {loadingEmails ? <Loader2 className="animate-spin" size={16} /> : <SearchIcon size={16} />}
-                                    Find Emails with Attachments
+                                    Find Emails
                                 </button>
+                                <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">Scan a file or the email text using your Gemini API key. If both contain the same trades, import only one. Review the trades before adding them.</p>
+                                {emailError && <p role="alert" className="mt-3 text-xs text-rose-700 dark:text-rose-300">{emailError}</p>}
                             </div>
 
                             <div className="space-y-3">
                                 {emailMessages.length > 0 && (
                                     <div className="ml-1 space-y-1">
-                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent Matches</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{emailMessages.length} matches loaded</p>
                                         <p className="text-[11px] text-slate-500 dark:text-slate-400">Status is for the selected portfolio. Older imports and files added another way may show “Not tracked”. “Already added” means all rows from a scan were saved; review the scan for missing trades.</p>
                                     </div>
                                 )}
@@ -1220,6 +1281,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                         </div>
                                         
                                         <div className="space-y-2">
+                                            {msg.bodyParts?.length > 0 && <EmailAttachmentButton filename="Scan email text" textSource
+                                                status={attachmentHistory.get(emailBodyImportKey(msg.id))} disabled={downloadingAttachment}
+                                                onSelect={() => handleSelectEmailText(msg)} />}
                                             {msg.attachments.map((att: any) => (
                                                 <EmailAttachmentButton
                                                     key={att.id}
@@ -1234,7 +1298,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     </div>
                                 ))}
                                 
-                                {!loadingEmails && emailMessages.length === 0 && (emailQuery || emailSender) && !scanError && (
+                                {emailSearchSession?.nextPageToken && (
+                                    <button type="button" onClick={() => handleEmailSearch(true)} disabled={loadingEmails}
+                                        className="w-full min-h-11 rounded-xl border border-rose-200 dark:border-rose-700 px-4 py-3 text-xs font-bold text-rose-600 dark:text-rose-300 disabled:opacity-60">
+                                        {loadingEmails ? 'Loading more emails…' : 'Load more emails'}
+                                    </button>
+                                )}
+                                {!loadingEmails && emailSearchSession && emailMessages.length === 0 && !emailError && (
                                     <div className="text-center py-10 text-slate-400 font-medium text-xs">
                                         No matching emails found. Try broadening your search.
                                     </div>
@@ -1279,7 +1349,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                      </div>
                                  </div>
                              )}
-                             <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30`} rounded-3xl cursor-pointer hover:bg-white dark:hover:bg-slate-800/50 transition-all group flex flex-col items-center justify-center p-10`}> 
+                             {selectedEmailText !== null && mode === 'AI_SCAN' ? (
+                                 <div className="space-y-3">
+                                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-200">Review email text
+                                         <textarea value={selectedEmailText} onChange={e => { setSelectedEmailText(e.target.value); setScanError(null); }} rows={12}
+                                             className="mt-2 block w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 p-3 text-xs font-normal leading-relaxed text-slate-800 dark:text-slate-100 resize-y" />
+                                     </label>
+                                     <p className="text-xs text-slate-500 dark:text-slate-400">Keep the trade details and remove signatures or unrelated replies. Analyze with AI sends this text to Gemini using your API key. Nothing is added until you review and accept the extracted trades.</p>
+                                     <button type="button" onClick={() => setMode('EMAIL_IMPORT')} className="text-xs text-rose-600 dark:text-rose-300 underline">Choose another email</button>
+                                 </div>
+                             ) : <div onClick={() => fileInputRef.current?.click()} className={`w-full flex-1 border-2 border-dashed ${selectedFile ? `${theme.border} ${theme.bg}` : `border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/30`} rounded-3xl cursor-pointer hover:bg-white dark:hover:bg-slate-800/50 transition-all group flex flex-col items-center justify-center p-10`}>
                                  <input ref={fileInputRef} type="file" accept="image/*,.pdf,.csv,.xlsx,.xls" onChange={handleFileSelect} className="hidden" />
                                  <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 transition-transform group-hover:scale-110 shadow-sm border border-slate-200/60 dark:border-slate-700 ${selectedFile ? `${theme.text} bg-white dark:bg-slate-900` : 'bg-white dark:bg-slate-900 text-slate-400'}`}> {getFileIcon()} </div>
                                  <h3 className="text-lg font-display font-black text-slate-900 dark:text-white mb-1 tracking-tight">{selectedFile ? selectedFile.name : 'Click to Upload'}</h3>
@@ -1289,11 +1368,11 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                          : mode === 'IMPORT' ? 'Upload Excel/CSV Template' : mode === 'AI_SCAN' && isFundPortfolio ? 'AMC balance summary — screenshot, PDF or Excel' : 'Screenshot, PDF, Excel or CSV (Gemini AI)'
                                      }
                                  </p>
-                             </div>
+                             </div>}
                              
                              {mode === 'IMPORT' && !selectedFile && !scanError && ( <button onClick={handleDownloadTemplate} className="mt-4 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline mx-auto opacity-80 hover:opacity-100 transition-opacity" > <Download size={14} /> Download Import Template (CSV) </button> )}
                             
-                             {scanError && ( <div className={`w-full flex-1 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 ${scanError.includes("No trades found") ? "border-amber-200 bg-amber-50/50 dark:bg-amber-500/10 dark:border-amber-500/20" : "border-rose-200 bg-rose-50/50 dark:bg-rose-500/10 dark:border-rose-500/20"}`}> <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm border ${scanError.includes("No trades found") ? "bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-500/20 dark:text-amber-400" : "bg-rose-100 text-rose-500 border-rose-200 dark:bg-rose-500/20 dark:text-rose-400"}`}> {scanError.includes("No trades found") ? <Search size={32} /> : <AlertTriangle size={32} />} </div> <h3 className={`text-lg font-display font-black mb-1 tracking-tight ${scanError.includes("No trades found") ? "text-amber-900 dark:text-amber-200" : "text-rose-900 dark:text-rose-200"}`}>{scanError.includes("No trades found") ? "No Results Found" : "Scan Failed"}</h3> <p className={`text-xs font-bold text-center max-w-[240px] mb-6 ${scanError.includes("No trades found") ? "text-amber-700 dark:text-amber-300" : "text-rose-600 dark:text-rose-300"}`}>{scanError}</p> <button onClick={() => { setScanError(null); setSelectedFile(null); }} className={`px-6 py-3 bg-white dark:bg-slate-800 border rounded-xl font-bold text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 ${scanError.includes("No trades found") ? "border-amber-200 text-amber-600 dark:border-amber-700 dark:text-amber-400" : "border-rose-200 text-rose-600 dark:border-rose-700 dark:text-rose-400"}`}> <RefreshCcw size={14} /> Try Different File </button> </div> )}
+                             {scanError && ( <div className={`w-full flex-1 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 ${scanError.includes("No trades found") ? "border-amber-200 bg-amber-50/50 dark:bg-amber-500/10 dark:border-amber-500/20" : "border-rose-200 bg-rose-50/50 dark:bg-rose-500/10 dark:border-rose-500/20"}`}> <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm border ${scanError.includes("No trades found") ? "bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-500/20 dark:text-amber-400" : "bg-rose-100 text-rose-500 border-rose-200 dark:bg-rose-500/20 dark:text-rose-400"}`}> {scanError.includes("No trades found") ? <Search size={32} /> : <AlertTriangle size={32} />} </div> <h3 className={`text-lg font-display font-black mb-1 tracking-tight ${scanError.includes("No trades found") ? "text-amber-900 dark:text-amber-200" : "text-rose-900 dark:text-rose-200"}`}>{scanError.includes("No trades found") ? "No Results Found" : "Scan Failed"}</h3> <p className={`text-xs font-bold text-center max-w-[240px] mb-6 ${scanError.includes("No trades found") ? "text-amber-700 dark:text-amber-300" : "text-rose-600 dark:text-rose-300"}`}>{scanError}</p> <button onClick={() => { setScanError(null); if (selectedEmailText === null) setSelectedFile(null); }} className={`px-6 py-3 bg-white dark:bg-slate-800 border rounded-xl font-bold text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 ${scanError.includes("No trades found") ? "border-amber-200 text-amber-600 dark:border-amber-700 dark:text-amber-400" : "border-rose-200 text-rose-600 dark:border-rose-700 dark:text-rose-400"}`}> <RefreshCcw size={14} /> {selectedEmailText !== null ? 'Edit Email Text' : 'Try Different File'} </button> </div> )}
                             
                              {!scanError && ( <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-md transition-all flex items-center justify-center gap-2 text-sm ${selectedFile ? `${theme.btn} ${theme.shadow} hover:-translate-y-0.5 active:translate-y-0 cursor-pointer` : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed shadow-none'}`}> {mode === 'IMPORT' ? <Upload size={18} /> : <Sparkles size={18} />} {mode === 'IMPORT' ? 'Process Import' : 'Analyze with AI'} </button> )}
                         </>
@@ -1323,7 +1402,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                     )}
 
                                     {selectedScanIndices.size > 0 && ( <button onClick={handleAcceptSelected} className="text-xs bg-emerald-600 text-white hover:bg-emerald-700 font-bold px-4 py-2 rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-emerald-600/20"> <Plus size={16} /> Add Selected ({selectedScanIndices.size}) </button> )}
-                                    <button onClick={() => { updateScannedTrades([]); setSelectedFile(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1.5 px-3 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"> <RefreshCcw size={14} /> Clear All </button>
+                                    <button onClick={() => { updateScannedTrades([]); setSelectedFile(null); setSelectedEmailText(null); setSelectedEmailAttachment(null); setSelectedScanIndices(new Set()); }} className="text-xs text-rose-500 hover:text-rose-600 font-bold flex items-center gap-1.5 px-3 py-2 hover:bg-rose-50 dark:hover:bg-rose-500/10 rounded-xl transition-all"> <RefreshCcw size={14} /> Clear All </button>
                                 </div>
                             </div>
 

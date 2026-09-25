@@ -126,6 +126,74 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('paged Gmail searches and email text', () => {
+  function allowGmail() {
+    (window as any).google = { accounts: { oauth2: { initTokenClient: ({ callback }: any) => ({
+      requestAccessToken: () => callback({ access_token: 'gmail-test-token', expires_in: 3600 }),
+    }) } } };
+  }
+
+  it('keeps date queries across pages, includes body-only emails, and preserves file identities', async () => {
+    allowGmail();
+    const listQueries: URLSearchParams[] = [];
+    mockCloud(url => {
+      if (url.includes('/userinfo')) return response({ email: 'a@example.com', email_verified: true });
+      if (url.includes('/messages?')) {
+        const params = new URL(url).searchParams; listQueries.push(params);
+        return response(params.has('pageToken') ? { messages: [{ id: 'second' }] } : { messages: [{ id: 'first' }], nextPageToken: 'next+/=' });
+      }
+      const part = { partId: '1', filename: 'CONTRACT.PDF', mimeType: 'application/pdf', body: { attachmentId: 'download-id', size: 1000 } };
+      const payload = url.includes('/first?') ? { headers: [{ name: 'Subject', value: 'Trade' }], parts: [{ parts: [part] }] }
+        : { mimeType: 'text/plain', body: { data: Buffer.from('BUY 100 FFC').toString('base64url') } };
+      return response({ internalDate: '1790334000000', payload });
+    });
+    const query = 'from:broker@example.com after:1787598000 before:1790362800';
+    const first = await service.searchGmailMessagePage(query);
+    const second = await service.searchGmailMessagePage(query, first.nextPageToken);
+    expect(first.messages[0].attachments[0]).toMatchObject({ partId: '1', filename: 'CONTRACT.PDF', messageId: 'first' });
+    expect(second.messages[0].attachments).toEqual([]);
+    expect(second.messages[0].bodyParts).toHaveLength(1);
+    expect(second.nextPageToken).toBeUndefined();
+    expect(listQueries.map(p => p.get('q'))).toEqual([query, query]);
+    expect(listQueries[0].has('pageToken')).toBe(false);
+    expect(listQueries[1].get('pageToken')).toBe('next+/=');
+    expect(listQueries.every(p => p.get('maxResults') === '10')).toBe(true);
+    expect(await service.readGmailMessageText('second', second.messages[0].bodyParts)).toBe('BUY 100 FFC');
+  });
+  it('supports attachments-only search and a genuinely empty result', async () => {
+    allowGmail();
+    mockCloud(url => {
+      if (url.includes('/userinfo')) return response({ email: 'a@example.com', email_verified: true });
+      expect(new URL(url).searchParams.get('q')).toBe('after:1787598000 has:attachment');
+      return response({});
+    });
+    expect(await service.searchGmailMessagePage('after:1787598000', undefined, true)).toEqual({ messages: [], nextPageToken: undefined });
+  });
+  it.each([401, 403, 429, 500])('does not turn Gmail HTTP %s into a misleading empty result', async status => {
+    allowGmail();
+    mockCloud(url => url.includes('/userinfo') ? response({ email: 'a@example.com', email_verified: true }) : response({ error: { message: 'unavailable' } }, status));
+    await expect(service.searchGmailMessagePage('')).rejects.toThrow();
+  });
+  it('fails the page when a detail fails so retry cannot silently skip that email', async () => {
+    allowGmail();
+    mockCloud(url => url.includes('/userinfo') ? response({ email: 'a@example.com', email_verified: true })
+      : url.includes('/messages?') ? response({ messages: [{ id: 'missing' }], nextPageToken: 'next' }) : response({}, 500));
+    await expect(service.searchGmailMessagePage('')).rejects.toThrow('Could not load an email');
+  });
+  it('downloads a large text body only when selected and avoids fetching its redundant HTML alternative', async () => {
+    allowGmail();
+    mockCloud(url => {
+      if (url.includes('/userinfo')) return response({ email: 'a@example.com', email_verified: true });
+      expect(url).toContain('/messages/mail-1/attachments/plain-part');
+      return response({ data: Buffer.from('SELL 50 FFC').toString('base64url') });
+    });
+    expect(await service.readGmailMessageText('mail-1', [
+      { mimeType: 'text/plain', attachmentId: 'plain-part' }, { mimeType: 'text/html', attachmentId: 'html-part' },
+    ])).toBe('SELL 50 FFC');
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(2);
+  });
+});
+
 describe('cloud save outcomes and recovery', () => {
   it('automatically loads the latest Drive file with full localStorage, keeping all local edits without reloading', async () => {
     vi.useRealTimers();

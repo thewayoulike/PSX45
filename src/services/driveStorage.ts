@@ -3,6 +3,7 @@ import { buildSheetSyncRequests } from '../utils/sheetSync';
 import { createSerialQueue } from '../utils/serialQueue';
 import { saveRecoveryCopies } from '../utils/recoveryStorage';
 import { readApiJson } from './apiResponse';
+import { gmailTextParts, gmailBodyText, type GmailTextPart } from '../utils/gmailBody';
 // src/services/driveStorage.ts
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
@@ -730,43 +731,65 @@ async function requestGmailAccess(): Promise<string> {
     });
 }
 
-export const searchGmailMessages = async (query: string) => {
+export const searchGmailMessagePage = async (query: string, pageToken?: string, attachmentsOnly = false) => {
+    const email = currentEmail();
     const token = await requestGmailAccess();
-    if (!token) return [];
+    if (!token) throw new Error('Gmail access was not granted.');
 
     try {
-        const q = `${query} has:attachment`;
-        const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=${encodeURIComponent(q)}&maxResults=10`;
-        const listResp = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` } });
-        if (listResp.status === 403) throw new Error("Permission denied. Please re-authenticate.");
-        const listData = await listResp.json();
-        if (!listData.messages) return [];
+        const q = attachmentsOnly ? `${query} has:attachment`.trim() : query;
+        const params = new URLSearchParams({ q, maxResults: '10' });
+        if (pageToken) params.set('pageToken', pageToken);
+        const listUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages?${params}`;
+        const listResp = await fetch(listUrl, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+        const listData = await readApiJson(listResp, 'Could not search Gmail. Please retry.');
 
-        const messages = await Promise.all(listData.messages.map(async (msg: any) => {
+        const messages = await Promise.all((listData.messages || []).map(async (msg: any) => {
             const detailUrl = `https://gmail.googleapis.com/gmail/v1/users/me/messages/${msg.id}?format=full`;
-            const detailResp = await fetch(detailUrl, { headers: { Authorization: `Bearer ${token}` } });
-            const detailData = await detailResp.json();
-            const subject = detailData.payload.headers.find((h: any) => h.name === 'Subject')?.value || '(No Subject)';
-            const from = detailData.payload.headers.find((h: any) => h.name === 'From')?.value || 'Unknown Sender';
+            const detailResp = await fetch(detailUrl, { headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) });
+            const detailData = await readApiJson(detailResp, 'Could not load an email. Please retry.');
+            const headers = detailData.payload?.headers || [];
+            const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || '(No Subject)';
+            const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Unknown Sender';
             const date = detailData.internalDate;
             const attachments: any[] = [];
             
             const traverseParts = (partList: any[]) => {
                 partList.forEach((part: any) => {
-                    if (part.body && part.body.attachmentId) {
+                    if (part.filename && part.body?.attachmentId) {
                         attachments.push({ id: part.body.attachmentId, partId: part.partId, filename: part.filename, mimeType: part.mimeType, messageId: msg.id, size: part.body.size });
                     }
                     if (part.parts) traverseParts(part.parts);
                 });
             };
-            if (detailData.payload.parts) traverseParts(detailData.payload.parts);
-            return { id: msg.id, snippet: detailData.snippet, subject, from, date: parseInt(date), attachments };
+            if (detailData.payload) traverseParts([detailData.payload]);
+            return { id: msg.id, snippet: detailData.snippet, subject, from, date: parseInt(date), attachments, bodyParts: gmailTextParts(detailData.payload) };
         }));
-        return messages;
+        if (currentEmail() !== email) throw new Error('Account changed. Search Gmail again in the current account.');
+        return { messages, nextPageToken: typeof listData.nextPageToken === 'string' ? listData.nextPageToken : undefined };
     } catch (e: any) {
         throw new Error(e.message || "Failed to access Gmail.");
     }
 };
+
+export const searchGmailMessages = async (query: string) => (await searchGmailMessagePage(query, undefined, true)).messages;
+
+export async function readGmailMessageText(messageId: string, parts: GmailTextPart[]): Promise<string> {
+    const email = currentEmail();
+    const token = await requestGmailAccess();
+    const resolveParts = async (mimeType: GmailTextPart['mimeType']) => Promise.all(parts.filter(part => part.mimeType === mimeType).map(async part => {
+        if (part.data || !part.attachmentId) return part;
+        const response = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(messageId)}/attachments/${encodeURIComponent(part.attachmentId)}`, {
+            headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000),
+        });
+        const data = await readApiJson(response, 'Could not load the email text. Please retry.');
+        return { ...part, data: data.data };
+    }));
+    let text = gmailBodyText(await resolveParts('text/plain'));
+    if (!text) text = gmailBodyText(await resolveParts('text/html'));
+    if (currentEmail() !== email) throw new Error('Account changed. Search Gmail again in the current account.');
+    return text;
+}
 
 const getMimeType = (filename: string, originalMime: string) => {
     if (originalMime && originalMime !== 'application/octet-stream') return originalMime;
