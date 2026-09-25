@@ -4,13 +4,22 @@ import { computePositionPeakCapital } from './positionPeakCapital';
 const t = (day: number, seq: number) => new Date(Date.UTC(2026, 0, day, 5, 0, seq)).toISOString();
 
 describe('computePositionPeakCapital', () => {
-  it('counts re-used capital once across repeated round trips', () => {
+  it('ignores shares bought and sold on the same day', () => {
     // Buy 10,000 then sell it back, ten times over ten days.
     const rows = Array.from({ length: 10 }).flatMap((_, i) => [
       { date: `2026-01-${String(i + 1).padStart(2, '0')}`, createdAt: t(i + 1, 1), costDelta: 10_000 },
       { date: `2026-01-${String(i + 1).padStart(2, '0')}`, createdAt: t(i + 1, 2), costDelta: -10_000 },
     ]);
-    expect(computePositionPeakCapital(rows)).toBe(10_000); // not 100,000 of total buys
+    expect(computePositionPeakCapital(rows)).toBe(0);
+  });
+
+  it('does not treat a same-day buy as peak when most of it is sold that day', () => {
+    const rows = [
+      { date: '2026-05-20', createdAt: t(20, 1), costDelta: 200_000 },
+      { date: '2026-05-29', createdAt: t(29, 1), costDelta: 905_000 },
+      { date: '2026-05-29', createdAt: t(29, 2), costDelta: -802_000 },
+    ];
+    expect(computePositionPeakCapital(rows)).toBe(303_000);
   });
 
   it('tracks the high-water mark across overlapping lots and partial sells', () => {
