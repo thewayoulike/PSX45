@@ -16,7 +16,7 @@ export function PasswordRecovery() {
     void check();
     return () => { mounted = false; data.subscription.unsubscribe(); };
   }, []);
-  return <main className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-5 text-slate-900 dark:text-white"><form className="w-full max-w-md bg-white dark:bg-slate-900 p-6 rounded-2xl shadow space-y-4" onSubmit={async e => {
+  return <main className="mobile-auth min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-5 text-slate-900 dark:text-white"><form className="w-full max-w-md bg-white dark:bg-slate-900 p-6 rounded-2xl shadow space-y-4" onSubmit={async e => {
     e.preventDefault(); if (password !== confirm) { setMessage('Passwords must match.'); return; }
     setBusy(true); try { const result = await completePasswordReset(password); setReady(false); setDone(true); setCompletionMessage(result.driveLinkFailed ? 'Password updated. Drive linking could not finish. Log in, then approve Google once to enable automatic Drive access.' : 'Password updated. You can now log in.'); }
     catch (error) { setMessage(error instanceof Error ? error.message : 'Please try again.'); } finally { setBusy(false); }

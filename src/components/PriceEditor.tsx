@@ -36,8 +36,8 @@ export const PriceEditor: React.FC<PriceEditorProps> = ({ isOpen, onClose, holdi
 
   return (
     // MODAL CONTAINER: Top Aligned with glassmorphism
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[60] flex items-start justify-center p-4 pt-16 md:pt-24 transition-opacity">
-      <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-md flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-200">
+    <div className="mobile-dialog-overlay mobile-dialog-full fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[60] flex items-start justify-center p-4 pt-16 md:pt-24 transition-opacity">
+      <div role="dialog" aria-modal="true" aria-label="Manual Prices" className="mobile-dialog bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-md flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-200">
         
         {/* Premium Header */}
         <div className="p-6 border-b border-slate-100 dark:border-slate-800/60 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/20 shrink-0">

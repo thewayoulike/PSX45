@@ -218,7 +218,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
     <div className="mt-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark overflow-hidden flex flex-col mb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
         
         {/* Header Controls */}
-        <div className="p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col gap-5 bg-white dark:bg-slate-900">
+        <div className="mobile-holdings-header p-6 border-b border-slate-200/60 dark:border-slate-800 flex flex-col gap-5 bg-white dark:bg-slate-900">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
              <div className="flex flex-wrap items-center gap-3">
                 <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">{isFund ? 'Fund Holdings' : 'Active Holdings'}</h2>
@@ -262,7 +262,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
         </div>
         
         {/* Mobile cards */}
-        <div className="md:hidden flex-1 px-3 pb-3 space-y-3">
+        <div className="mobile-holdings-list md:hidden flex-1 px-3 pb-3 space-y-3">
           {paginatedHoldings.length === 0 ? (
             <div className="px-4 py-16 text-center text-slate-400 font-medium text-sm">
               {searchTerm ? 'No holdings match your filter.' : 'No holdings found. Start by adding a transaction.'}
@@ -287,7 +287,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   role={clickable ? 'button' : undefined}
                   tabIndex={clickable ? 0 : undefined}
                   onClick={() => clickable && onTickerClick?.(holding.ticker)}
-                  className={`rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 p-4 active:scale-[0.99] transition-transform ${clickable ? 'cursor-pointer' : ''}`}
+                  className={`mobile-holding rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 p-4 active:scale-[0.99] transition-transform ${clickable ? 'cursor-pointer' : ''}`}
                 >
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="min-w-0 flex items-start gap-2.5">
@@ -307,7 +307,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                       <div className="text-[10px] font-bold tabular-nums">{isProfit ? '+' : ''}{pnlPercent.toFixed(1)}%</div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="mobile-position-metrics grid grid-cols-2 gap-2 text-xs">
                     <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
                       <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'Units' : 'Qty'}</div>
                       <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">{isFund ? fmtFundUnits(holding.quantity) : holding.quantity.toLocaleString()}</div>
@@ -346,7 +346,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             })
           )}
           {filteredAndSortedHoldings.length > 0 && (
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/60 p-4">
+            <div className="mobile-grand-total rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/60 p-4">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Grand Total</div>
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div className="min-w-0">

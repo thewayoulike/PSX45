@@ -1,0 +1,8 @@
+@media (max-width: 767px) {
+  .mobile-auth > div.max-w-md { margin-bottom: 14px; }
+  .mobile-auth > div.max-w-md > div.mb-8 { margin-bottom: 16px; }
+  .mobile-auth > div.max-w-md > h1 { font-size: 25px; line-height: 1.2; }
+  .mobile-auth > div.max-w-md > p { font-size: 13px; margin-bottom: 14px; }
+  .mobile-auth > div.max-w-md:has(form) { padding: 18px; border-radius: 18px; box-shadow: none; }
+  .landing-page > section { padding: 30px 16px; }
+}

@@ -1,3 +1,4 @@
+import { ResponsiveMetricPanels } from './MobileLayout';
 import React from 'react';
 import { Holding, PortfolioStats, PortfolioType } from '../types';
 import { healthReturnPct } from '../utils/healthScore';
@@ -293,7 +294,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
         </div>
       </div>
       {/* Top Hero Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
+      <div className="mobile-hero-group grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
         <HeroCard
           label="Total Net Worth"
           value={rs(totalNetWorth)}
@@ -326,7 +327,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
         />
       </div>
       {/* Middle Grouped Panels */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in-up" style={{ animationDelay: '200ms', animationFillMode: 'both' }}>
+      <ResponsiveMetricPanels>
 
         {/* Performance Panel */}
         <MetricPanel title="Performance" icon={<TrendingUp size={16}/>} colorClass="text-emerald-600 dark:text-emerald-400">
@@ -408,7 +409,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             sub={isFund ? 'Incl. tax withheld on dividends' : 'Capital Gains Tax'}
           />
         </MetricPanel>
-      </div>
+      </ResponsiveMetricPanels>
       {/* Bottom Fees & Health Strip */}
       <div className="flex flex-col lg:flex-row gap-5 animate-fade-in-up" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
 

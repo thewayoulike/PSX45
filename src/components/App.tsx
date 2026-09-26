@@ -1,6 +1,8 @@
+import { ResponsivePortfolioHeader, ResponsivePortfolioActions, ResponsivePlanNotice, MobileSectionNavigator } from './MobileLayout';
 import { setUnsavedLocalChanges, setRecoveryEditorOpen } from '../utils/chunkRecovery';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
+import '../mobile-layout.css';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
 import { setCanSaveAlerts } from '../services/alertAccess';
 const Dashboard = lazy(() => import('./DashboardStats').then(m => ({ default: m.Dashboard })));
@@ -2494,9 +2496,9 @@ const App: React.FC = () => {
       entitledTickers={entitledTickerList}
       requestUpgrade={() => setShowUpgrade(true)}
     >
-    <div className="flex flex-col h-[100dvh] bg-slate-100 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-slate-100 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
-      {trialBanner}
+      <ResponsivePlanNotice label={sbStatus?.status === 'trial' ? `Trial · ${sbStatus.daysLeft} ${sbStatus.daysLeft === 1 ? 'day' : 'days'} left` : sbStatus?.status === 'paid' ? 'Renewal due' : 'Free plan'}>{trialBanner}</ResponsivePlanNotice>
 
       <div className="flex flex-1 overflow-hidden relative">
 
@@ -2533,20 +2535,13 @@ const App: React.FC = () => {
               <div className={`w-full min-w-0 ${isChartsView ? 'px-1 sm:px-2 pt-1 pb-2 h-full flex flex-col min-h-0' : 'px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 pt-6 pb-20'}`}>
 
                   {!isChartsView && (
-                  <header className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-2 sm:gap-4 mb-4 sm:mb-8 animate-in fade-in slide-in-from-top-5 duration-500">
-
-                      <div className="flex items-center justify-between w-full sm:w-auto gap-3">
-                         <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
+                  <ResponsivePortfolioHeader
+                    menu={<button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
                             <Menu size={20} />
-                         </button>
-                         <VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />
-                      </div>
-
-                      <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 md:flex-none md:w-auto bg-white/80 dark:bg-slate-900/80 p-1 sm:p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
-
-                          <ThemeToggle />
-
-                          <div className="relative group flex-1 min-w-0">
+                         </button>}
+                    guide={<VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />}
+                    theme={<ThemeToggle />}
+                    selector={<div className="relative group flex-1 min-w-0">
                               <select
                                   value={currentPortfolioId}
                                   aria-label="Current portfolio"
@@ -2560,14 +2555,10 @@ const App: React.FC = () => {
                                   ))}
                               </select>
                               <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
-                          </div>
-
-                          <div className="flex items-center gap-1 pl-2 border-l border-slate-200 dark:border-slate-700 shrink-0">
-                              <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio"> <Pencil size={16} /> </button>
-                              <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio"> <PlusCircle size={16} /> </button>
-                          </div>
-                      </div>
-                  </header>
+                          </div>}
+                    edit={<button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio" aria-label="Edit Portfolio"> <Pencil size={16} /> </button>}
+                    create={<button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio" aria-label="New Portfolio"> <PlusCircle size={16} /> </button>}
+                  />
                   )}
 
                   <main className={`${isChartsView ? 'flex-1 min-h-0 flex flex-col' : 'animate-in fade-in slide-in-from-bottom-5 duration-700'}`}>
@@ -2623,12 +2614,12 @@ const App: React.FC = () => {
                       <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
                             <div className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2">
-                              <IndexBar />
+                              <div className="mobile-index-strip"><IndexBar /></div>
                             </div>
                           )}
                           <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2.5">
                           <div className="w-full">
-                              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                              <ResponsivePortfolioActions primary={<>
                                       <button
                                           onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
                                           className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm dark:shadow-emerald-900/40 flex-1 sm:flex-none min-h-[44px]"
@@ -2644,7 +2635,7 @@ const App: React.FC = () => {
                                           <span>{isFundPortfolio ? 'Sync NAV' : 'Sync'}</span>
                                           {priceError && <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse" />}
                                       </button>
-                                      <button
+                                      </>} secondary={<><button
                                           onClick={() => setShowTransferModal(true)}
                                           className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700/80 text-blue-600 dark:text-blue-400 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-sm transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm min-h-[44px]"
                                           title={isFundPortfolio ? 'Convert between funds' : 'Transfer'}
@@ -2742,11 +2733,12 @@ const App: React.FC = () => {
                                               </button>
                                           </div>
                                       </div>
-                              </div>
+                              </>} />
                             </div>
                            </div>
                        </div>
                       )}
+                      <MobileSectionNavigator view={currentView} />
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               {isFundPortfolio && (
@@ -2958,13 +2950,13 @@ const App: React.FC = () => {
       </div>
 
       {isPortfolioModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[70] flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-sm p-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="mobile-dialog-overlay mobile-dialog-full fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[70] flex items-center justify-center p-4">
+              <div role="dialog" aria-modal="true" aria-label={editingPortfolioId ? 'Edit Portfolio' : 'Create Portfolio'} className="mobile-dialog mobile-portfolio-dialog bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark w-full max-w-sm p-6 animate-in fade-in zoom-in-95 duration-200">
                   <div className="flex justify-between items-center mb-6">
                       <h3 className="text-xl font-display font-black text-slate-900 dark:text-white">
                           {editingPortfolioId ? 'Edit Portfolio' : 'Create Portfolio'}
                       </h3>
-                      <button onClick={() => setIsPortfolioModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 rounded-full transition-colors"><X size={20} /></button>
+                      <button aria-label="Close" onClick={() => setIsPortfolioModalOpen(false)} className="p-2 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-200 rounded-full transition-colors"><X size={20} /></button>
                   </div>
                   <form onSubmit={handleSavePortfolio}>
                       <label className="block text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Portfolio Name <span className="text-rose-500">*</span></label>

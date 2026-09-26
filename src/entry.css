@@ -1,4 +1,5 @@
 @import './shared.css';
+@import './mobile-auth.css';
 @config '../tailwind.entry.config.js';
 @tailwind base;
 @tailwind components;

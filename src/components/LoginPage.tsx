@@ -223,7 +223,7 @@ const VideoGuideLink = () => <a href="/how-to-use" className="flex items-center 
 export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSuccess, compact = false }) => {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
-  if (compact) return <main className="min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
+  if (compact) return <main className="mobile-auth min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
     <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><a href="/tools" className="text-sm font-bold underline">Calculators</a></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Calculators stay in the menu after you sign in.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><VideoGuideLink/><div className="mt-7"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
   </main>;
 

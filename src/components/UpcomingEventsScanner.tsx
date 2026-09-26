@@ -74,8 +74,8 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-3 pt-12 sm:p-6 sm:pt-16">
-      <div className="flex w-full max-w-3xl max-h-[min(85vh,720px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:shadow-card-dark animate-in fade-in zoom-in-95 duration-200">
+    <div className="mobile-dialog-overlay mobile-dialog-sheet fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-3 pt-12 sm:p-6 sm:pt-16">
+      <div role="dialog" aria-modal="true" aria-label="Future X-Dates" className="mobile-dialog flex w-full max-w-3xl max-h-[min(85vh,720px)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900 dark:shadow-card-dark animate-in fade-in zoom-in-95 duration-200">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between gap-3 border-b border-slate-200 px-4 py-3.5 dark:border-slate-700 sm:px-5">
           <div className="flex min-w-0 items-center gap-3">

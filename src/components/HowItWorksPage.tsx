@@ -8,6 +8,7 @@ export const HowItWorksPage: React.FC = () => (
   <article className="app-feature-guide max-w-[1120px] mx-auto">
     <link rel="preload" as="image" href={videoGuide.poster} />
     <link rel="stylesheet" href="/feature-guide.css" />
+    <link rel="stylesheet" href="/mobile-reading.css" />
     <h1 className="text-3xl font-bold text-slate-900 dark:text-white">How it works</h1>
     <p className="mt-3 text-slate-600 dark:text-slate-300">Watch the walkthrough, then explore the written feature guide at your own pace.</p>
     <div dangerouslySetInnerHTML={{ __html: guideHtml }} />

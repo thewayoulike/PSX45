@@ -1,0 +1,577 @@
+{
+  "selectedOn": "2026-09-26",
+  "source": "User selections read from the mobile design studio",
+  "breakpoint": "max-width: 767px",
+  "screens": [
+    {
+      "id": "dashboard",
+      "title": "Dashboard",
+      "route": "/",
+      "design": "A"
+    },
+    {
+      "id": "holdings",
+      "title": "Holdings",
+      "route": "/holdings",
+      "design": "A"
+    },
+    {
+      "id": "add-transaction",
+      "title": "Add transaction",
+      "route": "/holdings",
+      "design": "B"
+    },
+    {
+      "id": "email-scan",
+      "title": "Broker email scan",
+      "route": "/holdings",
+      "design": "B"
+    },
+    {
+      "id": "email-text",
+      "title": "Broker email text review",
+      "route": "/holdings",
+      "design": "B"
+    },
+    {
+      "id": "stocks",
+      "title": "Stock profile",
+      "route": "/stocks/OGDC",
+      "design": "A"
+    },
+    {
+      "id": "charts",
+      "title": "Charts",
+      "route": "/charts",
+      "design": "A"
+    },
+    {
+      "id": "calculator",
+      "title": "Fair Value Calculator",
+      "route": "/calculator",
+      "design": "A"
+    },
+    {
+      "id": "calculators",
+      "title": "Calculators — all six tools",
+      "route": "/calculators",
+      "design": "A"
+    },
+    {
+      "id": "realized",
+      "title": "Realized P&L",
+      "route": "/realized",
+      "design": "A"
+    },
+    {
+      "id": "history",
+      "title": "Transactions",
+      "route": "/history",
+      "design": "A"
+    },
+    {
+      "id": "sector",
+      "title": "Sector profile",
+      "route": "/sector",
+      "design": "A"
+    },
+    {
+      "id": "signals",
+      "title": "Market Signals",
+      "route": "/signals",
+      "design": "A"
+    },
+    {
+      "id": "backtest",
+      "title": "Strategy Backtest",
+      "route": "/backtest",
+      "design": "A"
+    },
+    {
+      "id": "watchlist",
+      "title": "Watchlist",
+      "route": "/watchlist",
+      "design": "A"
+    },
+    {
+      "id": "alerts",
+      "title": "Price Alerts",
+      "route": "/alerts",
+      "design": "A"
+    },
+    {
+      "id": "assistant",
+      "title": "PSX Assistant",
+      "route": "/assistant",
+      "design": "A"
+    },
+    {
+      "id": "simulator",
+      "title": "Trading Simulator",
+      "route": "/simulator",
+      "design": "A"
+    },
+    {
+      "id": "how-it-works-app",
+      "title": "How it works — signed in",
+      "route": "/settings/how-it-works",
+      "design": "A"
+    },
+    {
+      "id": "profile",
+      "title": "Profile & Security",
+      "route": "/settings/profile",
+      "design": "A"
+    },
+    {
+      "id": "suggestions",
+      "title": "Suggestions",
+      "route": "/suggestions",
+      "design": "A"
+    },
+    {
+      "id": "dashboard-layout",
+      "title": "Dashboard Layout",
+      "route": "/dashboard/customize",
+      "design": "A"
+    },
+    {
+      "id": "admin-users",
+      "title": "Users — owner screen",
+      "route": "/admin/users",
+      "design": "A"
+    },
+    {
+      "id": "fund-holdings",
+      "title": "Mutual-fund Holdings",
+      "route": "/holdings",
+      "design": "A"
+    },
+    {
+      "id": "fund-profile",
+      "title": "Mutual-fund profile",
+      "route": "/fund/MF%3Ademo-income-fund",
+      "design": "A"
+    },
+    {
+      "id": "home",
+      "title": "Home / features & pricing",
+      "route": "/",
+      "design": "A"
+    },
+    {
+      "id": "login",
+      "title": "Log in",
+      "route": "/login",
+      "design": "A"
+    },
+    {
+      "id": "signup",
+      "title": "Sign up",
+      "route": "/login",
+      "design": "A"
+    },
+    {
+      "id": "forgot-password",
+      "title": "Forgot password",
+      "route": "/login",
+      "design": "A"
+    },
+    {
+      "id": "reset-password",
+      "title": "Reset password",
+      "route": "/reset-password",
+      "design": "A"
+    },
+    {
+      "id": "broker-setup",
+      "title": "Broker Setup",
+      "route": "/settings/brokers",
+      "design": "A"
+    },
+    {
+      "id": "api-keys",
+      "title": "API Keys",
+      "route": "/settings/api-keys",
+      "design": "A"
+    },
+    {
+      "id": "ai-scan",
+      "title": "AI document scan",
+      "route": "/holdings",
+      "design": "B"
+    },
+    {
+      "id": "portfolio-setup",
+      "title": "Create portfolio",
+      "route": "/holdings",
+      "design": "A"
+    },
+    {
+      "id": "dividend-scan",
+      "title": "Scan Dividends",
+      "route": "/holdings",
+      "design": "A"
+    },
+    {
+      "id": "x-dates",
+      "title": "Future X-Dates",
+      "route": "/holdings",
+      "design": "B"
+    },
+    {
+      "id": "manual-prices",
+      "title": "Manual Prices",
+      "route": "/holdings",
+      "design": "A"
+    },
+    {
+      "id": "transfer",
+      "title": "Transfer",
+      "route": "/holdings",
+      "design": "A"
+    },
+    {
+      "id": "import-file",
+      "title": "Import Excel / CSV",
+      "route": "/holdings",
+      "design": "B"
+    },
+    {
+      "id": "mobile-menu",
+      "title": "Mobile navigation & sync status",
+      "route": "/",
+      "design": "A"
+    },
+    {
+      "id": "fund-dashboard",
+      "title": "Mutual-fund dashboard",
+      "route": "/",
+      "design": "A"
+    },
+    {
+      "id": "fund-history",
+      "title": "Mutual-fund transactions",
+      "route": "/history",
+      "design": "A"
+    },
+    {
+      "id": "fund-scan",
+      "title": "Fund statement AI scan",
+      "route": "/holdings",
+      "design": "B"
+    },
+    {
+      "id": "fund-bank",
+      "title": "Fund bank / account setup",
+      "route": "/settings/brokers",
+      "design": "A"
+    },
+    {
+      "id": "about",
+      "title": "About PSX Tracker",
+      "route": "/about",
+      "design": "A"
+    },
+    {
+      "id": "privacy",
+      "title": "Privacy Policy",
+      "route": "/privacy",
+      "design": "A"
+    },
+    {
+      "id": "terms",
+      "title": "Terms & Conditions",
+      "route": "/terms",
+      "design": "A"
+    },
+    {
+      "id": "contact",
+      "title": "Contact PSX Tracker",
+      "route": "/contact",
+      "design": "A"
+    },
+    {
+      "id": "guides",
+      "title": "Guides directory",
+      "route": "/guides",
+      "design": "A"
+    },
+    {
+      "id": "how-it-works-public",
+      "title": "How it works — public",
+      "route": "/how-it-works",
+      "design": "A"
+    },
+    {
+      "id": "video-guide",
+      "title": "Video guide",
+      "route": "/how-to-use",
+      "design": "A"
+    },
+    {
+      "id": "guide-fifo-cost-basis-psx",
+      "title": "FIFO cost basis on the Pakistan Stock Exchange",
+      "route": "/guides/fifo-cost-basis-psx",
+      "design": "A"
+    },
+    {
+      "id": "guide-cgt-basics-pakistan-stocks",
+      "title": "Capital gains tax basics for Pakistani stocks",
+      "route": "/guides/cgt-basics-pakistan-stocks",
+      "design": "A"
+    },
+    {
+      "id": "guide-mutual-fund-nav-tracking",
+      "title": "Tracking mutual fund NAV and daily P&L",
+      "route": "/guides/mutual-fund-nav-tracking",
+      "design": "A"
+    },
+    {
+      "id": "guide-google-drive-backup-restore",
+      "title": "Google Drive backup and restore",
+      "route": "/guides/google-drive-backup-restore",
+      "design": "A"
+    },
+    {
+      "id": "guide-psx-charts-in-app",
+      "title": "Using PSX charts in the app",
+      "route": "/guides/psx-charts-in-app",
+      "design": "A"
+    },
+    {
+      "id": "guide-free-vs-paid-trial",
+      "title": "Free vs Paid after your 15-day trial",
+      "route": "/guides/free-vs-paid-trial",
+      "design": "A"
+    },
+    {
+      "id": "guide-importing-broker-trades",
+      "title": "Importing broker trades into PSX Tracker",
+      "route": "/guides/importing-broker-trades",
+      "design": "A"
+    },
+    {
+      "id": "guide-tracking-psx-dividends",
+      "title": "Tracking PSX dividends and cash income",
+      "route": "/guides/tracking-psx-dividends",
+      "design": "A"
+    },
+    {
+      "id": "guide-multi-portfolio-stocks-vs-funds",
+      "title": "Stock vs mutual fund portfolios",
+      "route": "/guides/multi-portfolio-stocks-vs-funds",
+      "design": "A"
+    },
+    {
+      "id": "guide-watchlists-and-alerts",
+      "title": "Watchlists and price alerts",
+      "route": "/guides/watchlists-and-alerts",
+      "design": "A"
+    },
+    {
+      "id": "guide-psx-portfolio-export-reconcile",
+      "title": "Export and reconcile your PSX portfolio",
+      "route": "/guides/psx-portfolio-export-reconcile",
+      "design": "A"
+    },
+    {
+      "id": "guide-understanding-unrealized-vs-realized",
+      "title": "Unrealized vs realized P&L explained",
+      "route": "/guides/understanding-unrealized-vs-realized",
+      "design": "A"
+    },
+    {
+      "id": "guide-best-psx-portfolio-tracker-excel-alternative",
+      "title": "Best PSX Portfolio Tracker Alternatives to Excel and Google Sheets (2026)",
+      "route": "/guides/best-psx-portfolio-tracker-excel-alternative",
+      "design": "A"
+    },
+    {
+      "id": "guide-start-investing-on-psx",
+      "title": "How to start investing on the Pakistan Stock Exchange",
+      "route": "/guides/start-investing-on-psx",
+      "design": "A"
+    },
+    {
+      "id": "guide-choosing-a-psx-broker",
+      "title": "Choosing a PSX stock broker",
+      "route": "/guides/choosing-a-psx-broker",
+      "design": "A"
+    },
+    {
+      "id": "guide-psx-with-limited-capital",
+      "title": "Starting on PSX with limited capital",
+      "route": "/guides/psx-with-limited-capital",
+      "design": "A"
+    },
+    {
+      "id": "guide-realistic-psx-returns",
+      "title": "Realistic returns on the Pakistan Stock Exchange",
+      "route": "/guides/realistic-psx-returns",
+      "design": "A"
+    },
+    {
+      "id": "guide-is-psx-investing-halal",
+      "title": "Is investing on PSX halal? A plain overview",
+      "route": "/guides/is-psx-investing-halal",
+      "design": "A"
+    },
+    {
+      "id": "guide-kmi-and-shariah-screening",
+      "title": "KMI-style Shariah screening on PSX",
+      "route": "/guides/kmi-and-shariah-screening",
+      "design": "A"
+    },
+    {
+      "id": "guide-stock-factors-investors-watch",
+      "title": "Stock factors PSX investors often watch",
+      "route": "/guides/stock-factors-investors-watch",
+      "design": "A"
+    },
+    {
+      "id": "guide-pe-ratio-for-psx-stocks",
+      "title": "P/E ratio for PSX stocks explained",
+      "route": "/guides/pe-ratio-for-psx-stocks",
+      "design": "A"
+    },
+    {
+      "id": "guide-graham-style-margin-of-safety",
+      "title": "Intrinsic value and margin of safety",
+      "route": "/guides/graham-style-margin-of-safety",
+      "design": "A"
+    },
+    {
+      "id": "guide-analyze-cement-stocks-psx",
+      "title": "How to analyze cement stocks on PSX",
+      "route": "/guides/analyze-cement-stocks-psx",
+      "design": "A"
+    },
+    {
+      "id": "guide-analyze-pakistani-banks-psx",
+      "title": "How to analyze Pakistani bank stocks",
+      "route": "/guides/analyze-pakistani-banks-psx",
+      "design": "A"
+    },
+    {
+      "id": "markets",
+      "title": "PSX companies and mutual funds",
+      "route": "/markets",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-ogdc",
+      "title": "Oil and Gas Development Company (OGDC)",
+      "route": "/markets/shares/ogdc",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-ppl",
+      "title": "Pakistan Petroleum (PPL)",
+      "route": "/markets/shares/ppl",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-pol",
+      "title": "Pakistan Oilfields (POL)",
+      "route": "/markets/shares/pol",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-hubc",
+      "title": "The Hub Power Company (HUBC)",
+      "route": "/markets/shares/hubc",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-luck",
+      "title": "Lucky Cement (LUCK)",
+      "route": "/markets/shares/luck",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-ffc",
+      "title": "Fauji Fertilizer Company (FFC)",
+      "route": "/markets/shares/ffc",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-mcb",
+      "title": "MCB Bank (MCB)",
+      "route": "/markets/shares/mcb",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-mebl",
+      "title": "Meezan Bank (MEBL)",
+      "route": "/markets/shares/mebl",
+      "design": "A"
+    },
+    {
+      "id": "markets-shares-sys",
+      "title": "Systems Limited (SYS)",
+      "route": "/markets/shares/sys",
+      "design": "A"
+    },
+    {
+      "id": "markets-funds-meezan-islamic-fund",
+      "title": "Meezan Islamic Fund",
+      "route": "/markets/funds/meezan-islamic-fund",
+      "design": "A"
+    },
+    {
+      "id": "markets-funds-al-meezan-mutual-fund",
+      "title": "Al Meezan Mutual Fund",
+      "route": "/markets/funds/al-meezan-mutual-fund",
+      "design": "A"
+    },
+    {
+      "id": "markets-funds-ubl-stock-advantage-fund",
+      "title": "UBL Stock Advantage Fund",
+      "route": "/markets/funds/ubl-stock-advantage-fund",
+      "design": "A"
+    },
+    {
+      "id": "tools",
+      "title": "PSX portfolio calculators",
+      "route": "/tools",
+      "design": "A"
+    },
+    {
+      "id": "tools-capital-gains",
+      "title": "Share capital gain calculator",
+      "route": "/tools/capital-gains",
+      "design": "A"
+    },
+    {
+      "id": "tools-fifo-vs-average",
+      "title": "FIFO versus average cost",
+      "route": "/tools/fifo-vs-average",
+      "design": "A"
+    },
+    {
+      "id": "tools-dividend-yield",
+      "title": "Dividend yield calculator",
+      "route": "/tools/dividend-yield",
+      "design": "A"
+    },
+    {
+      "id": "tools-trade-costs",
+      "title": "Trade cost calculator",
+      "route": "/tools/trade-costs",
+      "design": "A"
+    },
+    {
+      "id": "tools-sip",
+      "title": "SIP calculator",
+      "route": "/tools/sip",
+      "design": "A"
+    },
+    {
+      "id": "tools-zakat",
+      "title": "Zakat calculator",
+      "route": "/tools/zakat",
+      "design": "A"
+    }
+  ]
+}
