@@ -2496,13 +2496,13 @@ const App: React.FC = () => {
       entitledTickers={entitledTickerList}
       requestUpgrade={() => setShowUpgrade(true)}
     >
-    <div data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-slate-100 text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-[#f3f6f2] text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       <ResponsivePlanNotice label={sbStatus?.status === 'trial' ? `Trial · ${sbStatus.daysLeft} ${sbStatus.daysLeft === 1 ? 'day' : 'days'} left` : sbStatus?.status === 'paid' ? 'Renewal due' : 'Free plan'}>{trialBanner}</ResponsivePlanNotice>
 
       <div className="flex flex-1 overflow-hidden relative">
 
-          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+          <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 hidden dark:block">
               <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]"></div>
               <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-[120px]"></div>
           </div>
