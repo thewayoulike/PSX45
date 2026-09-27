@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Chart prototype — TradingView drag and scroll</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #f3f6f2; color: #16342f; font: 14px/1.45 Inter, system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; min-height: 100%; }
+  header { padding: 14px 18px 10px; }
+  h1 { margin: 0 0 4px; font-size: 18px; letter-spacing: -0.03em; }
+  p { margin: 0; color: #52685f; }
+  .gestures { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .gestures span { background: #fff; border: 1px solid #dbe5df; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+  #stage { flex: 1 1 auto; height: 0; min-height: 480px; width: calc(100% - 28px); margin: 8px 14px 14px; background: #fff; border: 1px solid #dbe5df; border-radius: 16px; position: relative; overflow: hidden; touch-action: none; }
+  canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+  #status { position: absolute; left: 12px; top: 12px; background: rgba(255,255,255,.92); border: 1px solid #dbe5df; border-radius: 10px; padding: 6px 10px; font-size: 12px; font-weight: 700; pointer-events: none; }
+  button { margin-top: 8px; border: 1px solid #dbe5df; background: #fff; border-radius: 10px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Chart drag and scroll — TradingView feel</h1>
+  <p>Try this before it goes into the app. The page itself does not scroll while the pointer is on the chart.</p>
+  <div class="gestures">
+    <span>Drag candles left or right — move through time</span>
+    <span>Scroll wheel or pinch — zoom time, the candle under the pointer stays put</span>
+    <span>Drag the prices on the right — zoom price</span>
+    <span>Drag the dates along the bottom — zoom time</span>
+    <span>Double-click an axis — reset that axis</span>
+  </div>
+  <button type="button" id="reset">Reset chart</button>
+</header>
+<div id="stage">
+  <canvas id="c"></canvas>
+  <div id="status">Ready</div>
+</div>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const PRICE_W = 68;
+const TIME_H = 28;
+
+const bars = [];
+{
+  let price = 186;
+  const start = Date.UTC(2025, 0, 2);
+  for (let i = 0; i < 420; i++) {
+    const drift = Math.sin(i / 18) * 0.35 + (Math.random() - 0.48) * 2.4;
+    const open = price;
+    price = Math.max(40, price + drift);
+    const high = Math.max(open, price) + Math.random() * 1.8;
+    const low = Math.min(open, price) - Math.random() * 1.8;
+    bars.push({ t: start + i * 86400000, o: open, h: high, l: low, c: price });
+  }
+}
+
+const view = {
+  barSpacing: 8,
+  rightIndex: bars.length - 1 + 4,
+  autoPrice: true,
+  minP: 0,
+  maxP: 1,
+};
+const HOME = { barSpacing: 8, rightIndex: bars.length - 1 + 4 };
+
+let drag = null;
+let cross = null;
+let velocity = 0;
+let raf = 0;
+
+function setStatus(text) { statusEl.textContent = text; }
+
+function resize() {
+  const r = canvas.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.max(1, Math.floor(r.width * dpr));
+  canvas.height = Math.max(1, Math.floor(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+function plotSize() {
+  const r = canvas.getBoundingClientRect();
+  return { w: Math.max(40, r.width - PRICE_W), h: Math.max(40, r.height - TIME_H), fullW: r.width, fullH: r.height };
+}
+
+function clampView() {
+  view.barSpacing = Math.max(2, Math.min(48, view.barSpacing));
+  const { w } = plotSize();
+  const minRight = 8;
+  const maxRight = bars.length - 1 + w / view.barSpacing - 8;
+  view.rightIndex = Math.max(minRight, Math.min(maxRight, view.rightIndex));
+}
+
+function visibleRange() {
+  const { w, h } = plotSize();
+  const from = view.rightIndex - w / view.barSpacing;
+  const to = view.rightIndex;
+  let minP = Infinity, maxP = -Infinity, any = false;
+  const i0 = Math.max(0, Math.floor(from));
+  const i1 = Math.min(bars.length - 1, Math.ceil(to));
+  for (let i = i0; i <= i1; i++) {
+    any = true;
+    minP = Math.min(minP, bars[i].l);
+    maxP = Math.max(maxP, bars[i].h);
+  }
+  if (!any) { minP = 0; maxP = 1; }
+  const pad = (maxP - minP || maxP * 0.02 || 1) * 0.08;
+  return { from, to, w, h, minP: minP - pad, maxP: maxP + pad };
+}
+
+function priceBounds() {
+  const vis = visibleRange();
+  if (view.autoPrice) return { minP: vis.minP, maxP: vis.maxP, vis };
+  return { minP: view.minP, maxP: view.maxP, vis };
+}
+
+function xOf(index, vis) {
+  return vis.w - (view.rightIndex - index) * view.barSpacing;
+}
+function yOf(price, bounds) {
+  const span = bounds.maxP - bounds.minP || 1;
+  return (bounds.maxP - price) / span * bounds.vis.h;
+}
+function indexAt(x, vis) {
+  return view.rightIndex - (vis.w - x) / view.barSpacing;
+}
+function priceAt(y, bounds) {
+  const span = bounds.maxP - bounds.minP || 1;
+  return bounds.maxP - (y / bounds.vis.h) * span;
+}
+
+function zoomTimeAt(x, factor) {
+  const vis = visibleRange();
+  const anchor = indexAt(x, vis);
+  view.barSpacing *= factor;
+  clampView();
+  const next = visibleRange();
+  view.rightIndex = anchor + (next.w - x) / view.barSpacing;
+  clampView();
+}
+
+function draw() {
+  const { fullW, fullH } = plotSize();
+  const bounds = priceBounds();
+  const vis = bounds.vis;
+  ctx.clearRect(0, 0, fullW, fullH);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, fullW, fullH);
+
+  ctx.strokeStyle = '#f0f3fa';
+  ctx.lineWidth = 1;
+  ctx.fillStyle = '#787b86';
+  ctx.font = '11px system-ui';
+  ctx.textAlign = 'left';
+  const span = bounds.maxP - bounds.minP || 1;
+  const step = niceStep(span / 6);
+  const firstTick = Math.ceil(bounds.minP / step) * step;
+  for (let p = firstTick; p <= bounds.maxP; p += step) {
+    const y = yOf(p, bounds);
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(vis.w, y);
+    ctx.stroke();
+    ctx.fillText(p.toFixed(2), vis.w + 8, y + 4);
+  }
+
+  const i0 = Math.max(0, Math.floor(vis.from));
+  const i1 = Math.min(bars.length - 1, Math.ceil(vis.to));
+  const bodyW = Math.max(1, view.barSpacing * 0.72);
+  for (let i = i0; i <= i1; i++) {
+    const b = bars[i];
+    const x = xOf(i, vis);
+    const up = b.c >= b.o;
+    ctx.strokeStyle = up ? '#089981' : '#f23645';
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.beginPath();
+    ctx.moveTo(x, yOf(b.h, bounds));
+    ctx.lineTo(x, yOf(b.l, bounds));
+    ctx.stroke();
+    const y1 = yOf(Math.max(b.o, b.c), bounds);
+    const y2 = yOf(Math.min(b.o, b.c), bounds);
+    ctx.fillRect(x - bodyW / 2, y1, bodyW, Math.max(1, y2 - y1));
+  }
+
+  ctx.strokeStyle = '#e0e3eb';
+  ctx.beginPath();
+  ctx.moveTo(vis.w + 0.5, 0);
+  ctx.lineTo(vis.w + 0.5, vis.h);
+  ctx.moveTo(0, vis.h + 0.5);
+  ctx.lineTo(fullW, vis.h + 0.5);
+  ctx.stroke();
+
+  ctx.fillStyle = '#787b86';
+  ctx.textAlign = 'center';
+  const labelEvery = Math.max(1, Math.ceil(72 / view.barSpacing));
+  for (let i = i0; i <= i1; i++) {
+    if (i % labelEvery !== 0) continue;
+    const d = new Date(bars[i].t);
+    const label = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    ctx.fillText(label, xOf(i, vis), vis.h + 18);
+  }
+
+  if (cross && cross.x >= 0 && cross.x <= vis.w && cross.y >= 0 && cross.y <= vis.h) {
+    ctx.strokeStyle = '#9598a1';
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(cross.x, 0);
+    ctx.lineTo(cross.x, vis.h);
+    ctx.moveTo(0, cross.y);
+    ctx.lineTo(vis.w, cross.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const idx = Math.round(indexAt(cross.x, vis));
+    const bar = bars[idx];
+    if (bar) {
+      const tag = `${new Date(bar.t).toLocaleDateString()}  O ${bar.o.toFixed(2)}  H ${bar.h.toFixed(2)}  L ${bar.l.toFixed(2)}  C ${bar.c.toFixed(2)}`;
+      ctx.fillStyle = '#131722';
+      ctx.textAlign = 'left';
+      ctx.fillText(tag, 10, 28);
+    }
+    ctx.fillStyle = '#131722';
+    ctx.fillRect(vis.w, cross.y - 9, PRICE_W, 18);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'left';
+    ctx.fillText(priceAt(cross.y, bounds).toFixed(2), vis.w + 8, cross.y + 4);
+  }
+}
+
+function niceStep(rough) {
+  const p = Math.pow(10, Math.floor(Math.log10(rough)));
+  const n = rough / p;
+  const m = n < 1.5 ? 1 : n < 3 ? 2 : n < 7 ? 5 : 10;
+  return m * p;
+}
+
+function localPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: e.clientX - r.left, y: e.clientY - r.top };
+}
+function zone(p) {
+  const { w, h } = plotSize();
+  if (p.x >= w && p.y <= h) return 'price';
+  if (p.y >= h) return 'time';
+  return 'plot';
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  velocity = 0;
+  canvas.setPointerCapture(e.pointerId);
+  const p = localPoint(e);
+  const where = zone(p);
+  const bounds = priceBounds();
+  drag = {
+    where,
+    id: e.pointerId,
+    x: e.clientX,
+    y: e.clientY,
+    right: view.rightIndex,
+    spacing: view.barSpacing,
+    minP: bounds.minP,
+    maxP: bounds.maxP,
+    anchorIndex: indexAt(p.x, bounds.vis),
+    anchorPrice: priceAt(Math.min(p.y, bounds.vis.h), bounds),
+    lastX: e.clientX,
+    lastT: performance.now(),
+    v: 0,
+    pointers: e.pointerType === 'touch' ? touchPoints() : null,
+  };
+  canvas.style.cursor = where === 'plot' ? 'grabbing' : where === 'price' ? 'ns-resize' : 'ew-resize';
+  setStatus(where === 'plot' ? 'Moving through time' : where === 'price' ? 'Scaling price' : 'Zooming time');
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  const p = localPoint(e);
+  if (!drag || drag.id !== e.pointerId) {
+    cross = zone(p) === 'plot' ? p : null;
+    if (!drag) {
+      const z = zone(p);
+      canvas.style.cursor = z === 'plot' ? 'crosshair' : z === 'price' ? 'ns-resize' : 'ew-resize';
+    }
+    draw();
+    return;
+  }
+  if (drag.where === 'plot') {
+    const dx = e.clientX - drag.x;
+    view.rightIndex = drag.right - dx / view.barSpacing;
+    clampView();
+    const now = performance.now();
+    const dt = Math.max(8, now - drag.lastT);
+    drag.v = (e.clientX - drag.lastX) / dt;
+    drag.lastX = e.clientX;
+    drag.lastT = now;
+    setStatus('Moving through time');
+  } else if (drag.where === 'price') {
+    const scale = Math.exp(-(e.clientY - drag.y) * 0.006);
+    const mid = (drag.minP + drag.maxP) / 2;
+    const half = Math.max(0.5, (drag.maxP - drag.minP) / 2 * scale);
+    view.autoPrice = false;
+    view.minP = mid - half;
+    view.maxP = mid + half;
+    setStatus('Scaling price — double-click the prices to reset');
+  } else {
+    const factor = Math.exp((e.clientX - drag.x) * 0.004);
+    view.barSpacing = drag.spacing * factor;
+    clampView();
+    const vis = visibleRange();
+    view.rightIndex = drag.anchorIndex + (vis.w - (drag.x - canvas.getBoundingClientRect().left)) / view.barSpacing;
+    clampView();
+    setStatus('Zooming time — double-click the dates to reset');
+  }
+  draw();
+});
+
+function endDrag(e) {
+  if (!drag || (e && drag.id !== e.pointerId)) return;
+  if (drag.where === 'plot' && Math.abs(drag.v) > 0.4) velocity = drag.v;
+  drag = null;
+  canvas.style.cursor = 'crosshair';
+  if (velocity) kick();
+  else setStatus('Ready');
+}
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+canvas.addEventListener('dblclick', (e) => {
+  const where = zone(localPoint(e));
+  if (where === 'price') {
+    view.autoPrice = true;
+    setStatus('Price scale reset');
+  } else if (where === 'time') {
+    view.barSpacing = HOME.barSpacing;
+    view.rightIndex = HOME.rightIndex;
+    setStatus('Time scale reset');
+  } else {
+    view.barSpacing = HOME.barSpacing;
+    view.rightIndex = HOME.rightIndex;
+    view.autoPrice = true;
+    setStatus('Chart reset');
+  }
+  clampView();
+  draw();
+});
+
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const p = localPoint(e);
+  const where = zone(p);
+  if (where === 'price' || e.shiftKey) {
+    const bounds = priceBounds();
+    const scale = Math.exp(-e.deltaY * 0.0012);
+    const anchor = priceAt(Math.min(Math.max(p.y, 0), bounds.vis.h), bounds);
+    const nextMin = anchor - (anchor - bounds.minP) * scale;
+    const nextMax = anchor + (bounds.maxP - anchor) * scale;
+    view.autoPrice = false;
+    view.minP = nextMin;
+    view.maxP = nextMax;
+    setStatus('Scaling price');
+  } else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    view.rightIndex += e.deltaX / view.barSpacing;
+    clampView();
+    setStatus('Moving through time');
+  } else {
+    const factor = Math.exp(-e.deltaY * 0.0015);
+    zoomTimeAt(Math.min(p.x, plotSize().w), factor);
+    setStatus('Zooming time');
+  }
+  draw();
+}, { passive: false });
+
+function kick() {
+  cancelAnimationFrame(raf);
+  let last = performance.now();
+  const step = (now) => {
+    const dt = Math.min(32, now - last);
+    last = now;
+    view.rightIndex -= velocity * dt / view.barSpacing;
+    clampView();
+    velocity *= Math.pow(0.92, dt / 16);
+    draw();
+    if (Math.abs(velocity) > 0.02) raf = requestAnimationFrame(step);
+    else { velocity = 0; setStatus('Ready'); }
+  };
+  raf = requestAnimationFrame(step);
+}
+
+const touches = new Map();
+function touchPoints() {
+  return [...touches.values()];
+}
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.pointerType !== 'touch') return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'touch' || !touches.has(e.pointerId)) return;
+  touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (touches.size === 2 && drag) {
+    const [a, b] = touchPoints();
+    const dist = Math.hypot(a.x - b.x, a.y - b.y);
+    if (!drag.pinch) drag.pinch = dist;
+    const factor = dist / drag.pinch;
+    if (factor > 0) {
+      zoomTimeAt(plotSize().w / 2, factor / (drag.lastFactor || 1));
+      drag.lastFactor = factor;
+      setStatus('Pinch zoom');
+      draw();
+    }
+  }
+});
+function forgetTouch(e) { touches.delete(e.pointerId); }
+canvas.addEventListener('pointerup', forgetTouch);
+canvas.addEventListener('pointercancel', forgetTouch);
+
+document.getElementById('reset').onclick = () => {
+  view.barSpacing = HOME.barSpacing;
+  view.rightIndex = HOME.rightIndex;
+  view.autoPrice = true;
+  velocity = 0;
+  setStatus('Chart reset');
+  draw();
+};
+
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>

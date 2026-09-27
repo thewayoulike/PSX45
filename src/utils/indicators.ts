@@ -42,8 +42,8 @@ export interface TradePlan {
   /** Traditional monthly pivot R1 (when OHLC provided); else recent structure. */
   resistance: number;
   pivot?: number;
-  supportLabel?: 'S1' | '10d low';
-  resistanceLabel?: 'R1' | '20d high';
+  supportLabel?: 'S1' | '10d low' | 'Support · 20-session low';
+  resistanceLabel?: 'R1' | '20d high' | 'Resistance · 20-session high';
 }
 
 const smaLast = (v: number[], p: number): number => {

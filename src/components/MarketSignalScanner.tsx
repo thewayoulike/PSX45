@@ -1,6 +1,11 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock, Sparkles, Settings2 } from 'lucide-react';
+import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock, Sparkles, Settings2, Download, X } from 'lucide-react';
+import type { ScanSnapshot, SnapshotSection, SnapshotLayout } from '../utils/scanSnapshot';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
+import { fetchTechnicalScanBars } from '../services/technicalScanData';
+import { computeTechnicalAnalysis, SCAN_DISCLAIMER, type TechnicalAnalysis } from '../utils/technicalRatings';
+import { technicalSnapshotStock } from '../utils/technicalSnapshot';
+import { TechnicalScanResults, type TechnicalResult } from './TechnicalScanResults';
 import {
   computeSignal,
   computeTradePlan,
@@ -32,6 +37,7 @@ type StrategyMode = 'composite' | 'rsi_oversold';
 
 interface Candidate { symbol: string; current: number; ldcp: number; changePct: number; volume: number; }
 interface Result extends Candidate {
+  technical?: TechnicalAnalysis;
   summary: SignalSummary;
   plan: TradePlan | null;
   strategy?: StrategyMode;
@@ -46,7 +52,7 @@ const fmt = (n?: number | null, d = 2) =>
   (n == null || Number.isNaN(n) || !Number.isFinite(n))
     ? '—'
     : n.toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
-const fmtVol = (n: number) => (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : `${n}`);
+const fmtVol = (n: number) => !Number.isFinite(n) ? '—' : (n >= 1e6 ? `${(n / 1e6).toFixed(2)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1)}K` : `${n}`);
 
 // Parse market-watch snapshot into liquidity-ranked candidates.
 const parseCandidates = (html: string): Candidate[] => {
@@ -90,7 +96,7 @@ const parseCandidates = (html: string): Candidate[] => {
 const buildUniverse = (
   candidates: Candidate[],
   u: string,
-  opts?: { watchlist?: string[]; symbol?: string },
+  opts?: { watchlist?: string[]; holdings?: string[]; symbol?: string },
 ): Candidate[] => buildScanUniverse(candidates, u, opts);
 
 // Run an async fn over items with limited concurrency.
@@ -389,8 +395,10 @@ const BacktestSummary: React.FC<{ bt: RsiOversoldBacktest; symbols: number }> = 
 export const MarketSignalScanner: React.FC<{
   onSymbolClick?: (s: string) => void;
   watchlist?: string[];
+  holdings?: string[];
+  holdingsLabel?: string;
   onAskAssistant?: (prompt: string) => void;
-}> = ({ onSymbolClick, watchlist = [], onAskAssistant }) => {
+}> = ({ onSymbolClick, watchlist = [], holdings = [], holdingsLabel = 'Selected portfolio', onAskAssistant }) => {
   const { isFree, quotas, requestUpgrade } = useFreemium();
   const signalsVisible = quotas.signalsVisible ?? 5;
   const [status, setStatus] = useState<'idle' | 'scanning' | 'done'>('idle');
@@ -400,10 +408,16 @@ export const MarketSignalScanner: React.FC<{
   const [universe, setUniverse] = useState<string>('KSE100');
   const [singleSymbol, setSingleSymbol] = useState('');
   const [strategy, setStrategy] = useState<StrategyMode>('composite');
-  const [buyOnly, setBuyOnly] = useState(true);
+  const [buyOnly, setBuyOnly] = useState(false);
   const [view, setView] = useState<'cards' | 'table'>('cards');
   const [copied, setCopied] = useState(false);
   const [scannedAt, setScannedAt] = useState<Date | null>(null);
+  const [scanContext, setScanContext] = useState('');
+  const snapshotDialog = useRef<HTMLDialogElement>(null);
+  const [snapshotScope, setSnapshotScope] = useState('all');
+  const [snapshotLayout, setSnapshotLayout] = useState<SnapshotLayout>('landscape');
+  const [snapshotBusy, setSnapshotBusy] = useState(false);
+  const [snapshotMessage, setSnapshotMessage] = useState('');
   const [aggBacktest, setAggBacktest] = useState<RsiOversoldBacktest | null>(null);
   const [settings, setSettings] = useState<ScanBotSettings>(() => loadScanBotSettings());
   const [showSettings, setShowSettings] = useState(false);
@@ -411,13 +425,13 @@ export const MarketSignalScanner: React.FC<{
 
   // RSI oversold works best on liquid index names — nudge universe when switching mode.
   useEffect(() => {
-    if (strategy === 'rsi_oversold' && !['KSE100', 'KMI30', 'WATCHLIST', 'SYMBOL'].includes(universe)) {
+    if (strategy === 'rsi_oversold' && !['KSE100', 'KMI30', 'WATCHLIST', 'HOLDINGS', 'SYMBOL'].includes(universe)) {
       setUniverse('KSE100');
     }
   }, [strategy, universe]);
 
   const persistHits = useCallback((collected: Result[], univ: string, mode: StrategyMode, total: number, agg: RsiOversoldBacktest | null) => {
-    const hits: DailyScanHit[] = collected.map((r) => ({
+    const hits: DailyScanHit[] = collected.filter(r => !r.technical || r.technical.score != null).map((r) => ({
       symbol: r.symbol,
       current: r.current,
       changePct: r.changePct,
@@ -425,6 +439,10 @@ export const MarketSignalScanner: React.FC<{
       verdict: r.summary.verdict,
       rsi: r.summary.rsi,
       score: r.summary.score,
+      referencePrice: r.technical?.summary.lastPrice,
+      candleDate: r.technical?.candleDate || undefined,
+      targets: r.plan?.targets,
+      model: r.technical ? 'technical-26' : undefined,
       stop: r.plan?.stop,
       target: r.plan?.targets[0],
       support: r.plan?.support,
@@ -446,6 +464,10 @@ export const MarketSignalScanner: React.FC<{
   }, []);
 
   const runScan = useCallback(async () => {
+    if (universe === 'HOLDINGS' && !holdings.length) {
+      setError('There are no open stock holdings in this portfolio. Add a stock purchase or choose another scan universe.');
+      return;
+    }
     if (isFree) {
       const { ok } = consumeDailyQuota('signals', quotas.signalsPerDay ?? 1);
       if (!ok) { requestUpgrade(); return; }
@@ -464,9 +486,10 @@ export const MarketSignalScanner: React.FC<{
       const html = await fetchUrlWithFallback('https://dps.psx.com.pk/market-watch');
       if (!html || html.length < 500) throw new Error('Could not fetch the market snapshot. Try again in a moment.');
 
-      const scanUniverse = rsiMode && !['KSE100', 'KMI30', 'WATCHLIST', 'SYMBOL'].includes(universe) ? 'KSE100' : universe;
+      const scanUniverse = rsiMode && !['KSE100', 'KMI30', 'WATCHLIST', 'HOLDINGS', 'SYMBOL'].includes(universe) ? 'KSE100' : universe;
       const candidates = buildUniverse(parseCandidates(html), scanUniverse, {
         watchlist,
+        holdings,
         symbol: singleSymbol,
       });
       if (candidates.length === 0) {
@@ -484,6 +507,13 @@ export const MarketSignalScanner: React.FC<{
       const btParts: RsiOversoldBacktest[] = [];
 
       await mapPool(candidates, concurrency, async (c) => {
+        if (!rsiMode) {
+          const bars = await fetchTechnicalScanBars(c.symbol);
+          const technical = computeTechnicalAnalysis(bars);
+          collected.push({ ...c, current: c.current > 0 ? c.current : technical.summary.lastPrice,
+            summary: technical.summary, technical, plan: technical.plan, strategy: 'composite' });
+          return;
+        }
         const history = await fetchStockHistory(c.symbol, '1Y');
         const closes = history.map((h) => h.price);
         if (closes.length < 35) return;
@@ -512,8 +542,6 @@ export const MarketSignalScanner: React.FC<{
           return;
         }
 
-        const plan = computeTradePlan(closes, price);
-        collected.push({ ...row, summary, plan, strategy: 'composite' });
       }, (done) => setProgress((p) => ({ ...p, done })));
 
       let agg: RsiOversoldBacktest | null = null;
@@ -522,18 +550,19 @@ export const MarketSignalScanner: React.FC<{
         agg = mergeRsiOversoldBacktests(btParts);
         setAggBacktest(agg);
       } else {
-        collected.sort((a, b) => b.summary.score - a.summary.score || b.volume - a.volume);
+        collected.sort((a, b) => (b.technical?.score ?? -2) - (a.technical?.score ?? -2) || b.volume - a.volume);
       }
 
       setResults(collected);
       setScannedAt(new Date());
+      setScanContext(`${scanUniverse === 'HOLDINGS' ? 'My holdings' : scanUniverse === 'SYMBOL' ? singleSymbol.toUpperCase() : scanUniverse} · ${rsiMode ? 'RSI oversold' : '26-indicator technical scan'} · Daily history · ${candidates.length} stocks scanned`);
       persistHits(collected, scanUniverse, strategy, candidates.length, agg);
       setStatus('done');
     } catch (e: any) {
       setError(e.message || 'Scan failed.');
       setStatus('idle');
     }
-  }, [universe, strategy, singleSymbol, watchlist, isFree, quotas.signalsPerDay, requestUpgrade, persistHits]);
+  }, [universe, strategy, singleSymbol, watchlist, holdings, holdingsLabel, isFree, quotas.signalsPerDay, requestUpgrade, persistHits]);
 
   useEffect(() => {
     if (autoRan.current || !settings.autoRunIfStale) return;
@@ -551,8 +580,82 @@ export const MarketSignalScanner: React.FC<{
   const shown = results.filter((r) => {
     if (symbolMode) return true;
     if (rsiMode) return true;
-    return buyOnly ? (r.summary.verdict === 'BUY' || r.summary.verdict === 'STRONG BUY') : true;
+    return buyOnly ? r.summary.enoughData && (r.summary.verdict === 'BUY' || r.summary.verdict === 'STRONG BUY') : true;
   });
+  const snapshotResults = isFree ? shown.slice(0, signalsVisible) : shown;
+  const takeSnapshot = async () => {
+    setSnapshotBusy(true);
+    setSnapshotMessage('Preparing complete images…');
+    try {
+      const selected = snapshotScope === 'all' ? snapshotResults : snapshotResults.filter(r => r.symbol === snapshotScope);
+      const snapshot: ScanSnapshot = {
+        layout: snapshotLayout,
+        scannedAt: scannedAt?.toLocaleString('en-GB', { timeZoneName: 'short' }) || 'Scan time unavailable',
+        context: scanContext,
+        note: `${selected.length} of ${results.length} results included. Market quotes and history may have different timestamps.`,
+        stocks: selected.map(r => {
+          if (r.technical) return technicalSnapshotStock({ ...r, technical: r.technical });
+          const averageRows = r.summary.indicators.filter(i => /SMA|EMA/.test(i.name));
+          const oscillatorRows = r.summary.indicators.filter(i => !/SMA|EMA/.test(i.name));
+          const groups = [
+            { label: 'Moving averages', rows: averageRows, total: 6, kind: 'averages' as const },
+            { label: 'Oscillators', rows: oscillatorRows, total: 3, kind: 'oscillators' as const },
+          ];
+          const sections: SnapshotSection[] = groups.map(g => ({ title: g.label, kind: g.kind, rows: g.rows.map(i => ({ label: i.name, value: i.value, signal: i.signal })) }));
+          if (r.plan) sections.push({ title: 'Price levels & trade plan (PKR)', rows: [
+            { label: 'Entry range', value: `${fmt(r.plan.entryLow)} – ${fmt(r.plan.entryHigh)}` },
+            { label: 'Stop level', value: fmt(r.plan.stop) },
+            ...r.plan.targets.map((t, i) => ({ label: `Take profit ${i + 1} · reward ${fmt(r.plan!.rewardPct[i])}%`, value: `${fmt(t)} · ${r.current > r.plan!.stop ? fmt((t - r.current) / (r.current - r.plan!.stop)) + 'R' : 'R unavailable'}` })),
+            { label: 'Risk / reward reference price', value: fmt(r.current) },
+            { label: r.plan.supportLabel || 'Support', value: fmt(r.plan.support) },
+            { label: r.plan.resistanceLabel || 'Resistance', value: fmt(r.plan.resistance) },
+            { label: 'Risk', value: `${fmt(r.plan.riskPct)}%` },
+            { label: r.strategy === 'rsi_oversold' ? 'Preset risk distance (1.5%)' : 'ATR (close-based estimate)', value: fmt(r.plan.atr) },
+            ...(r.plan.pivot == null ? [] : [{ label: 'Pivot', value: fmt(r.plan.pivot) }]),
+          ] });
+          if (r.backtest) sections.push({ title: '1-year RSI strategy backtest', rows: [
+            { label: 'Closed trades · wins / losses', value: `${r.backtest.trades} · ${r.backtest.wins} / ${r.backtest.losses}` },
+            { label: 'Win rate', value: `${fmt(r.backtest.winRate)}%` },
+            { label: 'Average return / trade', value: `${fmt(r.backtest.avgReturnPct)}%` },
+            { label: 'Sum of trade returns (not compounded)', value: `${fmt(r.backtest.totalReturnPct)}%` },
+            { label: 'Expectancy', value: `${fmt(r.backtest.expectancyPct)}%` },
+            { label: 'Maximum drawdown', value: `${fmt(r.backtest.maxDrawdownPct)}%` },
+          ] });
+          return { symbol: r.symbol, rating: r.summary.verdict, price: fmt(r.current),
+            change: Number.isFinite(r.changePct) ? `${r.changePct >= 0 ? '+' : ''}${fmt(r.changePct)}%` : 'Unavailable',
+            summary: {
+              score: r.summary.score, buys: r.summary.buys, sells: r.summary.sells, neutrals: r.summary.neutrals,
+              available: r.summary.indicators.length, total: 9,
+              caption: r.strategy === 'rsi_oversold' ? 'RSI strategy rating; gauge shows the composite indicator score.' : 'Current multi-indicator scan. Price levels are shown separately.',
+              methodology: 'Equal weight to available indicators',
+              groups: groups.map(g => {
+                const buys = g.rows.filter(i => i.signal === 'BUY').length, sells = g.rows.filter(i => i.signal === 'SELL').length;
+                const score = (buys - sells) / (g.rows.length || 1);
+                const rating = g.rows.length < g.total ? 'Incomplete' : score >= .5 ? 'Strong Buy' : score >= .15 ? 'Buy' : score > -.15 ? 'Neutral' : score > -.5 ? 'Sell' : 'Strong Sell';
+                return { label: g.label, rating, buys, sells, neutrals: g.rows.length - buys - sells, available: g.rows.length, total: g.total };
+              }),
+            }, facts: [
+            { label: 'Price (PKR)', value: fmt(r.current) },
+            { label: 'Daily change', value: Number.isFinite(r.changePct) ? `${fmt(r.changePct)}%` : 'Unavailable' },
+            { label: 'Volume', value: fmt(r.volume, 0) },
+            { label: 'Indicator votes · Buy / Neutral / Sell', value: `${r.summary.buys} / ${r.summary.neutrals} / ${r.summary.sells}` },
+            { label: 'Score', value: fmt(r.summary.score) },
+            { label: 'SMA 20 / SMA 50', value: `${fmt(r.summary.sma20)} / ${fmt(r.summary.sma50)}` },
+            { label: 'RSI (14)', value: fmt(r.summary.rsi) },
+          ], sections, notes: [{ title: 'How the rating works', paragraphs: [
+            'This scan uses the current engine: up to 6 moving-average comparisons and 3 oscillators. Each available reading contributes Buy (+1), Neutral (0), or Sell (−1). The composite score is (Buy votes − Sell votes) divided by the number of available readings; each available indicator has equal weight.',
+            `This scan has ${r.summary.buys} Buy, ${r.summary.neutrals} Neutral and ${r.summary.sells} Sell votes, giving a composite score of ${fmt(r.summary.score)}. Strong Buy: score ≥ 0.50; Buy: 0.15 to below 0.50; Neutral: above −0.15 to below 0.15; Sell: above −0.50 to −0.15; Strong Sell: score ≤ −0.50.`,
+            r.strategy === 'rsi_oversold' ? 'RSI Oversold is a separate strategy: RSI below 30 sets its Buy label. The gauge still shows the composite score. The backtest uses take profit 1 (+4%) and a −1.5% stop; take profits 2 and 3 are extra displayed levels, not the exits used by that backtest.' : 'Group cards summarise their own available readings. Their average does not replace the engine’s composite score. Missing long-period averages are omitted from the current engine; group coverage shows any incomplete group.',
+            'Values depend on the input data, periods, candle timing and signal rules. Price levels are separate from the rating. Target returns and risk/reward use the displayed reference price and stop; an actual entry price or fees will change them.',
+          ] }] };
+        }),
+      };
+      const { downloadScanSnapshot } = await import('../utils/scanSnapshot');
+      const count = await downloadScanSnapshot(snapshot, (done, total) => setSnapshotMessage(`Preparing images… ${done} / ${total} stocks`));
+      setSnapshotMessage(`Download started: ${count === 1 ? 'one complete PNG image' : `${count} complete PNG images in one ZIP`}. Nothing was uploaded.`);
+    } catch (e) { setSnapshotMessage(e instanceof Error ? e.message : 'Could not create the snapshot. Please try again.'); }
+    finally { setSnapshotBusy(false); }
+  };
 
   const assistantPrompt = scannedAt
     ? `Summarize my latest Market Signals scan (${universe}${symbolMode ? `: ${singleSymbol.toUpperCase()}` : ''}, ${rsiMode ? 'RSI oversold' : 'multi-indicator'}). Highlight the strongest 3–5 names, note support/resistance, and flag risks. Use get_daily_scan for the data.`
@@ -562,12 +665,12 @@ export const MarketSignalScanner: React.FC<{
     const header = rsiMode
       ? 'SYMBOL\tPRICE\tCHG %\tRSI14\tSTOP\tTP\tSUPPORT\tRESISTANCE\t1Y_WIN%\t1Y_TRADES\tSIGNAL'
       : 'SYMBOL\tPRICE\tCHG %\tSMA20\tSMA50\tRSI14\tSUPPORT\tRESISTANCE\tSIGNAL';
-    const body = shown.map((r) =>
+    const body = snapshotResults.map((r) =>
       rsiMode
         ? `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.stop) : ''}\t${r.plan ? fmt(r.plan.targets[0]) : ''}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.backtest ? fmt(r.backtest.winRate, 1) : ''}\t${r.backtest?.trades ?? ''}\tRSI_OVERSOLD`
-        : `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.sma20)}\t${fmt(r.summary.sma50)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.summary.verdict}`
+        : `${r.symbol}\t${fmt(r.current)}\t${fmt(r.changePct)}\t${fmt(r.summary.sma20)}\t${fmt(r.summary.sma50)}\t${fmt(r.summary.rsi, 1)}\t${r.plan ? fmt(r.plan.support) : ''}\t${r.plan ? fmt(r.plan.resistance) : ''}\t${r.technical?.rating || r.summary.verdict}`
     ).join('\n');
-    await navigator.clipboard.writeText(`${header}\n${body}`);
+    await navigator.clipboard.writeText(`${header}\n${body}\n${SCAN_DISCLAIMER}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 1200);
   };
@@ -583,6 +686,31 @@ export const MarketSignalScanner: React.FC<{
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 w-full min-w-0">
+      <dialog ref={snapshotDialog} aria-labelledby="scan-snapshot-title" onCancel={e => { if (snapshotBusy) e.preventDefault(); }} className="m-auto w-[calc(100%-2rem)] max-w-lg max-h-[85dvh] overflow-y-auto rounded-2xl p-6 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xl backdrop:bg-slate-950/50">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          <h3 id="scan-snapshot-title" className="text-xl font-bold">Download snapshot</h3>
+          <button type="button" disabled={snapshotBusy} aria-label="Close snapshot" onClick={() => snapshotDialog.current?.close()} className="p-2 rounded-xl disabled:opacity-40"><X size={20} /></button>
+        </div>
+        <p className="text-sm text-slate-500 mb-4">Save the full scan details, including all indicator rows and price levels. Images are created on this device; nothing is uploaded.</p>
+        <label className="block text-sm font-bold">Include
+          <select value={snapshotScope} disabled={snapshotBusy} onChange={e => setSnapshotScope(e.target.value)} className="block w-full mt-2 mb-4 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <option value="all">All visible stocks ({snapshotResults.length})</option>
+            {snapshotResults.map(r => <option key={r.symbol} value={r.symbol}>{r.symbol} only</option>)}
+          </select>
+        </label>
+        <label className="block text-sm font-bold">Image layout
+          <select value={snapshotLayout} disabled={snapshotBusy} onChange={e => setSnapshotLayout(e.target.value as SnapshotLayout)} className="block w-full mt-2 mb-4 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+            <option value="portrait">1 · Portrait report</option>
+            <option value="columns">2 · Two-column report</option>
+            <option value="landscape">3 · Landscape sheet</option>
+          </select>
+        </label>
+        <p className="text-xs text-slate-500 mb-4">One stock saves as a PNG. Multiple stocks or very long results save as numbered PNGs in a ZIP. Your portfolio quantities, balances and account details are excluded.</p>
+        <button type="button" onClick={takeSnapshot} disabled={snapshotBusy || !snapshotResults.length} className="flex items-center justify-center gap-2 w-full px-4 py-3 rounded-xl bg-emerald-600 text-white font-bold disabled:opacity-50">
+          {snapshotBusy ? <Loader2 size={18} className="animate-spin" /> : <Download size={18} />} {snapshotBusy ? 'Preparing…' : 'Save to device'}
+        </button>
+        <p role="status" aria-live="polite" className="text-sm mt-4">{snapshotMessage}</p>
+      </dialog>
       {/* Header / controls */}
       <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
@@ -628,15 +756,15 @@ export const MarketSignalScanner: React.FC<{
             <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
               <button
                 type="button"
-                onClick={() => setStrategy('composite')}
+                onClick={() => { if (strategy !== 'composite') { setStrategy('composite'); setResults([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
                 disabled={status === 'scanning'}
                 className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'composite' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
-                Multi-indicator
+                All 26 indicators
               </button>
               <button
                 type="button"
-                onClick={() => setStrategy('rsi_oversold')}
+                onClick={() => { if (strategy !== 'rsi_oversold') { setStrategy('rsi_oversold'); setResults([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
                 disabled={status === 'scanning'}
                 className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'rsi_oversold' ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
@@ -656,13 +784,15 @@ export const MarketSignalScanner: React.FC<{
             <div className="relative">
                 <select
                 value={universe}
-                onChange={(e) => setUniverse(e.target.value)}
+                aria-label="Scan universe"
+                onChange={(e) => { setUniverse(e.target.value); if (e.target.value === 'HOLDINGS') setBuyOnly(false); }}
                 disabled={status === 'scanning'}
                 className="appearance-none glass-input rounded-xl pl-4 pr-9 py-2.5 text-sm font-bold outline-none shadow-sm disabled:opacity-50"
                 >
                 <option value="KSE100">KSE-100 index</option>
                 <option value="KMI30">KMI-30 index</option>
                 <option value="WATCHLIST">My watchlist</option>
+                <option value="HOLDINGS">My holdings ({holdings.length})</option>
                 <option value="SYMBOL">Single stock</option>
                 {!rsiMode && <option value="20">Top 20 by volume</option>}
                 {!rsiMode && <option value="40">Top 40 by volume</option>}
@@ -695,6 +825,11 @@ export const MarketSignalScanner: React.FC<{
                 {copied ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Copy size={16} />} Copy
               </button>
             )}
+            {snapshotResults.length > 0 && (
+              <button type="button" onClick={() => { setSnapshotScope('all'); setSnapshotMessage(''); snapshotDialog.current?.showModal(); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <Download size={16} /> Download snapshot
+              </button>
+            )}
 
             <button
               onClick={runScan}
@@ -710,6 +845,8 @@ export const MarketSignalScanner: React.FC<{
             </button>
           </div>
         </div>
+
+        {universe === 'HOLDINGS' && <p className="mt-3 text-xs text-slate-500">{holdingsLabel} · {holdings.length} open stock holdings. Closed positions and mutual funds are excluded. {rsiMode ? 'This strategy shows only holdings with RSI below 30.' : 'Buy, neutral and sell signals are shown by default.'}</p>}
 
         {showSettings && (
           <div className="mt-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 space-y-3">
@@ -750,7 +887,7 @@ export const MarketSignalScanner: React.FC<{
         {isAll && status !== 'scanning' && !rsiMode && (
           <div className="mt-4 p-3 bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 flex items-start gap-2 shadow-sm">
             <Info size={16} className="shrink-0 mt-0.5" />
-            <p>Full-market scan downloads a year of daily prices for every listed stock. This can take several minutes, and highly illiquid/thin stocks will be automatically skipped.</p>
+            <p>Full-market scan loads daily history for each listed stock and can take several minutes. Missing history is shown as unavailable. Recent candle requests are reused for five minutes.</p>
           </div>
         )}
 
@@ -766,6 +903,8 @@ export const MarketSignalScanner: React.FC<{
           </div>
         )}
       </div>
+
+      <p className="px-4 py-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-500/10 text-xs text-slate-600 dark:text-slate-300 border border-emerald-100 dark:border-emerald-800">{SCAN_DISCLAIMER}</p>
 
       {error && (
         <div className="p-4 bg-rose-50/80 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 rounded-2xl text-sm font-bold text-rose-600 dark:text-rose-400 shadow-sm animate-in fade-in">
@@ -786,18 +925,23 @@ export const MarketSignalScanner: React.FC<{
           <p className="text-slate-500 dark:text-slate-400 font-medium mb-6">
             {rsiMode
               ? 'Hit “Scan RSI < 30” to find oversold KSE-100 / KMI-30 names and see a 1Y backtest.'
-              : 'Hit “Scan Market” to find stocks flashing a technical buy signal.'}
+              : 'Choose your holdings, watchlist, an index or one stock, then scan all 26 technical readings.'}
           </p>
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-4 rounded-xl text-xs text-slate-500 dark:text-slate-400 max-w-md shadow-sm leading-relaxed">
             {rsiMode
               ? 'Universe defaults to KSE-100. Live hits require RSI < 30; each name also gets a walk-forward +4% / −1.5% backtest on ~1 year of daily closes.'
-              : 'Pick a universe — KSE-100, KMI-30, or top movers — and the engine runs moving averages, RSI, MACD, and momentum on each to build an automated buy range, stop loss, and target prices.'}
+              : 'See 15 moving-average readings, 11 oscillators, an equal-group rating, and an illustrative trade scenario with three take-profit levels. Save a complete Design 3 snapshot to your device.'}
           </div>
         </div>
       )}
 
       {/* Results */}
-      {shown.length > 0 && view === 'table' && (
+      {shown.length > 0 && !rsiMode && <TechnicalScanResults
+        results={shown.filter((r): r is Result & TechnicalResult => !!r.technical)} view={view}
+        visibleLimit={isFree ? signalsVisible : Infinity} onUpgrade={requestUpgrade} onChart={onSymbolClick}
+        onSnapshot={symbol => { setSnapshotScope(symbol); setSnapshotMessage(''); snapshotDialog.current?.showModal(); }}
+      />}
+      {shown.length > 0 && rsiMode && view === 'table' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
            <ScreenerTable
              rows={shown}
@@ -808,7 +952,7 @@ export const MarketSignalScanner: React.FC<{
            />
         </div>
       )}
-      {shown.length > 0 && view === 'cards' && (
+      {shown.length > 0 && rsiMode && view === 'cards' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {shown.map((r, idx) => {
             const locked = isFree && idx >= signalsVisible;
@@ -855,7 +999,7 @@ export const MarketSignalScanner: React.FC<{
             <strong className="text-slate-700 dark:text-slate-300">Disclaimer:</strong> Mechanical technical signals, fixed RSI exits, and backtests are for educational purposes only and do not constitute investment advice.
             {rsiMode
               ? ' The RSI < 30 / +4% / −1.5% rule is a common mean-reversion heuristic; 1Y walk-forward results use unofficial EOD closes and approximate commissions — past results are not a guarantee of future performance.'
-              : ' Buy/sell zones, stops, and targets are derived from recent historical volatility and simple SMA/RSI heuristic algorithms; they are estimates and are prone to error in unpredictable market conditions.'}
+              : ' The overall rating combines two equally weighted indicator groups. Long-position scenarios use historical true range and observed support; reaching a target is not guaranteed.'}
             {' '}Data is unofficial and may be delayed. Always perform your own due diligence.
           </p>
         </div>

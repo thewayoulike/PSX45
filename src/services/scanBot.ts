@@ -9,6 +9,8 @@ import {
   Verdict,
 } from '../utils/indicators';
 import { buildScanUniverse } from '../utils/scanUniverse';
+import { computeTechnicalAnalysis, SCAN_DISCLAIMER } from '../utils/technicalRatings';
+import { fetchTechnicalScanBars } from './technicalScanData';
 
 const STORAGE_KEY = 'psx_daily_scan';
 const SETTINGS_KEY = 'psx_scan_bot_settings';
@@ -27,6 +29,10 @@ export interface DailyScanHit {
   verdict: Verdict;
   rsi: number;
   score: number;
+  referencePrice?: number;
+  candleDate?: string;
+  targets?: number[];
+  model?: 'technical-26';
   stop?: number;
   target?: number;
   support?: number;
@@ -197,6 +203,15 @@ export const runDailyScan = async (opts: RunDailyScanOpts): Promise<DailyScanSna
   const btParts: ReturnType<typeof backtestRsiOversold>[] = [];
 
   await mapPool(candidates, concurrency, async (c) => {
+    if (!rsiMode) {
+      const a = computeTechnicalAnalysis(await fetchTechnicalScanBars(c.symbol));
+      if (a.score == null || (buysOnly && !['BUY', 'STRONG BUY'].includes(a.rating))) return;
+      hits.push({ symbol: c.symbol, current: c.current > 0 ? c.current : a.summary.lastPrice,
+        changePct: c.changePct, volume: c.volume, verdict: a.summary.verdict, score: a.score, rsi: a.summary.rsi,
+        stop: a.plan?.stop, target: a.plan?.targets[0], targets: a.plan?.targets, support: a.plan?.support, resistance: a.plan?.resistance,
+        referencePrice: a.summary.lastPrice, candleDate: a.candleDate || undefined, model: 'technical-26' });
+      return;
+    }
     const history = await fetchStockHistory(c.symbol, '1Y');
     const closes = history.map((h) => h.price);
     if (closes.length < 35) return;
@@ -248,21 +263,6 @@ export const runDailyScan = async (opts: RunDailyScanOpts): Promise<DailyScanSna
       return;
     }
 
-    if (buysOnly && !(summary.verdict === 'BUY' || summary.verdict === 'STRONG BUY')) return;
-    const plan = computeTradePlan(closes, price);
-    hits.push({
-      symbol: c.symbol,
-      current: price,
-      changePct: c.changePct,
-      volume: c.volume,
-      verdict: summary.verdict,
-      rsi: summary.rsi,
-      score: summary.score,
-      stop: plan?.stop,
-      target: plan?.targets[0],
-      support: plan?.support,
-      resistance: plan?.resistance,
-    });
   }, (done) => opts.onProgress?.(done, candidates.length));
 
   if (rsiMode) {
@@ -298,15 +298,20 @@ export const formatDailyScanForAgent = (snap: DailyScanSnapshot | null): Record<
     total_scanned: snap.totalScanned,
     hits_count: snap.hits.length,
     aggregate_backtest_1y: snap.aggBacktest || null,
+    disclaimer: SCAN_DISCLAIMER,
     hits: snap.hits.slice(0, 25).map((h) => ({
       symbol: h.symbol,
       price_pkr: h.current,
+      plan_reference_close_pkr: h.referencePrice,
+      daily_candle_date: h.candleDate,
+      rating_model: h.model || 'legacy / RSI strategy',
       change_percent: Math.round(h.changePct * 100) / 100,
       verdict: h.verdict,
       rsi14: Math.round(h.rsi * 10) / 10,
       score: Math.round(h.score * 100) / 100,
       stop_pkr: h.stop,
       target_pkr: h.target,
+      take_profit_levels_pkr: h.targets,
       support_pkr: h.support,
       resistance_pkr: h.resistance,
       backtest_1y_win_rate_percent: h.backtestWinRate,

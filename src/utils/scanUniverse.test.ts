@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildScanUniverse } from './scanUniverse';
+import { buildScanUniverse, holdingScanSymbols } from './scanUniverse';
 
 const cands = [
   { symbol: 'OGDC', current: 100, ldcp: 99, changePct: 1, volume: 5000 },
@@ -9,6 +9,23 @@ const cands = [
 ];
 
 describe('buildScanUniverse', () => {
+  it('uses only open stock holdings and deduplicates brokers', () => {
+    expect(holdingScanSymbols([
+      { ticker: ' ogdc ', quantity: 5 }, { ticker: 'OGDC', quantity: 12 },
+      { ticker: 'PPL', quantity: 0 }, { ticker: 'HBL', quantity: -4 },
+      { ticker: 'MF:fund', quantity: 99 }, { ticker: 'LUCK', quantity: NaN },
+      { ticker: 'SYS', quantity: 0.5 },
+    ])).toEqual(['OGDC', 'SYS']);
+  });
+
+  it('limits holdings scans and keeps missing quotes available through history', () => {
+    const result = buildScanUniverse(cands, 'HOLDINGS', { holdings: [' ppl ', 'SYS', 'ppl'] });
+    expect(result.map(r => r.symbol)).toEqual(['PPL', 'SYS']);
+    expect(result[0].current).toBe(200);
+    expect(result[1].current).toBe(0);
+    expect(result[1].changePct).toBeNaN();
+    expect(buildScanUniverse(cands, 'HOLDINGS', {})).toEqual([]);
+  });
   it('filters watchlist', () => {
     const out = buildScanUniverse(cands, 'WATCHLIST', { watchlist: ['ppl', 'HBL'] });
     expect(out.map((c) => c.symbol)).toEqual(['PPL', 'HBL']);

@@ -18,6 +18,12 @@ beforeEach(() => {
 });
 
 describe('PSX historical fetch', () => {
+  it('distinguishes missing volume from a reported zero', async () => {
+    const { parsePsxHistoricalHtml } = await loadOhlc();
+    const missing = '<table id="historicalTable"><tr><td>Sep 1, 2026</td><td>10</td><td>12</td><td>9</td><td>11</td></tr></table>';
+    expect(parsePsxHistoricalHtml(missing)[0].volumeAvailable).toBe(false);
+    expect(parsePsxHistoricalHtml(missing.replace('</tr>', '<td>0</td></tr>'))[0].volumeAvailable).not.toBe(false);
+  });
   it('sends the portal request id as an Ajax call', async () => {
     const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
       if (init?.method === 'POST') return new Response(table, { status: 200 });

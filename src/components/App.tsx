@@ -54,6 +54,7 @@ import { stocksPathForTicker, tickerFromStocksPath, normalizeStockDeepLink } fro
 import { applyIndexConstituents } from '../services/indices';
 import { fetchMufapNavCatalog, loadCachedFundCatalog, ensureFundCatalogLoaded, MutualFundRecord, FUND_CATALOG_STORAGE_KEY, fundValuationNav, isLiveFundCatalogSource, isRecentLiveFundPrice, resolveFundDayNav, loadFundNavDayMap, saveFundNavDayMap, FundNavDayMap, normalizeFundValidity } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
+import { holdingScanSymbols } from '../utils/scanUniverse';
 import { formatTransactionLabel } from '../utils/fundDisplay';
 import { OfflinePortfolio } from './OfflinePortfolio';
 import { shouldPersistPortfolio } from '../utils/portfolioPersistence';
@@ -497,6 +498,7 @@ const App: React.FC = () => {
   const [userApiKey, setUserApiKey] = useState<string>(() => startEmpty ? '' : (localStorage.getItem('psx_gemini_api_key') || ''));
 
   const [holdings, setHoldings] = useState<Holding[]>([]);
+  const scanHoldings = useMemo(() => holdingScanSymbols(holdings), [holdings]);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [totalDividendTax, setTotalDividendTax] = useState<number>(0);
@@ -2829,7 +2831,10 @@ const App: React.FC = () => {
 
                       {currentView === 'SIGNALS' && (
                           <MarketSignalScanner
+                              key={`${currentPortfolioId}:${isCombinedView ? [...combinedPortfolioIds].sort().join(',') : 'single'}`}
                               watchlist={watchlist}
+                              holdings={scanHoldings}
+                              holdingsLabel={isCombinedView ? 'Combined portfolios' : 'Selected portfolio'}
                               onSymbolClick={(t) => handleTickerClick(t)}
                               onAskAssistant={(prompt) => {
                                   setAgentSeedPrompt(prompt);

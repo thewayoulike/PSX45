@@ -140,6 +140,8 @@ export interface OhlcBar {
     low: number;
     close: number;
     volume: number;
+    /** False when the upstream table did not report volume (distinct from zero). */
+    volumeAvailable?: boolean;
 }
 
 /**
@@ -163,6 +165,7 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
                 low: Number(b.low),
                 close: Number(b.close),
                 volume: Number(b.volume) || 0,
+                volumeAvailable: b.volumeAvailable !== false && b.volume != null && b.volume !== '' && Number.isFinite(Number(b.volume)),
             }))
             .filter((b: OhlcBar) => b.time > 0 && b.close > 0 && b.high > 0 && b.low > 0 && b.open > 0)
             .sort((a: OhlcBar, b: OhlcBar) => a.time - b.time);
