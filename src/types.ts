@@ -16,7 +16,7 @@ export interface Transaction {
    * follows a distribution. It is a return of your own capital, not income, so it
    * is untaxed at issue and the units carry a zero cost basis.
    */
-  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'REFUND_OF_CAPITAL' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER' | 'TRANSFER_IN' | 'TRANSFER_OUT';
+  type: 'BUY' | 'SELL' | 'DIVIDEND' | 'DIVIDEND_REINVEST' | 'REFUND_OF_CAPITAL' | 'BONUS' | 'SPLIT' | 'RIGHTS' | 'TAX' | 'HISTORY' | 'DEPOSIT' | 'WITHDRAWAL' | 'ANNUAL_FEE' | 'OTHER' | 'TRANSFER_IN' | 'TRANSFER_OUT';
   ticker: string;
   quantity: number;
   price: number;
@@ -133,12 +133,19 @@ export interface PortfolioStats {
 
 export type PortfolioType = 'PSX' | 'MUTUAL_FUND';
 
+export interface RebalanceTarget {
+  ticker: string;
+  percent: number;
+}
+
 export interface Portfolio {
   id: string;
   name: string;
   defaultBrokerId: string;
   /** PSX stocks (default) or Pakistani mutual funds */
   type?: PortfolioType;
+  /** Target weights for the rebalance plan. Percents are meant to add up to 100. */
+  rebalanceTargets?: RebalanceTarget[];
 }
 
 export type AppView = 'HOLDINGS' | 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'BROKERS' | 'API_KEYS' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';

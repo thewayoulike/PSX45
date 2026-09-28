@@ -7,6 +7,8 @@ import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, Portfol
 import { setCanSaveAlerts } from '../services/alertAccess';
 const Dashboard = lazy(() => import('./DashboardStats').then(m => ({ default: m.Dashboard })));
 import { HoldingsTable } from './HoldingsTable';
+import { CorporateActionModal } from './CorporateActionModal';
+import type { CorporateActionDraft } from './corporateActionDraft';
 const AllocationChart = lazy(() => import('./AllocationChart').then(m => ({ default: m.AllocationChart })));
 const PerformanceChart = lazy(() => import('./PerformanceChart').then(m => ({ default: m.PerformanceChart })));
 const RealizedTable = lazy(() => import('./RealizedTable').then(m => ({ default: m.RealizedTable })));
@@ -64,6 +66,7 @@ import { preparePortfolioAccount } from '../utils/localAccount';
 import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
 import { mergeFundHoldingsByCanon, computeFundBucketAverageCost } from '../utils/fundHoldings';
+import { applyOpeningCorporateActions } from '../utils/corporateActions';
 import { roundFundNav, roundFundUnits, fmtFundUnits } from '../utils/fundFormat';
 import { fundAvgForCost } from '../utils/fundFormat';
 import { todayPK } from '../utils/dates';
@@ -508,6 +511,7 @@ const App: React.FC = () => {
   const [priceError, setPriceError] = useState(false);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [corporateDraft, setCorporateDraft] = useState<CorporateActionDraft | null>(null);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
   const [showUpcomingScanner, setShowUpcomingScanner] = useState(false);
@@ -1778,7 +1782,7 @@ const App: React.FC = () => {
     portfolioTransactions.forEach(t => {
         const val = t.price * t.quantity;
         const fees = (t.commission||0) + (t.tax||0) + (t.cdcCharges||0) + (t.otherFees||0);
-        if (t.type === 'BUY') tradingCashFlow -= (val + fees);
+        if (t.type === 'BUY' || t.type === 'RIGHTS') tradingCashFlow -= (val + fees);
         else if (t.type === 'SELL') tradingCashFlow += (val - fees);
         // Units bought with the dividend: cancels the cash the reinvest added.
         // Tax was withheld at source, so only the units' value moves.
@@ -2084,13 +2088,22 @@ const App: React.FC = () => {
           let matchSeq = 0;
           sortedDates.forEach(date => {
               const dayTxs = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
+              // Bonus shares arrive free. A split rescales shares already held
+              // before today's buys and sells, so the same rupee cost is spread
+              // across the new quantity.
+              applyOpeningCorporateActions(
+                  lots,
+                  dayTxs
+                      .filter(t => t.type === 'BONUS' || t.type === 'SPLIT')
+                      .map(t => ({ id: t.id, type: t.type, quantity: t.quantity, price: t.price, date: t.date })),
+              );
               // Build ALL of the day's buy lots up-front (createdAt order) so a SELL
               // can be covered by ANY same-day BUY regardless of entry order. This
               // prevents phantom "held" shares when a sell was recorded before its
               // covering buy. The lot that stays held still follows createdAt order.
               const dayBuyLots: Lot[] = dayTxs
                   .filter(t =>
-                      t.type === 'BUY' || t.type === 'TRANSFER_IN' || isUnitInflow(t)
+                      t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'RIGHTS' || isUnitInflow(t)
                   )
                   .map(makeLot);
               const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
@@ -2415,6 +2428,12 @@ const App: React.FC = () => {
                       dailySeries={series.dailyReturn}
                       holdings={holdings}
                       portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
+                      transactions={portfolioTransactions}
+                      displayNames={fundDisplayNames}
+                      rebalanceTargets={portfolios.find(p => p.id === currentPortfolioId)?.rebalanceTargets || []}
+                      onSaveRebalance={(targets) => {
+                          setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, rebalanceTargets: targets } : p));
+                      }}
                   />
                   </Suspense>
               );
@@ -2787,6 +2806,12 @@ const App: React.FC = () => {
                                   listedInMap={listedInMap}
                                   displayNames={fundDisplayNames}
                                   onTickerClick={handleTickerClick}
+                                  onCorporateAction={(holding) => setCorporateDraft({
+                                      ticker: holding.ticker,
+                                      shares: holding.quantity,
+                                      cost: holding.quantity * holding.avgPrice,
+                                      broker: holding.broker,
+                                  })}
                                   portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                                   dayTransactions={portfolioTransactions}
                                   priceTimestamps={priceTimestamps}
@@ -2813,6 +2838,18 @@ const App: React.FC = () => {
                                   focusTicker={stocksFocusTicker}
                                   focusNonce={stocksFocusNonce}
                                   onSelectedTickerChange={handleStocksSelectionChange}
+                                  onRecordCorporateAction={(ticker, kind, bonusPercent) => {
+                                      const matches = holdings.filter(h => h.ticker.toUpperCase() === ticker.toUpperCase());
+                                      const top = [...matches].sort((a, b) => b.quantity - a.quantity)[0];
+                                      setCorporateDraft({
+                                          ticker,
+                                          shares: top?.quantity || 0,
+                                          cost: top ? top.quantity * top.avgPrice : 0,
+                                          broker: top?.broker,
+                                          kind,
+                                          bonusPercent,
+                                      });
+                                  }}
                                   onAddStock={handleAddStock}
                                   onFixSequence={handleFixSequence}
                                   mode="STOCK"
@@ -3052,6 +3089,16 @@ const App: React.FC = () => {
           <div className="fixed bottom-3 right-3 z-40 max-w-[240px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300" role="status">
               {sheetExportState === 'error' ? <><span>Google Sheet export needs a retry.</span><button className="ml-2 underline" onClick={retrySheetExport}>Retry export</button></> : 'Updating Google Sheet in the background…'}
           </div>
+      )}
+      {corporateDraft && (
+          <CorporateActionModal
+              draft={corporateDraft}
+              onClose={() => setCorporateDraft(null)}
+              onConfirm={(tx) => {
+                  handleAddTransaction(tx);
+                  setCorporateDraft(null);
+              }}
+          />
       )}
       {showAddModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
           <TransactionForm

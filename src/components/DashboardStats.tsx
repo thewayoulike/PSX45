@@ -1,6 +1,9 @@
 import { ResponsiveMetricPanels } from './MobileLayout';
 import React from 'react';
-import { Holding, PortfolioStats, PortfolioType } from '../types';
+import { Holding, PortfolioStats, PortfolioType, RebalanceTarget, Transaction } from '../types';
+import { formatTransactionLabel } from '../utils/fundDisplay';
+import { FundNumberPanel } from './FundNumberPanel';
+import { RebalancePlanCard } from './RebalancePlan';
 import { healthReturnPct } from '../utils/healthScore';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
@@ -19,6 +22,10 @@ interface DashboardProps {
   benchmark?: number[];    // KSE-100 value series
   holdings?: Holding[];
   portfolioType?: PortfolioType;
+  transactions?: Transaction[];
+  displayNames?: Record<string, string>;
+  rebalanceTargets?: RebalanceTarget[];
+  onSaveRebalance?: (targets: RebalanceTarget[]) => void;
 }
 const rs = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // 2-decimals everywhere (kept the name so nothing else has to change)
@@ -242,7 +249,7 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX' }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], displayNames = {}, rebalanceTargets = [], onSaveRebalance }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const totalNetWorth = stats.totalValue + stats.freeCash;
   // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
@@ -459,6 +466,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           </div>
         </div>
       </div>
+      {isFund && (
+        <FundNumberPanel
+          holdings={(holdings || []).map(holding => ({
+            name: formatTransactionLabel(holding.ticker, displayNames),
+            units: holding.quantity,
+            avgNav: holding.avgPrice,
+            nav: holding.currentPrice,
+          }))}
+          transactions={transactions}
+          fundValue={stats.totalValue}
+          cash={stats.freeCash}
+          netInvested={stats.netPrincipal}
+        />
+      )}
+      {onSaveRebalance && (
+        <RebalancePlanCard
+          positions={Object.values((holdings || []).reduce<Record<string, { ticker: string; name: string; value: number }>>((groups, holding) => {
+            const value = holding.quantity * holding.currentPrice;
+            const existing = groups[holding.ticker];
+            groups[holding.ticker] = existing
+              ? { ...existing, value: existing.value + value }
+              : { ticker: holding.ticker, name: formatTransactionLabel(holding.ticker, displayNames), value };
+            return groups;
+          }, {}))}
+          cash={stats.freeCash}
+          saved={rebalanceTargets}
+          onSave={onSaveRebalance}
+        />
+      )}
     </div>
   );
 };

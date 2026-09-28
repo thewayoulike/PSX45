@@ -36,6 +36,7 @@ interface HoldingsTableProps {
   listedInMap?: Record<string, string>;
   displayNames?: Record<string, string>;
   onTickerClick?: (ticker: string) => void;
+  onCorporateAction?: (holding: Holding) => void;
   portfolioType?: PortfolioType;
   /** Used for fund daily P&L (NAV change + today's dividends). */
   dayTransactions?: Transaction[];
@@ -80,7 +81,7 @@ const fundDayPL = (
   return { change, pct, base };
 };
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {}, fundPrevById = {} }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, onCorporateAction, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {}, fundPrevById = {} }) => {
   const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const isFund = portfolioType === 'MUTUAL_FUND';
   const today = todayPK();
@@ -300,6 +301,15 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate mt-0.5">
                           {holding.sector}{showBroker && holding.broker ? ` · ${holding.broker}` : ''}
                         </div>
+                        {!isFund && onCorporateAction && (
+                          <button
+                            type="button"
+                            onClick={(event) => { event.stopPropagation(); onCorporateAction(holding); }}
+                            className="mt-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300"
+                          >
+                            Bonus, split, rights
+                          </button>
+                        )}
                       </div>
                     </div>
                     <div className={`text-right shrink-0 ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
@@ -462,7 +472,16 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             )}
                             <div className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest truncate max-w-[200px] mt-0.5">
                                 {holding.sector}
-                            </div> 
+                            </div>
+                            {!isFund && onCorporateAction && (
+                              <button
+                                type="button"
+                                onClick={(event) => { event.stopPropagation(); onCorporateAction(holding); }}
+                                className="mt-1 text-left text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300"
+                              >
+                                Bonus, split, rights
+                              </button>
+                            )} 
                             {tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1.5 max-w-[220px]">
                                     {tags.map((tag, i) => {

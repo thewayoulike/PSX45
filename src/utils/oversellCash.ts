@@ -14,7 +14,10 @@ type LotTx = {
 export function oversellCashCredit(txs: LotTx[]): number {
   const byTicker = new Map<string, LotTx[]>();
   for (const t of txs) {
-    if (t.type !== 'BUY' && t.type !== 'SELL' && t.type !== 'TRANSFER_IN' && t.type !== 'TRANSFER_OUT') continue;
+    if (
+      t.type !== 'BUY' && t.type !== 'SELL' && t.type !== 'TRANSFER_IN' && t.type !== 'TRANSFER_OUT'
+      && t.type !== 'BONUS' && t.type !== 'SPLIT' && t.type !== 'RIGHTS'
+    ) continue;
     const key = t.ticker.toUpperCase();
     const list = byTicker.get(key) || [];
     list.push(t);
@@ -45,7 +48,13 @@ export function oversellCashCredit(txs: LotTx[]): number {
     };
     for (const day of [...byDate.keys()].sort()) {
       const rows = byDate.get(day) || [];
-      for (const t of rows) if (t.type === 'BUY' || t.type === 'TRANSFER_IN') lots.push(t.quantity);
+      for (const t of rows) {
+        if (t.type === 'BONUS') lots.push(t.quantity);
+        else if (t.type === 'SPLIT' && t.price > 1) {
+          for (let i = 0; i < lots.length; i++) lots[i] *= t.price;
+        }
+      }
+      for (const t of rows) if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'RIGHTS') lots.push(t.quantity);
       for (const t of rows) if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') consume(t);
     }
   }

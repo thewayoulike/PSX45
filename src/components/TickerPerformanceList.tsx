@@ -2,6 +2,7 @@ import { ResponsiveTable } from './ui/ResponsiveTable';
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Transaction } from '../types';
 import { computePositionPeakCapital } from '../utils/positionPeakCapital';
+import { applyOpeningCorporateActions } from '../utils/corporateActions';
 import { 
   Search, 
   ChevronDown, 
@@ -68,6 +69,7 @@ interface TickerPerformanceListProps {
   focusNonce?: number;
   /** Notify parent so the URL can track `/stocks/TICKER`. */
   onSelectedTickerChange?: (ticker: string | null) => void;
+  onRecordCorporateAction?: (ticker: string, kind: 'bonus' | 'split' | 'rights', bonusPercent: number | null) => void;
 }
 
 interface ActivityRow extends Transaction {
@@ -132,7 +134,7 @@ const getHoldingDuration = (dateStr: string) => {
 };
 
 export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({ 
-  transactions, currentPrices, sectors, listedInMap = {}, mode, onModeChange, onAddStock, onFixSequence, focusTicker, focusNonce, onSelectedTickerChange
+  transactions, currentPrices, sectors, listedInMap = {}, mode, onModeChange, onAddStock, onFixSequence, focusTicker, focusNonce, onSelectedTickerChange, onRecordCorporateAction
 }) => {
   const { isFree, quotas, canSeePositions, requestUpgrade } = useFreemium();
   const [analysisMode, setAnalysisMode] = useState<'STOCK' | 'SECTOR'>(() => {
@@ -274,6 +276,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       const sortedDates = Object.keys(txsByDate).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
       const mainLots: { id: string, quantity: number, costPerShare: number }[] = [];
       const buyRemainingMap: Record<string, number> = {};
+      const unitScale: Record<string, number> = {};
       const sellAnalysisMap: Record<string, { avgBuy: number, gain: number, gainType: 'REALIZED' | 'NONE', costReleased: number }> = {};
 
       const ordVal = (t: any) => (t.createdAt ? Date.parse(t.createdAt) : 0);
@@ -285,7 +288,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
         let held = 0;
         sortedDates.forEach(d => {
           [...txsByDate[d]].sort((a, b) => ordVal(a) - ordVal(b)).forEach(t => {
-            if (t.type === 'BUY' || t.type === 'TRANSFER_IN') held += t.quantity;
+            if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'RIGHTS' || t.type === 'BONUS') held += t.quantity;
+            else if (t.type === 'SPLIT' && t.price > 1) held *= t.price;
             else if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') {
               if (held - t.quantity < -0.0001) seqWarnIds.add(t.id);
               held -= t.quantity;
@@ -295,10 +299,18 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       }
       sortedDates.forEach(date => {
           const dayTxs = [...txsByDate[date]].sort((a, b) => ordVal(a) - ordVal(b));
+          applyOpeningCorporateActions(
+              mainLots,
+              dayTxs
+                  .filter(t => t.type === 'BONUS' || t.type === 'SPLIT')
+                  .map(t => ({ id: t.id, type: t.type, quantity: t.quantity, price: t.price, date: t.date })),
+              unitScale,
+          );
+          mainLots.forEach(lot => { buyRemainingMap[lot.id] = lot.quantity; });
           // Build all same-day buy lots up front so a SELL can be covered by ANY
           // same-day BUY (prevents phantom held shares from a sell entered before
           // its covering buy). The leftover lot still follows createdAt order.
-          const dayBuyLots = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN').map(t => {
+          const dayBuyLots = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'RIGHTS').map(t => {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
               const effRate = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
               buyRemainingMap[t.id] = t.quantity;
@@ -356,10 +368,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           const currentPrice = currentPrices[ticker] || 0;
           let costDelta = 0;
 
-          if (t.type === 'BUY' || t.type === 'TRANSFER_IN') {
+          if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'RIGHTS' || t.type === 'BONUS') {
               const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
-              avgBuyPrice = t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
-              costDelta = (t.quantity * t.price) + fees;
+              const paid = t.type !== 'BONUS';
+              const rawAvg = paid && t.quantity > 0 ? ((t.quantity * t.price) + fees) / t.quantity : 0;
+              avgBuyPrice = rawAvg / (unitScale[t.id] || 1);
+              costDelta = paid ? (t.quantity * t.price) + fees : 0;
               sellOrCurrentPrice = currentPrice;
               remainingQty = buyRemainingMap[t.id] !== undefined ? buyRemainingMap[t.id] : t.quantity;
               // No live price yet (failed sync / new listing): don't mark the lot as
@@ -410,21 +424,21 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           let tradeCount = 0; let buyCount = 0; let sellCount = 0; let lifetimeBuyCost = 0;
           let totalCostBasis = 0; 
 
-          const isInflow = (r: ActivityRow) => r.type === 'BUY' || r.type === 'TRANSFER_IN';
+          const isInflow = (r: ActivityRow) => r.type === 'BUY' || r.type === 'TRANSFER_IN' || r.type === 'BONUS' || r.type === 'RIGHTS';
           const activeBuys = enrichedRows.filter(r => isInflow(r) && (r.remainingQty || 0) > 0);
           const oldestBuyDate = activeBuys.length > 0 ? activeBuys[activeBuys.length - 1].date : null;
           const holdingPeriod = oldestBuyDate ? getHoldingDuration(oldestBuyDate) : '-';
 
           enrichedRows.forEach(row => {
               if (isInflow(row)) {
-                  lifetimeBuyCost += (row.quantity * row.avgBuyPrice); 
+                  lifetimeBuyCost += row.costDelta || 0; 
                   if (row.gainType === 'UNREALIZED') unrealizedPL += row.gain;
                   
                   if ((row.remainingQty || 0) > 0) {
                       totalCostBasis += (row.remainingQty || 0) * row.avgBuyPrice;
                   }
 
-                  if (row.type === 'BUY') {
+                  if (row.type === 'BUY' || row.type === 'RIGHTS') {
                       tradeCount++; buyCount++;
                       totalComm += row.commission || 0; 
                       totalTradingTax += row.tax || 0; 
@@ -888,7 +902,12 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 )}
 
                 {detailTab === 'announcements' && (
-                    <div className="mt-2"><StockAnnouncements ticker={selectedTicker} /></div>
+                    <div className="mt-2">
+                      <StockAnnouncements
+                        ticker={selectedTicker}
+                        onRecord={onRecordCorporateAction && selectedTicker ? (kind, bonusPercent) => onRecordCorporateAction(selectedTicker, kind, bonusPercent) : undefined}
+                      />
+                    </div>
                 )}
             </div>
         )}

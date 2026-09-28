@@ -7,9 +7,11 @@ export function stockDayChange(opts: {
   let netBought = 0;
   let pl = 0;
   for (const t of opts.trades) {
-    if (t.type === 'BUY' || t.type === 'TRANSFER_IN') {
+    if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'RIGHTS') {
       netBought += t.quantity;
       pl += (opts.current - t.price) * t.quantity;
+    } else if (t.type === 'BONUS') {
+      netBought += t.quantity;
     } else if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') {
       netBought -= t.quantity;
       pl += (t.price - opts.ldcp) * t.quantity;

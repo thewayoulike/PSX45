@@ -23,7 +23,7 @@ export function ledgerAsOf(txs: CashTx[], asOf: string): { cash: number; contrib
     const fees = (t.commission || 0) + (t.tax || 0) + (t.cdcCharges || 0) + (t.otherFees || 0);
     if (t.type === 'DEPOSIT') { cash += t.price || 0; deposits += t.price || 0; }
     else if (t.type === 'WITHDRAWAL') { cash -= t.price || 0; withdrawals += t.price || 0; }
-    else if (t.type === 'BUY') cash -= val + fees;
+    else if (t.type === 'BUY' || t.type === 'RIGHTS') cash -= val + fees;
     else if (t.type === 'SELL') cash += val - fees;
     else if (t.type === 'DIVIDEND') cash += val - (t.tax || 0) - (t.otherFees || 0);
     else if (t.type === 'ANNUAL_FEE' || t.type === 'TAX') cash -= t.price || 0;

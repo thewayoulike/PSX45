@@ -5,11 +5,15 @@ import {
   fetchMarketWideDividends,
 } from '../services/financials';
 import { Megaphone, FileText, CalendarClock, Loader2, RefreshCw, Coins, CalendarDays } from 'lucide-react';
+import { parseBonusPercent } from '../utils/corporateActions';
 import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
 import { PanelRefreshNote } from './PanelRefreshNote';
 import { daysUntilMeeting } from '../utils/meetingDays';
 
-interface Props { ticker: string | null; }
+interface Props {
+  ticker: string | null;
+  onRecord?: (kind: 'bonus' | 'split' | 'rights', bonusPercent: number | null) => void;
+}
 
 const KIND_STYLE: Record<CompanyAnnouncement['kind'], { cls: string; label: string }> = {
   'Board Meeting': { cls: 'bg-indigo-50 dark:bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-500/20', label: 'Board Meeting' },
@@ -22,7 +26,7 @@ const clean = (v: any) => { const s = String(v ?? '').trim(); return (!s || s ==
 
 type FilingsCache = { items: CompanyAnnouncement[]; meeting: BoardMeeting | null; payouts: any[] };
 
-export const StockAnnouncements: React.FC<Props> = ({ ticker }) => {
+export const StockAnnouncements: React.FC<Props> = ({ ticker, onRecord }) => {
   const initial = ticker ? readPanel<FilingsCache>(panelKeys.filings(ticker)) : null;
   const [items, setItems] = useState<CompanyAnnouncement[]>(() => initial?.data.items || []);
   const [meeting, setMeeting] = useState<BoardMeeting | null>(() => initial?.data.meeting || null);
@@ -120,8 +124,26 @@ export const StockAnnouncements: React.FC<Props> = ({ ticker }) => {
                 <div key={i} className="flex items-center justify-between gap-2 text-xs">
                   <span className="text-slate-600 dark:text-slate-300 flex flex-wrap items-center gap-1.5">
                     {div && <span className="font-bold">Div Rs {div}</span>}
-                    {clean(p.bonus) && <span className="font-bold text-indigo-500">Bonus {p.bonus}</span>}
-                    {clean(p.right) && <span className="font-bold text-amber-500">Right {p.right}</span>}
+                    {clean(p.bonus) && (
+                      <span className="font-bold text-indigo-500 inline-flex items-center gap-1">
+                        Bonus {p.bonus}
+                        {onRecord && (
+                          <button type="button" onClick={() => onRecord('bonus', parseBonusPercent(String(p.bonus)))} className="font-bold text-[10px] uppercase tracking-wider text-indigo-600 dark:text-indigo-300 underline">
+                            Record
+                          </button>
+                        )}
+                      </span>
+                    )}
+                    {clean(p.right) && (
+                      <span className="font-bold text-amber-500 inline-flex items-center gap-1">
+                        Right {p.right}
+                        {onRecord && (
+                          <button type="button" onClick={() => onRecord('rights', null)} className="font-bold text-[10px] uppercase tracking-wider text-amber-700 dark:text-amber-300 underline">
+                            Record
+                          </button>
+                        )}
+                      </span>
+                    )}
                     {!div && !clean(p.bonus) && !clean(p.right) && <span className="text-slate-400">Corporate action</span>}
                   </span>
                   <span className="text-slate-500 dark:text-slate-400 tabular-nums flex items-center gap-1"><CalendarDays size={11} /> Ex {ex}</span>
