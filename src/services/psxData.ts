@@ -1,6 +1,7 @@
 import { cachedMarketFetch, mapConcurrent } from './marketCache';
 import { SECTOR_CODE_MAP } from './sectors';
 import { formatDatePK, isPsxMarketHours, todayPK } from '../utils/dates';
+import { appendNewerBars, candlesFromTicks, parseIntradayTicks } from '../utils/intradaySession';
 import { clipHistory } from '../utils/historyRange';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
@@ -176,6 +177,25 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
 };
 
 export type IntradayInterval = '1m' | '5m' | '15m' | '30m' | '1h';
+
+const INTRADAY_INTERVAL_MS: Record<IntradayInterval, number> = {
+    '1m': 60_000,
+    '5m': 300_000,
+    '15m': 900_000,
+    '30m': 1_800_000,
+    '1h': 3_600_000,
+};
+
+/** Today's exchange prints, as candles. Empty when the tape is unavailable. */
+async function fetchOfficialSessionCandles(symbol: string, interval: IntradayInterval): Promise<OhlcBar[]> {
+    try {
+        const raw = await fetchUrlWithFallback(`https://dps.psx.com.pk/timeseries/int/${encodeURIComponent(symbol)}`, 40);
+        if (!raw) return [];
+        return candlesFromTicks(parseIntradayTicks(raw), INTRADAY_INTERVAL_MS[interval]);
+    } catch {
+        return [];
+    }
+}
 export type IntradayPeriod = '1d' | '5d' | '1w' | '1mo' | 'all' | 'max';
 
 /**
@@ -214,11 +234,13 @@ export const fetchIntradayOHLCV = async (
         );
     }
     if (!res.ok || json?.error) {
+        const session = await fetchOfficialSessionCandles(clean, interval);
+        if (session.length >= 2) return session;
         const detail = String(json?.error || json?.hint || `HTTP ${res.status}`);
         throw new IntradayFetchError(detail);
     }
     const bars = Array.isArray(json?.bars) ? json.bars : [];
-    return bars
+    const history = bars
         .map((b: any) => ({
             time: Number(b.time),
             open: Number(b.open),
@@ -229,6 +251,8 @@ export const fetchIntradayOHLCV = async (
         }))
         .filter((b: OhlcBar) => b.time > 0 && b.close > 0 && b.high > 0 && b.low > 0 && b.open > 0)
         .sort((a: OhlcBar, b: OhlcBar) => a.time - b.time);
+    const session = await fetchOfficialSessionCandles(clean, interval);
+    return appendNewerBars(history, session);
 };
 
 /**

@@ -19,11 +19,29 @@ function localPsxApi(): Plugin {
         const isProxyIntraday =
           url.startsWith('/api/proxy') && (url.includes('intraday=') || url.includes('mode=intraday'));
         const isPypsx = url.startsWith('/api/pypsx');
-        if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis && !isProxyIntraday && !isPypsx) {
+        const isProxyUrl = url.startsWith('/api/proxy') && url.includes('url=');
+        if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis && !isProxyIntraday && !isPypsx && !isProxyUrl) {
           return next();
         }
         try {
           const u = new URL(url, 'http://localhost');
+          if (isProxyUrl) {
+            const target = new URL(u.searchParams.get('url') || '');
+            if (target.protocol !== 'https:' || target.hostname !== 'dps.psx.com.pk') {
+              res.statusCode = 403;
+              res.setHeader('Content-Type', 'application/json');
+              res.end(JSON.stringify({ error: 'Host not allowed' }));
+              return;
+            }
+            const { fetchPsx } = await import('./lib/psxPortal.js');
+            const upstream = await fetchPsx(target.toString());
+            const text = await upstream.text();
+            res.statusCode = upstream.status;
+            res.setHeader('Content-Type', upstream.headers.get('content-type') || 'application/json');
+            res.setHeader('Cache-Control', 'no-store');
+            res.end(text);
+            return;
+          }
           if (isPypsx) {
             const mode = u.searchParams.get('mode') || '';
             if (mode === 'company' || mode === 'dividends') {

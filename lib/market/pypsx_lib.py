@@ -782,6 +782,25 @@ def _intraday_all_via_historical(clean: str, interval: str) -> dict[str, Any]:
     }
 
 
+def _with_official_session(symbol: str, interval: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Append today's exchange prints when the history feed stops on an older session."""
+    from intraday_session import attach_official_session
+
+    prior = list(payload.get("bars") or [])
+    bars = attach_official_session(symbol, interval, prior)
+    if len(bars) == len(prior):
+        return payload
+    out = dict(payload)
+    out.pop("error", None)
+    out.pop("hint", None)
+    if not prior:
+        out.pop("note", None)
+        out["source"] = "psx:intraday-tape"
+    out["bars"] = bars
+    out["count"] = len(bars)
+    return out
+
+
 def get_intraday_ohlcv(
     symbol: str,
     interval: str = "5m",
@@ -815,12 +834,12 @@ def get_intraday_ohlcv(
 
     try:
         if period in ("all", "max"):
-            return _intraday_all_via_historical(clean, interval)
+            return _with_official_session(clean, interval, _intraday_all_via_historical(clean, interval))
 
         df = pypsx.get_intraday(clean, period=period, interval=interval)
         bars = _bars_from_df(df)
         if not bars:
-            return {
+            return _with_official_session(clean, interval, {
                 "symbol": clean,
                 "interval": interval,
                 "period": period,
@@ -828,15 +847,24 @@ def get_intraday_ohlcv(
                 "count": 0,
                 "source": "pypsx:intraday",
                 "note": "No intraday bars (check market hours / coverage from 2025-10-20).",
-            }
+            })
 
-        return {
+        return _with_official_session(clean, interval, {
             "symbol": clean,
             "interval": interval,
             "period": period,
             "bars": bars,
             "count": len(bars),
             "source": "pypsx:intraday",
-        }
+        })
     except Exception as exc:
+        recovered = _with_official_session(clean, interval, {
+            "symbol": clean,
+            "interval": interval,
+            "period": period,
+            "bars": [],
+            "count": 0,
+        })
+        if recovered.get("bars"):
+            return recovered
         return {"error": str(exc), "symbol": clean, "interval": interval, "period": period}
