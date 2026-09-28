@@ -30,6 +30,8 @@ const smooth = (s: number[], p: number, alpha = 2 / (p + 1)) => {
   });
 };
 const wma = (s: number[], p: number) => rolling(s, p, w => w.every(finite) ? w.reduce((n, v, i) => n + v * (i + 1), 0) / (p * (p + 1) / 2) : NaN);
+// Shared causal smoothing conventions for historical projection features.
+export { mean as technicalMean, rolling as technicalRolling, smooth as technicalSmooth, wma as technicalWma };
 const compare = (a: number, b: number): Signal => Math.abs(a - b) < 1e-10 ? 'NEUTRAL' : a > b ? 'BUY' : 'SELL';
 const choose = (buy: boolean, sell: boolean): Signal => buy ? 'BUY' : sell ? 'SELL' : 'NEUTRAL';
 export const technicalVerdict = (score: number): Verdict => score < -.5 ? 'STRONG SELL' : score < -.1 ? 'SELL' : score <= .1 ? 'NEUTRAL' : score <= .5 ? 'BUY' : 'STRONG BUY';

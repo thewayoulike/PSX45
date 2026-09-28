@@ -66,6 +66,11 @@ import { volumeSpikeFlags } from '../utils/chartVolumeSignals';
 import { computeChartBreakouts, mapBreakoutsToViewport, type ChartBreakoutMarker } from '../utils/chartBreakouts';
 import { computeRsiDivergence } from '../utils/chartRsiDivergence';
 import { computeChartAtr } from '../utils/chartAtr';
+import { type ChartProjection, type ProjectionHorizon } from '../utils/chartProjection';
+import { useChartProjection } from '../hooks/useChartProjection';
+import { ProjectionControls, ProjectionFan, ProjectionSummary } from './ChartProjection';
+import { SavedChartProjections } from './SavedChartProjections';
+import { useChartProjectionAccess } from './ChartProjectionAccess';
 import {
   ChartDrawing,
   DrawTool,
@@ -1499,6 +1504,7 @@ function CandlePatternsSvg({
 export const CandleChart: React.FC<{
   bars: OhlcBar[];
   allBars?: OhlcBar[];
+  projection?: ChartProjection | null;
   viewStart?: number;
   /** Full horizontal window size (may exceed bars.length when panned past latest). */
   viewportSlots?: number;
@@ -1539,6 +1545,7 @@ export const CandleChart: React.FC<{
 }> = ({
   bars,
   allBars,
+  projection = null,
   viewStart = 0,
   viewportSlots,
   originFrac = 0,
@@ -1675,16 +1682,26 @@ export const CandleChart: React.FC<{
     [display, chartExtras.candlePatterns]
   );
 
+  const projectionAnchor = projection ? (allBars ?? bars).findIndex(b => b.time === projection.referenceTime) - (allBars ? viewStart : 0) : -1;
+  const projectionVisible = !!projection && projectionAnchor >= 0 && projectionAnchor < slotCount + originFrac;
   const { yMin, yMax } = useMemo(
-    () =>
-      computePriceYRange(bars, awaisData, awaisLayers, {
+    () => {
+      const bounds = computePriceYRange(bars, awaisData, awaisLayers, {
         zoomIdx: priceZoomIdx,
         panOffset: pricePanOffset,
         fitAll: priceFitAll,
         panLimits: pricePanLimits,
         scaleMul: priceScaleMul,
-      }),
-    [bars, awaisData, awaisLayers, priceZoomIdx, pricePanOffset, priceFitAll, pricePanLimits, priceScaleMul]
+      });
+      // Auto fits the optional range; manual price zoom/pan remains under user control.
+      if (projectionVisible && projection && priceZoomIdx === 0 && pricePanOffset === 0 && priceScaleMul === 1) {
+        const lo = Math.min(bounds.yMin, ...projection.points.map(p => p.lower));
+        const hi = Math.max(bounds.yMax, ...projection.points.map(p => p.upper));
+        return { yMin: lo - (hi - lo) * .04, yMax: hi + (hi - lo) * .04 };
+      }
+      return bounds;
+    },
+    [bars, awaisData, awaisLayers, priceZoomIdx, pricePanOffset, priceFitAll, pricePanLimits, priceScaleMul, projection, projectionVisible]
   );
   const yScale = (p: number) => pad.t + ((yMax - p) / (yMax - yMin)) * innerH;
   const priceAxis = useMemo(
@@ -2035,6 +2052,7 @@ export const CandleChart: React.FC<{
         <line x1={w - pad.r} x2={w - pad.r} y1={pad.t} y2={pad.t + innerH} stroke={theme.border} />
         <line x1={pad.l} x2={w - pad.r} y1={pad.t + innerH} y2={pad.t + innerH} stroke={theme.border} />
         <g clipPath={`url(#${plotClipId})`}>
+          {projectionVisible && projection && <ProjectionFan data={projection} anchorIndex={projectionAnchor} xAt={xAt} yScale={yScale} top={pad.t} bottom={pad.t + innerH} theme={theme} compact={w < 500} />}
         {hasAwais && awaisData && (
           <AwaisSvgOverlays
             data={awaisData}
@@ -2304,11 +2322,19 @@ export const CandleChart: React.FC<{
 };
 
 export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
+  const projectionAccess = useChartProjectionAccess();
   const isPhone = useMediaQuery('(max-width: 639px)');
   const [mobileToolsOpen, setMobileToolsOpen] = useState(false);
+  const [projectionEnabled, setProjectionEnabled] = useState(false);
+  useEffect(() => { if (!projectionAccess) setProjectionEnabled(false); }, [projectionAccess]);
+  const [projectionHorizon, setProjectionHorizon] = useState<ProjectionHorizon>(8);
+  const centeredProjectionKey = useRef('');
   const maxVisibleBars = isPhone ? 60 : MAX_VISIBLE_BARS;
   const isFocus = layout === 'focus';
   const [ohlc, setOhlc] = useState<OhlcBar[]>([]);
+  const [ohlcIdentity, setOhlcIdentity] = useState('');
+  const loadSequence = useRef(0);
+  const loadBusy = useRef(false);
   const [lineFallback, setLineFallback] = useState<{ time: number; price: number }[]>([]);
   const [analysis, setAnalysis] = useState<ChartAnalysisPoint[]>([]);
   const [loading, setLoading] = useState(false);
@@ -2449,6 +2475,10 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
 
   const load = async (opts?: { silent?: boolean }) => {
     if (!symbol) return;
+    if (opts?.silent && loadBusy.current) return;
+    loadBusy.current = true;
+    const sequence = ++loadSequence.current;
+    const identity = `${symbol}/${isIntradayInterval(candleInterval) ? candleInterval : 'day'}`;
     const silent = Boolean(opts?.silent);
     if (!silent) {
       setLoading(true);
@@ -2460,6 +2490,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           ?? (range === '1D' ? '1d' : range === 'ALL' ? 'all' : range === '1M' ? '1mo' : range === '1W' ? '1w' : '5d')) as
           '1d' | '5d' | '1w' | '1mo' | 'all';
         const bars = await fetchIntradayOHLCV(symbol, candleInterval, period);
+        if (sequence !== loadSequence.current) return;
+        setOhlcIdentity(identity);
         if (bars.length >= 2) {
           setOhlc(bars);
           setLineFallback([]);
@@ -2477,26 +2509,34 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       }
 
       const bars = await fetchOHLCV(symbol);
+      if (sequence !== loadSequence.current) return;
       if (bars.length >= 5) {
         setOhlc(bars);
+        setOhlcIdentity(identity);
         setLineFallback([]);
         if (!silent) setErr('');
       } else {
         const d = await fetchStockHistory(symbol, '1Y');
+        if (sequence !== loadSequence.current) return;
         setOhlc([]);
+        setOhlcIdentity(identity);
         setLineFallback((d || []).filter((p) => p.price > 0));
         if (mode === 'candle') setMode('line');
         if (!(d || []).length && !silent) setErr('No price history available.');
       }
     } catch (e) {
+      if (sequence !== loadSequence.current) return;
       console.error('StockChart load failed', e);
       if (!silent) {
         const msg = e instanceof Error ? e.message : String(e);
         setErr(msg && msg !== 'Failed to fetch' ? msg : 'Failed to load chart data.');
       }
     } finally {
-      if (!silent) setLoading(false);
-      setLoaded(true);
+      if (sequence === loadSequence.current) {
+        loadBusy.current = false;
+        if (!silent) setLoading(false);
+        setLoaded(true);
+      }
     }
   };
 
@@ -2510,6 +2550,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
 
   useEffect(() => {
     load();
+    return () => { loadSequence.current++; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, candleInterval, range]);
 
@@ -2586,6 +2627,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const canCandle = onIntraday ? filteredOhlc.length >= 2 : filteredOhlc.length >= 5;
   const showCandle = mode === 'candle' && canCandle;
   const showTechnical = mode === 'technical';
+  const projectionSupported = showCandle && candleInterval === 'day';
+  const { result: projectionResult, calculating: projectionCalculating } = useChartProjection(ohlc, projectionHorizon,
+    projectionAccess && projectionEnabled && projectionSupported && !loading && ohlcIdentity === `${symbol}/day`, `${symbol}/day`);
   const candleOhlc = useMemo(() => {
     if (!showCandle) return filteredOhlc;
     if (onIntraday) return filteredOhlc;
@@ -2668,6 +2712,31 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     setVisibleBars(0);
     setViewOrigin(Math.max(0, primaryLen - maxVisibleBars));
   }, [symbol, candleInterval, range, primaryLen, fitAllTime, maxVisibleBars]);
+
+  const centerProjection = useCallback(() => {
+    if (!projectionResult?.data) return;
+    const count = Math.min(primaryLen, isPhone ? 28 : 38);
+    const padding = Math.min(Math.floor(count / 2), projectionHorizon + 3);
+    setFitAllTime(false);
+    setVisibleBars(count);
+    setViewOrigin(clampViewOrigin(primaryLen - count + padding, count, primaryLen));
+    setPriceZoomIdx(0);
+    setPricePanOffset(0);
+    setPriceScaleMul(1);
+  }, [projectionResult, primaryLen, isPhone, projectionHorizon]);
+
+  useEffect(() => {
+    if (!projectionEnabled || !projectionSupported) { centeredProjectionKey.current = ''; return; }
+    const time = projectionResult?.data?.referenceTime;
+    if (!time) return;
+    const key = `${symbol}/${range}/${projectionHorizon}/${time}/${isPhone}`;
+    if (centeredProjectionKey.current !== key) {
+      centeredProjectionKey.current = key;
+      centerProjection();
+    }
+    // A quiet refresh of the same reference must not interrupt chart panning.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectionEnabled, projectionHorizon, projectionSupported, symbol, range, projectionResult?.data?.referenceTime, isPhone]);
 
   const zoomAroundRightEdge = (nextVisible: number) => {
     const right = viewOrigin + viewCount;
@@ -3343,6 +3412,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         </div>
       </div>
 
+      {projectionAccess && <ProjectionControls enabled={projectionEnabled} onToggle={() => setProjectionEnabled(v => !v)} horizon={projectionHorizon} onHorizon={setProjectionHorizon} onRecenter={centerProjection} supported={projectionSupported} />}
+      {projectionCalculating && <p role="status" className="px-3 py-2 text-xs text-slate-500">Checking candle patterns, indicators and historical performance…</p>}
       <div className={isFocus ? 'chart-focus-scroll p-1 sm:p-2 flex-1 min-h-0 overflow-auto' : 'p-4'}>
         {!loading && (showCandle || showTechnical || mode === 'line') && (
           <LayerToggleBar
@@ -3421,6 +3492,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           <div className="space-y-1">
             <CandleChart
               bars={visibleOhlc}
+              projection={projectionResult?.data}
               allBars={candleOhlc}
               viewStart={viewStart}
               viewportSlots={viewCount}
@@ -3435,7 +3507,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               autoTrendlines={autoTrendlines}
               chartExtras={chartExtras}
               candleInterval={candleInterval}
-              height={isFocus ? focusCandleHeight : isPhone ? 320 : CANDLE_CHART_HEIGHT}
+              height={isFocus ? projectionResult?.data ? Math.min(focusCandleHeight, isPhone ? 320 : 480) : focusCandleHeight : isPhone ? 320 : CANDLE_CHART_HEIGHT}
               panning={panning}
               canPan={canPanChart && drawTool === 'pan'}
               priceZoomIdx={priceZoomIdx}
@@ -3522,6 +3594,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           </div>
         )}
         </div>
+        {projectionAccess && projectionEnabled && projectionSupported && projectionResult && <ProjectionSummary result={projectionResult} />}
+        {projectionAccess && symbol && <SavedChartProjections symbol={symbol} projection={projectionResult?.data ?? null} bars={ohlcIdentity === `${symbol}/day` ? ohlc : []} />}
         {!isFocus && !showTechnical && !showCandle && (
         <p className="text-[10px] text-slate-400 mt-2 px-1">
           {canCandle

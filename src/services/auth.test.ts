@@ -26,6 +26,17 @@ it('network errors are unavailable while a valid pending response remains pendin
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response(JSON.stringify({status:'pending',active:false}))));
   expect((await getAccessStatus('a@example.invalid')).status).toBe('pending');
 });
+it('accepts projection access only from a matching verified account response', async () => {
+  for (const [accountEmail, flag, expected] of [
+    ['a@example.invalid', true, true], ['another@example.invalid', true, false],
+    [undefined, true, false], ['a@example.invalid', 'true', false],
+  ] as const) {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      status: 'lifetime', active: true, accountEmail, features: { chartProjection: flag },
+    }))));
+    expect((await getAccessStatus('a@example.invalid')).features?.chartProjection).toBe(expected);
+  }
+});
 it('shares simultaneous access checks but rechecks a newly approved lifetime account', async () => {
   let release!: (response: Response) => void;
   const request = vi.fn(() => new Promise<Response>(resolve => { release = resolve; }));

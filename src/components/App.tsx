@@ -90,10 +90,12 @@ import { sellTaxAllocation } from '../utils/sellTax';
 import { latestPreviousCloses } from '../services/psxData';
 import { AppLoading } from './AppLoading';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
+import { loadSavedProjections, applyCloudProjections, PROJECTIONS_CHANGED } from '../services/chartProjectionStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
 import { PendingApproval } from './PendingApproval';
 import { UpgradeModal } from './UpgradeModal';
 import { FreemiumProvider } from './FreemiumContext';
+import { ChartProjectionAccess, canUseChartProjection } from './ChartProjectionAccess';
 import { calculateXIRR } from '../utils/finance';
 import { firstEntitledTickers, isTickerEntitled } from '../utils/freemiumEntitlements';
 import { tryRecordProfileOpen, setQuotaAccount } from '../utils/freemiumQuotas';
@@ -532,7 +534,8 @@ const App: React.FC = () => {
   useEffect(() => {
     const bump = () => setChartSettingsTick((t) => t + 1);
     window.addEventListener(CHART_SETTINGS_CHANGED_EVENT, bump);
-    return () => window.removeEventListener(CHART_SETTINGS_CHANGED_EVENT, bump);
+    window.addEventListener(PROJECTIONS_CHANGED, bump);
+    return () => { window.removeEventListener(CHART_SETTINGS_CHANGED_EVENT, bump); window.removeEventListener(PROJECTIONS_CHANGED, bump); };
   }, []);
 
   const lastPriceUpdate = useMemo(() => {
@@ -770,6 +773,7 @@ const App: React.FC = () => {
           if (cloudData.chartSettings) {
               applyCloudChartSettings(cloudData.chartSettings);
           }
+          if (cloudData.savedChartProjections) applyCloudProjections(cloudData.savedChartProjections);
       }
 
   };
@@ -1844,6 +1848,7 @@ const App: React.FC = () => {
       dashboardLayouts, dashboardLayout: dashboardLayouts.PSX, fundCatalog,
       geminiApiKey: userApiKey,
       chartSettings: loadChartSettings(),
+      savedChartProjections: loadSavedProjections(),
       marketPanels: exportPanelCacheForDrive(),
   });
   const cloudSnapshotRef = useRef(getCloudSnapshot);
@@ -2492,6 +2497,7 @@ const App: React.FC = () => {
   })();
 
   return (
+    <ChartProjectionAccess.Provider value={canUseChartProjection(sbStatus, driveUser?.email || sbUser?.email)}>
     <FreemiumProvider
       isFree={isFreePlan}
       quotas={sbStatus?.quotas || null}
@@ -3150,6 +3156,7 @@ const App: React.FC = () => {
       )}
     </div>
     </FreemiumProvider>
+    </ChartProjectionAccess.Provider>
   );
 };
 export default App;

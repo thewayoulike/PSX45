@@ -45,3 +45,10 @@ it('keeps APIs, assets and public guide pages outside the app navigation fallbac
   for (const path of ['/api/cloud-sync', '/assets/deleted.js', '/how-to-use', '/privacy']) expect(deny.some(re => re.test(path))).toBe(true);
   expect(deny.some(re => re.test('/holdings'))).toBe(false);
 });
+it('caches the projection worker after use without caching unrelated requests', () => {
+  vi.stubGlobal('self', { location: { origin: 'https://www.psx-tracker.com' } });
+  const match = mocks.routes[1];
+  expect(match({ request: { destination: 'worker' }, url: new URL('https://www.psx-tracker.com/assets/chartProjection.worker-test.js') })).toBe(true);
+  expect(match({ request: { destination: 'worker' }, url: new URL('https://example.com/assets/worker.js') })).toBe(false);
+  expect(match({ request: { destination: 'script' }, url: new URL('https://www.psx-tracker.com/api/proxy') })).toBe(false);
+});

@@ -52,6 +52,8 @@ export const checkApproval = async (email: string, name?: string, notify = false
 export type AccessState = 'pending' | 'trial' | 'free' | 'paid' | 'lifetime' | 'unavailable';
 
 export interface AccessStatus {
+  accountEmail?: string;
+  features?: { chartProjection: boolean };
   approved: boolean;       // owner has let them in (trial or beyond)
   active: boolean;         // currently has access to the app (includes Free)
   status: AccessState;
@@ -125,6 +127,8 @@ const fetchAccessStatus = async (email: string, name?: string, notify = false, r
       daysLeft: d.daysLeft ?? null,
       quotas: d.quotas ?? null,
       isNew: !!d.new,
+      accountEmail: typeof d.accountEmail === 'string' ? d.accountEmail : undefined,
+      features: { chartProjection: d.accountEmail === email && d.features?.chartProjection === true },
     };
   } catch {
     endMeasure('error');

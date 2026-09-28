@@ -22,7 +22,7 @@ registerRoute(new NavigationRoute(async (context) => {
   return createHandlerBoundToURL('/index.html')(context);
 }, { denylist: [/^\/(?:api|assets|fonts|media)\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/, /^\/llms\.txt$/, /^\/(about|privacy|terms|contact|guides|how-to-use|how-it-works|markets|tools)(\/|$)/] }));
 addRoute();
-registerRoute(({ request, url }) => url.origin === self.location.origin && url.pathname.startsWith('/assets/') && request.destination === 'script',
+registerRoute(({ request, url }) => url.origin === self.location.origin && url.pathname.startsWith('/assets/') && (request.destination === 'script' || request.destination === 'worker'),
   new CacheFirst({ cacheName: 'psx-tools-v1', plugins: [{
     cacheWillUpdate: async ({ response }) => response.status === 200 && /(?:java|ecma)script/i.test(response.headers.get('Content-Type') || '') ? response : null,
     cachedResponseWillBeUsed: async ({ cachedResponse }) => cachedResponse && /(?:java|ecma)script/i.test(cachedResponse.headers.get('Content-Type') || '') ? cachedResponse : null,

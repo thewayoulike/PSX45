@@ -51,6 +51,24 @@ describe('approval boundary', () => {
   });
 });
 describe('account and cloud boundaries', () => {
+  it('grants the chart projection beta only to its verified active account', async () => {
+    mocks.row = { approved: true, lifetime: true };
+    for (const email of ['itruth2011@gmail.com', 'owner@example.invalid', 'itruth2011+test@gmail.com']) {
+      mocks.user = { ok: true, user: { email } };
+      const r = res(); await access({ method: 'POST', body: {}, headers: {} }, r);
+      expect(r.code).toBe(200);
+      expect(r.body.accountEmail).toBe(email);
+      expect(r.body.features.chartProjection).toBe(email === 'itruth2011@gmail.com');
+    }
+    mocks.user = { ok: true, user: { email: 'itruth2011@gmail.com' } }; mocks.row = null;
+    const pending = res(); await access({ method: 'POST', body: {}, headers: {} }, pending);
+    expect(pending.body.features.chartProjection).toBe(false);
+  });
+  it('cannot obtain the beta by substituting the owner email in the request', async () => {
+    mocks.row = { approved: true, lifetime: true };
+    const r = res(); await access({ method: 'POST', body: { email: 'itruth2011@gmail.com' }, headers: {} }, r);
+    expect(r.code).toBe(403); expect(r.body.features).toBeUndefined();
+  });
   it('rejects anonymous access before querying account data', async () => {
     mocks.user={ok:false}; const r=res(); await access({method:'POST',body:{email:'target'},headers:{}},r);
     expect(r.code).toBe(401); expect(mocks.upsert).not.toHaveBeenCalled();
