@@ -133,19 +133,12 @@ export interface PortfolioStats {
 
 export type PortfolioType = 'PSX' | 'MUTUAL_FUND';
 
-export interface RebalanceTarget {
-  ticker: string;
-  percent: number;
-}
-
 export interface Portfolio {
   id: string;
   name: string;
   defaultBrokerId: string;
   /** PSX stocks (default) or Pakistani mutual funds */
   type?: PortfolioType;
-  /** Target weights for the rebalance plan. Percents are meant to add up to 100. */
-  rebalanceTargets?: RebalanceTarget[];
 }
 
 export type AppView = 'HOLDINGS' | 'DASHBOARD' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'SECTOR' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'BROKERS' | 'API_KEYS' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';

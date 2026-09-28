@@ -165,7 +165,11 @@ const DEFAULT_BROKER: Broker = {
 const DEFAULT_PORTFOLIO: Portfolio = { id: 'default', name: 'Main Portfolio', defaultBrokerId: 'default_01', type: 'PSX' };
 
 const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
-  (list || []).map(p => ({ ...p, type: p.type || 'PSX' }));
+  (list || []).map(p => {
+    const rest = { ...p } as Portfolio & { rebalanceTargets?: unknown };
+    delete rest.rebalanceTargets;
+    return { ...rest, type: rest.type || 'PSX' };
+  });
 
 const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST'];
 
@@ -2430,10 +2434,6 @@ const App: React.FC = () => {
                       portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                       transactions={portfolioTransactions}
                       displayNames={fundDisplayNames}
-                      rebalanceTargets={portfolios.find(p => p.id === currentPortfolioId)?.rebalanceTargets || []}
-                      onSaveRebalance={(targets) => {
-                          setPortfolios(prev => prev.map(p => p.id === currentPortfolioId ? { ...p, rebalanceTargets: targets } : p));
-                      }}
                   />
                   </Suspense>
               );

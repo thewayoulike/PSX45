@@ -3,7 +3,6 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CorporateActionModal } from './CorporateActionModal';
 import { FundNumberPanel } from './FundNumberPanel';
-import { RebalancePlanCard } from './RebalancePlan';
 
 describe('portfolio plan screens', () => {
   it('shows a bonus confirm card and does not save it during render', () => {
@@ -35,26 +34,5 @@ describe('portfolio plan screens', () => {
     expect(html).toContain('Meezan Growth');
     expect(html).toContain('Not cash');
     expect(html).toContain('Bonus units');
-  });
-
-  it('shows a rebalance gap and says it will not place a trade', () => {
-    const html = renderToStaticMarkup(React.createElement(RebalancePlanCard, {
-      positions: [
-        { ticker: 'OGDC', name: 'OGDC', value: 46000 },
-        { ticker: 'MEBL', name: 'MEBL', value: 18000 },
-        { ticker: 'LUCK', name: 'LUCK', value: 22000 },
-      ],
-      cash: 14000,
-      saved: [
-        { ticker: 'OGDC', percent: 30 },
-        { ticker: 'MEBL', percent: 25 },
-        { ticker: 'LUCK', percent: 25 },
-        { ticker: 'CASH', percent: 20 },
-      ],
-      onSave: () => {},
-    }));
-    expect(html).toContain('does not place a trade');
-    expect(html).toContain('Over');
-    expect(html).toMatch(/16[,.]?000/);
   });
 });
