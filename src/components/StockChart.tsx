@@ -78,7 +78,7 @@ import {
   type DrawRenderCoords,
 } from '../utils/chartDrawings';
 import { fmtChartAxisDate, pickChartXTickIndices, rechartsSparseTickLabels, type CandleInterval } from '../utils/chartAxis';
-import { applyViewport, maxViewStart as maxViewStartFor, canFitAllTime, effectiveViewCount, windowCount, DEFAULT_MAX_VISIBLE_BARS } from '../utils/chartViewport';
+import { applyViewport, maxViewStart as maxViewStartFor, canFitAllTime, clampViewOrigin, clampVisibleBars, panOriginByPixels, viewportSlice, zoomVisibleAtCursor, FIT_ALL_MAX_BARS, DEFAULT_MAX_VISIBLE_BARS } from '../utils/chartViewport';
 import { useChartTheme } from '../utils/chartTheme';
 import { PaneLegend } from './ChartPaneLegend';
 import { ChartAlertDialog } from './ChartAlertDialog';
@@ -207,12 +207,6 @@ function computePricePanLimits(
   const panMin = (extent.minP - margin + half - center0) / half;
 
   return { min: panMin, max: panMax };
-}
-
-function formatHorizZoomLabel(zoomIdx: number, fitAll = false): string {
-  if (fitAll) return 'All';
-  if (zoomIdx <= 0) return '100%';
-  return `${Math.round((1 / (ZOOM_STEPS[zoomIdx] ?? 1)) * 100)}%`;
 }
 
 function formatPriceZoomLabel(zoomIdx: number, fitAll: boolean, scaleMul = 1): string {
@@ -1508,6 +1502,8 @@ export const CandleChart: React.FC<{
   viewStart?: number;
   /** Full horizontal window size (may exceed bars.length when panned past latest). */
   viewportSlots?: number;
+  /** Fractional part of the left edge, in bars. Shifts candles without resizing them. */
+  originFrac?: number;
   analysis?: ChartAnalysisPoint[];
   layers: ChartLayers;
   momentumConfig: MomentumConfig;
@@ -1527,6 +1523,9 @@ export const CandleChart: React.FC<{
   priceScaleMul?: number;
   onPriceScaleZoom?: (factor: number) => void;
   onPriceAxisReset?: () => void;
+  /** factor > 1 zooms in (fewer bars). cursorRatio is 0 at the left of the plot and 1 at the right. */
+  onTimeScaleZoom?: (factor: number, cursorRatio: number) => void;
+  onTimeAxisReset?: () => void;
   pricePanLimits?: { min: number; max: number };
   plotRef?: React.RefObject<HTMLDivElement | null>;
   drawTool?: DrawTool;
@@ -1542,6 +1541,7 @@ export const CandleChart: React.FC<{
   allBars,
   viewStart = 0,
   viewportSlots,
+  originFrac = 0,
   analysis = [],
   layers,
   momentumConfig,
@@ -1561,6 +1561,8 @@ export const CandleChart: React.FC<{
   priceScaleMul = 1,
   onPriceScaleZoom,
   onPriceAxisReset,
+  onTimeScaleZoom,
+  onTimeAxisReset,
   pricePanLimits = { min: -2, max: 2 },
   plotRef,
   drawTool = 'pan',
@@ -1638,7 +1640,7 @@ export const CandleChart: React.FC<{
   const innerH = h - pad.t - pad.b;
 
   const display = bars;
-  const slotCount = Math.max(display.length, viewportSlots ?? display.length, 1);
+  const slotCount = Math.max(viewportSlots ?? display.length, 1);
   const showOverlay = analysis.length > 0;
   const aligned = useMemo(
     () => (showOverlay ? alignAnalysisToBars(display, analysis) : []),
@@ -1713,7 +1715,9 @@ export const CandleChart: React.FC<{
     plotHover.idx != null
       ? candlePatternMarkers.find((m) => m.index === plotHover.idx) ?? null
       : null;
-  const xAt = (i: number) => plotOffset + i * slot + slot / 2;
+  const xShift = originFrac * slot;
+  const xOrigin = plotOffset - xShift;
+  const xAt = (i: number) => xOrigin + i * slot + slot / 2;
   const crosshairX = plotHover.x;
   const crosshairY = plotHover.y;
   const cursorPrice =
@@ -1723,7 +1727,7 @@ export const CandleChart: React.FC<{
   const drawCoords: DrawRenderCoords = useMemo(
     () => ({
       barTimes,
-      plotOffset,
+      plotOffset: xOrigin,
       slot,
       plotLeft: pad.l,
       plotRight: w - pad.r,
@@ -1734,16 +1738,16 @@ export const CandleChart: React.FC<{
       padTop: pad.t,
       innerH,
     }),
-    [barTimes, plotOffset, slot, pad.l, pad.r, pad.t, innerH, w, yMin, yMax]
+    [barTimes, xOrigin, slot, pad.l, pad.r, pad.t, innerH, w, yMin, yMax]
   );
 
   const drawingActive = drawTool !== 'pan' && drawTool !== 'crosshair' && drawTool !== 'select';
   const plotOverlayActive = drawTool !== 'pan';
   const trendPendingRef = useRef(false);
   const priceAxisDragRef = useRef<{ y: number } | null>(null);
+  const timeAxisDragRef = useRef<{ x: number; ratio: number } | null>(null);
 
   const handlePriceAxisPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
-    if (e.pointerType === 'touch') return;
     if (drawTool !== 'pan' || !onPriceScaleZoom) return;
     e.stopPropagation();
     e.preventDefault();
@@ -1757,7 +1761,8 @@ export const CandleChart: React.FC<{
     const dy = e.clientY - drag.y;
     if (Math.abs(dy) < 0.5) return;
     drag.y = e.clientY;
-    onPriceScaleZoom(Math.exp(-dy * 0.014));
+    // Drag down tightens the price range.
+    onPriceScaleZoom(Math.exp(dy * 0.006));
   };
 
   const handlePriceAxisPointerUp = (e: React.PointerEvent<SVGRectElement>) => {
@@ -1765,14 +1770,31 @@ export const CandleChart: React.FC<{
     try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
   };
 
-  const handlePriceAxisWheel = (e: React.WheelEvent<SVGRectElement>) => {
-    if (!e.altKey || drawTool !== 'pan' || !onPriceScaleZoom) return;
-    // No preventDefault here: React attaches wheel listeners passively, so it would
-    // only log a warning. Page scrolling is already blocked by the non-passive
-    // wheel listener on the chart container.
+  const handleTimeAxisPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
+    if (drawTool !== 'pan' || !onTimeScaleZoom) return;
     e.stopPropagation();
-    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
-    onPriceScaleZoom(factor);
+    e.preventDefault();
+    const svg = (e.currentTarget as SVGRectElement).ownerSVGElement;
+    const rect = svg?.getBoundingClientRect();
+    const plotW = Math.max(innerW, 1);
+    const ratio = rect ? Math.max(0, Math.min(1, (e.clientX - rect.left - pad.l) / plotW)) : 0.5;
+    timeAxisDragRef.current = { x: e.clientX, ratio };
+    (e.currentTarget as Element).setPointerCapture(e.pointerId);
+  };
+
+  const handleTimeAxisPointerMove = (e: React.PointerEvent<SVGRectElement>) => {
+    const drag = timeAxisDragRef.current;
+    if (!drag || !onTimeScaleZoom) return;
+    const dx = e.clientX - drag.x;
+    if (Math.abs(dx) < 0.5) return;
+    drag.x = e.clientX;
+    // Drag right widens the candles.
+    onTimeScaleZoom(Math.exp(dx * 0.004), drag.ratio);
+  };
+
+  const handleTimeAxisPointerUp = (e: React.PointerEvent<SVGRectElement>) => {
+    timeAxisDragRef.current = null;
+    try { (e.currentTarget as Element).releasePointerCapture(e.pointerId); } catch { /* ignore */ }
   };
 
   useEffect(() => {
@@ -1793,12 +1815,12 @@ export const CandleChart: React.FC<{
     (x: number, y: number) => {
       const plotRight = plotOffset + slotCount * slot;
       setPlotHover({
-        idx: barIndexAtX(x, plotOffset, slot, slotCount, display.length),
+        idx: barIndexAtX(x, xOrigin, slot, slotCount + 1, display.length),
         x: x >= plotOffset && x <= plotRight ? x : null,
         y: y >= pad.t && y <= pad.t + innerH ? y : null,
       });
     },
-    [plotOffset, slot, slotCount, display.length, pad.t, innerH]
+    [plotOffset, xOrigin, slot, slotCount, display.length, pad.t, innerH]
   );
 
   const handleDrawPointerDown = (e: React.PointerEvent<SVGRectElement>) => {
@@ -2125,7 +2147,6 @@ export const CandleChart: React.FC<{
             onPointerMove={handlePriceAxisPointerMove}
             onPointerUp={handlePriceAxisPointerUp}
             onPointerLeave={handlePriceAxisPointerUp}
-            onWheel={handlePriceAxisWheel}
             onDoubleClick={(e) => {
               e.stopPropagation();
               onPriceAxisReset?.();
@@ -2206,6 +2227,24 @@ export const CandleChart: React.FC<{
             </text>
           );
         })}
+        {drawTool === 'pan' && onTimeScaleZoom && (
+          <rect
+            x={pad.l}
+            y={pad.t + innerH}
+            width={innerW}
+            height={pad.b}
+            fill="transparent"
+            className="cursor-ew-resize"
+            onPointerDown={handleTimeAxisPointerDown}
+            onPointerMove={handleTimeAxisPointerMove}
+            onPointerUp={handleTimeAxisPointerUp}
+            onPointerLeave={handleTimeAxisPointerUp}
+            onDoubleClick={(e) => {
+              e.stopPropagation();
+              onTimeAxisReset?.();
+            }}
+          />
+        )}
       </svg>
       </div>
       {showMomentum && activeMomentum.map((type, idx) => (
@@ -2278,9 +2317,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const [mode, setMode] = useState<ChartMode>('candle');
   const [candleInterval, setCandleInterval] = useState<CandleInterval>('day');
   const [err, setErr] = useState('');
-  const [zoomIdx, setZoomIdx] = useState(0);
   const [fitAllTime, setFitAllTime] = useState(false);
-  const [viewStart, setViewStart] = useState(0);
+  const [visibleBars, setVisibleBars] = useState(0);
+  const [viewOrigin, setViewOrigin] = useState(0);
   const [alertToast, setAlertToast] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [alertDraftPrice, setAlertDraftPrice] = useState<number | null>(null);
   const [priceZoomIdx, setPriceZoomIdx] = useState(0);
@@ -2306,16 +2345,23 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const candlePlotRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<{
     x: number;
-    y: number;
-    startView: number;
-    startPricePan: number;
-    panH: boolean;
-    panV: boolean;
+    startOrigin: number;
+    lastX: number;
+    lastT: number;
+    v: number;
   } | null>(null);
+  const pointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const pinchRef = useRef<{ dist: number; origin: number; visible: number; ratio: number } | null>(null);
+  const flickRef = useRef(0);
+  const inertiaGen = useRef(0);
 
   const endPan = useCallback(() => {
     panRef.current = null;
     setPanning(false);
+  }, []);
+
+  useEffect(() => () => {
+    inertiaGen.current += 1;
   }, []);
 
   useEffect(() => {
@@ -2358,9 +2404,9 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   }, []);
 
   useEffect(() => {
-    setZoomIdx(0);
     setFitAllTime(false);
-    setViewStart(0);
+    setVisibleBars(0);
+    setViewOrigin(0);
     setPriceZoomIdx(0);
     setPricePanOffset(0);
     setPriceFitAll(false);
@@ -2589,15 +2635,26 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       ? filteredAnalysis.length
       : chartData.length;
 
-  const viewCount = effectiveViewCount(primaryLen, zoomIdx, fitAllTime, maxVisibleBars);
+  const zoomCap = Math.min(Math.max(primaryLen, 1), FIT_ALL_MAX_BARS);
+  const recentWindow = primaryLen === 0 ? 0 : Math.min(primaryLen, maxVisibleBars);
+  const viewCount = primaryLen === 0
+    ? 0
+    : fitAllTime && canFitAllTime(primaryLen)
+      ? primaryLen
+      : clampVisibleBars(visibleBars > 0 ? visibleBars : recentWindow, primaryLen, zoomCap);
+  const slice = viewportSlice(viewOrigin, viewCount);
+  const viewStart = slice.start;
   const maxViewStart = maxViewStartFor(primaryLen, viewCount);
   const canZoom = primaryLen >= MIN_WINDOW;
   const canPan = canZoom && maxViewStart > 0;
   const fitAllTimeAllowed = canFitAllTime(primaryLen);
 
   useEffect(() => {
-    setViewStart((s) => Math.min(s, maxViewStart));
-  }, [maxViewStart]);
+    setViewOrigin((origin) => {
+      const next = clampViewOrigin(origin, viewCount, primaryLen);
+      return next === origin ? origin : next;
+    });
+  }, [viewCount, primaryLen]);
 
   // Clear fit-all when the series identity changes.
   useEffect(() => {
@@ -2608,39 +2665,38 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   useEffect(() => {
     if (fitAllTime) return;
     if (primaryLen <= maxVisibleBars) return;
-    setZoomIdx(0);
-    setViewStart(Math.max(0, primaryLen - maxVisibleBars));
+    setVisibleBars(0);
+    setViewOrigin(Math.max(0, primaryLen - maxVisibleBars));
   }, [symbol, candleInterval, range, primaryLen, fitAllTime, maxVisibleBars]);
 
-  const snapToRecent = (nextZoomIdx: number) => {
-    const cnt = windowCount(primaryLen, nextZoomIdx, maxVisibleBars);
-    setViewStart(Math.max(0, primaryLen - cnt));
+  const zoomAroundRightEdge = (nextVisible: number) => {
+    const right = viewOrigin + viewCount;
+    setVisibleBars(nextVisible);
+    setViewOrigin(clampViewOrigin(right - nextVisible, nextVisible, primaryLen));
   };
 
   const zoomIn = () => {
     setFitAllTime(false);
-    setZoomIdx((z) => {
-      const next = Math.min(ZOOM_STEPS.length - 1, z + 1);
-      if (next !== z) snapToRecent(next);
-      return next;
-    });
+    const next = clampVisibleBars(viewCount / 1.25, primaryLen, zoomCap);
+    if (next < viewCount - 0.05) zoomAroundRightEdge(next);
   };
   const zoomOut = () => {
     setFitAllTime(false);
-    setZoomIdx((z) => Math.max(0, z - 1));
+    const next = clampVisibleBars(viewCount * 1.25, primaryLen, zoomCap);
+    if (next > viewCount + 0.05) zoomAroundRightEdge(next);
   };
   const resetZoom = () => {
     endPan();
     setFitAllTime(false);
-    setZoomIdx(0);
-    setViewStart(primaryLen > maxVisibleBars ? Math.max(0, primaryLen - maxVisibleBars) : 0);
+    setVisibleBars(0);
+    setViewOrigin(primaryLen > maxVisibleBars ? Math.max(0, primaryLen - maxVisibleBars) : 0);
   };
   const fitAllTimeBars = () => {
     if (!canFitAllTime(primaryLen)) return;
     endPan();
     setFitAllTime(true);
-    setZoomIdx(0);
-    setViewStart(0);
+    setVisibleBars(0);
+    setViewOrigin(0);
   };
 
   const priceZoomIn = () => setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
@@ -2678,8 +2734,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   }, [alertToast]);
 
   const visibleOhlc = useMemo(
-    () => applyViewport(candleOhlc, viewStart, viewCount),
-    [candleOhlc, viewStart, viewCount]
+    () => applyViewport(candleOhlc, viewStart, slice.count),
+    [candleOhlc, viewStart, slice.count]
   );
   const visibleChartData = useMemo(
     () => applyViewport(chartData, viewStart, viewCount),
@@ -2850,84 +2906,175 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   const canPanV = showCandle && visibleOhlc.length >= 3;
   const canPanChart = canPanH || canPanV;
 
-  const pricePanLimitsRef = useRef(pricePanLimits);
-  pricePanLimitsRef.current = pricePanLimits;
-  const maxViewStartRef = useRef(maxViewStart);
-  maxViewStartRef.current = maxViewStart;
   const viewCountRef = useRef(viewCount);
   viewCountRef.current = viewCount;
+  const viewOriginRef = useRef(viewOrigin);
+  viewOriginRef.current = viewOrigin;
+  const primaryLenRef = useRef(primaryLen);
+  primaryLenRef.current = primaryLen;
+  const showCandleRef = useRef(showCandle);
+  showCandleRef.current = showCandle;
+  const zoomCapRef = useRef(zoomCap);
+  zoomCapRef.current = zoomCap;
 
-  const applyPanMove = useCallback((clientX: number, clientY: number) => {
+  const plotWidthNow = () => {
+    const plot = candlePlotRef.current;
+    if (plot && showCandleRef.current) return Math.max(plot.clientWidth - 52 - 56, 1);
+    return Math.max((chartPanRef.current?.clientWidth ?? 640) - 64, 1);
+  };
+
+  const stopInertia = () => {
+    inertiaGen.current += 1;
+  };
+
+  const beginInertia = (velocityPxPerMs: number) => {
+    if (!(Math.abs(velocityPxPerMs) > 0.4)) return;
+    const gen = ++inertiaGen.current;
+    let velocity = velocityPxPerMs;
+    let last = performance.now();
+    const step = (now: number) => {
+      if (inertiaGen.current !== gen) return;
+      const dt = Math.min(32, now - last);
+      last = now;
+      const visible = viewCountRef.current;
+      const spacing = plotWidthNow() / Math.max(visible, 1);
+      setViewOrigin((origin) => clampViewOrigin(origin - (velocity * dt) / spacing, visible, primaryLenRef.current));
+      velocity *= Math.pow(0.92, dt / 16);
+      if (Math.abs(velocity) > 0.02) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+
+  const consumeFlick = () => {
+    const velocity = flickRef.current;
+    flickRef.current = 0;
+    beginInertia(velocity);
+  };
+
+  const applyPanMove = useCallback((clientX: number) => {
     const pan = panRef.current;
     if (!pan) return;
-    const limits = pricePanLimitsRef.current;
-    if (pan.panV) {
-      const plotH = candlePlotRef.current?.clientHeight ?? chartPanRef.current?.clientHeight ?? 400;
-      const chartHeight = Math.max(plotH, 120);
-      const dy = clientY - pan.y;
-      const delta = (dy / chartHeight) * 1.6;
-      setPricePanOffset(clampPanOffset(pan.startPricePan + delta, limits));
-    }
-    if (pan.panH) {
-      const width = chartPanRef.current?.clientWidth ?? 640;
-      const chartWidth = Math.max(width - 64, 120);
-      const dx = clientX - pan.x;
-      const barShift = Math.round(-dx * (viewCountRef.current / chartWidth));
-      setViewStart(Math.max(0, Math.min(maxViewStartRef.current, pan.startView + barShift)));
-    }
+    const visible = viewCountRef.current;
+    const plotW = plotWidthNow();
+    const dx = clientX - pan.x;
+    const next = panOriginByPixels(pan.startOrigin, dx, plotW, visible, primaryLenRef.current);
+    viewOriginRef.current = next;
+    setViewOrigin(next);
+    const now = performance.now();
+    const dt = Math.max(8, now - pan.lastT);
+    pan.v = (clientX - pan.lastX) / dt;
+    flickRef.current = pan.v;
+    pan.lastX = clientX;
+    pan.lastT = now;
   }, []);
 
-  const onPanStart = (clientX: number, clientY: number) => {
+  const applyPinch = (points: { x: number; y: number }[]) => {
+    const pinch = pinchRef.current;
+    if (!pinch || points.length < 2) return;
+    const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+    if (!(dist > 0) || !(pinch.dist > 0)) return;
+    const next = zoomVisibleAtCursor(
+      pinch.origin,
+      pinch.visible,
+      pinch.ratio,
+      1,
+      dist / pinch.dist,
+      primaryLenRef.current,
+      zoomCapRef.current,
+    );
+    viewOriginRef.current = next.origin;
+    viewCountRef.current = next.visible;
+    setFitAllTime(false);
+    setVisibleBars(next.visible);
+    setViewOrigin(next.origin);
+  };
+
+  const onPanStart = (clientX: number) => {
     if (!canPanChart) return;
+    const now = performance.now();
     panRef.current = {
       x: clientX,
-      y: clientY,
-      startView: viewStart,
-      startPricePan: pricePanOffset,
-      panH: canPanH,
-      panV: canPanV,
+      startOrigin: viewOriginRef.current,
+      lastX: clientX,
+      lastT: now,
+      v: 0,
     };
     setPanning(true);
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0 || !canPanChart || drawTool !== 'pan') return;
-    if (e.pointerType !== 'touch') e.preventDefault();
+    if (e.button !== 0 || drawTool !== 'pan' || !canPanChart) return;
+    stopInertia();
+    flickRef.current = 0;
+    pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
     e.currentTarget.setPointerCapture(e.pointerId);
-    onPanStart(e.clientX, e.clientY);
-    // Touch swipes move time horizontally; vertical gestures scroll the page.
-    if (e.pointerType === 'touch' && panRef.current) panRef.current.panV = false;
+    if (pointersRef.current.size >= 2) {
+      endPan();
+      const pts = [...pointersRef.current.values()];
+      const midX = (pts[0].x + pts[1].x) / 2;
+      const host = candlePlotRef.current ?? chartPanRef.current;
+      const rect = host?.getBoundingClientRect();
+      const plotW = plotWidthNow();
+      const padL = showCandleRef.current ? 52 : 0;
+      const ratio = rect ? Math.max(0, Math.min(1, (midX - rect.left - padL) / plotW)) : 0.5;
+      pinchRef.current = {
+        dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
+        origin: viewOriginRef.current,
+        visible: viewCountRef.current,
+        ratio,
+      };
+      return;
+    }
+    if (e.pointerType !== 'touch') e.preventDefault();
+    onPanStart(e.clientX);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
-    if (!panRef.current) return;
-    if (!(e.buttons & 1)) {
-      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
-      endPan();
+    if (pointersRef.current.has(e.pointerId)) {
+      pointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    if (pinchRef.current) {
+      applyPinch([...pointersRef.current.values()]);
       return;
     }
-    applyPanMove(e.clientX, e.clientY);
+    if (!panRef.current) return;
+    if (!(e.buttons & 1) && e.pointerType !== 'touch') {
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      endPan();
+      consumeFlick();
+      return;
+    }
+    applyPanMove(e.clientX);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    pointersRef.current.delete(e.pointerId);
+    const wasPan = panRef.current != null;
+    if (pointersRef.current.size < 2) pinchRef.current = null;
     endPan();
+    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    if (wasPan && pointersRef.current.size === 0) consumeFlick();
   };
 
   const onLostPointerCapture = () => {
+    if (pointersRef.current.size > 0) return;
     endPan();
   };
 
   useEffect(() => {
     if (!panning) return;
-    const finish = () => endPan();
+    const finish = () => {
+      endPan();
+      consumeFlick();
+    };
     const move = (e: PointerEvent) => {
+      if (pinchRef.current) return;
       if (!panRef.current) return;
-      if (!(e.buttons & 1)) {
+      if (!(e.buttons & 1) && e.pointerType !== 'touch') {
         finish();
         return;
       }
-      applyPanMove(e.clientX, e.clientY);
+      applyPanMove(e.clientX);
     };
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', finish);
@@ -2941,37 +3088,68 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     };
   }, [panning, endPan, applyPanMove]);
 
+  const handleTimeScaleZoom = useCallback((factor: number, cursorRatio: number) => {
+    stopInertia();
+    setFitAllTime(false);
+    const next = zoomVisibleAtCursor(
+      viewOriginRef.current,
+      viewCountRef.current,
+      cursorRatio,
+      1,
+      factor,
+      primaryLenRef.current,
+      zoomCapRef.current,
+    );
+    viewOriginRef.current = next.origin;
+    viewCountRef.current = next.visible;
+    setVisibleBars(next.visible);
+    setViewOrigin(next.origin);
+  }, []);
+
   useEffect(() => {
     const el = chartPanRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
-      // Ordinary wheel/trackpad movement belongs to the page, even over a plot.
-      if (!e.altKey) return;
       e.preventDefault();
-      if (showCandle && e.shiftKey) {
-        if (e.deltaY < 0) setPriceZoomIdx((z) => Math.max(PRICE_ZOOM_MIN, z - 1));
-        else if (e.deltaY > 0) setPriceZoomIdx((z) => Math.min(PRICE_ZOOM_MAX, z + 1));
+      const host = candlePlotRef.current ?? el;
+      const rect = host.getBoundingClientRect();
+      const candle = showCandleRef.current;
+      const padL = candle ? 52 : 0;
+      const padR = candle ? 56 : 0;
+      const padB = candle ? 28 : 0;
+      const plotW = Math.max(rect.width - padL - padR, 1);
+      const localX = e.clientX - rect.left - padL;
+      const onPrice = candle && e.clientX >= rect.right - padR && e.clientY <= rect.bottom - padB;
+      if (onPrice || e.shiftKey) {
+        setPriceFitAll(false);
+        setPriceScaleMul((m) => clampPriceScaleMul(m * Math.exp(-e.deltaY * 0.0012)));
         return;
       }
-      if (!canZoom) return;
-      if (e.deltaY < 0) {
-        setFitAllTime(false);
-        setZoomIdx((z) => {
-          const next = Math.min(ZOOM_STEPS.length - 1, z + 1);
-          if (next !== z) {
-            const cnt = windowCount(primaryLen, next, maxVisibleBars);
-            setViewStart(Math.max(0, primaryLen - cnt));
-          }
-          return next;
-        });
-      } else if (e.deltaY > 0) {
-        setFitAllTime(false);
-        setZoomIdx((z) => Math.max(0, z - 1));
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+        const next = panOriginByPixels(viewOriginRef.current, -e.deltaX, plotW, viewCountRef.current, primaryLenRef.current);
+        viewOriginRef.current = next;
+        setViewOrigin(next);
+        return;
       }
+      const factor = Math.exp(-e.deltaY * 0.0015);
+      const next = zoomVisibleAtCursor(
+        viewOriginRef.current,
+        viewCountRef.current,
+        Math.max(0, Math.min(plotW, localX)),
+        plotW,
+        factor,
+        primaryLenRef.current,
+        zoomCapRef.current,
+      );
+      setFitAllTime(false);
+      viewOriginRef.current = next.origin;
+      viewCountRef.current = next.visible;
+      setVisibleBars(next.visible);
+      setViewOrigin(next.origin);
     };
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
-  }, [canZoom, primaryLen, showCandle, maxVisibleBars]);
+  }, [symbol]);
 
   const first = filteredOhlc[0]?.close ?? chartData[0]?.price ?? 0;
   const last = filteredOhlc[filteredOhlc.length - 1]?.close ?? chartData[chartData.length - 1]?.price ?? 0;
@@ -3092,11 +3270,11 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           {canZoom && (
             <AxisZoomControls
               axis="H"
-              zoomIdx={zoomIdx}
+              zoomIdx={fitAllTime || viewCount >= Math.min(primaryLen, FIT_ALL_MAX_BARS) - 0.5 ? 0 : viewCount <= Math.min(MIN_WINDOW, primaryLen) + 0.25 ? ZOOM_STEPS.length - 1 : 1}
               minIdx={0}
               maxIdx={ZOOM_STEPS.length - 1}
-              label={formatHorizZoomLabel(zoomIdx, fitAllTime)}
-              isDefault={zoomIdx === 0 && !fitAllTime}
+              label={fitAllTime ? 'All' : recentWindow > 0 && Math.abs(viewCount - recentWindow) < 0.75 ? '100%' : String(Math.round(viewCount))}
+              isDefault={!fitAllTime && recentWindow > 0 && Math.abs(viewCount - recentWindow) < 0.75}
               onZoomIn={zoomIn}
               onZoomOut={zoomOut}
               onReset={resetZoom}
@@ -3181,13 +3359,18 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
           />
         )}
         <div
-          className={`${canPanChart && drawTool === 'pan' ? (panning ? 'cursor-grabbing touch-pan-y' : 'cursor-grab touch-pan-y') : ''}`}
+          className={drawTool === 'pan' ? (panning ? 'cursor-grabbing touch-none' : 'cursor-crosshair touch-none') : ''}
           ref={chartPanRef}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
           onLostPointerCapture={onLostPointerCapture}
+          onDoubleClick={() => {
+            if (drawTool !== 'pan') return;
+            resetZoom();
+            resetPriceZoom();
+          }}
         >
         {alertToast && (
           <div
@@ -3241,6 +3424,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               allBars={candleOhlc}
               viewStart={viewStart}
               viewportSlots={viewCount}
+              originFrac={slice.frac}
               analysis={candleAnalysis}
               layers={layers}
               momentumConfig={momentumConfig}
@@ -3260,6 +3444,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
               priceScaleMul={priceScaleMul}
               onPriceScaleZoom={handlePriceScaleZoom}
               onPriceAxisReset={resetPriceZoom}
+              onTimeScaleZoom={handleTimeScaleZoom}
+              onTimeAxisReset={resetZoom}
               pricePanLimits={pricePanLimits}
               plotRef={candlePlotRef}
               drawTool={drawTool}
@@ -3345,14 +3531,14 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         )}
         {!isFocus && showCandle && canPanChart && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
-            Drag to pan (Pan tool) · Drag past latest for mid-chart space · Drag price axis or Alt+scroll to zoom · Double-click axis to reset · Draw toolbar · Del removes selected · Alt+Shift+scroll zoom price
+            Drag to move through time · Scroll to zoom at the cursor · Drag the dates to zoom time · Drag the prices to zoom price · Shift+scroll zooms price · Double-click the chart to reset · Draw toolbar · Del removes selected
             {hasAnyPivot(awaisLayers) && ' · Y Targets fits pivot levels'}
             {canPanH && visibleRangeLabel ? ` · ${visibleRangeLabel}` : ''}
           </p>
         )}
         {!isFocus && !showCandle && canPan && (
           <p className="text-[10px] text-slate-400 mt-2 px-1">
-            Drag left/right to pan · Alt+scroll or +/- to zoom · {visibleRangeLabel}
+            Drag to move through time · Scroll to zoom at the cursor · {visibleRangeLabel}
           </p>
         )}
       </div>

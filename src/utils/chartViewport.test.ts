@@ -2,10 +2,16 @@ import { describe, expect, it } from 'vitest';
 import {
   applyViewport,
   canFitAllTime,
+  clampViewOrigin,
+  clampVisibleBars,
   effectiveViewCount,
   FIT_ALL_MAX_BARS,
   maxViewStart,
+  MIN_VISIBLE_BARS,
+  panOriginByPixels,
   rightPadBars,
+  viewportSlice,
+  zoomVisibleAtCursor,
   DEFAULT_MAX_VISIBLE_BARS,
 } from './chartViewport';
 
@@ -91,5 +97,61 @@ describe('effectiveViewCount', () => {
 
   it('falls back to capped window when fitAll is on but series is too large', () => {
     expect(effectiveViewCount(FIT_ALL_MAX_BARS + 50, 0, true)).toBe(DEFAULT_MAX_VISIBLE_BARS);
+  });
+});
+
+describe('clampVisibleBars', () => {
+  it('keeps a continuous window between a minimum and the series cap', () => {
+    expect(clampVisibleBars(80.4, 500, 2000)).toBeCloseTo(80.4);
+    expect(clampVisibleBars(3, 500, 2000)).toBe(MIN_VISIBLE_BARS);
+    expect(clampVisibleBars(9000, 500, 2000)).toBe(500);
+  });
+
+  it('does not invent bars for a short series', () => {
+    expect(clampVisibleBars(50, 8, 2000)).toBe(8);
+  });
+});
+
+describe('clampViewOrigin', () => {
+  it('stays inside the right-pad range', () => {
+    expect(clampViewOrigin(-4, 40, 100)).toBe(0);
+    expect(clampViewOrigin(90, 40, 100)).toBe(maxViewStart(100, 40));
+  });
+});
+
+describe('panOriginByPixels', () => {
+  it('moves one bar per bar of drag, including a fraction of a candle', () => {
+    expect(panOriginByPixels(50, 100, 200, 40, 100)).toBeCloseTo(30);
+    expect(panOriginByPixels(50, 25, 200, 40, 100)).toBeCloseTo(45);
+  });
+
+  it('does not pan before the first bar', () => {
+    expect(panOriginByPixels(2, 200, 200, 40, 100)).toBe(0);
+  });
+});
+
+describe('zoomVisibleAtCursor', () => {
+  it('keeps the bar under the pointer fixed', () => {
+    const left = zoomVisibleAtCursor(20, 40, 0, 200, 2, 100, 2000);
+    expect(left.visible).toBe(20);
+    expect(left.origin).toBeCloseTo(20);
+
+    const mid = zoomVisibleAtCursor(20, 40, 100, 200, 2, 100, 2000);
+    expect(mid.visible).toBe(20);
+    expect(mid.origin).toBeCloseTo(30);
+
+    const right = zoomVisibleAtCursor(20, 40, 200, 200, 2, 100, 2000);
+    expect(right.visible).toBe(20);
+    expect(right.origin).toBeCloseTo(40);
+  });
+});
+
+describe('viewportSlice', () => {
+  it('covers the partial bars on both edges of a fractional window', () => {
+    const partial = viewportSlice(10.4, 80.3);
+    expect(partial.start).toBe(10);
+    expect(partial.count).toBe(81);
+    expect(partial.frac).toBeCloseTo(0.4);
+    expect(viewportSlice(10, 80)).toEqual({ start: 10, count: 80, frac: 0 });
   });
 });

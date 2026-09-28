@@ -9,6 +9,64 @@ export const FIT_ALL_MAX_BARS = 2000;
 const ZOOM_STEPS = [1, 1.25, 1.5, 2, 3, 4, 6, 8, 12] as const;
 const MIN_WINDOW = 12;
 
+/** Smallest continuous window. Short series can be narrower than this. */
+export const MIN_VISIBLE_BARS = MIN_WINDOW;
+
+export function clampVisibleBars(visible: number, dataLen: number, maxVisible: number): number {
+  if (dataLen <= 0) return 0;
+  const cap = Math.min(dataLen, Math.max(1, maxVisible));
+  const floor = Math.min(MIN_VISIBLE_BARS, cap);
+  if (!Number.isFinite(visible)) return cap;
+  return Math.max(floor, Math.min(cap, visible));
+}
+
+export function clampViewOrigin(origin: number, visible: number, dataLen: number): number {
+  const max = maxViewStart(dataLen, Math.max(visible, 0));
+  if (!Number.isFinite(origin)) return 0;
+  return Math.max(0, Math.min(max, origin));
+}
+
+/** Drag right (positive dx) reveals older bars. One bar of drag moves one bar. */
+export function panOriginByPixels(
+  origin: number,
+  dxPx: number,
+  plotWidth: number,
+  visible: number,
+  dataLen: number
+): number {
+  if (!(plotWidth > 0) || !(visible > 0)) return clampViewOrigin(origin, visible, dataLen);
+  return clampViewOrigin(origin - (dxPx * visible) / plotWidth, visible, dataLen);
+}
+
+/**
+ * Zoom time around the cursor. `factor` > 1 shows fewer bars (zoom in).
+ * The data index under `cursorX` stays under that pixel.
+ */
+export function zoomVisibleAtCursor(
+  origin: number,
+  visible: number,
+  cursorX: number,
+  plotWidth: number,
+  factor: number,
+  dataLen: number,
+  maxVisible: number
+): { origin: number; visible: number } {
+  const safeFactor = Number.isFinite(factor) && factor > 0 ? factor : 1;
+  const ratio = plotWidth > 0 ? Math.max(0, Math.min(1, cursorX / plotWidth)) : 0.5;
+  const index = origin + ratio * visible;
+  const nextVisible = clampVisibleBars(visible / safeFactor, dataLen, maxVisible);
+  const nextOrigin = clampViewOrigin(index - ratio * nextVisible, nextVisible, dataLen);
+  return { origin: nextOrigin, visible: nextVisible };
+}
+
+/** Integer slice that covers a fractional left edge and visible width. */
+export function viewportSlice(origin: number, visible: number): { start: number; count: number; frac: number } {
+  const start = Math.max(0, Math.floor(Number.isFinite(origin) ? origin : 0));
+  const frac = (Number.isFinite(origin) ? origin : 0) - start;
+  const end = Math.ceil((Number.isFinite(origin) ? origin : 0) + Math.max(0, visible) - 1e-9);
+  return { start, count: Math.max(0, end - start), frac };
+}
+
 /** Empty slots past the last candle so the latest bar can sit mid-chart. */
 export function rightPadBars(viewCount: number): number {
   if (viewCount <= 0) return 0;
