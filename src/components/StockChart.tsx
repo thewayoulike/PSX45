@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, useId } from 'react';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 import { fetchOHLCV, fetchIntradayOHLCV, fetchStockHistory, fetchChartAnalysis, OhlcBar, ChartAnalysisPoint } from '../services/psxData';
+import { barsWithinLatestDaySpan } from '../utils/chartRange';
 import { computeChartAnalysisFromBars } from '../utils/chartAnalysis';
 import {
   computeAwaisOverlays,
@@ -2568,8 +2569,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     if (onIntraday) {
       const r = INTRADAY_RANGES.find((x) => x.k === range);
       if (!r || r.days === 0) return ohlc;
-      const cutoff = Date.now() - r.days * 86400000;
-      return ohlc.filter((p) => p.time >= cutoff);
+      return barsWithinLatestDaySpan(ohlc, r.days);
     }
     const r = RANGES.find((x) => x.k === range);
     if (!r || r.days === 0) return ohlc;
@@ -2578,14 +2578,19 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   }, [ohlc, range, onIntraday]);
 
   const filteredLine = useMemo(() => {
-    const r = RANGES.find((x) => x.k === range);
     const src = ohlc.length
       ? ohlc.map((b) => ({ time: b.time, price: b.close }))
       : lineFallback;
+    if (onIntraday) {
+      const r = INTRADAY_RANGES.find((x) => x.k === range);
+      if (!r || r.days === 0) return src;
+      return barsWithinLatestDaySpan(src, r.days);
+    }
+    const r = RANGES.find((x) => x.k === range);
     if (!r || r.days === 0) return src;
     const cutoff = Date.now() - r.days * 86400000;
     return src.filter((p) => p.time >= cutoff);
-  }, [ohlc, lineFallback, range]);
+  }, [ohlc, lineFallback, range, onIntraday]);
 
   /** Browser-side BB/RSI/MACD from OHLC — works on production without Python. */
   const clientAnalysis = useMemo(() => {
