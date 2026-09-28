@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Projected range — every chart tool, tested on PSX</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: #f3f6f2; color: #16342f; font: 14px/1.45 Inter, system-ui, sans-serif; }
+  body { display: flex; flex-direction: column; min-height: 100%; }
+  header { padding: 14px 18px 0; }
+  h1 { margin: 0 0 4px; font-size: 18px; letter-spacing: -0.03em; }
+  .lede { margin: 0; color: #52685f; max-width: 980px; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; align-items: center; }
+  .row .label { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: #7d9088; margin-right: 4px; }
+  button { border: 1px solid #dbe5df; background: #fff; border-radius: 999px; padding: 5px 11px; font-weight: 700; font-size: 12.5px; cursor: pointer; color: #16342f; }
+  button.on { background: #16342f; color: #fff; border-color: #16342f; }
+  main { flex: 1 1 auto; min-height: 0; display: grid; grid-template-columns: 1fr 400px; gap: 12px; padding: 12px 14px 14px; }
+  #stage { min-height: 600px; background: #fff; border: 1px solid #dbe5df; border-radius: 16px; position: relative; overflow: hidden; touch-action: none; }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  aside { background: #fff; border: 1px solid #dbe5df; border-radius: 16px; padding: 14px; overflow: auto; max-height: calc(100vh - 170px); }
+  aside h2 { margin: 0 0 6px; font-size: 15px; }
+  aside h3 { margin: 14px 0 6px; font-size: 13px; }
+  aside p { margin: 0 0 10px; color: #3d534c; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+  th { text-align: left; color: #7d9088; font-weight: 700; padding: 4px 4px; border-bottom: 1px solid #e6eee9; }
+  td { padding: 5px 4px; border-bottom: 1px solid #f0f4f1; vertical-align: top; }
+  td.r, th.r { text-align: right; }
+  .tag { display: inline-block; font-size: 10.5px; font-weight: 800; padding: 1px 6px; border-radius: 999px; }
+  .coin { background: #eef2f0; color: #52685f; }
+  .size { background: #fff3e0; color: #9a4b00; }
+  .weak { background: #e7f4ee; color: #0e6b4f; }
+  .small { color: #6b7f78; font-size: 12px; }
+  .callout { background: #f6faf7; border: 1px solid #dbe8df; border-radius: 12px; padding: 10px 12px; margin: 8px 0 10px; }
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 1fr; }
+    aside { max-height: none; }
+    #stage { min-height: 520px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Projected range — every chart tool, tested on PSX</h1>
+  <p class="lede">Sample prices. The shaded fan is where the close has landed on past days like this one: the darker part held the close half the time, the lighter part four times out of five. The tested numbers come from real daily candles for EFERT, OGDC, LUCK, HUBC, MEBL and ENGRO, August 2017 to September 2026, 13,037 days.</p>
+  <div class="row" id="lessons"><span class="label">Course path</span></div>
+  <div class="row" id="overlays"><span class="label">On chart</span></div>
+</header>
+<main>
+  <div id="stage"><canvas id="c"></canvas></div>
+  <aside>
+    <h2 id="card-title"></h2>
+    <p id="card-body"></p>
+    <div class="callout" id="projection"></div>
+    <h3>Every tool on the chart</h3>
+    <p class="small">Reading is today on the sample chart. “Right side after 5 bars” is how often the tool’s up or down call matched the close 5 bars later on the six PSX names. Price rose on 50.7% of those days anyway, so a coin flip scores about 50%.</p>
+    <table>
+      <thead><tr><th>Tool</th><th>Now</th><th class="r">Right side after 5 bars</th><th>Used for</th></tr></thead>
+      <tbody id="tools"></tbody>
+    </table>
+    <p class="small" style="margin-top:10px">Not scored yet: Fibonacci levels, RSI divergence, higher highs and lower lows, consolidation zones. They stay on the chart, but they do not change the fan.</p>
+  </aside>
+</main>
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const stage = document.getElementById('stage');
+const PRICE_W = 74;
+const TIME_H = 24;
+const VOL_H = 58;
+const RSI_H = 74;
+const AHEAD = 8;
+
+/* ---------- sample candles ---------- */
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rnd = mulberry32(11);
+const gauss = () => { let u = 0, v = 0; while (!u) u = rnd(); while (!v) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+function nextDay(t) {
+  const d = new Date(t);
+  do d.setUTCDate(d.getUTCDate() + 1); while (d.getUTCDay() === 0 || d.getUTCDay() === 6);
+  return d.getTime();
+}
+const bars = [];
+{
+  let t = Date.UTC(2023, 2, 1);
+  let price = 180;
+  let vol = 0.017;
+  for (let i = 0; i < 900; i++) {
+    const trend = Math.sin(i / 70) * 0.0012;
+    const r = trend + vol * gauss();
+    const o = price * (1 + 0.25 * vol * gauss());
+    const c = Math.max(20, price * (1 + r));
+    const span = Math.abs(c - o) + price * vol * (0.4 + rnd() * 0.9);
+    const h = Math.max(o, c) + span * rnd() * 0.55;
+    const l = Math.min(o, c) - span * rnd() * 0.55;
+    const v = Math.round(1e6 * (0.6 + rnd() * 0.5) * (1 + 18 * Math.abs(r)));
+    bars.push({ t, o, h, l, c, v });
+    vol = Math.max(0.008, Math.min(0.045, 0.92 * vol + 0.08 * (Math.abs(r) * 1.25 + 0.004)));
+    price = c;
+    t = nextDay(t);
+  }
+  const n = bars.length;
+  const hb = bars[n - 6];
+  const body = hb.c * 0.004;
+  hb.o = hb.c - body; hb.h = hb.c + body * 0.3; hb.l = hb.o - body * 7; hb.v = Math.round(hb.v * 2.3);
+  const cb = bars[n - 5];
+  cb.o = hb.c; cb.c = hb.h + body * 2.5; cb.h = cb.c + body; cb.l = cb.o - body; cb.v = Math.round(cb.v * 1.4);
+  for (let k = n - 4; k < n; k++) {
+    const p = bars[k - 1].c;
+    const ch = p * 0.006 * (rnd() - 0.35);
+    bars[k].o = p; bars[k].c = p + ch;
+    bars[k].h = Math.max(bars[k].o, bars[k].c) + p * 0.004 * rnd();
+    bars[k].l = Math.min(bars[k].o, bars[k].c) - p * 0.004 * rnd();
+  }
+}
+const N = bars.length;
+const closes = bars.map((b) => b.c);
+
+/* ---------- indicators (same periods as the app) ---------- */
+function ema(vals, n) { const k = 2 / (n + 1); const out = []; let e = vals[0]; vals.forEach((v, i) => { e = i === 0 ? v : v * k + e * (1 - k); out.push(e); }); return out; }
+function sma(vals, n) { const out = Array(vals.length).fill(NaN); let s = 0; vals.forEach((v, i) => { s += v; if (i >= n) s -= vals[i - n]; if (i >= n - 1) out[i] = s / n; }); return out; }
+function trueRange(i) { const b = bars[i]; if (!i) return b.h - b.l; const p = bars[i - 1].c; return Math.max(b.h - b.l, Math.abs(b.h - p), Math.abs(b.l - p)); }
+function rma(vals, n) { const out = []; let a = 0; vals.forEach((v, i) => { if (i < n) { a += v; out.push(i === n - 1 ? (a /= n) : NaN); } else { a = (a * (n - 1) + v) / n; out.push(a); } }); return out; }
+const tr = bars.map((_, i) => trueRange(i));
+const atr = rma(tr, 14);
+const ema20 = ema(closes, 20), ema50 = ema(closes, 50), ema200 = ema(closes, 200);
+const ema26 = ema(closes, 26);
+const macd = ema(closes, 12).map((v, i) => v - ema26[i]);
+const macdSig = ema(macd, 9);
+const rsi = (() => {
+  const out = Array(N).fill(NaN); let g = 0, l = 0;
+  for (let i = 1; i < N; i++) {
+    const ch = closes[i] - closes[i - 1];
+    if (i <= 14) { g += Math.max(ch, 0); l += Math.max(-ch, 0); if (i === 14) { g /= 14; l /= 14; out[i] = l ? 100 - 100 / (1 + g / l) : 100; } continue; }
+    g = (g * 13 + Math.max(ch, 0)) / 14; l = (l * 13 + Math.max(-ch, 0)) / 14;
+    out[i] = l ? 100 - 100 / (1 + g / l) : 100;
+  }
+  return out;
+})();
+const bbMid = sma(closes, 20);
+const bbSd = closes.map((_, i) => { if (i < 19) return NaN; let m = bbMid[i], s = 0; for (let j = i - 19; j <= i; j++) s += (closes[j] - m) ** 2; return Math.sqrt(s / 20); });
+const stochK = closes.map((c, i) => { if (i < 13) return NaN; let hh = -Infinity, ll = Infinity; for (let j = i - 13; j <= i; j++) { hh = Math.max(hh, bars[j].h); ll = Math.min(ll, bars[j].l); } return hh > ll ? 100 * (c - ll) / (hh - ll) : 50; });
+const dmi = (() => {
+  const pdm = [0], mdm = [0];
+  for (let i = 1; i < N; i++) { const u = bars[i].h - bars[i - 1].h, d = bars[i - 1].l - bars[i].l; pdm.push(u > d && u > 0 ? u : 0); mdm.push(d > u && d > 0 ? d : 0); }
+  const t = rma(tr, 14), p = rma(pdm, 14), m = rma(mdm, 14);
+  const pdi = p.map((v, i) => 100 * v / t[i]), mdi = m.map((v, i) => 100 * v / t[i]);
+  const dx = pdi.map((v, i) => { const s = v + mdi[i]; return Number.isFinite(s) && s > 0 ? 100 * Math.abs(v - mdi[i]) / s : 0; });
+  return { pdi, mdi, adx: rma(dx, 14) };
+})();
+const supertrend = (() => {
+  const a10 = rma(tr, 10); const line = Array(N).fill(NaN), dir = Array(N).fill(0);
+  let up = NaN, dn = NaN, d = 1;
+  for (let i = 0; i < N; i++) {
+    if (!Number.isFinite(a10[i])) continue;
+    const src = (bars[i].h + bars[i].l) / 2;
+    let cu = src - 3 * a10[i], cd = src + 3 * a10[i];
+    const pc = i ? closes[i - 1] : closes[i];
+    if (Number.isFinite(up) && pc > up) cu = Math.max(cu, up);
+    if (Number.isFinite(dn) && pc < dn) cd = Math.min(cd, dn);
+    if (d === -1 && closes[i] > dn) d = 1; else if (d === 1 && closes[i] < up) d = -1;
+    up = cu; dn = cd; dir[i] = d; line[i] = d === 1 ? cu : cd;
+  }
+  return { line, dir };
+})();
+const donchMid = (i, n) => { let hh = -Infinity, ll = Infinity; for (let j = Math.max(0, i - n + 1); j <= i; j++) { hh = Math.max(hh, bars[j].h); ll = Math.min(ll, bars[j].l); } return (hh + ll) / 2; };
+function ichimokuAt(k) {
+  const src = k - 26;
+  if (src < 52) return null;
+  return { a: (donchMid(src, 9) + donchMid(src, 26)) / 2, b: donchMid(src, 52) };
+}
+const vwap20 = closes.map((_, i) => { if (i < 19) return NaN; let pv = 0, vv = 0; for (let j = i - 19; j <= i; j++) { const tp = (bars[j].h + bars[j].l + bars[j].c) / 3; pv += tp * bars[j].v; vv += bars[j].v; } return pv / vv; });
+const vol20 = sma(bars.map((b) => b.v), 20);
+const last = N - 1;
+const prevBar = bars[last - 1];
+const pivot = (() => { const p = (prevBar.h + prevBar.l + prevBar.c) / 3; return { p, r1: 2 * p - prevBar.l, s1: 2 * p - prevBar.h }; })();
+const hi20 = Math.max(...bars.slice(last - 20, last).map((b) => b.h));
+const lo20 = Math.min(...bars.slice(last - 20, last).map((b) => b.l));
+
+function isHammer(i) { const b = bars[i]; const r = b.h - b.l || 1; const body = Math.abs(b.c - b.o); return body / r <= 0.35 && Math.min(b.o, b.c) - b.l >= body * 2 && (b.h - Math.max(b.o, b.c)) / r <= 0.18 && closes[i] < closes[i - 5]; }
+function isDoji(i) { const b = bars[i]; const r = b.h - b.l || 1; return Math.abs(b.c - b.o) / r <= 0.1; }
+function engulf(i) { const p = bars[i - 1], b = bars[i]; if (p.c < p.o && b.c > b.o && b.o <= p.c && b.c >= p.o) return 1; if (p.c > p.o && b.c < b.o && b.o >= p.c && b.c <= p.o) return -1; return 0; }
+const patterns = [];
+for (let i = 6; i < N; i++) {
+  if (isHammer(i)) patterns.push({ i, kind: 'H', dir: 1 });
+  else if (isDoji(i)) patterns.push({ i, kind: 'D', dir: 0 });
+  else { const e = engulf(i); if (e) patterns.push({ i, kind: 'E', dir: e }); }
+}
+function swingLows(left = 5) {
+  const out = [];
+  for (let i = left; i < N - left; i++) { let ok = true; for (let j = i - left; j <= i + left; j++) if (j !== i && bars[j].l <= bars[i].l) { ok = false; break; } if (ok) out.push(i); }
+  return out;
+}
+const trendline = (() => {
+  const lows = swingLows(5).filter((i) => i > N - 160);
+  for (let a = lows.length - 2; a >= 0; a--) {
+    for (let b2 = lows.length - 1; b2 > a; b2--) {
+      const i1 = lows[a], i2 = lows[b2];
+      if (i2 - i1 < 15 || bars[i2].l <= bars[i1].l) continue;
+      const slope = (bars[i2].l - bars[i1].l) / (i2 - i1);
+      let broken = false, touches = 2;
+      for (let k = i1 + 1; k < N; k++) { const y = bars[i1].l + slope * (k - i1); if (closes[k] < y) { broken = true; break; } if (k !== i2 && Math.abs(bars[k].l - y) <= atr[k] * 0.25) touches++; }
+      if (!broken) return { i1, p1: bars[i1].l, slope, touches };
+    }
+  }
+  return null;
+})();
+
+/* ---------- projection fan, calibrated on this stock's own history ---------- */
+const SIZE = {
+  rsiExtreme: 1.31,
+  breakout: 1.15,
+  volumeSpike: 1.08,
+  adxStrong: 1.08,
+  squeeze: 1.06,
+  adxWeak: 0.93,
+};
+function conditionsNow() {
+  const out = [];
+  const r = rsi[last];
+  if (r > 70 || r < 30) out.push(['RSI is ' + r.toFixed(0) + ', outside 30 to 70', SIZE.rsiExtreme]);
+  if (closes[last] > hi20 || closes[last] < lo20) out.push(['The close went through the 20-day ' + (closes[last] > hi20 ? 'high' : 'low'), SIZE.breakout]);
+  if (bars[last].v >= 2 * vol20[last - 1]) out.push(['Volume is at least twice the 20-day average', SIZE.volumeSpike]);
+  if (dmi.adx[last] > 25) out.push(['ADX is ' + dmi.adx[last].toFixed(0) + ', a strong trend', SIZE.adxStrong]);
+  const w = (i) => 4 * bbSd[i] / bbMid[i];
+  const past = []; for (let j = last - 120; j < last; j++) past.push(w(j));
+  past.sort((a, b) => a - b);
+  if (w(last) <= past[Math.floor(past.length * 0.2)]) out.push(['Bollinger Bands are in their narrowest 20%', SIZE.squeeze]);
+  return out;
+}
+function buildFan(opts) {
+  const conds = conditionsNow();
+  let mult = 1;
+  const wide = conds.filter((c) => c[1] > 1);
+  if (opts.conditions) {
+    if (wide.length) mult = Math.max(...wide.map((c) => c[1]));
+    else if (dmi.adx[last] <= 25) mult = SIZE.adxWeak;
+  }
+  const steps = [];
+  for (let h = 1; h <= AHEAD; h++) {
+    const moves = [];
+    for (let j = Math.max(20, last - h - 750); j <= last - h; j++) {
+      if (atr[j] > 0) moves.push((closes[j + h] - closes[j]) / (atr[j] * Math.sqrt(h)));
+    }
+    moves.sort((a, b) => a - b);
+    const q = (p) => moves[Math.floor(p * (moves.length - 1))];
+    const unit = atr[last] * Math.sqrt(h);
+    const q50 = q(0.5);
+    const at = (p) => closes[last] + unit * (q50 + (q(p) - q50) * mult);
+    steps.push({ h, lo80: at(0.1), lo50: at(0.25), mid: closes[last] + unit * q50, hi50: at(0.75), hi80: at(0.9) });
+  }
+  return { steps, conds, mult, wideUsed: opts.conditions && wide.length ? wide.reduce((a, b) => (b[1] > a[1] ? b : a)) : null };
+}
+
+/* ---------- lessons ---------- */
+const lessons = [
+  { id: 'patterns', label: '2. Candle patterns', title: 'Candlestick patterns', body: 'A hammer is a long lower wick after a fall: sellers pushed it down and buyers closed it back up. BabyPips and StockCharts both say to wait for the next candle to close above it. On the six PSX names, a hammer alone was right 53.5% of the time. With the next candle closing above it, 57.0%. With that confirmation on above-average volume, 65.6%, but that happened only 32 times in nine years, which is too few to trust. Engulfing candles scored 48.9%, below a coin flip. H, D and E mark hammers, dojis and engulfing candles.' },
+  { id: 'levels', label: '3. Support and trendlines', title: 'Support, resistance and trendlines', body: 'Support and resistance are zones, not single prices. The dashed lines are the 20-day high and low. The blue trendline joins two rising swing lows and has not been closed through. On PSX, a close through the 20-day high or low went the breakout’s way only 47.8% of the time, and 48.2% even on 1.5 times the average volume. That matches the course warning that most breakouts fail. What a break did reliably was make the next move about 15% bigger. The earlier prototype stopped the range at a high-volume wick. On PSX that wick held only 17 to 19% of the time over the next 8 bars, so it is now a marker, not a wall.' },
+  { id: 'volume', label: '4. Volume', title: 'Volume with price', body: 'Volume tells you how many shares took part. It does not choose the direction. A day with twice the 20-day average volume went the candle’s color only 48.9% of the time. It did make the next five bars move about 8% more than usual. Orange bars are those volume spikes. Volume confirmation raised the hammer score, but only on a handful of cases.' },
+  { id: 'indicators', label: '5. RSI and other indicators', title: 'RSI and the other indicators', body: 'Each trend and momentum tool, and all seven voting together, landed between 49% and 52% on the 5-bar direction: EMA 20, EMA 20 against 50, EMA 200, Supertrend, MACD, RSI above or below 50, and the ADX direction lines. When all seven agreed up, price rose 51.4% of the time, against 50.7% on an ordinary day. RSI above 70 or below 30 did not predict the direction either, but the next five bars moved about 31% more than usual. That is why RSI widens the fan and does not tilt it.' },
+  { id: 'range', label: 'Projected range', title: 'What the fan means', body: 'The fan starts at the last close and uses nothing but this stock’s own past: every earlier stretch of 1 to 8 bars, scaled by the ATR (average true range) at the time. The darker band is the middle half of those outcomes and the lighter band is the middle 80%. Replayed on the six PSX names using only earlier data, the darker band held the close 49.2% of the time and the lighter one 78.7%. When a condition that made moves bigger is active, the fan widens by the amount measured for that condition. The indicators never tilt it up or down, because tilting made the center worse on PSX.' },
+];
+const overlays = { ema: true, bb: false, supertrend: false, vwap: false, ichimoku: false, pivots: false, levels: true, trendline: true, patterns: true, conditions: true };
+const overlayLabels = [['ema', 'EMA 20/50/200'], ['bb', 'Bollinger 20/2'], ['supertrend', 'Supertrend 10/3'], ['vwap', 'VWAP 20'], ['ichimoku', 'Ichimoku cloud'], ['pivots', 'Pivot P/R1/S1'], ['levels', '20-day high/low'], ['trendline', 'Trendline'], ['patterns', 'Patterns H/D/E'], ['conditions', 'Widen fan for measured conditions']];
+let lesson = 'range';
+let selected = null;
+
+const lessonRow = document.getElementById('lessons');
+for (const item of lessons) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = item.label; b.dataset.id = item.id;
+  b.onclick = () => { lesson = item.id; selected = null; paint(); draw(); };
+  lessonRow.appendChild(b);
+}
+const overlayRow = document.getElementById('overlays');
+for (const [id, label] of overlayLabels) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.textContent = label; b.dataset.id = id;
+  b.onclick = () => { overlays[id] = !overlays[id]; paint(); draw(); };
+  overlayRow.appendChild(b);
+}
+
+const rs = (n) => 'Rs. ' + n.toFixed(2);
+const pctTxt = (n) => n.toFixed(1) + '%';
+function tools() {
+  const c = closes[last];
+  const side = (up) => (up ? 'Above' : 'Below');
+  const r = rsi[last], k = stochK[last], adx = dmi.adx[last];
+  const bbU = bbMid[last] + 2 * bbSd[last], bbL = bbMid[last] - 2 * bbSd[last];
+  const ich = ichimokuAt(last);
+  const cloud = ich ? (c > Math.max(ich.a, ich.b) ? 'Above cloud' : c < Math.min(ich.a, ich.b) ? 'Below cloud' : 'Inside cloud') : 'n/a';
+  const votes = [c > ema20[last], ema20[last] > ema50[last], c > ema200[last], supertrend.dir[last] === 1, macd[last] > macdSig[last], r > 50, dmi.pdi[last] > dmi.mdi[last]];
+  const ups = votes.filter(Boolean).length;
+  const coin = '<span class="tag coin">Direction: about a coin flip</span>';
+  const sizeTag = (x) => `<span class="tag size">Size: ×${x.toFixed(2)} move</span>`;
+  const recentHammer = patterns.filter((p) => p.kind === 'H' && p.i >= last - 5).pop();
+  const confirmed = recentHammer && recentHammer.i < last && closes[recentHammer.i + 1] > bars[recentHammer.i].h;
+  const eng = engulf(last);
+  return [
+    ['EMA 20', side(c > ema20[last]), '51.0%', coin],
+    ['EMA 20 vs EMA 50', ema20[last] > ema50[last] ? '20 above 50' : '20 below 50', '51.0%', coin],
+    ['EMA 200', side(c > ema200[last]), '51.6%', coin],
+    ['Supertrend 10/3', supertrend.dir[last] === 1 ? 'Up' : 'Down', '50.8%', coin],
+    ['MACD 12/26/9', macd[last] > macdSig[last] ? 'Above signal' : 'Below signal', '50.5%', coin],
+    ['RSI 14', r.toFixed(1), 'Above/below 50: 51.1%<br>Over 70: 51.0%<br>Under 30: 52.8%', (r > 70 || r < 30) ? sizeTag(SIZE.rsiExtreme) + ' ' + coin : coin + '<br><span class="small">Over 70 or under 30: ×1.31 move</span>'],
+    ['Stochastic 14', k.toFixed(0), 'Over 80: 49.7%<br>Under 20: 50.8%', coin],
+    ['ADX / DI 14', 'ADX ' + adx.toFixed(0) + ', ' + (dmi.pdi[last] > dmi.mdi[last] ? '+DI leads' : '−DI leads'), 'ADX over 25: 50.4%', adx > 25 ? sizeTag(SIZE.adxStrong) : `<span class="tag size">Size: ×${SIZE.adxWeak.toFixed(2)} move</span>`],
+    ['Bollinger 20/2', c > bbU ? 'Above upper' : c < bbL ? 'Below lower' : 'Inside bands', 'Above upper: 51.5%<br>Below lower: 50.2%', coin + '<br><span class="small">Narrowest 20%: ×1.06 move</span>'],
+    ['Ichimoku 9/26/52', cloud, '51.7%', coin],
+    ['VWAP 20', side(c > vwap20[last]), '50.6%', coin],
+    ['Pivot P (classic)', side(c > pivot.p) + ' ' + pivot.p.toFixed(2), '49.2%', coin],
+    ['Volume spike 2×', bars[last].v >= 2 * vol20[last - 1] ? 'Yes' : 'No · ' + (bars[last].v / vol20[last - 1]).toFixed(2) + '×', '48.9%', sizeTag(SIZE.volumeSpike)],
+    ['20-day high/low break', c > hi20 ? 'Broke high' : c < lo20 ? 'Broke low' : 'Inside range', '47.8%<br>On 1.5× volume: 48.2%', sizeTag(SIZE.breakout)],
+    ['Hammer after a fall', recentHammer ? (confirmed ? 'Confirmed ' + (last - recentHammer.i) + ' bars ago' : (last - recentHammer.i) + ' bars ago') : 'None recently', 'Alone: 53.5% (256)<br>Confirmed: 57.0% (79)<br>+ volume: 65.6% (32)', '<span class="tag weak">Direction: slight, few cases</span>'],
+    ['Engulfing candle', eng ? (eng > 0 ? 'Bullish today' : 'Bearish today') : 'None today', '48.9%', coin],
+    ['All 7 trend tools', ups + ' of 7 up', 'All 7 up: 51.4%<br>Ordinary day: 50.7%', coin],
+  ];
+}
+function paint() {
+  for (const b of lessonRow.querySelectorAll('button')) b.classList.toggle('on', b.dataset.id === lesson);
+  for (const b of overlayRow.querySelectorAll('button')) b.classList.toggle('on', !!overlays[b.dataset.id]);
+  const item = lessons.find((x) => x.id === lesson);
+  document.getElementById('card-title').textContent = selected != null ? candleTitle(selected) : item.title;
+  document.getElementById('card-body').textContent = selected != null ? candleBody(selected) : item.body;
+  const fan = buildFan({ conditions: overlays.conditions });
+  const at = (h) => fan.steps[h - 1];
+  const rows = [1, 3, 5, 8].map((h) => `<tr><td>+${h} bar${h > 1 ? 's' : ''}</td><td class="r">${at(h).lo50.toFixed(2)} – ${at(h).hi50.toFixed(2)}</td><td class="r">${at(h).lo80.toFixed(2)} – ${at(h).hi80.toFixed(2)}</td></tr>`).join('');
+  const why = fan.wideUsed
+    ? `Widened ×${fan.mult.toFixed(2)}. ${fan.wideUsed[0]}.`
+    : overlays.conditions && fan.mult < 1
+      ? `Narrowed ×${fan.mult.toFixed(2)} because ADX is ${dmi.adx[last].toFixed(0)}, a weak trend.`
+      : 'Not widened. None of the measured conditions is active.';
+  document.getElementById('projection').innerHTML =
+    `<b>Last close ${rs(closes[last])}</b> · ATR ${rs(atr[last])}<br>`
+    + `<table style="margin-top:6px"><thead><tr><th>Ahead</th><th class="r">Half the time</th><th class="r">4 in 5 times</th></tr></thead><tbody>${rows}</tbody></table>`
+    + `<p class="small" style="margin:8px 0 0">${why} The fan is not tilted up or down by any indicator.</p>`;
+  document.getElementById('tools').innerHTML = tools().map(([a, b2, c2, d]) => `<tr><td><b>${a}</b></td><td>${b2}</td><td class="r">${c2}</td><td>${d}</td></tr>`).join('');
+}
+function candleTitle(i) {
+  const p = patterns.find((x) => x.i === i);
+  if (p && p.kind === 'H') return 'Hammer';
+  if (p && p.kind === 'D') return 'Doji';
+  if (p && p.kind === 'E') return p.dir > 0 ? 'Bullish engulfing' : 'Bearish engulfing';
+  return 'This candle';
+}
+function candleBody(i) {
+  const b = bars[i];
+  const r = b.h - b.l || 1;
+  const body = Math.abs(b.c - b.o);
+  const parts = [
+    `${new Date(b.t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}. Open ${rs(b.o)}, close ${rs(b.c)}, high ${rs(b.h)}, low ${rs(b.l)}.`,
+    `The body is ${Math.round(100 * body / r)}% of the candle. Upper wick ${rs(b.h - Math.max(b.o, b.c))}, lower wick ${rs(Math.min(b.o, b.c) - b.l)}.`,
+    `Volume is ${(b.v / vol20[Math.max(20, i - 1)]).toFixed(2)}× the 20-day average. RSI ${Number.isFinite(rsi[i]) ? rsi[i].toFixed(1) : 'n/a'}.`,
+  ];
+  const p = patterns.find((x) => x.i === i);
+  if (p && p.kind === 'H') parts.push(i < last && closes[i + 1] > b.h ? 'The next candle closed above the hammer’s high, which is the confirmation the courses ask for.' : 'Not confirmed yet. The courses wait for a close above the hammer’s high.');
+  return parts.join(' ');
+}
+
+/* ---------- drawing ---------- */
+const view = { barSpacing: 9, rightIndex: last + AHEAD + 12 };
+function box() {
+  const r = stage.getBoundingClientRect();
+  const w = Math.max(60, r.width - PRICE_W);
+  const priceH = Math.max(80, r.height - TIME_H - VOL_H - RSI_H);
+  return { w, priceH, volTop: priceH, rsiTop: priceH + VOL_H, fullW: r.width, fullH: r.height };
+}
+function clampView() {
+  view.barSpacing = Math.max(3, Math.min(30, view.barSpacing));
+  const B = box();
+  view.rightIndex = Math.max(20, Math.min(last + AHEAD + 12 + B.w / view.barSpacing * 0.5, view.rightIndex));
+}
+const xOf = (i, B) => B.w - (view.rightIndex - i) * view.barSpacing;
+const idxAt = (x, B) => view.rightIndex - (B.w - x) / view.barSpacing;
+function resize() {
+  const r = stage.getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.max(1, Math.floor(r.width * dpr));
+  canvas.height = Math.max(1, Math.floor(r.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+function line(ctx2, pts, color, width = 1.4, dash = null) {
+  ctx2.strokeStyle = color; ctx2.lineWidth = width; ctx2.setLineDash(dash || []);
+  ctx2.beginPath(); let on = false;
+  for (const [x, y] of pts) { if (!Number.isFinite(y)) { on = false; continue; } if (!on) { ctx2.moveTo(x, y); on = true; } else ctx2.lineTo(x, y); }
+  ctx2.stroke(); ctx2.setLineDash([]); ctx2.lineWidth = 1;
+}
+function draw() {
+  clampView();
+  const B = box();
+  const fan = buildFan({ conditions: overlays.conditions });
+  const i0 = Math.max(0, Math.floor(idxAt(0, B)));
+  const i1 = Math.min(last, Math.ceil(view.rightIndex));
+  let minP = Infinity, maxP = -Infinity, maxV = 1;
+  for (let i = i0; i <= i1; i++) { minP = Math.min(minP, bars[i].l); maxP = Math.max(maxP, bars[i].h); maxV = Math.max(maxV, bars[i].v); }
+  if (xOf(last + 1, B) < B.w) for (const s of fan.steps) { minP = Math.min(minP, s.lo80); maxP = Math.max(maxP, s.hi80); }
+  const pad = (maxP - minP) * 0.06; minP -= pad; maxP += pad;
+  const y = (p) => (maxP - p) / (maxP - minP) * B.priceH;
+
+  ctx.clearRect(0, 0, B.fullW, B.fullH);
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, B.fullW, B.fullH);
+  ctx.font = '11px Inter, system-ui, sans-serif';
+  ctx.strokeStyle = '#eef3f0';
+  for (let g = 0; g <= 5; g++) {
+    const p = minP + (maxP - minP) * g / 5; const yy = y(p);
+    ctx.beginPath(); ctx.moveTo(0, yy); ctx.lineTo(B.w, yy); ctx.stroke();
+    ctx.fillStyle = '#7d9088'; ctx.fillText(p.toFixed(2), B.w + 8, yy + 4);
+  }
+
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, B.w, B.priceH); ctx.clip();
+
+  if (overlays.ichimoku) {
+    const top = [], bot = [];
+    for (let k = i0; k <= Math.min(last + 26, i1 + 40); k++) {
+      const v = ichimokuAt(k); if (!v) continue;
+      top.push([xOf(k, B), y(Math.max(v.a, v.b)), v.a >= v.b]); bot.push([xOf(k, B), y(Math.min(v.a, v.b))]);
+    }
+    for (let n = 1; n < top.length; n++) {
+      ctx.fillStyle = top[n][2] ? 'rgba(8,153,129,.10)' : 'rgba(242,54,69,.09)';
+      ctx.beginPath(); ctx.moveTo(top[n - 1][0], top[n - 1][1]); ctx.lineTo(top[n][0], top[n][1]); ctx.lineTo(bot[n][0], bot[n][1]); ctx.lineTo(bot[n - 1][0], bot[n - 1][1]); ctx.closePath(); ctx.fill();
+    }
+  }
+  if (overlays.bb) {
+    const up = [], dn = [], md = [];
+    for (let i = i0; i <= i1; i++) { const x = xOf(i, B); up.push([x, y(bbMid[i] + 2 * bbSd[i])]); dn.push([x, y(bbMid[i] - 2 * bbSd[i])]); md.push([x, y(bbMid[i])]); }
+    line(ctx, up, '#7c6fd1', 1); line(ctx, dn, '#7c6fd1', 1); line(ctx, md, '#b4abe8', 1, [3, 3]);
+  }
+  if (overlays.ema) {
+    for (const [arr, col] of [[ema20, '#e0a100'], [ema50, '#2f6fd6'], [ema200, '#8a3ffc']]) {
+      const pts = []; for (let i = i0; i <= i1; i++) pts.push([xOf(i, B), y(arr[i])]); line(ctx, pts, col, 1.3);
+    }
+  }
+  if (overlays.supertrend) {
+    for (let i = Math.max(i0, 1); i <= i1; i++) {
+      if (!Number.isFinite(supertrend.line[i - 1]) || supertrend.dir[i] !== supertrend.dir[i - 1]) continue;
+      line(ctx, [[xOf(i - 1, B), y(supertrend.line[i - 1])], [xOf(i, B), y(supertrend.line[i])]], supertrend.dir[i] === 1 ? '#089981' : '#f23645', 1.6);
+    }
+  }
+  if (overlays.vwap) { const pts = []; for (let i = i0; i <= i1; i++) pts.push([xOf(i, B), y(vwap20[i])]); line(ctx, pts, '#0f766e', 1.4, [6, 3]); }
+  if (overlays.pivots) {
+    for (const [p, label, col] of [[pivot.r1, 'R1', '#c2410c'], [pivot.p, 'P', '#52685f'], [pivot.s1, 'S1', '#0e7a5a']]) {
+      line(ctx, [[xOf(last - 1, B), y(p)], [xOf(last + AHEAD, B), y(p)]], col, 1, [2, 3]);
+      ctx.fillStyle = col; ctx.fillText(label + ' ' + p.toFixed(2), xOf(last + AHEAD, B) + 4, y(p) + 4);
+    }
+  }
+  if (overlays.levels) {
+    for (const [p, label, col] of [[hi20, '20-day high', '#b7791f'], [lo20, '20-day low', '#3f6b52']]) {
+      line(ctx, [[xOf(last - 20, B), y(p)], [xOf(last + AHEAD, B), y(p)]], col, 1.2, [5, 4]);
+      ctx.fillStyle = col; ctx.fillText(label, xOf(last - 20, B) + 4, y(p) - 4);
+    }
+  }
+  if (overlays.trendline && trendline) {
+    const endI = last + AHEAD;
+    line(ctx, [[xOf(trendline.i1, B), y(trendline.p1)], [xOf(endI, B), y(trendline.p1 + trendline.slope * (endI - trendline.i1))]], '#1d4e89', 1.5);
+    ctx.fillStyle = '#1d4e89'; ctx.fillText(`Trendline · ${trendline.touches} touches`, xOf(trendline.i1, B) + 6, y(trendline.p1) + 14);
+  }
+
+  /* fan */
+  const lx = xOf(last, B);
+  const band = (loKey, hiKey, fill) => {
+    ctx.beginPath(); ctx.moveTo(lx, y(closes[last]));
+    for (const s of fan.steps) ctx.lineTo(xOf(last + s.h, B), y(s[hiKey]));
+    for (let n = fan.steps.length - 1; n >= 0; n--) ctx.lineTo(xOf(last + fan.steps[n].h, B), y(fan.steps[n][loKey]));
+    ctx.closePath(); ctx.fillStyle = fill; ctx.fill();
+  };
+  band('lo80', 'hi80', 'rgba(14,122,90,.12)');
+  band('lo50', 'hi50', 'rgba(14,122,90,.24)');
+  line(ctx, [[lx, y(closes[last])], ...fan.steps.map((s) => [xOf(last + s.h, B), y(s.mid)])], '#0e7a5a', 1.2, [4, 4]);
+  const endS = fan.steps[fan.steps.length - 1];
+  const ex = xOf(last + AHEAD, B) + 6;
+  ctx.font = '700 11px Inter, system-ui, sans-serif';
+  ctx.fillStyle = '#0e7a5a';
+  ctx.fillText(endS.hi80.toFixed(2) + ' (4 in 5)', ex, y(endS.hi80) + 4);
+  ctx.fillText(endS.hi50.toFixed(2) + ' (half)', ex, y(endS.hi50) + 4);
+  ctx.fillText(endS.lo50.toFixed(2) + ' (half)', ex, y(endS.lo50) + 4);
+  ctx.fillText(endS.lo80.toFixed(2) + ' (4 in 5)', ex, y(endS.lo80) + 4);
+  ctx.font = '11px Inter, system-ui, sans-serif';
+
+  /* candles */
+  const bodyW = Math.max(2, view.barSpacing * 0.64);
+  for (let i = i0; i <= i1; i++) {
+    const b = bars[i]; const x = xOf(i, B); const col = b.c >= b.o ? '#089981' : '#f23645';
+    ctx.strokeStyle = col; ctx.fillStyle = col;
+    ctx.beginPath(); ctx.moveTo(x, y(b.h)); ctx.lineTo(x, y(b.l)); ctx.stroke();
+    const t = y(Math.max(b.o, b.c)), bt = y(Math.min(b.o, b.c));
+    ctx.fillRect(x - bodyW / 2, t, bodyW, Math.max(1, bt - t));
+    if (selected === i) { ctx.strokeStyle = '#16342f'; ctx.lineWidth = 1.5; ctx.strokeRect(x - bodyW / 2 - 3, y(b.h) - 4, bodyW + 6, y(b.l) - y(b.h) + 8); ctx.lineWidth = 1; }
+  }
+  if (overlays.patterns) {
+    ctx.font = '800 10px Inter, system-ui, sans-serif';
+    for (const p of patterns) {
+      if (p.i < i0 || p.i > i1) continue;
+      const b = bars[p.i]; const x = xOf(p.i, B);
+      const below = p.dir >= 0;
+      const yy = below ? y(b.l) + 12 : y(b.h) - 5;
+      ctx.fillStyle = p.kind === 'D' ? '#7d9088' : p.dir > 0 ? '#0e7a5a' : '#c0263a';
+      ctx.fillText(p.kind, x - 3, yy);
+    }
+    ctx.font = '11px Inter, system-ui, sans-serif';
+  }
+  ctx.restore();
+
+  /* volume */
+  ctx.fillStyle = '#f8fbf9'; ctx.fillRect(0, B.volTop, B.w, VOL_H);
+  for (let i = i0; i <= i1; i++) {
+    const b = bars[i]; const x = xOf(i, B);
+    const hgt = b.v / maxV * (VOL_H - 14);
+    const spike = i > 20 && b.v >= 2 * vol20[i - 1];
+    ctx.fillStyle = spike ? '#c2410c' : b.c >= b.o ? 'rgba(8,153,129,.5)' : 'rgba(242,54,69,.42)';
+    ctx.fillRect(x - Math.max(1, bodyW / 2), B.volTop + VOL_H - 4 - hgt, Math.max(2, bodyW), hgt);
+  }
+  ctx.fillStyle = '#7d9088'; ctx.fillText('Volume · orange = 2× the 20-day average', 8, B.volTop + 13);
+
+  /* RSI */
+  const ry = (v) => B.rsiTop + 6 + (100 - v) / 100 * (RSI_H - 12);
+  ctx.fillStyle = '#fbfaff'; ctx.fillRect(0, B.rsiTop, B.w, RSI_H);
+  ctx.fillStyle = 'rgba(124,111,209,.08)'; ctx.fillRect(0, ry(70), B.w, ry(30) - ry(70));
+  line(ctx, [[0, ry(70)], [B.w, ry(70)]], '#d6d1f3', 1, [3, 3]);
+  line(ctx, [[0, ry(30)], [B.w, ry(30)]], '#d6d1f3', 1, [3, 3]);
+  { const pts = []; for (let i = i0; i <= i1; i++) pts.push([xOf(i, B), ry(rsi[i])]); line(ctx, pts, '#7c6fd1', 1.3); }
+  ctx.fillStyle = '#7d9088'; ctx.fillText('RSI 14 · ' + rsi[last].toFixed(1), 8, B.rsiTop + 13);
+  ctx.fillText('70', B.w + 8, ry(70) + 4); ctx.fillText('30', B.w + 8, ry(30) + 4);
+
+  ctx.strokeStyle = '#dbe5df';
+  ctx.beginPath(); ctx.moveTo(B.w, 0); ctx.lineTo(B.w, B.fullH - TIME_H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, B.volTop); ctx.lineTo(B.fullW, B.volTop); ctx.moveTo(0, B.rsiTop); ctx.lineTo(B.fullW, B.rsiTop); ctx.stroke();
+  const every = Math.max(1, Math.ceil(80 / view.barSpacing));
+  ctx.fillStyle = '#7d9088';
+  for (let i = Math.ceil(i0 / every) * every; i <= i1; i += every) {
+    ctx.fillText(new Date(bars[i].t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }), xOf(i, B) - 18, B.fullH - 7);
+  }
+  ctx.fillStyle = '#0e7a5a';
+  ctx.fillText('Next ' + AHEAD + ' bars', xOf(last + 1, B), B.fullH - 7);
+}
+
+/* ---------- interaction ---------- */
+let drag = null;
+const local = (e) => { const r = stage.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+canvas.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) return;
+  canvas.setPointerCapture(e.pointerId);
+  drag = { id: e.pointerId, x: e.clientX, right: view.rightIndex, moved: false };
+});
+canvas.addEventListener('pointermove', (e) => {
+  if (!drag || drag.id !== e.pointerId) return;
+  const dx = e.clientX - drag.x;
+  if (Math.abs(dx) > 3) drag.moved = true;
+  view.rightIndex = drag.right - dx / view.barSpacing;
+  draw();
+});
+canvas.addEventListener('pointerup', (e) => {
+  if (!drag || drag.id !== e.pointerId) return;
+  if (!drag.moved) {
+    const B = box(); const p = local(e);
+    if (p.x < B.w && p.y < B.priceH) {
+      const i = Math.round(idxAt(p.x, B));
+      selected = i >= 0 && i <= last ? i : null;
+      paint();
+    }
+  }
+  drag = null; draw();
+});
+canvas.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const B = box(); const p = local(e);
+  const px = Math.min(p.x, B.w);
+  const before = idxAt(px, B);
+  view.barSpacing *= Math.exp(-e.deltaY * 0.0012);
+  clampView();
+  view.rightIndex = before + (B.w - px) / view.barSpacing;
+  draw();
+}, { passive: false });
+new ResizeObserver(resize).observe(stage);
+paint();
+resize();
+</script>
+</body>
+</html>
