@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Holding } from '../types';
-import { fetchBatchPSXPrices } from '../services/psxData';
-import { KSE100, KMI30 } from '../services/indices';
+import { fetchAllPSXPrices } from '../services/psxData';
+import { selectTopMovers, type MoverRow } from '../utils/topMovers';
 import { TrendingUp, TrendingDown, RefreshCw, Loader2, Star, Flame } from 'lucide-react';
 import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
 import { PanelRefreshNote } from './PanelRefreshNote';
@@ -14,14 +14,7 @@ interface Props {
 type IndexKey = 'KSE100' | 'KMI30';
 type Dir = 'gainers' | 'losers';
 
-interface Row {
-  ticker: string;
-  price: number;
-  change: number;
-  volume: number;
-  high: number;
-  low: number;
-}
+type Row = MoverRow;
 
 const REFRESH_MS = 5 * 60 * 1000;
 const rs = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -44,7 +37,6 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
   const owned = useMemo(() => new Set(holdings.map(h => h.ticker.toUpperCase())), [holdings]);
 
   const load = async (idx: IndexKey) => {
-    const universe = idx === 'KSE100' ? KSE100 : KMI30;
     const cached = readPanel<Row[]>(panelKeys.movers(idx));
     if (cached?.data?.length) {
       setRows(cached.data);
@@ -57,18 +49,18 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
     setLoading(true);
     setFailed(false);
     try {
-      const data = await fetchBatchPSXPrices(universe);
+      const data = await fetchAllPSXPrices();
       const out: Row[] = [];
-      universe.forEach(t => {
-        const d = (data as any)[t];
+      Object.entries(data).forEach(([ticker, d]) => {
         if (d && d.price > 0 && d.ldcp > 0) {
           out.push({
-            ticker: t,
+            ticker,
             price: d.price,
             change: ((d.price - d.ldcp) / d.ldcp) * 100,
             volume: d.volume || 0,
             high: d.high || 0,
             low: d.low || 0,
+            listedIn: d.listedIn || '',
           });
         }
       });
@@ -104,10 +96,7 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index]);
 
-  const list = useMemo(() => {
-    const sorted = [...rows].sort((a, b) => dir === 'gainers' ? b.change - a.change : a.change - b.change);
-    return sorted.slice(0, 10);
-  }, [rows, dir]);
+  const list = useMemo(() => selectTopMovers(rows, index, dir), [rows, index, dir]);
 
   const idxChip = (k: IndexKey) => `px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${index === k ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`;
   const dirChip = (d: Dir) => {
