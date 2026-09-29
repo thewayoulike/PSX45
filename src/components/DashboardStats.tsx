@@ -2,7 +2,9 @@ import { ResponsiveMetricPanels } from './MobileLayout';
 import React from 'react';
 import { Holding, PortfolioStats, PortfolioType, Transaction } from '../types';
 import { formatTransactionLabel } from '../utils/fundDisplay';
-import { FundNumberPanel } from './FundNumberPanel';
+import { ExplainHint } from './FundNumberPanel';
+import { HoverPopover } from './HoverPopover';
+import { explainFundCash, explainFundValue, explainNetInvested, type ExplainLine } from '../utils/fundNumberExplain';
 import { healthReturnPct } from '../utils/healthScore';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
@@ -152,34 +154,40 @@ const computeHealth = (stats: PortfolioStats, holdings?: Holding[], trend?: numb
 const pillarBar = (s: number) => (s >= 60 ? 'bg-emerald-500' : s <= 40 ? 'bg-rose-500' : 'bg-amber-500');
 const pillarText = (s: number) => (s >= 60 ? 'text-emerald-600 dark:text-emerald-400' : s <= 40 ? 'text-rose-500' : 'text-amber-600 dark:text-amber-400');
 const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: React.ReactNode }> = ({ pillars, score, children }) => (
-  <span className="relative group inline-flex cursor-help z-30" tabIndex={0}>
-    {children}
-    <div className="dashboard-health-popover opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible group-focus:opacity-100 group-focus:visible transition-all duration-200 absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-3 w-72 max-w-[calc(100vw-2rem)] bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-card dark:shadow-card-dark p-4 text-left normal-case tracking-normal transform scale-95 group-hover:scale-100 origin-bottom">
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">Score Breakdown</span>
-        <span className="text-sm font-display font-black text-slate-900 dark:text-white">{score}/100</span>
-      </div>
-      <div className="space-y-2">
-        {pillars.map((p) => {
-          const good = p.score >= 60, bad = p.score <= 40;
-          return (
-            <div key={p.name} className="flex items-center gap-2">
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-white text-[10px] font-black ${good ? 'bg-emerald-500' : bad ? 'bg-rose-500' : 'bg-amber-500'}`}>
-                {good ? '+' : bad ? '−' : '~'}
-              </span>
-              <span className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex-1">
-                {p.name}
-              </span>
-              <div className="w-16 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div className={`h-full ${pillarBar(p.score)} transition-all duration-1000 ease-out`} style={{ width: `${p.score}%` }} />
+  <HoverPopover
+    label="Score breakdown"
+    align="end"
+    triggerClassName="flex w-full items-baseline gap-2 border-0 bg-transparent p-0 text-left cursor-help"
+    panelClassName="z-[200] w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200/80 bg-white p-4 text-left normal-case tracking-normal shadow-xl dark:border-slate-700 dark:bg-slate-900"
+    panel={(
+      <>
+        <div className="mb-3 flex items-center justify-between">
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">Score Breakdown</span>
+          <span className="font-display text-sm font-black text-slate-900 dark:text-white">{score}/100</span>
+        </div>
+        <div className="space-y-2">
+          {pillars.map((p) => {
+            const good = p.score >= 60, bad = p.score <= 40;
+            return (
+              <div key={p.name} className="flex items-center gap-2">
+                <span className={`flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-black text-white ${good ? 'bg-emerald-500' : bad ? 'bg-rose-500' : 'bg-amber-500'}`}>
+                  {good ? '+' : bad ? '−' : '~'}
+                </span>
+                <span className="flex-1 text-xs font-semibold text-slate-600 dark:text-slate-300">{p.name}</span>
+                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                  <div className={`h-full ${pillarBar(p.score)}`} style={{ width: `${p.score}%` }} />
+                </div>
+                <span className={`w-6 text-right text-[11px] font-bold tabular-nums ${pillarText(p.score)}`}>{p.score}</span>
               </div>
-              <span className={`text-[11px] font-bold w-6 text-right tabular-nums ${pillarText(p.score)}`}>{p.score}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  </span>
+            );
+          })}
+        </div>
+        <p className="mt-3 text-[10px] leading-snug text-slate-400">Performance is 30% of this score, Risk 25%, and Cost, Liquidity, and Income 15% each.</p>
+      </>
+    )}
+  >
+    {children}
+  </HoverPopover>
 );
 const HeroCard: React.FC<{
   label: string; value: React.ReactNode; sub?: React.ReactNode;
@@ -227,10 +235,11 @@ const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: 
      </div>
   </div>
 );
-const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.ReactNode; valueClass?: string; tooltip?: string }> = ({ label, value, sub, valueClass, tooltip }) => (
+const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.ReactNode; valueClass?: string; tooltip?: string; explain?: React.ReactNode }> = ({ label, value, sub, valueClass, tooltip, explain }) => (
   <div className="min-w-0 bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 sm:p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm flex flex-col justify-center">
     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1">
       {label}
+      {explain}
       {tooltip && (
         <span tabIndex={0} className="relative group/tt inline-flex items-center">
           <Info size={10} className="text-slate-400 dark:text-slate-500 cursor-help" />
@@ -265,6 +274,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
   const roiDenom = stats.peakNetPrincipal > 0 ? stats.peakNetPrincipal : (stats.netPrincipal > 0 ? stats.netPrincipal : 1);
   if (roiDenom > 0) roiExcDiv = (((stats.roi / 100) * roiDenom - stats.totalDividends) / roiDenom) * 100;
 
+  const book = isFund ? 'fund' : 'stock';
+  const valueExplain = explainFundValue((holdings || []).map(holding => ({
+    name: formatTransactionLabel(holding.ticker, displayNames),
+    units: holding.quantity,
+    avgNav: holding.avgPrice,
+    nav: holding.currentPrice,
+  })), book);
+  const cashExplain = explainFundCash(transactions, book);
+  const investedExplain = explainNetInvested(transactions, stats.netPrincipal);
+  const shown = (lines: ExplainLine[], driftLabel: string, drift: number) => {
+    const rows = lines.map(line => ({
+      label: line.label,
+      amount: line.countsInTotal ? rs0(line.amount) : 'Not cash',
+      note: line.note,
+    }));
+    if (Math.abs(drift) > 0.5) rows.push({ label: driftLabel, amount: rs0(drift), note: undefined });
+    return rows;
+  };
   const usable = (series?: number[]) => (series && series.length >= 2 ? series.slice(-7) : []);
   const netWorthTrend = usable(trend);
   const returnTrend = usable(returnSeries);
@@ -368,6 +395,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             label="Net Invested"
             value={rs0(stats.netPrincipal)}
             sub={`Peak: ${rs0(stats.peakNetPrincipal)}${(stats.dividendReinvested || 0) > 0 ? ` · ${isFund ? 'excl.' : 'incl.'} ${rs0(stats.dividendReinvested || 0)} reinvested` : ''}`}
+            explain={<ExplainHint label="Why this net invested" title="Net invested" total={rs0(stats.netPrincipal)} lines={shown(investedExplain.lines, 'Rounding', stats.netPrincipal - investedExplain.total)} />}
           />
           <PanelCell
             label="Cost Basis"
@@ -378,12 +406,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             label={isFund ? 'Fund Value' : 'Stock Value'}
             value={rs0(stats.totalValue)}
             sub="Current Mkt Value"
+            explain={<ExplainHint label={isFund ? 'Why this fund value' : 'Why this stock value'} title={isFund ? 'Fund value' : 'Stock value'} total={rs0(stats.totalValue)} detail={`Cost ${rs0(valueExplain.cost)} · gain ${rs0(valueExplain.gain)}`} lines={shown(valueExplain.lines, 'Rounding', stats.totalValue - valueExplain.total)} />}
           />
           <PanelCell
             label="Cash Balance"
             value={rs0(stats.freeCash)}
             valueClass={stats.freeCash < 0 ? 'text-rose-500 dark:text-rose-400' : 'text-slate-800 dark:text-slate-100'}
             sub={isFund ? 'Available to Invest' : 'Available to Trade'}
+            explain={<ExplainHint label="Why this cash balance" title="Cash balance" total={rs0(stats.freeCash)} lines={shown(cashExplain.lines, 'Other cash movements', stats.freeCash - cashExplain.total)} />}
           />
         </MetricPanel>
         {/* Income Panel */}
@@ -441,7 +471,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           </div>
         </div>
         {/* Health Score Card */}
-        <div className="w-full lg:w-72 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex items-center justify-between gap-4 transition-transform hover:-translate-y-1 duration-300">
+        <div className="w-full lg:w-72 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex items-center justify-between gap-4">
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center shrink-0 shadow-sm">
             <ShieldCheck size={24} className="text-emerald-600 dark:text-emerald-400" />
           </div>
@@ -451,11 +481,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
               Health Score
             </div>
             <HealthPopover pillars={H.pillars} score={H.score}>
-              <div className="flex items-baseline gap-2 cursor-help group-hover:opacity-80 transition-opacity">
-                <span className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tighter tabular-nums leading-none">{H.score}</span>
-                <span className="text-xs text-slate-400 font-bold tabular-nums">/100</span>
-                <span className={`text-xs font-black uppercase tracking-wider ml-auto ${H.text}`}>{H.label}</span>
-              </div>
+              <span className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tighter tabular-nums leading-none">{H.score}</span>
+              <span className="text-xs text-slate-400 font-bold tabular-nums">/100</span>
+              <span className={`text-xs font-black uppercase tracking-wider ml-auto ${H.text}`}>{H.label}</span>
             </HealthPopover>
             <div className="h-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-full mt-2 overflow-hidden shadow-inner">
               <div className={`h-full rounded-full ${H.bar} transition-all duration-1000 ease-out`} style={{ width: `${H.score}%` }} />
@@ -463,20 +491,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           </div>
         </div>
       </div>
-      {isFund && (
-        <FundNumberPanel
-          holdings={(holdings || []).map(holding => ({
-            name: formatTransactionLabel(holding.ticker, displayNames),
-            units: holding.quantity,
-            avgNav: holding.avgPrice,
-            nav: holding.currentPrice,
-          }))}
-          transactions={transactions}
-          fundValue={stats.totalValue}
-          cash={stats.freeCash}
-          netInvested={stats.netPrincipal}
-        />
-      )}
     </div>
   );
 };

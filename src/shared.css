@@ -209,6 +209,7 @@ html.dark {
 @media (max-width: 639px) {
   body { background-attachment: scroll; }
   button, select, a[role="button"] { min-height: 44px; min-width: 44px; }
+  button.explain-hint { min-height: 18px; min-width: 18px; padding: 0; }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
   select, textarea { font-size: 16px !important; }
   input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]) { min-height: 44px; }

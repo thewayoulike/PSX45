@@ -29,7 +29,7 @@ const feesOf = (t: CashExplainTx) =>
  * are shown so they are not mistaken for cash. The counted lines use the same
  * cash rules as the dashboard balance.
  */
-export function explainFundCash(txs: CashExplainTx[]): { lines: ExplainLine[]; total: number } {
+export function explainFundCash(txs: CashExplainTx[], book: 'fund' | 'stock' = 'fund'): { lines: ExplainLine[]; total: number } {
   let deposits = 0;
   let withdrawals = 0;
   let expenses = 0;
@@ -40,7 +40,8 @@ export function explainFundCash(txs: CashExplainTx[]): { lines: ExplainLine[]; t
   let totalReinvest = 0;
   let unitReinvestVal = 0;
   let buys = 0;
-  let refundUnits = 0;
+  let bonusQty = 0;
+  let sawSplit = false;
 
   for (const t of txs) {
     const val = (t.price || 0) * (t.quantity || 0);
@@ -73,7 +74,8 @@ export function explainFundCash(txs: CashExplainTx[]): { lines: ExplainLine[]; t
       totalCgt += t.tax || 0;
       fundTaxWithheld += t.tax || 0;
     }     else if (t.type === 'BUY' || t.type === 'RIGHTS') buys += val + fees;
-    else if (t.type === 'REFUND_OF_CAPITAL') refundUnits += t.quantity || 0;
+    else if (t.type === 'REFUND_OF_CAPITAL' || t.type === 'BONUS') bonusQty += t.quantity || 0;
+    else if (t.type === 'SPLIT') sawSplit = true;
   }
 
   const matched = oversellCashCredit(txs.map(t => ({ ...t, date: t.date || '' })));
@@ -86,8 +88,8 @@ export function explainFundCash(txs: CashExplainTx[]): { lines: ExplainLine[]; t
   };
 
   push('Deposits', deposits);
-  push('Subscriptions, with charges', -buys);
-  push('Redemptions, after charges', matched);
+  push(book === 'stock' ? 'Buys, with charges' : 'Subscriptions, with charges', -buys);
+  push(book === 'stock' ? 'Sells, after charges' : 'Redemptions, after charges', matched);
   push('Withdrawals', -withdrawals);
   push('Tax paid from this cash', -cashCgt);
   push('Fees', -expenses);
@@ -103,12 +105,22 @@ export function explainFundCash(txs: CashExplainTx[]): { lines: ExplainLine[]; t
       note: 'This dividend stayed in the fund as units. It is not cash.',
     });
   }
-  if (refundUnits > 0) {
+  if (bonusQty > 0) {
     lines.push({
-      label: 'Bonus units',
+      label: book === 'stock' ? 'Bonus shares' : 'Bonus units',
       amount: 0,
       countsInTotal: false,
-      note: 'These units were added at no cost. Cash is unchanged.',
+      note: book === 'stock'
+        ? 'These shares were added at no cost. Cash is unchanged.'
+        : 'These units were added at no cost. Cash is unchanged.',
+    });
+  }
+  if (sawSplit) {
+    lines.push({
+      label: 'Share split',
+      amount: 0,
+      countsInTotal: false,
+      note: 'The share count changed. Cash is unchanged.',
     });
   }
 
@@ -118,15 +130,20 @@ export function explainFundCash(txs: CashExplainTx[]): { lines: ExplainLine[]; t
 
 export function explainFundValue(
   holdings: { name: string; units: number; avgNav: number; nav: number }[],
+  book: 'fund' | 'stock' = 'fund',
 ): { lines: ExplainLine[]; total: number; cost: number; gain: number } {
   const lines = holdings
     .filter(holding => holding.units > 0.0001)
-    .map(holding => ({
-      label: holding.name,
-      amount: holding.units * holding.nav,
-      countsInTotal: true,
-      note: `${holding.units} units × NAV ${holding.nav}`,
-    }));
+    .map(holding => {
+      const qty = holding.units.toLocaleString(undefined, { maximumFractionDigits: 4 });
+      const px = holding.nav.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return {
+        label: holding.name,
+        amount: holding.units * holding.nav,
+        countsInTotal: true,
+        note: book === 'stock' ? `${qty} shares × Rs. ${px}` : `${qty} units × NAV ${px}`,
+      };
+    });
   const total = lines.reduce((sum, line) => sum + line.amount, 0);
   const cost = holdings.reduce((sum, holding) => sum + holding.units * holding.avgNav, 0);
   return { lines, total, cost, gain: total - cost };

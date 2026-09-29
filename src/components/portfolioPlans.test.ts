@@ -2,7 +2,8 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { CorporateActionModal } from './CorporateActionModal';
-import { FundNumberPanel } from './FundNumberPanel';
+import { Dashboard } from './DashboardStats';
+import type { Holding, PortfolioStats } from '../types';
 
 describe('portfolio plan screens', () => {
   it('shows a bonus confirm card and does not save it during render', () => {
@@ -18,21 +19,40 @@ describe('portfolio plan screens', () => {
     expect(html).toContain('None');
   });
 
-  it('explains a fund value without treating reinvested units as cash', () => {
-    const html = renderToStaticMarkup(React.createElement(FundNumberPanel, {
-      holdings: [{ name: 'Meezan Growth', units: 110, avgNav: 10000 / 110, nav: 100 }],
+  it('puts a why-this-number hover on fund and stock figures', () => {
+    const stats: PortfolioStats = {
+      totalValue: 11000, totalCost: 10000, unrealizedPL: 1000, unrealizedPLPercent: 10,
+      realizedPL: 0, netRealizedPL: 0, totalDividends: 0, totalDividendTax: 0,
+      dailyPL: 0, dailyPLPercent: 0, freeCash: 100000, totalCommission: 0, totalSalesTax: 0,
+      totalCDC: 0, totalOtherFees: 0, totalCGT: 0, cashInvestment: 100000, totalDeposits: 100000,
+      netPrincipal: 100000, peakNetPrincipal: 100000, reinvestedProfits: 0, roi: 1, mwrr: null,
+    };
+    const holding = (ticker: string): Holding => ({
+      ticker, sector: '', quantity: 110, avgPrice: 10000 / 110, currentPrice: 100,
+      totalCommission: 0, totalTax: 0, totalCDC: 0, totalOtherFees: 0,
+    });
+    const fundHtml = renderToStaticMarkup(React.createElement(Dashboard, {
+      stats, portfolioType: 'MUTUAL_FUND', holdings: [holding('MF:meezan-growth')],
+      displayNames: { 'MF:meezan-growth': 'Meezan Growth' },
       transactions: [
-        { type: 'DEPOSIT', ticker: 'CASH', quantity: 1, price: 100000, date: '2026-01-01' },
-        { type: 'DIVIDEND_REINVEST', ticker: 'MF:meezan-growth', quantity: 10, price: 100, date: '2026-03-01' },
-        { type: 'REFUND_OF_CAPITAL', ticker: 'MF:meezan-growth', quantity: 5, price: 0, date: '2026-03-01' },
+        { id: 'd', portfolioId: 'p', type: 'DEPOSIT', ticker: 'CASH', quantity: 1, price: 100000, date: '2026-01-01', commission: 0, tax: 0, cdcCharges: 0, otherFees: 0 },
+        { id: 'r', portfolioId: 'p', type: 'DIVIDEND_REINVEST', ticker: 'MF:meezan-growth', quantity: 10, price: 100, date: '2026-03-01', commission: 0, tax: 0, cdcCharges: 0, otherFees: 0 },
       ],
-      fundValue: 11000,
-      cash: 100000,
-      netInvested: 100000,
     }));
-    expect(html).toContain('Why this number');
-    expect(html).toContain('Meezan Growth');
-    expect(html).toContain('Not cash');
-    expect(html).toContain('Bonus units');
+    expect(fundHtml).toContain('Why this fund value');
+    expect(fundHtml).toContain('Why this cash balance');
+    expect(fundHtml).toContain('Why this net invested');
+    expect(fundHtml).toContain('Score breakdown');
+    expect(fundHtml).not.toContain('>Why this number<');
+
+    const stockHtml = renderToStaticMarkup(React.createElement(Dashboard, {
+      stats: { ...stats, totalValue: 6000 },
+      portfolioType: 'PSX',
+      holdings: [holding('OGDC')],
+      transactions: [],
+    }));
+    expect(stockHtml).toContain('Why this stock value');
+    expect(stockHtml).toContain('Why this cash balance');
+    expect(stockHtml).toContain('Why this net invested');
   });
 });

@@ -93,7 +93,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest flex items-center gap-2">
           <CalendarClock size={16} className="text-indigo-500" /> Upcoming Dividends
         </h3>
@@ -115,7 +115,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
         </div>
       ) : (
         <>
-          <div className="divide-y divide-slate-50 dark:divide-slate-800/60 flex-1">
+          <div className="divide-y divide-slate-50 dark:divide-slate-800/60 flex-auto min-h-0 overflow-y-auto overscroll-contain custom-scrollbar">
             {rows.map((d: any, i: number) => (
               <div key={`${d.ticker}-${i}`} className="flex items-center gap-3 py-2.5">
                 <div className="flex flex-col min-w-0 flex-1">
@@ -129,7 +129,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between shrink-0">
             <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Expected income</span>
             <span className="text-base font-display font-black text-emerald-600 dark:text-emerald-400 tabular-nums">+{rs0(total)}</span>
           </div>

@@ -42,6 +42,23 @@ describe('why this number for funds', () => {
     expect(parked.every(line => line.amount === 0)).toBe(true);
   });
 
+  it('names stock cash lines as buys and sells and keeps bonus shares out of cash', () => {
+    const explained = explainFundCash([
+      { type: 'DEPOSIT', ticker: 'CASH', quantity: 1, price: 100_000, date: '2026-01-01' },
+      { type: 'BUY', ticker: 'OGDC', quantity: 1000, price: 6, date: '2026-01-02' },
+      { type: 'SELL', ticker: 'OGDC', quantity: 100, price: 7, date: '2026-02-01' },
+      { type: 'BONUS', ticker: 'OGDC', quantity: 100, price: 0, date: '2026-03-01' },
+    ], 'stock');
+    expect(explained.lines.map(line => line.label)).toEqual([
+      'Deposits',
+      'Buys, with charges',
+      'Sells, after charges',
+      'Bonus shares',
+    ]);
+    expect(explained.lines.find(line => line.label === 'Bonus shares')?.countsInTotal).toBe(false);
+    expect(explained.total).toBeCloseTo(100_000 - 6_000 + 700, 4);
+  });
+
   it('shows withdrawals that were profit so net invested still adds up', () => {
     const explained = explainNetInvested(
       [
