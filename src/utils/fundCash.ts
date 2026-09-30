@@ -25,6 +25,10 @@ export const isUnitInflow = (t: Pick<Transaction, 'type' | 'ticker'>) =>
 export const reinvestAmount = (t: Pick<Transaction, 'type' | 'ticker' | 'quantity' | 'price'>) =>
   isUnitReinvest(t) ? (t.quantity || 0) * (t.price || 0) : t.price;
 
+/** Total rupees of dividend income that was reinvested instead of paid out as cash. */
+export const dividendReinvestedTotal = (txs: Array<Pick<Transaction, 'type' | 'ticker' | 'quantity' | 'price'>>): number =>
+  txs.reduce((sum, t) => sum + (t.type === 'DIVIDEND_REINVEST' ? reinvestAmount(t) : 0), 0);
+
 /**
  * Mutual fund subscriptions and redemptions are normally settled straight
  * against a bank account rather than a cash balance held with a broker. To keep

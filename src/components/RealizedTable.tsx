@@ -7,6 +7,7 @@ import { exportToExcel, exportToCSV } from '../utils/export';
 import { useFreemium } from './FreemiumContext';
 import { consumeDailyQuota } from '../utils/freemiumQuotas';
 import { formatAssetLabel } from '../utils/fundDisplay';
+import { realizedNetOfCgt } from '../utils/realizedNet';
 import { FundRealizedView } from './FundRealizedView';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -231,8 +232,7 @@ const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = f
 
   const tip = { contentStyle: { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }, formatter: (v: number) => [`Rs. ${f0(v)}`, 'P&L'] as [string, string] };
   const pf = summary.profitFactor;
-  const filteredCgt = filteredAndSortedTrades.reduce((sum, trade) => sum + (trade.eventType ? 0 : (trade.tax || 0)), 0);
-  const netAfterCgt = summary.totalProfit - filteredCgt;
+  const netAfterCgt = realizedNetOfCgt(filteredAndSortedTrades);
   const heatColor = (v: number) => {
     if (!v || summary.maxAbsMonth === 0) return 'rgba(148,163,184,0.08)';
     const op = 0.15 + 0.75 * (Math.abs(v) / summary.maxAbsMonth);

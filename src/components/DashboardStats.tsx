@@ -1,11 +1,13 @@
 import { ResponsiveMetricPanels } from './MobileLayout';
 import React from 'react';
-import { Holding, PortfolioStats, PortfolioType, Transaction } from '../types';
+import { Holding, PortfolioStats, PortfolioType, RealizedTrade, Transaction } from '../types';
 import { formatTransactionLabel } from '../utils/fundDisplay';
 import { ExplainHint } from './FundNumberPanel';
 import { HoverPopover } from './HoverPopover';
 import { explainFundCash, explainFundValue, explainNetInvested, type ExplainLine } from '../utils/fundNumberExplain';
 import { healthReturnPct } from '../utils/healthScore';
+import { dividendReinvestedTotal } from '../utils/fundCash';
+import { realizedNetOfCgt } from '../utils/realizedNet';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
   Activity, Coins, Receipt, Building2, FileText, PiggyBank, Scale, TrendingUp, TrendingDown,
@@ -24,6 +26,7 @@ interface DashboardProps {
   holdings?: Holding[];
   portfolioType?: PortfolioType;
   transactions?: Transaction[];
+  realizedTrades?: RealizedTrade[];
   displayNames?: Record<string, string>;
 }
 const rs = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -255,7 +258,7 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], displayNames = {} }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], realizedTrades, displayNames = {} }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const totalNetWorth = stats.totalValue + stats.freeCash;
   // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
@@ -265,6 +268,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
   const totalReturnPercent = stats.roi;
   const isTotalReturnPositive = totalReturnRs >= 0;
   const dividendYield = stats.totalCost > 0 ? (stats.totalDividends / stats.totalCost) * 100 : 0;
+  const reinvestedDividends = dividendReinvestedTotal(transactions);
+  const realizedGain = realizedTrades ? realizedNetOfCgt(realizedTrades) : stats.netRealizedPL;
   const isDailyProfitable = stats.dailyPL >= 0;
   const H = computeHealth(stats, holdings, trend, benchmark);
   const posNeg = (v: number) => v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400';
@@ -378,9 +383,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
           />
           <PanelCell
             label="Realized Gain"
-            value={<>{stats.netRealizedPL >= 0 ? '+' : '-'}{rs0(Math.abs(stats.netRealizedPL))}</>}
-            valueClass={posNeg(stats.netRealizedPL)}
-            sub="All Time"
+            value={<>{realizedGain >= 0 ? '+' : '-'}{rs0(Math.abs(realizedGain))}</>}
+            valueClass={posNeg(realizedGain)}
+            sub="Net of CGT"
           />
           <PanelCell
             label="Unrealized Gain"
@@ -422,7 +427,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
             label="Dividends (Total)"
             value={<>+{rs0(stats.totalDividends)}</>}
             valueClass="text-purple-600 dark:text-purple-400"
-            sub={`Tax Paid: ${rs0(stats.totalDividendTax)}`}
+            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className="block mt-1">Reinvested: {rs0(reinvestedDividends)}</span></>}
           />
           <PanelCell
             label="Dividend Yield"

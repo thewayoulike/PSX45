@@ -2433,6 +2433,7 @@ const App: React.FC = () => {
                       holdings={holdings}
                       portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}
                       transactions={portfolioTransactions}
+                      realizedTrades={realizedTrades}
                       displayNames={fundDisplayNames}
                   />
                   </Suspense>

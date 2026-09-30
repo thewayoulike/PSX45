@@ -38,7 +38,15 @@ describe('portfolio plan screens', () => {
         { id: 'd', portfolioId: 'p', type: 'DEPOSIT', ticker: 'CASH', quantity: 1, price: 100000, date: '2026-01-01', commission: 0, tax: 0, cdcCharges: 0, otherFees: 0 },
         { id: 'r', portfolioId: 'p', type: 'DIVIDEND_REINVEST', ticker: 'MF:meezan-growth', quantity: 10, price: 100, date: '2026-03-01', commission: 0, tax: 0, cdcCharges: 0, otherFees: 0 },
       ],
+      realizedTrades: [{
+        id: 's1', ticker: 'OGDC', quantity: 1, buyAvg: 0, sellPrice: 0, date: '2026-02-01',
+        profit: 312, fees: 39, commission: 0, tax: 39, cdcCharges: 0, otherFees: 0,
+      }],
     }));
+    expect(fundHtml).toContain('Net of CGT');
+    expect(fundHtml).toContain('273.00');
+    expect(fundHtml).toContain('Reinvested');
+    expect(fundHtml).toContain('1,000.00');
     expect(fundHtml).toContain('Why this fund value');
     expect(fundHtml).toContain('Why this cash balance');
     expect(fundHtml).toContain('Why this net invested');
