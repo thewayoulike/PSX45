@@ -49,6 +49,40 @@ describe('mergeXDatePayouts', () => {
     expect(merged.find((p) => p.ticker === 'OGDC')?.details).toBe('Div: Rs. 6.00');
   });
 
+  it('lists NPL once when the sheet date is the day before the book-closure ex-date', () => {
+    const sheet = [{ ...sheetPayout('NPL', '2026-10-15', 'Div: Rs. 1.00'), bonus: '5%' }];
+    const py = [sheetPayout('NPL', '2026-10-16', 'Div: Rs. 1.00')];
+    const merged = mergeXDatePayouts(sheet, py);
+    expect(merged).toHaveLength(1);
+    expect(normalizeExDateIso(merged[0].bookClosure.replace(/^Ex-Date:\s*/i, ''))).toBe('2026-10-16');
+    expect(merged[0].bonus).toBe('5%');
+  });
+
+  it('lists one row when the sheet date and book closure are a few days apart', () => {
+    const merged = mergeXDatePayouts(
+      [sheetPayout('NATF', '2026-10-16', 'Div: Rs. 5.00')],
+      [sheetPayout('NATF', '2026-10-19', 'Div: Rs. 5.00')]
+    );
+    expect(merged).toHaveLength(1);
+    expect(normalizeExDateIso(merged[0].bookClosure.replace(/^Ex-Date:\s*/i, ''))).toBe('2026-10-19');
+  });
+
+  it('keeps the same cash amount when the ex-dates are more than a week apart', () => {
+    const merged = mergeXDatePayouts(
+      [sheetPayout('NPL', '2026-10-01', 'Div: Rs. 1.00')],
+      [sheetPayout('NPL', '2026-10-16', 'Div: Rs. 1.00')]
+    );
+    expect(merged).toHaveLength(2);
+  });
+
+  it('keeps two dividends when the amounts differ', () => {
+    const merged = mergeXDatePayouts(
+      [sheetPayout('NPL', '2026-10-15', 'Div: Rs. 1.00')],
+      [sheetPayout('NPL', '2026-10-16', 'Div: Rs. 2.50')]
+    );
+    expect(merged).toHaveLength(2);
+  });
+
   it('returns pyPSX-only when sheet is empty', () => {
     const merged = mergeXDatePayouts([], [sheetPayout('HBL', '2026-06-01')]);
     expect(merged).toHaveLength(1);

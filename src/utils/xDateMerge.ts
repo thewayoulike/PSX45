@@ -123,6 +123,66 @@ export function companyInfoToUpcomingPayouts(info: DividendSnapshot): CompanyPay
   return Array.from(byKey.values());
 }
 
+function exIso(p: CompanyPayout): string | null {
+  return normalizeExDateIso(String(p.bookClosure || '').replace(/^Ex-Date:\s*/i, ''));
+}
+
+function cashRupees(details: string | undefined): number | null {
+  const m = String(details || '').replace(/,/g, '').match(/Rs\.?\s*([\d.]+)/i);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
+function isoDay(iso: string): number {
+  const [y, m, d] = iso.split('-').map(Number);
+  return Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+}
+
+function hasExtra(value: string | undefined): boolean {
+  return !!value && value !== '-' && value !== '0' && value !== '0%';
+}
+
+/**
+ * The sheet sometimes stores the last cum-date, while pyPSX stores the first day
+ * of book closure. Same cash amount within a week is one dividend.
+ * Keep the later date (book-closure start) and any bonus or right from either row.
+ */
+function collapseSameDividend(rows: CompanyPayout[]): CompanyPayout[] {
+  const byTicker = new Map<string, CompanyPayout[]>();
+  for (const row of rows) {
+    const ticker = row.ticker.toUpperCase();
+    const list = byTicker.get(ticker) || [];
+    list.push(row);
+    byTicker.set(ticker, list);
+  }
+  const out: CompanyPayout[] = [];
+  for (const list of byTicker.values()) {
+    const sorted = [...list].sort((a, b) => (exIso(a) || '').localeCompare(exIso(b) || ''));
+    const kept: CompanyPayout[] = [];
+    for (const row of sorted) {
+      const prev = kept[kept.length - 1];
+      const prevIso = prev ? exIso(prev) : null;
+      const rowIso = exIso(row);
+      const prevCash = prev ? cashRupees(prev.details) : null;
+      const rowCash = cashRupees(row.details);
+      const days = prevIso && rowIso ? isoDay(rowIso) - isoDay(prevIso) : 99;
+      if (prev && prevCash != null && prevCash === rowCash && days >= 1 && days <= 7) {
+        kept[kept.length - 1] = {
+          ...row,
+          bonus: hasExtra(row.bonus) ? row.bonus : prev.bonus,
+          right: hasExtra(row.right) ? row.right : prev.right,
+        };
+      } else {
+        kept.push(row);
+      }
+    }
+    out.push(...kept);
+  }
+  return out.sort((a, b) => (exIso(a) || '').localeCompare(exIso(b) || ''));
+}
+
 /** Sheet wins on ticker|exDate conflicts; result sorted soonest-first. */
 export function mergeXDatePayouts(
   sheet: CompanyPayout[],
@@ -141,9 +201,5 @@ export function mergeXDatePayouts(
     map.set(key, { ...p, ticker: p.ticker.toUpperCase().trim() });
   }
 
-  return Array.from(map.values()).sort((a, b) => {
-    const da = normalizeExDateIso(a.bookClosure.replace(/^Ex-Date:\s*/i, '')) || '';
-    const db = normalizeExDateIso(b.bookClosure.replace(/^Ex-Date:\s*/i, '')) || '';
-    return da.localeCompare(db);
-  });
+  return collapseSameDividend(Array.from(map.values()));
 }
