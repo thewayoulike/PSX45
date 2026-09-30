@@ -239,8 +239,7 @@ export const fetchMarketWideDividends = async (): Promise<CompanyPayout[]> => {
         const rawRight = (row[4] || '').toString().trim();
 
         const cleanPercent = parseFloat(rawDiv.replace('%', ''));
-        // Dividends are a % of FACE VALUE. Most PSX stocks are Rs. 10 face value
-        // (so percent/10), but low-face-value stocks (Rs. 5 / 3.5 / 1) pay less.
+        // Dividends are a % of face value. percentToRs applies the exception list and split dates.
         const dateStr = row[5] || '';
         const xDate = new Date(dateStr);
         const pkrAmount = percentToRs(cleanPercent, ticker, Number.isNaN(xDate.getTime()) ? undefined : formatDatePK(xDate));
