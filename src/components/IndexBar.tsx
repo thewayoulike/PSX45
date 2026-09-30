@@ -1,36 +1,38 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchIndexQuote } from '../services/psxData';
+import { buildQuoteStrip, parseBtcUsdQuote, type QuoteItem } from '../utils/btcQuote';
 import { isPsxMarketHours } from '../utils/dates';
-
-interface Idx { label: string; value: number; changePct: number | null; }
 
 const REFRESH_MS = 5 * 60 * 1000;
 
 export const IndexBar: React.FC = () => {
-  const [items, setItems] = useState<Idx[]>([]);
+  const [items, setItems] = useState<QuoteItem[]>([]);
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
     loadingRef.current = true;
-    const collected: Idx[] = [];
 
-    try {
-      const [kse, kmi] = await Promise.all([
-        fetchIndexQuote('KSE100'),
-        fetchIndexQuote('KMI30'),
-      ]);
-      if (kse) collected.push({ label: 'KSE-100', value: kse.value, changePct: kse.changePct });
-      if (kmi) collected.push({ label: 'KMI-30', value: kmi.value, changePct: kmi.changePct });
-    } catch { /* ignore */ }
+    const [kse, kmi] = await Promise.all([
+      fetchIndexQuote('KSE100').catch(() => null),
+      fetchIndexQuote('KMI30').catch(() => null),
+    ]);
 
+    let pkr: number | null = null;
     try {
       const res = await fetch(`https://open.er-api.com/v6/latest/USD?t=${Date.now()}`);
       const data = await res.json();
-      const pkr = data?.rates?.PKR;
-      if (pkr) collected.push({ label: 'USD/PKR', value: pkr, changePct: null });
+      const rate = data?.rates?.PKR;
+      if (typeof rate === 'number' && Number.isFinite(rate)) pkr = rate;
     } catch { /* ignore */ }
 
+    let btc: { value: number; changePct: number | null } | null = null;
+    try {
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&t=${Date.now()}`);
+      if (res.ok) btc = parseBtcUsdQuote(await res.json());
+    } catch { /* ignore */ }
+
+    const collected = buildQuoteStrip({ kse, kmi, pkr, btc });
     if (collected.length) setItems(collected);
     loadingRef.current = false;
   }, []);
