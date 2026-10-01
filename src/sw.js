@@ -1,34 +1,30 @@
 import { precache, addRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching';
 import { registerRoute, NavigationRoute } from 'workbox-routing';
-import { CacheFirst, NetworkFirst } from 'workbox-strategies';
+import { CacheFirst } from 'workbox-strategies';
 import { ExpirationPlugin } from 'workbox-expiration';
-import { recoveryActivationStatus } from './utils/swRecovery';
+import { recoveryActivationStatus, PUBLIC_PAGE } from './utils/swRecovery';
 
 // Use the manifest injected at build time -> real offline caching.
 precache(self.__WB_MANIFEST || []);
 cleanupOutdatedCaches();
 const isHostingChallenge = (response) => response?.headers.get('x-vercel-mitigated') === 'challenge';
-const navigation = new NetworkFirst({
-  cacheName: 'psx-navigation-v1', networkTimeoutSeconds: 3, fetchOptions: { cache: 'no-cache' },
-  plugins: [{
-    cacheWillUpdate: async ({ response }) => !isHostingChallenge(response) && response.status === 200 && /text\/html/i.test(response.headers.get('Content-Type') || '') ? response : null,
-    // A security check is tied to the current request, never an offline app shell.
-    cachedResponseWillBeUsed: async ({ cachedResponse }) => isHostingChallenge(cachedResponse) ? null : cachedResponse,
-  },
-    new ExpirationPlugin({ maxEntries: 12, maxAgeSeconds: 7 * 86400 })],
-});
-// Register before the precache route: an online refresh must request the current HTML,
-// rather than pinning '/' or '/index.html' to a previous deployment's module names.
+const offlineShell = createHandlerBoundToURL('/index.html');
+// Page HTML is never cached separately: a stored page from an older release points at files
+// that release's deploy has since deleted, and the app would stay blank on slow networks.
+// The precached shell always matches the files this worker holds.
 registerRoute(new NavigationRoute(async (context) => {
   try {
-    const response = await navigation.handle(context);
+    // Abort only while waiting for headers, so a page that starts arriving finishes downloading.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const response = await fetch(context.request, { cache: 'no-cache', signal: controller.signal }).finally(() => clearTimeout(timer));
     // Let the browser complete the hosting check even when it returns 403/429.
     // Falling back to the app here hides the check while its API calls stay blocked.
     if (isHostingChallenge(response)) return response;
-    if (response && response.ok && /text\/html/i.test(response.headers.get('Content-Type') || '')) return response;
-  } catch { /* Network and runtime cache unavailable: use the installed offline shell. */ }
-  return createHandlerBoundToURL('/index.html')(context);
-}, { denylist: [/^\/(?:api|assets|fonts|media)\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/, /^\/llms\.txt$/, /^\/(about|privacy|terms|contact|guides|how-to-use|how-it-works|markets|tools)(\/|$)/] }));
+    if (response.ok && /text\/html/i.test(response.headers.get('Content-Type') || '')) return response;
+  } catch { /* Offline or slower than 3 s: use the installed shell. */ }
+  return offlineShell(context);
+}, { denylist: [/^\/(?:api|assets|fonts|media)\//, /^\/sitemap\.xml$/, /^\/robots\.txt$/, /^\/llms\.txt$/, PUBLIC_PAGE] }));
 addRoute();
 registerRoute(({ request, url }) => url.origin === self.location.origin && url.pathname.startsWith('/assets/') && (request.destination === 'script' || request.destination === 'worker'),
   new CacheFirst({ cacheName: 'psx-tools-v1', plugins: [{
@@ -41,7 +37,11 @@ registerRoute(({ request, url }) => url.origin === self.location.origin && url.p
 
 // Let an update activate after existing app tabs close, so an active edit is not
 // moved between application versions. First installation still activates normally.
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+self.addEventListener('activate', (event) => event.waitUntil(Promise.all([
+  self.clients.claim(),
+  // Pages stored by earlier workers reference files that no longer exist.
+  caches.delete('psx-navigation-v1'),
+])));
 self.addEventListener('message', event => {
   if (event.data?.type !== 'PSX_RECOVER_VERSION') return;
   event.waitUntil((async () => {
@@ -55,17 +55,24 @@ self.addEventListener('message', event => {
 
 self.addEventListener('push', function (event) {
   if (!event.data) return;
-  const data = event.data.json();
+  let data;
+  try { data = event.data.json(); } catch { data = { title: 'PSX Tracker', body: event.data.text() }; }
   const options = {
     body: data.body,
     icon: '/pwa-premium-192.png',
     badge: '/notification-badge-premium.png',
     vibrate: [200, 100, 200]
   };
-  event.waitUntil(self.registration.showNotification(data.title, options));
+  event.waitUntil(self.registration.showNotification(data.title || 'PSX Tracker', options));
 });
 
 self.addEventListener('notificationclick', function (event) {
   event.notification.close();
-  event.waitUntil(clients.openWindow('/'));
+  // Reuse an open app window: each extra window keeps an update waiting.
+  event.waitUntil((async () => {
+    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const app = windows.find(client => !PUBLIC_PAGE.test(new URL(client.url).pathname));
+    if (app) return app.focus();
+    return self.clients.openWindow('/');
+  })());
 });

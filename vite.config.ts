@@ -231,6 +231,11 @@ export default defineConfig({
         // Precache every app script: each release deletes the previous release's files, so an
         // installed version must already hold the screens it may lazy-load later. Unchanged
         // files keep their hashed names, so updates only download what changed.
+        // Public guide pages stay network-only so each deploy's content shows straight away.
+        manifestTransforms: [async entries => ({
+          manifest: entries.filter(entry => !entry.url.endsWith('.html') || entry.url === 'index.html'),
+          warnings: [],
+        })],
       },
       srcDir: 'src', 
       filename: 'sw.js',

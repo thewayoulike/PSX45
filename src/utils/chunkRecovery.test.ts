@@ -89,4 +89,11 @@ describe('safe app version recovery', () => {
     expect(await recoveryActivationStatus({ clients: { matchAll } }, 'requesting')).toBe('activating');
     expect(await recoveryActivationStatus({ clients: { matchAll } }, 'unknown')).toBe('unavailable');
   });
+  it('a guide or SEO page left open does not block the update, but another app window does', async () => {
+    const matchAll = vi.fn().mockResolvedValue([{ id: 'requesting', url: 'https://x.test/holdings' },
+      { id: 'guide', url: 'https://x.test/guides/start-investing-on-psx' }, { id: 'about', url: 'https://x.test/about.html' }]);
+    expect(await recoveryActivationStatus({ clients: { matchAll } }, 'requesting')).toBe('activating');
+    matchAll.mockResolvedValue([{ id: 'requesting', url: 'https://x.test/' }, { id: 'app', url: 'https://x.test/settings' }]);
+    expect(await recoveryActivationStatus({ clients: { matchAll } }, 'requesting')).toBe('other-tabs');
+  });
 });

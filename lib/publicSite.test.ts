@@ -3,6 +3,7 @@ import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { renderPublicPage, renderGuideHub, renderGuidePage, renderEditorialPage, resolvePublicHtml } from './publicSite.js';
 import { buildSitemapXml } from './sitemap.js';
 import { videoGuide, videoChapters } from './videoGuide.js';
+import { PUBLIC_PAGE } from '../src/utils/swRecovery.js';
 import { featureSections } from '../config/howItWorks.js';
 import { renderHowItWorksBody } from './howItWorks.js';
 import { publicPages } from '../config/publicPages.js';
@@ -70,7 +71,7 @@ it('serves the tutorial without authentication and keeps its media opt-in', () =
   }
   expect(readFileSync(`public${videoGuide.captions}`, 'utf8')).toMatch(/^WEBVTT/);
   expect(readFileSync('vite.config.ts', 'utf8')).toContain("'**/media/tutorial/**'");
-  expect(readFileSync('src/sw.js', 'utf8')).toContain('guides|how-to-use');
+  expect(PUBLIC_PAGE.test('/how-to-use')).toBe(true);
   expect(readFileSync('public/sitemap.xml', 'utf8')).toContain('https://www.psx-tracker.com/how-to-use');
 });
 
@@ -191,12 +192,13 @@ it('service worker navigation denylist lets crawlers see sitemap, robots, and pu
   const match = sw.match(/denylist:\s*\[([^\]]+)\]/);
   expect(match).toBeTruthy();
   const denylist = match![1];
-  expect(denylist).toMatch(/sitemap\\.xml/);
-  expect(denylist).toMatch(/robots\\.txt/);
-  expect(denylist).toMatch(/llms\\.txt/);
-  expect(denylist).toMatch(/guides/);
-  expect(denylist).toMatch(/markets\|tools/);
-  expect(denylist).toMatch(/about\|privacy\|terms\|contact/);
+  expect(denylist).toContain('sitemap\\.xml');
+  expect(denylist).toContain('robots\\.txt');
+  expect(denylist).toContain('llms\\.txt');
+  expect(denylist).toContain('PUBLIC_PAGE');
+  for (const path of ['/guides', '/guides/start-investing-on-psx', '/markets/shares/ogdc', '/tools/zakat', '/about', '/privacy', '/terms', '/contact', '/how-it-works', '/about.html'])
+    expect(PUBLIC_PAGE.test(path), path).toBe(true);
+  for (const path of ['/', '/holdings', '/settings', '/login', '/aboutus']) expect(PUBLIC_PAGE.test(path), path).toBe(false);
 });
 
 it('expands the guides and publishes markets and calculators', () => {

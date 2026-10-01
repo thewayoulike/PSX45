@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   routes: [] as any[], order: [] as string[], network: vi.fn(), offline: vi.fn(), listeners: {} as Record<string, Function>,
-  navigationOptions: {} as any, assetOptions: {} as any,
+  assetOptions: {} as any,
 }));
 vi.mock('workbox-precaching', () => ({
   precache: () => {}, cleanupOutdatedCaches: () => {},
@@ -13,12 +13,13 @@ vi.mock('workbox-routing', () => ({
   NavigationRoute: class { constructor(public handler: Function, public options: any) {} },
 }));
 vi.mock('workbox-strategies', () => ({
-  NetworkFirst: class { constructor(options: any) { mocks.navigationOptions = options; } handle = mocks.network; }, CacheFirst: class { constructor(options: any) { mocks.assetOptions = options; } },
+  CacheFirst: class { constructor(options: any) { mocks.assetOptions = options; } },
 }));
 vi.mock('workbox-expiration', () => ({ ExpirationPlugin: class {} }));
 beforeEach(async () => {
   vi.resetModules(); mocks.routes.length = 0; mocks.order.length = 0; mocks.network.mockReset(); mocks.offline.mockReset();
   vi.stubGlobal('self', { __WB_MANIFEST: [], addEventListener: (type: string, fn: Function) => { mocks.listeners[type] = fn; } });
+  vi.stubGlobal('fetch', mocks.network);
   await import('../sw.js');
 });
 afterEach(() => vi.unstubAllGlobals());
@@ -49,28 +50,50 @@ it.each([200, 403, 429])('shows a hosting challenge with status %s instead of hi
   expect(await mocks.routes[0].handler({ request: {} })).toBe(challenge);
   expect(mocks.offline).not.toHaveBeenCalled();
 });
-it('never adds a hosting challenge to the navigation cache, even if it uses status 200', async () => {
-  const plugin = mocks.navigationOptions.plugins[0];
-  const challenge = new Response('<html>Complete the security check</html>', {
-    headers: { 'Content-Type': 'text/html', 'x-vercel-mitigated': 'challenge' },
-  });
-  expect(await plugin.cacheWillUpdate({ response: challenge })).toBeNull();
-  const shell = new Response('<html>Current portfolio shell</html>', { headers: { 'Content-Type': 'text/html' } });
-  expect(await plugin.cacheWillUpdate({ response: shell })).toBe(shell);
+it('falls back to the installed shell when the page is slower than 3 seconds', async () => {
+  vi.useFakeTimers();
+  const fallback = new Response('installed shell'); mocks.offline.mockResolvedValue(fallback);
+  mocks.network.mockImplementation((_req: unknown, init: RequestInit) => new Promise((_, reject) =>
+    init.signal!.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))));
+  const pending = mocks.routes[0].handler({ request: {} });
+  await vi.advanceTimersByTimeAsync(3000);
+  expect(await pending).toBe(fallback);
+  vi.useRealTimers();
 });
-it('ignores a previously cached challenge while preserving the valid offline shell', async () => {
-  const plugin = mocks.navigationOptions.plugins[0];
-  const cachedChallenge = new Response('<html>Expired security check</html>', {
-    headers: { 'Content-Type': 'text/html', 'x-vercel-mitigated': 'challenge' },
-  });
-  expect(await plugin.cachedResponseWillBeUsed({ cachedResponse: cachedChallenge })).toBeNull();
-  const shell = new Response('<html>Saved portfolio shell</html>', { headers: { 'Content-Type': 'text/html' } });
-  expect(await plugin.cachedResponseWillBeUsed({ cachedResponse: shell })).toBe(shell);
-  expect(await plugin.cachedResponseWillBeUsed({ cachedResponse: undefined })).toBeUndefined();
+it('never serves page HTML stored by an earlier worker', async () => {
+  const deleted: string[] = [];
+  vi.stubGlobal('caches', { delete: vi.fn(async (name: string) => { deleted.push(name); return true; }) });
+  (self as any).clients = { claim: vi.fn(async () => {}) };
+  let done!: Promise<unknown>;
+  mocks.listeners.activate({ waitUntil: (p: Promise<unknown>) => { done = p; } });
+  await done;
+  expect(deleted).toContain('psx-navigation-v1');
+});
+it('reuses an open app window for a notification tap instead of opening another', async () => {
+  const app = { url: 'https://www.psx-tracker.com/holdings', focus: vi.fn(async () => app) };
+  const guide = { url: 'https://www.psx-tracker.com/guides/x', focus: vi.fn() };
+  const openWindow = vi.fn();
+  (self as any).clients = { matchAll: vi.fn(async () => [guide, app]), openWindow };
+  let done!: Promise<unknown>;
+  mocks.listeners.notificationclick({ notification: { close: vi.fn() }, waitUntil: (p: Promise<unknown>) => { done = p; } });
+  await done;
+  expect(app.focus).toHaveBeenCalled(); expect(guide.focus).not.toHaveBeenCalled(); expect(openWindow).not.toHaveBeenCalled();
+  (self as any).clients.matchAll = vi.fn(async () => [guide]);
+  mocks.listeners.notificationclick({ notification: { close: vi.fn() }, waitUntil: (p: Promise<unknown>) => { done = p; } });
+  await done;
+  expect(openWindow).toHaveBeenCalledWith('/');
+});
+it('shows a plain-text push instead of failing on it', async () => {
+  const showNotification = vi.fn(async () => {});
+  (self as any).registration = { showNotification };
+  let done!: Promise<unknown>;
+  mocks.listeners.push({ data: { json: () => { throw new SyntaxError('bad'); }, text: () => 'Price alert: OGDC' }, waitUntil: (p: Promise<unknown>) => { done = p; } });
+  await done;
+  expect(showNotification).toHaveBeenCalledWith('PSX Tracker', expect.objectContaining({ body: 'Price alert: OGDC' }));
 });
 it('keeps APIs, assets and public guide pages outside the app navigation fallback', () => {
   const deny = mocks.routes[0].options.denylist as RegExp[];
-  for (const path of ['/api/cloud-sync', '/assets/deleted.js', '/how-to-use', '/privacy']) expect(deny.some(re => re.test(path))).toBe(true);
+  for (const path of ['/api/cloud-sync', '/assets/deleted.js', '/how-to-use', '/privacy', '/guides/start-investing-on-psx', '/markets/shares/ogdc.html']) expect(deny.some(re => re.test(path))).toBe(true);
   expect(deny.some(re => re.test('/holdings'))).toBe(false);
 });
 it('caches the projection worker after use without caching unrelated requests', () => {
