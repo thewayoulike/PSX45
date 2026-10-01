@@ -507,6 +507,26 @@ describe('cloud save outcomes and recovery', () => {
     expect(service.getPendingCloud()?.data.transactions[0].id).toBe('local-trade');
   });
 
+  it('keeps pending changes and does not upload when both cloud checks return HTML', async () => {
+    mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:0,fileId:null}) : response({files:[]}));
+    await service.loadFromDrive();
+    const requests: string[] = [];
+    mockCloud((url, init) => { requests.push(url); return new Response('<html>temporary gateway error</html>', {status:502}); });
+    const saving = service.saveToDrive({marker:'unsynced-trade'});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await saving).ok).toBe(false);
+    expect(service.getPendingCloud()?.data.marker).toBe('unsynced-trade');
+    expect(requests).toEqual(['/api/cloud-sync','/api/cloud-sync']);
+  });
+  it('cancels a retry if the Google account changes during the retry delay', async () => {
+    mockCloud(() => new Response('<html>temporary gateway error</html>', {status:502}));
+    const loading = service.loadFromDrive().catch(error => error);
+    await vi.advanceTimersByTimeAsync(1);
+    await login('b@example.com');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect((await loading).message).toContain('Account changed');
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
   it('a concurrent commit after preflight cannot overwrite the winner', async () => {
     let remote = {revision:0,fileId:null as string|null}, commitCount=0;
     mockCloud((url, init) => {
@@ -562,7 +582,9 @@ describe('cloud save outcomes and recovery', () => {
     storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'restore',baseVersion:0,data:{marker:'local'}}));
     const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
     mockCloud(()=>response({},503));
-    await service.preservePendingAndReloadCloud(); expect(reload).not.toHaveBeenCalled(); expect(service.getPendingCloud()).not.toBeNull();
+    const failedRestore = service.preservePendingAndReloadCloud();
+    await vi.advanceTimersByTimeAsync(1000);
+    await failedRestore; expect(reload).not.toHaveBeenCalled(); expect(service.getPendingCloud()).not.toBeNull();
     mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:1,fileId:'remote-file'}) : response({transactions:[],portfolios:[],marker:'remote'}));
     await service.preservePendingAndReloadCloud();
     expect(reload).toHaveBeenCalledOnce(); expect(service.getPendingCloud()).toBeNull();

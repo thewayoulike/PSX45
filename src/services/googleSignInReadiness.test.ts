@@ -18,6 +18,16 @@ beforeEach(async () => {
 });
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 describe('Google sign-in preparation', () => {
+  it('shows hosting challenge guidance without repeating the blocked settings request', async () => {
+    sdk();
+    const { ApiResponseError } = await import('./apiResponse');
+    const config = vi.fn().mockRejectedValue(new ApiResponseError('Hosting security check required. Open Chrome.', 429, 'hosting-check'));
+    const flow = service.createGoogleSignInReadiness(config);
+    await flow.prepare();
+    expect(flow.getSnapshot()).toMatchObject({status:'error',message:expect.stringContaining('Hosting security check')});
+    expect(config).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('waits for both settings and the delayed SDK, shares work, and never opens OAuth', async () => {
     let finish!: () => void;
     const config = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));

@@ -20,6 +20,8 @@ import { EmailAttachmentButton } from './EmailAttachmentButton';
 import { EmailSearchPeriodPicker } from './EmailSearchPeriodPicker';
 import { buildEmailSearchQuery, type EmailSearchPeriod } from '../utils/emailSearch';
 import { emailBodyImportKey } from '../utils/gmailBody';
+import { loadScanEngine } from '../services/scanEngine';
+import { ScanErrorPanel } from './ScanErrorPanel';
 
 export interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
@@ -83,6 +85,9 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const { isFree, entitledTickers, quotas } = useFreemium();
   const isFundPortfolio = portfolioType === 'MUTUAL_FUND';
   const [mode, setMode] = useState<'MANUAL' | 'IMPORT' | 'AI_SCAN' | 'EMAIL_IMPORT'>('MANUAL');
+  useEffect(() => {
+    if (isOpen && mode === 'AI_SCAN') void loadScanEngine().catch(() => {});
+  }, [isOpen, mode]);
   const [type, setType] = useState<Transaction['type']>('BUY');
   
   const [date, setDate] = useState(todayPK());
@@ -538,7 +543,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           const scanFile = selectedEmailText === null ? selectedFile : new File([selectedEmailText], selectedFile.name, { type: 'text/plain' });
           if (isFundPortfolio && mode === 'AI_SCAN') {
               try { localStorage.setItem('psx_fund_scan_instructions', fundScanInstructions); } catch { /* ignore */ }
-              const { parseFundBalanceDocument } = await import('../services/gemini');
+              const { parseFundBalanceDocument } = await loadScanEngine();
               const scan = await parseFundBalanceDocument(scanFile, { customInstructions: fundScanInstructions });
               const hasHoldings = (scan.holdings?.length || 0) > 0;
               const hasFlows = (scan.cashFlows?.length || 0) > 0;
@@ -572,7 +577,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           if (mode !== 'AI_SCAN') {
               throw new Error('Choose Gemini scan or a spreadsheet import.');
           }
-          const { parseTradeDocument } = await import('../services/gemini');
+          const { parseTradeDocument } = await loadScanEngine();
           const trades = await parseTradeDocument(scanFile);
           
           if (trades.length === 0) throw new Error("No trades found in this file."); 
@@ -1378,7 +1383,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                              
                              {mode === 'IMPORT' && !selectedFile && !scanError && ( <button onClick={handleDownloadTemplate} className="mt-4 flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 font-bold hover:underline mx-auto opacity-80 hover:opacity-100 transition-opacity" > <Download size={14} /> Download Import Template (CSV) </button> )}
                             
-                             {scanError && ( <div className={`w-full flex-1 border-2 border-dashed rounded-3xl flex flex-col items-center justify-center p-8 animate-in fade-in zoom-in-95 ${scanError.includes("No trades found") ? "border-amber-200 bg-amber-50/50 dark:bg-amber-500/10 dark:border-amber-500/20" : "border-rose-200 bg-rose-50/50 dark:bg-rose-500/10 dark:border-rose-500/20"}`}> <div className={`w-16 h-16 rounded-2xl flex items-center justify-center mb-4 shadow-sm border ${scanError.includes("No trades found") ? "bg-amber-100 text-amber-600 border-amber-200 dark:bg-amber-500/20 dark:text-amber-400" : "bg-rose-100 text-rose-500 border-rose-200 dark:bg-rose-500/20 dark:text-rose-400"}`}> {scanError.includes("No trades found") ? <Search size={32} /> : <AlertTriangle size={32} />} </div> <h3 className={`text-lg font-display font-black mb-1 tracking-tight ${scanError.includes("No trades found") ? "text-amber-900 dark:text-amber-200" : "text-rose-900 dark:text-rose-200"}`}>{scanError.includes("No trades found") ? "No Results Found" : "Scan Failed"}</h3> <p className={`text-xs font-bold text-center max-w-[240px] mb-6 ${scanError.includes("No trades found") ? "text-amber-700 dark:text-amber-300" : "text-rose-600 dark:text-rose-300"}`}>{scanError}</p> <button onClick={() => { setScanError(null); if (selectedEmailText === null) setSelectedFile(null); }} className={`px-6 py-3 bg-white dark:bg-slate-800 border rounded-xl font-bold text-xs shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-2 ${scanError.includes("No trades found") ? "border-amber-200 text-amber-600 dark:border-amber-700 dark:text-amber-400" : "border-rose-200 text-rose-600 dark:border-rose-700 dark:text-rose-400"}`}> <RefreshCcw size={14} /> {selectedEmailText !== null ? 'Edit Email Text' : 'Try Different File'} </button> </div> )}
+                             {scanError && <ScanErrorPanel message={scanError} emailText={selectedEmailText !== null} onRetry={() => void handleProcessScan()} onChangeSource={() => { setScanError(null); if (selectedEmailText === null) setSelectedFile(null); }} />}
                             
                              {!scanError && ( <button onClick={handleProcessScan} disabled={!selectedFile} className={`w-full mt-6 py-3.5 rounded-xl font-bold text-white shadow-md transition-all flex items-center justify-center gap-2 text-sm ${selectedFile ? `${theme.btn} ${theme.shadow} hover:-translate-y-0.5 active:translate-y-0 cursor-pointer` : 'bg-slate-300 dark:bg-slate-800 text-slate-500 dark:text-slate-600 cursor-not-allowed shadow-none'}`}> {mode === 'IMPORT' ? <Upload size={18} /> : <Sparkles size={18} />} {mode === 'IMPORT' ? 'Process Import' : 'Analyze with AI'} </button> )}
                         </>

@@ -6,6 +6,8 @@ export function formatPendingAge(queuedAt: string, now = new Date()) {
 }
 export function shortenCloudError(error: string) {
   if (isCloudConflictError(error)) return 'Another device saved newer data. Load latest to use it; a local recovery copy will be kept.';
+  if (error.startsWith('Hosting security check')) return 'Hosting security check required. Open PSX Tracker in Chrome, complete the check, then retry. Changes kept locally.';
+  if (error.startsWith('Cloud sync received a web page')) return 'Cloud check unavailable. Changes kept locally. Retry or download a local copy.';
   const status = error.match(/HTTP (\d{3})/);
   return status ? `HTTP ${status[1]} — changes kept locally` : error.split('. ')[0];
 }

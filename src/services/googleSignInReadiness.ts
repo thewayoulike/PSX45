@@ -1,3 +1,4 @@
+import { ApiResponseError } from './apiResponse';
 export type GoogleSignInState = { status: 'idle' | 'loading' | 'ready' | 'error'; message: string };
 const SCRIPT_ID = 'google-gsi-script';
 let scriptRequest: Promise<void> | null = null;
@@ -48,10 +49,15 @@ export function createGoogleSignInReadiness(prepareConfig: () => Promise<unknown
   const publish = (next: GoogleSignInState) => { state = next; listeners.forEach(listener => listener()); };
   const configWithRetry = async () => {
     try { await prepareConfig(); }
-    catch {
+    catch (error) {
+      if (error instanceof ApiResponseError && error.kind === 'hosting-check') throw error;
       await new Promise(resolve => setTimeout(resolve, 600));
       try { await prepareConfig(); }
-      catch { throw new Error('Google sign-in could not connect to PSX Tracker. Check your connection, then retry. You can also use email and password if already set up.'); }
+      catch (retryError) {
+        if (retryError instanceof ApiResponseError && retryError.kind === 'hosting-check') throw retryError;
+        const detail = retryError instanceof ApiResponseError ? ` (HTTP ${retryError.status})` : '';
+        throw new Error(`Google sign-in could not connect to PSX Tracker${detail}. Check your connection, then retry. You can also use email and password if already set up.`);
+      }
     }
   };
   return {

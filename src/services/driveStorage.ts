@@ -3,6 +3,7 @@ import { buildSheetSyncRequests } from '../utils/sheetSync';
 import { createSerialQueue } from '../utils/serialQueue';
 import { saveRecoveryCopies } from '../utils/recoveryStorage';
 import { readApiJson } from './apiResponse';
+import { requestCloudVersion } from './cloudVersionRequest';
 import { gmailTextParts, gmailBodyText, type GmailTextPart } from '../utils/gmailBody';
 import { createGoogleSignInReadiness } from './googleSignInReadiness';
 // src/services/driveStorage.ts
@@ -67,7 +68,6 @@ export function getRememberedDriveConfig() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'drive-config' }), signal: controller.signal,
       })).then(async response => {
-        if (!response.ok) throw new Error('Drive connection check unavailable.');
         const config = await readApiJson(response, 'Drive connection check unavailable.');
         if (typeof config.enabled !== 'boolean') throw new Error('Invalid Drive connection response.');
         rememberedDriveConfig = { enabled: config.enabled === true, clientId: config.clientId, error: config.error };
@@ -461,10 +461,13 @@ async function cloudHead(email: string, body: Record<string, unknown>): Promise<
     try {
     const token = await getValidToken();
     if (!token || currentEmail() !== email) throw new Error('Sign in to the same Google account to sync.');
-    const res = await fetch('/api/cloud-sync', { method: 'POST', signal: AbortSignal.timeout(15000),
-        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-    if (res.status === 409) { cloudConflicts.add(email); throw new Error(conflictMessage); }
-    const head = await readApiJson(res, 'Cloud version check unavailable. Your changes remain on this device.');
+    const head = await requestCloudVersion(async () => {
+        if (currentEmail() !== email) throw new Error('Account changed. Cloud version check cancelled.');
+        const res = await fetch('/api/cloud-sync', { method: 'POST', cache: 'no-store', signal: AbortSignal.timeout(15000),
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) });
+        if (res.status === 409) { cloudConflicts.add(email); throw new Error(conflictMessage); }
+        return res;
+    }, body.action === 'head');
     if (currentEmail() !== email) throw new Error('Account changed. Cloud version check cancelled.');
     if (!Number.isSafeInteger(head.revision) || head.revision < 0 || (head.fileId !== null && typeof head.fileId !== 'string')) throw new Error('Invalid cloud version response.');
     endMeasure();
