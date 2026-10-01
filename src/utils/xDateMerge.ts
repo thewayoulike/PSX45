@@ -31,6 +31,11 @@ function startOfToday(): Date {
   return t;
 }
 
+/** Local calendar date as YYYY-MM-DD. toISOString() is UTC, a day behind before 05:00 in Pakistan. */
+function localIsoDate(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function isUpcomingIso(iso: string, today = startOfToday()): boolean {
   const d = new Date(`${iso}T00:00:00`);
   if (isNaN(d.getTime())) return false;
@@ -79,7 +84,7 @@ function rowToPayout(
 ): CompanyPayout | null {
   const iso = normalizeExDateIso(exRaw);
   if (!iso || !isUpcomingIso(iso, today)) return null;
-  const due = iso === normalizeExDateIso(today.toISOString().slice(0, 10));
+  const due = iso === localIsoDate(today);
   return {
     ticker,
     announceDate: '-',
