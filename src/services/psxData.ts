@@ -14,24 +14,8 @@ export const getScrapingApiKey = () => null as string | null;
 export const setWebScrapingAIKey = (_key: string | null) => {};
 export const getWebScrapingAIKey = () => null as string | null;
 
-// FREE PROXIES (Tried First)
-const FREE_PROXIES = [
-    (url: string) => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-    (url: string) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-    (url: string) => `https://corsproxy.io/?${encodeURIComponent(url)}&_t=${Date.now()}`,
-    (url: string) => `https://thingproxy.freeboard.io/fetch/${url}?t=${Date.now()}`,
-];
-
-// Helper to shuffle free proxies
-const getShuffledFreeProxies = () => {
-    const array = [...FREE_PROXIES];
-    for (let i = array.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [array[i], array[j]] = [array[j], array[i]];
-    }
-    return array;
-};
-
+// Market data comes only from PSX Tracker's own /api/proxy. Public CORS relays could alter the
+// prices shown, so a failed fetch returns null and the app shows the last saved prices with their time.
 const fetchWithTimeout = (url: string, options: RequestInit = {}, timeout = 10000) => cachedMarketFetch(url, async () => {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
@@ -46,42 +30,14 @@ const fetchWithTimeout = (url: string, options: RequestInit = {}, timeout = 1000
 });
 
 export const fetchUrlWithFallback = async (targetUrl: string, minLength = 500): Promise<string | null> => {
-    
-    // 1. THE ULTIMATE FIX: Try your own Vercel Serverless Proxy first
     try {
-        const vercelProxyUrl = `/api/proxy?url=${encodeURIComponent(targetUrl)}`;
-        const response = await fetchWithTimeout(vercelProxyUrl, {}, 10000);
-        if (response.ok) {
-            const text = await response.text();
-            // Ensure we aren't just getting the local Vite index.html fallback
-            if (text && text.length > minLength && !text.includes('<title>PSX Portfolio Tracker</title>')) return text;
-        }
-    } catch (e) {
-        console.log("Vercel proxy failed, falling back to public proxies...");
-    }
-
-    // 2. FALLBACK: Free Public Proxies
-    const freeList = getShuffledFreeProxies();
-    for (const proxyGen of freeList) {
-        try {
-            const proxyUrl = proxyGen(targetUrl);
-            const response = await fetchWithTimeout(proxyUrl, {}, 6000); 
-            if (!response.ok) continue;
-
-            const text = await response.text();
-            
-            if (proxyUrl.includes('allorigins')) {
-                try {
-                    const json = JSON.parse(text);
-                    if (json.contents && json.contents.length > 500) return json.contents;
-                } catch (e) { continue; }
-            } else {
-                if (text && text.length > 500) return text; 
-            }
-        } catch (e) { /* Try next */ }
-    }
-
-    return null; 
+        const response = await fetchWithTimeout(`/api/proxy?url=${encodeURIComponent(targetUrl)}`, {}, 10000);
+        if (!response.ok) return null;
+        const text = await response.text();
+        // Ensure we aren't just getting the local Vite index.html fallback
+        if (text && text.length > minLength && !text.includes('<title>PSX Portfolio Tracker</title>')) return text;
+    } catch { /* Network or hosting check: the caller keeps its last saved data. */ }
+    return null;
 };
 
 // Scrape Live Data (Fallback for 1D chart)

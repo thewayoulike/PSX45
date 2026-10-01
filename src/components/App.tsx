@@ -1,4 +1,5 @@
 import { ResponsivePortfolioHeader, ResponsivePortfolioActions, ResponsivePlanNotice, MobileSectionNavigator } from './MobileLayout';
+import { PriceStaleNotice } from './PriceStaleNotice';
 import { setUnsavedLocalChanges, setRecoveryEditorOpen } from '../utils/chunkRecovery';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
@@ -2480,6 +2481,7 @@ const App: React.FC = () => {
                   <Dashboard
                       stats={stats}
                       lastUpdated={lastPriceUpdate}
+                      updateFailed={priceError && !isSyncing}
                       userName={driveUser?.name?.split(' ')[0]}
                       onRefresh={handleSyncMarket}
                       onCustomize={() => setCurrentView('DASH_CUSTOMIZE')}
@@ -2819,6 +2821,7 @@ const App: React.FC = () => {
                                           </div>
                                       </div>
                               </>} />
+                              <PriceStaleNotice failed={priceError && !isSyncing} lastUpdated={lastPriceUpdate} isFunds={isFundPortfolio} />
                             </div>
                            </div>
                        </div>

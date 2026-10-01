@@ -1,4 +1,5 @@
 import { ResponsiveMetricPanels } from './MobileLayout';
+import { formatPriceTime } from './PriceStaleNotice';
 import React from 'react';
 import { Holding, PortfolioStats, PortfolioType, RealizedTrade, Transaction } from '../types';
 import { formatTransactionLabel } from '../utils/fundDisplay';
@@ -16,6 +17,8 @@ import {
 interface DashboardProps {
   stats: PortfolioStats;
   lastUpdated?: string | null;
+  /** The latest price update failed: show when the displayed prices are from. */
+  updateFailed?: boolean;
   userName?: string;
   onRefresh?: () => void;
   onCustomize?: () => void;
@@ -258,7 +261,7 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], realizedTrades, displayNames = {} }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, updateFailed = false, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], realizedTrades, displayNames = {} }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const totalNetWorth = stats.totalValue + stats.freeCash;
   // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
@@ -321,7 +324,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, userNa
                   <LayoutGrid size={15} /> Customize
               </button>
           )}
-          {lastUpdated && <span className="text-xs font-medium text-slate-400 whitespace-nowrap bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full hidden md:inline-block">Updated: {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>}
+          {lastUpdated && (updateFailed
+            ? <span role="status" className="text-xs font-semibold whitespace-nowrap px-3 py-1.5 rounded-full bg-amber-50 text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">Update failed · prices from {formatPriceTime(lastUpdated)}</span>
+            : <span className="text-xs font-medium text-slate-400 whitespace-nowrap bg-slate-100 dark:bg-slate-800/50 px-3 py-1.5 rounded-full hidden md:inline-block">Updated: {new Date(lastUpdated).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>)}
           {onRefresh && (
             <button onClick={onRefresh} className="flex items-center gap-1.5 glass-input px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-all hover:scale-105 active:scale-95 cursor-pointer">
               <RefreshCw size={15} /> Refresh
