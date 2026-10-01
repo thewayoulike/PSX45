@@ -126,6 +126,52 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+describe('login configuration readiness', () => {
+  it('prepares restored-session expiry handling without opening Google and respects cleanup', async () => {
+    const requestAccessToken = vi.fn();
+    const initTokenClient = vi.fn(() => ({ requestAccessToken }));
+    vi.stubGlobal('window', { location: { origin: 'https://test.example' }, google: { accounts: { oauth2: { initTokenClient } } } });
+    mockCloud(() => response({ enabled: true, clientId: 'test.apps.googleusercontent.com' }));
+    const cleanup = service.initDriveAuth(() => {});
+    cleanup();
+    await service.googleSignInReadiness.prepare();
+    expect(initTokenClient).not.toHaveBeenCalled();
+    service.initDriveAuth(() => {});
+    await Promise.resolve();
+    expect(initTokenClient).toHaveBeenCalledTimes(1);
+    expect(requestAccessToken).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(3600000);
+    expect(await service.getValidToken()).toBeNull();
+    expect(storage.has('psx_drive_user_profile')).toBe(false);
+  });
+  it('does not launch Google or alert from an early tap; a new ready tap launches synchronously', async () => {
+    const requestAccessToken = vi.fn(), initTokenClient = vi.fn(() => ({ requestAccessToken }));
+    (window as any).google = { accounts: { oauth2: { initTokenClient } } };
+    vi.stubGlobal('alert', vi.fn());
+    let finish!: (response: Response) => void;
+    mockCloud(() => new Promise<Response>(resolve => { finish = resolve; }));
+    service.signInWithDrive(); await vi.advanceTimersByTimeAsync(0);
+    expect(service.googleSignInReadiness.getSnapshot().status).toBe('loading');
+    expect(requestAccessToken).not.toHaveBeenCalled(); expect(alert).not.toHaveBeenCalled();
+    finish(response({ enabled: true, clientId: 'configured-client' }));
+    await service.googleSignInReadiness.prepare();
+    expect(requestAccessToken).not.toHaveBeenCalled();
+    service.signInWithDrive(); expect(requestAccessToken).toHaveBeenCalledOnce();
+  });
+  it('shares the configuration request, times out, and recovers without clearing the portfolio', async () => {
+    mockCloud((_url, init) => new Promise((_resolve, reject) => init?.signal?.addEventListener('abort', () => reject(new Error('timeout')))));
+    const first = service.getRememberedDriveConfig(); expect(service.getRememberedDriveConfig()).toBe(first);
+    const failure = expect(first).rejects.toThrow('timeout');
+    await vi.advanceTimersByTimeAsync(10000); await failure;
+    expect(storage.get('psx_drive_access_token')).toBe('test-token');
+    mockCloud(() => response({ enabled: true })); await expect(service.getRememberedDriveConfig()).resolves.toMatchObject({ enabled: true });
+  });
+  it('does not cache malformed settings as a usable login configuration', async () => {
+    mockCloud(() => response({})); await expect(service.getRememberedDriveConfig()).rejects.toThrow('Invalid Drive');
+    mockCloud(() => response({ enabled: true })); await expect(service.getRememberedDriveConfig()).resolves.toMatchObject({ enabled: true });
+  });
+});
+
 describe('paged Gmail searches and email text', () => {
   function allowGmail() {
     (window as any).google = { accounts: { oauth2: { initTokenClient: ({ callback }: any) => ({

@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSX Tracker — improvements from the FolioSync knowledge base</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: #e7eee9; color: #16342f; font: 15px/1.5 Inter, system-ui, sans-serif; }
+  header { padding: 22px 22px 0; max-width: 1180px; margin: 0 auto; }
+  h1 { margin: 0 0 6px; font-size: 22px; letter-spacing: -0.03em; }
+  .lede { margin: 0; color: #3d534c; max-width: 760px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+  button.tab { border: 1px solid #d5e3db; background: #fff; border-radius: 999px; padding: 8px 14px; font-weight: 700; cursor: pointer; color: #16342f; }
+  button.tab.on { background: #16342f; color: #fff; border-color: #16342f; }
+  main { max-width: 1180px; margin: 0 auto; padding: 16px 22px 40px; display: grid; grid-template-columns: 340px 1fr; gap: 18px; align-items: start; }
+  .note { background: #fff; border: 1px solid #d5e3db; border-radius: 18px; padding: 16px 16px 8px; }
+  .note h2 { margin: 0 0 8px; font-size: 16px; }
+  .note p, .note li { color: #3d534c; font-size: 14px; }
+  .note ul { margin: 0 0 12px; padding-left: 18px; }
+  .stage { display: flex; justify-content: center; }
+  .phone { width: 390px; background: #f6faf7; border: 1px solid #d5e3db; border-radius: 28px; overflow: hidden; box-shadow: 0 18px 50px rgba(22,52,47,.12); }
+  .bar { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: #fff; border-bottom: 1px solid #e4eee8; }
+  .bar b { font-size: 15px; }
+  .bar span { font-size: 12px; color: #6b7f78; }
+  .body { padding: 14px; }
+  .card { background: #fff; border: 1px solid #e4eee8; border-radius: 16px; padding: 14px; margin-bottom: 10px; }
+  .kicker { font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #0e7a5a; margin: 0 0 4px; }
+  h3 { margin: 0 0 6px; font-size: 16px; }
+  .muted { color: #52685f; font-size: 13px; margin: 0; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-top: 1px solid #f0f4f1; font-size: 13px; }
+  .row:first-of-type { border-top: 0; }
+  .num { font-variant-numeric: tabular-nums; font-weight: 700; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .btn { flex: 1; border: 0; border-radius: 12px; padding: 10px 8px; font-weight: 800; cursor: pointer; }
+  .primary { background: #0e7a5a; color: #fff; }
+  .ghost { background: #eef6f2; color: #16342f; }
+  .warn { background: #fff7ed; color: #9a4b00; border-radius: 12px; padding: 10px 12px; font-size: 12.5px; margin-top: 10px; }
+  .pill { display: inline-block; background: #e7f4ee; color: #0e6b4f; font-size: 11px; font-weight: 800; border-radius: 999px; padding: 2px 8px; }
+  .down { color: #c0263a; } .up { color: #0e7a5a; }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th { text-align: left; color: #7d9088; font-size: 11px; padding: 4px 0; }
+  td { padding: 6px 0; border-top: 1px solid #f0f4f1; font-variant-numeric: tabular-nums; }
+  td.r, th.r { text-align: right; }
+  .screen { display: none; }
+  .screen.on { display: block; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>What to take from FolioSync, and what to leave</h1>
+  <p class="lede">Throwaway prototype. Sample prices. These four screens are the changes worth building. FolioSync’s automatic “buy shares with the dividend” and its purification rate are not in this prototype.</p>
+  <div class="tabs" id="tabs"></div>
+</header>
+<main>
+  <aside class="note" id="note"></aside>
+  <div class="stage">
+    <div class="phone">
+      <div class="bar"><b id="title">OGDC</b><span>Sample</span></div>
+      <div class="body">
+
+        <section class="screen" id="bonus">
+          <div class="card">
+            <p class="kicker">From the announcement you already show</p>
+            <h3>10% bonus on OGDC</h3>
+            <p class="muted">Book closure 12 Oct 2026. You held 500 shares on that date. Nothing is saved until you confirm.</p>
+            <div class="row"><span>Shares now</span><span class="num">500</span></div>
+            <div class="row"><span>Bonus shares</span><span class="num">50</span></div>
+            <div class="row"><span>Shares after</span><span class="num">550</span></div>
+            <div class="row"><span>Cost stays</span><span class="num">Rs. 142,500</span></div>
+            <div class="row"><span>Average cost</span><span class="num">285.00 → 259.09</span></div>
+            <p class="warn">This is not a buy. Cash does not change. Broker charges stay zero because the company issued the shares.</p>
+            <div class="actions">
+              <button class="btn ghost" type="button">Not now</button>
+              <button class="btn primary" type="button">Add bonus shares</button>
+            </div>
+          </div>
+          <div class="card">
+            <p class="kicker">Same screen, other actions</p>
+            <div class="row"><span>Stock split</span><span>Enter the ratio, same total cost</span></div>
+            <div class="row"><span>Right shares</span><span>Only the shares you actually paid for</span></div>
+          </div>
+        </section>
+
+        <section class="screen" id="why">
+          <div class="card">
+            <p class="kicker">Tap any total</p>
+            <h3>Why cash is Rs. 18,400</h3>
+            <div class="row"><span>Deposits</span><span class="num">80,000</span></div>
+            <div class="row"><span>Dividends received in cash</span><span class="num up">+4,200</span></div>
+            <div class="row"><span>Buys, including charges</span><span class="num down">−71,800</span></div>
+            <div class="row"><span>Sells, after charges</span><span class="num up">+12,000</span></div>
+            <div class="row"><span>Withdrawals and CGT paid</span><span class="num down">−6,000</span></div>
+            <div class="row"><span>Cash now</span><span class="num">18,400</span></div>
+            <p class="muted" style="margin-top:8px">A bonus or a fund reinvestment does not appear here. Those change shares or units, not this balance.</p>
+          </div>
+          <div class="card">
+            <p class="kicker">Three different “profits”</p>
+            <div class="row"><span>Today</span><span class="num down">−320 vs yesterday’s close</span></div>
+            <div class="row"><span>Open holdings</span><span class="num up">+6,140 vs remaining cost</span></div>
+            <div class="row"><span>Already sold</span><span class="num up">+2,450 after CGT</span></div>
+          </div>
+        </section>
+
+        <section class="screen" id="closed">
+          <div class="card">
+            <p class="kicker">Closed trades</p>
+            <h3>Sold, and still part of your return</h3>
+            <p class="muted">These no longer sit in holdings. They still count in completed gain.</p>
+            <table>
+              <thead><tr><th>Trade</th><th class="r">Qty</th><th class="r">Gain</th></tr></thead>
+              <tbody>
+                <tr><td>SYS<br><span class="muted">Sold 4 Aug</span></td><td class="r">20</td><td class="r up">+1,840</td></tr>
+                <tr><td>HUBC<br><span class="muted">Sold 19 Jun</span></td><td class="r">100</td><td class="r up">+610</td></tr>
+                <tr><td>FFC<br><span class="muted">Sold 2 Mar</span></td><td class="r">15</td><td class="r down">−220</td></tr>
+              </tbody>
+            </table>
+            <div class="row"><span>Completed gain after CGT</span><span class="num up">+2,230</span></div>
+          </div>
+        </section>
+
+        <section class="screen" id="plan">
+          <div class="card">
+            <p class="kicker">Plan only · no order is sent</p>
+            <h3>Rebalance</h3>
+            <p class="muted">Targets must add to 100%. This compares today’s weights with the mix you saved.</p>
+            <table>
+              <thead><tr><th></th><th class="r">Now</th><th class="r">Target</th><th class="r">Gap</th></tr></thead>
+              <tbody>
+                <tr><td>OGDC</td><td class="r">46%</td><td class="r">30%</td><td class="r down">16% over</td></tr>
+                <tr><td>MEBL</td><td class="r">18%</td><td class="r">25%</td><td class="r up">7% under</td></tr>
+                <tr><td>LUCK</td><td class="r">22%</td><td class="r">25%</td><td class="r up">3% under</td></tr>
+                <tr><td>Cash</td><td class="r">14%</td><td class="r">20%</td><td class="r up">6% under</td></tr>
+              </tbody>
+            </table>
+            <p class="warn">A suggestion, not a trade. You still enter any buy or sell yourself, with the real price and charges.</p>
+            <div class="actions">
+              <button class="btn ghost" type="button">Edit targets</button>
+              <button class="btn primary" type="button">Save plan</button>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</main>
+<script>
+const screens = [
+  ['bonus', '1. Bonus, split, rights', 'Apply a corporate action you already display',
+    'FolioSync can create bonus shares from an announcement, and it also has a separate split action. This app already lists bonus and rights on the announcement, then stops. The missing step is a confirm card: shares held on the book-closure date, shares to add, cost unchanged, average cost diluted. A right issue is different: only the shares you paid for, at the price you paid. Nothing is written until you press the button.'],
+  ['why', '2. Why this number', 'Explain cash, today, and total return in the screen',
+    'The strongest part of their knowledge base is the plain split between daily change, open gain, and completed gain, and the rule that a stock dividend is not the same as cash. That explanation lives in support articles. Here it should open when you tap the number, with the actual lines that made it. A bonus and a fund reinvestment stay out of the cash list.'],
+  ['closed', '3. Closed trades', 'Keep sold names out of holdings and inside the return',
+    'FolioSync moves a fully sold stock and a fully redeemed fund out of the active list and into a closed list. Completed gain stays in the lifetime total. This app already calculates that gain. The screen is the missing piece: date, quantity, and gain after CGT, separate from what you still hold.'],
+  ['plan', '4. Rebalance plan', 'Show the gap. Do not place the trade.',
+    'Their rebalance screen compares current weights with targets that must add to 100%, and it does not send orders. That is the right shape. A button that says “buy this” would fight the way this app records a real contract note.']
+];
+const tabs = document.getElementById('tabs');
+const note = document.getElementById('note');
+function show(id) {
+  for (const s of screens) {
+    document.getElementById(s[0]).classList.toggle('on', s[0] === id);
+  }
+  for (const b of tabs.querySelectorAll('button')) b.classList.toggle('on', b.dataset.id === id);
+  const item = screens.find(s => s[0] === id);
+  document.getElementById('title').textContent = id === 'why' || id === 'closed' || id === 'plan' ? 'Portfolio' : 'OGDC';
+  note.innerHTML = `<h2>${item[2]}</h2><p>${item[3]}</p>`;
+}
+for (const s of screens) {
+  const b = document.createElement('button');
+  b.className = 'tab'; b.type = 'button'; b.dataset.id = s[0]; b.textContent = s[1];
+  b.onclick = () => show(s[0]);
+  tabs.appendChild(b);
+}
+show('bonus');
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import { createSerialQueue } from '../utils/serialQueue';
 import { saveRecoveryCopies } from '../utils/recoveryStorage';
 import { readApiJson } from './apiResponse';
 import { gmailTextParts, gmailBodyText, type GmailTextPart } from '../utils/gmailBody';
+import { createGoogleSignInReadiness } from './googleSignInReadiness';
 // src/services/driveStorage.ts
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
@@ -59,18 +60,24 @@ export function setDrivePasswordProviders(session: typeof passwordSessionProvide
     passwordSessionProvider = session; linkedTokenProvider = token;
 }
 export function getRememberedDriveConfig() {
-    if (!rememberedConfigRequest) rememberedConfigRequest = fetch('/api/cloud-sync', {
+    if (!rememberedConfigRequest) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      rememberedConfigRequest = Promise.resolve().then(() => fetch('/api/cloud-sync', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'drive-config' }), signal: AbortSignal.timeout(10000),
-    }).then(async response => {
+        body: JSON.stringify({ action: 'drive-config' }), signal: controller.signal,
+      })).then(async response => {
         if (!response.ok) throw new Error('Drive connection check unavailable.');
         const config = await readApiJson(response, 'Drive connection check unavailable.');
+        if (typeof config.enabled !== 'boolean') throw new Error('Invalid Drive connection response.');
         rememberedDriveConfig = { enabled: config.enabled === true, clientId: config.clientId, error: config.error };
         if (!rememberedDriveConfig.enabled) rememberedConfigRequest = null;
         return rememberedDriveConfig;
-    }).catch(error => { rememberedConfigRequest = null; throw error; });
+      }).catch(error => { rememberedConfigRequest = null; throw error; }).finally(() => clearTimeout(timeout));
+    }
     return rememberedConfigRequest;
 }
+export const googleSignInReadiness = createGoogleSignInReadiness(getRememberedDriveConfig);
 export function installLinkedDriveSession(session: LinkedDriveSession, expectedEmail: string, notify = true) {
     const email = String(session.user?.email || '').trim().toLowerCase();
     if (email !== expectedEmail.trim().toLowerCase() || !session.accessToken || !(session.expiresIn > 60)) throw new Error('Drive connection does not match this account.');
@@ -115,16 +122,6 @@ const getEnv = (key: string) => {
 // Prioritize the User's Env Variable over the Hardcoded one
 const RAW_ID = getEnv(CLIENT_ID_KEY) || HARDCODED_CLIENT_ID;
 const CLIENT_ID = (RAW_ID && RAW_ID.includes('.apps.googleusercontent.com')) ? RAW_ID : undefined;
-
-const loadGoogleScript = () => {
-    if (document.getElementById('google-gsi-script')) return;
-    const script = document.createElement('script');
-    script.src = 'https://accounts.google.com/gsi/client';
-    script.async = true;
-    script.defer = true;
-    script.id = 'google-gsi-script';
-    document.body.appendChild(script);
-};
 
 function createDriveTokenClient(expectedEmail: string | null, attempt: number) {
     return window.google.accounts.oauth2.initTokenClient({
@@ -211,14 +208,19 @@ function requestRememberedDriveConnection(expectedEmail: string | null, bindPass
         codeClient.requestCode();
         return;
     }
-    alert('Google sign-in is still preparing. Please try again in a moment.');
+    void googleSignInReadiness.prepare();
 }
 
-let googleInitTimer: ReturnType<typeof setInterval> | undefined;
 export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promise<void>) => {
     driveSessionListener = onUserLoggedIn;
-    loadGoogleScript();
-    if (typeof window.location?.origin === 'string') void getRememberedDriveConfig().catch(() => {});
+    let active = true;
+    const attempt = driveLoginAttempt;
+    if (typeof window.location?.origin === 'string') void googleSignInReadiness.prepare().then(() => {
+        if (!active || attempt !== driveLoginAttempt || googleSignInReadiness.getSnapshot().status !== 'ready' || !CLIENT_ID) return;
+        // Preserve restored-session expiry handling without polling or opening a popup.
+        try { tokenClient = createDriveTokenClient(null, attempt); }
+        catch (error) { console.error('Error initializing Google Token Client', error); }
+    });
 
     try {
         const storedToken = localStorage.getItem(STORAGE_TOKEN_KEY);
@@ -244,28 +246,14 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promis
         console.error("Error restoring session", e);
     }
 
-    if (googleInitTimer) clearInterval(googleInitTimer);
-    const checkInterval = googleInitTimer = setInterval(() => {
-        if (window.google && window.google.accounts && window.google.accounts.oauth2) {
-            clearInterval(checkInterval);
-            if (!CLIENT_ID) return;
-
-            try {
-                tokenClient = createDriveTokenClient(null, driveLoginAttempt);
-            } catch (e) {
-                console.error("Error initializing Google Token Client", e);
-            }
-        }
-    }, 500);
-    return () => { clearInterval(checkInterval); if (driveSessionListener === onUserLoggedIn) driveSessionListener = null; };
+    return () => { active = false; if (driveSessionListener === onUserLoggedIn) driveSessionListener = null; };
 };
 
 export const signInWithDrive = (email?: string) => {
     const expectedEmail = typeof email === 'string' ? email.trim().toLowerCase() || null : null;
     // Do not accidentally use a non-remembered grant while the server check is still loading.
-    if (!rememberedDriveConfig) {
-        void getRememberedDriveConfig().catch(() => {});
-        alert('Google sign-in is still preparing. Please try again in a moment.');
+    if (!rememberedDriveConfig || !window.google?.accounts?.oauth2) {
+        void googleSignInReadiness.prepare();
         return;
     }
     if (expectedEmail && !rememberedDriveConfig.enabled) {
@@ -280,7 +268,7 @@ export const signInWithDrive = (email?: string) => {
         tokenClient = createDriveTokenClient(expectedEmail, ++driveLoginAttempt);
     }
     if (!tokenClient) {
-        alert("Google Service initializing... please wait 2 seconds and try again.");
+        void googleSignInReadiness.prepare();
         return;
     }
     tokenClient.requestAccessToken({ prompt: '', ...(expectedEmail ? { login_hint: expectedEmail } : {}) });

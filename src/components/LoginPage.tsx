@@ -4,6 +4,7 @@ import { Logo } from './ui/Logo';
 import { SiteFooter } from './SiteFooter';
 import { HOME_FAQS } from '../../config/site.js';
 import { LoginAppPreview } from './LoginAppPreview';
+import { GoogleAuthButton } from './GoogleAuthButton';
 import {
   User, LayoutDashboard, Radar, BellRing, Coins, Calculator, LineChart,
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
@@ -147,14 +148,14 @@ const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => voi
         <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
       </div>
 
-      <button
+      <GoogleAuthButton
         onClick={onGoogleLogin}
         className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:shadow-md text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-all"
       >
         <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 shrink-0" alt="" />
         Sign in with Google
         <span className="hidden sm:inline text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Recommended</span>
-      </button>
+      </GoogleAuthButton>
       <p className="text-[11px] text-slate-400 text-center mt-1.5">Your portfolio stays in your Drive. We retain encrypted Google permission so linked password logins can reopen it. Disconnect anytime in Profile & security.</p>
       <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-4 leading-relaxed">By creating an account, you agree to our <a href="/terms" className="underline">Terms & Conditions</a>. Read how your information is used in our <a href="/privacy" className="underline">Privacy Policy</a>.</p>
     </div>

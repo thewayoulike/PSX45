@@ -26,13 +26,15 @@ const DashboardGrid = lazy(() => import('./DashboardGrid').then(m => ({ default:
 const DashboardCustomizer = lazy(() => import('./DashboardCustomizer').then(m => ({ default: m.DashboardCustomizer })));
 const AdminUsers = lazy(() => import('./AdminUsers').then(m => ({ default: m.AdminUsers })));
 import { DashboardLayout, DashboardLayoutsByType, normalizeLayoutsByType, DEFAULT_LAYOUTS_BY_TYPE, defaultLayoutFor, applyPortfolioToLayout, PSX_ONLY_CARD_IDS } from './dashboard';
-const TransactionForm = lazy(() => import('./TransactionForm').then(m => ({ default: m.TransactionForm })));
+import { TransactionEditor } from './TransactionEditor';
+import { loadTransactionForm } from './transactionFormLoader';
 const BrokerManager = lazy(() => import('./BrokerManager').then(m => ({ default: m.BrokerManager })));
 const PriceEditor = lazy(() => import('./PriceEditor').then(m => ({ default: m.PriceEditor })));
 const DividendScanner = lazy(() => import('./DividendScanner').then(m => ({ default: m.DividendScanner })));
 const UpcomingEventsScanner = lazy(() => import('./UpcomingEventsScanner').then(m => ({ default: m.UpcomingEventsScanner })));
 const ApiKeyManager = lazy(() => import('./ApiKeyManager').then(m => ({ default: m.ApiKeyManager })));
 import { LoginPage } from './LoginPage';
+import { GoogleAuthButton } from './GoogleAuthButton';
 import { DriveConnectionGate } from './DriveConnectionGate';
 const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.ProfilePage })));
 const SuggestionsPage = lazy(() => import('./SuggestionsPage').then(m => ({ default: m.SuggestionsPage })));
@@ -1472,6 +1474,16 @@ const App: React.FC = () => {
   const hasStockHoldings = holdings.some(h => !isFundTicker(h.ticker));
   const marketReady = !isAuthChecking && !sbChecking && (!driveUser || isReadyToSave.current);
   useEffect(() => {
+      if (!marketReady || (!driveUser && !sbApproved)) return;
+      const prepare = () => { if (navigator.onLine) void loadTransactionForm().catch(() => {}); };
+      if ('requestIdleCallback' in window) {
+          const id = window.requestIdleCallback(prepare, { timeout: 8000 });
+          return () => window.cancelIdleCallback(id);
+      }
+      const timer = setTimeout(prepare, 1500);
+      return () => clearTimeout(timer);
+  }, [marketReady, driveUser?.email, sbApproved]);
+  useEffect(() => {
       if (!marketReady || !driveUser || !hasStockHoldings) return;
       let last = 0;
       const refresh = () => {
@@ -2621,12 +2633,12 @@ const App: React.FC = () => {
                                   </div>
                               </div>
                               <div className="flex items-center gap-2 shrink-0">
-                                  <button
+                                  <GoogleAuthButton
                                       onClick={handleLogin}
                                       className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-300 dark:hover:border-emerald-600 text-slate-800 dark:text-slate-100 font-bold text-sm px-4 py-2.5 rounded-xl shadow-sm transition-all hover:-translate-y-0.5 flex items-center gap-2 whitespace-nowrap"
                                   >
                                       <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4" alt="Google" /> Connect Google Drive
-                                  </button>
+                                  </GoogleAuthButton>
                                   <button
                                       onClick={() => setDriveBannerDismissed(true)}
                                       className="p-2 rounded-lg text-amber-600/70 dark:text-amber-400/70 hover:text-amber-700 dark:hover:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors"
@@ -3101,8 +3113,7 @@ const App: React.FC = () => {
               }}
           />
       )}
-      {showAddModal && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
-          <TransactionForm
+      {showAddModal && <TransactionEditor
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           onAddTransaction={handleAddTransaction}
@@ -3120,8 +3131,7 @@ const App: React.FC = () => {
           freeCash={stats.freeCash}
           savedScannedTrades={tradeScanResults}
           onSaveScannedTrades={handleUpdateTradeScanResults}
-      />
-      </Suspense>}
+      />}
       {showBrokerManager && <Suspense fallback={<div role="status" className="fixed bottom-6 right-6 z-50 rounded-lg bg-white p-4 shadow-lg text-slate-900">Opening tool…</div>}>
           <BrokerManager isOpen={showBrokerManager} onClose={() => setShowBrokerManager(false)} brokers={brokers} onAddBroker={handleAddBroker} onUpdateBroker={handleUpdateBroker} onDeleteBroker={handleDeleteBroker} />
       </Suspense>}

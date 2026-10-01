@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import * as Popover from '@radix-ui/react-popover';
 import { useMediaQuery } from '../hooks/useMediaQuery';
+import { GoogleAuthButton } from './GoogleAuthButton';
 import { AppView, PortfolioType } from '../types';
 import {
   LayoutDashboard, History, Bell, Calculator,
@@ -504,14 +505,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         )}
                     </div>
 
-                    <button
+                    <GoogleAuthButton
+                        compact={isCollapsed}
                         onClick={onLogin}
                         title={isCollapsed ? "Connect Google Drive" : undefined}
                         className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all w-full ${isCollapsed ? 'p-2.5' : 'px-3 py-2.5 text-xs'}`}
                     >
                         <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-4 h-4 flex-shrink-0" alt="Google" />
                         {!isCollapsed && <span>Connect Drive · load portfolio</span>}
-                    </button>
+                    </GoogleAuthButton>
 
                     <button
                         onClick={onLogout}
@@ -523,14 +525,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </button>
                 </div>
             ) : (
-                <button
+                <GoogleAuthButton
+                    compact={isCollapsed}
                     onClick={onLogin}
                     title={isCollapsed ? "Sign in with Google" : undefined}
                     className={`flex items-center justify-center gap-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-xl font-bold shadow-sm border border-slate-200 dark:border-slate-700 transition-all ${isCollapsed ? 'p-3' : 'px-4 py-2.5 w-full'}`}
                 >
                     <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 flex-shrink-0" alt="Google" />
                     {!isCollapsed && <span>Sign in</span>}
-                </button>
+                </GoogleAuthButton>
             )}
 
             <button

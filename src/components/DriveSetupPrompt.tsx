@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { cancelDriveSetup, completeDriveSetup, setDriveSetupRequiredHandler } from '../services/driveStorage';
+import { GoogleAuthButton } from './GoogleAuthButton';
 
 /** Only shown when Google confirms an account has no saved Drive connection. */
 export function DriveSetupPrompt() {
@@ -18,7 +19,7 @@ export function DriveSetupPrompt() {
     <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">Allow PSX Tracker to remember your Drive connection so future sign-ins can open your saved portfolio without repeating this setup.</p>
     <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">Your portfolio stays in your Google Drive.</p>
     <div className="mt-6 flex flex-wrap gap-3">
-      <button autoFocus type="button" onClick={completeDriveSetup} className="rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white">Connect Google Drive</button>
+      <GoogleAuthButton autoFocus onClick={completeDriveSetup} className="rounded-xl bg-emerald-600 px-4 py-3 font-semibold text-white">Connect Google Drive</GoogleAuthButton>
       <button type="button" onClick={cancelDriveSetup} className="rounded-xl border border-slate-300 px-4 py-3 dark:border-slate-600">Cancel</button>
     </div>
   </dialog>;

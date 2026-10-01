@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Cloud } from 'lucide-react';
 import { getPasswordAccountBackupStatus } from '../services/auth';
 import { Logo } from './ui/Logo';
+import { GoogleAuthButton } from './GoogleAuthButton';
 
 export function DriveConnectionGate({ email, onConnect, onUseLocal, onSignOut, error, onRetry }: {
   email: string; onConnect: () => void; onUseLocal: () => void; onSignOut: () => void; error?: string | null; onRetry?: () => void;
@@ -24,7 +25,7 @@ export function DriveConnectionGate({ email, onConnect, onUseLocal, onSignOut, e
       </p>
       {error && <div className="mt-4 rounded-xl p-3 bg-amber-50 dark:bg-amber-950 text-sm" role="alert"><p>{error}</p>{onRetry && <button type="button" className="underline min-h-[44px] font-semibold" onClick={onRetry}>Retry saved connection</button>}</div>}
       <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">Your password uses the same PSX Tracker account. If Drive was connected before remembered access was enabled, approve Google once to link it. Future password logins can then load your portfolio automatically, including on a new device. Choose <strong className="break-all">{email}</strong> in the Google window.</p>
-      <button type="button" onClick={onConnect} className="mt-6 w-full min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-3 flex justify-center items-center gap-2"><Cloud size={20} />Connect Drive & load portfolio</button>
+      <GoogleAuthButton onClick={onConnect} className="mt-6 w-full min-h-[48px] rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-3 flex justify-center items-center gap-2"><Cloud size={20} />Connect Drive & load portfolio</GoogleAuthButton>
       <p className="mt-3 text-xs leading-relaxed text-slate-500 dark:text-slate-400">Connecting loads your existing backup before cloud saving is enabled. Setting a password does not move or copy your portfolio to another account.</p>
       <div className="mt-5 border-t border-slate-200 dark:border-slate-700 pt-4">
         <button type="button" onClick={onUseLocal} className="min-h-[44px] underline text-sm">Use this device only</button>

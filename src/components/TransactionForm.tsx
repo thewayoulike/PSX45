@@ -21,7 +21,7 @@ import { EmailSearchPeriodPicker } from './EmailSearchPeriodPicker';
 import { buildEmailSearchQuery, type EmailSearchPeriod } from '../utils/emailSearch';
 import { emailBodyImportKey } from '../utils/gmailBody';
 
-interface TransactionFormProps {
+export interface TransactionFormProps {
   onAddTransaction: (transaction: Omit<Transaction, 'id' | 'portfolioId'>) => void;
   onUpdateTransaction?: (transaction: Transaction) => void;
   onManageBrokers?: () => void;
