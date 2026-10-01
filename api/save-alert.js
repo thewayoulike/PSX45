@@ -2,12 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { sidFor, mutateAlerts } from '../lib/alertsStore.js';
 import { alertQuotas } from '../lib/alertAccess.js';
 import { alertRequest } from '../lib/alertRequest.js';
+import { isPushServiceEndpoint } from '../lib/pushEndpoint.js';
 export default async function handler(req, res) {
   try {
     const context = await alertRequest(req, res);
     if (!context) return;
     const { subscription, ticker, alerts } = context.body;
-    if (typeof subscription?.endpoint !== 'string' || !subscription.endpoint.startsWith('https://') ||
+    if (!isPushServiceEndpoint(subscription?.endpoint) ||
         !subscription.keys?.p256dh || !subscription.keys?.auth ||
         typeof ticker !== 'string' || !/^[A-Z0-9.-]{1,24}$/i.test(ticker.trim()) ||
         !Array.isArray(alerts) || !alerts.length || alerts.length > 8) {

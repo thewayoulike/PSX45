@@ -1,12 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ gate: vi.fn(), rpc: vi.fn(), lookup: vi.fn(), records: vi.fn() }));
 vi.mock('./requireOnlineUser.js', () => ({ requireOnlineUser: mocks.gate }));
-vi.mock('./alertsStore.js', () => ({ sidFor: (s: string) => s, mutateAlerts: mocks.rpc, getAllRecords: mocks.records }));
+vi.mock('./alertsStore.js', () => ({ sidFor: (s: string) => s, mutateAlerts: mocks.rpc, getAllRecords: mocks.records, getRecordsForOwner: async (email: string) => (await mocks.records()).filter(({ rec }: any) => String(rec?.userEmail || '').toLowerCase() === email) }));
 vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: () => ({ select: () => ({ eq: () => ({ maybeSingle: mocks.lookup }) }) }) }) }));
 import save from '../api/save-alert.js';
 import list from '../api/get-alerts.js';
 import remove from '../api/delete-alert.js';
-const subscription = { endpoint: 'https://push.example/test', keys: { auth: 'a', p256dh: 'b' } };
+const subscription = { endpoint: 'https://fcm.googleapis.com/fcm/send/test', keys: { auth: 'a', p256dh: 'b' } };
 const body = () => ({ subscription, endpoint: subscription.endpoint, ticker: 'AAA', alerts: [{ price: 10, direction: 'ABOVE' }], id: 'one' });
 async function call(handler: any, input: any = body()) {
   const res: any = { setHeader: vi.fn(), end: vi.fn(), status: vi.fn(function(this: any, code) { this.code = code; return this; }),

@@ -1,4 +1,4 @@
-import { sidFor, mutateAlerts, getAllRecords } from '../lib/alertsStore.js';
+import { sidFor, mutateAlerts, getRecordsForOwner } from '../lib/alertsStore.js';
 import { alertRequest } from '../lib/alertRequest.js';
 export default async function handler(req, res) {
   try {
@@ -7,7 +7,7 @@ export default async function handler(req, res) {
     const { endpoint, id } = context.body;
     if (typeof id !== 'string' || !id) return res.status(400).json({ error: 'Missing alert ID' });
     const email = String(context.user.email || '').toLowerCase();
-    const records = (await getAllRecords()).filter(({ rec }) => String(rec?.userEmail || '').toLowerCase() === email);
+    const records = await getRecordsForOwner(email);
     const targets = records.filter(({ rec }) => (rec.alerts || []).some((alert) => alert.id === id));
     if (typeof endpoint === 'string' && endpoint && targets.length === 0) {
       await mutateAlerts(sidFor(endpoint), context.user.email, 'remove', { id });

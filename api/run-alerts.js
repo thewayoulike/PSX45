@@ -9,7 +9,7 @@ import { fetchPypsxQuotePrices } from '../lib/pypsxQuotes.js';
 
 // Fetch the PSX market-watch page once and return { TICKER: price }.
 async function fetchLivePrices() {
-  const response = await fetchPsx('https://dps.psx.com.pk/market-watch');
+  const response = await fetchPsx('https://dps.psx.com.pk/market-watch', { signal: AbortSignal.timeout(15000) });
   const html = await response.text();
 
   const livePrices = {};
@@ -53,7 +53,17 @@ async function fetchLivePrices() {
   return livePrices;
 }
 
+// Vercel stops this function at 60 s (vercel.json). Price overlays get a shared budget and
+// delivery stops claiming alerts near the limit, so a run is never cut off mid-batch.
+const OVERLAY_BUDGET_MS = 25000;
+const DELIVERY_DEADLINE_MS = 48000;
+const withinBudget = (promise, ms, label) => Promise.race([
+  promise,
+  new Promise(resolve => setTimeout(() => { console.warn(`[run-alerts] ${label} exceeded ${ms} ms; continuing without it`); resolve({}); }, ms)),
+]);
+
 export default async function handler(req, res) {
+  const startedAt = Date.now();
   if (!isCronAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized. Invalid Secret.' });
   }
@@ -81,25 +91,19 @@ export default async function handler(req, res) {
         )
       ),
     ];
-    try {
-      ohlcCloses = await fetchPsxLatestCloses(alertTickers);
-      console.log(`[run-alerts] OHLC overlay: ${Object.keys(ohlcCloses).length}/${alertTickers.length} alert tickers`);
-    } catch (e) {
-      console.warn('[run-alerts] OHLC overlay failed — using market-watch only', e);
-    }
-    try {
-      quoteCloses = await fetchPypsxQuotePrices(alertTickers);
-      console.log(`[run-alerts] pyPSX quote overlay: ${Object.keys(quoteCloses).length}/${alertTickers.length}`);
-    } catch (e) {
-      console.warn('[run-alerts] pyPSX quotes failed — keeping market-watch/OHLC backup', e);
-    }
+    // Independent sources: fetch together, bounded together.
+    [ohlcCloses, quoteCloses] = await Promise.all([
+      withinBudget(fetchPsxLatestCloses(alertTickers).catch(e => { console.warn('[run-alerts] OHLC overlay failed — using market-watch only', e); return {}; }), OVERLAY_BUDGET_MS, 'OHLC overlay'),
+      withinBudget(fetchPypsxQuotePrices(alertTickers).catch(e => { console.warn('[run-alerts] pyPSX quotes failed — keeping market-watch/OHLC backup', e); return {}; }), OVERLAY_BUDGET_MS, 'pyPSX quotes'),
+    ]);
+    console.log(`[run-alerts] overlays: OHLC ${Object.keys(ohlcCloses).length}/${alertTickers.length}, pyPSX ${Object.keys(quoteCloses).length}/${alertTickers.length}`);
 
     const pakistan = new Date(Date.now() + 5 * 3600000);
     const day = pakistan.getUTCDay();
     const hour = pakistan.getUTCHours();
     const marketOpen = day > 0 && day < 6 && hour >= 9 && hour < 16;
     const livePrices = applyPriceStack(marketWatch, ohlcCloses, quoteCloses, marketOpen);
-    const result = await deliverAlerts(records, livePrices, (...args) => webpush.sendNotification(...args));
+    const result = await deliverAlerts(records, livePrices, (...args) => webpush.sendNotification(...args), { deadline: startedAt + DELIVERY_DEADLINE_MS });
     return res.status(200).json({ success: true, ...result });
   } catch (error) {
     console.error('Run Alerts Error:', error);
