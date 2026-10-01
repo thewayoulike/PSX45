@@ -48,3 +48,13 @@ describe('mufapParse modern HTML', () => {
     expect(msf.validityDate).toBe('Sep 18, 2026');
   });
 });
+
+it('rejects rows whose columns have shifted instead of publishing wrong NAVs', async () => {
+  const { parseMufapNavHtml } = await import('./mufapParse.js');
+  const row = (cells: string[]) => `<table><tr>${cells.map(c => `<td>${c}</td>`).join('')}</tr></table>`;
+  const good = ['Open-End', 'ABC Asset Management Limited', 'ABC Income Fund', 'Income', 'Jan 1, 2020', '105.50', '103.2210', '103.2210', 'Sep 30, 2026', '1', '0'];
+  expect(parseMufapNavHtml(row(good))).toHaveLength(1);
+  // Validity column shifted into a number; offer and repurchase swapped far apart.
+  expect(parseMufapNavHtml(row([...good.slice(0, 8), '1.5', '0', '0']))).toHaveLength(0);
+  expect(parseMufapNavHtml(row([...good.slice(0, 5), '50.00', '103.2210', '103.2210', 'Sep 30, 2026', '1', '0']))).toHaveLength(0);
+});
