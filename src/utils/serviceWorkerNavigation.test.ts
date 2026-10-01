@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   routes: [] as any[], order: [] as string[], network: vi.fn(), offline: vi.fn(), listeners: {} as Record<string, Function>,
+  navigationOptions: {} as any,
 }));
 vi.mock('workbox-precaching', () => ({
   precache: () => {}, cleanupOutdatedCaches: () => {},
@@ -12,7 +13,7 @@ vi.mock('workbox-routing', () => ({
   NavigationRoute: class { constructor(public handler: Function, public options: any) {} },
 }));
 vi.mock('workbox-strategies', () => ({
-  NetworkFirst: class { handle = mocks.network; }, CacheFirst: class {},
+  NetworkFirst: class { constructor(options: any) { mocks.navigationOptions = options; } handle = mocks.network; }, CacheFirst: class {},
 }));
 vi.mock('workbox-expiration', () => ({ ExpirationPlugin: class {} }));
 beforeEach(async () => {
@@ -39,6 +40,33 @@ it('does not show an upstream error or JSON response as the app shell', async ()
   expect(await mocks.routes[0].handler({})).toBe(fallback);
   mocks.network.mockResolvedValue(new Response('{}', { headers: { 'Content-Type': 'application/json' } }));
   expect(await mocks.routes[0].handler({})).toBe(fallback);
+});
+it.each([200, 403, 429])('shows a hosting challenge with status %s instead of hiding it behind the installed shell', async (status) => {
+  const challenge = new Response('<html>Complete the security check</html>', {
+    status, headers: { 'Content-Type': 'text/html', 'x-vercel-mitigated': 'challenge' },
+  });
+  mocks.network.mockResolvedValue(challenge);
+  expect(await mocks.routes[0].handler({ request: {} })).toBe(challenge);
+  expect(mocks.offline).not.toHaveBeenCalled();
+});
+it('never adds a hosting challenge to the navigation cache, even if it uses status 200', async () => {
+  const plugin = mocks.navigationOptions.plugins[0];
+  const challenge = new Response('<html>Complete the security check</html>', {
+    headers: { 'Content-Type': 'text/html', 'x-vercel-mitigated': 'challenge' },
+  });
+  expect(await plugin.cacheWillUpdate({ response: challenge })).toBeNull();
+  const shell = new Response('<html>Current portfolio shell</html>', { headers: { 'Content-Type': 'text/html' } });
+  expect(await plugin.cacheWillUpdate({ response: shell })).toBe(shell);
+});
+it('ignores a previously cached challenge while preserving the valid offline shell', async () => {
+  const plugin = mocks.navigationOptions.plugins[0];
+  const cachedChallenge = new Response('<html>Expired security check</html>', {
+    headers: { 'Content-Type': 'text/html', 'x-vercel-mitigated': 'challenge' },
+  });
+  expect(await plugin.cachedResponseWillBeUsed({ cachedResponse: cachedChallenge })).toBeNull();
+  const shell = new Response('<html>Saved portfolio shell</html>', { headers: { 'Content-Type': 'text/html' } });
+  expect(await plugin.cachedResponseWillBeUsed({ cachedResponse: shell })).toBe(shell);
+  expect(await plugin.cachedResponseWillBeUsed({ cachedResponse: undefined })).toBeUndefined();
 });
 it('keeps APIs, assets and public guide pages outside the app navigation fallback', () => {
   const deny = mocks.routes[0].options.denylist as RegExp[];

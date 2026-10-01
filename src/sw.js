@@ -7,9 +7,14 @@ import { recoveryActivationStatus } from './utils/swRecovery';
 // Use the manifest injected at build time -> real offline caching.
 precache(self.__WB_MANIFEST || []);
 cleanupOutdatedCaches();
+const isHostingChallenge = (response) => response?.headers.get('x-vercel-mitigated') === 'challenge';
 const navigation = new NetworkFirst({
   cacheName: 'psx-navigation-v1', networkTimeoutSeconds: 3, fetchOptions: { cache: 'no-cache' },
-  plugins: [{ cacheWillUpdate: async ({ response }) => response.status === 200 && /text\/html/i.test(response.headers.get('Content-Type') || '') ? response : null },
+  plugins: [{
+    cacheWillUpdate: async ({ response }) => !isHostingChallenge(response) && response.status === 200 && /text\/html/i.test(response.headers.get('Content-Type') || '') ? response : null,
+    // A security check is tied to the current request, never an offline app shell.
+    cachedResponseWillBeUsed: async ({ cachedResponse }) => isHostingChallenge(cachedResponse) ? null : cachedResponse,
+  },
     new ExpirationPlugin({ maxEntries: 12, maxAgeSeconds: 7 * 86400 })],
 });
 // Register before the precache route: an online refresh must request the current HTML,
@@ -17,6 +22,9 @@ const navigation = new NetworkFirst({
 registerRoute(new NavigationRoute(async (context) => {
   try {
     const response = await navigation.handle(context);
+    // Let the browser complete the hosting check even when it returns 403/429.
+    // Falling back to the app here hides the check while its API calls stay blocked.
+    if (isHostingChallenge(response)) return response;
     if (response && response.ok && /text\/html/i.test(response.headers.get('Content-Type') || '')) return response;
   } catch { /* Network and runtime cache unavailable: use the installed offline shell. */ }
   return createHandlerBoundToURL('/index.html')(context);

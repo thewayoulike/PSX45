@@ -292,6 +292,55 @@ describe('cloud save outcomes and recovery', () => {
     expect(await Promise.all([service.getValidToken(),service.getValidToken()])).toEqual(['renewed','renewed']);
     expect(provider).toHaveBeenCalledTimes(1);expect(storage.get('psx_drive_access_token')).toBe('renewed');
   });
+  it.each([
+    { kind: 'hosting-check' as const, status: 429 },
+    { kind: 'http' as const, status: 503 },
+  ])('keeps the signed-in account and unsynced portfolio when token renewal receives $kind/$status, then recovers on retry', async ({ kind, status }) => {
+    // Prepare a real expiry path: an initialized Google client would otherwise
+    // clear the account and notify App to return to login when renewal fails.
+    const requestAccessToken = vi.fn();
+    const initTokenClient = vi.fn(() => ({ requestAccessToken }));
+    vi.stubGlobal('window', { location: { origin: 'https://test.example' }, google: { accounts: { oauth2: { initTokenClient } } } });
+    mockCloud(() => response({ enabled: true, clientId: 'test.apps.googleusercontent.com' }));
+    service.initDriveAuth(() => {});
+    await service.googleSignInReadiness.prepare();
+    expect(initTokenClient).toHaveBeenCalledOnce();
+
+    const expired = vi.fn();
+    service.setDriveSessionExpiredHandler(expired);
+    const pending = JSON.stringify({ revision: 'local-edit', baseVersion: 2, data: { transactions: [{ id: 'unsaved-trade' }], portfolios: [{ id: 'p1' }] } });
+    const active = JSON.stringify([{ id: 'unsaved-trade', portfolioId: 'p1' }]);
+    storage.set(pendingKey('a@example.com'), pending);
+    storage.set('psx_transactions', active);
+    const profile = storage.get('psx_drive_user_profile');
+    const { ApiResponseError } = await import('./apiResponse');
+    const failure = new ApiResponseError('Temporary renewal interruption', status, kind);
+    const provider = vi.fn().mockRejectedValueOnce(failure).mockResolvedValue({
+      connected: true, accessToken: 'renewed-after-interruption', expiresIn: 3600,
+      user: { email: 'a@example.com', name: 'A', picture: '' },
+    });
+    service.setDrivePasswordProviders(async () => ({ email: 'a@example.com', token: 'password-token' }), provider);
+    await vi.advanceTimersByTimeAsync(3600001);
+
+    const attempts = await Promise.allSettled([service.getValidToken(), service.getValidToken()]);
+    expect(attempts).toEqual([{ status: 'rejected', reason: failure }, { status: 'rejected', reason: failure }]);
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(storage.get('psx_drive_user_profile')).toBe(profile);
+    expect(storage.get('psx_drive_access_token')).toBe('test-token');
+    expect(storage.get(pendingKey('a@example.com'))).toBe(pending);
+    expect(storage.get('psx_transactions')).toBe(active);
+    expect(expired).not.toHaveBeenCalled();
+
+    expect(await service.getValidToken()).toBe('renewed-after-interruption');
+    expect(provider).toHaveBeenNthCalledWith(2, 'a@example.com');
+    expect(storage.get('psx_drive_access_token')).toBe('renewed-after-interruption');
+    expect(JSON.parse(storage.get('psx_drive_user_profile')!).email).toBe('a@example.com');
+    expect(storage.get(pendingKey('a@example.com'))).toBe(pending);
+    expect(storage.get('psx_transactions')).toBe(active);
+    expect(service.hasValidSession()).toBe(true);
+    expect(expired).not.toHaveBeenCalled();
+    expect(requestAccessToken).not.toHaveBeenCalled();
+  });
   it('ignores a renewed token if the user signs out while it is loading', async () => {
     let resolve!:(v:any)=>void;
     service.setDrivePasswordProviders(null,()=>new Promise(r=>{resolve=r;}));
