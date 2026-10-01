@@ -600,9 +600,10 @@ const parseMarketWatchTable = (html: string, results: Record<string, any>, targe
                 const symCell = cols[colMap.SYMBOL];
                 let symbolText = symCell.querySelector('a')?.textContent?.trim().toUpperCase() || "";
                 if (!symbolText) {
-                    const tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = symCell.innerHTML.replace(/<br\s*\/?>/gi, ' ');
-                    symbolText = (tempDiv.textContent || "").toUpperCase().replace(/\s+/g, ' ').trim();
+                    // Read text from an inert copy. Upstream HTML is never put into the live page.
+                    const cell = symCell.cloneNode(true) as Element;
+                    cell.querySelectorAll('br').forEach(br => br.replaceWith(' '));
+                    symbolText = (cell.textContent || "").toUpperCase().replace(/\s+/g, ' ').trim();
                 }
                 
                 let matchedTicker: string | null = null;
