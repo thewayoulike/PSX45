@@ -726,3 +726,110 @@ describe('cloud save outcomes and recovery', () => {
     expect(service.getPendingCloud()?.data.marker).toBe('keep-b');
   });
 });
+
+describe('conflicts ask before replacing anything', () => {
+  // A fake Drive + cloud-sync head. `other()` simulates another device committing a save.
+  function fakeCloud(initial: any = { transactions: [{ id: 'cloud-0' }], portfolios: [] }) {
+    const files = new Map<string, any>([['f0', initial]]);
+    const state = { head: { revision: 1, fileId: 'f0' as string | null }, trashed: [] as string[], loseCommitResponse: false, commits: 0 };
+    let n = 0;
+    mockCloud(async (url, init) => {
+      if (url === '/api/cloud-sync') {
+        const body = JSON.parse(String(init?.body));
+        if (body.action === 'commit') {
+          if (body.revision !== state.head.revision) return response({ error: 'conflict' }, 409);
+          state.head = { revision: state.head.revision + 1, fileId: body.fileId }; state.commits++;
+          if (state.loseCommitResponse) { state.loseCommitResponse = false; throw new TypeError('network lost'); }
+        }
+        return response(state.head);
+      }
+      if (url.includes('/upload/')) {
+        const id = `f${++n}`; files.set(id, JSON.parse(await ((init!.body as FormData).get('file') as Blob).text()));
+        return response({ id });
+      }
+      const m = url.match(/files\/([^?]+)\?alt=media/); if (m) return response(files.get(m[1]));
+      const t = url.match(/files\/([^?]+)$/); if (t && init?.method === 'PATCH') { state.trashed.push(t[1]); return response({}); }
+      return response({ files: [] });
+    });
+    const other = (data: any) => { files.set('other', data); state.head = { revision: state.head.revision + 1, fileId: 'other' }; };
+    return { state, files, other };
+  }
+  beforeEach(() => { vi.useRealTimers(); vi.stubGlobal('indexedDB', new IDBFactory()); });
+
+  it('a focus refresh with unsynced edits raises a conflict and replaces nothing', async () => {
+    const cloud = fakeCloud();
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 1, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
+    cloud.other({ transactions: [{ id: 'theirs' }], portfolios: [] });
+    const copiesBefore = (await readRecoveryCopies('a@example.com')).length;
+    await expect(service.readLatestFromDrive(() => ({ transactions: [{ id: 'mine' }] }), { mode: 'refresh' })).rejects.toThrow('Another device saved a newer version.');
+    expect(service.hasCloudConflict()).toBe(true);
+    expect(service.getPendingCloud()?.data.transactions[0].id).toBe('mine');
+    expect((await readRecoveryCopies('a@example.com')).length).toBe(copiesBefore);
+  });
+  it('edits still inside the save debounce also count as unsynced', async () => {
+    const cloud = fakeCloud();
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    cloud.other({ transactions: [{ id: 'theirs' }], portfolios: [] });
+    await expect(service.readLatestFromDrive(() => ({}), { mode: 'refresh', localDirty: true })).rejects.toThrow('Another device');
+  });
+  it('a focus refresh with nothing unsynced still picks up the other device', async () => {
+    const cloud = fakeCloud();
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    cloud.other({ transactions: [{ id: 'theirs' }], portfolios: [] });
+    expect((await service.readLatestFromDrive(() => ({}), { mode: 'refresh' })).transactions[0].id).toBe('theirs');
+    expect(service.hasCloudConflict()).toBe(false);
+  });
+  it('startup keeps conflicting unsynced edits on screen and blocks saving until the person chooses', async () => {
+    const cloud = fakeCloud();
+    storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 0, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
+    expect((await service.readLatestFromDrive(() => ({}), { mode: 'startup' })).transactions[0].id).toBe('mine');
+    expect(service.hasCloudConflict()).toBe(true);
+    expect((await service.saveToDrive({ transactions: [{ id: 'mine' }], portfolios: [] })).ok).toBe(false);
+    expect(cloud.state.commits).toBe(0);
+  });
+  it('“Keep this device” uploads this version and keeps the other device’s as a recovery copy', async () => {
+    const cloud = fakeCloud();
+    storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 0, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    const result = await service.keepThisDeviceVersion(() => ({ transactions: [{ id: 'mine' }], portfolios: [] }));
+    expect(result.ok).toBe(true);
+    expect(cloud.files.get(cloud.state.head.fileId!).transactions[0].id).toBe('mine');
+    expect(service.hasCloudConflict()).toBe(false);
+    const copies = await readRecoveryCopies('a@example.com');
+    expect(copies.map(c => JSON.parse(c.raw).data.transactions[0].id)).toContain('cloud-0');
+  });
+  it('a commit that landed but lost its response is recognised, not reported as a conflict', async () => {
+    const cloud = fakeCloud();
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    cloud.state.loseCommitResponse = true;
+    expect((await service.saveToDrive({ transactions: [{ id: 'one' }], portfolios: [] })).ok).toBe(false);
+    const second = await service.saveToDrive({ transactions: [{ id: 'two' }], portfolios: [] });
+    expect(second.ok).toBe(true);
+    expect(cloud.state.commits).toBe(2);
+    expect(service.hasCloudConflict()).toBe(false);
+  });
+  it('a rejected commit removes its uploaded file from Drive', async () => {
+    const cloud = fakeCloud();
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    // Another device commits between this save's head check and its commit.
+    const realFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation(async (url: any, init?: any) => {
+      if (String(url).includes('/upload/')) { const r = await realFetch(url, init); cloud.other({ transactions: [], portfolios: [] }); return r; }
+      return realFetch(url, init);
+    });
+    expect((await service.saveToDrive({ transactions: [{ id: 'late' }], portfolios: [] })).ok).toBe(false);
+    expect(cloud.state.trashed).toEqual(['f1']);
+  });
+  it('full device storage does not block the cloud save', async () => {
+    const cloud = fakeCloud();
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    const setItem = localStorage.setItem;
+    vi.spyOn(localStorage, 'setItem').mockImplementation((k: string, v: string) => {
+      if (k.startsWith('psx_pending_cloud_v1:')) throw new DOMException('full', 'QuotaExceededError');
+      return setItem(k, v);
+    });
+    expect((await service.saveToDrive({ transactions: [{ id: 'big' }], portfolios: [] })).ok).toBe(true);
+    expect(cloud.files.get(cloud.state.head.fileId!).transactions[0].id).toBe('big');
+  });
+});

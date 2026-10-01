@@ -83,7 +83,7 @@ import { ThemeToggle } from './ui/ThemeToggle';
 const HowItWorksPage = React.lazy(() => import('./HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
 import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, keepThisDeviceVersion, hasCloudConflict, CLOUD_CONFLICT_MESSAGE as CLOUD_CONFLICT_PROMPT, type CloudReadMode, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
 import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } from '../services/panelCache';
 import { stockDayChange } from '../utils/stockDayPL';
 import { oversellCashCredit } from '../utils/oversellCash';
@@ -694,6 +694,8 @@ const App: React.FC = () => {
   // loading gates open after a few seconds so the user at least reaches the
   // app or the login screen instead of an endless loader.
   const saveDeferred = useRef(false);
+  // True from an edit until its cloud save succeeds (covers the 3 s debounce before a pending copy exists).
+  const localDirtyRef = useRef(false);
   const driveBootRef = useRef(false);
   const authPendingRef = useRef(true);
   driveBootRef.current = restoringDrive || isCloudSyncing;
@@ -754,7 +756,8 @@ const App: React.FC = () => {
           if (cloudData.ldcpMap) setLdcpMap(cloudData.ldcpMap);
           if (cloudData.priceTimestamps) setPriceTimestamps(cloudData.priceTimestamps);
           if (cloudData.currentPortfolioId) setCurrentPortfolioId(cloudData.currentPortfolioId);
-          if (cloudData.sectorOverrides) setSectorOverrides(prev => ({ ...prev, ...cloudData.sectorOverrides }));
+          // Replace, not merge: an override deleted on another device must not come back.
+          if (cloudData.sectorOverrides) setSectorOverrides(cloudData.sectorOverrides);
           if (cloudData.scannerState) setScannerState(cloudData.scannerState);
           if (cloudData.performanceHistory) setPerformanceHistory(cloudData.performanceHistory);
           if (cloudData.fairValueCache) setFairValueCache(cloudData.fairValueCache);
@@ -853,13 +856,22 @@ const App: React.FC = () => {
               // The startup preview is read-only. Keep its opening snapshot stable
               // while derived prices/history and the recovery transaction complete.
               const openingSnapshot = cloudSnapshotRef.current();
-              const cloudData = await readLatestFromDrive(() => openingSnapshot);
+              const cloudData = await readLatestFromDrive(() => openingSnapshot, { mode: 'startup' });
               if (!stillThisAccount()) return;
               applyCloudSnapshot(cloudData);
               markStartup('cloud_portfolio');
               setUnsavedLocalChanges(false);
-              if (cloudData?.lastModified && !getPendingCloud()) setLastCloudSave(cloudData.lastModified);
+              const restoredPending = getPendingCloud();
+              if (cloudData?.lastModified && !restoredPending) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
+              if (hasCloudConflict()) {
+                  // This device's unsynced edits are on screen; the person picks which version to keep.
+                  localDirtyRef.current = true;
+                  setCloudSyncError(CLOUD_CONFLICT_PROMPT);
+              } else if (restoredPending) {
+                  // Restored unsynced edits still need uploading: don't treat them as already saved.
+                  skipHydrationSave.current = false;
+              }
               retrySheetExport();
               setPendingCloud(getPendingCloud());
           } catch (e) {
@@ -1874,7 +1886,8 @@ const App: React.FC = () => {
   const cloudSnapshotRef = useRef(getCloudSnapshot);
   cloudSnapshotRef.current = getCloudSnapshot;
 
-  const handleLoadLatestCloud = async () => {
+  // mode 'refresh' never replaces unsynced edits; 'load' is the person choosing the cloud version.
+  const handleLoadLatestCloud = async (mode: CloudReadMode = 'load') => {
       if (isLoadingLatestCloud.current || !driveUser) return;
       const email = driveUser.email;
       const wasReady = isReadyToSave.current;
@@ -1883,10 +1896,12 @@ const App: React.FC = () => {
       cloudRevision.current++;
       setIsCloudSyncing(true);
       try {
-          const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current(), true);
+          const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current(), { mode, localDirty: localDirtyRef.current });
           if (loadedEmailRef.current !== email) return;
           if (cloudData) {
               applyCloudSnapshot(cloudData);
+              localDirtyRef.current = false;
+              setUnsavedLocalChanges(false);
               setLastCloudSave(cloudData.lastModified || new Date().toISOString());
           }
           setCloudSyncError(null);
@@ -1908,12 +1923,34 @@ const App: React.FC = () => {
   };
   const refreshCloudRef = useRef(handleLoadLatestCloud);
   refreshCloudRef.current = handleLoadLatestCloud;
+  const handleKeepThisDevice = async () => {
+      if (isLoadingLatestCloud.current || !driveUser) return;
+      const email = driveUser.email;
+      isLoadingLatestCloud.current = true;
+      cloudRevision.current++;
+      setIsCloudSyncing(true);
+      try {
+          const result = await keepThisDeviceVersion(() => cloudSnapshotRef.current());
+          if (loadedEmailRef.current !== email) return;
+          if (result.ok === true) {
+              localDirtyRef.current = false;
+              setUnsavedLocalChanges(false);
+              setLastCloudSave(result.savedAt);
+              setCloudSyncError(null);
+              if (result.sheetId) setGoogleSheetId(result.sheetId);
+          } else setCloudSyncError(result.error);
+      } finally {
+          isLoadingLatestCloud.current = false;
+          setPendingCloud(getPendingCloud());
+          setIsCloudSyncing(false);
+      }
+  };
   useEffect(() => {
       let lastCheck = 0;
       const refresh = () => {
           if (document.visibilityState === 'hidden' || !isReadyToSave.current || Date.now() - lastCheck < 5000) return;
           lastCheck = Date.now();
-          void refreshCloudRef.current();
+          void refreshCloudRef.current('refresh');
       };
       window.addEventListener('focus', refresh);
       window.addEventListener('online', refresh);
@@ -1951,12 +1988,18 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-      if (skipPersistRef.current || (driveUser && !isReadyToSave.current)) return;
+      if (skipPersistRef.current) return;
+      if (driveUser && !isReadyToSave.current) {
+          // An edit during a background refresh: save it once the refresh finishes.
+          if (isLoadingLatestCloud.current) { saveDeferred.current = true; localDirtyRef.current = true; }
+          return;
+      }
       if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) return;
       // Applying a downloaded snapshot should not upload the same data again.
       if (skipHydrationSave.current) { skipHydrationSave.current = false; sheetInputs.current = { transactions, portfolios }; return; }
       if (driveUser && isReadyToSave.current) {
           const revision = ++cloudRevision.current;
+          localDirtyRef.current = true;
           setUnsavedLocalChanges(true);
           setIsCloudSyncing(true);
           const timer = setTimeout(async () => {
@@ -1970,6 +2013,7 @@ const App: React.FC = () => {
               const result = await saveToDrive(snapshot, exportChanged);
               if (cloudRevision.current !== revision) return;
               if (result.ok === true) {
+                  localDirtyRef.current = false;
                   setUnsavedLocalChanges(false);
                   sheetInputs.current = { transactions: snapshot.transactions, portfolios: snapshot.portfolios };
                   setLastCloudSave(result.savedAt);
@@ -2567,7 +2611,8 @@ const App: React.FC = () => {
              pendingQueuedAt={pendingCloud?.queuedAt ?? null}
              onCloudRetry={() => isReadyToSave.current ? setCloudRetryTick(t => t + 1) : window.location.reload()}
              onDownloadPending={downloadPendingCloudBackup}
-             onLoadCloud={handleLoadLatestCloud}
+             onLoadCloud={() => void handleLoadLatestCloud('load')}
+             onKeepThisDevice={() => void handleKeepThisDevice()}
              hasApiKeys={!!userApiKey}
           />
 
