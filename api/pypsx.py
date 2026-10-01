@@ -1,4 +1,6 @@
 """Bounded, cached market-data gateway. No unbounded SDK work in the request process."""
+import hmac
+import os
 from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlparse
 from pathlib import Path
@@ -24,6 +26,11 @@ def run_market(q):
         raise ValueError('Response exceeds size limit')
     return json.loads(result.stdout)
 
+def _is_internal(supplied):
+    secret = (os.environ.get('INTERNAL_API_SECRET') or os.environ.get('CRON_SECRET') or '').strip()
+    return bool(secret) and bool(supplied) and hmac.compare_digest(supplied.encode(), secret.encode())
+
+
 class handler(BaseHTTPRequestHandler):
     def do_OPTIONS(self):
         self.send_response(204)
@@ -41,7 +48,9 @@ class handler(BaseHTTPRequestHandler):
             return self._json(400, {'error': invalid})
         try:
             ip = self.headers.get('x-forwarded-for', '').split(',')[0].strip() or str(self.client_address[0])
-            if not allowed_request(ip):
+            # Server-to-server calls (proxy, alert cron) all arrive from the function's own IP. They are
+            # already limited per user at their public entry, so they must not share one bucket here.
+            if not _is_internal(self.headers.get('x-psx-internal', '')) and not allowed_request(ip):
                 return self._json(429, {'error': 'Too many requests. Please retry shortly.'})
         except Exception:
             return self._json(503, {'error': 'Market-data service temporarily unavailable.'})
