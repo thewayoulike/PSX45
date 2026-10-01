@@ -21,12 +21,13 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-admin-secret');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
+  // Limit attempts before checking the secret, so failed guesses are throttled too.
+  if (!await limitRequest(req, res, 'admin', 60)) return;
   const expected = (process.env.ADMIN_SECRET || '').trim();
   if (!expected) return res.status(500).json({ error: 'Admin secret not configured' });
   const supplied = Buffer.from(getSecret(req));
   const wanted = Buffer.from(expected);
   if (supplied.length !== wanted.length || !timingSafeEqual(supplied, wanted)) return res.status(401).json({ error: 'Unauthorized' });
-  if (!await limitRequest(req, res, 'admin', 60)) return;
 
   const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -116,6 +117,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   } catch (e) {
     console.error('admin-users error', e);
-    return res.status(500).json({ error: e.message });
+    return res.status(500).json({ error: 'Admin action failed. Check the server logs.' });
   }
 }

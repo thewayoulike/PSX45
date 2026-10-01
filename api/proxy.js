@@ -50,7 +50,8 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600');
       return res.status(200).json(payload);
     } catch (e) {
-      return res.status(502).json({ error: e.message || 'OHLC fetch failed' });
+      console.error('[proxy] ohlc failed', e?.message);
+      return res.status(502).json({ error: 'OHLC fetch failed' });
     }
   }
 
@@ -65,7 +66,8 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=86400');
       return res.status(200).json(payload);
     } catch (e) {
-      return res.status(502).json({ error: e.message || 'Company info fetch failed' });
+      console.error('[proxy] company info failed', e?.message);
+      return res.status(502).json({ error: 'Company info fetch failed' });
     }
   }
 
@@ -81,7 +83,8 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600');
       return res.status(200).json(payload);
     } catch (e) {
-      return res.status(502).json({ error: e.message || 'Chart analysis fetch failed' });
+      console.error('[proxy] chart analysis failed', e?.message);
+      return res.status(502).json({ error: 'Chart analysis fetch failed' });
     }
   }
 
@@ -98,7 +101,8 @@ export default async function handler(req, res) {
       res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
       return res.status(200).json(payload);
     } catch (e) {
-      return res.status(502).json({ error: e.message || 'Intraday fetch failed' });
+      console.error('[proxy] intraday failed', e?.message);
+      return res.status(502).json({ error: 'Intraday fetch failed' });
     }
   }
 
@@ -176,9 +180,16 @@ export default async function handler(req, res) {
 
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 's-maxage=60');
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'text/html; charset=utf-8');
+    // Upstream pages are data for the app, never pages on psx-tracker.com: anything that is not
+    // JSON or CSV is served as plain text, so proxied HTML or script cannot run on this origin.
+    const upstreamType = response.headers.get('content-type') || '';
+    res.setHeader('Content-Type', /^(?:application\/json|text\/csv)(?:;|$)/i.test(upstreamType) ? upstreamType : 'text/plain; charset=utf-8');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
     return res.status(200).send(data);
   } catch (error) {
-    return res.status(502).json({ error: error.message || 'Proxy fetch failed' });
+    console.error('[proxy] fetch failed', target?.hostname, error?.message);
+    const known = /^Upstream redirect/.test(error?.message || '');
+    return res.status(502).json({ error: known ? error.message : 'Proxy fetch failed' });
   }
 }
