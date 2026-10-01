@@ -61,3 +61,26 @@ describe('PSX historical fetch', () => {
     expect(posted).toEqual(['stale-key', 'fresh-key']);
   });
 });
+
+describe('latest closes for alerts', () => {
+  const serve = () => vi.stubGlobal('fetch', vi.fn(async (_url: string, init?: RequestInit) =>
+    init?.method === 'POST' ? new Response(table, { status: 200 }) : portal('k')));
+  it('uses a bar dated today, including after the 16:00 close', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-09-05T11:20:00Z')); // 16:20 PKT on the bar's day
+    serve();
+    const { fetchPsxLatestCloses } = await loadOhlc();
+    expect(await fetchPsxLatestCloses(['EFERT'])).toEqual({ EFERT: 11 });
+    vi.useRealTimers();
+  });
+  it('never treats an earlier day’s bar as today’s price, during or after the session', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    for (const now of ['2026-09-08T06:00:00Z', '2026-09-08T11:20:00Z']) { // 11:00 and 16:20 PKT, the next trading day
+      vi.setSystemTime(new Date(now));
+      serve();
+      const { fetchPsxLatestCloses } = await loadOhlc();
+      expect(await fetchPsxLatestCloses(['EFERT'])).toEqual({});
+    }
+    vi.useRealTimers();
+  });
+});

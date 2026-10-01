@@ -458,7 +458,8 @@ def _normalize_quote(symbol: str, quote: Any) -> dict[str, Any]:
                 return lower[n.lower()]
         return None
 
-    price = pick("last", "price", "last_price", "close")
+    price_field = next((n for n in ("last", "price", "last_price", "close") if lower.get(n) is not None), None)
+    price = lower.get(price_field) if price_field else None
     try:
         price_f = float(price) if price is not None else None
     except (TypeError, ValueError):
@@ -475,6 +476,8 @@ def _normalize_quote(symbol: str, quote: Any) -> dict[str, Any]:
         "high": pick("high"),
         "low": pick("low"),
         "source": "pypsx:quote",
+        # "close" can be the previous session's close; consumers that need a live price check this.
+        "price_field": price_field,
     }
     # Keep extras that might be useful
     for k, v in quote.items():
@@ -543,6 +546,8 @@ def get_quotes(symbols: list[str] | str) -> dict[str, Any]:
         "count": len(quotes),
         "errors": errors,
         "source": "pypsx:quote",
+        # "close" can be the previous session's close; consumers that need a live price check this.
+        "price_field": price_field,
     }
 
 
