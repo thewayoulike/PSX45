@@ -15,6 +15,7 @@ import {
   candidatePrevNavDates,
 } from '../lib/mufapSyncDates.js';
 import { pruneMufapExcelFiles } from '../lib/mufapExcelPrune.js';
+import { assertCatalogNotShrunk, pickFallbackPrevious, sameFundData } from '../lib/mufapSyncGuards.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -83,7 +84,7 @@ async function fetchDayHtmlJina(dateYmd) {
   console.log(`[sync-mufap] Fetching ${dateYmd} via jina…`);
   const res = await fetch(url, {
     headers: { Accept: 'text/html,text/plain,*/*', 'User-Agent': 'PSX45-FundSync/1.0' },
-    redirect: 'follow',
+    redirect: 'follow', signal: AbortSignal.timeout(45000),
   });
   if (!res.ok) throw new Error(`jina HTTP ${res.status} for ${dateYmd}`);
   const html = await res.text();
@@ -186,25 +187,8 @@ function previousNavMap(prevFunds) {
   return map;
 }
 
-function loadFallbackPreviousNavs() {
-  for (const p of [PREV_OUT, OUT]) {
-    try {
-      if (!fs.existsSync(p)) continue;
-      const j = JSON.parse(fs.readFileSync(p, 'utf8'));
-      const map = j.previousNavs || null;
-      if (map && Object.keys(map).length >= 50) {
-        console.warn(`[sync-mufap] Using fallback previousNavs from ${path.basename(p)} (${Object.keys(map).length})`);
-        return {
-          previousNavs: map,
-          reportDate: j.previousReportDate || j.reportDate || null,
-          dateYmd: j.yesterday || j.date || null,
-        };
-      }
-    } catch {
-      /* try next */
-    }
-  }
-  return { previousNavs: {}, reportDate: null, dateYmd: null };
+function readJson(p) {
+  try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; } catch { return null; }
 }
 
 async function main() {
@@ -212,6 +196,8 @@ async function main() {
   console.log(`[sync-mufap] Anchor day=${anchor} lookback=${LOOKBACK_DAYS}`);
 
   const todayPack = await fetchLatestAvailable(anchor);
+  const existing = readJson(OUT);
+  assertCatalogNotShrunk(todayPack.funds.length, Number(existing?.count) || 0, { allow: process.env.MUFAP_ALLOW_SHRINK === '1' });
   // Daily P&L “yesterday” = prior business/NAV day (Mon → Fri), not calendar -1.
   const prevDates = process.env.MUFAP_PREV_DATE
     ? [process.env.MUFAP_PREV_DATE]
@@ -247,10 +233,18 @@ async function main() {
   let previousReportDate = ydayPack?.reportDate || null;
 
   if (Object.keys(previousNavs).length < 50) {
-    const fb = loadFallbackPreviousNavs();
-    previousNavs = fb.previousNavs;
-    previousReportDate = fb.reportDate || previousReportDate;
-    yesterdayUsed = fb.dateYmd || yesterdayUsed;
+    const fb = pickFallbackPrevious(existing, readJson(PREV_OUT), todayPack.dateYmd);
+    if (fb) {
+      console.warn(`[sync-mufap] Prior-day fetch failed; using ${fb.from} NAVs from ${fb.dateYmd}`);
+      previousNavs = fb.funds ? previousNavMap(fb.funds) : fb.previousNavs;
+      previousReportDate = fb.reportDate || previousReportDate;
+      yesterdayUsed = fb.dateYmd;
+    } else {
+      // Better no Daily P&L than one computed against NAVs from weeks ago.
+      console.warn('[sync-mufap] No recent previous-day NAVs; publishing without Daily P&L.');
+      previousNavs = {};
+      previousReportDate = null;
+    }
   }
 
   const catalog = fundsToCatalog(todayPack.funds);
@@ -276,6 +270,11 @@ async function main() {
     previousNavs,
   };
 
+  // A rerun with the same NAVs must not create a commit: every commit deploys production.
+  if (sameFundData(existing, payload)) {
+    console.log('[sync-mufap] Fund data unchanged; leaving the catalog as it is.');
+    return;
+  }
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(payload, null, 2));
   fs.writeFileSync(PREV_OUT, JSON.stringify({
