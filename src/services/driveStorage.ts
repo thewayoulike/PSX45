@@ -247,7 +247,24 @@ export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promis
         console.error("Error restoring session", e);
     }
 
-    return () => { active = false; if (driveSessionListener === onUserLoggedIn) driveSessionListener = null; };
+    // Another tab ended the shared session (expiry or sign-out). Without this, this tab kept
+    // autosaving with no account, and every save failed before keeping a pending copy.
+    const onStorage = (event: StorageEvent) => {
+        if (event.key !== STORAGE_USER_KEY || event.newValue !== null || !active) return;
+        accessToken = null;
+        tokenExpiryTime = 0;
+        if (!expiredNotified) {
+            expiredNotified = true;
+            if (onSessionExpired) { try { onSessionExpired(); } catch { /* ignore */ } }
+        }
+    };
+    if (typeof window.addEventListener === 'function') window.addEventListener('storage', onStorage);
+
+    return () => {
+        active = false;
+        if (typeof window.removeEventListener === 'function') window.removeEventListener('storage', onStorage);
+        if (driveSessionListener === onUserLoggedIn) driveSessionListener = null;
+    };
 };
 
 export const signInWithDrive = (email?: string) => {

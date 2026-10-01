@@ -833,3 +833,18 @@ describe('conflicts ask before replacing anything', () => {
     expect(cloud.files.get(cloud.state.head.fileId!).transactions[0].id).toBe('big');
   });
 });
+
+describe('shared session across tabs', () => {
+  it('shows sign-in in this tab as soon as another tab’s session ends', async () => {
+    const listeners: Record<string, Function> = {};
+    vi.stubGlobal('window', { URL: { createObjectURL: () => 'blob:x', revokeObjectURL() {} },
+      addEventListener: (type: string, fn: Function) => { listeners[type] = fn; }, removeEventListener() {} });
+    vi.resetModules(); service = await import('./driveStorage');
+    const expired = vi.fn(); service.setDriveSessionExpiredHandler(expired);
+    await login();
+    listeners.storage({ key: 'psx_drive_user_profile', newValue: '{"email":"a@example.com"}' });
+    expect(expired).not.toHaveBeenCalled();
+    listeners.storage({ key: 'psx_drive_user_profile', newValue: null });
+    expect(expired).toHaveBeenCalledTimes(1);
+  });
+});
