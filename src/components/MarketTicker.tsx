@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { fetchTopVolumeStocks } from '../services/psxData';
 import { TrendingUp, TrendingDown, Minus, Activity } from 'lucide-react';
+import { visibleInterval } from '../utils/visibleInterval';
 
 export const MarketTicker: React.FC = () => {
   const [stocks, setStocks] = useState<{ symbol: string; price: number; change: number; volume: number }[]>([]);
@@ -21,8 +22,7 @@ export const MarketTicker: React.FC = () => {
     };
 
     loadData();
-    const interval = setInterval(loadData, 5 * 60 * 1000); 
-    return () => clearInterval(interval);
+    return visibleInterval(loadData, 5 * 60 * 1000);
   }, []);
 
   if (loading || stocks.length === 0) return null;

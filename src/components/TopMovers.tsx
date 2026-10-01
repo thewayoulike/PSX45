@@ -5,6 +5,7 @@ import { selectTopMovers, type MoverRow } from '../utils/topMovers';
 import { TrendingUp, TrendingDown, RefreshCw, Loader2, Star, Flame } from 'lucide-react';
 import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
 import { PanelRefreshNote } from './PanelRefreshNote';
+import { visibleInterval } from '../utils/visibleInterval';
 
 interface Props {
   holdings: Holding[];
@@ -32,7 +33,6 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
   });
   const [failed, setFailed] = useState(false);
   const [known, setKnown] = useState(() => readPanel<Row[]>(panelKeys.movers('KSE100')) != null);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const owned = useMemo(() => new Set(holdings.map(h => h.ticker.toUpperCase())), [holdings]);
 
@@ -79,8 +79,7 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
   // Fetch when the index changes, then refresh every 5 minutes.
   useEffect(() => {
     load(index);
-    if (timer.current) clearInterval(timer.current);
-    timer.current = setInterval(() => load(index), REFRESH_MS);
+    const stopPolling = visibleInterval(() => load(index), REFRESH_MS);
     const apply = () => {
       const cached = readPanel<Row[]>(panelKeys.movers(index));
       if (!cached) return;
@@ -90,7 +89,7 @@ export const TopMovers: React.FC<Props> = ({ holdings, onSelectTicker }) => {
     };
     window.addEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
     return () => {
-      if (timer.current) clearInterval(timer.current);
+      stopPolling();
       window.removeEventListener(PANEL_CACHE_HYDRATED_EVENT, apply);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

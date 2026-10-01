@@ -270,7 +270,9 @@ const App: React.FC = () => {
           setSheetExportState(state);
           if (state === 'idle') { const id = getCachedGoogleSheetId(); if (id) setGoogleSheetId(id); }
       };
-      const retry = () => { if (document.visibilityState !== 'hidden') retrySheetExport(); };
+      let lastRetry = 0;
+      // Throttled: focus, visibility and online often fire together when a phone resumes.
+      const retry = () => { if (document.visibilityState === 'hidden' || Date.now() - lastRetry < 60000) return; lastRetry = Date.now(); retrySheetExport(); };
       window.addEventListener('psx-sheet-export', update);
       window.addEventListener('online', retry);
       document.addEventListener('visibilitychange', retry);

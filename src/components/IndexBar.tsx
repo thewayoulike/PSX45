@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchIndexQuote } from '../services/psxData';
 import { buildQuoteStrip, parseBtcUsdQuote, type QuoteItem } from '../utils/btcQuote';
 import { isPsxMarketHours } from '../utils/dates';
+import { visibleInterval } from '../utils/visibleInterval';
 
 const REFRESH_MS = 5 * 60 * 1000;
 
@@ -40,8 +41,7 @@ export const IndexBar: React.FC = () => {
   useEffect(() => {
     load();
     const tick = () => { if (isPsxMarketHours()) load(); };
-    const t = setInterval(tick, REFRESH_MS);
-    return () => clearInterval(t);
+    return visibleInterval(tick, REFRESH_MS);
   }, [load]);
 
   if (items.length === 0) return null;

@@ -3,6 +3,7 @@ import { fetchBatchPSXPrices } from '../services/psxData';
 import { getSector } from '../services/sectors';
 import { canonicalSector } from '../utils/sectorName';
 import { SetAlert } from './SetAlert';
+import { visibleInterval } from '../utils/visibleInterval';
 import {
   Star, Plus, Trash2, Bell, RefreshCw, Loader2, Search, TrendingUp, TrendingDown, X, Eye,
   ChevronDown, ChevronRight, Layers, List
@@ -41,7 +42,6 @@ export const Watchlist: React.FC<Props> = ({ watchlist, onAdd, onRemove, onSelec
     try { return localStorage.getItem('psx_watch_group') === '1'; } catch { return false; }
   });
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     try { localStorage.setItem('psx_watch_group', groupBySector ? '1' : '0'); } catch { /* ignore */ }
@@ -76,9 +76,7 @@ export const Watchlist: React.FC<Props> = ({ watchlist, onAdd, onRemove, onSelec
   // Fetch on mount + whenever the ticker set changes, then every 5 minutes.
   useEffect(() => {
     refresh();
-    if (timerRef.current) clearInterval(timerRef.current);
-    timerRef.current = setInterval(refresh, REFRESH_MS);
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return visibleInterval(refresh, REFRESH_MS);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tickers.join(',')]);
 
