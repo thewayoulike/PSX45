@@ -6,6 +6,7 @@ import 'react-resizable/css/styles.css';
 import { CardLayout, Device, COLS, ROW_HEIGHT, GRID_MARGIN, visibleOrdered, minFor } from './dashboard';
 import { FitScale } from './FitScale';
 import './dashboard-grid.css';
+import { SectionBoundary } from './SectionBoundary';
 
 const RGL: any = WidthProvider(GridLayout as any);
 
@@ -38,7 +39,7 @@ export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard }) =
     const mobileCards = [...cards].sort((a, b) => a.y - b.y || a.x - b.x);
     return <div className="mobile-dashboard grid grid-cols-1 gap-4 min-w-0">
       {mobileCards.map(c => <section key={c.id} className="min-w-0" data-dashboard-card={c.id}>
-        {renderCard(c.id)}
+        <SectionBoundary label="This card" compact>{renderCard(c.id)}</SectionBoundary>
       </section>)}
     </div>;
   }
@@ -57,7 +58,7 @@ export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard }) =
     >
       {cards.map(c => (
         <div key={c.id} className="dash-cell h-full min-h-0 overflow-hidden">
-          <FitScale>{renderCard(c.id)}</FitScale>
+          <SectionBoundary label="This card" compact><FitScale>{renderCard(c.id)}</FitScale></SectionBoundary>
         </div>
       ))}
     </RGL>

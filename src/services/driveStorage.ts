@@ -6,6 +6,7 @@ import { readApiJson } from './apiResponse';
 import { requestCloudVersion } from './cloudVersionRequest';
 import { gmailTextParts, gmailBodyText, type GmailTextPart } from '../utils/gmailBody';
 import { createGoogleSignInReadiness } from './googleSignInReadiness';
+import { stripSecrets } from '../utils/localAccount';
 // src/services/driveStorage.ts
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
@@ -609,7 +610,7 @@ export async function keepThisDeviceVersion(getLocalSnapshot: () => any): Promis
             if (head.fileId) {
                 const other = await (await request(`https://www.googleapis.com/drive/v3/files/${head.fileId}?alt=media`)).text();
                 await saveRecoveryCopies(email, [{ key: `psx_cloud_recovery:${encodeURIComponent(email)}:${crypto.randomUUID()}:other-device`,
-                    raw: JSON.stringify({ revision: `cloud-${head.revision}`, queuedAt: new Date().toISOString(), data: JSON.parse(other) }) }]);
+                    raw: stripSecrets(JSON.stringify({ revision: `cloud-${head.revision}`, queuedAt: new Date().toISOString(), data: JSON.parse(other) })) }]);
             }
             if (currentEmail() !== email) throw new Error('Account changed. Nothing was saved.');
             cloudBases.set(email, head.revision);
@@ -737,10 +738,11 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, options:
             const currentRaw = getLocalSnapshot ? JSON.stringify(getLocalSnapshot()) : null;
             const recoveryKey = `psx_cloud_recovery:${encodeURIComponent(email)}:${crypto.randomUUID()}`;
             const copies = [];
-            if (currentRaw !== null) copies.push({ key: `${recoveryKey}:current`, raw: JSON.stringify({
+            // Recovery copies exist to recover portfolio edits; they never need the API key.
+            if (currentRaw !== null) copies.push({ key: `${recoveryKey}:current`, raw: stripSecrets(JSON.stringify({
                 revision: crypto.randomUUID(), queuedAt: new Date().toISOString(), data: JSON.parse(currentRaw),
-            }) });
-            if (pendingRaw) copies.push({ key: `${recoveryKey}:pending`, raw: pendingRaw });
+            })) });
+            if (pendingRaw) copies.push({ key: `${recoveryKey}:pending`, raw: stripSecrets(pendingRaw) });
             await saveRecoveryCopies(email, copies);
             if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
             if (localStorage.getItem(pendingKey(email)) !== pendingRaw || (getLocalSnapshot && JSON.stringify(getLocalSnapshot()) !== currentRaw)) {

@@ -1,6 +1,8 @@
 import { ResponsivePortfolioHeader, ResponsivePortfolioActions, ResponsivePlanNotice, MobileSectionNavigator } from './MobileLayout';
 import { PriceStaleNotice } from './PriceStaleNotice';
+import { SectionBoundary } from './SectionBoundary';
 import { setUnsavedLocalChanges, setRecoveryEditorOpen } from '../utils/chunkRecovery';
+import { scrubSecretsFromRecoveryCopies } from '../utils/localAccount';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
 import '../mobile-layout.css';
@@ -141,6 +143,7 @@ const clearPortfolioLocalStorage = () => {
             if (k && k.startsWith('psx_') && !keep.has(k) && !k.startsWith('psx_pending_cloud_v1:') && !k.startsWith('psx_cloud_recovery:') && !k.startsWith('psx_password_prompt:')) toRemove.push(k);
         }
         toRemove.forEach(k => localStorage.removeItem(k));
+        scrubSecretsFromRecoveryCopies();
     } catch { /* ignore */ }
 };
 
@@ -748,8 +751,12 @@ const App: React.FC = () => {
       if (cloudData) {
           skipHydrationSave.current = true;
           if (cloudData.portfolios) setPortfolios(normalizePortfolios(cloudData.portfolios));
-          if (cloudData.transactions) {
-              const cleanTx = (cloudData.transactions as Transaction[]).filter(t => !t.id.startsWith('auto-cgt-'));
+          if (Array.isArray(cloudData.transactions)) {
+              // One malformed row (e.g. no id) must not make every load fail: keep it with a stable id.
+              const cleanTx = (cloudData.transactions as Transaction[])
+                  .filter(t => t && typeof t === 'object')
+                  .map((t, i) => (typeof t.id === 'string' && t.id ? t : { ...t, id: `restored-${i}-${String(t.ticker || 'row')}` }))
+                  .filter(t => !t.id.startsWith('auto-cgt-'));
               setTransactions(cleanTx);
           }
           if (cloudData.manualPrices) setManualPrices(cloudData.manualPrices);
@@ -774,13 +781,13 @@ const App: React.FC = () => {
 
           if (cloudData.brokers && Array.isArray(cloudData.brokers) && cloudData.brokers.length > 0) {
               setBrokers(cloudData.brokers);
-              localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers));
+              try { localStorage.setItem('psx_brokers', JSON.stringify(cloudData.brokers)); } catch { /* Full storage must not stop the restore. */ }
           }
 
           if (cloudData.geminiApiKey) {
               setUserApiKey(cloudData.geminiApiKey);
               setGeminiApiKey(cloudData.geminiApiKey);
-              localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey);
+              try { localStorage.setItem('psx_gemini_api_key', cloudData.geminiApiKey); } catch { /* Full storage must not stop the restore. */ }
           }
           if (cloudData.marketPanels) applyDrivePanelCache(cloudData.marketPanels);
           // Ignore legacy scraper keys in old Drive backups — Gemini only.
@@ -895,7 +902,7 @@ const App: React.FC = () => {
   const handleSaveApiKey = (geminiKey: string) => {
       setUserApiKey(geminiKey);
       setGeminiApiKey(geminiKey);
-      localStorage.setItem('psx_gemini_api_key', geminiKey);
+      try { localStorage.setItem('psx_gemini_api_key', geminiKey); } catch { /* Kept in memory and in the Drive backup. */ }
       // The autosave effect writes the complete snapshot, including this key.
   };
 
@@ -2649,6 +2656,7 @@ const App: React.FC = () => {
                   )}
 
                   <main className={`${isChartsView ? 'flex-1 min-h-0 flex flex-col' : 'animate-in fade-in slide-in-from-bottom-5 duration-700'}`}>
+                      <SectionBoundary label="This screen" resetKey={`${currentView}:${currentPortfolioId}`}>
                       <Suspense fallback={<div role="status" className="p-6 text-slate-500">Loading view…</div>}>
 
                       {isChartsView && (
@@ -3053,6 +3061,7 @@ const App: React.FC = () => {
                           </div>
                       )}
                       </Suspense>
+                      </SectionBoundary>
                   </main>
               </div>
           </div>
