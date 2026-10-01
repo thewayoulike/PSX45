@@ -29,12 +29,15 @@ const bounded = <T>(promise: Promise<T>, milliseconds: number): Promise<T> => ne
   promise.then(value => { clearTimeout(timer); resolve(value); }, error => { clearTimeout(timer); reject(error); });
 });
 
+export const INSTALL_WAIT_MS = 30_000;
 async function installedUpdate(reg: ServiceWorkerRegistration) {
   if (reg.waiting) return reg.waiting;
   const worker = reg.installing;
   if (!worker) return null;
   return new Promise<ServiceWorker | null>(resolve => {
-    const timer = setTimeout(() => finish(null), 8000);
+    // The update downloads every screen's files (~1 MB on mobile), so allow it time to finish.
+    // On timeout the reload still opens a consistent version: fresh HTML, or the installed shell.
+    const timer = setTimeout(() => finish(null), INSTALL_WAIT_MS);
     const finish = (result: ServiceWorker | null) => { clearTimeout(timer); worker.removeEventListener('statechange', changed); resolve(result); };
     const changed = () => {
       if (worker.state === 'installed') finish(reg.waiting || worker);
