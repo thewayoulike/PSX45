@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 import { randomBytes } from 'node:crypto';
-const mock = vi.hoisted(() => ({ row: null as any, user: null as any, dbError: false, writes: [] as any[], online: null as any }));
+const mock = vi.hoisted(() => ({ row: null as any, user: null as any, dbError: false, writes: [] as any[], online: null as any, google: undefined as any }));
+vi.mock('./googleToken.js', () => ({ verifyGoogleAccessToken: async () => mock.google === undefined ? { sub: 'google-member', email: 'member@example.invalid' } : mock.google }));
 vi.mock('./verifyUser.js', () => ({ getBearerUser: async () => mock.user }));
 vi.mock('./requireOnlineUser.js', () => ({ requireOnlineUser: async () => mock.online || { ok: false } }));
 vi.mock('./serverDb.js', () => ({ serverDb: () => ({ from: () => {
@@ -37,7 +38,7 @@ async function run(request:any) {
 beforeEach(() => {
   vi.stubEnv('GOOGLE_CLIENT_ID','unit-client');vi.stubEnv('GOOGLE_CLIENT_SECRET','unit-secret');
   vi.stubEnv('DRIVE_TOKEN_ENCRYPTION_KEY',key.toString('base64'));vi.stubEnv('APP_URL',origin);
-  mock.user={id:'auth-member',email};mock.online=null;mock.dbError=false;mock.writes=[];
+  mock.user={id:'auth-member',email};mock.online=null;mock.google=undefined;mock.dbError=false;mock.writes=[];
   mock.row={email,google_sub:sub,connection_id:'connection-1',refresh_ciphertext:encryptDriveToken('refresh-private',email,sub,key),auth_user_id:'auth-member',linked_session_id:'linked-session',linked_at:linkedTime};
   vi.stubGlobal('fetch',vi.fn(async (url:string) => url.includes('/token')
     ? response({access_token:'fresh-access',expires_in:3600,scope:'https://www.googleapis.com/auth/drive.file'})
@@ -110,6 +111,7 @@ it('password setup requires fresh inbox proof and rotates the binding version',a
   expect(mock.row.auth_user_id).toBe('auth-member');expect(mock.row.connection_id).not.toBe('connection-1');
 });
 it('Google exchange rejects a different Google email without replacing the saved connection',async()=>{
+  mock.google={sub:'other',email:'other@example.invalid'};
   vi.mocked(fetch).mockResolvedValueOnce(response({access_token:'access',refresh_token:'new-refresh',expires_in:3600,scope:'https://www.googleapis.com/auth/drive.file'}))
     .mockResolvedValueOnce(response({sub:'other',email:'other@example.invalid',email_verified:true}));
   expect((await run(req('drive-connect',{}, {code:'authorization-code'}))).code).toBe(403);expect(mock.writes).toHaveLength(0);
@@ -143,6 +145,7 @@ it('invalid Google client credentials show a setup error without exposing creden
   expect(JSON.stringify(r.body)).not.toContain('private-provider-detail');expect(mock.writes).toHaveLength(0);
 });
 it('a refreshed token with mismatched Google identity is not delivered',async()=>{
+  mock.google={sub:'wrong-sub',email};
   vi.mocked(fetch).mockResolvedValueOnce(response({access_token:'access',expires_in:3600})).mockResolvedValueOnce(response({email,sub:'wrong-sub',email_verified:true}));
   expect((await run(req('drive-token'))).code).toBe(403);
 });
@@ -157,4 +160,9 @@ it('disconnect deletes the saved permission even when Google revocation is unrea
 });
 it('database failure returns a safe error and does not expose internal details',async()=>{
   mock.dbError=true;const r=await run(req('drive-token'));expect(r.code).toBe(503);expect(JSON.stringify(r.body)).not.toContain('private detail');
+});
+it('rejects a Google token issued to another app before reading any saved connection',async()=>{
+  mock.google=null;
+  const r=await run(req('drive-status'));
+  expect(r.code).toBe(401);expect(fetch).not.toHaveBeenCalled();expect(mock.writes).toEqual([]);
 });
