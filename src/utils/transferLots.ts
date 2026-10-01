@@ -12,6 +12,9 @@ type LotTrade = {
 
 export type TransferSlice = { quantity: number; price: number };
 
+// Bonus, split and rights change the shares held and their cost, so transfers must apply them too.
+const LOT_TYPES = new Set(['BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT', 'BONUS', 'SPLIT', 'RIGHTS']);
+
 const costPerShare = (trade: LotTrade) => {
   const fees = (trade.commission || 0) + (trade.tax || 0) + (trade.cdcCharges || 0) + (trade.otherFees || 0);
   return trade.quantity > 0 ? ((trade.quantity * trade.price) + fees) / trade.quantity : trade.price;
@@ -21,7 +24,7 @@ const costPerShare = (trade: LotTrade) => {
 export function fifoTransferSlices(trades: LotTrade[], quantity: number, asOf: string): TransferSlice[] {
   const open: { quantity: number; price: number; date: string; createdAt: number }[] = [];
   const relevant = trades
-    .filter(t => t.date <= asOf && (t.type === 'BUY' || t.type === 'SELL' || t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT'))
+    .filter(t => t.date <= asOf && LOT_TYPES.has(t.type))
     .sort((a, b) => a.date.localeCompare(b.date) || (Date.parse(a.createdAt || '') || 0) - (Date.parse(b.createdAt || '') || 0));
   const byDate = new Map<string, LotTrade[]>();
   for (const trade of relevant) {
@@ -30,8 +33,16 @@ export function fifoTransferSlices(trades: LotTrade[], quantity: number, asOf: s
     byDate.set(trade.date, day);
   }
   for (const day of byDate.values()) {
+    // Same order as the main FIFO engine: corporate actions open the day, before its trades.
     for (const trade of day) {
-      if (trade.type === 'BUY' || trade.type === 'TRANSFER_IN') {
+      if (trade.type === 'BONUS' && trade.quantity > 0) {
+        open.push({ quantity: trade.quantity, price: 0, date: trade.date, createdAt: Date.parse(trade.createdAt || '') || 0 });
+      } else if (trade.type === 'SPLIT' && trade.price > 1) {
+        for (const lot of open) { lot.quantity *= trade.price; lot.price /= trade.price; }
+      }
+    }
+    for (const trade of day) {
+      if (trade.type === 'BUY' || trade.type === 'TRANSFER_IN' || trade.type === 'RIGHTS') {
         open.push({ quantity: trade.quantity, price: costPerShare(trade), date: trade.date, createdAt: Date.parse(trade.createdAt || '') || 0 });
       }
     }
