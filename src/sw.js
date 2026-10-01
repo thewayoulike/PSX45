@@ -34,6 +34,9 @@ registerRoute(({ request, url }) => url.origin === self.location.origin && url.p
   new CacheFirst({ cacheName: 'psx-tools-v1', plugins: [{
     cacheWillUpdate: async ({ response }) => response.status === 200 && /(?:java|ecma)script/i.test(response.headers.get('Content-Type') || '') ? response : null,
     cachedResponseWillBeUsed: async ({ cachedResponse }) => cachedResponse && /(?:java|ecma)script/i.test(cachedResponse.headers.get('Content-Type') || '') ? cachedResponse : null,
+    // A newer release deleted this file. A page from that release may still be open, and an
+    // installed-but-waiting worker may already hold its files, so look in every cache first.
+    fetchDidSucceed: async ({ request, response }) => response.status === 404 ? (await caches.match(request.url, { ignoreSearch: true })) || response : response,
   }, new ExpirationPlugin({ maxEntries: 80, maxAgeSeconds: 30 * 86400 })] }));
 
 // Let an update activate after existing app tabs close, so an active edit is not

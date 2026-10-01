@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   routes: [] as any[], order: [] as string[], network: vi.fn(), offline: vi.fn(), listeners: {} as Record<string, Function>,
-  navigationOptions: {} as any,
+  navigationOptions: {} as any, assetOptions: {} as any,
 }));
 vi.mock('workbox-precaching', () => ({
   precache: () => {}, cleanupOutdatedCaches: () => {},
@@ -13,7 +13,7 @@ vi.mock('workbox-routing', () => ({
   NavigationRoute: class { constructor(public handler: Function, public options: any) {} },
 }));
 vi.mock('workbox-strategies', () => ({
-  NetworkFirst: class { constructor(options: any) { mocks.navigationOptions = options; } handle = mocks.network; }, CacheFirst: class {},
+  NetworkFirst: class { constructor(options: any) { mocks.navigationOptions = options; } handle = mocks.network; }, CacheFirst: class { constructor(options: any) { mocks.assetOptions = options; } },
 }));
 vi.mock('workbox-expiration', () => ({ ExpirationPlugin: class {} }));
 beforeEach(async () => {
@@ -79,4 +79,20 @@ it('caches the projection worker after use without caching unrelated requests', 
   expect(match({ request: { destination: 'worker' }, url: new URL('https://www.psx-tracker.com/assets/chartProjection.worker-test.js') })).toBe(true);
   expect(match({ request: { destination: 'worker' }, url: new URL('https://example.com/assets/worker.js') })).toBe(false);
   expect(match({ request: { destination: 'script' }, url: new URL('https://www.psx-tracker.com/api/proxy') })).toBe(false);
+});
+it('serves a script deleted by a newer release from any cache that still holds it', async () => {
+  const kept = new Response('export const form = 1;', { headers: { 'Content-Type': 'text/javascript' } });
+  const match = vi.fn().mockResolvedValue(kept);
+  vi.stubGlobal('caches', { match });
+  const plugin = mocks.assetOptions.plugins[0];
+  const request = { url: 'https://www.psx-tracker.com/assets/DashboardGrid-old.js' };
+  expect(await plugin.fetchDidSucceed({ request, response: new Response('Not found', { status: 404 }) })).toBe(kept);
+  expect(match).toHaveBeenCalledWith(request.url, { ignoreSearch: true });
+  const missing = new Response('Not found', { status: 404 });
+  match.mockResolvedValue(undefined);
+  expect(await plugin.fetchDidSucceed({ request, response: missing })).toBe(missing);
+  const current = new Response('export {}', { headers: { 'Content-Type': 'text/javascript' } });
+  match.mockClear();
+  expect(await plugin.fetchDidSucceed({ request, response: current })).toBe(current);
+  expect(match).not.toHaveBeenCalled();
 });

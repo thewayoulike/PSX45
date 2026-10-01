@@ -228,11 +228,9 @@ export default defineConfig({
       injectManifest: {
         // The tutorial downloads only when a visitor chooses to watch it.
         globIgnores: ['**/media/tutorial/**', '**/media/features/**'],
-        // Cache the landing/offline shell immediately; tools cache after first use.
-        manifestTransforms: [async entries => ({
-          manifest: entries.filter(entry => !entry.url.endsWith('.js') || /(?:^|\/)(?:index-|vendor-|registerSW|site-theme)/.test(entry.url)),
-          warnings: [],
-        })],
+        // Precache every app script: each release deletes the previous release's files, so an
+        // installed version must already hold the screens it may lazy-load later. Unchanged
+        // files keep their hashed names, so updates only download what changed.
       },
       srcDir: 'src', 
       filename: 'sw.js',

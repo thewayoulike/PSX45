@@ -7,7 +7,7 @@ import { loadScanEngine, SCAN_ENGINE_UNAVAILABLE, ScanEngineLoadError } from './
 import { ScanErrorPanel } from '../components/ScanErrorPanel';
 beforeEach(() => { load.mockReset(); });
 it('treats an engine download failure separately from a document error', async () => {
-  load.mockRejectedValue(new Error('Failed to fetch dynamically imported module: https://example.invalid/assets/gemini.js'));
+  load.mockRejectedValue(new Error('network'));
   const caught = await loadScanEngine().catch(error => error);
   expect(caught).toBeInstanceOf(ScanEngineLoadError);
   const html = renderToStaticMarkup(React.createElement(ScanErrorPanel, {message:SCAN_ENGINE_UNAVAILABLE,emailText:false,onRetry:vi.fn(),onChangeSource:vi.fn()}));
@@ -22,4 +22,13 @@ it('can prepare or retry the engine without reading a document or invoking the A
   await expect(loadScanEngine()).resolves.toEqual({parseTradeDocument,parseFundBalanceDocument});
   expect(parseTradeDocument).not.toHaveBeenCalled();
   expect(parseFundBalanceDocument).not.toHaveBeenCalled();
+});
+it('asks for the current app version when a newer release removed the engine file', async () => {
+  load.mockRejectedValue(new Error('Failed to fetch dynamically imported module: https://example.invalid/assets/gemini.js'));
+  const caught = await loadScanEngine().catch(error => error);
+  expect(caught).toBeInstanceOf(ScanEngineLoadError);
+  expect(caught.outdated).toBe(true);
+  const html = renderToStaticMarkup(React.createElement(ScanErrorPanel, {message:caught.message,emailText:false,onRetry:vi.fn(),onChangeSource:vi.fn()}));
+  expect(html).toContain('Update app');
+  expect(html).not.toMatch(/Retry AI Scan|Try Different File|example.invalid|gemini.js/);
 });

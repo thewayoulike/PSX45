@@ -30,6 +30,23 @@ describe('safe app version recovery', () => {
     vi.stubGlobal('localStorage', { length: 1, key: () => 'psx_pending_cloud_v1:other-account' });
     expect(await m.recoverAppVersion(true)).toBe('unsaved'); expect(reload).not.toHaveBeenCalled();
   });
+  it('lets the person leave an open panel to update, but never past unsaved edits or a pending backup', async () => {
+    const m = await import('./chunkRecovery');
+    m.setRecoveryEditorOpen(true); m.setUnsavedLocalChanges(true);
+    expect(await m.recoverAppVersion(true, true)).toBe('unsaved');
+    m.setUnsavedLocalChanges(false);
+    vi.stubGlobal('localStorage', { length: 1, key: () => 'psx_pending_cloud_v1:account' });
+    expect(await m.recoverAppVersion(true, true)).toBe('unsaved'); expect(reload).not.toHaveBeenCalled();
+    vi.stubGlobal('localStorage', { length: 0, key: () => null });
+    expect(await m.recoverAppVersion(true, true)).toBe('reloading'); expect(reload).toHaveBeenCalledOnce();
+  });
+  it('recognises removed release files across browsers', async () => {
+    const { isMissingChunk } = await import('./chunkRecovery');
+    for (const message of ['Failed to fetch dynamically imported module: /assets/a.js', 'Importing a module script failed.', 'error loading dynamically imported module: /assets/a.js'])
+      expect(isMissingChunk(new Error(message))).toBe(true);
+    expect(isMissingChunk(new Error('render failed'))).toBe(false);
+    expect(isMissingChunk('Failed to fetch dynamically imported module')).toBe(false);
+  });
   it('does not reload offline, on non-chunk failures, or when storage is inaccessible', async () => {
     const m = await import('./chunkRecovery');
     expect(await m.recoverMissingChunk(new Error('render failed'))).toBe(false);

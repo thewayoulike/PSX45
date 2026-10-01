@@ -4,10 +4,21 @@ let recovering: Promise<RecoveryStatus> | null = null;
 export type RecoveryStatus = 'reloading' | 'unsaved' | 'other-tabs' | 'offline' | 'unavailable' | 'cooldown';
 export const setUnsavedLocalChanges = (value: boolean) => { unsavedLocalChanges = value; };
 export const setRecoveryEditorOpen = (value: boolean) => { editorOpen = value; };
-export const isMissingChunk = (error: Error) => /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk .+ failed/i.test(error.message);
+// Chrome, Safari and Firefox wordings for an app file removed by a newer release.
+export const isMissingChunk = (error: unknown) => error instanceof Error && /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Loading chunk .+ failed/i.test(error.message);
+export const TOOL_UPDATE_REQUIRED = 'PSX Tracker was updated while this screen was open, so its tool files changed. Update the app to continue. Your saved records and pending backup are kept; anything typed in this panel is not.';
+export const recoveryMessages: Record<RecoveryStatus, string> = {
+  reloading: 'Opening the current app version…',
+  unsaved: 'Automatic reload is paused to protect edits or a pending backup. Your saved records remain available below.',
+  'other-tabs': 'Close other PSX Tracker tabs or app windows, then retry the update. This protects edits in those windows.',
+  offline: 'You are offline. Reconnect to update, or view the records saved on this device.',
+  unavailable: 'The update could not finish. Check your connection, then retry. If it persists, close all PSX Tracker windows and reopen the app.',
+  cooldown: 'The screen still could not open after reloading. Retry the update or view your saved records.',
+};
 
-function safeToReload() {
-  if (unsavedLocalChanges || editorOpen) return false;
+// `editorConfirmed`: the person chose to leave the open panel. Edits and pending backups still block.
+function safeToReload(editorConfirmed = false) {
+  if (unsavedLocalChanges || (editorOpen && !editorConfirmed)) return false;
   try {
     for (let i = 0; i < localStorage.length; i++) if (localStorage.key(i)?.startsWith('psx_pending_cloud_v1:')) return false;
     return true;
@@ -56,11 +67,11 @@ async function activateUpdate(worker: ServiceWorker): Promise<'activated' | 'oth
 }
 
 /** Recover the app shell only. Never clear authentication, portfolio data or pending backups. */
-export function recoverAppVersion(manual = false): Promise<RecoveryStatus> {
+export function recoverAppVersion(manual = false, editorConfirmed = false): Promise<RecoveryStatus> {
   if (recovering) return recovering;
   const run = async (): Promise<RecoveryStatus> => {
     if (!navigator.onLine) return 'offline';
-    if (!safeToReload()) return 'unsaved';
+    if (!safeToReload(editorConfirmed)) return 'unsaved';
     try {
       const previous = Number(sessionStorage.getItem('psx_chunk_reload') || 0);
       if (!manual && Date.now() - previous < 120_000) return 'cooldown';
@@ -70,14 +81,14 @@ export function recoverAppVersion(manual = false): Promise<RecoveryStatus> {
         if (reg) {
           await bounded(reg.update(), 8000);
           const worker = await installedUpdate(reg);
-          if (!safeToReload()) return 'unsaved';
+          if (!safeToReload(editorConfirmed)) return 'unsaved';
           if (worker) {
             const result = await activateUpdate(worker);
             if (result !== 'activated') return result;
           }
         }
       }
-      if (!safeToReload()) return 'unsaved';
+      if (!safeToReload(editorConfirmed)) return 'unsaved';
       window.location.reload();
       return 'reloading';
     } catch { return 'unavailable'; }
@@ -85,6 +96,6 @@ export function recoverAppVersion(manual = false): Promise<RecoveryStatus> {
   recovering = run().finally(() => { recovering = null; });
   return recovering;
 }
-export async function recoverMissingChunk(error: Error): Promise<boolean> {
+export async function recoverMissingChunk(error: unknown): Promise<boolean> {
   return isMissingChunk(error) && await recoverAppVersion() === 'reloading';
 }
