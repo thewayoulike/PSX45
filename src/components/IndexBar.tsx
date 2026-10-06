@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchIndexQuote } from '../services/psxData';
-import { buildQuoteStrip, parseBtcUsdQuote, type QuoteItem } from '../utils/btcQuote';
+import { buildQuoteStrip, parseBtcUsdQuote, parseGoldOunceQuotes, type QuoteItem } from '../utils/btcQuote';
 import { isPsxMarketHours } from '../utils/dates';
 import { visibleInterval } from '../utils/visibleInterval';
 
@@ -33,7 +33,18 @@ export const IndexBar: React.FC = () => {
       if (res.ok) btc = parseBtcUsdQuote(await res.json());
     } catch { /* ignore */ }
 
-    const collected = buildQuoteStrip({ kse, kmi, pkr, btc });
+    let goldUsd: { value: number; changePct: number | null } | null = null;
+    let goldPkr: { value: number; changePct: number | null } | null = null;
+    try {
+      const res = await fetch('https://latest.currency-api.pages.dev/v1/currencies/usd.min.json');
+      if (res.ok) {
+        const gold = parseGoldOunceQuotes(await res.json());
+        goldUsd = gold.usd;
+        goldPkr = gold.pkr;
+      }
+    } catch { /* ignore */ }
+
+    const collected = buildQuoteStrip({ kse, kmi, pkr, goldUsd, goldPkr, btc });
     if (collected.length) setItems(collected);
     loadingRef.current = false;
   }, []);
