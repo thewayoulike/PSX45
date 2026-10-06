@@ -45,18 +45,17 @@ export const HeroMovers: React.FC = () => {
     if (!field || !canvas || items.length === 0) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const pointer = { x: -9999, y: -9999, active: false };
     const chips = Array.from(field.querySelectorAll<HTMLElement>('[data-mover]'));
     const rect = () => field.getBoundingClientRect();
     const box = rect();
-    const nodes = chips.map((el, i) => {
-      const angle = (i / chips.length) * Math.PI * 2;
+    const nodes = chips.map(el => {
+      const angle = Math.random() * Math.PI * 2;
       return {
         el,
         up: el.dataset.up === '1',
-        x: box.width / 2 + Math.cos(angle) * box.width * 0.38 - 40,
-        y: box.height / 2 + Math.sin(angle) * box.height * 0.36 - 12,
+        x: 40 + Math.random() * Math.max(80, box.width - 160),
+        y: 24 + Math.random() * Math.max(80, box.height - 80),
         vx: Math.cos(angle) * 0.45,
         vy: Math.sin(angle) * 0.45,
         w: el.offsetWidth || 96,
@@ -64,13 +63,21 @@ export const HeroMovers: React.FC = () => {
       };
     });
 
+    let sizedW = 0;
+    let sizedH = 0;
     const paint = () => {
       const view = rect();
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.floor(view.width * dpr);
-      canvas.height = Math.floor(view.height * dpr);
-      canvas.style.width = `${view.width}px`;
-      canvas.style.height = `${view.height}px`;
+      const nextW = Math.floor(view.width * dpr);
+      const nextH = Math.floor(view.height * dpr);
+      if (nextW !== sizedW || nextH !== sizedH) {
+        sizedW = nextW;
+        sizedH = nextH;
+        canvas.width = nextW;
+        canvas.height = nextH;
+        canvas.style.width = `${view.width}px`;
+        canvas.style.height = `${view.height}px`;
+      }
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, view.width, view.height);
       ctx.lineWidth = 1;
@@ -107,6 +114,20 @@ export const HeroMovers: React.FC = () => {
             ctx.stroke();
             ctx.fillRect(x - 2.5, my - 4, 5, 8);
           });
+        }
+      }
+      if (pointer.active) {
+        for (const node of nodes) {
+          const dx = node.x - pointer.x;
+          const dy = node.y - pointer.y;
+          const dist2 = dx * dx + dy * dy;
+          if (dist2 >= 48400) continue;
+          const alpha = (1 - Math.sqrt(dist2) / 220) * 0.55;
+          ctx.strokeStyle = `rgba(27,113,145,${alpha})`;
+          ctx.beginPath();
+          ctx.moveTo(node.x + node.w / 2, node.y + node.h / 2);
+          ctx.lineTo(pointer.x, pointer.y);
+          ctx.stroke();
         }
       }
       nodes.forEach(node => {
@@ -154,9 +175,9 @@ export const HeroMovers: React.FC = () => {
           const ox = other.x - node.x;
           const oy = other.y - node.y;
           const apart = ox * ox + oy * oy;
-          if (apart > 0 && apart < 12100) {
+          if (apart > 0 && apart < 14400) {
             const dist = Math.sqrt(apart);
-            const push = (110 - dist) / 110 * 0.35;
+            const push = (120 - dist) / 120 * 0.35;
             node.vx -= (ox / dist) * push;
             node.vy -= (oy / dist) * push;
           }
@@ -167,7 +188,7 @@ export const HeroMovers: React.FC = () => {
         if (node.y > view.height - 8) node.y = 8;
       }
       paint();
-      if (!reduce) frame = requestAnimationFrame(step);
+      frame = requestAnimationFrame(step);
     };
 
     const onMove = (event: PointerEvent) => {
@@ -176,12 +197,12 @@ export const HeroMovers: React.FC = () => {
       pointer.y = event.clientY - view.top;
       pointer.active = pointer.x >= 0 && pointer.y >= 0 && pointer.x <= view.width && pointer.y <= view.height;
     };
-    const onLeave = () => { pointer.active = false; };
+    const onLeave = (event: PointerEvent) => {
+      if (event.relatedTarget == null) pointer.active = false;
+    };
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerout', onLeave);
-    let frame = 0;
-    if (reduce) paint();
-    else frame = requestAnimationFrame(step);
+    let frame = requestAnimationFrame(step);
     return () => {
       cancelAnimationFrame(frame);
       window.removeEventListener('pointermove', onMove);
