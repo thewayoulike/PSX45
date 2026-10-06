@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-10-06T18:54:28.706Z",
+  "updatedAt": "2026-10-06T20:51:23.374Z",
   "reportDate": "Oct 06, 2026",
   "previousReportDate": "Oct 05, 2026",
   "source": "relay:jina",
   "count": 380,
-  "today": "2026-10-06",
+  "today": "2026-10-07",
   "yesterday": "2026-10-05",
   "catalog": {
     "MF:786-investments-limited-786-islamic-money-market-fund-shariah-compliant-money-market": {
@@ -1328,10 +1328,10 @@
       "fundName": "Meezan Islamic Income Fund",
       "category": "Shariah Compliant Income",
       "inceptionDate": "Jan 15, 2007",
-      "offer": 54.0213,
-      "repurchase": 53.4072,
-      "nav": 53.4072,
-      "validityDate": "Oct 05, 2026",
+      "offer": 54.0325,
+      "repurchase": 53.4182,
+      "nav": 53.4182,
+      "validityDate": "Oct 06, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 53.4072,
