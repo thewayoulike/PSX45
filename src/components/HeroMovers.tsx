@@ -1,8 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { fetchAllPSXPrices } from '../services/psxData';
-import { jointCandleSides, mixTopMovers, type HeroMover } from '../utils/heroMovers';
+import { jointCandleSides, mixTopMovers, rotateOnScreen, type HeroMover } from '../utils/heroMovers';
 
 const REFRESH_MS = 5 * 60 * 1000;
+const PHONE_ON_SCREEN = 10;
 
 const pctLabel = (pct: number) => `${pct > 0 ? '+' : '−'}${Math.abs(pct).toFixed(2)}%`;
 
@@ -67,7 +68,17 @@ export const HeroMovers: React.FC = () => {
     let sizedH = 0;
     const phoneQuery = window.matchMedia('(max-width: 767px)');
     let phone = phoneQuery.matches;
+    let roster = nodes.map((_, index) => index);
+    const onScreenLimit = () => (phone ? Math.min(PHONE_ON_SCREEN, nodes.length) : nodes.length);
+    const shownSet = () => new Set(roster.slice(0, onScreenLimit()));
+    const applyRoster = () => {
+      const shown = shownSet();
+      nodes.forEach((node, index) => {
+        node.el.style.visibility = shown.has(index) ? 'visible' : 'hidden';
+      });
+    };
     const paint = () => {
+      const shown = shownSet();
       const view = rect();
       const dpr = phone ? 1 : Math.min(window.devicePixelRatio || 1, 2);
       const linkReach = phone ? 110 : 180;
@@ -85,7 +96,9 @@ export const HeroMovers: React.FC = () => {
       ctx.clearRect(0, 0, view.width, view.height);
       ctx.lineWidth = 1;
       for (let i = 0; i < nodes.length; i++) {
+        if (!shown.has(i)) continue;
         for (let j = i + 1; j < nodes.length; j++) {
+          if (!shown.has(j)) continue;
           const a = nodes[i];
           const b = nodes[j];
           const ax = a.x + a.w / 2;
@@ -120,7 +133,9 @@ export const HeroMovers: React.FC = () => {
         }
       }
       if (pointer.active) {
-        for (const node of nodes) {
+        for (let index = 0; index < nodes.length; index++) {
+          if (!shown.has(index)) continue;
+          const node = nodes[index];
           const dx = node.x - pointer.x;
           const dy = node.y - pointer.y;
           const dist2 = dx * dx + dy * dy;
@@ -134,7 +149,8 @@ export const HeroMovers: React.FC = () => {
           ctx.stroke();
         }
       }
-      nodes.forEach(node => {
+      nodes.forEach((node, index) => {
+        if (!shown.has(index)) return;
         node.el.style.transform = `translate(${node.x}px, ${node.y}px)`;
       });
     };
@@ -158,7 +174,10 @@ export const HeroMovers: React.FC = () => {
       const pullReach = phone ? 160 : 220;
       const apartLimit = phone ? 19600 : 14400;
       const apartSpan = phone ? 140 : 120;
-      for (const node of nodes) {
+      const shown = shownSet();
+      for (let index = 0; index < nodes.length; index++) {
+        if (!shown.has(index)) continue;
+        const node = nodes[index];
         if (pointer.active) {
           const dx = pointer.x - (node.x + node.w / 2);
           const dy = pointer.y - (node.y + node.h / 2);
@@ -191,8 +210,9 @@ export const HeroMovers: React.FC = () => {
           node.vx *= 0.22 / speed;
           node.vy *= 0.22 / speed;
         }
-        for (const other of nodes) {
-          if (other === node) continue;
+        for (let otherIndex = 0; otherIndex < nodes.length; otherIndex++) {
+          if (otherIndex === index || !shown.has(otherIndex)) continue;
+          const other = nodes[otherIndex];
           const ox = other.x - node.x;
           const oy = other.y - node.y;
           const apart = ox * ox + oy * oy;
@@ -203,10 +223,45 @@ export const HeroMovers: React.FC = () => {
             node.vy -= (oy / dist) * push;
           }
         }
-        if (node.x < 8) node.x = view.width - node.w - 8;
-        if (node.x > view.width - 8) node.x = 8;
-        if (node.y < 8) node.y = view.height - node.h - 8;
-        if (node.y > view.height - 8) node.y = 8;
+        let leaving: 'left' | 'right' | 'top' | 'bottom' | null = null;
+        if (node.x < 8 && node.vx < 0) leaving = 'left';
+        else if (node.x > view.width - 8 && node.vx > 0) leaving = 'right';
+        else if (node.y < 8 && node.vy < 0) leaving = 'top';
+        else if (node.y > view.height - 8 && node.vy > 0) leaving = 'bottom';
+        if (phone && leaving && nodes.length > PHONE_ON_SCREEN) {
+          const fromX = node.x;
+          const fromY = node.y;
+          const before = shownSet();
+          roster = rotateOnScreen(roster, index, onScreenLimit());
+          const entered = roster.slice(0, onScreenLimit()).find(id => !before.has(id));
+          const incoming = entered == null ? undefined : nodes[entered];
+          node.x = -9999;
+          node.y = -9999;
+          if (incoming && incoming !== node) {
+            incoming.vx = node.vx;
+            incoming.vy = node.vy;
+            const clampX = (x: number) => Math.min(Math.max(x, 8), Math.max(8, view.width - incoming.w - 8));
+            const clampY = (y: number) => Math.min(Math.max(y, 8), Math.max(8, view.height - incoming.h - 8));
+            if (leaving === 'left') {
+              incoming.x = Math.max(8, view.width - incoming.w - 8);
+              incoming.y = clampY(fromY);
+            } else if (leaving === 'right') {
+              incoming.x = 8;
+              incoming.y = clampY(fromY);
+            } else if (leaving === 'top') {
+              incoming.y = Math.max(8, view.height - incoming.h - 8);
+              incoming.x = clampX(fromX);
+            } else {
+              incoming.y = 8;
+              incoming.x = clampX(fromX);
+            }
+          }
+        } else {
+          if (node.x < 8) node.x = view.width - node.w - 8;
+          if (node.x > view.width - 8) node.x = 8;
+          if (node.y < 8) node.y = view.height - node.h - 8;
+          if (node.y > view.height - 8) node.y = 8;
+        }
         for (const zone of zones) {
           const hit = node.x < zone.right && node.x + node.w > zone.left && node.y < zone.bottom && node.y + node.h > zone.top;
           if (!hit) continue;
@@ -230,6 +285,7 @@ export const HeroMovers: React.FC = () => {
           }
         }
       }
+      applyRoster();
       paint();
     };
 
@@ -245,11 +301,18 @@ export const HeroMovers: React.FC = () => {
     const onPhone = () => {
       phone = phoneQuery.matches;
       sizedW = 0;
+      const view = rect();
       nodes.forEach(node => {
         node.w = node.el.offsetWidth || node.w;
         node.h = node.el.offsetHeight || node.h;
+        if (!phone && (node.x < 8 || node.y < 8)) {
+          node.x = 40 + Math.random() * Math.max(80, view.width - 160);
+          node.y = 24 + Math.random() * Math.max(80, view.height - 80);
+        }
       });
+      applyRoster();
     };
+    applyRoster();
     phoneQuery.addEventListener('change', onPhone);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerout', onLeave);

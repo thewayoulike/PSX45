@@ -19,6 +19,19 @@ export function mixTopMovers(rows: MoverRow[]): HeroMover[] {
   return mixed;
 }
 
+/**
+ * Phone roster. The first `limit` ids are on screen.
+ * When one of those leaves, it moves to the back and the next id steps on.
+ * An id that is already waiting does not change the line.
+ */
+export function rotateOnScreen(queue: readonly number[], leaving: number, limit: number): number[] {
+  const cap = Math.max(0, Math.min(limit, queue.length));
+  if (!queue.slice(0, cap).includes(leaving)) return [...queue];
+  const next = queue.filter(id => id !== leaving);
+  next.push(leaving);
+  return next;
+}
+
 /** One candle when both names moved the same way. A mixed pair shows both colors. */
 export function jointCandleSides(aUp: boolean, bUp: boolean): Array<'up' | 'down'> {
   if (aUp === bUp) return [aUp ? 'up' : 'down'];

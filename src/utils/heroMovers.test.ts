@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { jointCandleSides, mixTopMovers } from './heroMovers';
+import { jointCandleSides, mixTopMovers, rotateOnScreen } from './heroMovers';
 import type { MoverRow } from './topMovers';
 
 const row = (ticker: string, listedIn: string, change: number): MoverRow => ({
@@ -24,6 +24,16 @@ describe('landing hero movers', () => {
     );
     expect(mixed[0].ticker).toBe('G0');
     expect(mixed[1].ticker).toBe('L11');
+  });
+
+  it('keeps 10 names on a phone and brings in the next one when one leaves', () => {
+    const queue = Array.from({ length: 20 }, (_, i) => i);
+    const next = rotateOnScreen(queue, 3, 10);
+    expect(next).toHaveLength(20);
+    expect(new Set(next).size).toBe(20);
+    expect(next.slice(0, 10)).toEqual([0, 1, 2, 4, 5, 6, 7, 8, 9, 10]);
+    expect(next[19]).toBe(3);
+    expect(rotateOnScreen(queue, 15, 10)).toEqual(queue);
   });
 
   it('puts one candle on a same-direction joint and both colors on a mixed joint', () => {
