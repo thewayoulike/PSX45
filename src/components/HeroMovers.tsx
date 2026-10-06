@@ -112,7 +112,7 @@ export const HeroMovers: React.FC = () => {
             ctx.moveTo(x, my - 9);
             ctx.lineTo(x, my + 9);
             ctx.stroke();
-            ctx.fillRect(x - 2.5, my - 4, 5, 8);
+            ctx.fillRect(x - 2.5, side === 'up' ? my - 5 : my - 3, 5, 8);
           });
         }
       }
@@ -219,6 +219,56 @@ export const HeroMovers: React.FC = () => {
       style={{ left: 0, right: 0, width: '100%', height: 'min(92vh, 760px)' }}
       aria-hidden="true"
     >
+      <style>{`
+        .hero-mover-face {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 8px 4px 6px;
+          border-radius: 10px;
+          font-family: "Plus Jakarta Sans", Inter, sans-serif;
+          font-size: 10px;
+          line-height: 1;
+          white-space: nowrap;
+        }
+        .hero-mover-face::before {
+          content: "";
+          width: 4px;
+          height: 4px;
+          border-radius: 99px;
+          background: currentColor;
+        }
+        .hero-mover-face b { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; }
+        .hero-mover-face em { font-style: normal; font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+        .hero-mover-face.up {
+          color: #047857;
+          background: #ecfdf5;
+          border: 1px solid #a7f3d0;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset, 0 4px 10px rgba(15,23,42,0.08);
+        }
+        .hero-mover-face.down {
+          color: #be123c;
+          background: #fff1f2;
+          border: 1px solid #fecdd3;
+          box-shadow: 0 1px 0 rgba(255,255,255,0.8) inset, 0 4px 10px rgba(15,23,42,0.08);
+        }
+        .hero-mover-face.up b { color: #064e3b; }
+        .hero-mover-face.down b { color: #881337; }
+        .dark .hero-mover-face.up {
+          color: #6ee7b7;
+          background: #064e3b;
+          border-color: #065f46;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+        }
+        .dark .hero-mover-face.down {
+          color: #fda4af;
+          background: #881337;
+          border-color: #9f1239;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+        }
+        .dark .hero-mover-face.up b { color: #ecfdf5; }
+        .dark .hero-mover-face.down b { color: #fff1f2; }
+      `}</style>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       {items.map(item => (
         <span
@@ -227,14 +277,9 @@ export const HeroMovers: React.FC = () => {
           data-up={item.up ? '1' : '0'}
           className="absolute left-0 top-0 -translate-x-[9999px]"
         >
-          <span className={`flex items-center gap-1.5 rounded-[10px] border px-1.5 py-0.5 text-[10px] font-bold shadow-sm whitespace-nowrap ${
-            item.up
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200'
-              : 'border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-200'
-          }`}>
-            <span className="h-1 w-1 rounded-full bg-current" />
-            <b className="font-extrabold tracking-wide">{item.ticker}</b>
-            <em className="not-italic tabular-nums">{pctLabel(item.pct)}</em>
+          <span className={`hero-mover-face ${item.up ? 'up' : 'down'}`}>
+            <b>{item.ticker}</b>
+            <em>{pctLabel(item.pct)}</em>
           </span>
         </span>
       ))}
