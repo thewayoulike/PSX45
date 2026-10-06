@@ -277,7 +277,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             and <span className="font-bold text-emerald-700 dark:text-emerald-400">candlestick charts</span> with indicators and draw tools.
           </p>
 
-          <div className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
+          <div data-hero-actions="" className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
             <button
               onClick={() => scrollTo('start')}
               className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"

@@ -56,8 +56,8 @@ export const HeroMovers: React.FC = () => {
         up: el.dataset.up === '1',
         x: 40 + Math.random() * Math.max(80, box.width - 160),
         y: 24 + Math.random() * Math.max(80, box.height - 80),
-        vx: Math.cos(angle) * 0.45,
-        vy: Math.sin(angle) * 0.45,
+        vx: Math.cos(angle) * 0.12,
+        vy: Math.sin(angle) * 0.12,
         w: el.offsetWidth || 96,
         h: el.offsetHeight || 26,
       };
@@ -65,9 +65,12 @@ export const HeroMovers: React.FC = () => {
 
     let sizedW = 0;
     let sizedH = 0;
+    const phoneQuery = window.matchMedia('(max-width: 767px)');
+    let phone = phoneQuery.matches;
     const paint = () => {
       const view = rect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const dpr = phone ? 1 : Math.min(window.devicePixelRatio || 1, 2);
+      const linkReach = phone ? 110 : 180;
       const nextW = Math.floor(view.width * dpr);
       const nextH = Math.floor(view.height * dpr);
       if (nextW !== sizedW || nextH !== sizedH) {
@@ -92,8 +95,8 @@ export const HeroMovers: React.FC = () => {
           const dx = ax - bx;
           const dy = ay - by;
           const dist2 = dx * dx + dy * dy;
-          if (dist2 >= 32400) continue;
-          const alpha = (1 - Math.sqrt(dist2) / 180) * 0.35;
+          if (dist2 >= linkReach * linkReach) continue;
+          const alpha = (1 - Math.sqrt(dist2) / linkReach) * 0.35;
           ctx.strokeStyle = `rgba(33,137,173,${alpha})`;
           ctx.beginPath();
           ctx.moveTo(ax, ay);
@@ -121,8 +124,9 @@ export const HeroMovers: React.FC = () => {
           const dx = node.x - pointer.x;
           const dy = node.y - pointer.y;
           const dist2 = dx * dx + dy * dy;
-          if (dist2 >= 48400) continue;
-          const alpha = (1 - Math.sqrt(dist2) / 220) * 0.55;
+          const reach = phone ? 160 : 220;
+          if (dist2 >= reach * reach) continue;
+          const alpha = (1 - Math.sqrt(dist2) / reach) * 0.55;
           ctx.strokeStyle = `rgba(27,113,145,${alpha})`;
           ctx.beginPath();
           ctx.moveTo(node.x + node.w / 2, node.y + node.h / 2);
@@ -137,23 +141,31 @@ export const HeroMovers: React.FC = () => {
 
     const step = () => {
       const view = rect();
-      const keepout = document.querySelector('[data-hero-keepout]');
-      const block = keepout ? keepout.getBoundingClientRect() : null;
-      const pad = 14;
-      const zone = block ? {
-        left: block.left - view.left - pad,
-        top: block.top - view.top - pad,
-        right: block.right - view.left + pad,
-        bottom: block.bottom - view.top + pad,
-      } : null;
+      const zones = [];
+      const addZone = (selector: string, pad: number) => {
+        const el = document.querySelector(selector);
+        if (!el) return;
+        const block = el.getBoundingClientRect();
+        zones.push({
+          left: block.left - view.left - pad,
+          top: block.top - view.top - pad,
+          right: block.right - view.left + pad,
+          bottom: block.bottom - view.top + pad,
+        });
+      };
+      if (phone) addZone('[data-hero-actions]', 8);
+      else addZone('[data-hero-keepout]', 14);
+      const pullReach = phone ? 160 : 220;
+      const apartLimit = phone ? 19600 : 14400;
+      const apartSpan = phone ? 140 : 120;
       for (const node of nodes) {
         if (pointer.active) {
           const dx = pointer.x - (node.x + node.w / 2);
           const dy = pointer.y - (node.y + node.h / 2);
           const dist2 = dx * dx + dy * dy;
-          if (dist2 < 48400) {
+          if (dist2 < pullReach * pullReach) {
             const dist = Math.sqrt(dist2) || 1;
-            const pull = (1 - dist / 220) * 0.08;
+            const pull = (1 - dist / pullReach) * 0.02;
             node.vx += (dx / dist) * pull;
             node.vy += (dy / dist) * pull;
           }
@@ -163,30 +175,30 @@ export const HeroMovers: React.FC = () => {
         node.vx *= 0.985;
         node.vy *= 0.985;
         let speed = Math.hypot(node.vx, node.vy);
-        if (speed < 0.35) {
-          const scale = speed < 0.001 ? 0 : 0.35 / speed;
+        if (speed < 0.1) {
+          const scale = speed < 0.001 ? 0 : 0.1 / speed;
           if (scale === 0) {
             const angle = Math.random() * Math.PI * 2;
-            node.vx = 0.35 * Math.cos(angle);
-            node.vy = 0.35 * Math.sin(angle);
+            node.vx = 0.1 * Math.cos(angle);
+            node.vy = 0.1 * Math.sin(angle);
           } else {
             node.vx *= scale;
             node.vy *= scale;
           }
-          speed = 0.35;
+          speed = 0.1;
         }
-        if (speed > 1.15) {
-          node.vx *= 1.15 / speed;
-          node.vy *= 1.15 / speed;
+        if (speed > 0.22) {
+          node.vx *= 0.22 / speed;
+          node.vy *= 0.22 / speed;
         }
         for (const other of nodes) {
           if (other === node) continue;
           const ox = other.x - node.x;
           const oy = other.y - node.y;
           const apart = ox * ox + oy * oy;
-          if (apart > 0 && apart < 14400) {
+          if (apart > 0 && apart < apartLimit) {
             const dist = Math.sqrt(apart);
-            const push = (120 - dist) / 120 * 0.35;
+            const push = (apartSpan - dist) / apartSpan * (phone ? 0.42 : 0.35);
             node.vx -= (ox / dist) * push;
             node.vy -= (oy / dist) * push;
           }
@@ -195,32 +207,30 @@ export const HeroMovers: React.FC = () => {
         if (node.x > view.width - 8) node.x = 8;
         if (node.y < 8) node.y = view.height - node.h - 8;
         if (node.y > view.height - 8) node.y = 8;
-        if (zone) {
+        for (const zone of zones) {
           const hit = node.x < zone.right && node.x + node.w > zone.left && node.y < zone.bottom && node.y + node.h > zone.top;
-          if (hit) {
-            const fromLeft = node.x + node.w - zone.left;
-            const fromRight = zone.right - node.x;
-            const fromTop = node.y + node.h - zone.top;
-            const fromBottom = zone.bottom - node.y;
-            const nearest = Math.min(fromLeft, fromRight, fromTop, fromBottom);
-            if (nearest === fromLeft) {
-              node.x = zone.left - node.w;
-              node.vx = -Math.abs(node.vx);
-            } else if (nearest === fromRight) {
-              node.x = zone.right;
-              node.vx = Math.abs(node.vx);
-            } else if (nearest === fromTop) {
-              node.y = zone.top - node.h;
-              node.vy = -Math.abs(node.vy);
-            } else {
-              node.y = zone.bottom;
-              node.vy = Math.abs(node.vy);
-            }
+          if (!hit) continue;
+          const fromLeft = node.x + node.w - zone.left;
+          const fromRight = zone.right - node.x;
+          const fromTop = node.y + node.h - zone.top;
+          const fromBottom = zone.bottom - node.y;
+          const nearest = Math.min(fromLeft, fromRight, fromTop, fromBottom);
+          if (nearest === fromLeft) {
+            node.x = zone.left - node.w;
+            node.vx = -Math.abs(node.vx);
+          } else if (nearest === fromRight) {
+            node.x = zone.right;
+            node.vx = Math.abs(node.vx);
+          } else if (nearest === fromTop) {
+            node.y = zone.top - node.h;
+            node.vy = -Math.abs(node.vy);
+          } else {
+            node.y = zone.bottom;
+            node.vy = Math.abs(node.vy);
           }
         }
       }
       paint();
-      frame = requestAnimationFrame(step);
     };
 
     const onMove = (event: PointerEvent) => {
@@ -232,11 +242,41 @@ export const HeroMovers: React.FC = () => {
     const onLeave = (event: PointerEvent) => {
       if (event.relatedTarget == null) pointer.active = false;
     };
+    const onPhone = () => {
+      phone = phoneQuery.matches;
+      sizedW = 0;
+      nodes.forEach(node => {
+        node.w = node.el.offsetWidth || node.w;
+        node.h = node.el.offsetHeight || node.h;
+      });
+    };
+    phoneQuery.addEventListener('change', onPhone);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerout', onLeave);
-    let frame = requestAnimationFrame(step);
+    let frame = 0;
+    let running = true;
+    const loop = () => {
+      if (!running) return;
+      step();
+      frame = requestAnimationFrame(loop);
+    };
+    const seen = new IntersectionObserver(([entry]) => {
+      const on = entry.isIntersecting;
+      if (on && !running) {
+        running = true;
+        frame = requestAnimationFrame(loop);
+      } else if (!on && running) {
+        running = false;
+        cancelAnimationFrame(frame);
+      }
+    });
+    seen.observe(field);
+    frame = requestAnimationFrame(loop);
     return () => {
+      running = false;
       cancelAnimationFrame(frame);
+      seen.disconnect();
+      phoneQuery.removeEventListener('change', onPhone);
       window.removeEventListener('pointermove', onMove);
       window.removeEventListener('pointerout', onLeave);
     };
@@ -247,8 +287,8 @@ export const HeroMovers: React.FC = () => {
   return (
     <div
       ref={fieldRef}
-      className="absolute left-0 right-0 top-0 overflow-hidden pointer-events-none"
-      style={{ left: 0, right: 0, width: '100%', height: 'min(92vh, 760px)' }}
+      className="hero-mover-field absolute left-0 right-0 top-0 overflow-hidden pointer-events-none"
+      style={{ left: 0, right: 0, width: '100%' }}
       aria-hidden="true"
     >
       <style>{`
@@ -300,6 +340,14 @@ export const HeroMovers: React.FC = () => {
         }
         .dark .hero-mover-face.up b { color: #ecfdf5; }
         .dark .hero-mover-face.down b { color: #fff1f2; }
+        .hero-mover-field { height: min(92vh, 760px); }
+        [data-mover] { will-change: transform; }
+        @media (max-width: 767px) {
+          .hero-mover-field { height: min(100svh, 680px); }
+          .hero-mover-face { gap: 4px; padding: 3px 6px 3px 5px; font-size: 9px; }
+          .hero-mover-face b, .hero-mover-face em { font-size: 9px; }
+          .hero-mover-face::before { width: 3px; height: 3px; }
+        }
       `}</style>
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" />
       {items.map(item => (
