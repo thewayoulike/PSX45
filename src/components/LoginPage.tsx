@@ -271,7 +271,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             Track your PSX portfolio<br className="hidden md:block" /> like a professional
           </h1>
 
-          <p className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
+          <p data-hero-keepout="" className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
             PSX portfolio tracker for Pakistan Stock Exchange investors. Live PSX prices, true FIFO cost basis, realized P&amp;L with CGT, dividends and X-dates,
             market tools — plus <span className="font-bold text-teal-700 dark:text-teal-400">mutual fund portfolios</span> with NAV sync and daily P&amp;L,
             and <span className="font-bold text-emerald-700 dark:text-emerald-400">candlestick charts</span> with indicators and draw tools.

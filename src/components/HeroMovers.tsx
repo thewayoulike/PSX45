@@ -137,6 +137,15 @@ export const HeroMovers: React.FC = () => {
 
     const step = () => {
       const view = rect();
+      const keepout = document.querySelector('[data-hero-keepout]');
+      const block = keepout ? keepout.getBoundingClientRect() : null;
+      const pad = 14;
+      const zone = block ? {
+        left: block.left - view.left - pad,
+        top: block.top - view.top - pad,
+        right: block.right - view.left + pad,
+        bottom: block.bottom - view.top + pad,
+      } : null;
       for (const node of nodes) {
         if (pointer.active) {
           const dx = pointer.x - (node.x + node.w / 2);
@@ -186,6 +195,29 @@ export const HeroMovers: React.FC = () => {
         if (node.x > view.width - 8) node.x = 8;
         if (node.y < 8) node.y = view.height - node.h - 8;
         if (node.y > view.height - 8) node.y = 8;
+        if (zone) {
+          const hit = node.x < zone.right && node.x + node.w > zone.left && node.y < zone.bottom && node.y + node.h > zone.top;
+          if (hit) {
+            const fromLeft = node.x + node.w - zone.left;
+            const fromRight = zone.right - node.x;
+            const fromTop = node.y + node.h - zone.top;
+            const fromBottom = zone.bottom - node.y;
+            const nearest = Math.min(fromLeft, fromRight, fromTop, fromBottom);
+            if (nearest === fromLeft) {
+              node.x = zone.left - node.w;
+              node.vx = -Math.abs(node.vx);
+            } else if (nearest === fromRight) {
+              node.x = zone.right;
+              node.vx = Math.abs(node.vx);
+            } else if (nearest === fromTop) {
+              node.y = zone.top - node.h;
+              node.vy = -Math.abs(node.vy);
+            } else {
+              node.y = zone.bottom;
+              node.vy = Math.abs(node.vy);
+            }
+          }
+        }
       }
       paint();
       frame = requestAnimationFrame(step);
