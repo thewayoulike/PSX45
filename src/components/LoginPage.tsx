@@ -4,6 +4,7 @@ import { Logo } from './ui/Logo';
 import { SiteFooter } from './SiteFooter';
 import { HOME_FAQS } from '../../config/site.js';
 import { LoginAppPreview } from './LoginAppPreview';
+import { HeroMovers } from './HeroMovers';
 import { GoogleAuthButton } from './GoogleAuthButton';
 import {
   User, LayoutDashboard, Radar, BellRing, Coins, Calculator, LineChart,
@@ -255,12 +256,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
 
       {/* ================= HERO ================= */}
       <section className="relative px-5 pt-16 pb-20 md:pt-24 md:pb-28">
+        <HeroMovers />
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-15%] left-[-10%] w-[55%] h-[55%] bg-emerald-400/10 dark:bg-emerald-600/10 rounded-full blur-[130px]" />
           <div className="absolute bottom-[-20%] right-[-10%] w-[55%] h-[55%] bg-teal-400/10 dark:bg-teal-600/10 rounded-full blur-[130px]" />
         </div>
 
-        <div className="relative max-w-4xl mx-auto text-center">
+        <div className="relative z-10 max-w-4xl mx-auto text-center">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200/70 dark:border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-[11px] font-black uppercase tracking-widest mb-7">
             <Activity size={13} /> Built for Pakistan Stock Exchange
           </div>
@@ -329,7 +331,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           </div>
         </div>
 
-        <div className="relative max-w-6xl mx-auto mt-10">
+        <div className="relative z-10 max-w-6xl mx-auto mt-10">
           <LoginAppPreview />
         </div>
       </section>
