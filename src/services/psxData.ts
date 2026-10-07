@@ -110,6 +110,10 @@ export const fetchOHLCV = async (symbol: string): Promise<OhlcBar[]> => {
     if (!clean) return [];
     try {
         const res = await fetchWithTimeout(`/api/proxy?ohlc=${encodeURIComponent(clean)}`, {}, 45000);
+        if (res.status === 429) {
+            noteHistoryLimit(res);
+            return [];
+        }
         if (!res.ok) throw new Error(`ohlc ${res.status}`);
         const json = await res.json();
         if (json?.error) throw new Error(json.error);
@@ -267,9 +271,22 @@ export const fetchPypsxIndexSymbols = async (): Promise<{ KSE100?: string[]; KMI
  * During a live session that bar's close usually tracks the broker quote more
  * closely than the market-watch CURRENT column Sync scrapes.
  *
- * Fetches symbols in small parallel batches so Sync stays responsive.
+ * Fetches a few symbols per refresh and remembers them, so a large book stays inside the proxy limit.
  */
 const previousCloses: Record<string, number> = {};
+const CLOSE_MEMORY_MS = 5 * 60 * 1000;
+const CLOSES_PER_REFRESH = 8;
+const rememberedCloses = new Map<string, { at: number; close: number; prev: number }>();
+let historyPausedUntil = 0;
+
+function noteHistoryLimit(res: Response) {
+    const retryHeader = res.headers.get('Retry-After');
+    const seconds = retryHeader && /^\d+$/.test(retryHeader) ? Number(retryHeader) : 60;
+    const firstThisWindow = Date.now() >= historyPausedUntil;
+    historyPausedUntil = Date.now() + Math.max(1000, seconds * 1000);
+    if (firstThisWindow) console.warn('fetchOHLCV failed', new Error('ohlc 429'));
+}
+
 export function latestPreviousCloses(): Record<string, number> {
     return { ...previousCloses };
 }
@@ -287,17 +304,32 @@ export const fetchLatestCloses = async (
     if (unique.length === 0) return out;
 
     const marketOpen = isPsxMarketHours();
-    for (let i = 0; i < unique.length; i += concurrency) {
-        const chunk = unique.slice(i, i + concurrency);
+    const now = Date.now();
+    const fresh: string[] = [];
+    for (const sym of unique) {
+        const saved = rememberedCloses.get(sym);
+        if (saved && now - saved.at < CLOSE_MEMORY_MS) {
+            if (saved.prev > 0) previousCloses[sym] = saved.prev;
+            if (saved.close > 0) out[sym] = saved.close;
+            continue;
+        }
+        fresh.push(sym);
+    }
+    const batch = fresh.slice(0, CLOSES_PER_REFRESH);
+    for (let i = 0; i < batch.length; i += concurrency) {
+        if (Date.now() < historyPausedUntil) break;
+        const chunk = batch.slice(i, i + concurrency);
         await Promise.all(chunk.map(async (sym) => {
             const bars = await fetchOHLCV(sym);
             const last = bars[bars.length - 1];
             const prev = bars.length >= 2 ? bars[bars.length - 2] : null;
-            if (prev && prev.close > 0) previousCloses[sym] = prev.close;
+            const prevClose = prev && prev.close > 0 ? prev.close : 0;
+            if (prevClose > 0) previousCloses[sym] = prevClose;
             if (!last || !(last.close > 0)) return;
             const barDay = formatDatePK(new Date(last.time > 1e12 ? last.time : last.time * 1000));
-            if (marketOpen && barDay !== todayPK()) return;
-            out[sym] = last.close;
+            const close = !marketOpen || barDay === todayPK() ? last.close : 0;
+            if (close > 0) out[sym] = close;
+            if (close > 0 || prevClose > 0) rememberedCloses.set(sym, { at: Date.now(), close, prev: prevClose });
         }));
     }
     return out;

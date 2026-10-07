@@ -4,6 +4,11 @@ const running = new Map<string, Promise<Response>>();
 let pythonActive = 0;
 const pythonQueue: (() => void)[] = [];
 let pythonCooldown: { until: number; response: Response } | undefined;
+let proxyCooldown: { until: number; response: Response } | undefined;
+function coolingDown(url: string) {
+  const slot = url.startsWith('/api/pypsx?') ? pythonCooldown : url.startsWith('/api/proxy?') ? proxyCooldown : undefined;
+  return slot && slot.until > Date.now() ? slot : undefined;
+}
 async function requestPython(request: () => Promise<Response>) {
   if (pythonActive >= 2) await new Promise<void>(resolve => pythonQueue.push(resolve));
   else pythonActive++;
@@ -29,6 +34,8 @@ export async function cachedMarketFetch(url: string, request: () => Promise<Resp
   if (!ttl) return request();
   const hit = cached.get(url);
   if (hit && hit.until > Date.now()) return hit.response.clone();
+  const paused = coolingDown(url);
+  if (paused) return paused.response.clone();
   let promise = running.get(url);
   if (!promise) {
     const python = url.startsWith('/api/pypsx?');
@@ -42,6 +49,7 @@ export async function cachedMarketFetch(url: string, request: () => Promise<Resp
       const seconds = retryHeader && /^\d+$/.test(retryHeader) ? Number(retryHeader) : retryHeader ? (Date.parse(retryHeader) - Date.now()) / 1000 : 60;
       const pause = Math.max(1000, Math.min(300000, Number.isFinite(seconds) ? seconds * 1000 : 60000));
       if (python && [429, 503].includes(response.status)) pythonCooldown = { until: Date.now() + pause, response: reusable };
+      if (url.startsWith('/api/proxy?') && response.status === 429) proxyCooldown = { until: Date.now() + pause, response: reusable };
       const validContent = !python || /json/i.test(response.headers.get('Content-Type') || '');
       if (((response.ok && validContent) || temporaryFailure) && bytes.byteLength < 2_000_000) {
         cached.delete(url);

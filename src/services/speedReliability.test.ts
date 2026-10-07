@@ -21,6 +21,16 @@ it('never caches private account calls, cloud writes or forced requests', async 
     expect(request).toHaveBeenCalledTimes(2);
   }
 });
+it('pauses the rest of the history downloads after one proxy 429', async () => {
+  const { cachedMarketFetch } = await import('./marketCache');
+  const failed = vi.fn(async () => json({ error: 'Too many requests. Please retry shortly.' }, 429, { 'Retry-After': '60' }));
+  expect((await cachedMarketFetch('/api/proxy?ohlc=KEL', failed)).status).toBe(429);
+  const next = vi.fn(async () => json({ bars: [] }));
+  expect((await cachedMarketFetch('/api/proxy?ohlc=OGDC', next)).status).toBe(429);
+  expect(next).not.toHaveBeenCalled();
+  vi.advanceTimersByTime(60001);
+  expect((await cachedMarketFetch('/api/proxy?ohlc=OGDC', next)).status).toBe(200);
+});
 it('respects service Retry-After across symbols and resumes after the pause', async () => {
   const { cachedMarketFetch } = await import('./marketCache');
   const failed = vi.fn(async () => json({ error: 'busy' }, 503, { 'Retry-After': '60' }));
