@@ -1,13 +1,38 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchIndexQuote } from '../services/psxData';
-import { buildQuoteStrip, parseBtcUsdQuote, parseGoldOunceQuotes, type QuoteItem } from '../utils/btcQuote';
+import { buildQuoteStrip, parseBtcUsdQuote, parseGoldOunceQuotes, parsePakistanGoldTola, type QuoteItem } from '../utils/btcQuote';
 import { isPsxMarketHours } from '../utils/dates';
+import { parseSectorSummary, type SectorDay } from '../utils/sectorSummary';
 import { visibleInterval } from '../utils/visibleInterval';
 
 const REFRESH_MS = 5 * 60 * 1000;
 
+const SECTOR_SUMMARY_URL = 'https://dps.psx.com.pk/sector-summary/sectorwise';
+
+function SectorMarquee({ sectors }: { sectors: SectorDay[] }) {
+  const loop = sectors.length > 1 ? [...sectors, ...sectors] : sectors;
+  return (
+    <div className="sector-marquee" aria-label="Sector summary">
+      <div className="sector-marquee__track">
+        {loop.map((sector, index) => (
+          <div
+            key={`${sector.code}-${index}`}
+            className="sector-marquee__item"
+            aria-hidden={index >= sectors.length ? true : undefined}
+          >
+            <span className="text-slate-600 dark:text-slate-300">{sector.name}</span>
+            <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{sector.advance} up</span>
+            <span className="text-rose-500 tabular-nums">{sector.decline} down</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export const IndexBar: React.FC = () => {
   const [items, setItems] = useState<QuoteItem[]>([]);
+  const [sectors, setSectors] = useState<SectorDay[]>([]);
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -34,17 +59,26 @@ export const IndexBar: React.FC = () => {
     } catch { /* ignore */ }
 
     let goldUsd: { value: number; changePct: number | null } | null = null;
-    let goldPkr: { value: number; changePct: number | null } | null = null;
     try {
       const res = await fetch('https://latest.currency-api.pages.dev/v1/currencies/usd.min.json');
+      if (res.ok) goldUsd = parseGoldOunceQuotes(await res.json()).usd;
+    } catch { /* ignore */ }
+
+    let goldTola: { value: number; changePct: number | null } | null = null;
+    try {
+      const res = await fetch('https://goldrateinpakistan.org/api/rates.json');
+      if (res.ok) goldTola = parsePakistanGoldTola(await res.json());
+    } catch { /* ignore */ }
+
+    try {
+      const res = await fetch(`/api/proxy?url=${encodeURIComponent(SECTOR_SUMMARY_URL)}`);
       if (res.ok) {
-        const gold = parseGoldOunceQuotes(await res.json());
-        goldUsd = gold.usd;
-        goldPkr = gold.pkr;
+        const parsed = parseSectorSummary(await res.text());
+        if (parsed.length) setSectors(parsed);
       }
     } catch { /* ignore */ }
 
-    const collected = buildQuoteStrip({ kse, kmi, pkr, goldUsd, goldPkr, btc });
+    const collected = buildQuoteStrip({ kse, kmi, pkr, goldUsd, goldTola, btc });
     if (collected.length) setItems(collected);
     loadingRef.current = false;
   }, []);
@@ -55,9 +89,12 @@ export const IndexBar: React.FC = () => {
     return visibleInterval(tick, REFRESH_MS);
   }, [load]);
 
-  if (items.length === 0) return null;
+  if (items.length === 0 && sectors.length === 0) return null;
 
   return (
+    <div>
+    {items.length > 0 && (
+    <div className="mobile-index-strip">
     <div className="flex items-center gap-x-5 gap-y-2 flex-wrap px-1 py-0.5">
       {items.map((it, i) => {
         const up = (it.changePct ?? 0) >= 0;
@@ -88,6 +125,10 @@ export const IndexBar: React.FC = () => {
           </div>
         );
       })}
+    </div>
+    </div>
+    )}
+    {sectors.length > 0 && <SectorMarquee sectors={sectors} />}
     </div>
   );
 };

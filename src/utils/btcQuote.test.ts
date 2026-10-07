@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildQuoteStrip, parseBtcUsdQuote, parseGoldOunceQuotes } from './btcQuote';
+import { buildQuoteStrip, parseBtcUsdQuote, parseGoldOunceQuotes, parsePakistanGoldTola } from './btcQuote';
 
 describe('BTC quote on the index strip', () => {
   it('reads the CoinGecko bitcoin price and 24-hour change', () => {
@@ -28,20 +28,35 @@ describe('BTC quote on the index strip', () => {
     expect(parseGoldOunceQuotes({ usd: { xau: 0, pkr: 280 } })).toEqual({ usd: null, pkr: null });
   });
 
-  it('places gold after USD/PKR and before BTC, and drops a missing side', () => {
+  it('reads the Pakistan 24K tola rate and the direction of the daily change', () => {
+    expect(parsePakistanGoldTola({
+      gold: { '24k': { per_tola: 431775 } },
+      change: { direction: 'up', percent: 0.36 },
+    })).toEqual({ value: 431775, changePct: 0.36 });
+    expect(parsePakistanGoldTola({
+      gold: { '24k': { per_tola: 430000 } },
+      change: { direction: 'down', percent: 0.2 },
+    })).toEqual({ value: 430000, changePct: -0.2 });
+    expect(parsePakistanGoldTola(null)).toBeNull();
+    expect(parsePakistanGoldTola({ gold: { '24k': { per_tola: 0 } } })).toBeNull();
+  });
+
+  it('places the tola rate after XAU/USD and leaves out the ounce price in rupees', () => {
     const full = buildQuoteStrip({
       kse: { value: 1, changePct: 0 },
       pkr: 280,
       goldUsd: { value: 4000, changePct: null },
-      goldPkr: { value: 1120000, changePct: null },
+      goldTola: { value: 431775, changePct: 0.36 },
       btc: { value: 80000, changePct: 1 },
     });
-    expect(full.map(item => item.label)).toEqual(['KSE-100', 'USD/PKR', 'XAU/USD', 'XAU/PKR', 'BTC']);
+    expect(full.map(item => item.label)).toEqual(['KSE-100', 'USD/PKR', 'XAU/USD', 'Gold/tola', 'BTC']);
+    expect(full.find(item => item.label === 'Gold/tola')).toMatchObject({ value: 431775, changePct: 0.36 });
+    expect(full.map(item => item.label)).not.toContain('XAU/PKR');
 
     const usdOnly = buildQuoteStrip({
       pkr: 280,
       goldUsd: { value: 4000, changePct: null },
-      goldPkr: null,
+      goldTola: null,
       btc: { value: 80000, changePct: 1 },
     });
     expect(usdOnly.map(item => item.label)).toEqual(['USD/PKR', 'XAU/USD', 'BTC']);

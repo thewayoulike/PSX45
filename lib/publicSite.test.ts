@@ -124,6 +124,7 @@ it('CSP drops paid scraper hosts and blocks inline event handlers', () => {
   expect(csp).toContain("script-src-attr 'none'");
   expect(csp).toContain('https://api.coingecko.com');
   expect(csp).toContain('https://latest.currency-api.pages.dev');
+  expect(csp).toContain('https://goldrateinpakistan.org');
   expect(csp).not.toContain('api.scrape.do');
   expect(csp).not.toContain('webscraping.ai');
 });
