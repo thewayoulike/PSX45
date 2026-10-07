@@ -5,31 +5,39 @@
 @tailwind utilities;
 
 .sector-marquee {
+  width: 100%;
+  max-width: 100%;
   overflow: hidden;
-  margin-top: 6px;
-  mask-image: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 16px), transparent);
+  margin-top: 8px;
 }
 .sector-marquee__track {
   display: flex;
+  flex-wrap: nowrap;
   width: max-content;
-  animation: sector-marquee 80s linear infinite;
+  animation: sector-marquee 48s linear infinite;
 }
-.sector-marquee:hover .sector-marquee__track { animation-play-state: paused; }
 .sector-marquee__item {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 8px;
   flex: 0 0 auto;
   white-space: nowrap;
-  padding-right: 22px;
-  font-size: 12px;
+  margin-right: 0;
+  padding: 2px 16px;
+  border-right: 1px solid #cbd5e1;
+  font-size: 13px;
   font-weight: 700;
 }
+.dark .sector-marquee__item { border-right-color: #475569; }
 @keyframes sector-marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .sector-marquee { overflow-x: auto; mask-image: none; }
-  .sector-marquee__track { animation: none; }
+  .sector-marquee__track {
+    animation-name: sector-marquee !important;
+    animation-duration: 48s !important;
+    animation-timing-function: linear !important;
+    animation-iteration-count: infinite !important;
+  }
 }

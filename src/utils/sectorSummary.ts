@@ -54,3 +54,31 @@ export function parseSectorSummary(html: string): SectorDay[] {
   }
   return sectors;
 }
+
+function sectorKey(name: string): string {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+export type SectorQuote = SectorDay & { changePct: number | null };
+
+/** Equal-weight average of each name’s move from its previous close. */
+export function withSectorMoves(
+  sectors: readonly SectorDay[],
+  quotes: readonly { sector: string; price: number; ldcp: number }[],
+): SectorQuote[] {
+  const groups = new Map<string, number[]>();
+  for (const quote of quotes) {
+    if (!(quote.price > 0) || !(quote.ldcp > 0) || !quote.sector) continue;
+    const key = sectorKey(quote.sector);
+    const moves = groups.get(key) ?? [];
+    moves.push(((quote.price - quote.ldcp) / quote.ldcp) * 100);
+    groups.set(key, moves);
+  }
+  return sectors.map(sector => {
+    const moves = groups.get(sectorKey(sector.name));
+    const changePct = moves && moves.length
+      ? moves.reduce((sum, move) => sum + move, 0) / moves.length
+      : null;
+    return { ...sector, changePct };
+  });
+}

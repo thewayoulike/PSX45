@@ -1,30 +1,38 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { fetchIndexQuote } from '../services/psxData';
+import { fetchIndexQuote, fetchAllPSXPrices } from '../services/psxData';
 import { buildQuoteStrip, parseBtcUsdQuote, parseGoldOunceQuotes, parsePakistanGoldTola, type QuoteItem } from '../utils/btcQuote';
 import { isPsxMarketHours } from '../utils/dates';
-import { parseSectorSummary, type SectorDay } from '../utils/sectorSummary';
+import { parseSectorSummary, withSectorMoves, type SectorQuote } from '../utils/sectorSummary';
 import { visibleInterval } from '../utils/visibleInterval';
 
 const REFRESH_MS = 5 * 60 * 1000;
 
 const SECTOR_SUMMARY_URL = 'https://dps.psx.com.pk/sector-summary/sectorwise';
 
-function SectorMarquee({ sectors }: { sectors: SectorDay[] }) {
+function SectorMarquee({ sectors }: { sectors: SectorQuote[] }) {
   const loop = sectors.length > 1 ? [...sectors, ...sectors] : sectors;
   return (
     <div className="sector-marquee" aria-label="Sector summary">
       <div className="sector-marquee__track">
-        {loop.map((sector, index) => (
-          <div
-            key={`${sector.code}-${index}`}
-            className="sector-marquee__item"
-            aria-hidden={index >= sectors.length ? true : undefined}
-          >
-            <span className="text-slate-600 dark:text-slate-300">{sector.name}</span>
-            <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{sector.advance} up</span>
-            <span className="text-rose-500 tabular-nums">{sector.decline} down</span>
-          </div>
-        ))}
+        {loop.map((sector, index) => {
+          const up = (sector.changePct ?? 0) >= 0;
+          return (
+            <div
+              key={`${sector.code}-${index}`}
+              className="sector-marquee__item"
+              aria-hidden={index >= sectors.length ? true : undefined}
+            >
+              <span className="text-slate-700 dark:text-slate-200">{sector.name}</span>
+              {sector.changePct != null && (
+                <span className={`tabular-nums ${up ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
+                  {up ? '+' : ''}{sector.changePct.toFixed(2)}%
+                </span>
+              )}
+              <span className="text-emerald-600 dark:text-emerald-400 tabular-nums">{sector.advance} up</span>
+              <span className="text-rose-500 tabular-nums">{sector.decline} down</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -32,7 +40,7 @@ function SectorMarquee({ sectors }: { sectors: SectorDay[] }) {
 
 export const IndexBar: React.FC = () => {
   const [items, setItems] = useState<QuoteItem[]>([]);
-  const [sectors, setSectors] = useState<SectorDay[]>([]);
+  const [sectors, setSectors] = useState<SectorQuote[]>([]);
   const loadingRef = useRef(false);
 
   const load = useCallback(async () => {
@@ -71,10 +79,20 @@ export const IndexBar: React.FC = () => {
     } catch { /* ignore */ }
 
     try {
-      const res = await fetch(`/api/proxy?url=${encodeURIComponent(SECTOR_SUMMARY_URL)}`);
+      const [res, prices] = await Promise.all([
+        fetch(`/api/proxy?url=${encodeURIComponent(SECTOR_SUMMARY_URL)}`),
+        fetchAllPSXPrices().catch(() => ({})),
+      ]);
       if (res.ok) {
         const parsed = parseSectorSummary(await res.text());
-        if (parsed.length) setSectors(parsed);
+        if (parsed.length) {
+          const quotes = Object.values(prices).map(row => ({
+            sector: row.sector,
+            price: row.price,
+            ldcp: row.ldcp,
+          }));
+          setSectors(withSectorMoves(parsed, quotes));
+        }
       }
     } catch { /* ignore */ }
 
@@ -92,7 +110,7 @@ export const IndexBar: React.FC = () => {
   if (items.length === 0 && sectors.length === 0) return null;
 
   return (
-    <div>
+    <div className="min-w-0 w-full">
     {items.length > 0 && (
     <div className="mobile-index-strip">
     <div className="flex items-center gap-x-5 gap-y-2 flex-wrap px-1 py-0.5">
