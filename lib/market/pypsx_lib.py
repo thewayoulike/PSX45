@@ -546,8 +546,6 @@ def get_quotes(symbols: list[str] | str) -> dict[str, Any]:
         "count": len(quotes),
         "errors": errors,
         "source": "pypsx:quote",
-        # "close" can be the previous session's close; consumers that need a live price check this.
-        "price_field": price_field,
     }
 
 
