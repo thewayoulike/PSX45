@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { dividendReinvestedTotal } from './fundCash';
-import { realizedNetOfCgt } from './realizedNet';
+import { netAfterSeparateCgt } from './realizedNet';
 
 describe('income card figures', () => {
   it('sums reinvested dividends in rupees for funds and for stocks', () => {
@@ -11,11 +11,8 @@ describe('income card figures', () => {
     ])).toBe(2500);
   });
 
-  it('nets realized gain by the tax on each sale', () => {
-    expect(realizedNetOfCgt([
-      { profit: 200, tax: 20 },
-      { profit: 112, tax: 19 },
-      { profit: 50, tax: 10, eventType: 'history' },
-    ])).toBe(323);
+  it('subtracts capital gains tax once from profit that already nets sale tax', () => {
+    expect(netAfterSeparateCgt(-62884, 200)).toBe(-63084);
+    expect(netAfterSeparateCgt(1000, 0)).toBe(1000);
   });
 });

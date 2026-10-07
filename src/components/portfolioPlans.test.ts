@@ -22,7 +22,7 @@ describe('portfolio plan screens', () => {
   it('puts a why-this-number hover on fund and stock figures', () => {
     const stats: PortfolioStats = {
       totalValue: 11000, totalCost: 10000, unrealizedPL: 1000, unrealizedPLPercent: 10,
-      realizedPL: 0, netRealizedPL: 0, totalDividends: 0, totalDividendTax: 0,
+      realizedPL: 312, netRealizedPL: 312, totalDividends: 0, totalDividendTax: 0,
       dailyPL: 0, dailyPLPercent: 0, freeCash: 100000, totalCommission: 0, totalSalesTax: 0,
       totalCDC: 0, totalOtherFees: 0, totalCGT: 0, cashInvestment: 100000, totalDeposits: 100000,
       netPrincipal: 100000, peakNetPrincipal: 100000, reinvestedProfits: 0, roi: 1, mwrr: null,
@@ -44,7 +44,8 @@ describe('portfolio plan screens', () => {
       }],
     }));
     expect(fundHtml).toContain('Net of CGT');
-    expect(fundHtml).toContain('273.00');
+    expect(fundHtml).toContain('312.00');
+    expect(fundHtml).not.toContain('273.00');
     expect(fundHtml).toContain('Reinvested');
     expect(fundHtml).toContain('1,000.00');
     expect(fundHtml).toContain('Why this fund value');

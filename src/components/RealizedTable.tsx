@@ -7,7 +7,7 @@ import { exportToExcel, exportToCSV } from '../utils/export';
 import { useFreemium } from './FreemiumContext';
 import { consumeDailyQuota } from '../utils/freemiumQuotas';
 import { formatAssetLabel } from '../utils/fundDisplay';
-import { realizedNetOfCgt } from '../utils/realizedNet';
+import { netAfterSeparateCgt } from '../utils/realizedNet';
 import { FundRealizedView } from './FundRealizedView';
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
@@ -232,7 +232,10 @@ const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = f
 
   const tip = { contentStyle: { borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12, boxShadow: '0 8px 24px rgba(0,0,0,.08)' }, formatter: (v: number) => [`Rs. ${f0(v)}`, 'P&L'] as [string, string] };
   const pf = summary.profitFactor;
-  const netAfterCgt = realizedNetOfCgt(filteredAndSortedTrades);
+  const viewCgt = hasActiveFilters
+    ? filteredAndSortedTrades.reduce((sum, trade) => sum + (trade.eventType === 'history' ? (trade.tax || 0) : 0), 0)
+    : totalCGT;
+  const netAfterCgt = netAfterSeparateCgt(summary.totalProfit, viewCgt);
   const heatColor = (v: number) => {
     if (!v || summary.maxAbsMonth === 0) return 'rgba(148,163,184,0.08)';
     const op = 0.15 + 0.75 * (Math.abs(v) / summary.maxAbsMonth);
@@ -303,7 +306,7 @@ const PsxRealizedTable: React.FC<RealizedTableProps> = ({ trades, showBroker = f
         </StatCard>
         <StatCard label="Net after CGT">
           <div className={`text-xl font-black ${netAfterCgt >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>Rs. {f0(netAfterCgt)}</div>
-          <div className="text-[10px] text-slate-400 font-semibold mt-1">CGT −Rs {f0(totalCGT)}</div>
+          <div className="text-[10px] text-slate-400 font-semibold mt-1">CGT −Rs {f0(viewCgt)}</div>
         </StatCard>
         <StatCard label="Realized Entries">
           <div className="text-2xl font-black text-slate-900 dark:text-slate-100">{summary.count}</div>
