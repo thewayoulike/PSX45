@@ -94,6 +94,28 @@ it('shares the illustrated guide between public and signed-in pages with opt-in 
   expect(readFileSync('public/sitemap.xml', 'utf8')).toContain('/how-it-works');
 });
 
+it('uses one breadcrumb trail matching the combined guide navigation and its own video metadata', () => {
+  const html = resolvePublicHtml('/how-it-works');
+  const schemas = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .map((match) => JSON.parse(match[1]));
+  const breadcrumbs = schemas.filter((schema) => schema['@type'] === 'BreadcrumbList');
+  expect(breadcrumbs).toHaveLength(1);
+  expect(breadcrumbs[0].itemListElement.map((crumb: any) => [crumb.name, crumb.item])).toEqual([
+    ['Home', 'https://www.psx-tracker.com/'],
+    ['Guides', 'https://www.psx-tracker.com/guides'],
+    ['How it works', 'https://www.psx-tracker.com/how-it-works'],
+  ]);
+  expect(html).toContain('<nav class="page-breadcrumbs" aria-label="Breadcrumb">');
+  expect(html).toContain('<span aria-current="page">How it works</span>');
+  const videos = schemas.filter((schema) => schema['@type'] === 'VideoObject');
+  expect(videos).toHaveLength(1);
+  expect(videos[0].url).toBe('https://www.psx-tracker.com/how-it-works#guide-video');
+  expect(videos[0].contentUrl).toBe(`https://www.psx-tracker.com${videoGuide.video}`);
+  // The combined player does not support the dedicated player's timed chapter links.
+  expect(videos[0]).not.toHaveProperty('hasPart');
+  expect(html).not.toContain('src="/video-guide.js"');
+});
+
 it('keeps video chapters ordered within the runtime and provides a direct-file fallback', () => {
   expect(videoChapters.slice(0, 2).map(([title]) => title)).toEqual(['Create a portfolio', 'Set up your broker']);
   const html = resolvePublicHtml('/how-to-use');
