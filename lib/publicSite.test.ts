@@ -267,3 +267,18 @@ it('keeps API entrypoints within the 12-function deployment budget', () => {
   const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
   expect(config.rewrites).toContainEqual({ source: '/api/request-access', destination: '/api/notify-signup' });
 });
+
+it('gives every top-level public page exactly one breadcrumb trail', () => {
+  const pages: [string, string][] = [
+    ...['about', 'privacy', 'terms', 'contact'].map(s => [s, renderPublicPage(s)] as [string, string]),
+    ['guides', renderGuideHub()],
+  ];
+  for (const [name, html] of pages) {
+    expect(html.match(/"@type":"BreadcrumbList"/g), name).toHaveLength(1);
+    const block = JSON.parse(html.match(/<script type="application\/ld\+json">(\{[^<]*BreadcrumbList[^<]*\})<\/script>/)![1]);
+    expect(block.itemListElement[0]).toMatchObject({ position: 1, name: 'Home' });
+    expect(block.itemListElement.at(-1).item).toMatch(new RegExp(`/${name}$`));
+  }
+  const guide = renderGuidePage('fifo-cost-basis-psx');
+  expect(guide.match(/"@type":"BreadcrumbList"/g)).toHaveLength(1); // no duplicate on pages that had one
+});
