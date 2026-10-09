@@ -32,6 +32,8 @@ describe('SEO foundation', () => {
     const robots = read('public/robots.txt');
     expect(robots).toMatch(/User-agent:\s*\*/i);
     expect(robots).toMatch(/Allow:\s*\//i);
+    expect(robots).toMatch(/User-agent:\s*Googlebot\s+Allow:\s*\//i);
+    expect(robots).toMatch(/User-agent:\s*OAI-SearchBot\s+Allow:\s*\//i);
     expect(robots).toContain('Sitemap: https://www.psx-tracker.com/sitemap.xml');
   });
 
