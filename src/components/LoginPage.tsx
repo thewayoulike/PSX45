@@ -11,7 +11,7 @@ import {
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
   Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target,
   Mail, Lock, Loader2, AlertCircle, Star, Upload, FolderOpen, History, LayoutGrid,
-  CandlestickChart, FlaskConical, CirclePlay
+  CandlestickChart, FlaskConical, CirclePlay, Facebook
 } from 'lucide-react';
 import { signUp, signIn, isAuthConfigured, requestPasswordReset } from '../services/auth';
 
@@ -222,11 +222,16 @@ const VideoGuideLink = () => <a href="/how-to-use" className="flex items-center 
   <ArrowRight size={17} className="shrink-0 ml-auto text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
 </a>;
 
+const FacebookPageLink = () => <a href="https://www.facebook.com/psxtracker" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 min-h-[44px] text-sm font-semibold text-slate-600 dark:text-slate-300 underline underline-offset-4 hover:text-emerald-600">
+  <Facebook size={16} aria-hidden="true" />
+  Facebook
+</a>;
+
 export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSuccess, compact = false }) => {
   const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
 
   if (compact) return <main className="mobile-auth min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
-    <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><a href="/tools" className="text-sm font-bold underline">Calculators</a></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Calculators stay in the menu after you sign in.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><VideoGuideLink/><div className="mt-7"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
+    <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><a href="/tools" className="text-sm font-bold underline">Calculators</a></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Calculators stay in the menu after you sign in.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><VideoGuideLink/><div className="mt-7 text-center"><FacebookPageLink /></div><div className="mt-2"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
   </main>;
 
   return (
@@ -737,6 +742,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
       <footer className="px-5 py-12 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-5xl mx-auto">
           <div className="mb-8"><SiteFooter /></div>
+          <div className="mb-8 text-center"><FacebookPageLink /></div>
           <div className="flex flex-col md:flex-row items-center justify-between gap-5 mb-8">
             <Logo variant="horizontal" />
             <p className="text-xs text-slate-400 text-center md:text-right">
