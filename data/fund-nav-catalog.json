@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-10-15T17:44:51.148Z",
+  "updatedAt": "2026-10-15T19:45:11.894Z",
   "reportDate": "Oct 15, 2026",
   "previousReportDate": "Oct 14, 2026",
   "source": "relay:jina",
   "count": 382,
-  "today": "2026-10-15",
+  "today": "2026-10-16",
   "yesterday": "2026-10-14",
   "catalog": {
     "MF:786-investments-limited-786-islamic-money-market-fund-shariah-compliant-money-market": {
@@ -211,7 +211,9 @@
       "nav": 77.6687,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 77.6687,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-capital-preservation-pl": {
       "id": "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-capital-preservation-pl",
@@ -225,7 +227,9 @@
       "nav": 100.9107,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 100.9107,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-conservative-allocation": {
       "id": "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-conservative-allocation",
@@ -239,7 +243,9 @@
       "nav": 119.0235,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 119.0235,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-income-fund-shariah-compliant-income": {
       "id": "MF:abl-asset-management-company-limited-abl-islamic-income-fund-shariah-compliant-income",
@@ -1005,7 +1011,9 @@
       "nav": 171.7296,
       "validityDate": "Oct 15, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 170.8619,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-asset-allocation-fund-shariah-compliant-asset-all": {
       "id": "MF:al-meezan-investment-management-limited-meezan-asset-allocation-fund-shariah-compliant-asset-all",
@@ -1179,7 +1187,9 @@
       "nav": 64.4935,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 64.4935,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-aggressive-shari": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-aggressive-shari",
@@ -1207,9 +1217,7 @@
       "nav": 125.9351,
       "validityDate": "Oct 13, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0,
-      "prevNav": 125.9351,
-      "prevValidityDate": "Oct 14, 2026"
+      "backEndLoad": 0
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c",
@@ -1265,7 +1273,9 @@
       "nav": 269.2771,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 266.5843,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-government-securities-fund-plan-i-shariah-complia": {
       "id": "MF:al-meezan-investment-management-limited-meezan-government-securities-fund-plan-i-shariah-complia",
@@ -1306,10 +1316,10 @@
       "fundName": "Meezan Islamic Fund",
       "category": "Shariah Compliant Equity",
       "inceptionDate": "Aug 08, 2003",
-      "offer": 157.6842,
-      "repurchase": 154.1391,
-      "nav": 154.1391,
-      "validityDate": "Oct 14, 2026",
+      "offer": 158.4394,
+      "repurchase": 154.8773,
+      "nav": 154.8773,
+      "validityDate": "Oct 15, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 154.1391,
@@ -1761,7 +1771,9 @@
       "nav": 96.1383,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 96.1383,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-stock-fund-shariah-compliant-equity": {
       "id": "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-stock-fund-shariah-compliant-equity",
@@ -1823,7 +1835,9 @@
       "nav": 110.5853,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 110.5853,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-conservative-a": {
       "id": "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-conservative-a",
@@ -1837,7 +1851,9 @@
       "nav": 114.9327,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 114.9327,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-moderate-alloc": {
       "id": "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-moderate-alloc",
@@ -1851,7 +1867,9 @@
       "nav": 97.2457,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 97.2457,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-sovereign-fund-income": {
       "id": "MF:alfalah-asset-management-limited-alfalah-ghp-sovereign-fund-income",
@@ -2089,7 +2107,9 @@
       "nav": 130.7559,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 130.7559,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-money-market-fund-ii-money-market": {
       "id": "MF:alfalah-asset-management-limited-alfalah-money-market-fund-ii-money-market",
@@ -2295,7 +2315,9 @@
       "nav": 96.0536,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 96.0536,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-capital-preservation-plan-iii-fund": {
       "id": "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-capital-preservation-plan-iii-fund",
@@ -2309,7 +2331,9 @@
       "nav": 99.0568,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 99.0568,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-fund-plan-i-fund-of-funds": {
       "id": "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-fund-plan-i-fund-of-funds",
@@ -2323,7 +2347,9 @@
       "nav": 102.68,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 102.68,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity": {
       "id": "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity",
@@ -2881,7 +2907,9 @@
       "nav": 117.7519,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 117.7519,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-mustakil-munafa-fund-faysal-islamic-mehdood-mudda": {
       "id": "MF:faysal-asset-management-limited-faysal-islamic-mustakil-munafa-fund-faysal-islamic-mehdood-mudda",
@@ -3007,7 +3035,9 @@
       "nav": 111.7232,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 3,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 111.7232,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-khushal-mustaqbil-fund-faysal-nu-umah-women-savers-plan-s": {
       "id": "MF:faysal-asset-management-limited-faysal-khushal-mustaqbil-fund-faysal-nu-umah-women-savers-plan-s",
@@ -3021,7 +3051,9 @@
       "nav": 112.0593,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 3,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 112.0593,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:first-capital-investments-limited-first-capital-mutual-fund-equity": {
       "id": "MF:first-capital-investments-limited-first-capital-mutual-fund-equity",
@@ -3417,7 +3449,9 @@
       "nav": 103.3668,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 103.3668,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-mehfooz-munafa-fund-plan-xiv-fixed-rate-return": {
       "id": "MF:hbl-asset-management-limited-hbl-mehfooz-munafa-fund-plan-xiv-fixed-rate-return",
@@ -3637,7 +3671,9 @@
       "nav": 145.38,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 145.38,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:js-investments-limited-js-government-securities-fund-income": {
       "id": "MF:js-investments-limited-js-government-securities-fund-income",
@@ -3843,7 +3879,9 @@
       "nav": 195.8243,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 195.8243,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:lakson-investments-limited-lakson-equity-fund-equity": {
       "id": "MF:lakson-investments-limited-lakson-equity-fund-equity",
@@ -3857,7 +3895,9 @@
       "nav": 300.1272,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 300.1272,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:lakson-investments-limited-lakson-income-fund-income": {
       "id": "MF:lakson-investments-limited-lakson-income-fund-income",
@@ -3903,7 +3943,9 @@
       "nav": 88.6729,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 88.6729,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:lakson-investments-limited-lakson-money-market-fund-money-market": {
       "id": "MF:lakson-investments-limited-lakson-money-market-fund-money-market",
@@ -3933,7 +3975,9 @@
       "nav": 98.9206,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 98.9206,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-capital-protected-fund-plan-i-shariah-compliant-capital-": {
       "id": "MF:lucky-investments-limited-lucky-islamic-capital-protected-fund-plan-i-shariah-compliant-capital-",
@@ -4155,7 +4199,9 @@
       "nav": 9.3632,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 9.3632,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-cash-management-optimizer-shariah-compliant-money-mark": {
       "id": "MF:mcb-investment-management-limited-alhamra-cash-management-optimizer-shariah-compliant-money-mark",
@@ -5127,7 +5173,9 @@
       "nav": 9.0884,
       "validityDate": "Oct 14, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 9.0675,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-islamic-government-securities-plan-iii-shariah-compliant-income": {
       "id": "MF:nbp-fund-management-limited-nbp-islamic-government-securities-plan-iii-shariah-compliant-income",
@@ -5637,7 +5685,9 @@
       "nav": 102.026,
       "validityDate": "Oct 15, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 101.9949,
+      "prevValidityDate": "Oct 14, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-islamic-stock-fund-shariah-compliant-equity": {
       "id": "MF:pak-qatar-asset-management-company-limited-pak-qatar-islamic-stock-fund-shariah-compliant-equity",
@@ -6085,6 +6135,21 @@
       "repurchase": 10.343,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-active-allocation-plan-": {
+      "nav": 77.6687,
+      "repurchase": 77.6687,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-capital-preservation-pl": {
+      "nav": 100.9107,
+      "repurchase": 100.9107,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-conservative-allocation": {
+      "nav": 119.0235,
+      "repurchase": 119.0235,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:abl-asset-management-company-limited-abl-islamic-income-fund-shariah-compliant-income": {
       "nav": 10.5501,
       "repurchase": 10.5501,
@@ -6320,6 +6385,11 @@
       "repurchase": 47.3919,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:al-meezan-investment-management-limited-kse-meezan-index-fund-shariah-compliant-index-tracker": {
+      "nav": 170.8619,
+      "repurchase": 170.8619,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:al-meezan-investment-management-limited-meezan-asset-allocation-fund-shariah-compliant-asset-all": {
       "nav": 110.9438,
       "repurchase": 110.9438,
@@ -6370,9 +6440,14 @@
       "repurchase": 81.0992,
       "validityDate": "Oct 14, 2026"
     },
-    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha": {
-      "nav": 125.9351,
-      "repurchase": 125.9351,
+    "MF:al-meezan-investment-management-limited-meezan-energy-fund-shariah-compliant-equity": {
+      "nav": 64.4935,
+      "repurchase": 64.4935,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities": {
+      "nav": 266.5843,
+      "repurchase": 266.5843,
       "validityDate": "Oct 14, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-government-securities-fund-plan-i-shariah-complia": {
@@ -6460,6 +6535,11 @@
       "repurchase": 107.01,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-prosperity-planning-fund-alfalah-ghp-islami": {
+      "nav": 96.1383,
+      "repurchase": 96.1383,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-stock-fund-shariah-compliant-equity": {
       "nav": 67.652,
       "repurchase": 67.652,
@@ -6473,6 +6553,21 @@
     "MF:alfalah-asset-management-limited-alfalah-ghp-money-market-fund-money-market": {
       "nav": 102.4159,
       "repurchase": 102.4159,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-active-allocat": {
+      "nav": 110.5853,
+      "repurchase": 110.5853,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-conservative-a": {
+      "nav": 114.9327,
+      "repurchase": 114.9327,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-ghp-prosperity-planning-fund-alfalah-ghp-moderate-alloc": {
+      "nav": 97.2457,
+      "repurchase": 97.2457,
       "validityDate": "Oct 14, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-sovereign-fund-income": {
@@ -6545,6 +6640,11 @@
       "repurchase": 100.6632,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:alfalah-asset-management-limited-alfalah-ktrade-islamic-plan-vii-shariah-compliant-fund-of-funds": {
+      "nav": 130.7559,
+      "repurchase": 130.7559,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:alfalah-asset-management-limited-alfalah-money-market-fund-ii-money-market": {
       "nav": 107.1168,
       "repurchase": 107.1168,
@@ -6603,6 +6703,21 @@
     "MF:alfalah-asset-management-limited-alfalah-stock-fund-ii-equity": {
       "nav": 74.3536,
       "repurchase": 74.3536,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-capital-preservation-plan-ii-fund-": {
+      "nav": 96.0536,
+      "repurchase": 96.0536,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-capital-preservation-plan-iii-fund": {
+      "nav": 99.0568,
+      "repurchase": 99.0568,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:alfalah-asset-management-limited-alfalah-strategic-allocation-fund-plan-i-fund-of-funds": {
+      "nav": 102.68,
+      "repurchase": 102.68,
       "validityDate": "Oct 14, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity": {
@@ -6775,6 +6890,11 @@
       "repurchase": 103.2323,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:faysal-asset-management-limited-faysal-islamic-financial-planning-fund-ii-faysal-priority-ascend": {
+      "nav": 117.7519,
+      "repurchase": 117.7519,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:faysal-asset-management-limited-faysal-islamic-mustakil-munafa-fund-faysal-islamic-mehdood-mudda": {
       "nav": 104.3889,
       "repurchase": 104.3889,
@@ -6808,6 +6928,16 @@
     "MF:faysal-asset-management-limited-faysal-islamic-stock-fund-ii-shariah-compliant-equity": {
       "nav": 125.5486,
       "repurchase": 125.5486,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-khushal-mustaqbil-fund-faysal-barak-ah-women-savers-plan-": {
+      "nav": 111.7232,
+      "repurchase": 111.7232,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:faysal-asset-management-limited-faysal-khushal-mustaqbil-fund-faysal-nu-umah-women-savers-plan-s": {
+      "nav": 112.0593,
+      "repurchase": 112.0593,
       "validityDate": "Oct 14, 2026"
     },
     "MF:first-capital-investments-limited-first-capital-mutual-fund-equity": {
@@ -6925,6 +7055,11 @@
       "repurchase": 250.7629,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:hbl-asset-management-limited-hbl-mehfooz-munafa-fund-plan-xi-fixed-rate-return": {
+      "nav": 103.3668,
+      "repurchase": 103.3668,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:hbl-asset-management-limited-hbl-mehfooz-munafa-fund-plan-xiv-fixed-rate-return": {
       "nav": 103.5843,
       "repurchase": 103.5843,
@@ -6983,6 +7118,11 @@
     "MF:js-investments-limited-js-fixed-term-munafa-fund-plan-24-fixed-rate-return": {
       "nav": 101.8595,
       "repurchase": 101.8595,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:js-investments-limited-js-fund-of-funds-fund-of-funds": {
+      "nav": 145.38,
+      "repurchase": 145.38,
       "validityDate": "Oct 14, 2026"
     },
     "MF:js-investments-limited-js-government-securities-fund-income": {
@@ -7045,6 +7185,16 @@
       "repurchase": 395.5822,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:lakson-investments-limited-lakson-asset-allocation-developed-markets-fund-asset-allocation": {
+      "nav": 195.8243,
+      "repurchase": 195.8243,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:lakson-investments-limited-lakson-equity-fund-equity": {
+      "nav": 300.1272,
+      "repurchase": 300.1272,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:lakson-investments-limited-lakson-income-fund-income": {
       "nav": 105.6375,
       "repurchase": 105.6375,
@@ -7055,9 +7205,19 @@
       "repurchase": 104.3092,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:lakson-investments-limited-lakson-islamic-tactical-fund-shariah-compliant-asset-allocation": {
+      "nav": 88.6729,
+      "repurchase": 88.6729,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:lakson-investments-limited-lakson-money-market-fund-money-market": {
       "nav": 106.0214,
       "repurchase": 106.0214,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:lakson-investments-limited-lakson-tactical-fund-asset-allocation": {
+      "nav": 98.9206,
+      "repurchase": 98.9206,
       "validityDate": "Oct 14, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-capital-protected-fund-plan-i-shariah-compliant-capital-": {
@@ -7123,6 +7283,11 @@
     "MF:mahaana-wealth-limited-mahaana-islamic-cash-fund-shariah-compliant-money-market": {
       "nav": 110.4224,
       "repurchase": 110.4224,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:mahaana-wealth-limited-mahaana-islamic-gold-fund-shariah-compliant-commodities": {
+      "nav": 9.3632,
+      "repurchase": 9.3632,
       "validityDate": "Oct 14, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-cash-management-optimizer-shariah-compliant-money-mark": {
@@ -7420,6 +7585,11 @@
       "repurchase": 10.0248,
       "validityDate": "Oct 14, 2026"
     },
+    "MF:nbp-fund-management-limited-nbp-islamic-gold-fund-shariah-compliant-commodities": {
+      "nav": 9.0675,
+      "repurchase": 9.0675,
+      "validityDate": "Oct 14, 2026"
+    },
     "MF:nbp-fund-management-limited-nbp-islamic-government-securities-plan-iii-shariah-compliant-income": {
       "nav": 10.3447,
       "repurchase": 10.3447,
@@ -7573,6 +7743,11 @@
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-income-plan-shariah-compliant-income": {
       "nav": 121.4244,
       "repurchase": 121.4244,
+      "validityDate": "Oct 14, 2026"
+    },
+    "MF:pak-qatar-asset-management-company-limited-pak-qatar-islamic-fixed-term-fund-plan-ii-shariah-com": {
+      "nav": 101.9949,
+      "repurchase": 101.9949,
       "validityDate": "Oct 14, 2026"
     },
     "MF:pak-qatar-asset-management-company-limited-pak-qatar-islamic-stock-fund-shariah-compliant-equity": {
