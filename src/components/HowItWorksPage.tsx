@@ -3,7 +3,8 @@ import { videoGuide } from '../../lib/videoGuide.js';
 import { renderHowItWorksBody } from '../../lib/howItWorks.js';
 
 // Static, authored guide content shared with the public page; no auth or Drive lifecycle.
-const guideHtml = renderHowItWorksBody();
+// Keep public reading paths out of the signed-in walkthrough so it stays inside the app.
+const guideHtml = renderHowItWorksBody({ publicLinks: false });
 export const HowItWorksPage: React.FC = () => (
   <article className="app-feature-guide max-w-[1120px] mx-auto">
     <link rel="preload" as="image" href={videoGuide.poster} />

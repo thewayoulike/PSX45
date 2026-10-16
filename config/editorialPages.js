@@ -1,5 +1,7 @@
 const caution = 'This page does not quote a live price, a dividend amount, or a target. Those figures belong in the company’s own notices, your broker, and — for a fund — the manager’s statement and MUFAP’s published NAV. PSX Tracker is not a broker and does not place orders.';
 
+import { addResourceReading } from './guideReading.js';
+
 function share(symbol, name, sections) {
   return {
     kind: 'share',
@@ -19,7 +21,7 @@ function share(symbol, name, sections) {
   };
 }
 
-export const editorialPages = {
+const baseEditorialPages = {
   '/markets': {
     kind: 'hub',
     title: 'PSX companies and mutual funds',
@@ -269,7 +271,7 @@ export const editorialPages = {
   },
 };
 
-export const toolPages = {
+const baseToolPages = {
   '/tools': {
     title: 'PSX portfolio calculators',
     seoTitle: 'PSX portfolio calculators',
@@ -300,7 +302,7 @@ export const toolPages = {
   '/tools/capital-gains': {
     form: 'capital-gains',
     title: 'Share capital gain calculator',
-    seoTitle: 'PSX capital gain calculator',
+    seoTitle: 'PSX Capital Gains Calculator — 2025 Schedule | PSX Tracker',
     description: 'Estimate CGT on one PSX share sale for a filer and a non-filer, from the dates and prices you type.',
     eyebrow: 'Calculator',
     h1: 'Capital gain on a share sale',
@@ -340,13 +342,14 @@ export const toolPages = {
   '/tools/dividend-yield': {
     form: 'dividend-yield',
     title: 'Dividend yield calculator',
-    seoTitle: 'Dividend yield calculator',
+    seoTitle: 'Dividend Yield Calculator for PSX Stocks | PSX Tracker',
     description: 'Divide an annual dividend per share by a price you type. No live PSX quote is fetched.',
     eyebrow: 'Calculator',
-    h1: 'Dividend yield from numbers you supply',
+    h1: 'Dividend yield calculator for PSX stocks',
     intro: 'Yield is the annual cash dividend per share divided by a price, expressed as a percentage. You type both. A yield without a price date and a dividend date is not something you can compare with a friend’s screenshot.',
     sections: [
       ['What to type',
+        'For annual yield, add all cash dividends per share for one stated year. An individual interim payment divided by price measures only that payout; do not label it annual yield unless it is the full-year total.',
         'Use the dividend you are actually measuring: last year’s cash dividends per share, or the latest declared rate converted with the face value in the notice, if that is the question you mean. Say which one in your notes. A percentage declaration is not a rupee amount until you apply the face value printed on that notice.',
         'Use a price you choose: the price you paid, or a close you read on your broker on a date you write down. This page will not fetch one. Withholding tax means the cash you received is smaller than the declared dividend. A yield on the gross dividend overstates the cash yield.'],
     ],
@@ -378,10 +381,10 @@ export const toolPages = {
   '/tools/sip': {
     form: 'sip',
     title: 'SIP calculator',
-    seoTitle: 'SIP calculator',
+    seoTitle: 'SIP Calculator in PKR — Monthly Investment | PSX Tracker',
     description: 'Project a monthly investment from an annual return you type. The result is an assumption, not a forecast.',
     eyebrow: 'Calculator',
-    h1: 'SIP future value',
+    h1: 'Monthly investment SIP calculator in PKR',
     intro: 'A systematic investment plan here means a fixed rupee amount invested at the start of each month. You type the amount, how many years, and the annual return you want to assume. The tool does not know what a fund will earn.',
     sections: [
       ['What the number is',
@@ -400,7 +403,7 @@ export const toolPages = {
   '/tools/zakat': {
     form: 'zakat',
     title: 'Zakat calculator',
-    seoTitle: 'Zakat calculator',
+    seoTitle: 'Zakat Calculator — Cash, Gold & Investments | PSX Tracker',
     description: 'Estimate 2.5% zakat from cash, gold, silver, and investments you type, once they reach nisab.',
     eyebrow: 'Calculator',
     h1: 'Zakat estimate',
@@ -420,3 +423,8 @@ export const toolPages = {
     ],
   },
 };
+
+export const editorialPages = Object.fromEntries(Object.entries(baseEditorialPages)
+  .map(([path, page]) => [path, addResourceReading(path, page)]));
+export const toolPages = Object.fromEntries(Object.entries(baseToolPages)
+  .map(([path, page]) => [path, addResourceReading(path, page)]));
