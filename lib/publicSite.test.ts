@@ -129,6 +129,23 @@ it('keeps video chapters ordered within the runtime and provides a direct-file f
   }
 });
 
+it('publishes integer chapter offsets and matching seek URLs for Google video results', () => {
+  const html = resolvePublicHtml('/how-to-use') || '';
+  const video = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+    .map(match => JSON.parse(match[1])).find(schema => schema['@type'] === 'VideoObject');
+  expect(video.hasPart).toHaveLength(videoChapters.length);
+  video.hasPart.forEach((clip: any, index: number) => {
+    expect(Number.isInteger(clip.startOffset)).toBe(true);
+    expect(Number.isInteger(clip.endOffset)).toBe(true);
+    expect(clip.startOffset).toBeGreaterThanOrEqual(0);
+    expect(clip.endOffset).toBeGreaterThan(clip.startOffset);
+    expect(clip.endOffset).toBeLessThanOrEqual(videoGuide.duration);
+    expect(Number(new URL(clip.url).searchParams.get('t'))).toBe(clip.startOffset);
+    expect(new URL(clip.url).pathname).toBe('/how-to-use');
+    if (index) expect(clip.startOffset).toBe(video.hasPart[index - 1].endOffset);
+  });
+});
+
 it('feedback encodes draft text and uses the authorized support destination', () => {
   const links = feedbackLinks('Bug report', 'Charts & scroll', 'A&b?\nNew line');
   const email = new URL(links.email);

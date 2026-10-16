@@ -45,6 +45,19 @@ const paths = {
 
 const screenshot = (file, alt, caption) => ({ figure: { file, alt, caption } });
 const examples = {
+  'understanding-unrealized-vs-realized': ['Worked example: selling some of your shares',
+    'Illustration only: buy 100 shares at Rs 100, for a cost of Rs 10,000. This example excludes fees, taxes, dividends and corporate actions so the difference between open and closed gains is clear.',
+    { table: { headers: ['What happens?', 'Realized P&L', 'Unrealized P&L'], rows: [
+      ['Price rises to Rs 120; all 100 shares are still held', 'Rs 0 — no sale', '100 × (120 − 100) = Rs 2,000'],
+      ['Sell 40 shares at Rs 120; keep 60 shares', '40 × (120 − 100) = Rs 800', '60 × (120 − 100) = Rs 1,200'],
+      ['Later, the remaining shares fall to Rs 110', 'Still Rs 800 from the completed sale', '60 × (110 − 100) = Rs 600'],
+    ] } },
+    'The sale brings in Rs 4,800 of cash, but only Rs 800 is profit: Rs 4,000 is the cost of the 40 shares sold. The 60 remaining shares have a cost of Rs 6,000. Do not count the entire sale proceeds as a gain.',
+    'Immediately after the partial sale, the Rs 800 realized gain plus Rs 1,200 unrealized gain equals the original Rs 2,000 price gain. At Rs 110, that combined gain is Rs 1,400. The later fall affects the shares still held, not the price at which the completed sale occurred.',
+    'For a loss example, selling 40 of those Rs 100 shares at Rs 90 would realize a Rs 400 loss before charges. With multiple purchase lots, the matched cost depends on your cost-basis method; include purchase charges in cost and deduct relevant selling charges without counting them twice.',
+    screenshot('realized', 'PSX Tracker realized profit and loss report for a demo portfolio', 'The Realized P&L report shows closed trades. This is a separate demo portfolio; its amounts are not the worked example above.'),
+    { links: [tool('fifo-vs-average', 'Compare matched costs when you bought at different prices'), tool('trade-costs', 'Estimate the charges on a buy or sell'), guide('psx-portfolio-export-reconcile', 'Reconcile the results to broker records')] },
+  ],
   'fifo-cost-basis-psx': ['Follow a partial sale from note to report',
     'Illustrative records only: the following dates and prices are invented. Assume no fees or corporate actions so the lot-matching difference is visible.',
     { table: { headers: ['Contract note', 'Transaction to record', 'Quantity × price'], rows: [
@@ -84,7 +97,7 @@ export function addGuideReading(slug, page) {
   const sections = page.sections.map(section => route && section[0] === route[0]
     ? [...section, { links: route[1] }] : section);
   if (examples[slug]) sections.push(examples[slug]);
-  const image = slug === 'fifo-cost-basis-psx' ? '/media/features/realized-preview.webp'
+  const image = ['fifo-cost-basis-psx', 'understanding-unrealized-vs-realized'].includes(slug) ? '/media/features/realized-preview.webp'
     : slug === 'tracking-psx-dividends' ? '/media/features/dividends-preview.webp' : undefined;
   return { ...page, ...(image ? { image } : {}), sections };
 }

@@ -6,7 +6,7 @@ export const PAGE_UPDATED = {
   '/terms': '2026-09-17',
   '/contact': '2026-09-17',
   '/guides': '2026-09-23',
-  '/how-to-use': '2026-09-23',
+  '/how-to-use': '2026-10-16',
   '/how-it-works': '2026-10-16',
   '/guides/best-psx-portfolio-tracker-excel-alternative': '2026-10-16',
   '/guides/fifo-cost-basis-psx': '2026-10-16',

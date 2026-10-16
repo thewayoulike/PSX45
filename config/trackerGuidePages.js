@@ -338,13 +338,19 @@ export const trackerGuidePages = {
   },
 
   'understanding-unrealized-vs-realized': {
-    title: 'Unrealized vs realized P&L explained',
-    blurb: 'Paper gains on open lots versus locked-in results after sells.',
-    description: 'Full explanation of unrealized versus realized profit and loss for PSX portfolios, and how PSX Tracker shows both lenses.',
-    intro: 'Unrealized P&L moves with the market on shares you still hold. Realized P&L locks in when you sell. Confusing the two leads to celebrating paper gains that never become cash — or ignoring locked-in losses hiding under a green today number.',
+    title: 'Realized vs unrealized P&L: meaning and example',
+    blurb: 'Understand profit and loss on sold shares versus shares you still hold, with a partial-sale example.',
+    description: 'Realized P&L comes from sold shares; unrealized P&L changes on shares you still hold. Compare formulas and a rupee example for a PSX portfolio.',
+    intro: 'P&L means profit and loss. Realized P&L is the gain or loss on shares you have sold, after their matched purchase cost and relevant charges. Unrealized P&L is the current market value of shares you still hold minus their remaining cost. A partial sale can leave you with both at the same time.',
     sections: [
       ['Unrealized (open positions)',
         'Roughly: market value minus the cost of lots you still hold. It changes whenever prices move and is not cash until you dispose of the position.',
+        { table: { headers: ['Question', 'Realized P&L', 'Unrealized P&L'], rows: [
+          ['Which shares?', 'Shares already sold', 'Shares still held'],
+          ['Basic calculation', 'Sale proceeds − matched cost − selling charges', 'Current market value − remaining cost'],
+          ['Does a later market-price move change it?', 'No; corrections to the trade or costs can change the record', 'Yes, while the shares remain open'],
+          ['Where to review it?', 'Realized P&L report', 'Holdings'],
+        ] } },
         'A large unrealized gain can vanish in a bad week. Treat it as mark-to-market information, not a bonus already paid.'],
       ['Realized (closed trades)',
         'Realized results come from sells after cost basis and fees for the lots you closed. They remain in history even if you later repurchase the name.',
@@ -353,7 +359,7 @@ export const trackerGuidePages = {
         'Dividends are not unrealized share gain and not the same as a sell. Track income separately so Total Return has all three stories: open marks, closed trades and distributions.'],
       ['How PSX Tracker helps',
         'Holdings views emphasize open lots; realized views emphasize closed trades. Use both when you review performance.',
-        'If the two lenses disagree with your memory, trust the ledger — then fix missing trades until memory and ledger converge.',
+        'If the figures do not match your broker records, reconcile the dates, quantities, prices, charges and corporate actions. Correct missing or duplicate records before relying on either total.',
         disclaimer],
     ],
     related: ['fifo-cost-basis-psx', 'cgt-basics-pakistan-stocks', 'tracking-psx-dividends', 'realistic-psx-returns'],
