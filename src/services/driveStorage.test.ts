@@ -141,7 +141,7 @@ describe('login configuration readiness', () => {
   });
   it('still opens Google synchronously after a deferred homepage form becomes ready', async () => {
     const requestAccessToken = vi.fn();
-    const initTokenClient = vi.fn(() => ({ requestAccessToken }));
+    const initTokenClient = vi.fn((_options: { scope: string; include_granted_scopes?: boolean }) => ({ requestAccessToken }));
     vi.stubGlobal('window', { location: { origin: 'https://test.example' }, google: { accounts: { oauth2: { initTokenClient } } } });
     mockCloud(() => response({ enabled: true, clientId: 'test.apps.googleusercontent.com' }));
     const onUser = vi.fn();
