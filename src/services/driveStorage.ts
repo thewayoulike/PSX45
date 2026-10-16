@@ -212,11 +212,11 @@ function requestRememberedDriveConnection(expectedEmail: string | null, bindPass
     void googleSignInReadiness.prepare();
 }
 
-export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promise<void>) => {
+export const initDriveAuth = (onUserLoggedIn: (user: DriveUser) => void | Promise<void>, options: { prepareSignIn?: boolean } = {}) => {
     driveSessionListener = onUserLoggedIn;
     let active = true;
     const attempt = driveLoginAttempt;
-    if (typeof window.location?.origin === 'string') void googleSignInReadiness.prepare().then(() => {
+    if (options.prepareSignIn !== false && typeof window.location?.origin === 'string') void googleSignInReadiness.prepare().then(() => {
         if (!active || attempt !== driveLoginAttempt || googleSignInReadiness.getSnapshot().status !== 'ready' || !CLIENT_ID) return;
         // Preserve restored-session expiry handling without polling or opening a popup.
         try { tokenClient = createDriveTokenClient(null, attempt); }

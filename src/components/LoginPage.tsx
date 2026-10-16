@@ -1,23 +1,36 @@
-import React, { useState } from 'react';
+import React, { lazy, Suspense, useEffect, useState } from 'react';
 import { PAID_PLAN_PRICES, TRIAL_DAYS } from '../../config/product.js';
 import { Logo } from './ui/Logo';
 import { SiteFooter } from './SiteFooter';
 import { HOME_FAQS } from '../../config/site.js';
-import { LoginAppPreview } from './LoginAppPreview';
-import { HeroMovers } from './HeroMovers';
-import { GoogleAuthButton } from './GoogleAuthButton';
+import { LoginDeferred } from './LoginDeferred';
 import {
-  User, LayoutDashboard, Radar, BellRing, Coins, Calculator, LineChart,
+  LayoutDashboard, Radar, BellRing, Coins, Calculator, LineChart,
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
   Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target,
-  Mail, Lock, Loader2, AlertCircle, Star, Upload, FolderOpen, History, LayoutGrid,
+  Star, Upload, FolderOpen, History, LayoutGrid,
   CandlestickChart, FlaskConical, CirclePlay, Facebook
 } from 'lucide-react';
-import { signUp, signIn, isAuthConfigured, requestPasswordReset } from '../services/auth';
+const EmailAuth = lazy(() => import('./LoginEmailAuth'));
+const LoginAppPreview = lazy(() => import('./LoginAppPreview').then(m => ({ default: m.LoginAppPreview })));
+const HeroMovers = lazy(() => import('./HeroMovers').then(m => ({ default: m.HeroMovers })));
+const formFallback = <div className="max-w-md mx-auto min-h-[540px] p-7" role="status">Preparing sign-in…</div>;
+
+function HeroEnhancement() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const start = () => { timer = setTimeout(() => setReady(true), 1500); };
+    if (document.readyState === 'complete') start();
+    else window.addEventListener('load', start, { once: true });
+    return () => { window.removeEventListener('load', start); clearTimeout(timer); };
+  }, []);
+  return ready ? <Suspense fallback={null}><HeroMovers /></Suspense> : null;
+}
 
 interface LoginPageProps {
   compact?: boolean;
-  onGoogleLogin: () => void;
+  onGoogleLogin?: () => void;
   onAuthSuccess?: () => void; // called after a successful email login/signup
 }
 
@@ -38,130 +51,6 @@ const FREE_VS_PAID: { feature: string; free: string; paid: string }[] = [
   { feature: 'Import (CSV / Gemini / Gmail)', free: 'Unlimited runs · first 5 stocks and 3 funds', paid: 'All tickers' },
   { feature: 'Export', free: '1 / day · first 5 stocks and 3 funds', paid: 'Unlimited' },
 ];
-
-/* ---------- email/password auth (Supabase) ---------- */
-
-const EmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin: () => void }> = ({ onAuthSuccess, onGoogleLogin }) => {
-  const [tab, setTab] = useState<'login' | 'signup'>('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'signup-done'>('idle');
-  const [msg, setMsg] = useState('');
-  const [resetMode, setResetMode] = useState(false);
-
-  const inputCls = "w-full px-3 py-3 text-base bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:border-emerald-400 focus:ring-2 focus:ring-emerald-500/20 dark:text-white transition-all";
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!isAuthConfigured()) { setStatus('error'); setMsg('Login is not configured yet. Please contact the owner.'); return; }
-    if (resetMode) {
-      setStatus('loading');
-      try { await requestPasswordReset(email); setStatus('idle'); setMsg('If that email has an account, a reset link is on its way. Check your inbox and spam folder.'); }
-      catch (error) { setStatus('error'); setMsg(error instanceof Error ? error.message : 'Please retry shortly.'); }
-      return;
-    }
-    if (!email.trim() || !password) { setStatus('error'); setMsg('Enter your email and password.'); return; }
-    if (tab === 'signup' && !name.trim()) { setStatus('error'); setMsg('Please enter your name.'); return; }
-    if (tab === 'signup' && password.length < 10) { setStatus('error'); setMsg('Password must be at least 10 characters.'); return; }
-
-    setStatus('loading'); setMsg('');
-    try {
-      if (tab === 'signup') {
-        await signUp(name.trim(), email.trim(), password);
-        setStatus('signup-done');
-        setMsg('Check your inbox for an email confirmation if required, then log in to request access. Owner approval starts your trial.');
-      } else {
-        await signIn(email.trim(), password);
-        onAuthSuccess?.(); // App re-checks session + approval and routes accordingly
-      }
-    } catch (err: any) {
-      setStatus('error');
-      setMsg(err?.message || 'Something went wrong. Please try again.');
-    }
-  };
-
-  if (status === 'signup-done') {
-    return (
-      <div className="max-w-md mx-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 rounded-3xl shadow-lg p-8 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center mx-auto mb-4">
-          <CheckCircle2 size={26} />
-        </div>
-        <h3 className="text-xl font-display font-black tracking-tight mb-2">Check your email</h3>
-        <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-5">{msg}</p>
-        <button onClick={() => { setStatus('idle'); setTab('login'); setPassword(''); }} className="text-sm font-bold text-emerald-600 dark:text-emerald-400 hover:underline">Back to log in</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="max-w-md mx-auto bg-white dark:bg-slate-900 border border-slate-200/70 dark:border-slate-800/70 rounded-3xl shadow-lg p-7">
-      {/* Tabs */}
-      <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-2xl mb-6">
-        {(['login', 'signup'] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => { setTab(t); setResetMode(false); setStatus('idle'); setMsg(''); }}
-            className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === t ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 dark:text-slate-400'}`}
-          >
-            {t === 'login' ? 'Log in' : 'Sign up'}
-          </button>
-        ))}
-      </div>
-
-      <form onSubmit={submit} className="space-y-3">
-        {tab === 'signup' && (
-          <div className="relative">
-            <label htmlFor="signup-name" className="block text-sm mb-1">Your name</label><input id="signup-name" autoComplete="name" value={name} onChange={e => { setName(e.target.value); setStatus('idle'); }} placeholder="Your name" className={inputCls} />
-          </div>
-        )}
-        <div className="relative">
-          <label htmlFor="login-email" className="block text-sm mb-1">Email</label><input id="login-email" autoComplete="email" required type="email" value={email} onChange={e => { setEmail(e.target.value); setStatus('idle'); }} placeholder="Email" className={inputCls} />
-        </div>
-        {!resetMode && <div className="relative">
-          <label htmlFor="login-password" className="block text-sm mb-1">Password</label>
-          <input id="login-password" required minLength={tab === 'signup' ? 10 : undefined} maxLength={72} type="password" autoComplete={tab === 'signup' ? 'new-password' : 'current-password'} value={password} onChange={e => { setPassword(e.target.value); setStatus('idle'); }} placeholder={tab === 'signup' ? 'At least 10 characters' : 'Password'} className={inputCls} />
-        </div>}
-        {msg && status !== 'error' && <p role="status" className="text-sm">{msg}</p>}
-        {tab === 'login' && <button type="button" className="text-sm underline py-2" onClick={() => { setResetMode(!resetMode); setMsg(''); setStatus('idle'); }}>{resetMode ? 'Back to password login' : 'Forgot password?'}</button>}
-
-        {status === 'error' && (
-          <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400">
-            <AlertCircle size={16} className="shrink-0 mt-0.5" />
-            <span className="text-sm font-medium">{msg}</span>
-          </div>
-        )}
-
-        <button type="submit" disabled={status === 'loading'} className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-3 rounded-xl shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2">
-          {status === 'loading' ? <><Loader2 size={18} className="animate-spin" /> Please wait…</> : resetMode ? 'Send reset link' : (tab === 'login' ? 'Log in' : 'Create account')}
-        </button>
-      </form>
-
-      <p className="text-[11px] text-slate-400 text-center mt-4 leading-snug">
-        {tab === 'signup'
-          ? `New accounts get a ${TRIAL_DAYS}-day full free trial after a quick owner approval — then Free forever with limits, or upgrade to Paid.`
-          : "Signed up but can't get in yet? Your account may still be pending approval."}
-      </p>
-
-      <div className="flex items-center gap-3 my-5">
-        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-        <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400">or</span>
-        <div className="flex-1 h-px bg-slate-200 dark:bg-slate-800" />
-      </div>
-
-      <GoogleAuthButton
-        onClick={onGoogleLogin}
-        className="w-full flex items-center justify-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 hover:shadow-md text-slate-700 dark:text-slate-200 font-bold py-3 rounded-xl transition-all"
-      >
-        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5 shrink-0" alt="" />
-        Sign in with Google
-        <span className="hidden sm:inline text-[9px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-1.5 py-0.5 rounded">Recommended</span>
-      </GoogleAuthButton>
-      <p className="text-[11px] text-slate-400 text-center mt-1.5">Your portfolio stays in your Drive. We retain encrypted Google permission so linked password logins can reopen it. Disconnect anytime in Profile & security.</p>
-      <p className="text-xs text-slate-500 dark:text-slate-400 text-center mt-4 leading-relaxed">By creating an account, you agree to our <a href="/terms" className="underline">Terms & Conditions</a>. Read how your information is used in our <a href="/privacy" className="underline">Privacy Policy</a>.</p>
-    </div>
-  );
-};
 
 /* ---------- small building blocks ---------- */
 
@@ -195,7 +84,7 @@ const Feature: React.FC<{
       )}
     </div>
     <h3 className="text-base font-display font-black text-slate-900 dark:text-white mb-1.5 tracking-tight">{title}</h3>
-    <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{children}</p>
+    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{children}</p>
   </div>
 );
 
@@ -208,18 +97,18 @@ const Check: React.FC<{ children: React.ReactNode }> = ({ children }) => (
 
 const SectionHead: React.FC<{ eyebrow: string; title: string; sub?: string }> = ({ eyebrow, title, sub }) => (
   <div className="text-center max-w-2xl mx-auto mb-12">
-    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 mb-3">{eyebrow}</div>
+    <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 mb-3">{eyebrow}</div>
     <h2 className="text-3xl md:text-4xl font-display font-black text-slate-900 dark:text-white tracking-tight mb-3">{title}</h2>
-    {sub && <p className="text-slate-500 dark:text-slate-400 leading-relaxed">{sub}</p>}
+    {sub && <p className="text-slate-600 dark:text-slate-400 leading-relaxed">{sub}</p>}
   </div>
 );
 
 /* ---------- page ---------- */
 
 const VideoGuideLink = () => <a href="/how-to-use" className="flex items-center gap-3 max-w-md mx-auto mt-5 p-4 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30 text-left hover:bg-emerald-100/70 dark:hover:bg-emerald-900/30 transition-colors focus-visible:outline-2 focus-visible:outline-emerald-600">
-  <CirclePlay size={28} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+  <CirclePlay size={28} className="shrink-0 text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
   <span><strong className="block text-sm text-slate-900 dark:text-white">New here? Watch the video guide</strong><span className="block text-xs mt-1 text-slate-600 dark:text-slate-300">Portfolio, broker setup & AI scan · 6 minutes</span></span>
-  <ArrowRight size={17} className="shrink-0 ml-auto text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+  <ArrowRight size={17} className="shrink-0 ml-auto text-emerald-700 dark:text-emerald-400" aria-hidden="true" />
 </a>;
 
 const FacebookPageLink = () => <a href="https://www.facebook.com/psxtracker" target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 min-h-[44px] text-sm font-semibold text-slate-600 dark:text-slate-300 underline underline-offset-4 hover:text-emerald-600">
@@ -228,10 +117,14 @@ const FacebookPageLink = () => <a href="https://www.facebook.com/psxtracker" tar
 </a>;
 
 export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSuccess, compact = false }) => {
-  const scrollTo = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  const [authRequested, setAuthRequested] = useState(false);
+  const scrollTo = (id: string) => {
+    if (id === 'start') setAuthRequested(true);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   if (compact) return <main className="mobile-auth min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
-    <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><a href="/tools" className="text-sm font-bold underline">Calculators</a></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-500 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Calculators stay in the menu after you sign in.</p></div><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/><VideoGuideLink/><div className="mt-7 text-center"><FacebookPageLink /></div><div className="mt-2"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
+    <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><a href="/tools" className="text-sm font-bold underline">Calculators</a></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-600 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Calculators stay in the menu after you sign in.</p></div><Suspense fallback={formFallback}><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/></Suspense><VideoGuideLink/><div className="mt-7 text-center"><FacebookPageLink /></div><div className="mt-2"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
   </main>;
 
   return (
@@ -242,7 +135,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
         <div className="max-w-6xl mx-auto px-3 sm:px-5 min-h-16 flex items-center justify-between gap-2">
           <Logo variant="horizontal" className="brand-logo--header" />
           <a href="/tools" className="md:hidden shrink-0 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Calculators</a>
-          <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-500 dark:text-slate-400">
+          <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-600 dark:text-slate-400">
             <a href="/tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Calculators</a>
             <a href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
             <a href="#tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</a>
@@ -252,16 +145,17 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           </nav>
           <button
             onClick={() => scrollTo('start')}
-            className="shrink-0 whitespace-nowrap min-h-[44px] bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5"
+            className="shrink-0 whitespace-nowrap min-h-[44px] bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-bold px-4 py-2 rounded-xl shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5"
           >
             Get Started
           </button>
         </div>
       </header>
 
+      <main id="main-content">
       {/* ================= HERO ================= */}
       <section className="relative px-5 pt-16 pb-20 md:pt-24 md:pb-28">
-        <HeroMovers />
+        <HeroEnhancement />
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
           <div className="absolute top-[-15%] left-[-10%] w-[55%] h-[55%] bg-emerald-400/10 dark:bg-emerald-600/10 rounded-full blur-[130px]" />
           <div className="absolute bottom-[-20%] right-[-10%] w-[55%] h-[55%] bg-teal-400/10 dark:bg-teal-600/10 rounded-full blur-[130px]" />
@@ -276,7 +170,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             Track your PSX portfolio<br className="hidden md:block" /> like a professional
           </h1>
 
-          <p data-hero-keepout="" className="text-lg text-slate-500 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
+          <p data-hero-keepout="" className="text-lg text-slate-600 dark:text-slate-400 leading-relaxed max-w-2xl mx-auto mb-9">
             PSX portfolio tracker for Pakistan Stock Exchange investors. Live PSX prices, true FIFO cost basis, realized P&amp;L with CGT, dividends and X-dates,
             market tools — plus <span className="font-bold text-teal-700 dark:text-teal-400">mutual fund portfolios</span> with NAV sync and daily P&amp;L,
             and <span className="font-bold text-emerald-700 dark:text-emerald-400">candlestick charts</span> with indicators and draw tools.
@@ -285,7 +179,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           <div data-hero-actions="" className="flex flex-col sm:flex-row gap-3 justify-center mb-4">
             <button
               onClick={() => scrollTo('start')}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
+              className="bg-emerald-700 hover:bg-emerald-800 text-white font-bold px-7 py-3.5 rounded-xl shadow-lg shadow-emerald-600/25 transition-all hover:-translate-y-0.5 flex items-center justify-center gap-2"
             >
               Start Free <ArrowRight size={18} />
             </button>
@@ -296,7 +190,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
               Explore Features
             </button>
           </div>
-          <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400 mb-12">✓ {TRIAL_DAYS}-day full trial · then Free forever (limited) or Paid · no card required</p>
+          <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mb-12">✓ {TRIAL_DAYS}-day full trial · then Free forever (limited) or Paid · no card required</p>
 
           <div className="flex flex-wrap gap-2 justify-center mb-8">
             <Pill>Live PSX Prices</Pill>
@@ -337,7 +231,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
         </div>
 
         <div className="relative z-10 max-w-6xl mx-auto mt-10">
-          <LoginAppPreview />
+          <LoginDeferred fallback={<div className="min-h-[700px]" role="status">Loading app preview…</div>}><LoginAppPreview /></LoginDeferred>
         </div>
       </section>
 
@@ -369,7 +263,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
               Candlesticks for hundreds of tickers — moving averages, RSI, Bollinger, Fib, trend lines, and your open + realized P&amp;L on the chart.
             </Feature>
 
-            <Feature Icon={LayoutDashboard} title="Live Dashboard" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
+            <Feature Icon={LayoutDashboard} title="Live Dashboard" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
               Net worth, today&apos;s P&amp;L, total return and a portfolio health score — with KSE-100, KMI-30 and USD/PKR at the top. Layout is customizable.
             </Feature>
 
@@ -439,13 +333,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-5">
             <div className="bg-gradient-to-br from-emerald-50/90 to-white dark:from-emerald-500/10 dark:to-slate-900 rounded-2xl border border-emerald-200/70 dark:border-emerald-500/30 p-6 shadow-sm ring-1 ring-emerald-500/10">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-600 text-white border border-emerald-500/30 flex items-center justify-center mb-4 shadow-md shadow-emerald-600/20">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-700 text-white border border-emerald-500/30 flex items-center justify-center mb-4 shadow-md shadow-emerald-600/20">
                 <CandlestickChart size={20} />
               </div>
               <div className="flex items-center gap-2 mb-2">
                 <h3 className="font-display font-black text-lg tracking-tight">Charts Explorer</h3>
               </div>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Research any PSX stock with candlesticks, volume, and draw tools — with your portfolio P&amp;L in view.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Research any PSX stock with candlesticks, volume, and draw tools — with your portfolio P&amp;L in view.</p>
               <ul className="space-y-2">
                 <Check>Day / Week / Month ranges</Check>
                 <Check>Fib, trend lines &amp; price-axis zoom</Check>
@@ -454,11 +348,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             </div>
 
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-sm">
-              <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center mb-4">
+              <div className="w-11 h-11 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center mb-4">
                 <Calculator size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Fair Value Calculator</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Estimate what a stock is actually worth before you buy.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Estimate what a stock is actually worth before you buy.</p>
               <ul className="space-y-2">
                 <Check>Company fundamentals</Check>
                 <Check>EPS &amp; book value based</Check>
@@ -471,7 +365,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 <LineChart size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Trading Simulator</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Test a trade with real commission maths before committing.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Test a trade with real commission maths before committing.</p>
               <ul className="space-y-2">
                 <Check>Your broker's charges</Check>
                 <Check>Break-even price</Check>
@@ -484,7 +378,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 <FlaskConical size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Strategy Backtest</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Rehearse a technical idea on past prices before you risk capital.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Rehearse a technical idea on past prices before you risk capital.</p>
               <ul className="space-y-2">
                 <Check>Rule-based entries &amp; exits</Check>
                 <Check>Historical win / loss summary</Check>
@@ -497,7 +391,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 <Building2 size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Brokers &amp; Portfolios</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Model your real brokerage costs across multiple portfolios.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Model your real brokerage costs across multiple portfolios.</p>
               <ul className="space-y-2">
                 <Check>Commission slabs, SST &amp; CDC</Check>
                 <Check>Multiple portfolios</Check>
@@ -510,7 +404,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 <Target size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Stock &amp; Sector Profile</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Drill into any ticker or sector you hold.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Drill into any ticker or sector you hold.</p>
               <ul className="space-y-2">
                 <Check>Lifetime return per stock</Check>
                 <Check>Open vs closed split</Check>
@@ -523,7 +417,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 <Sparkles size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">PSX Assistant</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Ask about your portfolio — it looks up live data before answering.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Ask about your portfolio — it looks up live data before answering.</p>
               <ul className="space-y-2">
                 <Check>Reads your real holdings</Check>
                 <Check>Live prices &amp; technicals</Check>
@@ -536,7 +430,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 <History size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Transaction History</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Every cash and trade event in one searchable list.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Every cash and trade event in one searchable list.</p>
               <ul className="space-y-2">
                 <Check>Buy, sell, dividend, CGT</Check>
                 <Check>Deposits &amp; withdrawals</Check>
@@ -549,7 +443,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 <LayoutGrid size={20} />
               </div>
               <h3 className="font-display font-black text-lg tracking-tight mb-2">Dashboard Layout</h3>
-              <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 leading-relaxed">Show, hide and resize cards for desktop and mobile.</p>
+              <p className="text-sm text-slate-600 dark:text-slate-400 mb-4 leading-relaxed">Show, hide and resize cards for desktop and mobile.</p>
               <ul className="space-y-2">
                 <Check>Drag-and-drop grid</Check>
                 <Check>Separate mobile layout</Check>
@@ -564,9 +458,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
       <section className="px-5 py-20 bg-white/60 dark:bg-slate-900/20 border-y border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
           <div>
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-600 dark:text-emerald-400 mb-3">Accuracy First</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 mb-3">Accuracy First</div>
             <h2 className="text-3xl md:text-4xl font-display font-black tracking-tight mb-4">Numbers you can actually trust</h2>
-            <p className="text-slate-500 dark:text-slate-400 leading-relaxed mb-6">
+            <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
               Most trackers approximate. This one models the details that change your real return —
               because a wrong cost basis quietly ruins every number after it.
             </p>
@@ -580,31 +474,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           </div>
 
           <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-lg">
-            <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Sample Holding</div>
+            <div className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-4">Sample Holding</div>
             <div className="flex items-baseline justify-between mb-1">
               <span className="font-display font-black text-2xl">LUCK</span>
-              <span className="text-2xl font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+17.95%</span>
+              <span className="text-2xl font-display font-black tabular-nums text-emerald-700 dark:text-emerald-400">+17.95%</span>
             </div>
-            <div className="text-xs text-slate-400 mb-5">150 shares · Now Rs. 920.00 · Avg cost Rs. 780.00</div>
+            <div className="text-xs text-slate-600 dark:text-slate-400 mb-5">150 shares · Now Rs. 920.00 · Avg cost Rs. 780.00</div>
             <div className="space-y-3 pt-5 border-t border-slate-100 dark:border-slate-800">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Open position</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+Rs. 21,000.00</span>
+                <span className="text-slate-600 dark:text-slate-400">Open position</span>
+                <span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">+Rs. 21,000.00</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Realized (day trade)</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+Rs. 2,480.00</span>
+                <span className="text-slate-600 dark:text-slate-400">Realized (day trade)</span>
+                <span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">+Rs. 2,480.00</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-slate-500 dark:text-slate-400">Dividends received</span>
-                <span className="font-bold tabular-nums text-emerald-600 dark:text-emerald-400">+Rs. 3,750.00</span>
+                <span className="text-slate-600 dark:text-slate-400">Dividends received</span>
+                <span className="font-bold tabular-nums text-emerald-700 dark:text-emerald-400">+Rs. 3,750.00</span>
               </div>
               <div className="flex justify-between pt-3 border-t border-slate-100 dark:border-slate-800">
                 <span className="text-sm font-bold">Lifetime return</span>
-                <span className="font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">+23.26%</span>
+                <span className="font-display font-black tabular-nums text-emerald-700 dark:text-emerald-400">+23.26%</span>
               </div>
             </div>
-            <p className="text-[10px] text-slate-400 mt-4 leading-snug">
+            <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-4 leading-snug">
               Open, closed and dividend performance kept separate — so one number never hides another.
             </p>
           </div>
@@ -620,7 +514,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             sub="Your trades stay with you. We don't run ads or sell portfolio data."
           />
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            <Feature Icon={ShieldCheck} title="Your portfolio, your store" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
+            <Feature Icon={ShieldCheck} title="Your portfolio, your store" tint="bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-500/20">
               Records stay on this device and, when connected, in your Google Drive. Optional AI and import tools process the information you choose to share.
             </Feature>
             <Feature Icon={CloudUpload} title="Optional Drive Sync" tint="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700">
@@ -669,14 +563,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           {/* Free vs Paid comparison */}
           <div className="rounded-3xl border border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900 shadow-sm overflow-hidden mb-10">
             <div className="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] border-b border-slate-200/70 dark:border-slate-800/70 bg-slate-50/80 dark:bg-slate-800/40">
-              <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-400">Feature</div>
-              <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-300 text-center border-l border-slate-200/70 dark:border-slate-800/70">
+              <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400">Feature</div>
+              <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-300 text-center border-l border-slate-200/70 dark:border-slate-800/70">
                 Free
-                <div className="mt-0.5 text-[10px] font-bold normal-case tracking-normal text-slate-400">Forever · limited</div>
+                <div className="mt-0.5 text-[10px] font-bold normal-case tracking-normal text-slate-600 dark:text-slate-400">Forever · limited</div>
               </div>
               <div className="px-4 py-3.5 text-[11px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400 text-center border-l border-emerald-200/60 dark:border-emerald-500/20 bg-emerald-50/50 dark:bg-emerald-500/10">
                 Paid
-                <div className="mt-0.5 text-[10px] font-bold normal-case tracking-normal text-emerald-600/80 dark:text-emerald-400/80">Unlimited</div>
+                <div className="mt-0.5 text-[10px] font-bold normal-case tracking-normal text-emerald-700 dark:text-emerald-400/80">Unlimited</div>
               </div>
             </div>
             {FREE_VS_PAID.map((row, i) => (
@@ -685,7 +579,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
                 className={`grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] ${i % 2 === 0 ? '' : 'bg-slate-50/40 dark:bg-slate-800/20'} ${i < FREE_VS_PAID.length - 1 ? 'border-b border-slate-100 dark:border-slate-800/60' : ''}`}
               >
                 <div className="px-4 py-3 text-sm font-bold text-slate-800 dark:text-slate-100">{row.feature}</div>
-                <div className="px-4 py-3 text-xs sm:text-sm text-slate-500 dark:text-slate-400 text-center border-l border-slate-100 dark:border-slate-800/60 leading-snug">{row.free}</div>
+                <div className="px-4 py-3 text-xs sm:text-sm text-slate-600 dark:text-slate-400 text-center border-l border-slate-100 dark:border-slate-800/60 leading-snug">{row.free}</div>
                 <div className="px-4 py-3 text-xs sm:text-sm font-semibold text-emerald-700 dark:text-emerald-400 text-center border-l border-emerald-100/80 dark:border-emerald-500/15 leading-snug bg-emerald-50/30 dark:bg-emerald-500/5">{row.paid}</div>
               </div>
             ))}
@@ -703,21 +597,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
               })),
             ].map(p => (
               <div key={p.label} className={`relative rounded-3xl border p-6 text-center shadow-sm ${p.best ? 'border-emerald-400 dark:border-emerald-500/40 bg-emerald-50/40 dark:bg-emerald-500/5 shadow-lg' : 'border-slate-200/70 dark:border-slate-800/70 bg-white dark:bg-slate-900'}`}>
-                {p.best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest shadow-md">Best value</span>}
-                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400 mb-2">{p.label}</div>
+                {p.best && <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-emerald-700 text-white text-[10px] font-black uppercase tracking-widest shadow-md">Best value</span>}
+                <div className="text-[11px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-2">{p.label}</div>
                 <div className="flex items-baseline justify-center gap-1">
                   <span className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">Rs. {p.pm}</span>
-                  <span className="text-sm font-bold text-slate-400">/mo</span>
+                  <span className="text-sm font-bold text-slate-600 dark:text-slate-400">/mo</span>
                 </div>
-                <div className="text-xs text-slate-400 mt-1">Rs. {p.total} billed</div>
+                <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">Rs. {p.total} billed</div>
                 {p.save
-                  ? <div className="mt-3 inline-block text-[11px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full">Save {p.save}</div>
-                  : <div className="mt-3 inline-block text-[11px] font-bold text-slate-400 px-2.5 py-1">Pay monthly</div>}
+                  ? <div className="mt-3 inline-block text-[11px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-1 rounded-full">Save {p.save}</div>
+                  : <div className="mt-3 inline-block text-[11px] font-bold text-slate-600 dark:text-slate-400 px-2.5 py-1">Pay monthly</div>}
               </div>
             ))}
           </div>
 
-          <p className="text-center text-sm text-slate-500 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-center text-sm text-slate-600 dark:text-slate-400 mt-8 max-w-2xl mx-auto leading-relaxed">
             Lifetime access is available too. Pay via Naya Pay, bank transfer, or Jazz Cash, email the receipt — your account is activated as soon as it&apos;s confirmed.
           </p>
         </div>
@@ -732,30 +626,31 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             sub="Create an account (quick owner approval) or sign in with Google. After the trial you stay on Free with limits — or upgrade to Paid anytime."
           />
 
-          <EmailAuth onAuthSuccess={onAuthSuccess} onGoogleLogin={onGoogleLogin} />
+          <LoginDeferred requested={authRequested} fallback={formFallback}><EmailAuth onAuthSuccess={onAuthSuccess} onGoogleLogin={onGoogleLogin} /></LoginDeferred>
           <VideoGuideLink />
         </div>
       </section>
 
       {/* ================= FOOTER ================= */}
       <section className="max-w-3xl mx-auto px-5 py-12" aria-labelledby="faq-heading"><h2 id="faq-heading" className="text-3xl font-bold mb-6">A few things to know</h2>{HOME_FAQS.map(([question, answer]) => <details key={question} className="border-b border-slate-200 dark:border-slate-800 py-4"><summary className="cursor-pointer font-semibold py-2">{question}</summary><p className="text-slate-600 dark:text-slate-400 py-3 leading-relaxed">{answer}</p></details>)}</section>
+      </main>
       <footer className="px-5 py-12 border-t border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-5xl mx-auto">
           <div className="mb-8"><SiteFooter /></div>
           <div className="mb-8 text-center"><FacebookPageLink /></div>
           <div className="flex flex-col md:flex-row items-center justify-between gap-5 mb-8">
             <Logo variant="horizontal" />
-            <p className="text-xs text-slate-400 text-center md:text-right">
+            <p className="text-xs text-slate-600 dark:text-slate-400 text-center md:text-right">
               Built for Pakistan Stock Exchange investors.
             </p>
           </div>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed text-center max-w-3xl mx-auto">
+          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed text-center max-w-3xl mx-auto">
             For educational and informational purposes only. Nothing here is financial, investment or trading advice,
             and no content is a recommendation to buy or sell any security. Market data may be delayed or inaccurate.
             Signals and calculators are research aids, not predictions — always do your own research and consult a
             qualified financial advisor before investing.
           </p>
-          <p className="text-[11px] text-slate-400 dark:text-slate-500 text-center mt-6">
+          <p className="text-[11px] text-slate-600 dark:text-slate-400 text-center mt-6">
             © {new Date().getFullYear()} PSX Portfolio Tracker
           </p>
         </div>

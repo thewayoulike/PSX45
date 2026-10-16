@@ -6,7 +6,7 @@ export default {
   content: [
     './index.html',
     './src/components/Login*.tsx',
-    './src/components/{Entry,SiteFooter,AppLoading,DriveSetupPrompt,ErrorBoundary,OfflinePortfolio,PasswordRecovery}.tsx',
+    './src/components/{Entry,EntrySession,GoogleAuthButton,HeroMovers,SiteFooter,AppLoading,DriveSetupPrompt,ErrorBoundary,OfflinePortfolio,PasswordRecovery}.tsx',
     './src/components/ui/{Logo,BrandLogo,ThemeToggle,VideoGuideLink}.tsx',
   ],
 };

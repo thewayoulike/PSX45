@@ -127,6 +127,31 @@ afterEach(() => {
 });
 
 describe('login configuration readiness', () => {
+  it('restores an existing Drive session without downloading sign-in UI on the homepage', () => {
+    vi.stubGlobal('window', { location: { origin: 'https://test.example' }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
+    const prepare = vi.spyOn(service.googleSignInReadiness, 'prepare');
+    const onUser = vi.fn();
+    const cleanup = service.initDriveAuth(onUser, { prepareSignIn: false });
+    expect(onUser).toHaveBeenCalledWith(expect.objectContaining({ email: 'a@example.com' }));
+    expect(prepare).not.toHaveBeenCalled();
+    expect(window.addEventListener).toHaveBeenCalledWith('storage', expect.any(Function));
+    cleanup();
+    expect(window.removeEventListener).toHaveBeenCalledWith('storage', expect.any(Function));
+    expect(storage.get('psx_drive_access_token')).toBe('test-token');
+  });
+  it('still opens Google synchronously after a deferred homepage form becomes ready', async () => {
+    const requestAccessToken = vi.fn();
+    const initTokenClient = vi.fn(() => ({ requestAccessToken }));
+    vi.stubGlobal('window', { location: { origin: 'https://test.example' }, google: { accounts: { oauth2: { initTokenClient } } } });
+    mockCloud(() => response({ enabled: true, clientId: 'test.apps.googleusercontent.com' }));
+    const onUser = vi.fn();
+    service.initDriveAuth(onUser, { prepareSignIn: false });
+    await service.googleSignInReadiness.prepare();
+    expect(initTokenClient).not.toHaveBeenCalled();
+    service.signInWithDrive();
+    expect(requestAccessToken).toHaveBeenCalledOnce();
+    expectOnlyAppFilePermissions(initTokenClient.mock.calls[0][0]);
+  });
   it('prepares restored-session expiry handling without opening Google and respects cleanup', async () => {
     const requestAccessToken = vi.fn();
     const initTokenClient = vi.fn(() => ({ requestAccessToken }));

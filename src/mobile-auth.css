@@ -4,5 +4,15 @@
   .mobile-auth > div.max-w-md > h1 { font-size: 25px; line-height: 1.2; }
   .mobile-auth > div.max-w-md > p { font-size: 13px; margin-bottom: 14px; }
   .mobile-auth > div.max-w-md:has(form) { padding: 18px; border-radius: 18px; box-shadow: none; }
-  .landing-page > section { padding: 30px 16px; }
+  .landing-page > main > section { padding: 30px 16px; }
 }
+
+/* Accessible wordmark colors on the public landing and sign-in surfaces. */
+.landing-page .brand-logo__name b, .landing-page .brand-logo__earn,
+.mobile-auth .brand-logo__name b, .mobile-auth .brand-logo__earn { color: #047857; }
+.landing-page .brand-logo__name > span, .landing-page .brand-logo__know,
+.mobile-auth .brand-logo__name > span, .mobile-auth .brand-logo__know { color: #0e7490; }
+.dark .landing-page .brand-logo__name b, .dark .landing-page .brand-logo__earn,
+.dark .mobile-auth .brand-logo__name b, .dark .mobile-auth .brand-logo__earn { color: #34d399; }
+.dark .landing-page .brand-logo__name > span, .dark .landing-page .brand-logo__know,
+.dark .mobile-auth .brand-logo__name > span, .dark .mobile-auth .brand-logo__know { color: #22d3ee; }

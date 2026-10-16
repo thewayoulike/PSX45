@@ -27,7 +27,7 @@ export const LoginAppPreview: React.FC = () => {
               type="button"
               onClick={() => setPage(id)}
               className={`px-3 sm:px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                page === id ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-500 dark:text-slate-400'
+                page === id ? 'bg-emerald-700 text-white shadow-sm' : 'text-slate-600 dark:text-slate-400'
               }`}
             >
               {label}
@@ -40,7 +40,7 @@ export const LoginAppPreview: React.FC = () => {
       {page === 'realized' && <RealizedShot />}
       {page === 'charts' && <ChartShot />}
 
-      <p className="text-[11px] text-slate-400 text-center mt-3 font-medium">{PREVIEW_CAPTIONS[page]}</p>
+      <p className="text-[11px] text-slate-600 dark:text-slate-400 text-center mt-3 font-medium">{PREVIEW_CAPTIONS[page]}</p>
     </div>
   );
 };

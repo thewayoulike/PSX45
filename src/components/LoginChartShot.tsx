@@ -72,8 +72,8 @@ const Pill: React.FC<{ label: string; active?: boolean }> = ({ label, active }) 
   <span
     className={`px-2 py-1 rounded-lg text-[9px] sm:text-[10px] font-bold whitespace-nowrap ${
       active
-        ? 'bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-400 shadow-sm'
-        : 'text-slate-500 dark:text-slate-400'
+        ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm'
+        : 'text-slate-600 dark:text-slate-400'
     }`}
   >
     {label}
@@ -83,7 +83,7 @@ const Pill: React.FC<{ label: string; active?: boolean }> = ({ label, active }) 
 const DrawBtn: React.FC<{ label: string; active?: boolean }> = ({ label, active }) => (
   <span
     className={`inline-flex items-center px-1.5 sm:px-2 py-1 rounded-lg text-[9px] font-bold ${
-      active ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-500'
+      active ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600'
     }`}
   >
     {label}
@@ -97,17 +97,17 @@ export const ChartShot: React.FC = () => (
         <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
         <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
         <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-        <span className="ml-3 text-[11px] text-slate-400 font-mono">psx-tracker.com/charts</span>
+        <span className="ml-3 text-[11px] text-slate-600 dark:text-slate-400 font-mono">psx-tracker.com/charts</span>
       </div>
 
       <div className="p-3 sm:p-4 bg-slate-50 dark:bg-[#0a0a0a] space-y-2">
         {/* header */}
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <span className="font-display font-black text-sm sm:text-base text-slate-900 dark:text-white">OGDC</span>
-          <span className="text-[10px] font-bold text-slate-400">Candles · Daily</span>
+          <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Candles · Daily</span>
           <span className="text-xs font-bold tabular-nums text-slate-800 dark:text-slate-100">Rs. 152.40</span>
-          <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400">+2.14%</span>
-          <span className="text-[10px] font-bold text-slate-400">· 3M</span>
+          <span className="text-[10px] font-bold text-emerald-700 dark:text-emerald-400">+2.14%</span>
+          <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">· 3M</span>
         </div>
 
         {/* toolbar row 1 */}
@@ -129,7 +129,7 @@ export const ChartShot: React.FC = () => (
 
         {/* toolbar row 2 — draw tools */}
         <div className="flex flex-wrap gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1 items-center">
-          <span className="text-[8px] font-bold uppercase tracking-widest text-slate-400 px-1 hidden sm:inline">Draw</span>
+          <span className="text-[8px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 px-1 hidden sm:inline">Draw</span>
           <DrawBtn label="Pan" active />
           <DrawBtn label="Cross" />
           <DrawBtn label="Trend" />
@@ -147,7 +147,7 @@ export const ChartShot: React.FC = () => (
         </div>
 
         {/* panels */}
-        <div className="flex flex-wrap items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-slate-400">
+        <div className="flex flex-wrap items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400">
           <span>Panels</span>
           <span className="px-2 py-0.5 rounded-full bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-300 border border-violet-200/60 dark:border-violet-500/25">
             Volume ●
@@ -291,11 +291,11 @@ export const ChartShot: React.FC = () => (
           </svg>
         </div>
 
-        <div className="flex flex-wrap gap-2 text-[10px] font-bold text-slate-500 dark:text-slate-400">
+        <div className="flex flex-wrap gap-2 text-[10px] font-bold text-slate-600 dark:text-slate-400">
           <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">500+ PSX tickers</span>
           <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">Draw tools &amp; Fib</span>
           <span className="px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">Price-axis zoom</span>
-          <span className="px-2.5 py-1 rounded-full bg-emerald-600 text-white">Technical indicators</span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-700 text-white">Technical indicators</span>
         </div>
       </div>
     </div>
