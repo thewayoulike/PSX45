@@ -156,7 +156,7 @@ export async function loadMarketData(kind: string, force = false): Promise<Marke
     } else {
       const raw = await request(`/api/proxy?feed=${encodeURIComponent(kind)}`);
       retrievedAt = raw.retrievedAt || retrievedAt;
-      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : kind === 'commodities' ? raw.data as CommodityBenchmarks : parseMetals(raw.data);
+      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : ['commodities', 'flows', 'insiders'].includes(kind) ? raw.data : parseMetals(raw.data);
       if (Array.isArray(data) && !data.length) throw new Error('Quotes are unavailable.');
     }
     return { data, retrievedAt };

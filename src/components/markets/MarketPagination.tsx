@@ -18,7 +18,7 @@ export function useMarketPagination<T>(rows: T[], resetKey: string) {
 type Pagination = ReturnType<typeof useMarketPagination>;
 export function MarketPagination({ pagination, label, position, onNavigate }: {
   pagination: Pagination;
-  label: 'Stocks' | 'Funds';
+  label: 'Stocks' | 'Funds' | 'Insider records';
   position: 'top' | 'bottom';
   onNavigate?: () => void;
 }) {

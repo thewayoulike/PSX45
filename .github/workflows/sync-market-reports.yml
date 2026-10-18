@@ -1,0 +1,47 @@
+name: Sync public market reports
+
+on:
+  schedule:
+    # Daily at 8:30 PM Pakistan time, after the market reports are normally published.
+    - cron: '30 15 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: sync-public-market-reports
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: app
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/market-data
+          path: reports
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download and validate public reports
+        id: sync
+        continue-on-error: true
+        run: node app/scripts/sync-market-reports.mjs reports
+      - name: Publish successful updates
+        working-directory: reports
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add flows.json insiders.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Refresh public market reports'
+            git push origin HEAD:codex/market-data
+          fi
+      - name: Mark any failed source refresh
+        if: steps.sync.outcome == 'failure'
+        run: exit 1
