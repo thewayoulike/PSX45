@@ -1,42 +1,88 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
-const SOURCE = 'https://www.tradingview.com/markets/';
+const COMMODITIES = [
+  { id: 'gold', name: 'Gold', symbol: 'CAPITALCOM:XAUUSD', unit: 'Troy ounce', code: 'XAUUSD' },
+  { id: 'silver', name: 'Silver', symbol: 'CAPITALCOM:XAGUSD', unit: 'Troy ounce', code: 'XAGUSD' },
+  { id: 'copper', name: 'Copper', symbol: 'CAPITALCOM:XCUUSD', unit: 'Pound', code: 'XCUUSD' },
+  { id: 'wti', name: 'Crude Oil (WTI)', symbol: 'CAPITALCOM:USOIL', unit: 'Barrel', code: 'USOIL' },
+] as const;
 
-export function CommodityQuotes() {
+type WidgetKind = 'single-quote' | 'symbol-info' | 'symbol-overview';
+function widgetUrl(kind: WidgetKind, settings: Record<string, unknown>, dark: boolean) {
+  const symbolQuery = kind === 'symbol-info' ? `&symbol=${encodeURIComponent(String(settings.symbol))}` : '';
+  return `https://www.tradingview-widget.com/embed-widget/${kind}/?locale=en${symbolQuery}#${encodeURIComponent(JSON.stringify({
+    ...settings, locale: 'en', colorTheme: dark ? 'dark' : 'light',
+    utm_source: 'psx-tracker.com', utm_medium: 'widget_new', utm_campaign: kind,
+  }))}`;
+}
+function ProviderFrame({ kind, title, settings, dark, height, attempt }: {
+  kind: WidgetKind; title: string; settings: Record<string, unknown>; dark: boolean; height: number; attempt: number;
+}) {
+  // Keep prices and history within the provider's public widgets; do not scrape or store quotes.
+  const src = widgetUrl(kind, settings, dark);
+  return <iframe key={`${src}-${attempt}`} title={title} src={src}
+    width="100%" height={height} loading="lazy" referrerPolicy="strict-origin-when-cross-origin"
+    sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" />;
+}
+
+export function CommodityQuotes({ referenceConverter }: { referenceConverter?: React.ReactNode }) {
   const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
   const [attempt, setAttempt] = useState(0);
-  const [showChart, setShowChart] = useState(false);
+  const [selected, setSelected] = useState<typeof COMMODITIES[number]>(COMMODITIES[0]);
   useEffect(() => {
     const observer = new MutationObserver(() => setDark(document.documentElement.classList.contains('dark')));
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
-  const src = useMemo(() => {
-    // Use the provider's public embed. Prices stay inside its frame; no stored copies.
-    const settings = {
-      colorTheme: dark ? 'dark' : 'light', dateRange: '1D', locale: 'en',
-      isTransparent: false, showChart, showFloatingTooltip: true,
-      width: '100%', height: showChart ? 540 : 330,
-      tabs: [{ title: 'Energy & copper', symbols: [
-        { s: 'CAPITALCOM:UKOIL', d: 'Brent crude · USD / barrel' },
-        { s: 'CAPITALCOM:USOIL', d: 'WTI crude · USD / barrel' },
-        { s: 'CAPITALCOM:NATURALGAS', d: 'Natural gas · USD / MMBtu' },
-        { s: 'CAPITALCOM:XCUUSD', d: 'Copper · USD / pound' },
-      ] }],
-      utm_source: 'psx-tracker.com', utm_medium: 'widget_new', utm_campaign: 'market-overview',
-    };
-    return 'https://www.tradingview-widget.com/embed-widget/market-overview/?locale=en#' + encodeURIComponent(JSON.stringify(settings));
-  }, [dark, showChart]);
-  return <section className="mk-panel mk-commodity-quotes" aria-label="Latest energy and copper quotes">
+  const source = `https://www.tradingview.com/symbols/${selected.symbol.replace(':', '-')}/`;
+  return <section className="mk-commodity-dashboard" aria-label="Commodity prices and history">
     <div className="mk-section-heading">
-      <div><h3>Latest energy & copper quotes</h3><p>Broker CFD reference prices · Capital.com via TradingView</p></div>
-      <div className="mk-toolbar"><button aria-pressed={showChart} onClick={() => setShowChart(value => !value)}>{showChart ? 'Hide chart' : 'Show price chart'}</button><button onClick={() => setAttempt(n => n + 1)}>Reload quotes</button></div>
+      <div><h2>Commodities right now</h2><p>Gold, silver, copper and WTI. Select a card to explore its price history.</p></div>
+      <button onClick={() => setAttempt(n => n + 1)}>Reload quotes</button>
     </div>
-    <p className="mk-small">Quotes update from the provider during trading hours. When a market is closed, its latest available price remains visible. Check the market-status icon beside each symbol for any delay. Open a symbol for source details and timing.</p>
-    <iframe key={`${dark}-${attempt}`} title="Latest energy and copper quotes from TradingView" src={src}
-      width="100%" height={showChart ? 540 : 330} loading="lazy" referrerPolicy="strict-origin-when-cross-origin"
-      sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox" />
-    <div className="tradingview-widget-copyright"><a href={SOURCE} target="_blank" rel="noopener noreferrer nofollow">Commodity markets by TradingView ↗</a></div>
-    <p className="mk-small">These are broker quotes for contracts for difference (CFDs); they may differ from physical spot prices and exchange futures. Copper is quoted per pound. All four use USD and are independent of the gold/silver conversion controls. If quotes are blocked or unavailable, reload or open the source above.</p>
+    <p className="mk-small mk-commodity-status">Latest available broker quotes · Markets update during trading hours. When closed, the last available quote remains visible.</p>
+    <div className="mk-commodity-cards" aria-label="Choose a commodity">
+      {COMMODITIES.map(item => <article key={item.id} className={`mk-commodity-card${selected.id === item.id ? ' is-selected' : ''}`}>
+        <button className="mk-commodity-select" aria-pressed={selected.id === item.id} aria-controls="commodity-history" onClick={() => setSelected(item)}>
+          <span>{item.name}</span><span aria-hidden="true">{selected.id === item.id ? '✓' : '↗'}</span>
+        </button>
+        <ProviderFrame kind="single-quote" title={`${item.name} latest quote`} dark={dark} height={101} attempt={attempt}
+          settings={{ symbol: item.symbol, width: '100%', height: 101, isTransparent: true }} />
+        <div className="mk-commodity-unit">USD / {item.unit.toLowerCase()}<span>{selected.id === item.id ? 'Chart selected' : 'Select name for chart'}</span></div>
+      </article>)}
+    </div>
+    <div className="mk-commodity-layout">
+      <aside className="mk-panel mk-commodity-facts" aria-label={`${selected.name} market details`}>
+        <h3>Market details <span>{selected.name}</span></h3>
+        <dl>
+          <div><dt>Currency</dt><dd>USD</dd></div>
+          <div><dt>Unit</dt><dd>{selected.unit}</dd></div>
+          <div><dt>Symbol</dt><dd>{selected.code}</dd></div>
+          <div><dt>Source</dt><dd>Capital.com</dd></div>
+          <div><dt>Price type</dt><dd>Broker CFD</dd></div>
+        </dl>
+        <p className="mk-small">Use the chart ranges to compare performance. The change above the chart is for the selected period; the cards show the daily change.</p>
+        <a className="mk-commodity-source" href={source} target="_blank" rel="noopener noreferrer nofollow">Open {selected.name} source ↗</a>
+        <p className="mk-small">Quote time, previous close and the day’s range appear in Key stats below the chart.</p>
+      </aside>
+      <div id="commodity-history" className="mk-panel mk-commodity-history" aria-label={`${selected.name} price history`}>
+        <div className="mk-commodity-chart-heading"><h3>{selected.name} price history</h3><span className="mk-tag">USD / {selected.unit.toLowerCase()}</span></div>
+        <ProviderFrame kind="symbol-overview" title={`${selected.name} interactive price chart`} dark={dark} height={460} attempt={attempt}
+          settings={{ symbols: [[selected.name, `${selected.symbol}|1D`]], chartOnly: false, width: '100%', height: '100%',
+            isTransparent: true, showVolume: false, showMA: false, hideDateRanges: false, hideMarketStatus: false,
+            hideSymbolLogo: true, scalePosition: 'right', scaleMode: 'Normal', fontFamily: 'Inter, system-ui, sans-serif', fontSize: '11',
+            chartType: 'area', lineWidth: 2, lineColor: '#059669', topColor: 'rgba(16,185,129,0.32)', bottomColor: 'rgba(16,185,129,0.02)',
+            dateRanges: ['1w|60', '1m|60', '3m|1D', '6m|1D', '12m|1D', '36m|1W', '60m|1W', 'all|1M'] }} />
+        <div className="mk-commodity-stats-heading"><h3>Key stats</h3><span className="mk-small">{selected.name} · as supplied by the provider</span></div>
+        <div className="mk-commodity-stats-scroll" tabIndex={0} role="region" aria-label={`${selected.name} quote statistics, scroll horizontally on small screens`}>
+          <ProviderFrame kind="symbol-info" title={`${selected.name} quote time and key statistics`} dark={dark} height={230} attempt={attempt}
+            settings={{ symbol: selected.symbol, width: '100%', height: 230, isTransparent: true }} />
+        </div>
+        <p className="mk-small mk-commodity-swipe">Swipe the statistics to see all values.</p>
+        <div className="tradingview-widget-copyright"><a href={source} target="_blank" rel="noopener noreferrer nofollow">{selected.name} charts and quotes by TradingView ↗</a></div>
+      </div>
+    </div>
+    <p className="mk-small">These are Capital.com quotes for contracts for difference (CFDs), which can differ from physical spot prices and exchange futures. Availability and delays depend on the provider. If a widget is unavailable, reload quotes or open the source. No sample prices are substituted.</p>
+    {referenceConverter && <details className="mk-panel mk-commodity-converter"><summary>Gold & silver · daily reference converter <span>USD / PKR · ounce, tola or gram</span></summary>{referenceConverter}</details>}
   </section>;
 }

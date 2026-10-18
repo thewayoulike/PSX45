@@ -1,3 +1,4 @@
+import { parseIndexBars } from './indexChart';
 import { SECTOR_CODE_MAP } from './sectors';
 import type { MutualFundRecord } from './mufapData';
 
@@ -121,9 +122,9 @@ export function parseMarketHistory(raw: any) {
   return [...unique].map(([time, price]) => ({ time, price })).sort((a, b) => a.time - b.time);
 }
 const cache = new Map<string, { expires: number; promise: Promise<MarketResult<any>> }>();
-async function request(url: string, format: 'text' | 'json' = 'json'): Promise<any> {
+async function request(url: string, format: 'text' | 'json' = 'json', timeoutMs = 18000): Promise<any> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 18000);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const r = await fetch(url, { signal: controller.signal });
     if (!r.ok) throw new Error('The market provider is temporarily unavailable.');
@@ -148,6 +149,11 @@ export async function loadMarketData(kind: string, force = false): Promise<Marke
       const funds = Object.values(raw?.catalog || {}).filter((f: any) => f?.id && positive(f.nav)) as MutualFundRecord[];
       if (!funds.length) throw new Error('Fund NAVs are unavailable.');
       data = { funds, reportDate: raw.reportDate || null, updatedAt: raw.updatedAt || null };
+    } else if (kind.startsWith('index-ohlc:')) {
+      const symbol = kind.slice(11);
+      if (!['KSE100', 'KMI30'].includes(symbol)) throw new Error('Invalid index');
+      data = parseIndexBars(await request(`/api/proxy?ohlc=${encodeURIComponent(symbol)}`, 'json', 30000));
+      if (data.length < 2) throw new Error('Index candles are unavailable.');
     } else if (kind.startsWith('history:')) {
       const symbol = kind.slice(8);
       if (!/^[A-Z0-9][A-Z0-9.-]{0,19}$/.test(symbol)) throw new Error('Invalid symbol');
