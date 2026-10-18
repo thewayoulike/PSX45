@@ -7,6 +7,8 @@ export type CryptoQuote = { id: string; symbol: string; name: string; price: num
 export type FundCatalog = { funds: MutualFundRecord[]; reportDate: string | null; updatedAt: string | null };
 export type FxRates = { rates: Record<string, number>; date: string | null };
 export type Metals = { gold: number | null; silver: number | null; date: string | null };
+export type CommodityQuote = { id: string; name: string; price: number | null; date: string | null; unit: string; frequency: 'Daily' | 'Monthly'; source: string; sourceUrl: string };
+export type CommodityBenchmarks = { quotes: CommodityQuote[] };
 export type MarketResult<T> = { data: T; retrievedAt: string };
 
 export function marketNumber(value: unknown): number | null {
@@ -15,9 +17,37 @@ export function marketNumber(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 const positive = (value: unknown) => { const n = marketNumber(value); return n != null && n > 0 ? n : null; };
-const doc = (html: string) => new DOMParser().parseFromString(html, 'text/html');
+export function marketTableMarkup(html: string): string {
+  // Keep only table structure and the four data attributes we actually read.
+  // Discard upstream handlers/styles before the browser parses attributes:
+  // even detached documents can report CSP violations while parsing them.
+  return (html.match(/<table\b[^>]*>[\s\S]*?<\/table\s*>/gi) || []).join('')
+    .replace(/<!--[\s\S]*?-->|<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi, '')
+    .replace(/<\/?[a-z][\w:-]*\b(?:[^>"']|"[^"]*"|'[^']*')*>/gi, tag => {
+      const head = tag.match(/^<(\/?)([\w:-]+)/)!;
+      const name = head[2].toLowerCase();
+      if (!['table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'a', 'span'].includes(name)) return '';
+      if (head[1]) return `</${name}>`;
+      const attrs: string[] = [];
+      const rawAttrs = tag.slice(head[0].length, -1);
+      for (const match of rawAttrs.matchAll(/([^\s=<>/"']+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+)))?/g)) {
+        const key = match[1].toLowerCase();
+        if (!['data-name', 'data-order', 'data-title', 'data-code'].includes(key)) continue;
+        const value = (match[2] ?? match[3] ?? match[4] ?? '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        attrs.push(`${key}="${value}"`);
+      }
+      return `<${name}${attrs.length ? ' ' + attrs.join(' ') : ''}>`;
+    });
+}
+function marketTableContent(html: string): DocumentFragment {
+  // Template contents have an inert owner document: upstream handlers and
+  // resources are not activated. Read values only; never mount these nodes.
+  const template = document.createElement('template');
+  template.innerHTML = marketTableMarkup(html);
+  return template.content;
+}
 function tableRows(html: string) {
-  return Array.from(doc(html).querySelectorAll('table')).flatMap(table => {
+  return Array.from(marketTableContent(html).querySelectorAll('table')).flatMap(table => {
     const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.getAttribute('data-name') || th.textContent?.trim().toLowerCase() || '');
     return Array.from(table.querySelectorAll('tbody tr')).map(tr => {
       const cells = Array.from(tr.querySelectorAll('td'));
@@ -126,7 +156,7 @@ export async function loadMarketData(kind: string, force = false): Promise<Marke
     } else {
       const raw = await request(`/api/proxy?feed=${encodeURIComponent(kind)}`);
       retrievedAt = raw.retrievedAt || retrievedAt;
-      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : parseMetals(raw.data);
+      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : kind === 'commodities' ? raw.data as CommodityBenchmarks : parseMetals(raw.data);
       if (Array.isArray(data) && !data.length) throw new Error('Quotes are unavailable.');
     }
     return { data, retrievedAt };
