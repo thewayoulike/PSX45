@@ -36,7 +36,8 @@ export const SECTOR_CODE_MAP: Record<string, string> = {
   '0835': 'Woollen',
   '0836': 'Real Estate Investment Trust',
   '0837': 'Exchange Traded Funds',
-  '0838': 'Property'
+  '0838': 'Property',
+  '0839': 'Apparel'
 };
 
 // 2. Static Ticker Map (Fallback for when sync hasn't run yet)
