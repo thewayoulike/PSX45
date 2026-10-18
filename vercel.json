@@ -14,6 +14,10 @@
   },
   "rewrites": [
     {
+      "source": "/insider-transactions/:path*",
+      "destination": "/index"
+    },
+    {
       "source": "/market-overview/:path*",
       "destination": "/index"
     },

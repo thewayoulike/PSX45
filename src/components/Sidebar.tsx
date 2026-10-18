@@ -92,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   // Which group each view belongs to (so we can auto-open the active one).
   const groupOfView: Record<string, string> = {
     DASHBOARD: 'Menu', HOLDINGS: 'Menu', CALCS: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu', MARKETS: 'Menu',
-    SIGNALS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
+    SIGNALS: 'Tools', INSIDERS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
     BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', SUGGESTIONS: 'Settings', HOW_IT_WORKS: 'Settings',
   };
@@ -131,7 +131,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       });
     }
 
-    const toolItems: Leaf[] = [];
+    const toolItems: Leaf[] = [
+      { id: 'INSIDERS', label: 'Insider Transactions', icon: <UsersRound size={22} /> },
+    ];
     if (!isFundPortfolio) {
       toolItems.push(
         { id: 'SIGNALS', label: 'Market Signals', icon: <Radar size={22} /> },
