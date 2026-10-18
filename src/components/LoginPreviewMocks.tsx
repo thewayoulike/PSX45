@@ -60,7 +60,7 @@ const Panel: React.FC<{ title: string; children: React.ReactNode; className?: st
 const Row: React.FC<{ left: React.ReactNode; right: string; up?: boolean }> = ({ left, right, up = true }) => (
   <div className="flex items-center justify-between gap-2 py-0.5">
     <span className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 truncate">{left}</span>
-    <span className={`text-[11px] sm:text-sm font-bold tabular-nums ${up ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-500'}`}>{right}</span>
+    <span className={`text-[11px] sm:text-sm font-bold tabular-nums ${up ? 'text-emerald-700 dark:text-emerald-400' : 'text-rose-700 dark:text-rose-400'}`}>{right}</span>
   </div>
 );
 
@@ -138,8 +138,8 @@ export const DashboardShot: React.FC = () => (
               <div className="text-[9px] text-slate-600 dark:text-slate-400">Last updated Aug 17, 6:27 PM</div>
             </div>
             <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 rounded-xl p-1">
-              <span className="text-[10px] font-bold text-slate-600 px-2 py-1 rounded-lg">Today</span>
-              <span className="text-[10px] font-bold text-slate-600 px-2 py-1 rounded-lg">1 Week</span>
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 px-2 py-1 rounded-lg">Today</span>
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 px-2 py-1 rounded-lg">1 Week</span>
               <span className="text-[10px] font-bold text-white bg-emerald-700 px-2 py-1 rounded-lg">1 Month</span>
             </div>
           </div>
@@ -200,7 +200,7 @@ export const DashboardShot: React.FC = () => (
 const KpiMini: React.FC<{ label: string; value: string; sub?: string; tone?: 'up' | 'down' | 'neutral' }> = ({ label, value, sub, tone = 'neutral' }) => (
   <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-2.5 sm:p-3 shadow-sm min-w-0">
     <div className="text-[8px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 truncate">{label}</div>
-    <div className={`text-[11px] sm:text-sm font-display font-black tabular-nums mt-0.5 ${tone === 'up' ? 'text-emerald-700 dark:text-emerald-400' : tone === 'down' ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>{value}</div>
+    <div className={`text-[11px] sm:text-sm font-display font-black tabular-nums mt-0.5 ${tone === 'up' ? 'text-emerald-700 dark:text-emerald-400' : tone === 'down' ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{value}</div>
     {sub && <div className="text-[8px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">{sub}</div>}
   </div>
 );
@@ -221,16 +221,16 @@ export const RealizedShot: React.FC = () => (
             <div className="text-lg sm:text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight">Realized P&amp;L</div>
             <div className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400">Track closed positions, CGT, and win rate — not just open holdings.</div>
           </div>
-          <span className="text-[10px] font-bold text-slate-600 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1">SOLD POSITIONS: 24 / 24</span>
+          <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1">SOLD POSITIONS: 24 / 24</span>
         </div>
 
         <div className="flex flex-wrap gap-1.5">
           {['This month', 'This year', 'Last 30d', 'All time'].map((p, i) => (
-            <span key={p} className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${i === 3 ? 'bg-emerald-700 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 border border-slate-200 dark:border-slate-800'}`}>{p}</span>
+            <span key={p} className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${i === 3 ? 'bg-emerald-700 text-white' : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800'}`}>{p}</span>
           ))}
           <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-emerald-700 text-white ml-1">All</span>
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 text-slate-600 border border-slate-200 dark:border-slate-800">Winners</span>
-          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 text-slate-600 border border-slate-200 dark:border-slate-800">Losers</span>
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800">Winners</span>
+          <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800">Losers</span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3">
@@ -291,7 +291,7 @@ export const RealizedShot: React.FC = () => (
             ].map((c) => (
               <div key={c.m} className={`rounded-md text-center py-1.5 ${c.v == null ? 'bg-slate-100 dark:bg-slate-800' : c.v < 0 ? 'bg-rose-100 dark:bg-rose-500/20' : 'bg-emerald-100 dark:bg-emerald-500/20'}`}>
                 <div className="text-[8px] font-bold text-slate-600 dark:text-slate-400">{c.m}</div>
-                {c.v != null && <div className={`text-[8px] font-black tabular-nums ${c.v < 0 ? 'text-rose-600' : 'text-emerald-700 dark:text-emerald-400'}`}>{c.v < 0 ? '−8.2K' : `${Math.round(c.v / 1000)}K`}</div>}
+                {c.v != null && <div className={`text-[8px] font-black tabular-nums ${c.v < 0 ? 'text-rose-700 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{c.v < 0 ? '−8.2K' : `${Math.round(c.v / 1000)}K`}</div>}
               </div>
             ))}
           </div>
@@ -332,8 +332,8 @@ export const RealizedShot: React.FC = () => (
                   <td className="px-2 py-2">800</td>
                   <td className="px-2 py-2">142.10</td>
                   <td className="px-2 py-2">136.40</td>
-                  <td className="px-2 py-2 font-bold text-rose-500">−4.01%</td>
-                  <td className="px-2 py-2 font-black text-rose-500">−4,560.00</td>
+                  <td className="px-2 py-2 font-bold text-rose-700 dark:text-rose-400">−4.01%</td>
+                  <td className="px-2 py-2 font-black text-rose-700 dark:text-rose-400">−4,560.00</td>
                 </tr>
               </tbody>
             </table>

@@ -83,7 +83,7 @@ const Pill: React.FC<{ label: string; active?: boolean }> = ({ label, active }) 
 const DrawBtn: React.FC<{ label: string; active?: boolean }> = ({ label, active }) => (
   <span
     className={`inline-flex items-center px-1.5 sm:px-2 py-1 rounded-lg text-[9px] font-bold ${
-      active ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600'
+      active ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-sm' : 'text-slate-600 dark:text-slate-400'
     }`}
   >
     {label}
@@ -141,7 +141,7 @@ export const ChartShot: React.FC = () => (
           <span className="ml-auto text-[9px] font-bold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-500/10 px-2 py-1 rounded-lg">
             Indicators 22/27
           </span>
-          <span className="text-[9px] font-bold text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10 px-2 py-1 rounded-lg">
+          <span className="text-[9px] font-bold text-teal-700 dark:text-teal-400 bg-teal-50 dark:bg-teal-500/10 px-2 py-1 rounded-lg">
             Momentum 1/4
           </span>
         </div>
@@ -171,7 +171,7 @@ export const ChartShot: React.FC = () => (
             {[100, 120, 140, 160].map((p) => (
               <g key={p}>
                 <line x1="8" y1={PY(p)} x2="332" y2={PY(p)} stroke="#e2e8f0" strokeWidth="0.5" className="dark:stroke-slate-800" strokeDasharray="3 3" />
-                <text x="336" y={PY(p) + 3} fill="#94a3b8" fontSize="7" fontWeight="600">{p}</text>
+                <text x="336" y={PY(p) + 3} className="fill-slate-600 dark:fill-slate-400" fontSize="7" fontWeight="600">{p}</text>
               </g>
             ))}
 
@@ -224,7 +224,7 @@ export const ChartShot: React.FC = () => (
             ].map((lv) => (
               <g key={lv.label}>
                 <line x1="8" y1={PY(lv.p)} x2="332" y2={PY(lv.p)} stroke={lv.color} strokeWidth="0.6" strokeDasharray="4 3" opacity="0.85" />
-                <text x="334" y={PY(lv.p) + 2.5} fill={lv.color} fontSize="6" fontWeight="700">{lv.label}</text>
+                <text x="334" y={PY(lv.p) + 2.5} className="fill-slate-600 dark:fill-slate-400" fontSize="6" fontWeight="700">{lv.label}</text>
               </g>
             ))}
 
@@ -248,7 +248,7 @@ export const ChartShot: React.FC = () => (
 
             {/* volume panel */}
             <line x1="8" y1="148" x2="332" y2="148" stroke="#cbd5e1" strokeWidth="0.5" className="dark:stroke-slate-700" />
-            <text x="8" y="146" fill="#94a3b8" fontSize="6" fontWeight="700">VOL</text>
+            <text x="8" y="146" className="fill-slate-600 dark:fill-slate-400" fontSize="6" fontWeight="700">VOL</text>
             {CANDLES.map((c) => {
               const up = c.c >= c.o;
               const h = (c.vol / 100) * 28;
@@ -269,7 +269,7 @@ export const ChartShot: React.FC = () => (
             <line x1="8" y1="188" x2="332" y2="188" stroke="#cbd5e1" strokeWidth="0.5" className="dark:stroke-slate-700" />
             <line x1="8" y1="168" x2="332" y2="168" stroke="#fecaca" strokeWidth="0.4" strokeDasharray="2 2" opacity="0.6" />
             <line x1="8" y1="208" x2="332" y2="208" stroke="#bbf7d0" strokeWidth="0.4" strokeDasharray="2 2" opacity="0.6" />
-            <text x="8" y="166" fill="#94a3b8" fontSize="6" fontWeight="700">RSI</text>
+            <text x="8" y="166" className="fill-slate-600 dark:fill-slate-400" fontSize="6" fontWeight="700">RSI</text>
             <polyline
               points={CANDLES.map((c, i) => `${c.x},${188 - 18 + Math.sin(i * 0.55) * 14 + Math.cos(i * 0.2) * 6}`).join(' ')}
               fill="none"
@@ -286,7 +286,7 @@ export const ChartShot: React.FC = () => (
             {/* crosshair */}
             <line x1="254" y1="8" x2="254" y2="148" stroke="#64748b" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.7" />
             <line x1="8" y1={PY(152.4)} x2="332" y2={PY(152.4)} stroke="#64748b" strokeWidth="0.5" strokeDasharray="2 2" opacity="0.7" />
-            <rect x="248" y={PY(152.4) - 6} width="28" height="10" rx="2" fill="#10b981" opacity="0.95" />
+            <rect x="248" y={PY(152.4) - 6} width="28" height="10" rx="2" fill="#047857" />
             <text x="250" y={PY(152.4) + 2.5} fill="white" fontSize="6" fontWeight="700">152.40</text>
           </svg>
         </div>
