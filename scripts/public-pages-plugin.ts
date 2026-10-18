@@ -10,6 +10,7 @@ export function publicPagesPlugin(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const path = (req.url || '').split('?')[0];
+        if (/^\/markets(?:\.html|\/)?$/.test(path)) { req.url = (req.url || '').replace(/^\/markets\/?(?=\?|$)/, '/markets.html'); return next(); }
         const html = resolvePublicHtml(path);
         if (!html) return next();
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -27,6 +28,7 @@ export function publicPagesPlugin(): Plugin {
         this.emitFile({ type: 'asset', fileName: `guides/${slug}.html`, source: renderGuidePage(slug) });
       }
       for (const pathname of [...Object.keys(editorialPages), ...Object.keys(toolPages)]) {
+        if (pathname === '/markets') continue;
         this.emitFile({ type: 'asset', fileName: `${pathname.slice(1)}.html`, source: renderEditorialPage(pathname) });
       }
     },

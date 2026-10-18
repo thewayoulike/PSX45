@@ -124,7 +124,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
   };
 
   if (compact) return <main className="mobile-auth min-h-screen bg-slate-50 dark:bg-[#0a0a0a] text-slate-900 dark:text-white px-4 py-8 pt-[max(2rem,env(safe-area-inset-top))]">
-    <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><a href="/tools" className="text-sm font-bold underline">Calculators</a></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-600 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Calculators stay in the menu after you sign in.</p></div><Suspense fallback={formFallback}><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/></Suspense><VideoGuideLink/><div className="mt-7 text-center"><FacebookPageLink /></div><div className="mt-2"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
+    <div className="max-w-md mx-auto"><div className="flex items-center justify-between gap-3 mb-8"><a href="/" aria-label="PSX Tracker home" className="inline-block"><Logo variant="horizontal" /></a><nav className="flex gap-3 text-sm font-bold"><a href="/markets" className="underline">Markets</a><a href="/tools" className="underline">Calculators</a></nav></div><h1 className="text-3xl font-bold mb-3">Welcome to PSX Tracker</h1><p className="text-slate-600 dark:text-slate-400 mb-7">Log in to your portfolio, or create an account to get started. Browse <a href="/markets" className="underline font-semibold text-emerald-700 dark:text-emerald-400">Markets without logging in</a>, or use Markets and Calculators from the menu after signing in.</p></div><Suspense fallback={formFallback}><EmailAuth onGoogleLogin={onGoogleLogin} onAuthSuccess={onAuthSuccess}/></Suspense><VideoGuideLink/><div className="mt-7 text-center"><FacebookPageLink /></div><div className="mt-2"><SiteFooter/></div><a href="/" className="block text-center underline text-sm mt-5">Explore features & pricing</a>
   </main>;
 
   return (
@@ -134,8 +134,9 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
       <header className="landing-header sticky top-0 z-50 bg-white/95 dark:bg-[#0a0a0a]/95 backdrop-blur-xl border-b border-slate-200/60 dark:border-slate-800/60">
         <div className="max-w-6xl mx-auto px-3 sm:px-5 min-h-16 flex items-center justify-between gap-2">
           <Logo variant="horizontal" className="brand-logo--header" />
-          <a href="/tools" className="md:hidden shrink-0 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Calculators</a>
+          <a href="/markets" className="md:hidden shrink-0 text-sm font-bold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white">Markets</a>
           <nav className="hidden md:flex items-center gap-7 text-sm font-bold text-slate-600 dark:text-slate-400">
+            <a href="/markets" className="hover:text-slate-900 dark:hover:text-white transition-colors">Markets</a>
             <a href="/tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Calculators</a>
             <a href="#features" className="hover:text-slate-900 dark:hover:text-white transition-colors">Features</a>
             <a href="#tools" className="hover:text-slate-900 dark:hover:text-white transition-colors">Tools</a>

@@ -14,6 +14,10 @@
   },
   "rewrites": [
     {
+      "source": "/market-overview/:path*",
+      "destination": "/index"
+    },
+    {
       "source": "/api/request-access",
       "destination": "/api/notify-signup"
     },
@@ -115,6 +119,15 @@
     }
   ],
   "headers": [
+    {
+      "source": "/market-overview/:path*",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, follow"
+        }
+      ]
+    },
     {
       "source": "/assets/:path*",
       "headers": [

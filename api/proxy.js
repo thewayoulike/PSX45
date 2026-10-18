@@ -28,6 +28,7 @@ const isCloudflareChallenge = (html) => {
 
 import { limitRequest } from '../lib/sharedRateLimit.js';
 import { validateMarketQuery } from '../lib/marketLimits.js';
+import { MARKET_FEEDS, fetchMarketFeed } from '../lib/marketFeeds.js';
 export default async function handler(req, res) {
   if (req.method === 'OPTIONS') {
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -39,6 +40,18 @@ export default async function handler(req, res) {
   const invalid = validateMarketQuery(req.query);
   if (invalid) return res.status(400).json({ error: invalid });
   if (!await limitRequest(req, res, 'market-proxy', 120)) return;
+  if (req.query.feed !== undefined) {
+    const feed = String(req.query.feed);
+    if (!Object.hasOwn(MARKET_FEEDS, feed)) return res.status(400).json({ error: 'Unknown market feed' });
+    try {
+      const { ttl, ...payload } = await fetchMarketFeed(feed);
+      res.setHeader('Cache-Control', `public, s-maxage=${ttl}, stale-while-revalidate=${ttl}`);
+      return res.status(200).json(payload);
+    } catch {
+      res.setHeader('Cache-Control', 'no-store');
+      return res.status(502).json({ error: 'Market feed temporarily unavailable' });
+    }
+  }
   // --- OHLCV mode (same as former /api/ohlc) ---
   const ohlcSymbol = String(req.query.ohlc || req.query.symbol || '').trim();
   const wantsOhlc = Boolean(req.query.ohlc) || String(req.query.mode || '') === 'ohlc';

@@ -32,7 +32,7 @@ export const PAGE_UPDATED = {
   '/guides/graham-style-margin-of-safety': '2026-10-16',
   '/guides/analyze-cement-stocks-psx': '2026-10-16',
   '/guides/analyze-pakistani-banks-psx': '2026-10-16',
-  '/markets': '2026-10-16',
+  '/markets': '2026-10-17',
   '/markets/shares/ogdc': '2026-10-16',
   '/markets/shares/ppl': '2026-10-16',
   '/markets/shares/pol': '2026-10-16',

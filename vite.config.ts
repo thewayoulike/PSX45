@@ -20,6 +20,16 @@ function localPsxApi(): Plugin {
           url.startsWith('/api/proxy') && (url.includes('intraday=') || url.includes('mode=intraday'));
         const isPypsx = url.startsWith('/api/pypsx');
         const isProxyUrl = url.startsWith('/api/proxy') && url.includes('url=');
+        const isPublicFeed = url.startsWith('/api/proxy') && url.includes('feed=');
+        if (isPublicFeed) {
+          const { MARKET_FEEDS, fetchMarketFeed } = await import('./lib/marketFeeds.js');
+          const name = new URL(url, 'http://localhost').searchParams.get('feed') || '';
+          res.setHeader('Content-Type', 'application/json');
+          if (!Object.hasOwn(MARKET_FEEDS, name)) { res.statusCode = 400; res.end(JSON.stringify({ error: 'Unknown feed' })); return; }
+          try { res.end(JSON.stringify(await fetchMarketFeed(name))); }
+          catch { res.statusCode = 502; res.end(JSON.stringify({ error: 'Market feed temporarily unavailable' })); }
+          return;
+        }
         if (!isLegacy && !isProxyOhlc && !isProxyCompany && !isProxyAnalysis && !isProxyIntraday && !isPypsx && !isProxyUrl) {
           return next();
         }
@@ -280,6 +290,7 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
+    proxy: { '/api/fund-nav': { target: 'https://www.psx-tracker.com', changeOrigin: true } },
     host: true,
     watch: {
       usePolling: true,
@@ -288,6 +299,7 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 2000,
     rollupOptions: {
+      input: { app: 'index.html', markets: 'markets.html' },
       output: {
         manualChunks(id) {
           if (id.includes('fund-nav-catalog.json')) return 'fund-catalog';

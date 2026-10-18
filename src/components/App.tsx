@@ -52,6 +52,7 @@ const AlertsPage = lazy(() => import('./AlertsPage').then(m => ({ default: m.Ale
 const MarketSignalScanner = lazy(() => import('./MarketSignalScanner').then(m => ({ default: m.MarketSignalScanner })));
 const StrategyBacktest = lazy(() => import('./StrategyBacktest').then(m => ({ default: m.StrategyBacktest })));
 const ChartsExplorer = lazy(() => import('./ChartsExplorer').then(m => ({ default: m.ChartsExplorer })));
+const MarketsPage = lazy(() => import('./MarketsPage'));
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
@@ -181,12 +182,13 @@ const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', '
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
-type AppView = 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
+type AppView = 'MARKETS' | 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
   DASHBOARD: '/',
   HOLDINGS: '/holdings',
+  MARKETS: '/market-overview',
   STOCKS: '/stocks',
   SECTOR: '/sector',
   REALIZED: '/realized',
@@ -2707,7 +2709,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      {!isChartsView && currentView !== 'HOW_IT_WORKS' && (
+                      {!isChartsView && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && (
                       <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
                             <div className="min-w-0 overflow-hidden border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2">
@@ -2866,6 +2868,7 @@ const App: React.FC = () => {
                       {currentView === 'PROFILE_SETTINGS' && <ProfilePage email={driveUser?.email || sbUser?.email || ''} name={driveUser?.name || sbUser?.name} googleConnected={!!driveUser} onDriveDisconnected={() => { isReadyToSave.current = false; setDriveUser(null); setGoogleSheetId(null); setLocalOnlyEmail(null); setDriveRestoreError(null); }} />}
                       {currentView === 'SUGGESTIONS' && <SuggestionsPage />}
                       {currentView === 'HOW_IT_WORKS' && <HowItWorksPage />}
+                      {currentView === 'MARKETS' && <MarketsPage embedded onOpenStock={symbol => { setStocksFocusTicker(symbol); setCurrentView('STOCKS'); }} />}
 
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
