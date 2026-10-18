@@ -11,7 +11,7 @@ type WidgetKind = 'single-quote' | 'symbol-info' | 'symbol-overview';
 function widgetUrl(kind: WidgetKind, settings: Record<string, unknown>, dark: boolean) {
   const symbolQuery = kind === 'symbol-info' ? `&symbol=${encodeURIComponent(String(settings.symbol))}` : '';
   return `https://www.tradingview-widget.com/embed-widget/${kind}/?locale=en${symbolQuery}#${encodeURIComponent(JSON.stringify({
-    ...settings, locale: 'en', colorTheme: dark ? 'dark' : 'light',
+    ...settings, isTransparent: dark ? false : settings.isTransparent, locale: 'en', colorTheme: dark ? 'dark' : 'light',
     utm_source: 'psx-tracker.com', utm_medium: 'widget_new', utm_campaign: kind,
   }))}`;
 }
