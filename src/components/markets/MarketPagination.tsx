@@ -18,7 +18,7 @@ export function useMarketPagination<T>(rows: T[], resetKey: string) {
 type Pagination = ReturnType<typeof useMarketPagination>;
 export function MarketPagination({ pagination, label, position, onNavigate }: {
   pagination: Pagination;
-  label: 'Stocks' | 'Funds' | 'Insider records';
+  label: 'Stocks' | 'Funds' | 'Insider records' | 'Headlines';
   position: 'top' | 'bottom';
   onNavigate?: () => void;
 }) {
@@ -27,7 +27,7 @@ export function MarketPagination({ pagination, label, position, onNavigate }: {
   const start = total ? (page - 1) * pageSize + 1 : 0;
   return <nav className="mk-pagination" aria-label={`${label} pagination ${position}`}>
     <span role="status">{start.toLocaleString()}–{Math.min(page * pageSize, total).toLocaleString()} of {total.toLocaleString()} {label.toLowerCase()}</span>
-    <label>Rows per page<select aria-label={`${label} rows per page ${position}`} value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); onNavigate?.(); }}>
+    <label>{label === 'Headlines' ? 'Headlines per page' : 'Rows per page'}<select aria-label={`${label} rows per page ${position}`} value={pageSize} onChange={event => { setPageSize(Number(event.target.value)); onNavigate?.(); }}>
       {[25, 50, 100].map(size => <option key={size} value={size}>{size}</option>)}
     </select></label>
     <div className="mk-page-controls">

@@ -1,62 +1,44 @@
-// Public GDELT Article List metadata: https://blog.gdeltproject.org/announcing-the-gdelt-article-list-rss-feed/
-// Sample archived minute files rather than depending on the rate-limited search API.
+// Collect Business Recorder's public section feeds once per hour.
+// Publish headline links and publisher metadata only, never article bodies or images.
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { gunzipSync } from 'node:zlib';
-import { parseMarketNews, mergeNewsItems, fetchBusinessRecorderNews } from '../lib/marketNews.js';
+import { mergeNewsItems, fetchBusinessRecorderNews, BUSINESS_RECORDER_FEEDS, NEWS_WINDOW_DAYS } from '../lib/marketNews.js';
 
 const output = path.resolve(process.argv[2] || '.market-data');
-const hours = Number(process.env.NEWS_BACKFILL_HOURS || 3);
-if (!Number.isInteger(hours) || hours < 1 || hours > 72) throw new Error('Invalid news collection window');
-const now = Date.now(), file = path.join(output, 'news.json');
+const file = path.join(output, 'news.json');
 await fs.mkdir(output, { recursive: true });
 let old;
 try { old = JSON.parse(await fs.readFile(file, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
-const items = [...(old?.items || [])], slots = [];
-let businessRecorder = { ...old?.businessRecorder, unavailable: true }, publisherFailed = false;
-try {
-  const headlines = await fetchBusinessRecorderNews();
-  items.push(...headlines);
-  businessRecorder = { lastSuccessAt: new Date().toISOString(), unavailable: false, latestCount: headlines.length };
-  console.log(`Business Recorder: ${headlines.length} recent headlines, including general news`);
-} catch (error) { publisherFailed = true; console.error('Business Recorder refresh failed; keeping previous headlines:', error.message); }
-// GDELT publishes in batches after each quarter-hour. Two samples per batch
-// keep downloads bounded; the UI explicitly describes coverage as partial.
-const end = Math.floor((now - 10 * 60000) / 900000) * 900000;
-for (let quarter = end; quarter >= now - hours * 3600000; quarter -= 900000) {
-  for (const minute of [2, 7]) if (quarter + minute * 60000 < now - 5 * 60000) slots.push(quarter + minute * 60000);
-}
-let index = 0, checked = 0, missing = 0, failed = 0;
+const items = (old?.items || []).filter(item => item.provider === 'Business Recorder RSS');
+const feeds = [], failedFeeds = [];
+// Bounded concurrency; one request per section, with no article-page crawling.
+let index = 0;
 async function collect() {
-  while (index < slots.length) {
-    const time = slots[index++], stamp = new Date(time).toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  while (index < BUSINESS_RECORDER_FEEDS.length) {
+    const section = BUSINESS_RECORDER_FEEDS[index++];
     try {
-      const response = await fetch(`https://data.gdeltproject.org/gdeltv3/gal/${stamp}.gal.json.gz`, { signal: AbortSignal.timeout(25000) });
-      if (response.status === 404) { missing++; continue; }
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      if (Number(response.headers.get('content-length')) > 8 * 1024 * 1024) throw new Error('Oversized source file');
-      const chunks = []; let bytes = 0;
-      for await (const chunk of response.body) { bytes += chunk.length; if (bytes > 8 * 1024 * 1024) throw new Error('Oversized source file'); chunks.push(chunk); }
-      const lines = gunzipSync(Buffer.concat(chunks), { maxOutputLength: 48 * 1024 * 1024 }).toString('utf8').split('\n');
-      const articles = [];
-      for (const line of lines) {
-        if (!line.trim()) continue;
-        const row = JSON.parse(line);
-        if (row.lang !== 'ENGLISH' && row.lang !== 'English' && row.lang !== 'en') continue;
-        articles.push({ url: row.url, title: row.title, language: 'English', seendate: stamp.slice(0, 8) + 'T' + stamp.slice(8) + 'Z' });
-      }
-      const accepted = parseMarketNews({ articles }, now); items.push(...accepted); checked++;
-      if (accepted.length) console.log(`${stamp}: ${accepted.length} market headlines`);
-    } catch (error) { failed++; console.error(`${stamp}: ${error.message}`); }
-    if ((checked + missing + failed) % 20 === 0) console.log(`Checked ${checked + missing + failed}/${slots.length} source files`);
+      const headlines = await fetchBusinessRecorderNews(section);
+      items.push(...headlines);
+      feeds.push({ section, count: headlines.length });
+      console.log(`Business Recorder ${section}: ${headlines.length} recent headlines`);
+    } catch (error) {
+      failedFeeds.push(section);
+      console.error(`Business Recorder ${section}: ${error.message}; keeping previously collected headlines`);
+    }
   }
 }
 await Promise.all([collect(), collect(), collect()]);
-if (!checked && publisherFailed) throw new Error('No valid source files; previous headlines retained');
-const merged = mergeNewsItems(items, now);
-if (!merged.length) throw new Error('No recent market headlines; previous headlines retained');
-const data = { updatedAt: new Date(now).toISOString(), provider: 'Business Recorder RSS + GDELT', partial: true, businessRecorder, checked, missing, failed, items: merged };
+if (!feeds.length) throw new Error('All publisher feeds unavailable; previous snapshot retained');
+const now = Date.now(), merged = mergeNewsItems(items, now);
+if (!merged.length) throw new Error('No recent publisher headlines; previous snapshot retained');
+const updatedAt = new Date(now).toISOString();
+const businessRecorder = {
+  lastSuccessAt: failedFeeds.length ? old?.businessRecorder?.lastSuccessAt : updatedAt,
+  unavailable: failedFeeds.length > 0, latestCount: merged.length,
+  feeds: feeds.sort((a, b) => a.section.localeCompare(b.section)), failedFeeds,
+};
+const data = { updatedAt, provider: 'Business Recorder RSS', windowDays: NEWS_WINDOW_DAYS, partial: true, businessRecorder, items: merged };
 await fs.writeFile(file + '.tmp', JSON.stringify(data));
 await fs.rename(file + '.tmp', file);
-console.log(`Saved ${merged.length} headlines; ${checked} files read, ${missing} unpublished, ${failed} failed.`);
-if (publisherFailed || failed > slots.length / 2) process.exitCode = 1;
+console.log(`Saved ${merged.length} unique Business Recorder headlines; ${feeds.length}/${BUSINESS_RECORDER_FEEDS.length} feeds refreshed.`);
+if (failedFeeds.length) process.exitCode = 1;
