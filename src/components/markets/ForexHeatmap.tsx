@@ -54,9 +54,9 @@ export function ForexHeatmap() {
         <table className="mk-fx-heatmap-table" ref={table}>
           <caption className="sr-only">{period} change in each row currency against each column currency. Positive means the row currency strengthened. Use the arrow keys to move between pairs.</caption>
           <thead><tr><th scope="col"><span className="mk-fx-axis">Row / column</span></th>{FX_CURRENCIES.map(currency => <th scope="col" key={currency.code} title={currency.name}>
-            <span className="mk-fx-flag" aria-hidden="true">{currency.flag}</span><span>{currency.code}</span></th>)}</tr></thead>
+            <img className="mk-fx-flag" src={`/flags/${currency.flag}.svg`} alt="" width="22" height="22"/><span>{currency.code}</span></th>)}</tr></thead>
           <tbody>{FX_CURRENCIES.map((base, row) => <tr key={base.code}>
-            <th scope="row" title={base.name}><span className="mk-fx-flag" aria-hidden="true">{base.flag}</span>{base.code}</th>
+            <th scope="row" title={base.name}><img className="mk-fx-flag" src={`/flags/${base.flag}.svg`} alt="" width="22" height="22"/>{base.code}</th>
             {FX_CURRENCIES.map((quote, column) => {
               if (base.code === quote.code) return <td key={quote.code} className="mk-fx-diagonal" aria-label={`${base.code}, same currency`}><span aria-hidden="true">—</span></td>;
               const change = fxCrossChange(data.current, previous, base.code, quote.code);

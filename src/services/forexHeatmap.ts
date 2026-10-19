@@ -1,9 +1,9 @@
 export const FX_CURRENCIES = [
-  { code: 'EUR', name: 'Euro', flag: '🇪🇺' }, { code: 'USD', name: 'US Dollar', flag: '🇺🇸' },
-  { code: 'JPY', name: 'Japanese Yen', flag: '🇯🇵' }, { code: 'GBP', name: 'British Pound', flag: '🇬🇧' },
-  { code: 'CHF', name: 'Swiss Franc', flag: '🇨🇭' }, { code: 'AUD', name: 'Australian Dollar', flag: '🇦🇺' },
-  { code: 'CAD', name: 'Canadian Dollar', flag: '🇨🇦' }, { code: 'NZD', name: 'New Zealand Dollar', flag: '🇳🇿' },
-  { code: 'CNY', name: 'Chinese Yuan', flag: '🇨🇳' }, { code: 'PKR', name: 'Pakistani Rupee', flag: '🇵🇰' },
+  { code: 'EUR', name: 'Euro', flag: 'eu' }, { code: 'USD', name: 'US Dollar', flag: 'us' },
+  { code: 'JPY', name: 'Japanese Yen', flag: 'jp' }, { code: 'GBP', name: 'British Pound', flag: 'gb' },
+  { code: 'CHF', name: 'Swiss Franc', flag: 'ch' }, { code: 'AUD', name: 'Australian Dollar', flag: 'au' },
+  { code: 'CAD', name: 'Canadian Dollar', flag: 'ca' }, { code: 'NZD', name: 'New Zealand Dollar', flag: 'nz' },
+  { code: 'CNY', name: 'Chinese Yuan', flag: 'cn' }, { code: 'PKR', name: 'Pakistani Rupee', flag: 'pk' },
 ] as const;
 export const FX_PERIODS = ['1D', '1W', '1M', '1Y'] as const;
 export type FxPeriod = typeof FX_PERIODS[number];
