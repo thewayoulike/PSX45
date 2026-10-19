@@ -3,7 +3,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { gunzipSync } from 'node:zlib';
-import { parseMarketNews, mergeNewsItems } from '../lib/marketNews.js';
+import { parseMarketNews, mergeNewsItems, fetchBusinessRecorderNews } from '../lib/marketNews.js';
 
 const output = path.resolve(process.argv[2] || '.market-data');
 const hours = Number(process.env.NEWS_BACKFILL_HOURS || 3);
@@ -13,6 +13,13 @@ await fs.mkdir(output, { recursive: true });
 let old;
 try { old = JSON.parse(await fs.readFile(file, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
 const items = [...(old?.items || [])], slots = [];
+let businessRecorder = { ...old?.businessRecorder, unavailable: true }, publisherFailed = false;
+try {
+  const headlines = await fetchBusinessRecorderNews();
+  items.push(...headlines);
+  businessRecorder = { lastSuccessAt: new Date().toISOString(), unavailable: false, latestCount: headlines.length };
+  console.log(`Business Recorder: ${headlines.length} recent headlines, including general news`);
+} catch (error) { publisherFailed = true; console.error('Business Recorder refresh failed; keeping previous headlines:', error.message); }
 // GDELT publishes in batches after each quarter-hour. Two samples per batch
 // keep downloads bounded; the UI explicitly describes coverage as partial.
 const end = Math.floor((now - 10 * 60000) / 900000) * 900000;
@@ -45,11 +52,11 @@ async function collect() {
   }
 }
 await Promise.all([collect(), collect(), collect()]);
-if (!checked) throw new Error('No valid source files; previous headlines retained');
+if (!checked && publisherFailed) throw new Error('No valid source files; previous headlines retained');
 const merged = mergeNewsItems(items, now);
 if (!merged.length) throw new Error('No recent market headlines; previous headlines retained');
-const data = { updatedAt: new Date(now).toISOString(), provider: 'GDELT', partial: true, checked, missing, failed, items: merged };
+const data = { updatedAt: new Date(now).toISOString(), provider: 'Business Recorder RSS + GDELT', partial: true, businessRecorder, checked, missing, failed, items: merged };
 await fs.writeFile(file + '.tmp', JSON.stringify(data));
 await fs.rename(file + '.tmp', file);
 console.log(`Saved ${merged.length} headlines; ${checked} files read, ${missing} unpublished, ${failed} failed.`);
-if (failed > slots.length / 2) process.exitCode = 1;
+if (publisherFailed || failed > slots.length / 2) process.exitCode = 1;

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseMarketNews, newsCategory, mergeNewsItems } from './marketNews.js';
+import { parseMarketNews, newsCategory, mergeNewsItems, parseBusinessRecorderRss } from './marketNews.js';
 const now = Date.parse('2026-10-19T12:00:00Z');
 const item = { title: 'PSX shares gain as investors return', url: 'https://www.brecorder.com/news/40123456?utm_source=rss', seendate: '20261019T110000Z', language: 'English' };
 describe('market headline index', () => {
@@ -38,5 +38,22 @@ describe('market headline index', () => {
     expect(mergeNewsItems([...stored, ...stored, { ...stored[0], url: 'javascript:alert(1)' }], now)).toHaveLength(1);
     expect(mergeNewsItems(stored, now + 4 * 86400000)).toEqual([]);
     expect(stored[0].region).toBe('Pakistan');
+  });
+  it('keeps general publisher news with its real publication time through cache merges', () => {
+    const title = 'Field Marshal Asim Munir, Saudi envoy discuss defence cooperation';
+    const xml = `<rss><channel><item xmlns:content="example"><title><![CDATA[${title}]]></title><link>https://www.brecorder.com/news/40444956/field-marshal-asim-munir-saudi-envoy-discuss-defence-cooperation</link><pubDate>Mon, 19 Oct 2026 20:56:01 +0500</pubDate><description>Article body must not be retained</description></item></channel></rss>`;
+    const collectedAt = Date.parse('2026-10-19T17:45:00Z');
+    const result = parseBusinessRecorderRss(xml, collectedAt);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ title, category: 'general', publishedAt: '2026-10-19T15:56:01.000Z', provider: 'Business Recorder RSS' });
+    expect(JSON.stringify(result)).not.toContain('Article body');
+    expect(mergeNewsItems(result, collectedAt)[0]).toMatchObject({ title, category: 'general', publishedAt: '2026-10-19T15:56:01.000Z' });
+  });
+  it('rejects invalid publisher feeds and links, without promoting stale stories to today', () => {
+    const rss = (url: string, date: string) => `<rss><channel><item><title>Pakistan and world news update</title><link>${url}</link><pubDate>${date}</pubDate></item></channel></rss>`;
+    expect(() => parseBusinessRecorderRss('<html>Cloudflare challenge</html>', now)).toThrow();
+    expect(() => parseBusinessRecorderRss(rss('https://brecorder.com.evil.test/news/123/test', '19 Oct 2026 11:00:00 GMT'), now)).toThrow();
+    expect(() => parseBusinessRecorderRss(rss('https://www.brecorder.com/news/123/test', '10 Oct 2026 11:00:00 GMT'), now)).toThrow();
+    expect(() => parseBusinessRecorderRss(rss('https://www.brecorder.com/news/123/test', '20 Oct 2026 11:00:00 GMT'), now)).toThrow();
   });
 });
