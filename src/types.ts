@@ -111,6 +111,8 @@ export interface PortfolioStats {
   dailyPLPercent: number;
   dailyPreviousValue?: number;
   dailyMissingPrevious?: boolean;
+  dailyUnavailableReason?: string;
+  dailySessionDate?: string;
   dailyByTicker?: Record<string, number>;
   totalCommission: number;
   totalSalesTax: number; 

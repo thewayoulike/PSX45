@@ -42,14 +42,14 @@ export function daySnapshot(marketValue: number, ledger: { cash: number; contrib
   return { netWorth, totalReturn: netWorth - ledger.contributed };
 }
 
-export type HistoryRow = { rawDate?: string; netWorth?: number; totalReturn?: number; Portfolio?: number };
+export type HistoryRow = { rawDate?: string; netWorth?: number | null; totalReturn?: number | null; Portfolio?: number | null };
 
 /** Last 7 saved sessions for the dashboard cards. */
 export function cardSparklines(rows: HistoryRow[]) {
   const last = (rows || []).filter(row => row && row.rawDate).slice(-7);
-  const numbers = (pick: (row: HistoryRow) => number | undefined) => {
+  const numbers = (pick: (row: HistoryRow) => number | null | undefined) => {
     const values = last.map(pick);
-    return values.length >= 2 && values.every(value => typeof value === 'number') ? values as number[] : [];
+    return values.length >= 2 && values.every(value => typeof value === 'number' && Number.isFinite(value)) ? values as number[] : [];
   };
   return {
     netWorth: numbers(row => row.netWorth),

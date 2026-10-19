@@ -62,6 +62,7 @@
   .mobile-metric-switcher [role="tabpanel"][hidden] { display: none; }
   .mobile-metric-switcher [role="tabpanel"] > div { border: 0; border-radius: 0; box-shadow: none; padding: 12px; background: transparent; }
   .mobile-metric-switcher [role="tabpanel"] > div > div:first-child { display: none; }
+  .dashboard-metrics > div:nth-child(even) .dashboard-metric-tooltip { left: auto; right: 0; }
   .mobile-metric-switcher .dashboard-metrics { gap: 8px; }
   .mobile-metric-switcher .dashboard-metrics > div { padding: 12px; }
   .mobile-layout-app .mobile-holdings-header { padding: 14px; gap: 12px; }

@@ -406,7 +406,7 @@ const parsePsxTimeseries = (raw: string): { time: number; price: number }[] => {
 };
 
 /** Live index level + today's change vs previous session close. */
-export const fetchIndexQuote = async (symbol: string): Promise<{ value: number; changePct: number | null } | null> => {
+export const fetchIndexQuote = async (symbol: string): Promise<{ value: number; changePct: number | null; asOfDate: string } | null> => {
     const clean = symbol.toUpperCase().replace('PSX:', '').trim();
     const [intRaw, eodRaw] = await Promise.all([
         fetchUrlWithFallback(`https://dps.psx.com.pk/timeseries/int/${clean}`, 20),
@@ -416,19 +416,14 @@ export const fetchIndexQuote = async (symbol: string): Promise<{ value: number; 
     const eod = eodRaw ? parsePsxTimeseries(eodRaw) : [];
     const lastIntra = intra.length ? intra[intra.length - 1] : null;
     const lastEod = eod.length ? eod[eod.length - 1] : null;
-    const live = lastIntra?.price || lastEod?.price || 0;
+    const latest = lastIntra && (!lastEod || lastIntra.time >= lastEod.time) ? lastIntra : lastEod;
+    const live = latest?.price || 0;
     if (!live) return null;
-
-    let prevClose = 0;
-    if (lastEod && lastIntra) {
-      const sameDay = formatDatePK(new Date(lastEod.time)) === formatDatePK(new Date(lastIntra.time));
-      prevClose = sameDay ? (eod[eod.length - 2]?.price || 0) : lastEod.price;
-    } else if (eod.length >= 2) {
-      prevClose = eod[eod.length - 2].price;
-    }
+    const asOfDate = formatDatePK(new Date(latest!.time));
+    const prevClose = [...eod].reverse().find(point => formatDatePK(new Date(point.time)) < asOfDate)?.price || 0;
 
     const changePct = prevClose > 0 ? ((live - prevClose) / prevClose) * 100 : null;
-    return { value: live, changePct };
+    return { value: live, changePct, asOfDate };
 };
 
 // B. FETCH BATCH PRICES (Sync PSX)

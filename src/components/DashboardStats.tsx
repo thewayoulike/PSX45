@@ -357,9 +357,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
         />
         <HeroCard
           label="Today's P&L"
-          value={<>{isDailyProfitable ? '+' : '-'}{rs(Math.abs(stats.dailyPL))} {isDailyProfitable ? <ArrowUpRight size={24} className="inline -mt-2 opacity-80" /> : <ArrowDownRight size={24} className="inline -mt-2 opacity-80" />}</>}
-          colorClass={posNeg(stats.dailyPL)}
-          sub={stats.dailyMissingPrevious ? 'Previous prices incomplete' : `${spct(stats.dailyPLPercent || 0)}`}
+          value={stats.dailyMissingPrevious ? '—' : <>{isDailyProfitable ? '+' : '-'}{rs(Math.abs(stats.dailyPL))} {isDailyProfitable ? <ArrowUpRight size={24} className="inline -mt-2 opacity-80" /> : <ArrowDownRight size={24} className="inline -mt-2 opacity-80" />}</>}
+          colorClass={stats.dailyMissingPrevious ? 'text-slate-500' : posNeg(stats.dailyPL)}
+          sub={stats.dailyUnavailableReason || (stats.dailyMissingPrevious ? 'Prices incomplete' : `${spct(stats.dailyPLPercent || 0)}${stats.dailySessionDate ? ` · Session ${stats.dailySessionDate}` : ''}`)}
           icon={<Activity size={16} className={isDailyProfitable ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'} />}
           iconWrap={isDailyProfitable ? 'bg-emerald-50 dark:bg-emerald-500/20' : 'bg-rose-50 dark:bg-rose-500/20'}
           trend={dailyPLTrend}

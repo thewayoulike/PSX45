@@ -1,80 +1,47 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, TrendingDown } from 'lucide-react';
+import { todayPK } from '../utils/dates';
+import { compoundPerformance, type PerformanceRow } from '../utils/stockPerformance';
 import { fetchIndexQuote } from '../services/psxData';
 
 // Each entry: { rawDate, Portfolio, KSE100, KMI30 }  (daily return %)
 interface Props {
-  data: any[];
+  data: PerformanceRow[];
+  quoteTime?: string | null;
+  sessionDate?: string;
   // Live "today" portfolio move (same number as the Today's P&L card). Optional.
   portfolioTodayPct?: number | null;
 }
 
 type Win = '1D' | '1W' | '1M';
 
-const spct = (n: number) => `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(2)}%`;
-const posNeg = (v: number) => (v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400');
+const spct = (n: number | null) => n == null ? '—' : `${n >= 0 ? '+' : '-'}${Math.abs(n).toFixed(2)}%`;
+const posNeg = (v: number | null) => v == null ? 'text-slate-500' : (v >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400');
 
-// Compound daily % returns into a cumulative % for the window.
-const cum = (rows: any[], key: string) => (rows.reduce((acc, d) => acc * (1 + (Number(d[key]) || 0) / 100), 1) - 1) * 100;
-
-export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => {
+export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct, quoteTime, sessionDate = todayPK() }) => {
   const [win, setWin] = useState<Win>('1M');
-  // Live today's index moves — same source as the Index bar, so the "Today" tab
-  // matches reality instead of the last (stale, end-of-day) row of the history.
-  const [live, setLive] = useState<{ kse: number | null; kmi: number | null }>({ kse: null, kmi: null });
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-
+  const [live, setLive] = useState<{ kse: number | null; kmi: number | null; fetchedAt: string | null }>({ kse: null, kmi: null, fetchedAt: null });
   useEffect(() => {
     let alive = true;
     (async () => {
-      try {
-        const [kse, kmi] = await Promise.all([
-          fetchIndexQuote('KSE100'),
-          fetchIndexQuote('KMI30'),
-        ]);
-        if (alive) {
-          setLive({ kse: kse?.changePct ?? null, kmi: kmi?.changePct ?? null });
-          setLastUpdated(new Date());
-        }
-      } catch { 
-        /* ignore — fall back to history */ 
-      }
+      const [kse, kmi] = await Promise.all([
+        fetchIndexQuote('KSE100').catch(() => null), fetchIndexQuote('KMI30').catch(() => null),
+      ]);
+      if (alive) setLive({ kse: kse?.asOfDate === sessionDate ? kse.changePct : null,
+        kmi: kmi?.asOfDate === sessionDate ? kmi.changePct : null, fetchedAt: new Date().toISOString() });
     })();
     return () => { alive = false; };
-  }, []);
-
-  // Update timestamp if new data prop arrives
-  useEffect(() => {
-    if (data && data.length > 0) {
-      setLastUpdated(new Date());
-    }
-  }, [data]);
-
+  }, [quoteTime, sessionDate]);
   const stats = useMemo(() => {
     const clean = (data || []).filter(d => d && d.rawDate);
-
-    // TODAY: prefer live numbers (portfolio from the Today's P&L card, indices from
-    // the live fetch). Fall back to the most recent history row if live data is missing.
-    if (win === '1D') {
-      const histPort = clean.length ? cum(clean.slice(-1), 'Portfolio') : null;
-      const histKse = clean.length ? cum(clean.slice(-1), 'KSE100') : null;
-      const histKmi = clean.length ? cum(clean.slice(-1), 'KMI30') : null;
-      const port = portfolioTodayPct ?? histPort;
-      const kse = live.kse ?? histKse;
-      const kmi = live.kmi ?? histKmi;
-      if (port == null && kse == null && kmi == null) return null;
-      const p = port ?? 0, k = kse ?? 0, m = kmi ?? 0;
-      return { port: p, kse: k, kmi: m, vsKse: p - k, vsKmi: p - m };
-    }
-
-    // 1 WEEK / 1 MONTH: compound the daily returns from the generated history.
-    const rows = win === '1W' ? clean.slice(-5) : clean;
-    if (rows.length === 0) return null;
-    const port = cum(rows, 'Portfolio');
-    const kse = cum(rows, 'KSE100');
-    const kmi = cum(rows, 'KMI30');
-    return { port, kse, kmi, vsKse: port - kse, vsKmi: port - kmi };
-  }, [data, win, live, portfolioTodayPct]);
+    const rows = win === '1D' ? clean.filter(d => d.rawDate === sessionDate) : win === '1W' ? clean.slice(-5) : clean;
+    const port = win === '1D' && portfolioTodayPct !== undefined ? portfolioTodayPct : compoundPerformance(rows, 'Portfolio');
+    const kse = (win === '1D' ? live.kse : null) ?? compoundPerformance(rows, 'KSE100');
+    const kmi = (win === '1D' ? live.kmi : null) ?? compoundPerformance(rows, 'KMI30');
+    if (port == null && kse == null && kmi == null) return null;
+    return { port, kse, kmi, vsKse: port != null && kse != null ? port - kse : null };
+  }, [data, win, live, portfolioTodayPct, sessionDate]);
+  const lastUpdated = win === '1D' ? live.fetchedAt : data.at(-1)?.fetchedAt;
 
   const formatLastUpdated = (date: Date) => {
     return new Intl.DateTimeFormat('en-US', {
@@ -83,6 +50,7 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
       hour: 'numeric',
       minute: '2-digit',
       hour12: true,
+      timeZone: 'Asia/Karachi',
     }).format(date);
   };
 
@@ -97,14 +65,14 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
           </h3>
           {lastUpdated && (
             <div className="text-[10px] font-medium text-slate-400 dark:text-slate-500 mt-0.5">
-              Last updated: {formatLastUpdated(lastUpdated)}
+              Retrieved: {formatLastUpdated(new Date(lastUpdated))} PKT
             </div>
           )}
         </div>
         <div className="flex gap-1.5">
           {(['1D', '1W', '1M'] as Win[]).map(w => (
             <button key={w} onClick={() => setWin(w)} className={chip(win === w)}>
-              {w === '1M' ? '1 Month' : w === '1W' ? '1 Week' : 'Today'}
+              {w === '1M' ? '1 Month' : w === '1W' ? '1 Week' : 'Latest session'}
             </button>
           ))}
         </div>
@@ -112,22 +80,24 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
 
       {!stats ? (
         <p className="text-sm text-slate-500 dark:text-slate-400 py-4 text-center">
-          Generate the performance chart below to unlock this comparison.
+          A comparison needs complete daily prices. Refresh the performance chart to try again.
         </p>
       ) : (
         <div className="flex-1 flex flex-col justify-between min-h-0">
           {/* Headline */}
-          <div className={`flex items-center gap-2 mb-4 p-3 rounded-2xl ${stats.vsKse >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
+          {stats.vsKse != null ? <div className={`flex items-center gap-2 mb-4 p-3 rounded-2xl ${stats.vsKse >= 0 ? 'bg-emerald-50 dark:bg-emerald-500/10' : 'bg-rose-50 dark:bg-rose-500/10'}`}>
             {stats.vsKse >= 0 ? <Trophy size={18} className="text-emerald-600 dark:text-emerald-400 shrink-0" /> : <TrendingDown size={18} className="text-rose-500 shrink-0" />}
             <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
-              {stats.vsKse >= 0 ? 'Beating' : 'Lagging'} KSE-100 by <span className={posNeg(stats.vsKse)}>{spct(Math.abs(stats.vsKse)).replace('+', '')}</span> {win === '1D' ? 'today' : win === '1W' ? 'this week' : 'this month'}
+              {stats.vsKse >= 0 ? 'Beating' : 'Lagging'} KSE-100 by <span className={posNeg(stats.vsKse)}>{Math.abs(stats.vsKse).toFixed(2)} percentage points</span> {win === '1D' ? `for ${sessionDate}` : win === '1W' ? 'this week' : 'this month'}
             </span>
           </div>
+
+          : <p className="mb-4 text-sm text-slate-500">Comparison unavailable: prices are incomplete or a corporate action needs verification.</p>}
 
           {/* Stats */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/50">
-              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Your Portfolio</div>
+              <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Your stock P&L</div>
               <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.port)}`}>{spct(stats.port)}</div>
             </div>
             <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/50">
@@ -140,13 +110,13 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct }) => 
             </div>
             <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/50">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Outperformance</div>
-              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.vsKse)}`}>{spct(stats.vsKse)}</div>
+              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.vsKse)}`}>{stats.vsKse == null ? '—' : `${stats.vsKse >= 0 ? '+' : ''}${stats.vsKse.toFixed(2)} pp`}</div>
             </div>
           </div>
           <p className="text-[10px] text-slate-400 mt-auto pt-3 leading-snug">
             {win === '1D'
-              ? 'Live today: your portfolio move vs the latest KSE-100 / KMI-30 change.'
-              : 'Compounded daily returns over the selected window (from your generated history, up to ~1 month).'}
+              ? 'Today uses the P&L card’s calculation and same-session index changes.'
+              : 'Compounded daily stock P&L percentages over available sessions, up to 30 days. A missing return makes the comparison unavailable. Cash, fees and dividends are excluded.'}
           </p>
         </div>
       )}

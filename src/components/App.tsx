@@ -58,7 +58,7 @@ const InsiderTransactionsPage = lazy(() => import('./InsiderTransactionsPage'));
 import { PortfolioInsights } from './PortfolioInsights';
 import { Sidebar } from './Sidebar';
 import { getSector } from '../services/sectors';
-import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, fetchPypsxQuotes, fetchPypsxIndexSymbols } from '../services/psxData';
+import { fetchBatchPSXPrices, fetchAllPSXPrices, fetchLatestCloses, fetchPypsxQuotes, fetchPypsxIndexSymbols, fetchIndexQuote } from '../services/psxData';
 import { progressivePrices, marketPollDelay } from '../services/progressivePrices';
 import { stocksPathForTicker, tickerFromStocksPath, normalizeStockDeepLink } from '../utils/stocksPath';
 import { applyIndexConstituents } from '../services/indices';
@@ -91,7 +91,7 @@ import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, preserveCloudDraft, hasCloudConflict, type CloudReadMode, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
 import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } from '../services/panelCache';
-import { stockDayChange } from '../utils/stockDayPL';
+import { stockDayPerformance, stockTransactions, withLivePerformance, performanceSourceKey } from '../utils/stockPerformance';
 import { oversellCashCredit } from '../utils/oversellCash';
 import { peakNetInvested } from '../utils/peakCapital';
 import { cardSparklines } from '../utils/cardHistory';
@@ -564,6 +564,16 @@ const App: React.FC = () => {
       if (times.length === 0) return null;
       return times.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
   }, [priceTimestamps]);
+
+  const [marketSessionDate, setMarketSessionDate] = useState<string | null>(null);
+  useEffect(() => {
+      let alive = true;
+      setMarketSessionDate(null);
+      if (lastPriceUpdate) void fetchIndexQuote('KSE100').then(quote => {
+          if (alive) setMarketSessionDate(quote?.asOfDate || null);
+      }).catch(() => {});
+      return () => { alive = false; };
+  }, [lastPriceUpdate]);
 
   const sectorMap = useMemo(() => {
       const map: Record<string, string> = {};
@@ -1330,7 +1340,8 @@ const App: React.FC = () => {
       priceSyncRun.current = run;
       const endPriceMeasure = beginStage('price_refresh');
       const current = () => priceSyncRun.current === run && loadedEmailRef.current === email;
-      const tickers = [...new Set([...holdings.map(h => h.ticker), ...watchlist].filter(t => t && !isFundTicker(t)))];
+      const tickers = [...new Set([...holdings.map(h => h.ticker), ...watchlist,
+          ...stockTransactions(transactions).filter(t => t.date === (marketSessionDate || todayPK()) || t.date === todayPK()).map(t => t.ticker)].filter(t => t && !isFundTicker(t)))];
       setIsSyncing(true); setPriceError(false); setFailedTickers(new Set());
       // Index membership is independent of showing a usable quote.
       void fetchPypsxIndexSymbols().then(data => { if (loadedEmailRef.current === email) applyIndexConstituents(data); }).catch(() => {});
@@ -1388,7 +1399,7 @@ const App: React.FC = () => {
           endPriceMeasure(current() ? 'ok' : 'error');
           if (current()) { priceSyncRun.current = null; setIsSyncing(false); }
       }
-  }, [holdings, watchlist]);
+  }, [holdings, watchlist, transactions, marketSessionDate]);
 
   const handleSyncFundNav = useCallback(async () => {
       setIsSyncing(true);
@@ -1508,7 +1519,7 @@ const App: React.FC = () => {
 
   const refreshPricesRef = useRef(handleSyncPrices);
   refreshPricesRef.current = handleSyncPrices;
-  const hasStockHoldings = holdings.some(h => !isFundTicker(h.ticker));
+  const hasStockHoldings = holdings.some(h => !isFundTicker(h.ticker)) || stockTransactions(transactions).some(t => t.date === (marketSessionDate || todayPK()));
   const marketReady = !isAuthChecking && !sbChecking && (!driveUser || isReadyToSave.current);
   useEffect(() => {
       if (!marketReady || (!driveUser && !sbApproved)) return;
@@ -1647,7 +1658,7 @@ const App: React.FC = () => {
     );
 
     holdings.forEach(h => {
-        if (h.priceAvailable === false) dailyMissingPrevious = true;
+        if (isFundTicker(h.ticker) && h.priceAvailable === false) dailyMissingPrevious = true;
         totalValue += h.quantity * h.currentPrice;
         const costAvg = isFundTicker(h.ticker) ? fundAvgForCost(h.avgPrice) : h.avgPrice;
         totalCost += h.quantity * costAvg;
@@ -1674,22 +1685,16 @@ const App: React.FC = () => {
             dailyByTicker[h.ticker] = (dailyByTicker[h.ticker] || 0) + change;
             dailyPreviousValue += ldcp * startQty;
             if (!(ldcpRaw > 0) && !(fund?.prevNav > 0)) dailyMissingPrevious = true;
-        } else {
-            const ldcp = ldcpRaw || h.currentPrice;
-            const todayTrades = portfolioTransactions.filter(t => t.ticker === h.ticker && t.date === today);
-            const change = stockDayChange({
-                quantity: h.quantity,
-                current: h.currentPrice,
-                ldcp,
-                trades: todayTrades,
-            });
-            dailyPL += change;
-            if (ldcpRaw > 0) {
-                dailyByTicker[h.ticker] = (dailyByTicker[h.ticker] || 0) + change;
-                dailyPreviousValue += ldcpRaw * h.quantity;
-            } else dailyMissingPrevious = true;
         }
     });
+
+    // Include sold-out positions and count each stock trade once across brokers.
+    const stockDay = stockDayPerformance(portfolioTransactions, marketSessionDate || today, ldcpMap, manualPrices);
+    dailyPL += stockDay.pnl;
+    dailyPreviousValue += stockDay.capital;
+    Object.assign(dailyByTicker, stockDay.byTicker);
+    const sessionUnconfirmed = !marketSessionDate && stockTransactions(portfolioTransactions).length > 0;
+    dailyMissingPrevious ||= sessionUnconfirmed || stockDay.missing.length > 0 || stockDay.corporateActions.length > 0;
 
     // Flat-NAV / daily-income funds: income booked today counts as day P&L (NAV often unchanged)
     if (fundPortfolio) {
@@ -1893,11 +1898,23 @@ const App: React.FC = () => {
     if (divTaxSum !== totalDividendTax) setTotalDividendTax(divTaxSum);
     return {
         totalValue, totalCost, unrealizedPL, unrealizedPLPercent, realizedPL, netRealizedPL,
-        totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, dailyPreviousValue, dailyMissingPrevious, dailyByTicker, totalCommission, totalSalesTax, totalCDC,
+        totalDividends: dividendSum, totalDividendTax: divTaxSum, dailyPL, dailyPLPercent, dailyPreviousValue, dailyMissingPrevious, dailyByTicker,
+        dailySessionDate: fundPortfolio ? undefined : marketSessionDate || undefined,
+        dailyUnavailableReason: sessionUnconfirmed ? 'Market session unavailable' : stockDay.corporateActions.length ? 'Corporate-action prices need verification' : dailyMissingPrevious ? 'Prices incomplete' : dailyPreviousValue <= 0 ? 'No exposure for this session' : undefined,
+        totalCommission, totalSalesTax, totalCDC,
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
         netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
     };
-  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, priceTimestamps, fundNavDayMap, fundCatalog, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
+  }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, manualPrices, priceTimestamps, marketSessionDate, fundNavDayMap, fundCatalog, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
+
+  const livePerformanceDay = {
+      date: marketSessionDate || todayPK(),
+      percent: stats.dailyMissingPrevious || !(stats.dailyPreviousValue! > 0) ? null : stats.dailyPLPercent,
+      pnl: stats.dailyMissingPrevious ? null : stats.dailyPL,
+      quoteTime: lastPriceUpdate,
+  };
+  const performanceKey = useMemo(() => performanceSourceKey(portfolioTransactions), [portfolioTransactions]);
+  const displayedPerformance = withLivePerformance(performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [], livePerformanceDay, performanceKey);
 
   const getCloudSnapshot = () => ({
       transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps,
@@ -2496,9 +2513,12 @@ const App: React.FC = () => {
   // Render a single dashboard card by id. Used by the customizable DashboardGrid.
   const renderDashCard = (id: string): React.ReactNode => {
       if (isFundPortfolio && PSX_ONLY_CARD_IDS.has(id)) return null;
+      if ((id === 'performance' || id === 'benchmark') && portfolioTransactions.some(t => isFundTicker(t.ticker))) {
+          return <div className="rounded-3xl border border-slate-200 p-6 text-sm text-slate-500">Select a stock portfolio to compare daily stock P&amp;L with the PSX indices. The combined P&amp;L card also includes your funds.</div>;
+      }
       switch (id) {
           case 'stats': {
-              const historyData = performanceHistory[perfKey] || [];
+              const historyData = displayedPerformance;
               const series = cardSparklines(historyData);
               return (
                   <Suspense fallback={<div className="rounded-3xl border border-slate-200/60 dark:border-slate-800 p-6 text-sm text-slate-500">Loading dashboard…</div>}>
@@ -2522,13 +2542,15 @@ const App: React.FC = () => {
               );
           }
           case 'benchmark':
-              return <BenchmarkPanel data={performanceHistory[perfKey] || []} portfolioTodayPct={stats.dailyPLPercent} />;
+              return <BenchmarkPanel data={displayedPerformance} portfolioTodayPct={livePerformanceDay.percent} quoteTime={lastPriceUpdate} sessionDate={livePerformanceDay.date} />;
           case 'performance':
               return (
                   <PerformanceChart
                       key={perfKey}
                       transactions={portfolioTransactions}
-                      savedData={performanceHistory[perfKey] || []}
+                      savedData={displayedPerformance}
+                      liveDay={livePerformanceDay}
+                      onRefreshPrices={handleSyncMarket}
                       onSaveData={(data) => setPerformanceHistory(prev => ({ ...prev, [perfKey]: data }))}
                   />
               );
