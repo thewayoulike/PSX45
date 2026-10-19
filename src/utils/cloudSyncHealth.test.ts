@@ -29,10 +29,10 @@ describe('cloudSyncHealth', () => {
     expect(syncHealthStatus({ isSyncing: false, error: null, lastSave: null, hasPending: true })).toBe('Pending');
     expect(syncHealthStatus({ isSyncing: false, error: null, lastSave: null, hasPending: false })).toBe('Not yet saved');
   });
-  it('asks which version to keep instead of retrying a stale upload', () => {
+  it('describes automatic Drive loading instead of asking for a version', () => {
     const error = 'Another device saved a newer version. Choose which version to keep. The other one is saved as a recovery copy.';
-    expect(shortenCloudError(error)).toContain('Keep this device');
+    expect(shortenCloudError(error)).toContain('latest Google Drive file');
     expect(shortenCloudError(error)).toContain('recovery copy');
-    expect(syncHealthStatus({ isSyncing: false, error, lastSave: null, hasPending: true })).toBe('Choose a version');
+    expect(syncHealthStatus({ isSyncing: false, error, lastSave: null, hasPending: true })).toBe('Loading Drive');
   });
 });

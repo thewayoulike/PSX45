@@ -752,7 +752,7 @@ describe('cloud save outcomes and recovery', () => {
   });
 });
 
-describe('conflicts ask before replacing anything', () => {
+describe('Drive automatically wins conflicts after recovery', () => {
   // A fake Drive + cloud-sync head. `other()` simulates another device committing a save.
   function fakeCloud(initial: any = { transactions: [{ id: 'cloud-0' }], portfolios: [] }) {
     const files = new Map<string, any>([['f0', initial]]);
@@ -781,22 +781,26 @@ describe('conflicts ask before replacing anything', () => {
   }
   beforeEach(() => { vi.useRealTimers(); vi.stubGlobal('indexedDB', new IDBFactory()); });
 
-  it('a focus refresh with unsynced edits raises a conflict and replaces nothing', async () => {
+  it('loads newer Drive data and keeps pending and debounced edits in recovery', async () => {
     const cloud = fakeCloud();
     await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
     storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 1, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
     cloud.other({ transactions: [{ id: 'theirs' }], portfolios: [] });
-    const copiesBefore = (await readRecoveryCopies('a@example.com')).length;
-    await expect(service.readLatestFromDrive(() => ({ transactions: [{ id: 'mine' }] }), { mode: 'refresh' })).rejects.toThrow('Another device saved a newer version.');
-    expect(service.hasCloudConflict()).toBe(true);
-    expect(service.getPendingCloud()?.data.transactions[0].id).toBe('mine');
-    expect((await readRecoveryCopies('a@example.com')).length).toBe(copiesBefore);
+    const result = await service.readLatestFromDrive(() => ({ transactions: [{ id: 'mine-now' }], portfolios: [] }), { mode: 'refresh', localDirty: true });
+    expect(result.transactions[0].id).toBe('theirs');
+    expect(service.hasCloudConflict()).toBe(false);
+    expect(service.getPendingCloud()).toBeNull();
+    const copies = await readRecoveryCopies('a@example.com');
+    expect(copies.map(c => JSON.parse(c.raw).data.transactions?.[0]?.id)).toEqual(expect.arrayContaining(['mine', 'mine-now']));
+    expect(cloud.state.commits).toBe(0);
   });
-  it('edits still inside the save debounce also count as unsynced', async () => {
+  it('preserves edits still inside the save debounce before loading Drive', async () => {
     const cloud = fakeCloud();
     await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
     cloud.other({ transactions: [{ id: 'theirs' }], portfolios: [] });
-    await expect(service.readLatestFromDrive(() => ({}), { mode: 'refresh', localDirty: true })).rejects.toThrow('Another device');
+    const result = await service.readLatestFromDrive(() => ({ transactions: [{ id: 'debounced' }], portfolios: [] }), { mode: 'refresh', localDirty: true });
+    expect(result.transactions[0].id).toBe('theirs');
+    expect((await readRecoveryCopies('a@example.com')).some(c => JSON.parse(c.raw).data.transactions?.[0]?.id === 'debounced')).toBe(true);
   });
   it('a focus refresh with nothing unsynced still picks up the other device', async () => {
     const cloud = fakeCloud();
@@ -805,13 +809,31 @@ describe('conflicts ask before replacing anything', () => {
     expect((await service.readLatestFromDrive(() => ({}), { mode: 'refresh' })).transactions[0].id).toBe('theirs');
     expect(service.hasCloudConflict()).toBe(false);
   });
-  it('startup keeps conflicting unsynced edits on screen and blocks saving until the person chooses', async () => {
+  it('startup loads Drive and archives the unsynced device copy without uploading it', async () => {
     const cloud = fakeCloud();
     storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 0, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
-    expect((await service.readLatestFromDrive(() => ({}), { mode: 'startup' })).transactions[0].id).toBe('mine');
-    expect(service.hasCloudConflict()).toBe(true);
-    expect((await service.saveToDrive({ transactions: [{ id: 'mine' }], portfolios: [] })).ok).toBe(false);
+    expect((await service.readLatestFromDrive(() => ({}), { mode: 'startup' })).transactions[0].id).toBe('cloud-0');
+    expect(service.hasCloudConflict()).toBe(false);
+    expect(service.getPendingCloud()).toBeNull();
+    expect((await readRecoveryCopies('a@example.com')).some(c => JSON.parse(c.raw).data.transactions?.[0]?.id === 'mine')).toBe(true);
     expect(cloud.state.commits).toBe(0);
+    expect((await service.saveToDrive({ transactions: [{ id: 'cloud-0' }, { id: 'new-edit' }], portfolios: [] })).ok).toBe(true);
+  });
+  it('keeps pending edits when the remote download fails', async () => {
+    fakeCloud();
+    storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 0, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
+    const realFetch = vi.mocked(fetch).getMockImplementation()!;
+    vi.mocked(fetch).mockImplementation((url: any, init?: any) => String(url).includes('alt=media') ? Promise.resolve(response({}, 503)) : realFetch(url, init));
+    await expect(service.readLatestFromDrive(() => ({}), { mode: 'startup' })).rejects.toThrow('HTTP 503');
+    expect(service.getPendingCloud()?.data.transactions[0].id).toBe('mine');
+  });
+  it('preserves a debounced draft for re-opening and strips API secrets', async () => {
+    fakeCloud();
+    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    service.preserveCloudDraft({ transactions: [{ id: 'draft' }], portfolios: [], geminiApiKey: 'secret' });
+    expect(service.getPendingCloud()?.baseVersion).toBe(1);
+    expect(service.getPendingCloud()?.data.geminiApiKey).toBeUndefined();
+    expect((await service.readLatestFromDrive(() => ({}), { mode: 'startup' })).transactions[0].id).toBe('draft');
   });
   it('“Keep this device” uploads this version and keeps the other device’s as a recovery copy', async () => {
     const cloud = fakeCloud();
@@ -822,7 +844,7 @@ describe('conflicts ask before replacing anything', () => {
     expect(cloud.files.get(cloud.state.head.fileId!).transactions[0].id).toBe('mine');
     expect(service.hasCloudConflict()).toBe(false);
     const copies = await readRecoveryCopies('a@example.com');
-    expect(copies.map(c => JSON.parse(c.raw).data.transactions[0].id)).toContain('cloud-0');
+    expect(copies.map(c => JSON.parse(c.raw).data.transactions?.[0]?.id)).toContain('cloud-0');
   });
   it('a commit that landed but lost its response is recognised, not reported as a conflict', async () => {
     const cloud = fakeCloud();

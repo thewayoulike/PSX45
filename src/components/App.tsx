@@ -2,6 +2,7 @@ import { ResponsivePortfolioHeader, ResponsivePortfolioActions, ResponsivePlanNo
 import { PriceStaleNotice } from './PriceStaleNotice';
 import { SectionBoundary } from './SectionBoundary';
 import { setUnsavedLocalChanges, setRecoveryEditorOpen } from '../utils/chunkRecovery';
+import { installCloudExitGuard, UNSAVED_LOGOUT_MESSAGE } from '../utils/cloudExitGuard';
 import { scrubSecretsFromRecoveryCopies } from '../utils/localAccount';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
@@ -88,7 +89,7 @@ import { ThemeToggle } from './ui/ThemeToggle';
 const HowItWorksPage = React.lazy(() => import('./HowItWorksPage').then(m => ({ default: m.HowItWorksPage })));
 import { VideoGuideLink } from './ui/VideoGuideLink';
 import * as Popover from '@radix-ui/react-popover';
-import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, keepThisDeviceVersion, hasCloudConflict, CLOUD_CONFLICT_MESSAGE as CLOUD_CONFLICT_PROMPT, type CloudReadMode, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
+import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, preserveCloudDraft, hasCloudConflict, type CloudReadMode, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
 import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } from '../services/panelCache';
 import { stockDayChange } from '../utils/stockDayPL';
 import { oversellCashCredit } from '../utils/oversellCash';
@@ -630,7 +631,15 @@ const App: React.FC = () => {
       }
   });
 
-  const handleManualLogout = () => { if (window.confirm("Log out and clear active local data? Unsynced recovery copies will be kept for this account on this device.")) { performLogout(); } };
+  const handleManualLogout = () => {
+      const unsaved = !!driveUser && (localDirtyRef.current || !!getPendingCloud());
+      if (!window.confirm(unsaved ? UNSAVED_LOGOUT_MESSAGE : 'Sign out of PSX Tracker?')) return;
+      if (unsaved) {
+          try { preserveCloudDraft(cloudSnapshotRef.current()); }
+          catch { alert('Your changes could not be kept on this device. Please finish syncing or download a local copy before signing out.'); return; }
+      }
+      performLogout();
+  };
   const handleLogin = () => { signInWithDrive(sbUser?.email); };
 
   // A Google user who authenticated but isn't approved yet (blocks entry).
@@ -878,12 +887,10 @@ const App: React.FC = () => {
               const restoredPending = getPendingCloud();
               if (cloudData?.lastModified && !restoredPending) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
-              if (hasCloudConflict()) {
-                  // This device's unsynced edits are on screen; the person picks which version to keep.
+              if (restoredPending) {
+                  // These edits still build on the current Drive file; finish their save.
                   localDirtyRef.current = true;
-                  setCloudSyncError(CLOUD_CONFLICT_PROMPT);
-              } else if (restoredPending) {
-                  // Restored unsynced edits still need uploading: don't treat them as already saved.
+                  setUnsavedLocalChanges(true);
                   skipHydrationSave.current = false;
               }
               retrySheetExport();
@@ -1899,8 +1906,14 @@ const App: React.FC = () => {
   });
   const cloudSnapshotRef = useRef(getCloudSnapshot);
   cloudSnapshotRef.current = getCloudSnapshot;
+  const cloudExitState = useRef({ connected: false });
+  cloudExitState.current = { connected: !!driveUser };
+  useEffect(() => installCloudExitGuard(window, document,
+      () => cloudExitState.current.connected && (localDirtyRef.current || !!getPendingCloud()),
+      () => preserveCloudDraft(cloudSnapshotRef.current())), []);
 
-  // mode 'refresh' never replaces unsynced edits; 'load' is the person choosing the cloud version.
+
+  // Newer Drive data is applied after the local recovery copy is durable.
   const handleLoadLatestCloud = async (mode: CloudReadMode = 'load') => {
       if (isLoadingLatestCloud.current || !driveUser) return;
       const email = driveUser.email;
@@ -1937,28 +1950,6 @@ const App: React.FC = () => {
   };
   const refreshCloudRef = useRef(handleLoadLatestCloud);
   refreshCloudRef.current = handleLoadLatestCloud;
-  const handleKeepThisDevice = async () => {
-      if (isLoadingLatestCloud.current || !driveUser) return;
-      const email = driveUser.email;
-      isLoadingLatestCloud.current = true;
-      cloudRevision.current++;
-      setIsCloudSyncing(true);
-      try {
-          const result = await keepThisDeviceVersion(() => cloudSnapshotRef.current());
-          if (loadedEmailRef.current !== email) return;
-          if (result.ok === true) {
-              localDirtyRef.current = false;
-              setUnsavedLocalChanges(false);
-              setLastCloudSave(result.savedAt);
-              setCloudSyncError(null);
-              if (result.sheetId) setGoogleSheetId(result.sheetId);
-          } else setCloudSyncError(result.error);
-      } finally {
-          isLoadingLatestCloud.current = false;
-          setPendingCloud(getPendingCloud());
-          setIsCloudSyncing(false);
-      }
-  };
   useEffect(() => {
       let lastCheck = 0;
       const refresh = () => {
@@ -2034,6 +2025,10 @@ const App: React.FC = () => {
                   setCloudSyncError(null);
                   if (result.sheetId) setGoogleSheetId(result.sheetId);
               } else {
+                  if (hasCloudConflict()) {
+                      await refreshCloudRef.current('load');
+                      return;
+                  }
                   setCloudSyncError(result.error);
               }
               setPendingCloud(getPendingCloud());
@@ -2627,7 +2622,6 @@ const App: React.FC = () => {
              onCloudRetry={() => isReadyToSave.current ? setCloudRetryTick(t => t + 1) : window.location.reload()}
              onDownloadPending={downloadPendingCloudBackup}
              onLoadCloud={() => void handleLoadLatestCloud('load')}
-             onKeepThisDevice={() => void handleKeepThisDevice()}
              hasApiKeys={!!userApiKey}
           />
 

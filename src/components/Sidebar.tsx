@@ -40,8 +40,6 @@ interface SidebarProps {
   onCloudRetry?: () => void;
   onDownloadPending?: () => void;
   onLoadCloud?: () => void;
-  /** Conflict choice: upload this device's version, keeping the other as a recovery copy. */
-  onKeepThisDevice?: () => void;
   hasApiKeys: boolean;
 }
 
@@ -59,7 +57,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentView, onViewChange, portfolioType = 'PSX',
   isOpen, onClose,
   isSidebarCollapsed, onToggleCollapse, driveUser, authUser, isOwner, onLogin, onLogout, isCloudSyncing, hasApiKeys,
-  cloudSyncError, lastCloudSave, pendingRevision, pendingQueuedAt, onCloudRetry, onDownloadPending, onLoadCloud, onKeepThisDevice
+  cloudSyncError, lastCloudSave, pendingRevision, pendingQueuedAt, onCloudRetry, onDownloadPending, onLoadCloud
 }) => {
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const [syncPopoverOpen, setSyncPopoverOpen] = useState(false);
@@ -381,21 +379,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           >
                             Retry
                           </button>}
-                          {hasConflict && onKeepThisDevice && <button
-                            type="button"
-                            onClick={onKeepThisDevice}
-                            disabled={isCloudSyncing}
-                            className="flex-1 min-h-[44px] bg-sky-600 hover:bg-sky-700 disabled:opacity-50 text-white text-xs font-bold py-1.5 px-2 rounded-lg"
-                          >
-                            Keep this device
-                          </button>}
                           <button
                             type="button"
                             onClick={loadLatest}
                             disabled={isCloudSyncing}
-                            className={`flex-1 min-h-[44px] disabled:opacity-50 text-xs font-bold py-1.5 px-2 rounded-lg ${hasConflict && !onKeepThisDevice ? 'bg-sky-600 hover:bg-sky-700 text-white' : 'border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'}`}
+                            className={`flex-1 min-h-[44px] disabled:opacity-50 text-xs font-bold py-1.5 px-2 rounded-lg ${hasConflict ? 'bg-sky-600 hover:bg-sky-700 text-white' : 'border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200'}`}
                           >
-                            {isCloudSyncing && hasConflict ? 'Working…' : hasConflict ? 'Load other device' : 'Load latest'}
+                            {isCloudSyncing && hasConflict ? 'Working…' : hasConflict ? 'Load Google Drive' : 'Load latest'}
                           </button>
                         </>
                       );

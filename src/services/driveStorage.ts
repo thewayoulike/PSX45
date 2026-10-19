@@ -370,7 +370,7 @@ const cloudQueue = createSerialQueue();
 const cloudBases = new Map<string, number>();
 const cloudConflicts = new Set<string>();
 const cloudRestores = new Set<string>();
-const conflictMessage = 'Another device saved a newer version. Choose which version to keep. The other one is saved as a recovery copy.';
+const conflictMessage = 'Another device saved a newer version. Loading the latest file from Google Drive. Unsaved edits will be kept as a recovery copy.';
 // Commits whose response was lost: if the head later points at this file, the commit landed.
 const uncertainCommits = new Map<string, string>();
 /** Adopt a head our own lost-response commit produced, instead of treating it as another device. */
@@ -696,15 +696,28 @@ export function downloadPendingCloudBackup() {
     const link = document.createElement('a'); link.href = url; link.download = 'psx-unsynced-backup.json'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
+/** Synchronous crash-safety copy for leaving during the save debounce. No network writes. */
+export function preserveCloudDraft(data: any) {
+    const email = currentEmail();
+    if (!email) return;
+    const previous = getPendingCloud();
+    // Preserve a pending upload's file ID so lost commit responses can still be reconciled.
+    if (previous && JSON.stringify({ ...previous.data, lastModified: undefined }) === JSON.stringify({ ...data, lastModified: undefined })) return;
+    localStorage.setItem(pendingKey(email), stripSecrets(JSON.stringify({
+        revision: crypto.randomUUID(), queuedAt: new Date().toISOString(),
+        baseVersion: cloudBases.get(email) ?? previous?.baseVersion ?? null,
+        data: { ...data, lastModified: new Date().toISOString() },
+    })));
+}
 /**
- * - 'load' (default): the person chose the cloud version; this device's data is kept as a recovery copy.
- * - 'refresh' (focus/online): load newer cloud data only when this device has nothing unsynced;
- *   otherwise raise a conflict and replace nothing.
- * - 'startup': unsynced edits that conflict stay on screen, and the conflict is raised for the person to resolve.
+ * The committed Drive file wins when another device has saved. Keep pending/current
+ * edits durably as recovery copies before replacing them. Pending edits based on the
+ * current Drive revision can still finish their normal save.
+ * 'refresh' skips unchanged remote versions; 'startup' and 'load' always check the file.
  */
 export type CloudReadMode = 'load' | 'refresh' | 'startup';
 export async function readLatestFromDrive(getLocalSnapshot?: () => any, options: boolean | { mode?: CloudReadMode; localDirty?: boolean } = {}): Promise<any | undefined> {
-    const { mode = 'load', localDirty = false } = typeof options === 'boolean' ? { mode: options ? 'refresh' as const : 'load' as const } : options;
+    const { mode = 'load' } = typeof options === 'boolean' ? { mode: options ? 'refresh' as const : 'load' as const } : options;
     const onlyIfNewer = mode === 'refresh';
     const email = currentEmail();
     if (cloudRestores.has(email)) return undefined;
@@ -717,28 +730,15 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, options:
             const head = await cloudHead(email, { action: 'head' });
             reconcileHead(email, head);
             if (onlyIfNewer && cloudBases.get(email) === head.revision) return undefined;
-            const pendingAtStart = localStorage.getItem(pendingKey(email));
-            if (onlyIfNewer && (pendingAtStart || localDirty)) {
-                // Never swap unsynced edits for another device's data without asking.
-                cloudConflicts.add(email);
-                throw new Error(conflictMessage);
-            }
-            if (mode === 'startup' && pendingAtStart) {
-                let pending: { data?: any; baseVersion?: number; fileId?: string } | null = null;
-                try { pending = JSON.parse(pendingAtStart); } catch { pending = null; }
-                const landed = !!(pending?.fileId && head.fileId === pending.fileId);
-                if (pending?.data && pending.baseVersion !== head.revision && !landed) {
-                    // Show this device's edits and let the person choose; saving stays blocked until then.
-                    cloudBases.set(email, typeof pending.baseVersion === 'number' ? pending.baseVersion : -1);
-                    cloudConflicts.add(email);
-                    return pending.data;
-                }
-            }
             const id = head.fileId || await findFile(request, DB_FILE_NAME);
             if (!id) { cloudBases.set(email, head.revision); return null; }
             const data = await (await request(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
             if (!data || !Array.isArray(data.transactions) || !Array.isArray(data.portfolios)) {
                 throw new Error('The cloud backup is incomplete. Your local changes have been kept.');
+            }
+            const latestHead = await cloudHead(email, { action: 'head' });
+            if (latestHead.revision !== head.revision || latestHead.fileId !== head.fileId) {
+                throw new Error('Google Drive changed during the download. Please retry loading the latest file. Your edits have been kept.');
             }
             if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
             // Cloud has not moved since this edit was queued. Keep the pending copy and show it.

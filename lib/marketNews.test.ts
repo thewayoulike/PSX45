@@ -1,8 +1,30 @@
 import { describe, it, expect } from 'vitest';
-import { parseMarketNews, newsCategory, mergeNewsItems, parseBusinessRecorderRss } from './marketNews.js';
+import { parseMarketNews, newsCategory, newsTopics, mergeNewsItems, parseBusinessRecorderRss, parsePublisherRss } from './marketNews.js';
 const now = Date.parse('2026-10-19T12:00:00Z');
 const item = { title: 'PSX shares gain as investors return', url: 'https://www.brecorder.com/news/40123456?utm_source=rss', seendate: '20261019T110000Z', language: 'English' };
 describe('market headline index', () => {
+  it('retains multiple verified publishers, timestamps and topics through snapshot merges', () => {
+    const rss = (title: string, url: string) => `<rss><channel><item><title>${title}</title><link>${url}</link><pubDate>Mon, 19 Oct 2026 11:00:00 GMT</pubDate><description>Private article body must not be retained</description></item></channel></rss>`;
+    const news = [
+      ...parsePublisherRss(rss('PSX stocks rally after earnings', 'https://www.dawn.com/news/1234567'), 'dawn-business', now),
+      ...parsePublisherRss(rss('Gold prices rise on supply concerns', 'https://www.fxstreet.com/news/gold-prices-rise-20261019'), 'fxstreet-news', now),
+      ...parsePublisherRss(rss('Bitcoin fund flows recover', 'https://www.coindesk.com/markets/2026/10/19/bitcoin-flows'), 'coindesk-news', now),
+    ];
+    const result = mergeNewsItems([...news, ...news], now);
+    expect(result).toHaveLength(3);
+    expect(result.map(item => item.topics)).toEqual(expect.arrayContaining([['stocks'], ['commodities'], ['crypto']]));
+    expect(result.every(item => item.publishedAt === '2026-10-19T11:00:00.000Z')).toBe(true);
+    expect(JSON.stringify(result)).not.toContain('Private article');
+    expect(mergeNewsItems(result, now + 8 * 86400000)).toEqual([]);
+  });
+  it('rejects cross-publisher injections and timestamps with no timezone', () => {
+    const rss = (url: string, date: string) => `<rss><channel><item><title>Gold prices rise today</title><link>${url}</link><pubDate>${date}</pubDate></item></channel></rss>`;
+    expect(() => parsePublisherRss(rss('https://www.dawn.com/news/1234567', '19 Oct 2026 11:00:00 GMT'), 'coindesk-news', now)).toThrow();
+    expect(() => parsePublisherRss(rss('https://www.dawn.com/news/1234567', '2026-10-19 11:00:00'), 'dawn-business', now)).toThrow();
+    expect(newsTopics('Pakistan wins a gold medal in the championship')).toEqual([]);
+    expect(newsTopics('Field Marshal and Saudi envoy discuss defence cooperation')).toEqual([]);
+    expect(newsTopics('Actor shares an update from the silver screen')).toEqual([]);
+  });
   it('keeps indexing time distinct from publication and removes duplicates', () => {
     const result = parseMarketNews({ articles: [item, { ...item, url: 'https://www.brecorder.com/news/40123456' }, { ...item, url: 'https://www.dawn.com/news/1234567' }] }, now);
     expect(result).toHaveLength(1);
