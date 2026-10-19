@@ -160,9 +160,9 @@ export async function loadMarketData(kind: string, force = false): Promise<Marke
       data = parseMarketHistory(await portal(`/timeseries/eod/${symbol}`, 'json'));
       if (data.length < 2) throw new Error('Price history is unavailable.');
     } else {
-      const raw = await request(`/api/proxy?feed=${encodeURIComponent(kind)}`);
+      const raw = await request(`/api/proxy?feed=${encodeURIComponent(kind)}`, 'json', kind === 'fx-heatmap' ? 30000 : 18000);
       retrievedAt = raw.retrievedAt || retrievedAt;
-      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : ['commodities', 'flows', 'insiders'].includes(kind) ? raw.data : parseMetals(raw.data);
+      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : ['commodities', 'flows', 'insiders', 'fx-heatmap'].includes(kind) ? raw.data : parseMetals(raw.data);
       if (Array.isArray(data) && !data.length) throw new Error('Quotes are unavailable.');
     }
     return { data, retrievedAt };

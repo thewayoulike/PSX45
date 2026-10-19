@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { CommodityStats } from './CommodityStats';
 
 const COMMODITIES = [
   { id: 'gold', name: 'Gold', symbol: 'CAPITALCOM:XAUUSD', unit: 'Troy ounce', code: 'XAUUSD' },
@@ -51,20 +52,8 @@ export function CommodityQuotes({ referenceConverter }: { referenceConverter?: R
         <div className="mk-commodity-unit">USD / {item.unit.toLowerCase()}<span>{selected.id === item.id ? 'Chart selected' : 'Select name for chart'}</span></div>
       </article>)}
     </div>
-    <div className="mk-commodity-layout">
-      <aside className="mk-panel mk-commodity-facts" aria-label={`${selected.name} market details`}>
-        <h3>Market details <span>{selected.name}</span></h3>
-        <dl>
-          <div><dt>Currency</dt><dd>USD</dd></div>
-          <div><dt>Unit</dt><dd>{selected.unit}</dd></div>
-          <div><dt>Symbol</dt><dd>{selected.code}</dd></div>
-          <div><dt>Source</dt><dd>Capital.com</dd></div>
-          <div><dt>Price type</dt><dd>Broker CFD</dd></div>
-        </dl>
-        <p className="mk-small">Use the chart ranges to compare performance. The change above the chart is for the selected period; the cards show the daily change.</p>
-        <a className="mk-commodity-source" href={source} target="_blank" rel="noopener noreferrer nofollow">Open {selected.name} source ↗</a>
-        <p className="mk-small">Quote time, previous close and the day’s range appear in Key stats below the chart.</p>
-      </aside>
+    <CommodityStats symbols={COMMODITIES.map(item => item.symbol)} dark={dark} attempt={attempt} />
+    <div className="mk-commodity-chart-layout">
       <div id="commodity-history" className="mk-panel mk-commodity-history" aria-label={`${selected.name} price history`}>
         <div className="mk-commodity-chart-heading"><h3>{selected.name} price history</h3><span className="mk-tag">USD / {selected.unit.toLowerCase()}</span></div>
         <ProviderFrame kind="symbol-overview" title={`${selected.name} interactive price chart`} dark={dark} height={460} attempt={attempt}
@@ -73,7 +62,7 @@ export function CommodityQuotes({ referenceConverter }: { referenceConverter?: R
             hideSymbolLogo: true, scalePosition: 'right', scaleMode: 'Normal', fontFamily: 'Inter, system-ui, sans-serif', fontSize: '11',
             chartType: 'area', lineWidth: 2, lineColor: '#059669', topColor: 'rgba(16,185,129,0.32)', bottomColor: 'rgba(16,185,129,0.02)',
             dateRanges: ['1w|60', '1m|60', '3m|1D', '6m|1D', '12m|1D', '36m|1W', '60m|1W', 'all|1M'] }} />
-        <div className="mk-commodity-stats-heading"><h3>Key stats</h3><span className="mk-small">{selected.name} · as supplied by the provider</span></div>
+        <div className="mk-commodity-stats-heading"><h3>{selected.name} latest session</h3><span className="mk-small">Quote time and market status</span></div>
         <div className="mk-commodity-stats-scroll" tabIndex={0} role="region" aria-label={`${selected.name} quote statistics, scroll horizontally on small screens`}>
           <ProviderFrame kind="symbol-info" title={`${selected.name} quote time and key statistics`} dark={dark} height={230} attempt={attempt}
             settings={{ symbol: selected.symbol, width: '100%', height: 230, isTransparent: true }} />
