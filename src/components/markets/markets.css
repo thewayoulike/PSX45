@@ -49,14 +49,25 @@
 @media(max-width:850px){.mk-commodity-layout{grid-template-columns:minmax(0,1fr)}.mk-commodity-facts{order:2}.mk-commodity-facts dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px}.mk-commodity-cards{gap:12px}.mk-commodity-unit{flex-wrap:wrap}}
 @media(max-width:580px){.mk-commodity-cards{grid-template-columns:minmax(0,1fr)}.mk-commodity-card .mk-commodity-select{padding-top:12px}.mk-commodity-card iframe{height:88px}.mk-commodity-unit{padding-bottom:12px}.mk-commodity-chart-heading{align-items:flex-start}.mk-commodity-history{padding:14px!important}.mk-commodity-facts dl{grid-template-columns:1fr}.mk-commodity-dashboard>.mk-section-heading{align-items:flex-start}.mk-commodity-dashboard>.mk-section-heading>button{flex-shrink:0}}
 .mk-commodity-dashboard{container-type:inline-size}
-.mk-commodity-key-stats{margin-bottom:24px}
+.mk-commodity-key-stats{margin:0;min-width:0}
+.mk-commodity-chart-layout{display:grid;grid-template-columns:minmax(290px,340px) minmax(0,1fr);gap:18px;align-items:stretch}
+.mk-commodity-chart-layout>.mk-panel{min-width:0;margin:0}
+.mk-commodity-key-heading{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:20px}
+.mk-commodity-key-heading h3{margin:0;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.mk-commodity-key-heading h3 span{font-size:12px;font-weight:500;color:var(--mk-muted)}
+.mk-commodity-stat-groups{display:grid;gap:16px}
+.mk-commodity-stat-groups h4{font-size:12px;margin:0 0 8px;color:var(--mk-muted)}
+.mk-commodity-scroll-hint{font-size:10px!important;line-height:1.5;margin:6px 0 0!important}
+.mk-commodity-stat-unit{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--mk-line);padding-top:14px;margin:18px 0 12px;font-size:12px}
+.mk-commodity-stat-unit dt{color:var(--mk-muted)}
+.mk-commodity-stat-unit dd{margin:0;font-weight:600}
 .mk-commodity-key-stats .mk-section-heading{margin-bottom:12px}
 .mk-commodity-key-stats .mk-section-heading h3{margin:0}
 .mk-commodity-key-stats .mk-section-heading p{font-size:12px;margin:5px 0 0}
 .mk-commodity-key-stats .mk-segments{flex-shrink:0}
 .mk-commodity-data-scroll{overflow-x:auto;max-width:100%;border:1px solid var(--mk-line);border-radius:10px;scrollbar-width:thin}
-.mk-commodity-data-widget{height:280px;min-width:720px;--tv-widget-font-family:Inter,system-ui,sans-serif;--tv-widget-text-color:var(--mk-ink);--tv-widget-price-text-color:var(--mk-ink);--tv-widget-background-color:var(--mk-card);--tv-widget-positive-color:#047857;--tv-widget-negative-color:#bd2447;--tv-widget-accent-color:var(--mk-green)}
-.mk-commodity-data-overview{min-width:900px}
+.mk-commodity-data-widget{height:126px;min-width:680px;--tv-widget-font-family:Inter,system-ui,sans-serif;--tv-widget-text-color:var(--mk-ink);--tv-widget-price-text-color:var(--mk-ink);--tv-widget-background-color:var(--mk-card);--tv-widget-positive-color:#047857;--tv-widget-negative-color:#bd2447;--tv-widget-accent-color:var(--mk-green)}
+.mk-commodity-data-overview{min-width:820px}
 .mk-commodity-data-widget>tv-market-data{display:block;width:100%;height:100%}
 .mk-commodity-data-widget>p{padding:20px}
 .mk-commodity-stats-error{padding:20px;background:var(--mk-soft);border-radius:10px;font-size:12px}
@@ -92,6 +103,8 @@
 @container(max-width:500px){.mk-fx-pair-detail>div:last-child{text-align:left}.mk-forex-heatmap .mk-segments{width:100%;justify-content:space-between}.mk-fx-heatmap-legend{justify-content:flex-start}.mk-fx-pair-detail{padding:12px}.mk-forex-heatmap .mk-section-heading{display:block}}
 @container(max-width:1120px){.mk-commodity-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.mk-commodity-layout{grid-template-columns:230px minmax(0,1fr)}.mk-commodity-swipe{display:block}}
 @container(max-width:800px){.mk-commodity-layout{grid-template-columns:minmax(0,1fr)}.mk-commodity-facts{order:2}.mk-commodity-facts dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 20px}}
+@container(max-width:900px){.mk-commodity-chart-layout{grid-template-columns:minmax(0,1fr)}.mk-commodity-stat-groups{grid-template-columns:repeat(2,minmax(0,1fr))}.mk-commodity-stat-groups>section{min-width:0}}
+@container(max-width:540px){.mk-commodity-stat-groups{grid-template-columns:minmax(0,1fr)}.mk-commodity-key-stats{padding:16px!important}}
 @container(max-width:540px){.mk-commodity-cards{grid-template-columns:minmax(0,1fr)}.mk-commodity-history{padding:14px!important}.mk-commodity-facts dl{grid-template-columns:1fr}.mk-commodity-dashboard .mk-section-heading{flex-wrap:wrap}.mk-commodity-history>iframe{height:400px}}
 
 .mk-index-charts{container-type:inline-size;margin-top:20px}

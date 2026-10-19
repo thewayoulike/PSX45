@@ -52,8 +52,8 @@ export function CommodityQuotes({ referenceConverter }: { referenceConverter?: R
         <div className="mk-commodity-unit">USD / {item.unit.toLowerCase()}<span>{selected.id === item.id ? 'Chart selected' : 'Select name for chart'}</span></div>
       </article>)}
     </div>
-    <CommodityStats symbols={COMMODITIES.map(item => item.symbol)} dark={dark} attempt={attempt} />
     <div className="mk-commodity-chart-layout">
+      <CommodityStats symbol={selected.symbol} name={selected.name} unit={selected.unit} dark={dark} attempt={attempt} />
       <div id="commodity-history" className="mk-panel mk-commodity-history" aria-label={`${selected.name} price history`}>
         <div className="mk-commodity-chart-heading"><h3>{selected.name} price history</h3><span className="mk-tag">USD / {selected.unit.toLowerCase()}</span></div>
         <ProviderFrame kind="symbol-overview" title={`${selected.name} interactive price chart`} dark={dark} height={460} attempt={attempt}
@@ -62,12 +62,6 @@ export function CommodityQuotes({ referenceConverter }: { referenceConverter?: R
             hideSymbolLogo: true, scalePosition: 'right', scaleMode: 'Normal', fontFamily: 'Inter, system-ui, sans-serif', fontSize: '11',
             chartType: 'area', lineWidth: 2, lineColor: '#059669', topColor: 'rgba(16,185,129,0.32)', bottomColor: 'rgba(16,185,129,0.02)',
             dateRanges: ['1w|60', '1m|60', '3m|1D', '6m|1D', '12m|1D', '36m|1W', '60m|1W', 'all|1M'] }} />
-        <div className="mk-commodity-stats-heading"><h3>{selected.name} latest session</h3><span className="mk-small">Quote time and market status</span></div>
-        <div className="mk-commodity-stats-scroll" tabIndex={0} role="region" aria-label={`${selected.name} quote statistics, scroll horizontally on small screens`}>
-          <ProviderFrame kind="symbol-info" title={`${selected.name} quote time and key statistics`} dark={dark} height={230} attempt={attempt}
-            settings={{ symbol: selected.symbol, width: '100%', height: 230, isTransparent: true }} />
-        </div>
-        <p className="mk-small mk-commodity-swipe">Swipe the statistics to see all values.</p>
         <div className="tradingview-widget-copyright"><a href={source} target="_blank" rel="noopener noreferrer nofollow">{selected.name} charts and quotes by TradingView ↗</a></div>
       </div>
     </div>
