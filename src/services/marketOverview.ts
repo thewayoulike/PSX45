@@ -162,11 +162,11 @@ export async function loadMarketData(kind: string, force = false): Promise<Marke
     } else {
       const raw = await request(`/api/proxy?feed=${encodeURIComponent(kind)}`, 'json', kind === 'fx-heatmap' ? 30000 : 18000);
       retrievedAt = raw.retrievedAt || retrievedAt;
-      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : ['commodities', 'flows', 'insiders', 'fx-heatmap'].includes(kind) ? raw.data : parseMetals(raw.data);
+      data = kind === 'crypto' ? parseCryptoQuotes(raw.data) : kind === 'fx' ? parseFx(raw.data) : ['commodities', 'commodity-dashboard', 'flows', 'insiders', 'fx-heatmap'].includes(kind) ? raw.data : parseMetals(raw.data);
       if (Array.isArray(data) && !data.length) throw new Error('Quotes are unavailable.');
     }
     return { data, retrievedAt };
   })().catch(error => { cache.delete(kind); throw error; });
-  cache.set(kind, { expires: Date.now() + 300000, promise });
+  cache.set(kind, { expires: Date.now() + (kind === 'commodity-dashboard' ? 120000 : 300000), promise });
   return promise;
 }
