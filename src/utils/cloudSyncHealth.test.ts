@@ -31,8 +31,8 @@ describe('cloudSyncHealth', () => {
   });
   it('describes automatic Drive loading instead of asking for a version', () => {
     const error = 'Another device saved a newer version. Choose which version to keep. The other one is saved as a recovery copy.';
-    expect(shortenCloudError(error)).toContain('latest Google Drive file');
-    expect(shortenCloudError(error)).toContain('recovery copy');
+    expect(shortenCloudError(error)).toContain('Checking Google Drive');
+    expect(shortenCloudError(error)).toContain('unsaved transactions');
     expect(syncHealthStatus({ isSyncing: false, error, lastSave: null, hasPending: true })).toBe('Loading Drive');
   });
 });

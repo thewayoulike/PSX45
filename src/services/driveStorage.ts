@@ -7,6 +7,7 @@ import { requestCloudVersion } from './cloudVersionRequest';
 import { gmailTextParts, gmailBodyText, type GmailTextPart } from '../utils/gmailBody';
 import { createGoogleSignInReadiness } from './googleSignInReadiness';
 import { stripSecrets } from '../utils/localAccount';
+import { cloudRecords, mergeCloudRecords, sameCloudRecords, type CloudRecords } from '../utils/cloudRecordMerge';
 // src/services/driveStorage.ts
 // Google Drive Storage Service
 // Stores application state in a single JSON file in Google Drive.
@@ -368,17 +369,24 @@ export const getValidToken = async (): Promise<string | null> => {
 // --- Checked, serialized Drive and Sheets operations ---
 const cloudQueue = createSerialQueue();
 const cloudBases = new Map<string, number>();
+const cloudBaselines = new Map<string, { revision: number; records: CloudRecords }>();
+function rememberCloudBase(email: string, revision: number, data: any) {
+    cloudBases.set(email, revision);
+    const records = cloudRecords(data);
+    if (records) cloudBaselines.set(email, { revision, records });
+    else cloudBaselines.delete(email);
+}
 const cloudConflicts = new Set<string>();
 const cloudRestores = new Set<string>();
-const conflictMessage = 'Another device saved a newer version. Loading the latest file from Google Drive. Unsaved edits will be kept as a recovery copy.';
+const conflictMessage = 'Another device saved a newer version. Checking Google Drive while keeping your unsaved transactions on this device.';
 // Commits whose response was lost: if the head later points at this file, the commit landed.
-const uncertainCommits = new Map<string, string>();
+const uncertainCommits = new Map<string, { fileId: string; data: any }>();
 /** Adopt a head our own lost-response commit produced, instead of treating it as another device. */
 function reconcileHead(email: string, head: CloudHead) {
-    const fileId = uncertainCommits.get(email);
-    if (!fileId || head.fileId !== fileId) return false;
+    const uncertain = uncertainCommits.get(email);
+    if (!uncertain || head.fileId !== uncertain.fileId) return false;
     uncertainCommits.delete(email);
-    cloudBases.set(email, head.revision);
+    rememberCloudBase(email, head.revision, uncertain.data);
     cloudConflicts.delete(email);
     return true;
 }
@@ -543,6 +551,7 @@ export function saveToDrive(data: any, includeSheets = false): Promise<CloudSave
             revision,
             queuedAt: new Date().toISOString(),
             baseVersion: cloudBases.get(email) ?? null,
+            baseRecords: cloudBaselines.get(email)?.records,
             data: snapshot,
         }));
     } catch (error: any) {
@@ -570,7 +579,7 @@ export function saveToDrive(data: any, includeSheets = false): Promise<CloudSave
             const base = cloudBases.get(email)!;
             // Record the base this save really builds on: a save queued behind another one would
             // otherwise keep the older revision and look like a conflict after a restart.
-            updatePending({ baseVersion: base });
+            updatePending({ baseVersion: base, baseRecords: cloudBaselines.get(email)?.records });
             if (head.revision !== base) { cloudConflicts.add(email); throw new Error(conflictMessage); }
             fileId = await writeDrive(request, snapshot);
             updatePending({ fileId, baseVersion: base });
@@ -578,8 +587,8 @@ export function saveToDrive(data: any, includeSheets = false): Promise<CloudSave
             const committed = await cloudHead(email, { action: 'commit', revision: base, fileId });
             committing = false;
             uncertainCommits.delete(email);
-            cloudBases.set(email, committed.revision);
-            updatePending({ baseVersion: committed.revision });
+            rememberCloudBase(email, committed.revision, snapshot);
+            updatePending({ baseVersion: committed.revision, baseRecords: cloudBaselines.get(email)?.records });
             // Sheets is a derived export. The authoritative backup is the immutable, committed file.
             if (includeSheets) {
                 try { await queueSheetExport(email, { ...committed, fileId }, snapshot); }
@@ -606,7 +615,7 @@ export function saveToDrive(data: any, includeSheets = false): Promise<CloudSave
                     try { await (await cloudSession(email))(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
                         method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ trashed: true }),
                     }); } catch { /* Best effort. */ }
-                } else uncertainCommits.set(email, fileId); // The commit may have landed.
+                } else uncertainCommits.set(email, { fileId, data: snapshot }); // The commit may have landed.
             }
             return { ok: false, error: error.message || 'Cloud save failed. Please retry.' } as CloudSaveResult;
         }
@@ -656,11 +665,13 @@ export async function loadFromDrive() {
         data = fileId ? await (await request(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`)).json() : null;
     }
     if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
-    cloudBases.set(email, head.revision);
+    // A pending draft is not evidence of what the committed file contained.
+    if (pending?.data) cloudBases.set(email, head.revision);
+    else rememberCloudBase(email, head.revision, data);
     cloudConflicts.delete(email);
     return data;
 }
-export type PendingCloud = { revision: string; queuedAt: string | null; data: any; baseVersion?: number | null; fileId?: string | null };
+export type PendingCloud = { revision: string; queuedAt: string | null; data: any; baseVersion?: number | null; baseRecords?: CloudRecords; fileId?: string | null };
 export function getPendingCloud(): PendingCloud | null {
     const email = currentEmail();
     if (!email) return null;
@@ -674,6 +685,7 @@ export function getPendingCloud(): PendingCloud | null {
             queuedAt: pending.queuedAt || pending.data?.lastModified || null,
             data: pending.data,
             baseVersion: pending.baseVersion ?? null,
+            baseRecords: cloudRecords(pending.baseRecords),
             fileId: pending.fileId ?? null,
         };
     } catch {
@@ -706,18 +718,18 @@ export function preserveCloudDraft(data: any) {
     localStorage.setItem(pendingKey(email), stripSecrets(JSON.stringify({
         revision: crypto.randomUUID(), queuedAt: new Date().toISOString(),
         baseVersion: cloudBases.get(email) ?? previous?.baseVersion ?? null,
+        baseRecords: cloudBaselines.get(email)?.records ?? previous?.baseRecords,
         data: { ...data, lastModified: new Date().toISOString() },
     })));
 }
 /**
- * The committed Drive file wins when another device has saved. Keep pending/current
- * edits durably as recovery copies before replacing them. Pending edits based on the
- * current Drive revision can still finish their normal save.
+ * Load Drive automatically, combining non-conflicting transaction edits against their
+ * shared baseline. Never silently replace unsynced trades or resurrect deleted trades.
  * 'refresh' skips unchanged remote versions; 'startup' and 'load' always check the file.
  */
 export type CloudReadMode = 'load' | 'refresh' | 'startup';
 export async function readLatestFromDrive(getLocalSnapshot?: () => any, options: boolean | { mode?: CloudReadMode; localDirty?: boolean } = {}): Promise<any | undefined> {
-    const { mode = 'load' } = typeof options === 'boolean' ? { mode: options ? 'refresh' as const : 'load' as const } : options;
+    const { mode = 'load', localDirty = false } = typeof options === 'boolean' ? { mode: options ? 'refresh' as const : 'load' as const } : options;
     const onlyIfNewer = mode === 'refresh';
     const email = currentEmail();
     if (cloudRestores.has(email)) return undefined;
@@ -731,7 +743,12 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, options:
             reconcileHead(email, head);
             if (onlyIfNewer && cloudBases.get(email) === head.revision) return undefined;
             const id = head.fileId || await findFile(request, DB_FILE_NAME);
-            if (!id) { cloudBases.set(email, head.revision); return null; }
+            if (!id) {
+                const pending = getPendingCloud();
+                rememberCloudBase(email, head.revision, { transactions: [], portfolios: [] });
+                // First-ever saves must survive closing/reopening before their upload.
+                return pending?.data || null;
+            }
             const data = await (await request(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`)).json();
             if (!data || !Array.isArray(data.transactions) || !Array.isArray(data.portfolios)) {
                 throw new Error('The cloud backup is incomplete. Your local changes have been kept.');
@@ -743,11 +760,17 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, options:
             if (currentEmail() !== email) throw new Error('Account changed. Cloud load cancelled.');
             // Cloud has not moved since this edit was queued. Keep the pending copy and show it.
             const pendingRaw = localStorage.getItem(pendingKey(email));
-            let pendingParsed: { data?: any; baseVersion?: number } | null = null;
+            let pendingParsed: PendingCloud | null = null;
             try { pendingParsed = pendingRaw ? JSON.parse(pendingRaw) : null; } catch { pendingParsed = null; }
             if (pendingParsed?.data && pendingParsed.baseVersion === head.revision) {
-                cloudBases.set(email, head.revision);
+                rememberCloudBase(email, head.revision, data);
                 cloudConflicts.delete(email);
+                // A newer edit may still be inside the debounce when refresh starts.
+                if (localDirty && getLocalSnapshot) {
+                    const current = getLocalSnapshot();
+                    preserveCloudDraft(current);
+                    return current;
+                }
                 return pendingParsed.data;
             }
             // Include edits made after a failed startup load or while the download was in progress.
@@ -765,10 +788,25 @@ export async function readLatestFromDrive(getLocalSnapshot?: () => any, options:
             if (localStorage.getItem(pendingKey(email)) !== pendingRaw || (getLocalSnapshot && JSON.stringify(getLocalSnapshot()) !== currentRaw)) {
                 throw new Error('Local edits changed while keeping the recovery copy. Tap Load latest again after finishing your edits.');
             }
-            if (pendingRaw) localStorage.removeItem(pendingKey(email));
-            cloudBases.set(email, head.revision);
+            const baseline = cloudBaselines.get(email);
+            const local = localDirty && currentRaw ? JSON.parse(currentRaw) : pendingParsed?.data;
+            let next = data;
+            if (local) {
+                const base = pendingParsed?.baseRecords
+                    ?? (baseline && (!pendingParsed || pendingParsed.baseVersion === baseline.revision) ? baseline.records : undefined);
+                next = mergeCloudRecords(base, local, data);
+            }
+            // Persist the combined portfolio before clearing the old draft or exposing it to React.
+            // If storage is full, retain the old pending data and stop the replacement.
+            if (!sameCloudRecords(next, data)) {
+                localStorage.setItem(pendingKey(email), stripSecrets(JSON.stringify({
+                    revision: crypto.randomUUID(), queuedAt: new Date().toISOString(),
+                    baseVersion: head.revision, baseRecords: cloudRecords(data), data: next,
+                })));
+            } else if (pendingRaw) localStorage.removeItem(pendingKey(email));
+            rememberCloudBase(email, head.revision, data);
             cloudConflicts.delete(email);
-            return data;
+            return next;
         });
     } catch (error) { endMeasure('error'); throw error; }
     finally { endMeasure(); cloudRestores.delete(email); }

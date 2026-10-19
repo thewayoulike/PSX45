@@ -626,6 +626,10 @@ const App: React.FC = () => {
   const IDLE_LOGOUT_MS = 12 * 60 * 60 * 1000; // 12 hours
   useIdleTimer(IDLE_LOGOUT_MS, () => {
       if (driveUser) {
+          if (localDirtyRef.current || getPendingCloud()) {
+              try { preserveCloudDraft(cloudSnapshotRef.current()); }
+              catch { setCloudSyncError('Sign-out paused because your unsynced records could not be kept on this device. Download a local copy.'); return; }
+          }
           performLogout();
           alert("Session timed out after 12 hours of inactivity. Active local data cleared; unsynced recovery copies kept for your account.");
       }
@@ -888,7 +892,7 @@ const App: React.FC = () => {
               if (cloudData?.lastModified && !restoredPending) setLastCloudSave(cloudData.lastModified);
               isReadyToSave.current = true;
               if (restoredPending) {
-                  // These edits still build on the current Drive file; finish their save.
+                  // Pending or safely combined edits still need a confirmed Drive save.
                   localDirtyRef.current = true;
                   setUnsavedLocalChanges(true);
                   skipHydrationSave.current = false;
@@ -1913,7 +1917,7 @@ const App: React.FC = () => {
       () => preserveCloudDraft(cloudSnapshotRef.current())), []);
 
 
-  // Newer Drive data is applied after the local recovery copy is durable.
+  // Apply Drive plus safely combined local trades; unresolved differences stay local.
   const handleLoadLatestCloud = async (mode: CloudReadMode = 'load') => {
       if (isLoadingLatestCloud.current || !driveUser) return;
       const email = driveUser.email;
@@ -1922,17 +1926,21 @@ const App: React.FC = () => {
       isReadyToSave.current = false;
       cloudRevision.current++;
       setIsCloudSyncing(true);
+      let readSucceeded = false;
       try {
           const cloudData = await readLatestFromDrive(() => cloudSnapshotRef.current(), { mode, localDirty: localDirtyRef.current });
           if (loadedEmailRef.current !== email) return;
           if (cloudData) {
               applyCloudSnapshot(cloudData);
-              localDirtyRef.current = false;
-              setUnsavedLocalChanges(false);
-              setLastCloudSave(cloudData.lastModified || new Date().toISOString());
+              const stillPending = !!getPendingCloud();
+              localDirtyRef.current = stillPending;
+              setUnsavedLocalChanges(stillPending);
+              if (stillPending) skipHydrationSave.current = false;
+              else setLastCloudSave(cloudData.lastModified || new Date().toISOString());
           }
           setCloudSyncError(null);
           isReadyToSave.current = wasReady || !!cloudData;
+          readSucceeded = true;
       } catch (error) {
           if (loadedEmailRef.current === email) {
               isReadyToSave.current = wasReady;
@@ -1942,7 +1950,7 @@ const App: React.FC = () => {
           isLoadingLatestCloud.current = false;
           setPendingCloud(getPendingCloud());
           setIsCloudSyncing(false);
-          if (saveDeferred.current && isReadyToSave.current) {
+          if (readSucceeded && isReadyToSave.current && (saveDeferred.current || localDirtyRef.current || getPendingCloud())) {
               saveDeferred.current = false;
               setCloudRetryTick((tick) => tick + 1);
           }
@@ -1996,7 +2004,10 @@ const App: React.FC = () => {
       if (skipPersistRef.current) return;
       if (driveUser && !isReadyToSave.current) {
           // An edit during a background refresh: save it once the refresh finishes.
-          if (isLoadingLatestCloud.current) { saveDeferred.current = true; localDirtyRef.current = true; }
+          if (isLoadingLatestCloud.current) {
+              saveDeferred.current = true; localDirtyRef.current = true;
+              try { preserveCloudDraft(cloudSnapshotRef.current()); } catch { /* Existing draft remains; the read's edit check prevents replacement. */ }
+          }
           return;
       }
       if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) return;
@@ -2007,6 +2018,10 @@ const App: React.FC = () => {
           localDirtyRef.current = true;
           setUnsavedLocalChanges(true);
           setIsCloudSyncing(true);
+          // The network is debounced, persistence is not. Android can terminate a
+          // background tab without firing beforeunload or visibilitychange.
+          try { preserveCloudDraft(cloudSnapshotRef.current()); setPendingCloud(getPendingCloud()); }
+          catch { setCloudSyncError('Device storage is full. Keep this page open until syncing finishes or download a local copy.'); }
           const timer = setTimeout(async () => {
               if (isLoadingLatestCloud.current || !isReadyToSave.current) {
                   saveDeferred.current = true;
@@ -2457,7 +2472,8 @@ const App: React.FC = () => {
   }
   if (driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
       if (isCloudSyncing) return <AppLoading message="Opening Google Drive backup…" />;
-      return <OfflinePortfolio error={cloudSyncError || "The latest backup could not be opened. Retry before making changes."} />;
+      return <OfflinePortfolio error={cloudSyncError || "The latest backup could not be opened. Retry before making changes."}
+          pendingTransactions={pendingCloud?.data?.transactions} onDownloadPending={pendingCloud ? downloadPendingCloudBackup : undefined} />;
   }
 
   const currentPortfolio = portfolios.find(p => p.id === currentPortfolioId);

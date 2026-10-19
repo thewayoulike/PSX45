@@ -266,7 +266,7 @@ describe('paged Gmail searches and email text', () => {
 });
 
 describe('cloud save outcomes and recovery', () => {
-  it('automatically loads the latest Drive file with full localStorage, keeping all local edits without reloading', async () => {
+  it('keeps legacy unsynced trades visible instead of replacing them when the shared baseline is unknown', async () => {
     vi.useRealTimers();
     vi.stubGlobal('indexedDB', new IDBFactory());
     const pending = JSON.stringify({revision:'old-web',baseVersion:0,data:{transactions:[{id:'pending'}],portfolios:[]}});
@@ -275,14 +275,11 @@ describe('cloud save outcomes and recovery', () => {
     const remote = {transactions:[{id:'phone'}],portfolios:[]};
     const reload = vi.fn(); vi.stubGlobal('window', {location:{reload}});
     mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:2,fileId:'latest'}) : response(remote));
-    expect(await service.readLatestFromDrive(() => ({transactions:[{id:'current'}],portfolios:[]}))).toEqual(remote);
-    expect(service.getPendingCloud()).toBeNull();
+    await expect(service.readLatestFromDrive(() => ({transactions:[{id:'current'}],portfolios:[]}))).rejects.toThrow('Sync paused to protect transactions');
+    expect(service.getPendingCloud()?.data.transactions[0].id).toBe('pending');
     expect(reload).not.toHaveBeenCalled();
     const copies = await readRecoveryCopies('a@example.com');
     expect(copies.map(copy => JSON.parse(copy.raw).data.transactions[0].id).sort()).toEqual(['current','pending']);
-    const requestsBefore = vi.mocked(fetch).mock.calls.length;
-    expect(await service.readLatestFromDrive(undefined, true)).toBeUndefined();
-    expect(vi.mocked(fetch).mock.calls.slice(requestsBefore).map(([url]) => url)).toEqual(['/api/cloud-sync']);
   });
 
   it('reapplies an unsynced save when Drive has not changed', async () => {
@@ -652,7 +649,7 @@ describe('cloud save outcomes and recovery', () => {
     expect(storage.has(pendingKey('a@example.com'))).toBe(true);
   });
 
-  it('Restore retains pending data if cloud cannot be read, then archives it before reloading', async () => {
+  it('Restore retains pending data on download failure and on an unresolvable legacy conflict', async () => {
     storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'restore',baseVersion:0,data:{marker:'local'}}));
     const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
     mockCloud(()=>response({},503));
@@ -661,7 +658,7 @@ describe('cloud save outcomes and recovery', () => {
     await failedRestore; expect(reload).not.toHaveBeenCalled(); expect(service.getPendingCloud()).not.toBeNull();
     mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:1,fileId:'remote-file'}) : response({transactions:[],portfolios:[],marker:'remote'}));
     await service.preservePendingAndReloadCloud();
-    expect(reload).toHaveBeenCalledOnce(); expect(service.getPendingCloud()).toBeNull();
+    expect(reload).not.toHaveBeenCalled(); expect(service.getPendingCloud()).not.toBeNull();
     const recovery=[...storage.entries()].find(([key])=>key.startsWith('psx_cloud_recovery:'));
     expect(JSON.parse(recovery![1]).data.marker).toBe('local');
   });
@@ -691,20 +688,21 @@ describe('cloud save outcomes and recovery', () => {
     storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'local',baseVersion:0,data:{marker:'only-copy'}}));
     const reload=vi.fn();vi.stubGlobal('window',{location:{reload}});vi.stubGlobal('alert',vi.fn());
     mockCloud(url=>url.includes('/api/cloud-sync')?response({revision:0,fileId:null}):response({files:[]}));
-    await service.preservePendingAndReloadCloud();expect(reload).not.toHaveBeenCalled();expect(service.getPendingCloud()?.data.marker).toBe('only-copy');
+    expect(await service.readLatestFromDrive()).toEqual({ marker: 'only-copy' });
+    expect(reload).not.toHaveBeenCalled();expect(service.getPendingCloud()?.data.marker).toBe('only-copy');
   });
-  it('loads the phone backup after a web conflict and keeps both pending and current web edits', async () => {
+  it('blocks an unsafe legacy replacement while retaining both pending and current web edits', async () => {
     const remote = {transactions:[{id:'phone-trade'}],portfolios:[{id:'main'}]};
     storage.set(pendingKey('a@example.com'),JSON.stringify({revision:'old-web',baseVersion:0,data:{transactions:[{id:'old-web-trade'}],portfolios:[]}}));
     const reload=vi.fn(); vi.stubGlobal('window',{location:{reload}}); vi.stubGlobal('alert',vi.fn());
     mockCloud(url => url.includes('/api/cloud-sync') ? response({revision:2,fileId:'phone-snapshot'}) : response(remote));
     await expect(service.loadFromDrive()).rejects.toThrow('Another device');
-    expect(await service.preservePendingAndReloadCloud(() => ({transactions:[{id:'new-web-trade'}],portfolios:[]}))).toBe(true);
+    expect(await service.preservePendingAndReloadCloud(() => ({transactions:[{id:'new-web-trade'}],portfolios:[]}))).toBe(false);
     const recoveries=[...storage].filter(([key])=>key.startsWith('psx_cloud_recovery:')).map(([,value])=>JSON.parse(value).data);
     expect(recoveries).toHaveLength(2);
     expect(recoveries.map(data=>data.transactions[0].id).sort()).toEqual(['new-web-trade','old-web-trade']);
-    expect(reload).toHaveBeenCalledOnce();
-    expect(await service.loadFromDrive()).toEqual(remote);
+    expect(reload).not.toHaveBeenCalled();
+    expect(service.getPendingCloud()?.data.transactions[0].id).toBe('old-web-trade');
     expect(vi.mocked(fetch).mock.calls.every(([,init])=> !init?.body || JSON.parse(String(init.body)).action === 'head')).toBe(true);
   });
   it.each([null, {}, {transactions:[],portfolios:'broken'}])('keeps pending data if the remote backup is invalid: %j', async data => {
@@ -752,7 +750,7 @@ describe('cloud save outcomes and recovery', () => {
   });
 });
 
-describe('Drive automatically wins conflicts after recovery', () => {
+describe('Drive reconciliation protects unsynced trades', () => {
   // A fake Drive + cloud-sync head. `other()` simulates another device committing a save.
   function fakeCloud(initial: any = { transactions: [{ id: 'cloud-0' }], portfolios: [] }) {
     const files = new Map<string, any>([['f0', initial]]);
@@ -781,7 +779,58 @@ describe('Drive automatically wins conflicts after recovery', () => {
   }
   beforeEach(() => { vi.useRealTimers(); vi.stubGlobal('indexedDB', new IDBFactory()); });
 
-  it('loads newer Drive data and keeps pending and debounced edits in recovery', async () => {
+  it('restores offline additions after a restart, combines another device’s trade, then saves all three', async () => {
+    const shared = { transactions: [{ id: 'original' }], portfolios: [] };
+    const cloud = fakeCloud(shared);
+    await service.readLatestFromDrive(undefined, { mode: 'startup' });
+    service.preserveCloudDraft({ ...shared, transactions: [...shared.transactions, { id: 'offline-buy' }] });
+    expect(service.getPendingCloud()?.baseRecords).toEqual(shared);
+    cloud.other({ ...shared, transactions: [...shared.transactions, { id: 'phone-buy' }] });
+    // A fresh module represents closing the app; only the durable draft survives.
+    vi.resetModules(); service = await import('./driveStorage'); await login();
+    const restored = await service.readLatestFromDrive(undefined, { mode: 'startup' });
+    expect(restored.transactions.map((t: any) => t.id)).toEqual(['original', 'phone-buy', 'offline-buy']);
+    expect(service.getPendingCloud()?.baseVersion).toBe(2);
+    expect((await service.saveToDrive(restored)).ok).toBe(true);
+    expect(cloud.files.get(cloud.state.head.fileId!).transactions).toEqual(restored.transactions);
+    expect(service.getPendingCloud()).toBeNull();
+  });
+
+  it('keeps additions but does not resurrect a trade deleted on another device', async () => {
+    const shared = { transactions: [{ id: 'deliberately-deleted' }], portfolios: [] };
+    const cloud = fakeCloud(shared);
+    await service.readLatestFromDrive();
+    service.preserveCloudDraft({ ...shared, transactions: [...shared.transactions, { id: 'new-buy' }] });
+    cloud.other({ transactions: [], portfolios: [] });
+    const restored = await service.readLatestFromDrive();
+    expect(restored.transactions).toEqual([{ id: 'new-buy' }]);
+    expect(service.getPendingCloud()?.data.transactions).toEqual(restored.transactions);
+  });
+
+  it('retains a first-ever offline portfolio when no Drive backup exists yet', async () => {
+    fakeCloud();
+    mockCloud(url => url === '/api/cloud-sync' ? response({ revision: 0, fileId: null }) : response({ files: [] }));
+    await service.readLatestFromDrive();
+    const draft = { transactions: [{ id: 'first-buy' }], portfolios: [{ id: 'p1' }] };
+    service.preserveCloudDraft(draft);
+    vi.resetModules(); service = await import('./driveStorage'); await login();
+    expect(await service.readLatestFromDrive()).toEqual(expect.objectContaining(draft));
+    expect(service.getPendingCloud()?.data.transactions).toEqual(draft.transactions);
+  });
+
+  it('does not discard a combined draft if local storage fills before it can be queued', async () => {
+    const cloud = fakeCloud({ transactions: [], portfolios: [] });
+    await service.readLatestFromDrive();
+    service.preserveCloudDraft({ transactions: [{ id: 'mine' }], portfolios: [] });
+    const original = storage.get(pendingKey('a@example.com'));
+    cloud.other({ transactions: [{ id: 'theirs' }], portfolios: [] });
+    vi.spyOn(localStorage, 'setItem').mockImplementation(() => { throw new DOMException('Storage full', 'QuotaExceededError'); });
+    await expect(service.readLatestFromDrive()).rejects.toThrow('Storage full');
+    expect(storage.get(pendingKey('a@example.com'))).toBe(original);
+    expect(cloud.state.commits).toBe(0);
+  });
+
+  it('combines newer Drive data with current debounced edits and keeps earlier recovery copies', async () => {
     const cloud = fakeCloud();
     await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
     storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 1, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
@@ -789,7 +838,8 @@ describe('Drive automatically wins conflicts after recovery', () => {
     const result = await service.readLatestFromDrive(() => ({ transactions: [{ id: 'mine-now' }], portfolios: [] }), { mode: 'refresh', localDirty: true });
     expect(result.transactions[0].id).toBe('theirs');
     expect(service.hasCloudConflict()).toBe(false);
-    expect(service.getPendingCloud()).toBeNull();
+    expect(result.transactions.map((t: any) => t.id)).toEqual(['theirs', 'mine-now']);
+    expect(service.getPendingCloud()?.data).toEqual(result);
     const copies = await readRecoveryCopies('a@example.com');
     expect(copies.map(c => JSON.parse(c.raw).data.transactions?.[0]?.id)).toEqual(expect.arrayContaining(['mine', 'mine-now']));
     expect(cloud.state.commits).toBe(0);
@@ -800,6 +850,7 @@ describe('Drive automatically wins conflicts after recovery', () => {
     cloud.other({ transactions: [{ id: 'theirs' }], portfolios: [] });
     const result = await service.readLatestFromDrive(() => ({ transactions: [{ id: 'debounced' }], portfolios: [] }), { mode: 'refresh', localDirty: true });
     expect(result.transactions[0].id).toBe('theirs');
+    expect(result.transactions.map((t: any) => t.id)).toEqual(['theirs', 'debounced']);
     expect((await readRecoveryCopies('a@example.com')).some(c => JSON.parse(c.raw).data.transactions?.[0]?.id === 'debounced')).toBe(true);
   });
   it('a focus refresh with nothing unsynced still picks up the other device', async () => {
@@ -809,15 +860,13 @@ describe('Drive automatically wins conflicts after recovery', () => {
     expect((await service.readLatestFromDrive(() => ({}), { mode: 'refresh' })).transactions[0].id).toBe('theirs');
     expect(service.hasCloudConflict()).toBe(false);
   });
-  it('startup loads Drive and archives the unsynced device copy without uploading it', async () => {
+  it('startup refuses to hide unsynced legacy trades when no shared baseline is available', async () => {
     const cloud = fakeCloud();
     storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 0, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
-    expect((await service.readLatestFromDrive(() => ({}), { mode: 'startup' })).transactions[0].id).toBe('cloud-0');
-    expect(service.hasCloudConflict()).toBe(false);
-    expect(service.getPendingCloud()).toBeNull();
+    await expect(service.readLatestFromDrive(() => ({}), { mode: 'startup' })).rejects.toThrow('Sync paused to protect transactions');
+    expect(service.getPendingCloud()?.data.transactions[0].id).toBe('mine');
     expect((await readRecoveryCopies('a@example.com')).some(c => JSON.parse(c.raw).data.transactions?.[0]?.id === 'mine')).toBe(true);
     expect(cloud.state.commits).toBe(0);
-    expect((await service.saveToDrive({ transactions: [{ id: 'cloud-0' }, { id: 'new-edit' }], portfolios: [] })).ok).toBe(true);
   });
   it('keeps pending edits when the remote download fails', async () => {
     fakeCloud();
@@ -838,7 +887,7 @@ describe('Drive automatically wins conflicts after recovery', () => {
   it('“Keep this device” uploads this version and keeps the other device’s as a recovery copy', async () => {
     const cloud = fakeCloud();
     storage.set(pendingKey('a@example.com'), JSON.stringify({ revision: 'r', baseVersion: 0, data: { transactions: [{ id: 'mine' }], portfolios: [] } }));
-    await service.readLatestFromDrive(() => ({}), { mode: 'startup' });
+    await expect(service.readLatestFromDrive(() => ({}), { mode: 'startup' })).rejects.toThrow('Sync paused');
     const result = await service.keepThisDeviceVersion(() => ({ transactions: [{ id: 'mine' }], portfolios: [] }));
     expect(result.ok).toBe(true);
     expect(cloud.files.get(cloud.state.head.fileId!).transactions[0].id).toBe('mine');

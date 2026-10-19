@@ -5,7 +5,8 @@ export function formatPendingAge(queuedAt: string, now = new Date()) {
   return minutes < 60 ? `${minutes}m` : `${Math.floor(minutes / 60)}h`;
 }
 export function shortenCloudError(error: string) {
-  if (isCloudConflictError(error)) return 'Loading the latest Google Drive file. Unsaved edits are kept as a recovery copy.';
+  if (isCloudConflictError(error)) return 'Checking Google Drive. Your unsaved transactions are kept on this device.';
+  if (error.startsWith('Sync paused to protect transactions.')) return 'Sync paused to protect transactions. Your local records are still here; download a copy before reviewing differences.';
   if (error.startsWith('Hosting security check')) return 'Hosting security check required. Open PSX Tracker in Chrome, complete the check, then retry. Changes kept locally.';
   if (error.startsWith('Cloud sync received a web page')) return 'Cloud check unavailable. Changes kept locally. Retry or download a local copy.';
   const status = error.match(/HTTP (\d{3})/);
