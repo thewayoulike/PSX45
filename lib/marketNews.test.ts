@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { parseMarketNews, newsCategory } from './marketNews.js';
+import { parseMarketNews, newsCategory, mergeNewsItems } from './marketNews.js';
 const now = Date.parse('2026-10-19T12:00:00Z');
-const item = { title: 'PSX shares gain as investors return', url: 'https://www.brecorder.com/news/123?utm_source=rss', seendate: '20261019T110000Z', language: 'English' };
+const item = { title: 'PSX shares gain as investors return', url: 'https://www.brecorder.com/news/40123456?utm_source=rss', seendate: '20261019T110000Z', language: 'English' };
 describe('market headline index', () => {
   it('keeps indexing time distinct from publication and removes duplicates', () => {
-    const result = parseMarketNews({ articles: [item, { ...item, url: 'https://www.brecorder.com/news/123' }, { ...item, url: 'https://www.dawn.com/news/456' }] }, now);
+    const result = parseMarketNews({ articles: [item, { ...item, url: 'https://www.brecorder.com/news/40123456' }, { ...item, url: 'https://www.dawn.com/news/1234567' }] }, now);
     expect(result).toHaveLength(1);
-    expect(result[0]).toMatchObject({ url: 'https://www.brecorder.com/news/123', source: 'Business Recorder', category: 'psx', indexedAt: '2026-10-19T11:00:00.000Z' });
+    expect(result[0]).toMatchObject({ url: 'https://www.brecorder.com/news/40123456', source: 'Business Recorder', category: 'psx', indexedAt: '2026-10-19T11:00:00.000Z' });
     expect(result[0]).not.toHaveProperty('publishedAt');
   });
   it('rejects unsafe links, unknown publishers, old/future dates and irrelevant headlines', () => {
@@ -18,7 +18,7 @@ describe('market headline index', () => {
     ] }, now)).toEqual([]);
   });
   it('cleans markup, retains direct source links and sorts newest first', () => {
-    const result = parseMarketNews({ articles: [item, { ...item, title: '<b>Gold &amp; silver prices</b> rise today', url: 'https://www.dawn.com/news/1', seendate: '20261019T113000Z' }] }, now);
+    const result = parseMarketNews({ articles: [item, { ...item, title: '<b>Gold &amp; silver prices</b> rise today', url: 'https://www.dawn.com/news/1234567', seendate: '20261019T113000Z' }] }, now);
     expect(result[0]).toMatchObject({ title: 'Gold & silver prices rise today', category: 'commodities' });
     expect(result).toHaveLength(2);
     expect(() => parseMarketNews({ error: 'limited' }, now)).toThrow();
@@ -27,5 +27,16 @@ describe('market headline index', () => {
     expect(newsCategory('Rupee gains against dollar')).toBe('forex');
     expect(newsCategory('Company announces quarterly earnings')).toBe('companies');
     expect(newsCategory('SBP reduces policy rate')).toBe('economy');
+    expect(newsCategory('US stocks rally after earnings')).toBe('companies');
+    expect(newsCategory('School board under scrutiny over marking disparity')).toBeNull();
+    expect(newsCategory('Actor shares sweet update on life as a dad')).toBeNull();
+    expect(newsCategory('Arrests after West Bank attacks')).toBeNull();
+    expect(parseMarketNews({ articles: [{ ...item, title: 'AI - Business Insider', url: 'https://www.businessinsider.com/ai' }] }, now)).toEqual([]);
+  });
+  it('revalidates rolling metadata and removes expired or unsafe stored links', () => {
+    const stored = parseMarketNews({ articles: [item] }, now);
+    expect(mergeNewsItems([...stored, ...stored, { ...stored[0], url: 'javascript:alert(1)' }], now)).toHaveLength(1);
+    expect(mergeNewsItems(stored, now + 4 * 86400000)).toEqual([]);
+    expect(stored[0].region).toBe('Pakistan');
   });
 });
