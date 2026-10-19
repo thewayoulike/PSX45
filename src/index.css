@@ -14,7 +14,10 @@
   display: flex;
   flex-wrap: nowrap;
   width: max-content;
-  animation: sector-marquee 48s linear infinite;
+  animation: sector-marquee 240s linear infinite;
+}
+.sector-marquee:hover .sector-marquee__track {
+  animation-play-state: paused;
 }
 .sector-marquee__item {
   display: flex;
@@ -36,7 +39,7 @@
 @media (prefers-reduced-motion: reduce) {
   .sector-marquee__track {
     animation-name: sector-marquee !important;
-    animation-duration: 48s !important;
+    animation-duration: 240s !important;
     animation-timing-function: linear !important;
     animation-iteration-count: infinite !important;
   }
