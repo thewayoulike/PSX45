@@ -7,7 +7,7 @@ describe('market headline index', () => {
     const rss = (title: string, url: string) => `<rss><channel><item><title>${title}</title><link>${url}</link><pubDate>Mon, 19 Oct 2026 11:00:00 GMT</pubDate><description>Private article body must not be retained</description></item></channel></rss>`;
     const news = [
       ...parsePublisherRss(rss('PSX stocks rally after earnings', 'https://www.dawn.com/news/1234567'), 'dawn-business', now),
-      ...parsePublisherRss(rss('Gold prices rise on supply concerns', 'https://www.fxstreet.com/news/gold-prices-rise-20261019'), 'fxstreet-news', now),
+      ...parsePublisherRss(rss('Oil prices rise on supply concerns', 'https://www.cnbc.com/2026/10/19/oil-prices-rise.html'), 'cnbc-energy', now),
       ...parsePublisherRss(rss('Bitcoin fund flows recover', 'https://www.coindesk.com/markets/2026/10/19/bitcoin-flows'), 'coindesk-news', now),
     ];
     const result = mergeNewsItems([...news, ...news], now);
