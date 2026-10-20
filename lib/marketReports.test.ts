@@ -18,4 +18,17 @@ describe('public report ingestion',()=>{
     expect(()=>normalizeFlows([...rows,rows[0]],'2026-10-16')).toThrow();
     expect(()=>normalizeFlows(rows.map((r,i)=>i===0?{...r,FLNetValueUSD:4}:r),'2026-10-16')).toThrow();
   });
+  it('accepts a balanced sector that has no foreign-investor row',()=>{
+    const sectors=['Debt Market',...Array.from({length:10},(_,i)=>'Sector '+i)];
+    const types=['FIPI','BANKS / DFI','INDIVIDUALS','COMPANIES','MUTUAL FUNDS'];
+    const rows=sectors.flatMap(sector=>types.map((type,i)=>({FLSectorName:sector+' (mn$)',FLTypeNew:type,FLNetValueUSD:i===0?-0.4:i===1?0.4:0})));
+    const debt=[
+      {FLSectorName:'Debt Market (mn$)',FLTypeNew:'BANKS / DFI',FLNetValueUSD:'38.024251'},
+      {FLSectorName:'Debt Market (mn$)',FLTypeNew:'COMPANIES',FLNetValueUSD:'0.609586'},
+      {FLSectorName:'Debt Market (mn$)',FLTypeNew:'MUTUAL FUNDS',FLNetValueUSD:'-38.633839'},
+    ];
+    const report=normalizeFlows([...rows.filter(r=>!r.FLSectorName.startsWith('Debt Market')),...debt],'2026-10-20');
+    expect(report.cells.filter(c=>c.sector==='Debt Market').map(c=>c.investor)).toEqual(['BANKS / DFI','COMPANIES','MUTUAL FUNDS']);
+    expect(()=>normalizeFlows([...rows.filter(r=>!r.FLSectorName.startsWith('Debt Market')),...debt.map((r,i)=>i===0?{...r,FLNetValueUSD:'40'}:r)],'2026-10-20')).toThrow('Unbalanced flow sector: Debt Market');
+  });
 });

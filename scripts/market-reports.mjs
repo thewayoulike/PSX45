@@ -58,7 +58,7 @@ export function normalizeFlows(raw, date) {
   if (sectors.length !== 11 || !sectors.includes('Debt Market')) throw new Error('Flow coverage changed');
   for (const sector of sectors) {
     const group = cells.filter(r=>r.sector===sector);
-    if (!group.some(r=>r.investor==='FIPI') || Math.abs(group.reduce((n,r)=>n+r.value,0)) > 0.000025) throw new Error(`Unbalanced flow sector: ${sector}`);
+    if (Math.abs(group.reduce((n,r)=>n+r.value,0)) > 0.000025) throw new Error(`Unbalanced flow sector: ${sector}`);
   }
   return {date,cells,sourceUrl:flowSource,unit:'USD million'};
 }
