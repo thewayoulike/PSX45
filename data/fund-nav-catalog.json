@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-10-20T17:55:15.436Z",
+  "updatedAt": "2026-10-20T19:52:17.128Z",
   "reportDate": "Oct 20, 2026",
   "previousReportDate": "Oct 19, 2026",
-  "source": "relay:jina",
+  "source": "playwright",
   "count": 390,
-  "today": "2026-10-20",
+  "today": "2026-10-21",
   "yesterday": "2026-10-19",
   "catalog": {
     "MF:786-investments-limited-786-islamic-money-market-fund-shariah-compliant-money-market": {
@@ -654,10 +654,10 @@
       "fundName": "AL Habib Fixed Return Fund Plan 19",
       "category": "Fixed Rate / Return",
       "inceptionDate": "Mar 06, 2025",
-      "offer": 102.7578,
-      "repurchase": 102.7578,
-      "nav": 102.7578,
-      "validityDate": "Oct 19, 2026",
+      "offer": 102.7839,
+      "repurchase": 102.7839,
+      "nav": 102.7839,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 102.7578,
@@ -670,10 +670,10 @@
       "fundName": "AL Habib Fixed Return Fund Plan 28",
       "category": "Fixed Rate / Return",
       "inceptionDate": "Mar 06, 2026",
-      "offer": 103.3418,
-      "repurchase": 103.3418,
-      "nav": 103.3418,
-      "validityDate": "Oct 19, 2026",
+      "offer": 103.3602,
+      "repurchase": 103.3602,
+      "nav": 103.3602,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 103.3418,
@@ -686,10 +686,10 @@
       "fundName": "AL Habib Fixed Return Fund Plan 31",
       "category": "Fixed Rate / Return",
       "inceptionDate": "Jun 22, 2026",
-      "offer": 102.884,
-      "repurchase": 102.884,
-      "nav": 102.884,
-      "validityDate": "Oct 19, 2026",
+      "offer": 102.913,
+      "repurchase": 102.913,
+      "nav": 102.913,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 3,
       "backEndLoad": 3,
       "prevNav": 102.884,
@@ -702,10 +702,10 @@
       "fundName": "AL Habib Fixed Return Fund Plan 33",
       "category": "Fixed Rate / Return",
       "inceptionDate": "Jul 17, 2026",
-      "offer": 102.2792,
-      "repurchase": 102.2792,
-      "nav": 102.2792,
-      "validityDate": "Oct 19, 2026",
+      "offer": 102.3112,
+      "repurchase": 102.3112,
+      "nav": 102.3112,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 102.2792,
@@ -718,10 +718,10 @@
       "fundName": "AL Habib Fixed Return Fund Plan 34",
       "category": "Fixed Rate / Return",
       "inceptionDate": "Aug 27, 2026",
-      "offer": 101.2683,
-      "repurchase": 101.2683,
-      "nav": 101.2683,
-      "validityDate": "Oct 19, 2026",
+      "offer": 101.3,
+      "repurchase": 101.3,
+      "nav": 101.3,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 101.2683,
@@ -734,10 +734,10 @@
       "fundName": "AL Habib Fixed Return Fund Plan 36",
       "category": "Fixed Rate / Return",
       "inceptionDate": "Sep 22, 2026",
-      "offer": 100.8594,
-      "repurchase": 100.8594,
-      "nav": 100.8594,
-      "validityDate": "Oct 19, 2026",
+      "offer": 100.8913,
+      "repurchase": 100.8913,
+      "nav": 100.8913,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 3,
       "backEndLoad": 3,
       "prevNav": 100.8594,
@@ -750,10 +750,10 @@
       "fundName": "AL Habib Fixed Return Fund Plan 37",
       "category": "Fixed Rate / Return",
       "inceptionDate": "Oct 08, 2026",
-      "offer": 100.4853,
-      "repurchase": 100.4853,
-      "nav": 100.4853,
-      "validityDate": "Oct 19, 2026",
+      "offer": 100.5147,
+      "repurchase": 100.5147,
+      "nav": 100.5147,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 100.4853,
@@ -830,10 +830,10 @@
       "fundName": "AL Habib Islamic Money Market Fund",
       "category": "Shariah Compliant Money Market",
       "inceptionDate": "Mar 05, 2026",
-      "offer": 106.7016,
-      "repurchase": 103.5938,
-      "nav": 103.5938,
-      "validityDate": "Oct 20, 2026",
+      "offer": 106.7357,
+      "repurchase": 103.6269,
+      "nav": 103.6269,
+      "validityDate": "Oct 21, 2026",
       "frontEndLoad": 3,
       "backEndLoad": 3,
       "prevNav": 103.5555,
@@ -862,10 +862,10 @@
       "fundName": "AL Habib Islamic Munafa Fund Plan 8",
       "category": "Shariah Compliant Fixed Rate / Return",
       "inceptionDate": "Jun 19, 2026",
-      "offer": 103.4098,
-      "repurchase": 103.4098,
-      "nav": 103.4098,
-      "validityDate": "Oct 19, 2026",
+      "offer": 103.4397,
+      "repurchase": 103.4397,
+      "nav": 103.4397,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 3,
       "backEndLoad": 3,
       "prevNav": 103.4098,
@@ -878,10 +878,10 @@
       "fundName": "AL Habib Islamic Munafa Fund Plan 9",
       "category": "Shariah Compliant Fixed Rate / Return",
       "inceptionDate": "Jul 28, 2026",
-      "offer": 102.5184,
-      "repurchase": 102.5184,
-      "nav": 102.5184,
-      "validityDate": "Oct 19, 2026",
+      "offer": 102.5442,
+      "repurchase": 102.5442,
+      "nav": 102.5442,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 3,
       "backEndLoad": 3,
       "prevNav": 102.5184,
@@ -942,10 +942,10 @@
       "fundName": "AL Habib Sovereign Income Fund Plan 1",
       "category": "Income",
       "inceptionDate": "Jun 03, 2025",
-      "offer": 103.7344,
-      "repurchase": 103.7344,
-      "nav": 103.7344,
-      "validityDate": "Oct 19, 2026",
+      "offer": 103.7753,
+      "repurchase": 103.7753,
+      "nav": 103.7753,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 103.7344,
@@ -958,10 +958,10 @@
       "fundName": "AL Habib Sovereign Income Fund Plan 2",
       "category": "Income",
       "inceptionDate": "Jun 19, 2025",
-      "offer": 103.6287,
-      "repurchase": 103.6287,
-      "nav": 103.6287,
-      "validityDate": "Oct 19, 2026",
+      "offer": 103.6616,
+      "repurchase": 103.6616,
+      "nav": 103.6616,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 103.6287,
@@ -974,10 +974,10 @@
       "fundName": "AL Habib Sovereign Income Fund Plan 3",
       "category": "Income",
       "inceptionDate": "Jun 19, 2025",
-      "offer": 103.7104,
-      "repurchase": 103.7104,
-      "nav": 103.7104,
-      "validityDate": "Oct 19, 2026",
+      "offer": 103.7424,
+      "repurchase": 103.7424,
+      "nav": 103.7424,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 103.7104,
@@ -1214,12 +1214,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Aggressive)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Apr 12, 2013",
-      "offer": 181.2369,
-      "repurchase": 177.1622,
-      "nav": 177.1622,
-      "validityDate": "Oct 18, 2026",
+      "offer": 181.0357,
+      "repurchase": 176.9655,
+      "nav": 176.9655,
+      "validityDate": "Oct 19, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 176.9655,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha",
@@ -1228,12 +1230,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Conservative)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Apr 12, 2013",
-      "offer": 127.7445,
-      "repurchase": 126.2922,
-      "nav": 126.2922,
-      "validityDate": "Oct 18, 2026",
+      "offer": 127.7564,
+      "repurchase": 126.304,
+      "nav": 126.304,
+      "validityDate": "Oct 19, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 126.304,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c",
@@ -1242,12 +1246,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (MAAP I)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Jul 09, 2015",
-      "offer": 134.4623,
-      "repurchase": 134.4623,
-      "nav": 134.4623,
-      "validityDate": "Oct 18, 2026",
+      "offer": 134.2095,
+      "repurchase": 134.2095,
+      "nav": 134.2095,
+      "validityDate": "Oct 19, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 134.2095,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-moderate-shariah": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-moderate-shariah",
@@ -1256,12 +1262,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Moderate)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Apr 12, 2013",
-      "offer": 146.2503,
-      "repurchase": 143.7703,
-      "nav": 143.7703,
-      "validityDate": "Oct 18, 2026",
+      "offer": 146.1667,
+      "repurchase": 143.6881,
+      "nav": 143.6881,
+      "validityDate": "Oct 19, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 143.6881,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-very-conservativ": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-very-conservativ",
@@ -1270,12 +1278,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Very Conservative Allocation Plan)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Aug 18, 2023",
-      "offer": 54.67,
-      "repurchase": 54.0485,
-      "nav": 54.0485,
-      "validityDate": "Oct 18, 2026",
+      "offer": 54.7102,
+      "repurchase": 54.0882,
+      "nav": 54.0882,
+      "validityDate": "Oct 19, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 54.0882,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities": {
       "id": "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities",
@@ -1332,10 +1342,10 @@
       "fundName": "Meezan Islamic Fund",
       "category": "Shariah Compliant Equity",
       "inceptionDate": "Aug 08, 2003",
-      "offer": 158.0432,
-      "repurchase": 154.49,
-      "nav": 154.49,
-      "validityDate": "Oct 19, 2026",
+      "offer": 157.1671,
+      "repurchase": 153.6336,
+      "nav": 153.6336,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 154.49,
@@ -1348,10 +1358,10 @@
       "fundName": "Meezan Islamic Income Fund",
       "category": "Shariah Compliant Income",
       "inceptionDate": "Jan 15, 2007",
-      "offer": 54.2121,
-      "repurchase": 53.5958,
-      "nav": 53.5958,
-      "validityDate": "Oct 19, 2026",
+      "offer": 54.2268,
+      "repurchase": 53.6103,
+      "nav": 53.6103,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 53.5958,
@@ -4282,12 +4292,14 @@
       "fundName": "Alhamra Cash Management Optimizer",
       "category": "Shariah Compliant Money Market",
       "inceptionDate": "May 23, 2023",
-      "offer": 104.8843,
-      "repurchase": 103.6918,
-      "nav": 103.6918,
-      "validityDate": "Oct 16, 2026",
+      "offer": 106.1903,
+      "repurchase": 103.8028,
+      "nav": 103.8028,
+      "validityDate": "Oct 21, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 103.7494,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-daily-dividend-fund-shariah-compliant-income": {
       "id": "MF:mcb-investment-management-limited-alhamra-daily-dividend-fund-shariah-compliant-income",
@@ -4386,12 +4398,14 @@
       "fundName": "Alhamra Islamic Investment Savings Fund",
       "category": "Shariah Compliant Income",
       "inceptionDate": "Jun 05, 2026",
-      "offer": 105.2402,
-      "repurchase": 103.4556,
-      "nav": 103.4556,
-      "validityDate": "Oct 17, 2026",
+      "offer": 105.3349,
+      "repurchase": 103.5487,
+      "nav": 103.5487,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 1.5,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 103.5178,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-islamic-money-market-fund-shariah-compliant-money-mark": {
       "id": "MF:mcb-investment-management-limited-alhamra-islamic-money-market-fund-shariah-compliant-money-mark",
@@ -4414,12 +4428,14 @@
       "fundName": "Alhamra Islamic Stock Fund",
       "category": "Shariah Compliant Equity",
       "inceptionDate": "Aug 25, 2004",
-      "offer": 29.89,
-      "repurchase": 28.89,
-      "nav": 28.89,
-      "validityDate": "Oct 15, 2026",
+      "offer": 29.69,
+      "repurchase": 28.7,
+      "nav": 28.7,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 28.85,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-opportunity-fund-dividend-strategy-plan-shariah-compli": {
       "id": "MF:mcb-investment-management-limited-alhamra-opportunity-fund-dividend-strategy-plan-shariah-compli",
@@ -4652,12 +4668,14 @@
       "fundName": "MCB Money Market Fund",
       "category": "Money Market",
       "inceptionDate": "Jul 08, 2026",
-      "offer": 104.8445,
-      "repurchase": 103.0666,
-      "nav": 103.0666,
-      "validityDate": "Oct 16, 2026",
+      "offer": 105.0066,
+      "repurchase": 103.226,
+      "nav": 103.226,
+      "validityDate": "Oct 21, 2026",
       "frontEndLoad": 1.5,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 103.1624,
+      "prevValidityDate": "Oct 19, 2026"
     },
     "MF:mcb-investment-management-limited-mcb-pakistan-asset-allocation-fund-asset-allocation": {
       "id": "MF:mcb-investment-management-limited-mcb-pakistan-asset-allocation-fund-asset-allocation",
@@ -4679,7 +4697,7 @@
       "id": "MF:mcb-investment-management-limited-mcb-pakistan-opportunity-fund-mcb-pakistan-dividend-yield-plan",
       "sector": "Open-End Funds",
       "amc": "MCB Investment Management Limited",
-      "fundName": "MCB Pakistan Opportunity Fund (MCB Pakistan Dividend Yield Plan)",
+      "fundName": "MCB Pakistan Opportunity Fund (MCB Pakistan  Dividend Yield Plan)",
       "category": "Asset Allocation",
       "inceptionDate": "Jun 29, 2022",
       "offer": 350.0231,
@@ -5683,7 +5701,7 @@
       "id": "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-i-pqaap-ia-shariah-co",
       "sector": "Open-End Funds",
       "amc": "Pak-Qatar Asset Management Company Limited",
-      "fundName": "Pak Qatar Asset Allocation Plan I (PQAAP IA)",
+      "fundName": "Pak Qatar Asset Allocation Plan I (PQAAP  IA)",
       "category": "Shariah Compliant Asset Allocation",
       "inceptionDate": "Aug 18, 2023",
       "offer": 124.4267,
@@ -5699,7 +5717,7 @@
       "id": "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-ii-pqaap-iia-shariah-",
       "sector": "Open-End Funds",
       "amc": "Pak-Qatar Asset Management Company Limited",
-      "fundName": "Pak Qatar Asset Allocation Plan II (PQAAP IIA)",
+      "fundName": "Pak Qatar Asset Allocation Plan II (PQAAP  IIA)",
       "category": "Shariah Compliant Asset Allocation",
       "inceptionDate": "Aug 18, 2023",
       "offer": 123.4887,
@@ -5795,7 +5813,7 @@
       "id": "MF:pak-qatar-asset-management-company-limited-pak-qatar-asset-allocation-plan-iii-pqaap-iiia-sharia",
       "sector": "Open-End Funds",
       "amc": "Pak-Qatar Asset Management Company Limited",
-      "fundName": "Pak-Qatar Asset Allocation Plan III (PQAAP IIIA)",
+      "fundName": "Pak-Qatar Asset Allocation Plan III (PQAAP  IIIA)",
       "category": "Shariah Compliant Asset Allocation",
       "inceptionDate": "Sep 24, 2024",
       "offer": 134.4021,
@@ -6171,66 +6189,6 @@
       "repurchase": 86.8928,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 237.8777,
-      "repurchase": 237.8777,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 570.8796,
-      "repurchase": 570.8796,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-gob-islamic-pension-fund-vps-shariah-compliant-money-ma": {
-      "nav": 101.5635,
-      "repurchase": 101.5635,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-gokp-islamic-pension-fund-vps-shariah-compliant-money-m": {
-      "nav": 128.368,
-      "repurchase": 128.368,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-gopb-islamic-pension-fund-vps-shariah-compliant-money-m": {
-      "nav": 106.532,
-      "repurchase": 106.532,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 241.3535,
-      "repurchase": 241.3535,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-debt": {
-      "nav": 393.4853,
-      "repurchase": 393.4853,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-equity": {
-      "nav": 610.9699,
-      "repurchase": 610.9699,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-gob-pension-fund-vps-money-market": {
-      "nav": 102.374,
-      "repurchase": 102.374,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-gokp-pension-fund-vps-money-market": {
-      "nav": 136.8342,
-      "repurchase": 136.8342,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-gopb-pension-fund-vps-money-market": {
-      "nav": 108.9925,
-      "repurchase": 108.9925,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-pension-fund-vps-money-market": {
-      "nav": 297.7261,
-      "repurchase": 297.7261,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:abl-asset-management-company-limited-abl-cash-fund-money-market": {
       "nav": 10.5961,
       "repurchase": 10.5961,
@@ -6279,11 +6237,6 @@
     "MF:abl-asset-management-company-limited-abl-islamic-cash-fund-shariah-compliant-money-market": {
       "nav": 10.3585,
       "repurchase": 10.3585,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:abl-asset-management-company-limited-abl-islamic-dedicated-stock-fund-shariah-compliant-dedicate": {
-      "nav": 16.3484,
-      "repurchase": 16.3484,
       "validityDate": "Oct 19, 2026"
     },
     "MF:abl-asset-management-company-limited-abl-islamic-financial-planning-fund-active-allocation-plan-": {
@@ -6416,46 +6369,6 @@
       "repurchase": 34.1613,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 172.688,
-      "repurchase": 172.688,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 431.9181,
-      "repurchase": 431.9181,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-habib-asset-management-limited-al-habib-gokp-islamic-pension-fund-vps-shariah-compliant-money": {
-      "nav": 139.0157,
-      "repurchase": 139.0157,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-habib-asset-management-limited-al-habib-islamic-pension-fund-vps-shariah-compliant-money-mark": {
-      "nav": 171.6357,
-      "repurchase": 171.6357,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-debt": {
-      "nav": 192.6414,
-      "repurchase": 192.6414,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-equity": {
-      "nav": 502.1612,
-      "repurchase": 502.1612,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-habib-asset-management-limited-al-habib-gokp-pension-fund-vps-money-market": {
-      "nav": 144.8053,
-      "repurchase": 144.8053,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-habib-asset-management-limited-al-habib-pension-fund-vps-money-market": {
-      "nav": 188.1928,
-      "repurchase": 188.1928,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:al-habib-asset-management-limited-al-habib-asset-allocation-fund-asset-allocation": {
       "nav": 100.4718,
       "repurchase": 100.4718,
@@ -6576,36 +6489,6 @@
       "repurchase": 146.7571,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 544.0958,
-      "repurchase": 544.0958,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-equit": {
-      "nav": 1713.8826,
-      "repurchase": 1713.8826,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-gokp-pension-fund-vps-shariah-compliant-money-mar": {
-      "nav": 148.4697,
-      "repurchase": 148.4697,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-balochistan-pension-fund-vp": {
-      "nav": 102.5869,
-      "repurchase": 102.5869,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-islamic-government-of-punjab-pension-fund-vps-sha": {
-      "nav": 110.2014,
-      "repurchase": 110.2014,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-money": {
-      "nav": 543.0457,
-      "repurchase": 543.0457,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:al-meezan-investment-management-limited-al-meezan-mutual-fund-shariah-compliant-equity": {
       "nav": 47.5191,
       "repurchase": 47.5191,
@@ -6661,11 +6544,6 @@
       "repurchase": 52.1089,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:al-meezan-investment-management-limited-meezan-dedicated-equity-fund-shariah-compliant-dedicated": {
-      "nav": 90.115,
-      "repurchase": 90.115,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:al-meezan-investment-management-limited-meezan-dynamic-asset-allocation-fund-meezan-dividend-yie": {
       "nav": 81.5081,
       "repurchase": 81.5081,
@@ -6674,6 +6552,31 @@
     "MF:al-meezan-investment-management-limited-meezan-energy-fund-shariah-compliant-equity": {
       "nav": 65.1045,
       "repurchase": 65.1045,
+      "validityDate": "Oct 19, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-aggressive-shari": {
+      "nav": 176.9655,
+      "repurchase": 176.9655,
+      "validityDate": "Oct 19, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha": {
+      "nav": 126.304,
+      "repurchase": 126.304,
+      "validityDate": "Oct 19, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c": {
+      "nav": 134.2095,
+      "repurchase": 134.2095,
+      "validityDate": "Oct 19, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-moderate-shariah": {
+      "nav": 143.6881,
+      "repurchase": 143.6881,
+      "validityDate": "Oct 19, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-very-conservativ": {
+      "nav": 54.0882,
+      "repurchase": 54.0882,
       "validityDate": "Oct 19, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities": {
@@ -6701,11 +6604,6 @@
       "repurchase": 53.5958,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:al-meezan-investment-management-limited-meezan-pakistan-etf-shariah-compliant-exchange-traded-fu": {
-      "nav": 17.0789,
-      "repurchase": 17.0789,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:al-meezan-investment-management-limited-meezan-rozana-amdani-fund-shariah-compliant-money-market": {
       "nav": 50,
       "repurchase": 50,
@@ -6716,71 +6614,6 @@
       "repurchase": 53.913,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:al-meezan-investment-management-limited-meezan-tahaffuz-pension-fund-vps-shariah-compliant-commo": {
-      "nav": 502.6169,
-      "repurchase": 502.6169,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 223.6684,
-      "repurchase": 223.6684,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 306.3995,
-      "repurchase": 306.3995,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-balochistan-islamic-pension-fund-vps-shariah-compliant-": {
-      "nav": 102.3248,
-      "repurchase": 102.3248,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-pension-fund-vps-shariah-compliant-money-ma": {
-      "nav": 231.7957,
-      "repurchase": 231.7957,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-gopb-islamic-pension-fund-vps-shariah-compliant-money-m": {
-      "nav": 104.2976,
-      "repurchase": 104.2976,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-islamic-kpk-employee-pension-fund-vps-shariah-compliant": {
-      "nav": 137.8472,
-      "repurchase": 137.8472,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-debt": {
-      "nav": 257.7349,
-      "repurchase": 257.7349,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-equity": {
-      "nav": 308.7796,
-      "repurchase": 308.7796,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-balochistan-pension-fund-vps-money-market": {
-      "nav": 102.3178,
-      "repurchase": 102.3178,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-pension-fund-vps-money-market": {
-      "nav": 264.7,
-      "repurchase": 264.7,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-gopb-pension-fund-vps-money-market": {
-      "nav": 106.7709,
-      "repurchase": 106.7709,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-kpk-employee-pension-fund-vps-money-market": {
-      "nav": 143.135,
-      "repurchase": 143.135,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:alfalah-asset-management-limited-alfalah-asset-allocation-fund-asset-allocation": {
       "nav": 59.4687,
       "repurchase": 59.4687,
@@ -6789,11 +6622,6 @@
     "MF:alfalah-asset-management-limited-alfalah-cash-fund-ii-money-market": {
       "nav": 106.5241,
       "repurchase": 106.5241,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-consumer-index-exchange-traded-fund-exchange-traded-fun": {
-      "nav": 15.9051,
-      "repurchase": 15.9051,
       "validityDate": "Oct 19, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-financial-sector-income-fund-income": {
@@ -6826,11 +6654,6 @@
       "repurchase": 521.7635,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-dedicated-equity-fund-dedicated-equity": {
-      "nav": 188.1252,
-      "repurchase": 188.1252,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:alfalah-asset-management-limited-alfalah-ghp-income-fund-income": {
       "nav": 118.1657,
       "repurchase": 118.1657,
@@ -6839,11 +6662,6 @@
     "MF:alfalah-asset-management-limited-alfalah-ghp-income-multiplier-fund-aggressive-fixed-income": {
       "nav": 56.669,
       "repurchase": 56.669,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-dedicated-equity-fund-shariah-compliant-ded": {
-      "nav": 109.453,
-      "repurchase": 109.453,
       "validityDate": "Oct 19, 2026"
     },
     "MF:alfalah-asset-management-limited-alfalah-ghp-islamic-income-fund-shariah-compliant-income": {
@@ -7036,61 +6854,6 @@
       "repurchase": 102.8417,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-debt": {
-      "nav": 501.61,
-      "repurchase": 501.61,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-equity": {
-      "nav": 2575.56,
-      "repurchase": 2575.56,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-balochistan-islamic-pension-fund-vps-shariah-compliant-mone": {
-      "nav": 101.0287,
-      "repurchase": 101.0287,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 144.0342,
-      "repurchase": 144.0342,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-pension-islamic-fund-vps-shariah-compliant-money-market": {
-      "nav": 530.23,
-      "repurchase": 530.23,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-punjab-islamic-pension-fund-vps-shariah-compliant-money-mar": {
-      "nav": 110.918,
-      "repurchase": 110.918,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-debt": {
-      "nav": 686.31,
-      "repurchase": 686.31,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-equity": {
-      "nav": 2364.3,
-      "repurchase": 2364.3,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-balochistan-pension-fund-vps-money-market": {
-      "nav": 101.0343,
-      "repurchase": 101.0343,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-pension-fund-vps-money-market": {
-      "nav": 637.5,
-      "repurchase": 637.5,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-punjab-pension-fund-vps-money-market": {
-      "nav": 110.4798,
-      "repurchase": 110.4798,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:atlas-asset-management-limited-atlas-dividend-yield-fund-equity": {
       "nav": 91.77,
       "repurchase": 91.77,
@@ -7114,11 +6877,6 @@
     "MF:atlas-asset-management-limited-atlas-islamic-cash-fund-shariah-compliant-money-market": {
       "nav": 520.0319,
       "repurchase": 520.0319,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:atlas-asset-management-limited-atlas-islamic-dedicated-stock-fund-shariah-compliant-dedicated-eq": {
-      "nav": 1509.6494,
-      "repurchase": 1509.6494,
       "validityDate": "Oct 19, 2026"
     },
     "MF:atlas-asset-management-limited-atlas-islamic-energy-fund-shariah-compliant-equity": {
@@ -7176,26 +6934,6 @@
       "repurchase": 2004.7601,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 118.2525,
-      "repurchase": 118.2525,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 123.6175,
-      "repurchase": 123.6175,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:awt-investments-limited-awt-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 116.846,
-      "repurchase": 116.846,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:awt-investments-limited-awt-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 101.0154,
-      "repurchase": 101.0154,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:awt-investments-limited-awt-islamic-asset-allocation-fund-shariah-compliant-asset-allocation": {
       "nav": 164.9472,
       "repurchase": 164.9472,
@@ -7229,46 +6967,6 @@
     "MF:bma-investment-advisors-limited-bma-stock-fund-equity": {
       "nav": 96.5981,
       "repurchase": 96.5981,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 103.787,
-      "repurchase": 103.787,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 87.3984,
-      "repurchase": 87.3984,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:efu-life-assurance-limited-efu-hemayah-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 106.2153,
-      "repurchase": 106.2153,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 188.2763,
-      "repurchase": 188.2763,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 339.1386,
-      "repurchase": 339.1386,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:faysal-asset-management-limited-faysal-islamic-kpk-government-pension-fund-vps-shariah-compliant": {
-      "nav": 139.6941,
-      "repurchase": 139.6941,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:faysal-asset-management-limited-faysal-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 194.3789,
-      "repurchase": 194.3789,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:faysal-asset-management-limited-faysal-islamic-punjab-pension-fund-vps-shariah-compliant-money-m": {
-      "nav": 106.6846,
-      "repurchase": 106.6846,
       "validityDate": "Oct 19, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-halal-amdani-fund-shariah-compliant-money-market": {
@@ -7309,11 +7007,6 @@
     "MF:faysal-asset-management-limited-faysal-islamic-cash-fund-shariah-compliant-money-market": {
       "nav": 103.4666,
       "repurchase": 103.4666,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:faysal-asset-management-limited-faysal-islamic-dedicated-equity-fund-shariah-compliant-dedicated": {
-      "nav": 110.3714,
-      "repurchase": 110.3714,
       "validityDate": "Oct 19, 2026"
     },
     "MF:faysal-asset-management-limited-faysal-islamic-energy-fund-shariah-compliant-equity": {
@@ -7384,56 +7077,6 @@
     "MF:first-capital-investments-limited-first-capital-mutual-fund-equity": {
       "nav": 16.2577,
       "repurchase": 16.2577,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 351.54,
-      "repurchase": 351.54,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 1207.7097,
-      "repurchase": 1207.7097,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 333.8864,
-      "repurchase": 333.8864,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 104.8356,
-      "repurchase": 104.8356,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 140.1773,
-      "repurchase": 140.1773,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-debt": {
-      "nav": 454.7746,
-      "repurchase": 454.7746,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-equity": {
-      "nav": 1102.4108,
-      "repurchase": 1102.4108,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-kpk-pension-fund-vps-money-market": {
-      "nav": 144.0038,
-      "repurchase": 144.0038,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-pension-fund-vps-money-market": {
-      "nav": 383.8676,
-      "repurchase": 383.8676,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:hbl-asset-management-limited-hbl-punjab-pension-fund-vps-money-market": {
-      "nav": 104.8342,
-      "repurchase": 104.8342,
       "validityDate": "Oct 19, 2026"
     },
     "MF:hbl-asset-management-limited-hbl-cash-fund-money-market": {
@@ -7581,86 +7224,6 @@
       "repurchase": 222.5135,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:hbl-asset-management-limited-hbl-total-treasury-exchange-traded-fund-exchange-traded-fund": {
-      "nav": 106.9977,
-      "repurchase": 106.9977,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-debt": {
-      "nav": 11.5128,
-      "repurchase": 11.5128,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-equity": {
-      "nav": 11.8955,
-      "repurchase": 11.8955,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:igi-life-insurance-limited-mahaana-igi-islamic-retirement-fund-vps-shariah-compliant-money-marke": {
-      "nav": 11.3869,
-      "repurchase": 11.3869,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-debt": {
-      "nav": 453.29,
-      "repurchase": 453.29,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-equity": {
-      "nav": 1744.99,
-      "repurchase": 1744.99,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-balochistan-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 100.9025,
-      "repurchase": 100.9025,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-islamic-pension-savings-fund-vps-shariah-compliant-money-market": {
-      "nav": 441.04,
-      "repurchase": 441.04,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-kpk-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 144.36,
-      "repurchase": 144.36,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-punjab-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 102.9167,
-      "repurchase": 102.9167,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-pension-savings-fund-vps-debt": {
-      "nav": 622.47,
-      "repurchase": 622.47,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-pension-savings-fund-vps-equity": {
-      "nav": 1661.45,
-      "repurchase": 1661.45,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-balochistan-pension-fund-vps-money-market": {
-      "nav": 102.2664,
-      "repurchase": 102.2664,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-kpk-pension-fund-vps-money-market": {
-      "nav": 146.61,
-      "repurchase": 146.61,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-pension-savings-fund-vps-money-market": {
-      "nav": 515.96,
-      "repurchase": 515.96,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:js-investments-limited-js-punjab-pension-fund-vps-money-market": {
-      "nav": 105.0606,
-      "repurchase": 105.0606,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:js-investments-limited-js-cash-fund-money-market": {
       "nav": 109.8893,
       "repurchase": 109.8893,
@@ -7746,11 +7309,6 @@
       "repurchase": 125.0636,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:js-investments-limited-js-momentum-factor-exchange-traded-fund-exchange-traded-fund": {
-      "nav": 10.8794,
-      "repurchase": 10.8794,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:js-investments-limited-js-money-market-fund-money-market": {
       "nav": 125.846,
       "repurchase": 125.846,
@@ -7794,26 +7352,6 @@
     "MF:lakson-investments-limited-lakson-tactical-fund-asset-allocation": {
       "nav": 99.255,
       "repurchase": 99.255,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 109.5771,
-      "repurchase": 109.5771,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 104.5669,
-      "repurchase": 104.5669,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 109.467,
-      "repurchase": 109.467,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:lucky-investments-limited-lucky-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 108.3258,
-      "repurchase": 108.3258,
       "validityDate": "Oct 19, 2026"
     },
     "MF:lucky-investments-limited-lucky-islamic-capital-protected-fund-plan-i-shariah-compliant-capital-": {
@@ -7871,11 +7409,6 @@
       "repurchase": 103.6299,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:lucky-investments-limited-lucky-islamic-pension-fund-vps-shariah-compliant-commodities-gold": {
-      "nav": 96.7357,
-      "repurchase": 96.7357,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:lucky-investments-limited-lucky-islamic-stock-fund-shariah-compliant-equity": {
       "nav": 127.45,
       "repurchase": 127.45,
@@ -7891,6 +7424,11 @@
       "repurchase": 9.3967,
       "validityDate": "Oct 19, 2026"
     },
+    "MF:mcb-investment-management-limited-alhamra-cash-management-optimizer-shariah-compliant-money-mark": {
+      "nav": 103.7494,
+      "repurchase": 103.7494,
+      "validityDate": "Oct 19, 2026"
+    },
     "MF:mcb-investment-management-limited-alhamra-government-securities-plan-i-shariah-compliant-income": {
       "nav": 103.7934,
       "repurchase": 103.7934,
@@ -7904,6 +7442,16 @@
     "MF:mcb-investment-management-limited-alhamra-islamic-energy-fund-shariah-compliant-equity": {
       "nav": 96.9103,
       "repurchase": 96.9103,
+      "validityDate": "Oct 19, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-investment-savings-fund-shariah-compliant-inco": {
+      "nav": 103.5178,
+      "repurchase": 103.5178,
+      "validityDate": "Oct 19, 2026"
+    },
+    "MF:mcb-investment-management-limited-alhamra-islamic-stock-fund-shariah-compliant-equity": {
+      "nav": 28.85,
+      "repurchase": 28.85,
       "validityDate": "Oct 19, 2026"
     },
     "MF:mcb-investment-management-limited-alhamra-wada-fund-alhamra-wada-plan-xxiii-shariah-compliant-fi": {
@@ -7941,6 +7489,11 @@
       "repurchase": 100.3845,
       "validityDate": "Oct 19, 2026"
     },
+    "MF:mcb-investment-management-limited-mcb-money-market-fund-money-market": {
+      "nav": 103.1624,
+      "repurchase": 103.1624,
+      "validityDate": "Oct 19, 2026"
+    },
     "MF:mcb-investment-management-limited-mcb-pakistan-asset-allocation-fund-asset-allocation": {
       "nav": 230.2302,
       "repurchase": 230.2302,
@@ -7969,46 +7522,6 @@
     "MF:mcb-investment-management-limited-pakistan-income-fund-income": {
       "nav": 57.0574,
       "repurchase": 57.0574,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 27.0539,
-      "repurchase": 27.0539,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 31.0309,
-      "repurchase": 31.0309,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 26.8129,
-      "repurchase": 26.8129,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-kp-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 139.8198,
-      "repurchase": 139.8198,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-pension-fund-vps-debt": {
-      "nav": 31.1341,
-      "repurchase": 31.1341,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-pension-fund-vps-equity": {
-      "nav": 32.2232,
-      "repurchase": 32.2232,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-kp-pension-fund-vps-money-market": {
-      "nav": 144.1143,
-      "repurchase": 144.1143,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-pension-fund-vps-money-market": {
-      "nav": 30.3752,
-      "repurchase": 30.3752,
       "validityDate": "Oct 19, 2026"
     },
     "MF:national-investment-trust-limited-national-investment-unit-trust-equity": {
@@ -8051,79 +7564,9 @@
       "repurchase": 10.0933,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:national-investment-trust-limited-nit-pakistan-gateway-exchange-traded-fund-exchange-traded-fund": {
-      "nav": 32.2224,
-      "repurchase": 32.2224,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:national-investment-trust-limited-nit-pension-fund-vps-commodities-gold": {
-      "nav": 50.1343,
-      "repurchase": 50.1343,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:national-investment-trust-limited-nit-social-impact-fund-income": {
       "nav": 10.6834,
       "repurchase": 10.6834,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 307.8496,
-      "repurchase": 307.8496,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 1196.9184,
-      "repurchase": 1196.9184,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nafa-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 314.2536,
-      "repurchase": 314.2536,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-gokp-islamic-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 144.5731,
-      "repurchase": 144.5731,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-islamic-balochistan-pension-fund-vps-shariah-compliant-money-mar": {
-      "nav": 102.0049,
-      "repurchase": 102.0049,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-islamic-punjab-pension-fund-vps-shariah-compliant-money-market": {
-      "nav": 107.982,
-      "repurchase": 107.982,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-debt": {
-      "nav": 410.8035,
-      "repurchase": 410.8035,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-equity": {
-      "nav": 1387.6293,
-      "repurchase": 1387.6293,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nafa-pension-fund-vps-money-market": {
-      "nav": 353.4221,
-      "repurchase": 353.4221,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-balochistan-pension-fund-vps-money-market": {
-      "nav": 102.0381,
-      "repurchase": 102.0381,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-gokp-pension-fund-vps-money-market": {
-      "nav": 146.8797,
-      "repurchase": 146.8797,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:nbp-fund-management-limited-nbp-punjab-pension-fund-vps-money-market": {
-      "nav": 108.4969,
-      "repurchase": 108.4969,
       "validityDate": "Oct 19, 2026"
     },
     "MF:nbp-fund-management-limited-nbp-balanced-fund-balanced": {
@@ -8291,11 +7734,6 @@
       "repurchase": 10.3426,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:nbp-fund-management-limited-nbp-pakistan-growth-exchange-traded-fund-exchange-traded-fund": {
-      "nav": 24.8703,
-      "repurchase": 24.8703,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:nbp-fund-management-limited-nbp-riba-free-savings-fund-shariah-compliant-income": {
       "nav": 10.7129,
       "repurchase": 10.7129,
@@ -8406,86 +7844,6 @@
       "repurchase": 130.389,
       "validityDate": "Oct 19, 2026"
     },
-    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-debt": {
-      "nav": 175.2626,
-      "repurchase": 175.2626,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-equity": {
-      "nav": 300.6102,
-      "repurchase": 300.6102,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:pak-qatar-family-takaful-limited-pak-qatar-gob-islamic-pension-fund-vps-shariah-compliant-money-": {
-      "nav": 101.5277,
-      "repurchase": 101.5277,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:pak-qatar-family-takaful-limited-pak-qatar-gokp-islamic-pension-fund-vps-shariah-compliant-money": {
-      "nav": 108.2089,
-      "repurchase": 108.2089,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:pak-qatar-family-takaful-limited-pak-qatar-gopb-islamic-pension-fund-vps-shariah-compliant-money": {
-      "nav": 107.2681,
-      "repurchase": 107.2681,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:pak-qatar-family-takaful-limited-pak-qatar-islamic-pension-fund-vps-shariah-compliant-money-mark": {
-      "nav": 171.8676,
-      "repurchase": 171.8676,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-debt": {
-      "nav": 391.0546,
-      "repurchase": 391.0546,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-equity": {
-      "nav": 2789.2781,
-      "repurchase": 2789.2781,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-al-ameen-islamic-punjab-pension-fund-vps-shariah-compliant-money-marke": {
-      "nav": 105.5076,
-      "repurchase": 105.5076,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-al-ameen-islamic-retirement-savings-fund-vps-shariah-compliant-money-m": {
-      "nav": 377.0699,
-      "repurchase": 377.0699,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-al-ameen-voluntary-pension-fund-kpk-vps-shariah-compliant-money-market": {
-      "nav": 139.1571,
-      "repurchase": 139.1571,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-debt": {
-      "nav": 578.2599,
-      "repurchase": 578.2599,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-equity": {
-      "nav": 3341.6048,
-      "repurchase": 3341.6048,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-ubl-punjab-pension-fund-vps-money-market": {
-      "nav": 108.7525,
-      "repurchase": 108.7525,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-money-market": {
-      "nav": 446.5401,
-      "repurchase": 446.5401,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-ubl-voluntary-pension-fund-kpk-vps-money-market": {
-      "nav": 147.4779,
-      "repurchase": 147.4779,
-      "validityDate": "Oct 19, 2026"
-    },
     "MF:ubl-fund-managers-limited-al-ameen-islamic-aggressive-income-fund-shariah-compliant-aggressive-f": {
       "nav": 104.2153,
       "repurchase": 104.2153,
@@ -8584,16 +7942,6 @@
     "MF:ubl-fund-managers-limited-ubl-money-market-fund-money-market": {
       "nav": 104.4239,
       "repurchase": 104.4239,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-ubl-pakistan-enterprise-exchange-traded-fund-exchange-traded-fund": {
-      "nav": 27.8648,
-      "repurchase": 27.8648,
-      "validityDate": "Oct 19, 2026"
-    },
-    "MF:ubl-fund-managers-limited-ubl-retirement-saving-fund-vps-commodities-gold": {
-      "nav": 413.77,
-      "repurchase": 413.77,
       "validityDate": "Oct 19, 2026"
     },
     "MF:ubl-fund-managers-limited-ubl-special-savings-plan-x-capital-protected-income": {
