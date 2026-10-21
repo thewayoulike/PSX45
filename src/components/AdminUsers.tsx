@@ -20,7 +20,18 @@ interface AllowUser {
   access_until?: string | null;
   lifetime?: boolean;
   created_at?: string;
+  last_seen_at?: string | null;
   access?: Access;
+}
+
+export function lastSeenLabel(seen: string | null | undefined, now = Date.now()): string {
+  const at = seen ? Date.parse(seen) : NaN;
+  if (!Number.isFinite(at)) return 'no visit recorded yet';
+  const minutes = Math.max(0, Math.round((now - at) / 60000));
+  if (minutes < 60) return 'last seen just now';
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `last seen ${hours}h ago`;
+  return `last seen ${Math.round(hours / 24)}d ago`;
 }
 
 type Action =
@@ -86,6 +97,7 @@ const Row: React.FC<{
             {u.email}
             {a?.status === 'paid' && u.access_until ? ` · until ${new Date(u.access_until).toLocaleDateString()}` : ''}
             {u.created_at ? ` · joined ${new Date(u.created_at).toLocaleDateString()}` : ''}
+            {' · '}<span title={u.last_seen_at ? new Date(u.last_seen_at).toLocaleString() : undefined}>{lastSeenLabel(u.last_seen_at)}</span>
           </div>
         </div>
 

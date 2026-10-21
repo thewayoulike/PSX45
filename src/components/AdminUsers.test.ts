@@ -2,7 +2,20 @@ import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { computeAccess } from '../../lib/access.js';
-import { StatusBadge } from './AdminUsers';
+import { StatusBadge, lastSeenLabel } from './AdminUsers';
+
+describe('admin last seen', () => {
+  const now = Date.parse('2026-10-21T22:00:00.000Z');
+  it.each([
+    ['2026-10-21T21:58:00.000Z', 'last seen just now'],
+    ['2026-10-21T19:00:00.000Z', 'last seen 3h ago'],
+    ['2026-10-18T22:00:00.000Z', 'last seen 3d ago'],
+    [null, 'no visit recorded yet'],
+    ['not a date', 'no visit recorded yet'],
+  ])('labels %s as %s', (seen, label) => {
+    expect(lastSeenLabel(seen, now)).toBe(label);
+  });
+});
 
 describe('admin access badges match server access states', () => {
   const oldDate = '2020-01-01T00:00:00.000Z';
