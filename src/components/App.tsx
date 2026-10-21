@@ -100,6 +100,7 @@ import { fifoTransferSlices } from '../utils/transferLots';
 import { sellTaxAllocation } from '../utils/sellTax';
 import { latestPreviousCloses } from '../services/psxData';
 import { AppLoading } from './AppLoading';
+import { isDriveBooting, viewWaitsForDrive } from '../utils/driveBoot';
 import { loadChartSettings, applyCloudChartSettings, CHART_SETTINGS_CHANGED_EVENT } from '../services/chartSettingsStorage';
 import { loadSavedProjections, applyCloudProjections, PROJECTIONS_CHANGED } from '../services/chartProjectionStorage';
 import { getAuthUser, checkApproval, getAccessStatus, AccessStatus, signOutAuth, AppAuthUser, restorePasswordDriveSession } from '../services/auth';
@@ -2444,6 +2445,7 @@ const App: React.FC = () => {
 
   const handleSidebarNav = (view: any) => {
       if (view === 'BROKERS') {
+          if (driveBootRef.current) return;
           setShowBrokerManager(true);
       } else if (view === 'API_KEYS') {
           setShowApiKeyManager(true);
@@ -2452,11 +2454,17 @@ const App: React.FC = () => {
       }
   };
 
-  // While auth / Drive restore runs, always show the loader — never the cached
-  // "Saved portfolio · read only" preview (that confused refreshes with a stale book).
-  if (isAuthChecking || sbChecking || restoringDrive) {
-    return <AppLoading message={restoringDrive ? 'Opening Google Drive backup…' : undefined} />;
-  }
+  // While auth runs, show the loader — never the cached "Saved portfolio · read only"
+  // preview (that confused refreshes with a stale book). Drive loading keeps the app
+  // shell; portfolio screens and edit controls wait for the latest backup.
+  if (isAuthChecking || sbChecking) return <AppLoading />;
+  const driveBooting = isDriveBooting({
+    restoringDrive,
+    hasDriveUser: !!driveUser,
+    readyToSave: isReadyToSave.current,
+    loadingLatestCloud: isLoadingLatestCloud.current,
+    cloudSyncing: isCloudSyncing,
+  });
   if (viewSavedOffline) return <OfflinePortfolio />;
   if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
@@ -2484,11 +2492,10 @@ const App: React.FC = () => {
       }
   }
 
-  if (sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) {
+  if (!driveBooting && sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) {
       return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
   }
-  if (driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
-      if (isCloudSyncing) return <AppLoading message="Opening Google Drive backup…" />;
+  if (!driveBooting && driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
       return <OfflinePortfolio error={cloudSyncError || "The latest backup could not be opened. Retry before making changes."}
           pendingTransactions={pendingCloud?.data?.transactions} onDownloadPending={pendingCloud ? downloadPendingCloudBackup : undefined} />;
   }
@@ -2673,7 +2680,7 @@ const App: React.FC = () => {
                          </button>}
                     guide={<VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />}
                     theme={<ThemeToggle />}
-                    selector={<div className="relative group flex-1 min-w-0">
+                    selector={driveBooting ? null : <div className="relative group flex-1 min-w-0">
                               <select
                                   value={currentPortfolioId}
                                   aria-label="Current portfolio"
@@ -2688,8 +2695,8 @@ const App: React.FC = () => {
                               </select>
                               <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
                           </div>}
-                    edit={<button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio" aria-label="Edit Portfolio"> <Pencil size={16} /> </button>}
-                    create={<button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio" aria-label="New Portfolio"> <PlusCircle size={16} /> </button>}
+                    edit={driveBooting ? null : <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio" aria-label="Edit Portfolio"> <Pencil size={16} /> </button>}
+                    create={driveBooting ? null : <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio" aria-label="New Portfolio"> <PlusCircle size={16} /> </button>}
                   />
                   )}
 
@@ -2712,7 +2719,7 @@ const App: React.FC = () => {
                       )}
 
                       {/* Connect Google Drive prompt — for signed-in users whose data isn't syncing yet. */}
-                      {!isChartsView && sbUser && !driveUser && !driveBannerDismissed && (
+                      {!isChartsView && !driveBooting && sbUser && !driveUser && !driveBannerDismissed && (
                           <div className="mb-6 rounded-3xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
                               <div className="flex items-start gap-3 flex-1 min-w-0">
                                   <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -2743,7 +2750,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      {!isChartsView && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && currentView !== 'INSIDERS' && (
+                      {!isChartsView && !driveBooting && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && currentView !== 'INSIDERS' && (
                       <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
                             <div className="min-w-0 overflow-hidden border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2">
@@ -2873,6 +2880,13 @@ const App: React.FC = () => {
                        </div>
                       )}
                       <MobileSectionNavigator view={currentView} />
+                      {viewWaitsForDrive(currentView, driveBooting) ? (
+                          <div role="status" className="flex flex-col items-center justify-center gap-3 py-24 text-center">
+                              <Loader2 size={28} className="animate-spin text-emerald-600" />
+                              <p className="font-display font-bold text-slate-800 dark:text-slate-100">Opening your Google Drive backup…</p>
+                              <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">This screen opens once your latest portfolio is loaded. Markets, Charts and Calculators work in the meantime.</p>
+                          </div>
+                      ) : <>
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               {isFundPortfolio && (
@@ -3100,6 +3114,7 @@ const App: React.FC = () => {
                               />
                           </div>
                       )}
+                      </>}
                       </Suspense>
                       </SectionBoundary>
                   </main>
