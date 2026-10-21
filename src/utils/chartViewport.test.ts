@@ -9,6 +9,8 @@ import {
   maxViewStart,
   MIN_VISIBLE_BARS,
   panOriginByPixels,
+  pricePanByPixels,
+  widenPricePanLimits,
   rightPadBars,
   viewportSlice,
   zoomVisibleAtCursor,
@@ -153,5 +155,22 @@ describe('viewportSlice', () => {
     expect(partial.count).toBe(81);
     expect(partial.frac).toBeCloseTo(0.4);
     expect(viewportSlice(10, 80)).toEqual({ start: 10, count: 80, frac: 0 });
+  });
+});
+
+describe('vertical chart drag', () => {
+  const limits = { min: -3, max: 3 };
+  it('moves the candles with the pointer: dragging down by half the plot shows one half-span higher', () => {
+    expect(pricePanByPixels(0, 100, 200, limits)).toBeCloseTo(1);
+    expect(pricePanByPixels(0.5, -50, 200, limits)).toBeCloseTo(0);
+  });
+  it('stops at the pan limits and ignores a zero-height plot', () => {
+    expect(pricePanByPixels(0, 10_000, 200, limits)).toBe(3);
+    expect(pricePanByPixels(0.4, 50, 0, limits)).toBe(0.4);
+  });
+  it('lets the chart be dragged past the highest and lowest prices', () => {
+    const wide = widenPricePanLimits({ min: -0.02, max: 0.03 });
+    expect(wide.min).toBeLessThanOrEqual(-1.5);
+    expect(wide.max).toBeGreaterThanOrEqual(1.5);
   });
 });

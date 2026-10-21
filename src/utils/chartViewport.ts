@@ -38,6 +38,27 @@ export function panOriginByPixels(
   return clampViewOrigin(origin - (dxPx * visible) / plotWidth, visible, dataLen);
 }
 
+/** Free vertical room beyond the price extent, in visible half-spans. */
+export const PRICE_PAN_SLACK = 1.5;
+
+export function widenPricePanLimits(limits: { min: number; max: number }): { min: number; max: number } {
+  const lo = Math.min(limits.min, limits.max);
+  const hi = Math.max(limits.min, limits.max);
+  return { min: lo - PRICE_PAN_SLACK, max: hi + PRICE_PAN_SLACK };
+}
+
+/** Price-pan offset after a vertical drag; offsets are in visible half-spans, so half the plot height is 1. */
+export function pricePanByPixels(
+  offset: number,
+  dyPx: number,
+  plotHeight: number,
+  limits: { min: number; max: number }
+): number {
+  if (!(plotHeight > 0)) return offset;
+  const next = offset + dyPx / (plotHeight / 2);
+  return Math.max(Math.min(limits.min, limits.max), Math.min(Math.max(limits.min, limits.max), next));
+}
+
 /**
  * Zoom time around the cursor. `factor` > 1 shows fewer bars (zoom in).
  * The data index under `cursorX` stays under that pixel.

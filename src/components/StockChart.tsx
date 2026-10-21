@@ -84,7 +84,7 @@ import {
   type DrawRenderCoords,
 } from '../utils/chartDrawings';
 import { fmtChartAxisDate, pickChartXTickIndices, rechartsSparseTickLabels, type CandleInterval } from '../utils/chartAxis';
-import { applyViewport, maxViewStart as maxViewStartFor, canFitAllTime, clampViewOrigin, clampVisibleBars, panOriginByPixels, viewportSlice, zoomVisibleAtCursor, FIT_ALL_MAX_BARS, DEFAULT_MAX_VISIBLE_BARS } from '../utils/chartViewport';
+import { applyViewport, maxViewStart as maxViewStartFor, canFitAllTime, clampViewOrigin, clampVisibleBars, panOriginByPixels, pricePanByPixels, widenPricePanLimits, viewportSlice, zoomVisibleAtCursor, FIT_ALL_MAX_BARS, DEFAULT_MAX_VISIBLE_BARS } from '../utils/chartViewport';
 import { useChartTheme } from '../utils/chartTheme';
 import { PaneLegend } from './ChartPaneLegend';
 import { ChartAlertDialog } from './ChartAlertDialog';
@@ -201,10 +201,10 @@ function computePricePanLimits(
     const full = collectPriceBounds(bars, awaisData, awaisLayers, true);
     const fullHalf = ((full.span / 2) * 1.1 * priceSpanMultiplier(zoomIdx)) / scale;
     const fullCenter = (full.minP + full.maxP) / 2;
-    return {
+    return widenPricePanLimits({
       min: (full.minP - fullHalf * 0.04 + fullHalf - fullCenter) / fullHalf,
       max: (full.maxP + fullHalf * 0.04 - fullHalf - fullCenter) / fullHalf,
-    };
+    });
   }
 
   const extent = collectPriceBounds(bars, awaisData, awaisLayers, true);
@@ -212,7 +212,7 @@ function computePricePanLimits(
   const panMax = (extent.maxP + margin - half - center0) / half;
   const panMin = (extent.minP - margin + half - center0) / half;
 
-  return { min: panMin, max: panMax };
+  return widenPricePanLimits({ min: panMin, max: panMax });
 }
 
 function formatPriceZoomLabel(zoomIdx: number, fitAll: boolean, scaleMul = 1): string {
@@ -2370,9 +2370,14 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
   );
   const chartPanRef = useRef<HTMLDivElement>(null);
   const candlePlotRef = useRef<HTMLDivElement>(null);
+  const pricePanOffsetRef = useRef(0);
+  pricePanOffsetRef.current = pricePanOffset;
+  const pricePanLimitsRef = useRef({ min: -2, max: 2 });
   const panRef = useRef<{
     x: number;
+    y: number;
     startOrigin: number;
+    startPriceOffset: number;
     lastX: number;
     lastT: number;
     v: number;
@@ -2953,6 +2958,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     [visibleOhlc, awaisVisible, awaisLayers, priceZoomIdx, priceFitAll, priceScaleMul]
   );
 
+  pricePanLimitsRef.current = pricePanLimits;
+
   useEffect(() => {
     setPricePanOffset((p) => clampPanOffset(p, pricePanLimits));
   }, [priceZoomIdx, pricePanLimits]);
@@ -3025,7 +3032,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     beginInertia(velocity);
   };
 
-  const applyPanMove = useCallback((clientX: number) => {
+  const applyPanMove = useCallback((clientX: number, clientY: number) => {
     const pan = panRef.current;
     if (!pan) return;
     const visible = viewCountRef.current;
@@ -3034,6 +3041,15 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     const next = panOriginByPixels(pan.startOrigin, dx, plotW, visible, primaryLenRef.current);
     viewOriginRef.current = next;
     setViewOrigin(next);
+    const plot = candlePlotRef.current;
+    if (plot && showCandleRef.current) {
+      const plotH = plot.clientHeight - 16 - 28;
+      const offset = pricePanByPixels(pan.startPriceOffset, clientY - pan.y, plotH, pricePanLimitsRef.current);
+      if (offset !== pricePanOffsetRef.current) {
+        pricePanOffsetRef.current = offset;
+        setPricePanOffset(offset);
+      }
+    }
     const now = performance.now();
     const dt = Math.max(8, now - pan.lastT);
     pan.v = (clientX - pan.lastX) / dt;
@@ -3063,12 +3079,14 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     setViewOrigin(next.origin);
   };
 
-  const onPanStart = (clientX: number) => {
+  const onPanStart = (clientX: number, clientY: number) => {
     if (!canPanChart) return;
     const now = performance.now();
     panRef.current = {
       x: clientX,
+      y: clientY,
       startOrigin: viewOriginRef.current,
+      startPriceOffset: pricePanOffsetRef.current,
       lastX: clientX,
       lastT: now,
       v: 0,
@@ -3100,7 +3118,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       return;
     }
     if (e.pointerType !== 'touch') e.preventDefault();
-    onPanStart(e.clientX);
+    onPanStart(e.clientX, e.clientY);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -3118,7 +3136,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
       consumeFlick();
       return;
     }
-    applyPanMove(e.clientX);
+    applyPanMove(e.clientX, e.clientY);
   };
 
   const onPointerUp = (e: React.PointerEvent) => {
@@ -3148,7 +3166,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
         finish();
         return;
       }
-      applyPanMove(e.clientX);
+      applyPanMove(e.clientX, e.clientY);
     };
     window.addEventListener('pointerup', finish);
     window.addEventListener('pointercancel', finish);
