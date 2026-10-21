@@ -10,6 +10,7 @@ import { exportToExcel, exportToCSV } from '../utils/export';
 import { useFreemium } from './FreemiumContext';
 import { consumeDailyQuota } from '../utils/freemiumQuotas';
 import { isPriceStale } from '../utils/priceFreshness';
+import { isShariahCompliant, SHARIAH_TAG_CLASS } from '../utils/shariah';
 
 // --- HYBRID FALLBACK: Static Lists (Used only if live PSX scraping fails) ---
 const FALLBACK_KMI30 = new Set([
@@ -484,6 +485,9 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                             )} 
                             {tags.length > 0 && (
                                 <div className="flex flex-wrap gap-1 mt-1.5 max-w-[220px]">
+                                    {isShariahCompliant(tags) && (
+                                        <span className={`text-[8px] leading-none px-1.5 py-1 rounded-[4px] border font-bold uppercase tracking-wider shadow-sm ${SHARIAH_TAG_CLASS}`}>Shariah</span>
+                                    )}
                                     {tags.map((tag, i) => {
                                         let colorClass = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
                                         if (tag.includes('KMI')) {

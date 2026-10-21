@@ -38,6 +38,7 @@ import { fetchCompanyFundamentals, fetchCompanyInfo, FundamentalsData, CompanyIn
 import { CompanyInfoPanel } from './CompanyInfoPanel';
 import { StockFinancialsPanel } from './StockFinancialsPanel';
 import { panelKeys, readPanel, savePanel } from '../services/panelCache';
+import { isShariahCompliant, SHARIAH_TAG_CLASS } from '../utils/shariah';
 
 // --- HYBRID FALLBACK: Static Lists ---
 const FALLBACK_KMI30 = new Set([
@@ -747,6 +748,9 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                                 {/* --- DYNAMIC TAGS --- */}
                                 {tags.length > 0 && (
                                     <div className="flex flex-wrap gap-1.5 mt-1">
+                                        {isShariahCompliant(tags) && (
+                                            <span className={`text-[9px] leading-none px-2 py-1 rounded-md border font-bold uppercase tracking-wider shadow-sm ${SHARIAH_TAG_CLASS}`}>Shariah compliant</span>
+                                        )}
                                         {tags.map((tag, i) => {
                                             let colorClass = "bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700";
                                             if (tag.includes('KMI')) {
