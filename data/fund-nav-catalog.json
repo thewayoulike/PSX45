@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-10-21T17:59:11.514Z",
+  "updatedAt": "2026-10-21T19:57:45.862Z",
   "reportDate": "Oct 21, 2026",
   "previousReportDate": "Oct 20, 2026",
   "source": "relay:jina",
   "count": 390,
-  "today": "2026-10-21",
+  "today": "2026-10-22",
   "yesterday": "2026-10-20",
   "catalog": {
     "MF:786-investments-limited-786-islamic-money-market-fund-shariah-compliant-money-market": {
@@ -1006,10 +1006,10 @@
       "fundName": "Al Meezan Mutual Fund",
       "category": "Shariah Compliant Equity",
       "inceptionDate": "Jul 13, 1995",
-      "offer": 48.3486,
-      "repurchase": 47.2616,
-      "nav": 47.2616,
-      "validityDate": "Oct 20, 2026",
+      "offer": 48.4399,
+      "repurchase": 48.4399,
+      "nav": 48.4399,
+      "validityDate": "Oct 21, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 47.2616,
@@ -1214,12 +1214,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Aggressive)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Apr 12, 2013",
-      "offer": 181.0357,
-      "repurchase": 176.9655,
-      "nav": 176.9655,
-      "validityDate": "Oct 19, 2026",
+      "offer": 180.4074,
+      "repurchase": 176.3514,
+      "nav": 176.3514,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 176.3514,
+      "prevValidityDate": "Oct 20, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha",
@@ -1228,12 +1230,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Conservative)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Apr 12, 2013",
-      "offer": 127.7564,
-      "repurchase": 126.304,
-      "nav": 126.304,
-      "validityDate": "Oct 19, 2026",
+      "offer": 127.6201,
+      "repurchase": 126.1692,
+      "nav": 126.1692,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 126.1692,
+      "prevValidityDate": "Oct 20, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c",
@@ -1242,12 +1246,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (MAAP I)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Jul 09, 2015",
-      "offer": 134.2095,
-      "repurchase": 134.2095,
-      "nav": 134.2095,
-      "validityDate": "Oct 19, 2026",
+      "offer": 133.5324,
+      "repurchase": 133.5324,
+      "nav": 133.5324,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 133.5324,
+      "prevValidityDate": "Oct 20, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-moderate-shariah": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-moderate-shariah",
@@ -1256,12 +1262,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Moderate)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Apr 12, 2013",
-      "offer": 146.1667,
-      "repurchase": 143.6881,
-      "nav": 143.6881,
-      "validityDate": "Oct 19, 2026",
+      "offer": 145.8175,
+      "repurchase": 143.3449,
+      "nav": 143.3449,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 143.3449,
+      "prevValidityDate": "Oct 20, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-very-conservativ": {
       "id": "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-very-conservativ",
@@ -1270,12 +1278,14 @@
       "fundName": "Meezan Financial Planning Fund of Funds (Very Conservative Allocation Plan)",
       "category": "Shariah Compliant Fund of Funds",
       "inceptionDate": "Aug 18, 2023",
-      "offer": 54.7102,
-      "repurchase": 54.0882,
-      "nav": 54.0882,
-      "validityDate": "Oct 19, 2026",
+      "offer": 54.724,
+      "repurchase": 54.1019,
+      "nav": 54.1019,
+      "validityDate": "Oct 20, 2026",
       "frontEndLoad": 0,
-      "backEndLoad": 0
+      "backEndLoad": 0,
+      "prevNav": 54.1019,
+      "prevValidityDate": "Oct 20, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities": {
       "id": "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities",
@@ -1300,10 +1310,10 @@
       "fundName": "Meezan Government Securities Fund Plan I",
       "category": "Shariah Compliant Income",
       "inceptionDate": "Jul 03, 2026",
-      "offer": 52.249,
-      "repurchase": 51.655,
-      "nav": 51.655,
-      "validityDate": "Oct 20, 2026",
+      "offer": 52.2696,
+      "repurchase": 51.6754,
+      "nav": 51.6754,
+      "validityDate": "Oct 21, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 51.655,
@@ -1330,10 +1340,10 @@
       "fundName": "Meezan Islamic Fund",
       "category": "Shariah Compliant Equity",
       "inceptionDate": "Aug 08, 2003",
-      "offer": 157.1671,
-      "repurchase": 153.6336,
-      "nav": 153.6336,
-      "validityDate": "Oct 20, 2026",
+      "offer": 157.501,
+      "repurchase": 153.96,
+      "nav": 153.96,
+      "validityDate": "Oct 21, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 153.6336,
@@ -1504,10 +1514,10 @@
       "fundName": "Meezan Sovereign Fund",
       "category": "Shariah Compliant Income",
       "inceptionDate": "Feb 10, 2010",
-      "offer": 54.5499,
-      "repurchase": 53.9298,
-      "nav": 53.9298,
-      "validityDate": "Oct 20, 2026",
+      "offer": 54.5621,
+      "repurchase": 53.9418,
+      "nav": 53.9418,
+      "validityDate": "Oct 21, 2026",
       "frontEndLoad": 0,
       "backEndLoad": 0,
       "prevNav": 53.9298,
@@ -6585,6 +6595,31 @@
     "MF:al-meezan-investment-management-limited-meezan-energy-fund-shariah-compliant-equity": {
       "nav": 64.5177,
       "repurchase": 64.5177,
+      "validityDate": "Oct 20, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-aggressive-shari": {
+      "nav": 176.3514,
+      "repurchase": 176.3514,
+      "validityDate": "Oct 20, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-conservative-sha": {
+      "nav": 126.1692,
+      "repurchase": 126.1692,
+      "validityDate": "Oct 20, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-maap-i-shariah-c": {
+      "nav": 133.5324,
+      "repurchase": 133.5324,
+      "validityDate": "Oct 20, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-moderate-shariah": {
+      "nav": 143.3449,
+      "repurchase": 143.3449,
+      "validityDate": "Oct 20, 2026"
+    },
+    "MF:al-meezan-investment-management-limited-meezan-financial-planning-fund-of-funds-very-conservativ": {
+      "nav": 54.1019,
+      "repurchase": 54.1019,
       "validityDate": "Oct 20, 2026"
     },
     "MF:al-meezan-investment-management-limited-meezan-gold-fund-shariah-compliant-commodities": {
