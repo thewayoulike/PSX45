@@ -2378,6 +2378,7 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     y: number;
     startOrigin: number;
     startPriceOffset: number;
+    vertical?: boolean;
     lastX: number;
     lastT: number;
     v: number;
@@ -3042,7 +3043,8 @@ export const StockChart: React.FC<Props> = ({ symbol, layout = 'default' }) => {
     viewOriginRef.current = next;
     setViewOrigin(next);
     const plot = candlePlotRef.current;
-    if (plot && showCandleRef.current) {
+    if (plot && showCandleRef.current && (pan.vertical || Math.abs(clientY - pan.y) >= 4)) {
+      pan.vertical = true;
       const plotH = plot.clientHeight - 16 - 28;
       const offset = pricePanByPixels(pan.startPriceOffset, clientY - pan.y, plotH, pricePanLimitsRef.current);
       if (offset !== pricePanOffsetRef.current) {
