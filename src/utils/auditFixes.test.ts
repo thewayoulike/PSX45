@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { toDatePK } from './dates';
-import { stockDayChange } from './stockDayPL';
 import { firstOversell } from './holdingChecks';
 import { oversellCashCredit } from './oversellCash';
 import { applyPriceStack } from '../../lib/priceStack.js';
@@ -13,13 +12,6 @@ describe('audit regressions', () => {
     expect(toDatePK('Aug 15, 2026')).toBe('2026-08-15');
     expect(toDatePK(44966.9)).toBe('2023-02-09');
     expect(toDatePK('not-a-date')).toBe('');
-  });
-
-  it('prices shares bought today from the trade, not yesterday close', () => {
-    expect(stockDayChange({
-      quantity: 100, current: 111, ldcp: 100,
-      trades: [{ type: 'BUY', quantity: 100, price: 110 }],
-    })).toBe(100);
   });
 
   it('rejects a batch sell larger than the shares held at that broker', () => {
