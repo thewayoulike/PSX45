@@ -2,6 +2,32 @@ import { describe, it, expect } from 'vitest';
 import { parseMarketNews, newsCategory, newsTopics, mergeNewsItems, parseBusinessRecorderRss, parsePublisherRss } from './marketNews.js';
 const now = Date.parse('2026-10-19T12:00:00Z');
 const item = { title: 'PSX shares gain as investors return', url: 'https://www.brecorder.com/news/40123456?utm_source=rss', seendate: '20261019T110000Z', language: 'English' };
+describe.each([
+  { publisher: 'Business Recorder', url: 'https://www.brecorder.com/news/40445269/rupee-gains', parse: (xml: string) => parseBusinessRecorderRss(xml, now) },
+  { publisher: 'Dawn', url: 'https://www.dawn.com/news/1234567', parse: (xml: string) => parsePublisherRss(xml, 'dawn-business', now) },
+])('$publisher RSS article content', ({ url, parse }) => {
+  const headline = `<title><![CDATA[Rupee &amp; dollar update]]></title><link>${url}</link><pubDate>19 Oct 2026 11:00:00 GMT</pubDate>`;
+  const feed = (content = '') => `<rss><channel><item>${content}${headline}</item></channel></rss>`;
+
+  it('ignores HTML documents and RSS-like tags inside article CDATA', () => {
+    const embedded = `<content:encoded><![CDATA[<script type="text/plain"><!DOCTYPE html><html><title>Embedded chart</title></html></script><!ENTITY example "article text"><item><title>Fake story</title><link>${url}/fake</link><pubDate>19 Oct 2026 11:00:00 GMT</pubDate></item>]]></content:encoded>`;
+    const result = parse(feed(embedded));
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ title: 'Rupee & dollar update', url });
+    expect(JSON.stringify(result)).not.toMatch(/Embedded chart|Fake story|DOCTYPE|article text/);
+  });
+
+  it('still rejects XML DTD and entity declarations outside CDATA', () => {
+    expect(() => parse(`<!DOCTYPE rss [<!ENTITY external SYSTEM "https://example.com/entity">]>${feed()}`)).toThrow('Invalid publisher feed');
+    expect(() => parse(feed('<description><![CDATA[Harmless article]]></description><!ENTITY external "value">'))).toThrow('Invalid publisher feed');
+  });
+
+  it('does not accept an RSS document that exists only inside CDATA or a comment', () => {
+    expect(() => parse(`<![CDATA[${feed()}]]>`)).toThrow('Invalid publisher feed');
+    expect(() => parse(`<!--${feed()}-->`)).toThrow('Invalid publisher feed');
+  });
+});
+
 describe('market headline index', () => {
   it('retains multiple verified publishers, timestamps and topics through snapshot merges', () => {
     const rss = (title: string, url: string) => `<rss><channel><item><title>${title}</title><link>${url}</link><pubDate>Mon, 19 Oct 2026 11:00:00 GMT</pubDate><description>Private article body must not be retained</description></item></channel></rss>`;
