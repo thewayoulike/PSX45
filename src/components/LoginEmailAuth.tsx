@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { TRIAL_DAYS } from '../../config/product.js';
+import { SUPPORT_EMAIL } from '../../config/site.js';
 import { GoogleAuthButton } from './GoogleAuthButton';
 import { signUp, signIn, isAuthConfigured, requestPasswordReset } from '../services/auth';
 import { signInWithDrive } from '../services/driveStorage';
@@ -103,7 +104,7 @@ const LoginEmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin?: () 
       <p className="text-[11px] text-slate-600 dark:text-slate-400 text-center mt-4 leading-snug">
         {tab === 'signup'
           ? `New accounts get a ${TRIAL_DAYS}-day full free trial from the moment they sign up — then Free forever with limits, or upgrade to Paid.`
-          : "Can't get in? Email itruth2011@gmail.com and we'll help."}
+          : `Can't get in? Email ${SUPPORT_EMAIL} and we'll help.`}
       </p>
 
       <div className="flex items-center gap-3 my-5">

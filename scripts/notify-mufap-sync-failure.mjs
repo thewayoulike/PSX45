@@ -2,7 +2,7 @@
  * Email the owner when MUFAP NAV sync fails (Brevo).
  * Env (GitHub Actions secrets):
  *   BREVO_API_KEY — required
- *   MUFAP_SYNC_ALERT_EMAIL — optional; defaults to OWNER_EMAIL / itruth2011@gmail.com
+ *   MUFAP_SYNC_ALERT_EMAIL — optional; defaults to OWNER_EMAIL / psxtracking@gmail.com
  *   BREVO_SENDER / OWNER_EMAIL — From address (must be verified in Brevo)
  *   GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_SERVER_URL — from Actions
  */
@@ -31,7 +31,7 @@ export async function notifyMufapSyncFailure(env = process.env, send = sendBrevo
   const to = (
     env.MUFAP_SYNC_ALERT_EMAIL
     || env.OWNER_EMAIL
-    || 'itruth2011@gmail.com'
+    || 'psxtracking@gmail.com'
   ).trim();
 
   if (!env.BREVO_API_KEY) {

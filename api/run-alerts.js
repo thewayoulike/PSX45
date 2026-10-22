@@ -89,7 +89,7 @@ export default async function handler(req, res) {
     if (!pubKey || !privKey) {
       return res.status(500).json({ error: 'CRITICAL ERROR: VAPID keys are missing.' });
     }
-    webpush.setVapidDetails('mailto:itruth2011@gmail.com', pubKey, privKey);
+    webpush.setVapidDetails('mailto:psxtracking@gmail.com', pubKey, privKey);
 
     const records = (await getAllRecords()).filter(({ rec }) => rec?.alerts?.length);
     if (!records.length) return res.status(200).json({ message: 'No active alerts' });

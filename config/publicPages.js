@@ -17,7 +17,7 @@ export const publicPages = {
   privacy: {
     title: 'Privacy Policy', eyebrow: 'Your information',
     description: 'How PSX Tracker uses account details, local portfolio records, Google Drive, optional Gmail imports, alerts and support messages.',
-    intro: 'This page explains what the app stores and what optional features share. Last updated 19 September 2026.',
+    intro: 'This page explains what the app stores and what optional features share. Last updated 22 October 2026.',
     sections: [
       ['Who to contact', `PSX Tracker support can be reached at ${SUPPORT_EMAIL} or WhatsApp ${SUPPORT_PHONE}. Use the Contact page for questions about your information or to request account deletion.`],
       ['Account and service information', 'Google provides your account email, name and profile picture when you sign in. Email sign-in and password recovery are handled by Supabase Auth. The service stores access approval, plan dates, alert settings and notification destinations. It also stores approval-token hashes, cloud version numbers and backup file identifiers. These records let us manage access, send requested alerts and detect conflicting saves.'],
@@ -34,7 +34,7 @@ export const publicPages = {
   terms: {
     title: 'Terms & Conditions', eyebrow: 'Using PSX Tracker',
     description: 'Terms for using PSX Tracker accounts, portfolio tools, market data, subscriptions and optional connected services.',
-    intro: 'Please read these terms before creating an account or using the service. Last updated 17 September 2026.',
+    intro: 'Please read these terms before creating an account or using the service. Last updated 22 October 2026.',
     sections: [
       ['The service', 'PSX Tracker provides portfolio record-keeping and research tools. It does not act as a broker, hold your investments or money, or execute real trades. Its trading simulator is a simulation. It is independent of Pakistan Stock Exchange.'],
       ['Your account', 'Use an email address you control and keep your credentials private. You are responsible for the records and documents you enter and for activity you authorize. Do not impersonate another person, bypass access limits, misuse APIs, interfere with the service or upload information you are not entitled to use. Contact support if you suspect unauthorized access.'],

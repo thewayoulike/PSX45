@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, RefreshCw, Loader2, Copy, Check, Mail, CreditCard, X } from 'lucide-react';
 import { PAID_PLAN_PRICES } from '../../config/product.js';
+import { SUPPORT_EMAIL } from '../../config/site.js';
 
 interface Props {
   email: string;
@@ -10,7 +11,7 @@ interface Props {
   subtitle?: string;
 }
 
-const PAY_EMAIL = ((import.meta as any).env?.VITE_OWNER_EMAIL || 'itruth2011@gmail.com');
+const PAY_EMAIL = SUPPORT_EMAIL;
 
 const PLANS: { label: string; perMonth: string; total: string; best?: boolean }[] = PAID_PLAN_PRICES.map((p) => ({
   label: p.label,

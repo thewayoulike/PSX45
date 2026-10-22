@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Clock, RefreshCw, LogOut, Loader2 } from 'lucide-react';
 import { Logo } from './ui/Logo';
+import { SUPPORT_EMAIL } from '../../config/site.js';
 
 interface Props {
   email: string;
@@ -41,7 +42,7 @@ export const PendingApproval: React.FC<Props> = ({ email, onRefresh, onSignOut }
           Your account (<span className="font-semibold text-slate-700 dark:text-slate-300">{email}</span>) is currently switched off.
         </p>
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-7">
-          Email <a className="font-semibold text-emerald-600 underline" href="mailto:itruth2011@gmail.com">itruth2011@gmail.com</a> to have it switched back on.
+          Email <a className="font-semibold text-emerald-600 underline" href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a> to have it switched back on.
         </p>
 
         <button

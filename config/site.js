@@ -1,5 +1,5 @@
 export const SITE_URL = 'https://www.psx-tracker.com';
-export const SUPPORT_EMAIL = 'itruth2011@gmail.com';
+export const SUPPORT_EMAIL = 'psxtracking@gmail.com';
 export const SUPPORT_PHONE = '+92 347 4440983';
 export const WHATSAPP_URL = 'https://wa.me/923474440983';
 /** Paste Google Search Console meta token here (or leave empty). */

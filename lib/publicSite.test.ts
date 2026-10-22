@@ -295,7 +295,7 @@ it('ships llms.txt, short titles, article schema, and real sitemap dates', () =>
   const sitemap = buildSitemapXml();
   expect(readFileSync('public/sitemap.xml', 'utf8')).toBe(sitemap);
   expect(sitemap).toContain('<loc>https://www.psx-tracker.com/about</loc><lastmod>2026-10-16</lastmod>');
-  expect(sitemap).toContain('<loc>https://www.psx-tracker.com/privacy</loc><lastmod>2026-09-19</lastmod>');
+  expect(sitemap).toContain('<loc>https://www.psx-tracker.com/privacy</loc><lastmod>2026-10-22</lastmod>');
   expect(sitemap).toContain('/guides/fifo-cost-basis-psx</loc><lastmod>2026-10-16</lastmod>');
   const dates = [...sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)].map((m) => m[1]);
   expect(new Set(dates).size).toBeGreaterThan(1);
