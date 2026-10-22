@@ -1,0 +1,17 @@
+name: Signup Reminders
+on:
+  schedule:
+    # 10:00 Pakistan time, daily
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Vercel API
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          test -n "$CRON_SECRET"
+          curl --fail-with-body --max-time 65 -H "Authorization: Bearer $CRON_SECRET" "https://psx-45-naeh.vercel.app/api/run-alerts?job=signup-reminders"

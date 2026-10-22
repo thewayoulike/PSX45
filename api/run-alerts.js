@@ -6,6 +6,10 @@ import { fetchPsxLatestCloses } from '../lib/psxOhlc.js';
 import { fetchPsx } from '../lib/psxPortal.js';
 import { applyPriceStack } from '../lib/priceStack.js';
 import { fetchPypsxQuotePrices } from '../lib/pypsxQuotes.js';
+import { runSignupReminders } from '../lib/signupReminders.js';
+import { serverDb } from '../lib/serverDb.js';
+import { sendBrevo } from '../lib/brevo.js';
+import { appOrigin } from '../lib/approvalTokens.js';
 
 // Fetch the PSX market-watch page once and return { TICKER: price }.
 async function fetchLivePrices() {
@@ -66,6 +70,17 @@ export default async function handler(req, res) {
   const startedAt = Date.now();
   if (!isCronAuthorized(req)) {
     return res.status(401).json({ error: 'Unauthorized. Invalid Secret.' });
+  }
+
+  // Shares this function because the Hobby plan caps the project at 12 functions.
+  if (req.query?.job === 'signup-reminders') {
+    try {
+      const result = await runSignupReminders({ db: serverDb(), send: sendBrevo, origin: appOrigin() });
+      return res.status(200).json({ success: true, ...result });
+    } catch (error) {
+      console.error('Signup reminders error:', error);
+      return res.status(500).json({ error: 'Signup reminders failed' });
+    }
   }
 
   try {

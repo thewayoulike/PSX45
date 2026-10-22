@@ -86,7 +86,7 @@ describe('account and cloud boundaries', () => {
     const r=res(); await requestAccess({method:'POST',body:{name:'<b>Member</b>'},headers:{}},r);
     expect(r.code).toBe(200);
     expect(r.body).toMatchObject({ approved: true, active: true, status: 'trial', pending: false, new: true });
-    expect(mocks.upsert.mock.calls[0][0]).toMatchObject({ approved: true, approved_at: expect.any(String) });
+    expect(mocks.upsert.mock.calls[0][0]).toMatchObject({ approved: true, approved_at: expect.any(String), registered_at: expect.any(String) });
     const [to, subject, html] = mocks.mail.mock.calls[0];
     expect(to).toBe('admin@example.invalid'); expect(subject).toContain('new user registered');
     expect(html).toContain('owner@example.invalid'); expect(html).toContain('&lt;b>Member'); expect(html).not.toContain('approv');
