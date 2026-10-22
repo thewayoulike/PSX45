@@ -9,6 +9,7 @@ import { renderHowItWorksBody } from './howItWorks.js';
 import { publicPages } from '../config/publicPages.js';
 import { guidePages } from '../config/guidePages.js';
 import { feedbackLinks, SUPPORT_EMAIL, PUBLIC_LINKS } from '../config/site.js';
+import { analyticsScriptTags } from './seoJsonLd.js';
 
 it.each(Object.keys(publicPages))('%s has unique server-rendered content and its own canonical URL', (slug) => {
   const html = renderPublicPage(slug);
@@ -18,6 +19,8 @@ it.each(Object.keys(publicPages))('%s has unique server-rendered content and its
   expect(html).not.toContain('src="/src/');
   expect(html.match(/<h1>/g)).toHaveLength(1);
   expect(html).toContain('googletagmanager.com/gtag/js');
+  expect(html.split('</head>')[0]).toContain(analyticsScriptTags());
+  expect(html.match(/<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?/g)).toHaveLength(1);
 });
 
 it('guide hub and each guide have unique canonical URLs and CTAs', () => {

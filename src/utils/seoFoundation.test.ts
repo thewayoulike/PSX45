@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { TRIAL_DAYS } from '../../config/product.js';
 import { guidePages } from '../../config/guidePages.js';
-import { GOOGLE_ANALYTICS_ID } from '../../config/site.js';
+import { GOOGLE_ANALYTICS_ID, GOOGLE_ADS_ID } from '../../config/site.js';
 import { homeJsonLdScriptTags, verificationMetaTag, analyticsScriptTags } from '../../lib/seoJsonLd.js';
 
 const root = process.cwd();
@@ -77,19 +77,24 @@ describe('SEO foundation', () => {
     expect(read('src/components/App.tsx')).toContain("CALCS: '/calculators'");
   });
 
-  it('ships GA4 tags when a Measurement ID is configured', () => {
+  it('shares one Google tag between Analytics and Ads across app and public pages', () => {
     expect(GOOGLE_ANALYTICS_ID).toMatch(/^G-[A-Z0-9]+$/i);
-    expect(analyticsScriptTags('')).toBe('');
-    expect(analyticsScriptTags('bad')).toBe('');
+    expect(GOOGLE_ADS_ID).toBe('AW-18531621415');
+    expect(analyticsScriptTags('', '')).toBe('');
+    expect(analyticsScriptTags('bad', "AW-1');alert(1)//")).toBe('');
     const tags = analyticsScriptTags();
     expect(tags.match(/<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=[^"]+"><\/script>/g)).toHaveLength(1);
     expect(tags).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
     expect(tags).toContain(`gtag('config', '${GOOGLE_ANALYTICS_ID}')`);
+    expect(tags).toContain(`gtag('config', '${GOOGLE_ADS_ID}')`);
+    expect(analyticsScriptTags('', GOOGLE_ADS_ID)).toContain(`gtag/js?id=${GOOGLE_ADS_ID}`);
+    expect(analyticsScriptTags(GOOGLE_ANALYTICS_ID, '')).not.toContain("gtag('config', 'AW-");
     const html = expandHome(read('index.html'));
     const head = html.split('</head>')[0];
     expect(head.match(/<script async src="https:\/\/www\.googletagmanager\.com\/gtag\/js\?id=[^"]+"><\/script>/g)).toHaveLength(1);
     expect(html).toContain(`gtag/js?id=${GOOGLE_ANALYTICS_ID}`);
     expect(html).toContain(`gtag('config', '${GOOGLE_ANALYTICS_ID}')`);
+    expect(head).toContain(`gtag('config', '${GOOGLE_ADS_ID}')`);
     expect(read('vercel.json')).toContain('googletagmanager.com');
     expect(read('vercel.json')).toContain('google-analytics.com');
     expect(read('vercel.json')).toMatch(/script-src[^"]*unsafe-inline|sha256-/);

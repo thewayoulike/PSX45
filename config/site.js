@@ -4,8 +4,10 @@ export const SUPPORT_PHONE = '+92 347 4440983';
 export const WHATSAPP_URL = 'https://wa.me/923474440983';
 /** Paste Google Search Console meta token here (or leave empty). */
 export const GOOGLE_SITE_VERIFICATION = '';
-/** GA4 Measurement ID (G-…). Empty disables the tag. */
+/** GA4 Measurement ID (G-…). Empty disables this destination. */
 export const GOOGLE_ANALYTICS_ID = 'G-Q82NMWSH9X';
+/** Google Ads destination, sharing the existing Google tag loader. */
+export const GOOGLE_ADS_ID = 'AW-18531621415';
 export const PUBLIC_LINKS = [
   ['How it works', '/how-it-works'], ['Video guide', '/how-to-use'], ['Guides', '/guides'], ['Markets', '/markets'], ['Tools', '/tools'], ['About', '/about'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact'],
 ];
