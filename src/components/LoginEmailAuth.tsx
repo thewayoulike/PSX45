@@ -33,7 +33,7 @@ const LoginEmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin?: () 
       if (tab === 'signup') {
         await signUp(name.trim(), email.trim(), password);
         setStatus('signup-done');
-        setMsg('Check your inbox for an email confirmation if required, then log in to request access. Owner approval starts your trial.');
+        setMsg('Check your inbox for an email confirmation if required, then log in. Your free trial starts straight away.');
       } else {
         await signIn(email.trim(), password);
         onAuthSuccess?.(); // App re-checks session + approval and routes accordingly
@@ -102,8 +102,8 @@ const LoginEmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin?: () 
 
       <p className="text-[11px] text-slate-600 dark:text-slate-400 text-center mt-4 leading-snug">
         {tab === 'signup'
-          ? `New accounts get a ${TRIAL_DAYS}-day full free trial after a quick owner approval — then Free forever with limits, or upgrade to Paid.`
-          : "Signed up but can't get in yet? Your account may still be pending approval."}
+          ? `New accounts get a ${TRIAL_DAYS}-day full free trial from the moment they sign up — then Free forever with limits, or upgrade to Paid.`
+          : "Can't get in? Email itruth2011@gmail.com and we'll help."}
       </p>
 
       <div className="flex items-center gap-3 my-5">

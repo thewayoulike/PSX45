@@ -842,7 +842,7 @@ const App: React.FC = () => {
           const stillThisAccount = () => { try { return JSON.parse(localStorage.getItem('psx_drive_user_profile') || '{}').email?.toLowerCase() === user.email.toLowerCase(); } catch { return false; } };
           try { if (preparePortfolioAccount(user.email)) { window.location.reload(); return; } }
           catch { setIsAuthChecking(false); setCloudSyncError('Account switch paused: previous local records could not be archived.'); setShowLogin(true); return; }
-          // Gate Google sign-in by owner approval + subscription (same allowlist).
+          // Gate Google sign-in by account status + subscription (same allowlist).
           const handoff = approvedDriveHandoff.current;
           approvedDriveHandoff.current = null;
           const st = handoff?.email === user.email.toLowerCase() && handoff.until > Date.now()

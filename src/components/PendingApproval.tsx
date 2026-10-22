@@ -36,12 +36,12 @@ export const PendingApproval: React.FC<Props> = ({ email, onRefresh, onSignOut }
         <div className="w-16 h-16 rounded-3xl bg-amber-50 dark:bg-amber-500/10 text-amber-500 border border-amber-100 dark:border-amber-500/20 flex items-center justify-center mx-auto mb-5">
           <Clock size={30} />
         </div>
-        <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight mb-2">Waiting for approval</h2>
+        <h2 className="text-2xl font-display font-black text-slate-900 dark:text-white tracking-tight mb-2">Account not active</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-1">
-          Thanks for signing up! Your account (<span className="font-semibold text-slate-700 dark:text-slate-300">{email}</span>) is pending approval.
+          Your account (<span className="font-semibold text-slate-700 dark:text-slate-300">{email}</span>) is currently switched off.
         </p>
         <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed mb-7">
-          You'll get an email as soon as it's activated — then just log in again.
+          Email <a className="font-semibold text-emerald-600 underline" href="mailto:itruth2011@gmail.com">itruth2011@gmail.com</a> to have it switched back on.
         </p>
 
         <button
@@ -49,7 +49,7 @@ export const PendingApproval: React.FC<Props> = ({ email, onRefresh, onSignOut }
           disabled={checking}
           className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold py-3 rounded-xl shadow-md shadow-emerald-600/20 transition-all hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-2 mb-3"
         >
-          {checking ? <><Loader2 size={18} className="animate-spin" /> Checking…</> : <><RefreshCw size={17} /> I've been approved — check now</>}
+          {checking ? <><Loader2 size={18} className="animate-spin" /> Checking…</> : <><RefreshCw size={17} /> Check again</>}
         </button>
         <button
           onClick={onSignOut}

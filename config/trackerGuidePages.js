@@ -207,7 +207,7 @@ export const trackerGuidePages = {
     sections: [
       ['During the trial',
         `While the trial is active you can explore the full toolset under the product’s trial rules. Starting does not require entering a card in-app for the trial itself.`,
-        'Access may still require owner approval before the trial clock meaningfully starts. If you are stuck on a pending screen, use the status messaging and contact paths on the site.'],
+        'The trial clock starts the moment you sign up. If an account screen ever stops you from getting in, email itruth2011@gmail.com.'],
       ['Free after the trial',
         'When the trial ends, Free access can continue inside published limits — for example caps on alerts, scans or other tools described on the homepage and plan materials.',
         'Free is meant to remain useful for core tracking; it is not a promise of every premium research feature forever.'],

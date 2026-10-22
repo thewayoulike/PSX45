@@ -23,7 +23,7 @@ export interface AppAuthUser {
   name?: string;
 }
 
-/** Create an account (approved = false) and alert the owner to approve it. */
+/** Create an account; the server starts its trial and notifies the owner. */
 export const signUp = async (name: string, email: string, password: string) => {
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -32,8 +32,6 @@ export const signUp = async (name: string, email: string, password: string) => {
   });
   if (error) throw error;
 
-  // Add them to the allowlist as pending and email the owner an approve link.
-  // resend=true so retrying a signup always re-sends the owner email.
   try { await checkApproval(email, name, true, true); } catch { /* signup already succeeded */ }
 
   return data;
@@ -41,8 +39,8 @@ export const signUp = async (name: string, email: string, password: string) => {
 
 /**
  * Ask the server whether an email is approved (works for BOTH email/password and
- * Google users). If `notify` is true and the email is new, it's added as pending
- * and the owner is emailed an approve link.
+ * Google users). If `notify` is true and the email is new, its trial starts
+ * and the owner is emailed that a new user registered.
  */
 export const checkApproval = async (email: string, name?: string, notify = false, resend = false): Promise<boolean> => {
   const st = await getAccessStatus(email, name, notify, resend);
@@ -68,8 +66,8 @@ export interface AccessStatus {
 
 /**
  * Full access picture for an email (trial / free / paid / lifetime). If
- * `notify` is true and the email is new, it's added as pending and the owner
- * is emailed an approve link (unchanged behaviour).
+ * `notify` is true and the email is new, its trial starts and the owner is
+ * emailed that a new user registered.
  */
 const accessRequests = new Map<string, Promise<AccessStatus>>();
 export const getAccessStatus = (email: string, name?: string, notify = false, resend = false): Promise<AccessStatus> => {

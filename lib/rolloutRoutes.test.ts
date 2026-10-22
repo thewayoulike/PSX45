@@ -1,12 +1,12 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   user: { ok: true, user: { email: 'owner@example.invalid' } } as any,
-  row: null as any, rpc: vi.fn(), upsert: vi.fn(), mail: vi.fn(), limits: vi.fn(),
+  row: null as any, rpc: vi.fn(), upsert: vi.fn(), mail: vi.fn(), limits: vi.fn(), sharedLimit: vi.fn(),
 }));
 vi.mock('./serverDb.js', () => ({ serverDb: () => ({ rpc: mocks.rpc, from: () => ({
   select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: mocks.row, error: null }) }) }), upsert: mocks.upsert,
 }) }) }));
-vi.mock('./sharedRateLimit.js', () => ({ limitRequest: mocks.limits, sharedRateLimit: async () => false }));
+vi.mock('./sharedRateLimit.js', () => ({ limitRequest: mocks.limits, sharedRateLimit: mocks.sharedLimit }));
 vi.mock('./requireOnlineUser.js', () => ({ requireOnlineUser: async () => mocks.user }));
 vi.mock('./brevo.js', () => ({ sendBrevo: mocks.mail, escapeHtml: (s: string) => s.replaceAll('<','&lt;') }));
 import approve from '../api/approve-user.js';
@@ -19,7 +19,7 @@ const token = 'a'.repeat(64);
 function res() { return { code:0, body:undefined as any, setHeader:vi.fn(), status(n:number) {this.code=n;return this;}, send(b:any){this.body=b;return this;}, json(b:any){this.body=b;return this;}, end(){return this;} }; }
 beforeEach(() => {
   vi.clearAllMocks(); mocks.row=null; mocks.user={ok:true,user:{email:'owner@example.invalid'}};
-  mocks.limits.mockResolvedValue(true); mocks.upsert.mockResolvedValue({error:null});
+  mocks.limits.mockResolvedValue(true); mocks.sharedLimit.mockResolvedValue(false); mocks.upsert.mockResolvedValue({error:null});
   vi.stubEnv('APP_URL','https://app.example.invalid'); vi.stubEnv('ADMIN_SECRET',undefined);
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -80,6 +80,21 @@ describe('account and cloud boundaries', () => {
     const bad=res(); await requestAccess({method:'POST',body:{email:'someone@example.invalid'},headers:{}},bad); expect(bad.code).toBe(403);
     const r=res(); await requestAccess({method:'POST',body:{name:'Member'},headers:{}},r); expect(r.code).toBe(200);
     expect(mocks.upsert.mock.calls[0][0].email).toBe('owner@example.invalid');
+  });
+  it('lets a new user straight in on a trial and tells the owner they registered', async () => {
+    vi.stubEnv('OWNER_EMAIL', 'admin@example.invalid'); mocks.sharedLimit.mockResolvedValue(true);
+    const r=res(); await requestAccess({method:'POST',body:{name:'<b>Member</b>'},headers:{}},r);
+    expect(r.code).toBe(200);
+    expect(r.body).toMatchObject({ approved: true, active: true, status: 'trial', pending: false, new: true });
+    expect(mocks.upsert.mock.calls[0][0]).toMatchObject({ approved: true, approved_at: expect.any(String) });
+    const [to, subject, html] = mocks.mail.mock.calls[0];
+    expect(to).toBe('admin@example.invalid'); expect(subject).toContain('new user registered');
+    expect(html).toContain('owner@example.invalid'); expect(html).toContain('&lt;b>Member'); expect(html).not.toContain('approv');
+  });
+  it('leaves a disabled account disabled and sends no email', async () => {
+    mocks.row = { approved: false }; mocks.sharedLimit.mockResolvedValue(true);
+    const r=res(); await requestAccess({method:'POST',body:{},headers:{}},r);
+    expect(r.body.status).toBe('pending'); expect(mocks.upsert).not.toHaveBeenCalled(); expect(mocks.mail).not.toHaveBeenCalled();
   });
   it('cloud commits use authenticated owner and surface a CAS conflict', async () => {
     mocks.rpc.mockResolvedValue({data:{conflict:true,revision:2,fileId:'fileBBBBBBBBBB'},error:null});

@@ -525,7 +525,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
               Add to your home screen and it works like a native app, including offline viewing.
             </Feature>
             <Feature Icon={Wallet} title={`${TRIAL_DAYS}-Day Full Trial`} tint="bg-purple-50 dark:bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-100 dark:border-purple-500/20">
-              Full access for {TRIAL_DAYS} days after approval — then Free forever with limits, or upgrade to Paid for unlimited.
+              Full access for {TRIAL_DAYS} days from sign-up — then Free forever with limits, or upgrade to Paid for unlimited.
             </Feature>
           </div>
           <p className="text-center mt-6"><a href="/privacy" className="underline text-sm text-emerald-700 dark:text-emerald-400">Read our full Privacy Policy</a></p>
@@ -558,7 +558,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           <SectionHead
             eyebrow="Pricing"
             title="Free vs Paid"
-            sub={`${TRIAL_DAYS}-day full trial after approval — no card. Then stay on Free forever with limits, or unlock everything with Paid.`}
+            sub={`${TRIAL_DAYS}-day full trial from sign-up — no card. Then stay on Free forever with limits, or unlock everything with Paid.`}
           />
 
           {/* Free vs Paid comparison */}
@@ -624,7 +624,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
           <SectionHead
             eyebrow="Get Started"
             title={`Start your ${TRIAL_DAYS}-day full trial`}
-            sub="Create an account (quick owner approval) or sign in with Google. After the trial you stay on Free with limits — or upgrade to Paid anytime."
+            sub="Create an account or sign in with Google and start straight away. After the trial you stay on Free with limits — or upgrade to Paid anytime."
           />
 
           <LoginDeferred requested={authRequested} fallback={formFallback}><EmailAuth onAuthSuccess={onAuthSuccess} onGoogleLogin={onGoogleLogin} /></LoginDeferred>
