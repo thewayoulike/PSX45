@@ -171,6 +171,20 @@ it('CSP drops paid scraper hosts and blocks inline event handlers', () => {
   expect(csp).not.toContain('webscraping.ai');
 });
 
+it('allows the configured Ads beacon script without allowing all DoubleClick scripts', () => {
+  const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
+  const csp = config.headers.find((h: any) => h.source === '/(.*)').headers
+    .find((h: any) => h.key === 'Content-Security-Policy').value as string;
+  const scriptSources = csp.split(';').map(part => part.trim())
+    .find(part => part.startsWith('script-src '))!.split(/\s+/).slice(1);
+  // Tag Assistant observed this JSONP beacon blocked by the script policy.
+  expect(scriptSources).toContain('https://googleads.g.doubleclick.net/pagead/viewthroughconversion/18531621415/');
+  expect(scriptSources).not.toContain('https://googleads.g.doubleclick.net');
+  expect(scriptSources).not.toContain('https:');
+  expect(scriptSources).not.toContain('*');
+  expect(csp).toContain("script-src-attr 'none'");
+});
+
 it('sitemap excludes signed-in pages and hosting excludes them from indexing', () => {
   const sitemap = readFileSync('public/sitemap.xml', 'utf8');
   expect(sitemap).not.toContain('/suggestions');
