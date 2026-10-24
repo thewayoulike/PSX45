@@ -22,10 +22,10 @@ This is a TypeScript app implementation. It does not install or execute the orig
 
 ## Boundaries and storage
 
-- Navigation and route wiring are the only integration with the main app. Existing scanners, watchlists, backtests and Practice Trading remain separate.
+- Navigation, route wiring and the existing Google Drive connection integrate with the main app. Existing scanners, watchlists, backtests and Practice Trading remain separate.
 - Read-only requests use the existing daily OHLC proxy, direct pyPSX intraday route, company feed, news feed and insider feed. No new serverless function is required.
-- Watchlist and up to 100 immutable plan snapshots are stored under `psx-trading-lab:v1:<normalized-email>` in this browser. They are not sent to Drive and are not cross-device backups. The journal can be exported to JSON.
-- No credentials, portfolio transactions, balances or brokerage sessions are consumed by the lab. Market data errors remain visible; missing history does not trigger fabricated data or inferred signals.
+- The scanned watchlist and saved plans (including notes, costs and entry-source dates) sync to a separate `PSX Tracker - Trading Lab.json` Drive file when connected. The local copy remains under `psx-trading-lab:v1:<normalized-email>`. The UI allows creating up to 100 plans; cross-device merges retain all plans even if their combined count exceeds 100. The journal can also be exported to JSON.
+- The existing account-checked Drive session is used only for the separate journal. No portfolio transactions, balances or brokerage sessions are consumed by the lab. Market data errors remain visible; missing history does not trigger fabricated data or inferred signals.
 
 ## Market and model assumptions
 
@@ -47,4 +47,12 @@ Automated coverage includes Pakistan session boundaries, unfinished candles, mis
 
 ## Beginner workflow and chart interaction
 
-An in-page beginner guide explains the six-step research workflow, OHLC candles, fees, position sizing, R, replay outcomes and browser-only journal storage. The daily OHLC chart supports 30/60/90-session windows, pointer/touch inspection and keyboard navigation. Historical breakout levels may populate a hypothetical plan, retaining the original timestamp in the saved journal. Daily and intraday feeds publish independently so replay becomes available as soon as intraday data arrives; loading and unavailable states explain disabled actions.
+An in-page beginner guide explains the six-step research workflow, OHLC candles, fees, position sizing, R, replay outcomes and separate Drive journal storage. The daily OHLC chart supports 30/60/90-session windows, pointer/touch inspection and keyboard navigation. Historical breakout levels may populate a hypothetical plan, retaining the original timestamp in the saved journal. Daily and intraday feeds publish independently so replay becomes available as soon as intraday data arrives; loading and unavailable states explain disabled actions.
+
+## Drive sync safety
+
+Sync runs on opening the lab, saving a plan/scanned watchlist, focus, reconnection and once per minute while visible. It merges immutable tickets by ID and uses the latest dated watchlist. New devices load the Drive journal; local edits made during an upload remain pending and are retried. Invalid cloud files and conflicting ticket contents block replacement, rather than silently dropping plans. The app warns before closing or signing out with pending lab changes.
+
+Drive writes are immutable uploads tagged `psxWorkspace=trading-lab-v1`, using the existing `drive.file` permission. Each upload is read back and verified before previously observed, fully incorporated copies are moved to Drive Trash. A concurrent device's unseen file is never retired. Concurrent copies are merged on the next sync; no database migration or portfolio file update is involved. There can briefly be multiple same-named files.
+
+Only saved plans and the scanned watchlist sync. Unsaved form edits, fetched candles, research feeds and replay results are recomputed, not backed up.

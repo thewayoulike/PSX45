@@ -8,7 +8,7 @@ const steps:{title:string;text:string;section:Section;action:string}[]=[
   {title:'Check the business and news',text:'Research shows the company profile, source filings, disclosed insider transactions and market headlines. Check their dates. An old disclosure or a market-wide headline may not explain today’s move in your stock.',section:'Research',action:'Open Research'},
   {title:'Build a hypothetical plan',text:'In Trade plan, set an entry price, a lower stop and a higher target. Enter test capital, risk limit, position cap and realistic costs. Starting levels are examples. Use historical breakout levels copies a past setup for testing and keeps its date.',section:'Trade plan',action:'Build a test plan'},
   {title:'Test the idea',text:'Replay available history tests the opening-range rule on complete sessions. Run test scenario resamples your current plan across 10,000 historical paths. Read the costs, excluded sessions and sample size; the results do not predict your next trade.',section:'Replay',action:'Open Replay'},
-  {title:'Save your reasoning',text:'Add a research note and save the test plan. A low reward/risk warning still allows saving; invalid prices or an unfundable lot need correcting. Find it in Lab journal and export a backup. These plans stay in this browser under your login.',section:'Lab journal',action:'Open the journal'},
+  {title:'Save your reasoning',text:'Add a research note and save the test plan. A low reward/risk warning still allows saving; invalid prices or an unfundable lot need correcting. Find it in Lab journal and export a backup. Connect Google Drive to sync your saved plans and notes across devices. A local copy remains under your login.',section:'Lab journal',action:'Open the journal'},
 ];
 
 export function LabGuide({onChoose}:{onChoose:(section:Section)=>void}){
@@ -29,7 +29,7 @@ export function LabGuide({onChoose}:{onChoose:(section:Section)=>void}){
       </dl>
       <details><summary>Why is a button disabled?</summary><p>Replay waits for real 5-minute candles. A loading message appears while the feed responds; use Refresh if the feed fails. Saving needs daily source data, valid prices and a quantity the test budget can fund. A low reward/risk warning does not block saving or simulation.</p></details>
       <details><summary>How should I read replay results?</summary><p>Target first and Stop first count modeled outcomes. Neither before close means the position reached neither level before the session ended; it does not mean profit or zero return. Average after-cost R includes fees and slippage. Missing candles exclude sessions, and a candle touching both levels counts as a stop first. Small samples and past results can be misleading.</p></details>
-      <details><summary>Will this change my portfolio or place an order?</summary><p>No. The lab stores separate research plans only. It does not change your portfolio, connect to your broker or update Practice Trading. Use Export journal to keep a copy before clearing browser data or moving devices.</p></details>
+      <details><summary>Will this change my portfolio or place an order?</summary><p>No. The lab stores separate research plans only. It does not change your portfolio, connect to your broker or update Practice Trading. Check that the Drive status says Saved to Drive before moving devices. Unsynced work remains on this device; Export journal gives you another backup.</p></details>
     </div>}
   </section>;
 }

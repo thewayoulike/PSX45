@@ -3,6 +3,7 @@ import { PriceStaleNotice } from './PriceStaleNotice';
 import { SectionBoundary } from './SectionBoundary';
 import { setUnsavedLocalChanges, setRecoveryEditorOpen } from '../utils/chunkRecovery';
 import { installCloudExitGuard, UNSAVED_LOGOUT_MESSAGE } from '../utils/cloudExitGuard';
+import {hasPendingLab} from '../features/tradingLab/storage';
 import { scrubSecretsFromRecoveryCopies } from '../utils/localAccount';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
@@ -651,9 +652,10 @@ const App: React.FC = () => {
   });
 
   const handleManualLogout = () => {
-      const unsaved = !!driveUser && (localDirtyRef.current || !!getPendingCloud());
+      const portfolioUnsaved = !!driveUser && (localDirtyRef.current || !!getPendingCloud());
+      const unsaved = portfolioUnsaved || hasPendingLab(driveUser?.email || sbUser?.email || '');
       if (!window.confirm(unsaved ? UNSAVED_LOGOUT_MESSAGE : 'Sign out of PSX Tracker?')) return;
-      if (unsaved) {
+      if (portfolioUnsaved) {
           try { preserveCloudDraft(cloudSnapshotRef.current()); }
           catch { alert('Your changes could not be kept on this device. Please finish syncing or download a local copy before signing out.'); return; }
       }
@@ -1932,11 +1934,11 @@ const App: React.FC = () => {
   });
   const cloudSnapshotRef = useRef(getCloudSnapshot);
   cloudSnapshotRef.current = getCloudSnapshot;
-  const cloudExitState = useRef({ connected: false });
-  cloudExitState.current = { connected: !!driveUser };
+  const cloudExitState = useRef({ connected: false,email:'' });
+  cloudExitState.current = { connected: !!driveUser,email:driveUser?.email || sbUser?.email || '' };
   useEffect(() => installCloudExitGuard(window, document,
-      () => cloudExitState.current.connected && (localDirtyRef.current || !!getPendingCloud()),
-      () => preserveCloudDraft(cloudSnapshotRef.current())), []);
+      () => hasPendingLab(cloudExitState.current.email) || (cloudExitState.current.connected && (localDirtyRef.current || !!getPendingCloud())),
+      () => {if(cloudExitState.current.connected&&(localDirtyRef.current||getPendingCloud()))preserveCloudDraft(cloudSnapshotRef.current());}), []);
 
 
   // Apply Drive plus safely combined local trades; unresolved differences stay local.
@@ -3099,8 +3101,8 @@ const App: React.FC = () => {
                               <LedgerCalculators />
                           </div>
                       )}
-                      {currentView === 'TRADING_LAB' && <TradingLab key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} />}
-                      {currentView === 'PRACTICE' && <PracticeTrading key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} />}
+                      {currentView === 'TRADING_LAB' && <TradingLab key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} />}
+                      {currentView === 'PRACTICE' && <PracticeTrading key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} />}
                       {currentView === 'SIMULATOR' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <TradingSimulator

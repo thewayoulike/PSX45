@@ -451,7 +451,7 @@ export function retrySheetExport() {
 }
 export type CloudSaveResult = { ok: true; savedAt: string; sheetId: string | null } | { ok: false; error: string };
 
-async function cloudSession(email: string) {
+export async function cloudSession(email: string) {
     const token = await getValidToken();
     if (!email || !token || currentEmail() !== email) throw new Error('Sign in to the same Google account to finish saving.');
     return async (url: string, options: RequestInit = {}) => {

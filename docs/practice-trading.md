@@ -48,3 +48,9 @@ across devices; they are never merged into the real portfolio ledger.
 Tests: `npx vitest run lib/practiceTrading.test.ts src/utils/driveBoot.test.ts`.
 Test credentials and isolated sandbox smoke scripts belong only in ignored local
 files. Production users must not receive test fixtures or authentication bypasses.
+
+## Google Drive backup
+
+Connected users get a separate `PSX Tracker - Practice Trading Backup.json` file. Opening an existing practice account, submitting/cancelling an order, or pressing **Back up now** collects the account, balances, positions, configuration and all order-history pages. It also refreshes every five minutes while this page is visible. A complete capture supports up to 10,000 orders; incomplete/changing histories fail visibly and leave previous backups intact. Quote values are observations during collection, not an atomic provider export.
+
+The upload is read back before success is displayed. The latest three observed backups are retained; older copies are moved to Drive Trash only after verification. Files use `psxWorkspace=practice-backup-v1` and the existing `drive.file` permission, with the same account check as portfolio storage. Tokens and partner credentials are never included. The Drive copy is for inspection/download; it is never replayed as orders or imported into the real portfolio. pyPSX remains authoritative for the active practice account.

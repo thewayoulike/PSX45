@@ -4,6 +4,7 @@ import { practiceRequest, type PracticeSnapshot, type PracticeQuote, type Practi
 import './practice-trading.css';
 import { readPracticePending, savePracticePending } from '../utils/practicePending';
 import { practiceTicketLocked } from '../utils/practiceTicket';
+import {PracticeDriveBackup} from './PracticeDriveBackup';
 
 const amount = (value: number | null | undefined) => value == null || !Number.isFinite(value) ? '—' : value.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const when = (value?: string) => value && Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString('en-PK', { timeZone: 'Asia/Karachi', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' PKT' : 'Time unavailable';
@@ -11,7 +12,8 @@ const label = (value = '') => value.replace(/_/g, ' ').toLowerCase();
 const pending = (status: string) => ['PENDING', 'PARTIALLY_FILLED', 'NEW', 'ACCEPTED', 'OPEN'].includes(status);
 type RequestFn = <T>(email: string, body: Record<string, unknown>) => Promise<T>;
 
-export const PracticeTrading: React.FC<{ email: string; request?: RequestFn }> = ({ email, request = practiceRequest }) => {
+export const PracticeTrading: React.FC<{ email: string; request?: RequestFn;driveConnected?:boolean;onConnectDrive?:()=>void }> = ({ email, request = practiceRequest,driveConnected=false,onConnectDrive }) => {
+  const [backupRevision,setBackupRevision]=useState(0);
   const [data, setData] = useState<PracticeSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -101,14 +103,14 @@ export const PracticeTrading: React.FC<{ email: string; request?: RequestFn }> =
       setUncertain(unknownOutcome);
       if (!unknownOutcome) savePracticePending(email, null);
     }
-    finally { submitting.current = false; setBusy(false); void refresh(true); }
+    finally { submitting.current = false; setBusy(false); void refresh(true);setBackupRevision(n=>n+1); }
   }
   async function cancel() {
     if (!cancelId || submitting.current) return;
     submitting.current = true; setBusy(true); setError('');
     try { await request(email, { action: 'cancel', orderId: cancelId }); setMessage('Practice order cancellation received.'); setCancelId(null); }
     catch (e) { setError(e instanceof Error ? e.message : 'Could not cancel this order.'); }
-    finally { submitting.current = false; setBusy(false); void refresh(true); }
+    finally { submitting.current = false; setBusy(false); void refresh(true);setBackupRevision(n=>n+1); }
   }
   const portfolio = data?.portfolio;
   const selectedQuote = quote?.symbol === symbol.trim().toUpperCase() ? quote : null;
@@ -121,6 +123,7 @@ export const PracticeTrading: React.FC<{ email: string; request?: RequestFn }> =
       <button className="practice-button practice-secondary" onClick={() => void refresh()} disabled={loading || busy} aria-label="Refresh practice portfolio"><RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh</button>
     </header>
     <div className="practice-notice"><ShieldCheck size={18} /><span>All orders are simulated through pyPSX. No real money or shares are traded, and your real portfolio is unaffected.</span></div>
+    {data?.account&&<PracticeDriveBackup email={email} connected={driveConnected} onConnect={onConnectDrive} accountId={data.account.id} revision={backupRevision} request={request}/>}
     {error && <div className="practice-error" role="alert">{error}</div>}
     {message && <div className="practice-success" role="status">{message}</div>}
     {!data ? <div className="practice-panel practice-empty" role="status">{loading ? <><Loader2 className="animate-spin" /> Connecting to practice trading…</> : <><p>Practice trading could not be loaded.</p><button className="practice-button" onClick={() => void refresh()}>Try again</button></>}</div> : !data.account ?
