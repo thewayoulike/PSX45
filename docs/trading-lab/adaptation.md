@@ -12,7 +12,7 @@ This is a TypeScript app implementation. It does not install or execute the orig
 | trader-entry | First three full 5-minute candles after each continuous session opens; confirmation requires a subsequent close above the range. |
 | trader-exit | Editable stop and target; candle-based historical outcomes and manual journal level checks. |
 | trader-timemachine | Opening-range historical replay and 10,000 seeded historical resampling paths. |
-| trader-budget | Whole-lot sizing constrained by test capital, position cap and estimated stop risk, including fees and slippage. |
+| trader-budget | Whole-lot sizing constrained by test capital, position cap and estimated stop risk, including fees and slippage. Valid research plans below the chosen reward/risk threshold can be saved with a warning. |
 | trader-risk | Input and after-cost reward/risk checks; source timestamps and explicit execution limitations. |
 | trader-news | Existing public stock-market headline metadata, publisher attribution and article links. |
 | trader-analyst | PSX company profile and links to official financials/announcements. No generated analyst verdict. |
@@ -44,3 +44,7 @@ Default plan levels (2% stop, 5% target), capital, risk, position cap, fee/slipp
 ## Verification
 
 Automated coverage includes Pakistan session boundaries, unfinished candles, missing history/volume, first closing confirmation, sizing and costs, ambiguous candle outcomes, gap stops, no entry-candle lookahead, Friday separation, deterministic resampling with earlier-session-only inputs, local-storage isolation, invalid feeds and partial research failures. Browser previews use captured real PSX feed data and are labelled as recorded data; they are excluded from the production build.
+
+## Beginner workflow and chart interaction
+
+An in-page beginner guide explains the six-step research workflow, OHLC candles, fees, position sizing, R, replay outcomes and browser-only journal storage. The daily OHLC chart supports 30/60/90-session windows, pointer/touch inspection and keyboard navigation. Historical breakout levels may populate a hypothetical plan, retaining the original timestamp in the saved journal. Daily and intraday feeds publish independently so replay becomes available as soon as intraday data arrives; loading and unavailable states explain disabled actions.

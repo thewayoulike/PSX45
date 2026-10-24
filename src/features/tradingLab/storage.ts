@@ -14,7 +14,7 @@ export function readLab(email:string,storage:Pick<Storage,'getItem'>=localStorag
   try{
     const raw=JSON.parse(storage.getItem(labKey(email))||'null');if(!raw||typeof raw.watchlist!=='string'||!Array.isArray(raw.tickets))return fallback;
     parseWatchlist(raw.watchlist);
-    return {watchlist:raw.watchlist,tickets:raw.tickets.filter((t:any)=>t&&typeof t.id==='string'&&typeof t.createdAt==='string'&&typeof t.sourceDate==='string'&&typeof t.note==='string'&&t.plan&&sizePlan(t.plan).errors.length===0&&Number.isSafeInteger(t.quantity)&&t.quantity>0).slice(0,100)};
+    return {watchlist:raw.watchlist,tickets:raw.tickets.filter((t:any)=>t&&typeof t.id==='string'&&typeof t.createdAt==='string'&&typeof t.sourceDate==='string'&&typeof t.note==='string'&&(t.entrySource===undefined||typeof t.entrySource==='string')&&t.plan&&sizePlan(t.plan).errors.length===0&&Number.isSafeInteger(t.quantity)&&t.quantity>0).slice(0,100)};
   }catch{return fallback;}
 }
 export function writeLab(email:string,book:LabBook,storage:Pick<Storage,'setItem'>=localStorage){
