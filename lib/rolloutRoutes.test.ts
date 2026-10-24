@@ -1,12 +1,13 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   user: { ok: true, user: { email: 'owner@example.invalid' } } as any,
-  row: null as any, rpc: vi.fn(), upsert: vi.fn(), mail: vi.fn(), limits: vi.fn(), sharedLimit: vi.fn(),
+  row: null as any, rpc: vi.fn(), upsert: vi.fn(), update: vi.fn(), mail: vi.fn(), limits: vi.fn(), sharedLimit: vi.fn(), release: vi.fn(),
 }));
 vi.mock('./serverDb.js', () => ({ serverDb: () => ({ rpc: mocks.rpc, from: () => ({
   select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: mocks.row, error: null }) }) }), upsert: mocks.upsert,
+  update: () => ({ eq: mocks.update }),
 }) }) }));
-vi.mock('./sharedRateLimit.js', () => ({ limitRequest: mocks.limits, sharedRateLimit: mocks.sharedLimit }));
+vi.mock('./sharedRateLimit.js', () => ({ limitRequest: mocks.limits, sharedRateLimit: mocks.sharedLimit, releaseSharedRateLimit: mocks.release }));
 vi.mock('./requireOnlineUser.js', () => ({ requireOnlineUser: async () => mocks.user }));
 vi.mock('./brevo.js', () => ({ sendBrevo: mocks.mail, escapeHtml: (s: string) => s.replaceAll('<','&lt;') }));
 import approve from '../api/approve-user.js';
@@ -19,7 +20,7 @@ const token = 'a'.repeat(64);
 function res() { return { code:0, body:undefined as any, setHeader:vi.fn(), status(n:number) {this.code=n;return this;}, send(b:any){this.body=b;return this;}, json(b:any){this.body=b;return this;}, end(){return this;} }; }
 beforeEach(() => {
   vi.clearAllMocks(); mocks.row=null; mocks.user={ok:true,user:{email:'owner@example.invalid'}};
-  mocks.limits.mockResolvedValue(true); mocks.sharedLimit.mockResolvedValue(false); mocks.upsert.mockResolvedValue({error:null});
+  mocks.limits.mockResolvedValue(true); mocks.sharedLimit.mockResolvedValue(false); mocks.upsert.mockResolvedValue({error:null}); mocks.update.mockResolvedValue({error:null});
   vi.stubEnv('APP_URL','https://app.example.invalid'); vi.stubEnv('ADMIN_SECRET',undefined);
 });
 afterEach(() => vi.unstubAllEnvs());
@@ -95,6 +96,27 @@ describe('account and cloud boundaries', () => {
     mocks.row = { approved: false }; mocks.sharedLimit.mockResolvedValue(true);
     const r=res(); await requestAccess({method:'POST',body:{},headers:{}},r);
     expect(r.body.status).toBe('pending'); expect(mocks.upsert).not.toHaveBeenCalled(); expect(mocks.mail).not.toHaveBeenCalled();
+  });
+  it('sends the missed registration notice the next time a recent account opens the app', async () => {
+    vi.stubEnv('OWNER_EMAIL', 'admin@example.invalid'); mocks.sharedLimit.mockResolvedValue(true);
+    mocks.row = { approved: true, created_at: new Date().toISOString(), owner_notified_at: null, name: 'Asim' };
+    const r=res(); await requestAccess({method:'POST',body:{},headers:{}},r);
+    expect(r.code).toBe(200); expect(mocks.mail.mock.calls[0][2]).toContain('Asim');
+    expect(mocks.update).toHaveBeenCalled(); expect(mocks.upsert).not.toHaveBeenCalled();
+  });
+  it('does not repeat a notice that was already recorded, or mail an older account', async () => {
+    mocks.sharedLimit.mockResolvedValue(true);
+    mocks.row = { approved: true, created_at: new Date().toISOString(), owner_notified_at: '2026-10-23T00:00:00Z' };
+    await requestAccess({method:'POST',body:{},headers:{}},res());
+    mocks.row = { approved: true, created_at: '2026-01-01T00:00:00Z', owner_notified_at: null };
+    await requestAccess({method:'POST',body:{},headers:{}},res());
+    expect(mocks.mail).not.toHaveBeenCalled();
+  });
+  it('keeps the account usable and retries later when the notice fails to send', async () => {
+    mocks.sharedLimit.mockResolvedValue(true); mocks.mail.mockRejectedValue(new Error('Brevo 400: sender not valid'));
+    const r=res(); await requestAccess({method:'POST',body:{name:'Member'},headers:{}},r);
+    expect(r.code).toBe(200); expect(mocks.release).toHaveBeenCalledWith('signup-notice:owner@example.invalid');
+    expect(mocks.update).not.toHaveBeenCalled();
   });
   it('cloud commits use authenticated owner and surface a CAS conflict', async () => {
     mocks.rpc.mockResolvedValue({data:{conflict:true,revision:2,fileId:'fileBBBBBBBBBB'},error:null});
