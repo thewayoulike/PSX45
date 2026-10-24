@@ -18,9 +18,13 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -29,25 +33,22 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm install playwright xlsx --no-save
+          npm ci
+          npm install playwright --no-save --package-lock=false
           npx playwright install --with-deps chromium
 
       - name: Sync MUFAP NAV catalog
         run: node scripts/sync-mufap-nav.mjs
         env:
           MUFAP_LOOKBACK_DAYS: '5'
+          MUFAP_WRITE_EXCEL: '0'
 
       - name: Commit updated catalog
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: 'chore: sync MUFAP fund NAV catalog'
-          file_pattern: |
-            data/fund-nav-catalog.json
-            data/fund-nav-previous.json
-            public/data/fund-nav-catalog.json
+        run: node scripts/publish-mufap-catalog.mjs
 
       - name: Email owner on failure
         if: failure()
+        continue-on-error: true
         env:
           BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
           BREVO_SENDER: ${{ secrets.BREVO_SENDER }}

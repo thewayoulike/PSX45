@@ -1,13 +1,13 @@
 /**
  * Sync MUFAP NAV for latest available day + prior day → catalog / previousNavs / Excel.
  * Playwright first (real browser), jina relay as fallback. Walks back calendar days when
- * today’s page is empty/blocked so late AMC publishes don’t fail the job forever.
+ * reports are unpublished. Security blocks fail clearly without replacing saved prices.
  */
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import * as XLSX from 'xlsx';
-import { parseMufapNavHtml, isMufapBlockedPage } from '../lib/mufapParse.js';
+import { packNavReport, sourceError, fetchNavWithFallback } from '../lib/mufapFetch.js';
 import {
   pkToday,
   addDaysYmd,
@@ -15,37 +15,19 @@ import {
   candidatePrevNavDates,
 } from '../lib/mufapSyncDates.js';
 import { pruneMufapExcelFiles } from '../lib/mufapExcelPrune.js';
-import { assertCatalogNotShrunk, pickFallbackPrevious, sameFundData } from '../lib/mufapSyncGuards.js';
+import { assertCatalogNotShrunk, assertCatalogNotOlder, catalogNavDate, newestCatalog, preserveNewerFunds, pickFallbackPrevious, sameFundData } from '../lib/mufapSyncGuards.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
-const OUT = path.join(ROOT, 'data', 'fund-nav-catalog.json');
-const PREV_OUT = path.join(ROOT, 'data', 'fund-nav-previous.json');
 const MUFAP_BASE = 'https://www.mufap.com.pk/Industry/IndustryStatDaily?tab=3';
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS = 2;
 const LOOKBACK_DAYS = Number(process.env.MUFAP_LOOKBACK_DAYS || 5);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function mufapUrlForDay(dateYmd) {
+  if (!dateYmd) return MUFAP_BASE;
   return `${MUFAP_BASE}&AMCId=null&fundId=null&datefrom=${dateYmd}&datetill=${dateYmd}`;
-}
-
-function packFromHtml(html, dateYmd, source) {
-  if (isMufapBlockedPage(html)) throw new Error(`Blocked/empty page for ${dateYmd}`);
-  const funds = parseMufapNavHtml(html);
-  if (funds.length < 50) throw new Error(`Only ${funds.length} funds for ${dateYmd}`);
-  // Prefer majority fund validity over the page header — dated URL filters can leave a stale header.
-  const counts = {};
-  for (const f of funds) {
-    const v = (f.validityDate || '').trim();
-    if (!v) continue;
-    counts[v] = (counts[v] || 0) + 1;
-  }
-  const majorityValidity =
-    Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
-  const headerDate = (html.match(/Report Date:\s*([A-Za-z]+\s+\d{1,2},\s+\d{4})/i) || [])[1] || null;
-  return { html, funds, reportDate: majorityValidity || headerDate, dateYmd, source };
 }
 
 async function fetchDayHtmlPlaywright(dateYmd) {
@@ -59,20 +41,19 @@ async function fetchDayHtmlPlaywright(dateYmd) {
   console.log(`[sync-mufap] Fetching ${dateYmd} via playwright…`);
   const browser = await chromium.launch({ headless: true });
   try {
-    const page = await browser.newPage({
-      userAgent:
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    });
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    const page = await browser.newPage();
+    const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45_000 });
+    const error = sourceError(response?.status(), await page.content(), 'MUFAP browser');
+    if (error) throw error;
     try {
-      await page.waitForSelector('table tr.fund-block td, table tr td', { timeout: 30_000 });
+      await page.waitForSelector('table tr.fund-block td, table tr td', { timeout: 15_000 });
     } catch {
       /* parse will fail loudly if still empty */
     }
     // Table rows hydrate after first paint; short grace so AMC group headers land.
     await sleep(2500);
     const html = await page.content();
-    return packFromHtml(html, dateYmd, 'playwright');
+    return packNavReport(html, dateYmd, 'playwright');
   } finally {
     await browser.close();
   }
@@ -80,25 +61,21 @@ async function fetchDayHtmlPlaywright(dateYmd) {
 
 async function fetchDayHtmlJina(dateYmd) {
   const page = mufapUrlForDay(dateYmd);
-  const url = `https://r.jina.ai/http://${page.replace(/^https?:\/\//, '')}`;
+  const url = `https://r.jina.ai/${page}`;
   console.log(`[sync-mufap] Fetching ${dateYmd} via jina…`);
   const res = await fetch(url, {
     headers: { Accept: 'text/html,text/plain,*/*', 'User-Agent': 'PSX45-FundSync/1.0' },
     redirect: 'follow', signal: AbortSignal.timeout(45000),
   });
-  if (!res.ok) throw new Error(`jina HTTP ${res.status} for ${dateYmd}`);
   const html = await res.text();
-  return packFromHtml(html, dateYmd, 'relay:jina');
+  const error = sourceError(res.status, html, 'MUFAP relay');
+  if (error) throw error;
+  return packNavReport(html, dateYmd, 'relay:jina');
 }
 
 /** One attempt: Playwright first, then jina. */
 async function fetchDayHtmlOnce(dateYmd) {
-  try {
-    return await fetchDayHtmlPlaywright(dateYmd);
-  } catch (err) {
-    console.warn(`[sync-mufap] playwright failed for ${dateYmd}: ${err.message}`);
-    return await fetchDayHtmlJina(dateYmd);
-  }
+  return fetchNavWithFallback(() => fetchDayHtmlPlaywright(dateYmd), () => fetchDayHtmlJina(dateYmd));
 }
 
 async function fetchDayHtml(dateYmd, { required = true } = {}) {
@@ -111,6 +88,7 @@ async function fetchDayHtml(dateYmd, { required = true } = {}) {
       console.warn(
         `[sync-mufap] attempt ${attempt}/${MAX_ATTEMPTS} failed for ${dateYmd}: ${err.message}`,
       );
+      if (err.code === 'SOURCE_BLOCKED') throw err;
       if (attempt < MAX_ATTEMPTS) await sleep(1500 * attempt);
     }
   }
@@ -120,21 +98,22 @@ async function fetchDayHtml(dateYmd, { required = true } = {}) {
 }
 
 /** Newest date in the lookback window that returns a real NAV table. */
-async function fetchLatestAvailable(todayYmd) {
+async function fetchLatestAvailable(todayYmd, existing) {
   const dates = process.env.MUFAP_DATE
     ? [process.env.MUFAP_DATE]
-    : candidateNavDates(todayYmd, LOOKBACK_DAYS);
+    : [null, ...candidateNavDates(todayYmd, LOOKBACK_DAYS).filter(date => !existing || date >= catalogNavDate(existing))];
   let lastErr = null;
   for (const dateYmd of dates) {
     try {
       const pack = await fetchDayHtml(dateYmd, { required: true });
-      if (dateYmd !== todayYmd) {
-        console.warn(`[sync-mufap] Using ${dateYmd} (today ${todayYmd} had no usable NAV yet)`);
-      }
+      assertCatalogNotOlder({ catalog: fundsToCatalog(pack.funds), reportDate: pack.reportDate }, existing);
+      assertCatalogNotShrunk(pack.funds.length, Number(existing?.count) || 0, { allow: process.env.MUFAP_ALLOW_SHRINK === '1' });
+      console.log(`[sync-mufap] Validated NAV date ${pack.dateYmd} from ${dateYmd || 'the current report'}.`);
       return pack;
     } catch (err) {
       lastErr = err;
       console.warn(`[sync-mufap] no usable NAV for ${dateYmd}: ${err.message}`);
+      if (err.code === 'SOURCE_BLOCKED') throw err;
     }
   }
   throw lastErr || new Error(`No MUFAP NAV within ${LOOKBACK_DAYS} days of ${todayYmd}`);
@@ -191,12 +170,15 @@ function readJson(p) {
   try { return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null; } catch { return null; }
 }
 
-async function main() {
-  const anchor = process.env.MUFAP_DATE || pkToday();
+export async function main({ root = ROOT, anchor = process.env.MUFAP_DATE || pkToday(), latest = fetchLatestAvailable, previous = fetchDayHtml, dryRun = process.env.MUFAP_DRY_RUN === '1' } = {}) {
+  const OUT = path.join(root, 'data', 'fund-nav-catalog.json');
+  const PREV_OUT = path.join(root, 'data', 'fund-nav-previous.json');
+  const publicOut = path.join(root, 'public/data/fund-nav-catalog.json');
   console.log(`[sync-mufap] Anchor day=${anchor} lookback=${LOOKBACK_DAYS}`);
 
-  const todayPack = await fetchLatestAvailable(anchor);
-  const existing = readJson(OUT);
+  const existing = newestCatalog(readJson(OUT), readJson(publicOut));
+  const todayPack = await latest(anchor, existing);
+  assertCatalogNotOlder({ catalog: fundsToCatalog(todayPack.funds), reportDate: todayPack.reportDate }, existing);
   assertCatalogNotShrunk(todayPack.funds.length, Number(existing?.count) || 0, { allow: process.env.MUFAP_ALLOW_SHRINK === '1' });
   // Daily P&L “yesterday” = prior business/NAV day (Mon → Fri), not calendar -1.
   const prevDates = process.env.MUFAP_PREV_DATE
@@ -206,13 +188,18 @@ async function main() {
   let ydayPack = null;
   let yesterdayUsed = prevDates[0] || addDaysYmd(todayPack.dateYmd, -1);
   for (const dateYmd of prevDates) {
-    const pack = await fetchDayHtml(dateYmd, { required: false });
+    let pack;
+    try { pack = await previous(dateYmd, { required: false }); } catch (err) {
+      if (err.code !== 'SOURCE_BLOCKED') throw err;
+      console.warn(`[sync-mufap] Prior-day source blocked; using saved earlier NAVs when available. ${err.message}`);
+      break;
+    }
     if (!pack) continue;
     // Skip if MUFAP/relay echoed the same report as “today” (weekend / SPA date ignore).
     if (
       todayPack.reportDate &&
       pack.reportDate &&
-      pack.reportDate === todayPack.reportDate
+      pack.dateYmd >= todayPack.dateYmd
     ) {
       console.warn(
         `[sync-mufap] Skipping ${dateYmd}: same Report Date as today (${pack.reportDate})`,
@@ -220,13 +207,8 @@ async function main() {
       continue;
     }
     ydayPack = pack;
-    yesterdayUsed = dateYmd;
+    yesterdayUsed = pack.dateYmd;
     break;
-  }
-
-  writeExcel(todayPack.funds, path.join(ROOT, 'data', `mufap-nav-${todayPack.dateYmd}.xlsx`), `NAV ${todayPack.dateYmd}`);
-  if (ydayPack) {
-    writeExcel(ydayPack.funds, path.join(ROOT, 'data', `mufap-nav-${yesterdayUsed}.xlsx`), `NAV ${yesterdayUsed}`);
   }
 
   let previousNavs = ydayPack ? previousNavMap(ydayPack.funds) : {};
@@ -258,7 +240,7 @@ async function main() {
     }
   });
 
-  const payload = {
+  const payload = preserveNewerFunds({
     updatedAt: new Date().toISOString(),
     reportDate: todayPack.reportDate,
     previousReportDate,
@@ -268,12 +250,20 @@ async function main() {
     yesterday: yesterdayUsed,
     catalog,
     previousNavs,
-  };
+  }, existing);
 
   // A rerun with the same NAVs must not create a commit: every commit deploys production.
   if (sameFundData(existing, payload)) {
     console.log('[sync-mufap] Fund data unchanged; leaving the catalog as it is.');
     return;
+  }
+  if (dryRun) {
+    console.log(`[sync-mufap] Dry run: validated ${payload.count} funds dated ${payload.reportDate}; no files written.`);
+    return payload;
+  }
+  if (process.env.MUFAP_WRITE_EXCEL !== '0') {
+    writeExcel(Object.values(payload.catalog), path.join(root, 'data', `mufap-nav-${todayPack.dateYmd}.xlsx`), `NAV ${todayPack.dateYmd}`);
+    if (ydayPack) writeExcel(ydayPack.funds, path.join(root, 'data', `mufap-nav-${yesterdayUsed}.xlsx`), `NAV ${yesterdayUsed}`);
   }
   fs.mkdirSync(path.dirname(OUT), { recursive: true });
   fs.writeFileSync(OUT, JSON.stringify(payload, null, 2));
@@ -281,11 +271,10 @@ async function main() {
     updatedAt: payload.updatedAt,
     date: yesterdayUsed,
     reportDate: previousReportDate,
-    count: Object.keys(previousNavs).length,
-    previousNavs,
+    count: Object.keys(payload.previousNavs).length,
+    previousNavs: payload.previousNavs,
   }, null, 2));
 
-  const publicOut = path.join(ROOT, 'public/data/fund-nav-catalog.json');
   fs.mkdirSync(path.dirname(publicOut), { recursive: true });
   fs.copyFileSync(OUT, publicOut);
 
@@ -300,16 +289,22 @@ async function main() {
     console.log(`[sync-mufap] ${name}: ${prev.nav} → ${f.nav} (${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%)`);
   });
 
-  const dataDir = path.join(ROOT, 'data');
-  const pruned = pruneMufapExcelFiles(fs, dataDir, 2);
+  const dataDir = path.join(root, 'data');
+  const pruned = process.env.MUFAP_WRITE_EXCEL === '0' ? [] : pruneMufapExcelFiles(fs, dataDir, 2);
   if (pruned.length) {
     console.log(`[sync-mufap] Pruned ${pruned.length} old Excel dump(s): ${pruned.join(', ')}`);
   }
 
   console.log(`[sync-mufap] Wrote ${payload.count} funds + ${Object.keys(previousNavs).length} previous NAVs (source=${payload.source}, day=${payload.today})`);
+  if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### MUFAP NAV sync\nValidated ${payload.count} funds. NAV report date: **${payload.reportDate}**. Source: ${payload.source}.\n`);
+  return payload;
 }
 
-main().catch((err) => {
-  console.error('[sync-mufap] FAILED:', err.message);
-  process.exit(1);
-});
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error('[sync-mufap] FAILED:', err.message);
+    console.error('[sync-mufap] Saved fund data was not replaced. A source failure is not a successful refresh.');
+    if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### MUFAP NAV sync failed\n${err.message}\n\nSaved fund prices were retained. No new catalog was published.\n`);
+    process.exitCode = 1;
+  });
+}

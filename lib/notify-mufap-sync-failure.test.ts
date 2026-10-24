@@ -32,8 +32,10 @@ describe('notify-mufap-sync-failure', () => {
     expect(send.mock.calls[0][1]).toBe('PSX Tracker: MUFAP NAV sync failed');
   });
 
-  it('fails clearly when BREVO_API_KEY is missing', async () => {
-    await expect(notifyMufapSyncFailure({ MUFAP_SYNC_ALERT_EMAIL: 'a@b.com' }, vi.fn()))
-      .rejects.toMatchObject({ code: 'NO_BREVO_KEY' });
+  it('reports an unsent email without creating a second failure when the key is missing', async () => {
+    const send = vi.fn();
+    await expect(notifyMufapSyncFailure({ MUFAP_SYNC_ALERT_EMAIL: 'a@b.com' }, send))
+      .resolves.toMatchObject({ skipped: true, reason: expect.stringContaining('email was not sent') });
+    expect(send).not.toHaveBeenCalled();
   });
 });

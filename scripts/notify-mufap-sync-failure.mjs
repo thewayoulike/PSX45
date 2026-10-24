@@ -7,6 +7,7 @@
  *   GITHUB_REPOSITORY, GITHUB_RUN_ID, GITHUB_SERVER_URL — from Actions
  */
 import path from 'path';
+import fs from 'node:fs';
 import { fileURLToPath } from 'url';
 import { sendBrevo, escapeHtml } from '../lib/brevo.js';
 
@@ -35,9 +36,7 @@ export async function notifyMufapSyncFailure(env = process.env, send = sendBrevo
   ).trim();
 
   if (!env.BREVO_API_KEY) {
-    const err = new Error('BREVO_API_KEY is not set');
-    err.code = 'NO_BREVO_KEY';
-    throw err;
+    return { skipped: true, reason: 'BREVO_API_KEY is not configured; email was not sent.', url: msg.url };
   }
 
   await send(to, msg.subject, msg.html);
@@ -49,6 +48,11 @@ async function main() {
   console.error(msg.text);
   try {
     const result = await notifyMufapSyncFailure();
+    if (result.skipped) {
+      console.warn(`::warning::${result.reason} The original sync failure remains visible in GitHub Actions.`);
+      if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `\nEmail notification skipped: ${result.reason}\n`);
+      return;
+    }
     console.log(`[notify] email sent to ${result.to}`);
   } catch (err) {
     console.error('[notify] FAILED:', err.message);
