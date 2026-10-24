@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createPracticeBroker, practiceIdentity, validatePracticeOrder, PAPER_BASE } from './practiceTrading.js';
-import { createPracticeHandler } from '../api/practice-trading.js';
+import { createPracticeHandler } from './practiceTradingRoute.js';
 const env = { PSX_PAPER_KEY_ID: 'PYPSX-SANDBOX-TEST', PSX_PAPER_SECRET: 'test-only-secret', PSX_PAPER_IDENTITY_SECRET: 'a'.repeat(64) };
 const email = 'first@example.test';
 const identity = practiceIdentity(email, env.PSX_PAPER_IDENTITY_SECRET);

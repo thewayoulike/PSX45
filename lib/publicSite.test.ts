@@ -322,6 +322,7 @@ it('keeps API entrypoints within the 12-function deployment budget', () => {
   expect(readdirSync('api').filter((f) => /\.(js|py)$/.test(f)).length).toBeLessThanOrEqual(12);
   const config = JSON.parse(readFileSync('vercel.json', 'utf8'));
   expect(config.rewrites).toContainEqual({ source: '/api/request-access', destination: '/api/notify-signup' });
+  expect(config.rewrites).toContainEqual({ source: '/api/practice-trading', destination: '/api/check-access?service=practice-trading' });
 });
 
 it('gives every top-level public page exactly one breadcrumb trail', () => {

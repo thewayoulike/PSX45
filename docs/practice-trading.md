@@ -6,6 +6,11 @@ Google Drive portfolio. The existing Trading Simulator remains unchanged.
 
 ## Server configuration
 
+`/api/practice-trading` rewrites to the existing `check-access` entrypoint with
+`service=practice-trading`. Its isolated handler lives in
+`lib/practiceTradingRoute.js`, keeping deployment within the 12-function limit.
+Both entry paths use the same practice authentication and ownership checks.
+
 Configure these as server-only Vercel secrets (never `VITE_` variables):
 
 - `PSX_PAPER_KEY_ID`: a `PYPSX-SANDBOX-` partner key.
