@@ -1,5 +1,5 @@
 import { sizePlan, type Plan } from './engine';
-export type LabTicket={id:string;createdAt:string;plan:Plan;quantity:number;sourceDate:string;note:string};
+export type LabTicket={id:string;createdAt:string;plan:Plan;quantity:number;sourceDate:string;note:string;entrySource?:string};
 export type LabBook={watchlist:string; tickets:LabTicket[]};
 export const DEFAULT_WATCHLIST='HBL, MEBL, OGDC, PPL, HUBC, FFC, LUCK, SYS';
 export const labKey=(email:string)=>'psx-trading-lab:v1:'+encodeURIComponent(email.trim().toLowerCase());

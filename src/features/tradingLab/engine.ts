@@ -87,21 +87,21 @@ export function openingRange(g:Segment) {
 }
 
 export function sizePlan(p:Plan) {
-  const errors:string[]=[];
+  const errors:string[]=[],warnings:string[]=[];
   if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(p.symbol))errors.push('Choose a valid PSX symbol.');
   if(!Object.entries(p).filter(([k])=>k!=='symbol').every(([,v])=>typeof v==='number'&&Number.isFinite(v)))errors.push('All plan inputs must be valid numbers.');
   if(!(p.stop>0&&p.entry>p.stop&&p.target>p.entry))errors.push('For a long plan, use stop < entry < target.');
   if(!(p.capital>0&&p.riskPct>0&&p.riskPct<=100&&p.capPct>0&&p.capPct<=100&&p.minRR>0))errors.push('Check capital, risk limit and position cap.');
   if(!(p.feePct>=0&&p.feePct<=10&&p.slipPct>=0&&p.slipPct<=10&&Number.isInteger(p.lot)&&p.lot>=1))errors.push('Check fees, slippage and lot size.');
-  if(errors.length)return {errors,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:''};
+  if(errors.length)return {errors,warnings,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:''};
   const slip=p.slipPct/100,fee=p.feePct/100,buy=p.entry*(1+slip),sellStop=p.stop*(1-slip),sellTarget=p.target*(1-slip);
   const unitCost=buy*(1+fee),unitLoss=unitCost-sellStop*(1-fee),unitReward=sellTarget*(1-fee)-unitCost;
   const riskBudget=p.capital*p.riskPct/100,cap=p.capital*p.capPct/100;
   const byRisk=Math.floor(riskBudget/unitLoss/p.lot)*p.lot,byCap=Math.floor(cap/unitCost/p.lot)*p.lot;
   const rawQuantity=Math.max(0,Math.min(byRisk,byCap)),quantity=Number.isSafeInteger(rawQuantity)?rawQuantity:0,rr=unitReward/unitLoss;
   if(!quantity)errors.push('The budget cannot fund one lot within these limits.');
-  if(rr<p.minRR)errors.push(`Estimated reward/risk is below ${p.minRR.toFixed(2)} after costs.`);
-  return {errors,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap'};
+  if(rr<p.minRR)warnings.push(`Estimated reward/risk is below ${p.minRR.toFixed(2)} after costs.`);
+  return {errors,warnings,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap'};
 }
 
 // Stops are evaluated before targets for ambiguous candles. Gap stops use the worse open.

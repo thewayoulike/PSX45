@@ -18,7 +18,7 @@ describe('PSX research rules and cost-aware sizing',()=>{
  it('does not invent relative volume when source volume is absent',()=>{const rows=Array.from({length:25},(_,i)=>({...bar(Date.UTC(2026,8,i+1,4)),volume:null}));expect(dailyScan(rows).relativeVolume).toBeNull();});
  it('sizes to whole lots and keeps estimated risk and cost within caps',()=>{const p={...plan,lot:10},s=sizePlan(p);expect(s.errors).toHaveLength(0);expect(s.quantity%10).toBe(0);expect(s.loss).toBeLessThanOrEqual(1000);expect(s.cost).toBeLessThanOrEqual(25000);expect(s.loss).toBeGreaterThan(s.quantity*(p.entry-p.stop));});
  it.each([{stop:101},{entry:NaN},{capital:-1},{feePct:-1},{lot:1.5},{capPct:101}])('rejects invalid plan %j',change=>{expect(sizePlan({...plan,...change}).errors.length).toBeGreaterThan(0);});
- it('blocks reward/risk after costs even when gross ratio would pass',()=>{expect(sizePlan({...plan,target:103,minRR:1.5}).errors).toContain('Estimated reward/risk is below 1.50 after costs.');});
+ it('warns about low reward/risk but allows a valid research plan',()=>{const result=sizePlan({...plan,target:103,minRR:1.5});expect(result.errors).toEqual([]);expect(result.warnings).toContain('Estimated reward/risk is below 1.50 after costs.');});
  it('takes the stop first for an ambiguous candle and models gap loss',()=>{expect(walkTrade([{...bar(1),low:97,high:108}],100,98,106).outcome).toBe('stop');expect(walkTrade([{...bar(1,94),high:95,low:93}],100,98,106).exit).toBe(94);});
 });
 describe('replay integrity',()=>{
