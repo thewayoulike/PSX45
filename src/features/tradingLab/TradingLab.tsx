@@ -54,7 +54,7 @@ export function TradingLab({email,data=labData}:{email:string;data?:LabData}){
   const quoteFresh=latest&&pktDay(latest.time)===pktDay(Date.now())&&Date.now()-latest.time<=15*60000;
   const update=(k:keyof Plan,v:number)=>{setPlan(p=>({...p,[k]:v}));if(['entry','stop','target'].includes(k))setEntrySource('');setMessage('');};
   function choose(s:string){if(s!==symbol)setEntrySource('');setSymbol(s);setSymbolInput(s);setError('');setMessage('');}
-  function useBreakout(){if(!range?.trigger||!segment)return;const source=`${quoteFresh?'Observed':'Historical'} breakout: ${when(range.trigger.time+300000)} · ${segment.family}`;setPlan(p=>({...p,entry:range.trigger!.close,stop:range.low,target:range.trigger!.close+2*(range.trigger!.close-range.low)}));setEntrySource(source);setMessage(source+' copied for testing. Review the levels and costs before saving.');}
+  function useBreakout(){if(!range?.trigger||!segment)return;const source=`${quoteFresh?'Observed':'Historical'} breakout: ${when(range.trigger.time+300000)} · ${segment.family}`;setPlan(p=>({...p,entry:range.trigger!.close,stop:range.low,target:Math.round((range.trigger!.close+2*(range.trigger!.close-range.low))*100)/100}));setEntrySource(source);setMessage(source+' copied for testing. Review the levels and costs before saving.');}
   function submitSymbol(e:React.FormEvent){e.preventDefault();const s=symbolInput.trim().toUpperCase();if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(s)){setError('Enter a valid PSX symbol.');return;}choose(s);}
   function persist(next:LabBook){try{writeLab(email,next);setBook(next);return true;}catch{setError('This browser could not save the lab. Export your journal to keep a copy.');return false;}}
   async function scan(){
