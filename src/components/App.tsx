@@ -47,6 +47,7 @@ const FundProfile = lazy(() => import('./FundProfile').then(m => ({ default: m.F
 import { firstBrokerHolding } from '../utils/brokerHolding';
 const TransferModal = lazy(() => import('./TransferModal').then(m => ({ default: m.TransferModal }))); 
 const TradingSimulator = lazy(() => import('./TradingSimulator').then(m => ({ default: m.TradingSimulator })));
+const TradingLab = lazy(() => import('../features/tradingLab/TradingLab').then(m => ({ default: m.TradingLab })));
 const PracticeTrading = lazy(() => import('./PracticeTrading').then(m => ({ default: m.PracticeTrading })));
 const FairValueCalculator = lazy(() => import('./FairValueCalculator').then(m => ({ default: m.FairValueCalculator })));
 const LedgerCalculators = lazy(() => import('./LedgerCalculators').then(m => ({ default: m.LedgerCalculators })));
@@ -186,7 +187,7 @@ const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', '
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
-type AppView = 'PRACTICE' | 'MARKETS' | 'INSIDERS' | 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
+type AppView = 'TRADING_LAB' | 'PRACTICE' | 'MARKETS' | 'INSIDERS' | 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
@@ -195,6 +196,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   MARKETS: '/market-overview',
   INSIDERS: '/insider-transactions',
   PRACTICE: '/practice-trading',
+  TRADING_LAB: '/trading-lab',
   STOCKS: '/stocks',
   SECTOR: '/sector',
   REALIZED: '/realized',
@@ -2494,10 +2496,10 @@ const App: React.FC = () => {
       }
   }
 
-  if (currentView !== 'PRACTICE' && !driveBooting && sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) {
+  if (!['PRACTICE', 'TRADING_LAB'].includes(currentView) && !driveBooting && sbApproved && sbUser && !driveUser && localOnlyEmail !== sbUser.email) {
       return <DriveConnectionGate key={sbUser.email} email={sbUser.email} error={driveRestoreError} onRetry={() => void refreshAuthStatus()} onConnect={handleLogin} onUseLocal={() => setLocalOnlyEmail(sbUser.email)} onSignOut={handleAuthSignOut} />;
   }
-  if (currentView !== 'PRACTICE' && !driveBooting && driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
+  if (!['PRACTICE', 'TRADING_LAB'].includes(currentView) && !driveBooting && driveUser && !isReadyToSave.current && !isLoadingLatestCloud.current) {
       return <OfflinePortfolio error={cloudSyncError || "The latest backup could not be opened. Retry before making changes."}
           pendingTransactions={pendingCloud?.data?.transactions} onDownloadPending={pendingCloud ? downloadPendingCloudBackup : undefined} />;
   }
@@ -2682,7 +2684,7 @@ const App: React.FC = () => {
                          </button>}
                     guide={<VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />}
                     theme={<ThemeToggle />}
-                    selector={currentView === 'PRACTICE' ? <span className="text-sm font-semibold text-emerald-600">Practice portfolio</span> : driveBooting ? null : <div className="relative group flex-1 min-w-0">
+                    selector={currentView === 'TRADING_LAB' ? <span className="text-sm font-semibold text-emerald-600">Independent testing lab</span> : currentView === 'PRACTICE' ? <span className="text-sm font-semibold text-emerald-600">Practice portfolio</span> : driveBooting ? null : <div className="relative group flex-1 min-w-0">
                               <select
                                   value={currentPortfolioId}
                                   aria-label="Current portfolio"
@@ -2697,8 +2699,8 @@ const App: React.FC = () => {
                               </select>
                               <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
                           </div>}
-                    edit={currentView === 'PRACTICE' || driveBooting ? null : <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio" aria-label="Edit Portfolio"> <Pencil size={16} /> </button>}
-                    create={currentView === 'PRACTICE' || driveBooting ? null : <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio" aria-label="New Portfolio"> <PlusCircle size={16} /> </button>}
+                    edit={['PRACTICE', 'TRADING_LAB'].includes(currentView) || driveBooting ? null : <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio" aria-label="Edit Portfolio"> <Pencil size={16} /> </button>}
+                    create={['PRACTICE', 'TRADING_LAB'].includes(currentView) || driveBooting ? null : <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio" aria-label="New Portfolio"> <PlusCircle size={16} /> </button>}
                   />
                   )}
 
@@ -2721,7 +2723,7 @@ const App: React.FC = () => {
                       )}
 
                       {/* Connect Google Drive prompt — for signed-in users whose data isn't syncing yet. */}
-                      {!isChartsView && currentView !== 'PRACTICE' && !driveBooting && sbUser && !driveUser && !driveBannerDismissed && (
+                      {!isChartsView && !['PRACTICE', 'TRADING_LAB'].includes(currentView) && !driveBooting && sbUser && !driveUser && !driveBannerDismissed && (
                           <div className="mb-6 rounded-3xl border border-amber-200/70 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 p-4 md:p-5 flex flex-col sm:flex-row sm:items-center gap-4 shadow-sm">
                               <div className="flex items-start gap-3 flex-1 min-w-0">
                                   <div className="w-10 h-10 rounded-2xl bg-amber-100 dark:bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
@@ -2752,7 +2754,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      {!isChartsView && !driveBooting && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && currentView !== 'INSIDERS' && currentView !== 'PRACTICE' && (
+                      {!isChartsView && !driveBooting && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && currentView !== 'INSIDERS' && !['PRACTICE', 'TRADING_LAB'].includes(currentView) && (
                       <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
                             <div className="market-strip min-w-0 overflow-hidden border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-1">
@@ -3097,6 +3099,7 @@ const App: React.FC = () => {
                               <LedgerCalculators />
                           </div>
                       )}
+                      {currentView === 'TRADING_LAB' && <TradingLab key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} />}
                       {currentView === 'PRACTICE' && <PracticeTrading key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} />}
                       {currentView === 'SIMULATOR' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

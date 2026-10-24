@@ -8,7 +8,7 @@ import {
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2, RefreshCw,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical, UserRound, MessageSquare, CirclePlay, Globe2
+  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical, Beaker, UserRound, MessageSquare, CirclePlay, Globe2
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 import {
@@ -89,7 +89,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Which group each view belongs to (so we can auto-open the active one).
   const groupOfView: Record<string, string> = {
-    DASHBOARD: 'Menu', HOLDINGS: 'Menu', PRACTICE: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu', MARKETS: 'Menu',
+    TRADING_LAB: 'Testing', DASHBOARD: 'Menu', HOLDINGS: 'Menu', PRACTICE: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu', MARKETS: 'Menu',
     CALCS: 'Tools', SIGNALS: 'Tools', INSIDERS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
     BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', SUGGESTIONS: 'Settings', HOW_IT_WORKS: 'Settings',
@@ -97,7 +97,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Everything collapsed by default — only the group holding the active view is open.
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() => {
-    const base = { Menu: false, Tools: false, Reports: false, Settings: false } as Record<string, boolean>;
+    const base = { Menu: false, Tools: false, Testing: false, Reports: false, Settings: false } as Record<string, boolean>;
     const g = groupOfView[currentView];
     if (g) base[g] = true;
     return base;
@@ -149,6 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return [
       { key: 'Menu', label: 'Menu', Icon: Compass, items: menuItems },
       ...(toolItems.length > 0 ? [{ key: 'Tools', label: 'Tools', Icon: Wrench, items: toolItems }] : []),
+      { key: 'Testing', label: 'Testing', Icon: FlaskConical, items: [{ id: 'TRADING_LAB', label: 'PSX Trading Lab', icon: <Beaker size={22} /> }] },
       {
         key: 'Reports', label: 'Reports', Icon: BarChart3, items: [
           { id: 'REALIZED', label: 'Realized P&L', icon: <CheckCircle2 size={22} /> },

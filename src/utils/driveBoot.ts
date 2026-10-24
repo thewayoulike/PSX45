@@ -1,5 +1,5 @@
 /** Screens that never read or write the portfolio book, so they stay usable while Drive loads. */
-const DRIVE_FREE_VIEWS = new Set(['MARKETS', 'INSIDERS', 'PRACTICE', 'CHARTS', 'CALCS', 'HOW_IT_WORKS', 'SUGGESTIONS']);
+const DRIVE_FREE_VIEWS = new Set(['MARKETS', 'INSIDERS', 'PRACTICE', 'TRADING_LAB', 'CHARTS', 'CALCS', 'HOW_IT_WORKS', 'SUGGESTIONS']);
 
 export function isDriveBooting(s: {
   restoringDrive: boolean;

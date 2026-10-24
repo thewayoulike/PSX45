@@ -98,7 +98,7 @@ export function sizePlan(p:Plan) {
   const unitCost=buy*(1+fee),unitLoss=unitCost-sellStop*(1-fee),unitReward=sellTarget*(1-fee)-unitCost;
   const riskBudget=p.capital*p.riskPct/100,cap=p.capital*p.capPct/100;
   const byRisk=Math.floor(riskBudget/unitLoss/p.lot)*p.lot,byCap=Math.floor(cap/unitCost/p.lot)*p.lot;
-  const quantity=Math.max(0,Math.min(byRisk,byCap)),rr=unitReward/unitLoss;
+  const rawQuantity=Math.max(0,Math.min(byRisk,byCap)),quantity=Number.isSafeInteger(rawQuantity)?rawQuantity:0,rr=unitReward/unitLoss;
   if(!quantity)errors.push('The budget cannot fund one lot within these limits.');
   if(rr<p.minRR)errors.push(`Estimated reward/risk is below ${p.minRR.toFixed(2)} after costs.`);
   return {errors,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap'};
@@ -118,6 +118,7 @@ export function netReturn(entry:number,exit:number,feePct:number,slipPct:number)
 }
 
 export function replayOpeningRange(bars:Bar[],targetR:number,feePct:number,slipPct:number,now=Date.now()) {
+  if(!Number.isFinite(targetR)||targetR<=0||targetR>10||![feePct,slipPct].every(v=>Number.isFinite(v)&&v>=0&&v<=10))throw new Error('Check the replay target, fees and slippage.');
   const segments=intradaySegments(bars,now),complete=segments.filter(s=>s.complete);
   const trades=complete.flatMap(s=>{
     const range=openingRange(s); if(!range?.trigger||range.index>=s.bars.length-1)return [];
@@ -130,6 +131,7 @@ export function replayOpeningRange(bars:Bar[],targetR:number,feePct:number,slipP
 
 export function simulatePlan(bars:Bar[],p:Plan,now=Date.now(),replays=10000,seed=19) {
   if(sizePlan(p).errors.length)throw new Error('Resolve the plan checks first.');
+  if(!Number.isInteger(replays)||replays<1||replays>10000)throw new Error('Choose between 1 and 10,000 paths.');
   const segments=intradaySegments(bars,now),latest=segments.at(-1);
   if(!latest)throw new Error('Intraday candles are not available.');
   // Standardized scenario: entry after the opening range, sampling only earlier comparable sessions.

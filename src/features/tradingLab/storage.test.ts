@@ -1,0 +1,5 @@
+import {it,expect,vi} from 'vitest';
+import {labKey,parseWatchlist,readLab,writeLab} from './storage';
+it('keeps test data under a distinct login-scoped key',()=>{expect(labKey(' A@EXAMPLE.COM ')).toBe(labKey('a@example.com'));expect(labKey('a@example.com')).not.toBe(labKey('b@example.com'));const setItem=vi.fn();writeLab('a@example.com',{watchlist:'HBL',tickets:[]},{setItem});expect(setItem.mock.calls[0][0]).toMatch(/^psx-trading-lab:v1:/);});
+it('limits and validates scans before they create requests',()=>{expect(parseWatchlist('hbl, HBL OGDC')).toEqual(['HBL','OGDC']);expect(()=>parseWatchlist('HBL,<script>')).toThrow();expect(()=>parseWatchlist(Array.from({length:21},(_,i)=>'S'+i).join(','))).toThrow();});
+it('recovers from corrupt local data without touching portfolio storage',()=>{const getItem=vi.fn(()=>'{invalid');expect(readLab('a@example.com',{getItem}).tickets).toEqual([]);expect(getItem).toHaveBeenCalledTimes(1);});

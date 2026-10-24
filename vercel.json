@@ -21,6 +21,10 @@
       "destination": "/api/check-access?service=practice-trading"
     },
     {
+      "source": "/trading-lab/:path*",
+      "destination": "/index"
+    },
+    {
       "source": "/practice-trading/:path*",
       "destination": "/index"
     },
@@ -171,7 +175,7 @@
       ]
     },
     {
-      "source": "/(login|reset-password|suggestions|settings|holdings|stocks|stock|fund|sector|realized|history|watchlist|signals|alerts|assistant|simulator|practice-trading|calculator|charts|backtest|daily-scan|dashboard|admin)(.*)",
+      "source": "/(login|reset-password|suggestions|settings|holdings|stocks|stock|fund|sector|realized|history|watchlist|signals|alerts|assistant|simulator|practice-trading|trading-lab|calculator|charts|backtest|daily-scan|dashboard|admin)(.*)",
       "headers": [
         {
           "key": "X-Robots-Tag",
