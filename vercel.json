@@ -2,6 +2,9 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "functions": {
+    "api/practice-trading.js": {
+      "maxDuration": 60
+    },
     "api/pypsx.py": {
       "maxDuration": 45,
       "memory": 1024,
@@ -13,6 +16,10 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/practice-trading/:path*",
+      "destination": "/index"
+    },
     {
       "source": "/insider-transactions/:path*",
       "destination": "/index"
@@ -160,7 +167,7 @@
       ]
     },
     {
-      "source": "/(login|reset-password|suggestions|settings|holdings|stocks|stock|fund|sector|realized|history|watchlist|signals|alerts|assistant|simulator|calculator|charts|backtest|daily-scan|dashboard|admin)(.*)",
+      "source": "/(login|reset-password|suggestions|settings|holdings|stocks|stock|fund|sector|realized|history|watchlist|signals|alerts|assistant|simulator|practice-trading|calculator|charts|backtest|daily-scan|dashboard|admin)(.*)",
       "headers": [
         {
           "key": "X-Robots-Tag",

@@ -29,7 +29,7 @@ export function ResponsivePortfolioHeader({ menu, guide, theme, selector, edit, 
     <div className="mobile-context-row">{menu}<div className={`mobile-portfolio-selector ${surface} rounded-xl`}>{selector}</div><button ref={trigger} type="button" className={control} aria-label="Portfolio options" aria-controls={id} aria-expanded={open} onClick={() => setOpen(!open)}><MoreHorizontal size={20} /></button></div>
     {open && <div id={id} className={`mobile-context-options ${surface}`}>
       <div className="flex items-center justify-between"><strong className="text-sm">Portfolio & appearance</strong><button type="button" aria-label="Close portfolio options" className="p-2" onClick={close}><X size={18} /></button></div>
-      <div className="mobile-context-tools"><div><span>Appearance</span>{theme}</div><div><span>Edit portfolio</span>{edit}</div><div><span>Create portfolio</span>{create}</div><div><span>How it works</span>{guide}</div></div>
+      <div className="mobile-context-tools"><div><span>Appearance</span>{theme}</div>{edit && <div><span>Edit portfolio</span>{edit}</div>}{create && <div><span>Create portfolio</span>{create}</div>}<div><span>How it works</span>{guide}</div></div>
     </div>}
   </header>;
 }

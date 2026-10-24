@@ -19,7 +19,7 @@ describe('Drive loading in the background', () => {
   });
 
   it('keeps market and reference screens open and holds portfolio screens until the backup is in', () => {
-    for (const view of ['MARKETS', 'INSIDERS', 'CHARTS', 'CALCS', 'HOW_IT_WORKS', 'SUGGESTIONS']) {
+    for (const view of ['MARKETS', 'INSIDERS', 'PRACTICE', 'CHARTS', 'CALCS', 'HOW_IT_WORKS', 'SUGGESTIONS']) {
       expect(viewWaitsForDrive(view, true)).toBe(false);
     }
     for (const view of ['DASHBOARD', 'HOLDINGS', 'HISTORY', 'WATCHLIST', 'ALERTS', 'PROFILE_SETTINGS']) {
