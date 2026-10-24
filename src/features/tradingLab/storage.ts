@@ -1,5 +1,6 @@
 import { sizePlan, type Plan } from './engine';
-export type LabTicket={id:string;createdAt:string;plan:Plan;quantity:number;sourceDate:string;note:string;entrySource?:string};
+import {parseWorkflow,type WorkflowSnapshot} from './workflow';
+export type LabTicket={id:string;createdAt:string;plan:Plan;quantity:number;sourceDate:string;note:string;entrySource?:string;workflow?:WorkflowSnapshot};
 export type LabBook={watchlist:string; tickets:LabTicket[];watchlistUpdatedAt?:string};
 export const DEFAULT_WATCHLIST='HBL, MEBL, OGDC, PPL, HUBC, FFC, LUCK, SYS';
 export const labKey=(email:string)=>'psx-trading-lab:v1:'+encodeURIComponent(email.trim().toLowerCase());
@@ -37,7 +38,7 @@ export function parseLab(raw:any):LabBook{
     if(!t||typeof t.id!=='string'||!t.id||ids.has(t.id)||typeof t.createdAt!=='string'||!Number.isFinite(Date.parse(t.createdAt))||typeof t.sourceDate!=='string'||typeof t.note!=='string'||(t.entrySource!==undefined&&typeof t.entrySource!=='string')||!t.plan||sizePlan(t.plan).errors.length||!Number.isSafeInteger(t.quantity)||t.quantity<=0)throw new Error('A saved lab plan could not be read. Your existing copies have been kept.');
     ids.add(t.id);
     const p=t.plan;
-    return {id:t.id,createdAt:t.createdAt,plan:{symbol:p.symbol,entry:p.entry,stop:p.stop,target:p.target,capital:p.capital,riskPct:p.riskPct,capPct:p.capPct,feePct:p.feePct,slipPct:p.slipPct,minRR:p.minRR,lot:p.lot},quantity:t.quantity,sourceDate:t.sourceDate,note:t.note,...(t.entrySource===undefined?{}:{entrySource:t.entrySource})};
+    return {id:t.id,createdAt:t.createdAt,plan:{symbol:p.symbol,entry:p.entry,stop:p.stop,target:p.target,capital:p.capital,riskPct:p.riskPct,capPct:p.capPct,feePct:p.feePct,slipPct:p.slipPct,minRR:p.minRR,lot:p.lot},quantity:t.quantity,sourceDate:t.sourceDate,note:t.note,...(t.entrySource===undefined?{}:{entrySource:t.entrySource}),...(t.workflow===undefined?{}:{workflow:parseWorkflow(t.workflow)})};
   }).sort((a:LabTicket,b:LabTicket)=>b.createdAt.localeCompare(a.createdAt)||a.id.localeCompare(b.id));
   if(raw.watchlistUpdatedAt!==undefined&&!Number.isFinite(Date.parse(raw.watchlistUpdatedAt)))throw new Error('The saved watchlist date is invalid.');
   return {watchlist:raw.watchlist,tickets,...(raw.watchlistUpdatedAt?{watchlistUpdatedAt:raw.watchlistUpdatedAt}:{})};

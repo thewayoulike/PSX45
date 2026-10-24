@@ -46,8 +46,11 @@ export function dailyScan(bars: Bar[], now = Date.now()) {
   const strength=rsi(closes), prevRsi=rsi(closes.slice(0,-1));
   const setups:string[]=[];
   if(last.close>Math.max(...prior))setups.push('20-day closing breakout');
+  const run=closes.at(-6)!/closes.at(-16)!-1, flagRange=(Math.max(...closes.slice(-5))-Math.min(...closes.slice(-5)))/last.close;
+  if(run>.10&&flagRange<.05)setups.push('Bull flag');
   if(closes.at(-2)!<prevMA&&last.close>ma20)setups.push('Reclaimed 20-day average');
   if(strength!=null&&strength<30)setups.push('RSI below 30');
+  if(prevRsi!=null&&prevRsi<30&&last.close>closes.at(-2)!)setups.push('Oversold bounce');
   if(prevRsi!=null&&strength!=null&&prevRsi<30&&strength>=30)setups.push('RSI recovery');
   const volumes=rows.slice(-21,-1).map(b=>b.volume);
   const avgVolume=volumes.every(v=>v!==null)?mean(volumes as number[]):null;
