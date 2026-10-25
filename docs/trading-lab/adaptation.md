@@ -8,7 +8,7 @@ This is a TypeScript app implementation. It does not install or execute the orig
 
 | Original module | PSX adaptation and remaining boundary |
 | --- | --- |
-| trader-scanner | All five original daily patterns (bull flag, closing breakout, MA20 reclaim, oversold, oversold bounce) plus RSI recovery; price/volume filters and liquidity sorting. Manual watchlist up to 20, not exchange-wide discovery. |
+| trader-scanner | All five original daily patterns (bull flag, closing breakout, MA20 reclaim, oversold, oversold bounce) plus RSI recovery; price/volume filters and liquidity sorting. Full PSX Market Watch universe (no 20-stock scan cap) or saved watchlist; daily and intraday opening-range modes, bounded concurrency, cancellation, partial results and retry. |
 | trader-entry | Three complete opening candles, custom level alternative, volume confirmation, entry window and visible-page 30-second monitor. PSX 5-minute data only. |
 | trader-exit | Range low/midpoint, percentage, ATR or manual stop; R target and flat-by time. ATR needs 14 past true ranges and never borrows future candles. |
 | trader-timemachine | Same-rule historical replay, configurable entry slot/flat-by/window, seeded 10,000 paths, price fan and outcome histogram. Minimum 3 sessions is explicitly weaker than upstream's default 20. |
@@ -20,7 +20,7 @@ This is a TypeScript app implementation. It does not install or execute the orig
 | trader-alerts | Entry, stop/target touches, standard opening and flat-by reminders while the visible page is monitoring. No background/push or execution. |
 | trader-broker | Exportable hypothetical ticket with risk checks. No Alpaca/PSX broker connection, automatic fill simulation or order transmission. |
 
-The in-app comparison lists all eleven modules and these differences. This is not full behavioral parity with the original tools. Existing Practice Trading remains separate. Original US connectors, a whole-market universe, continuous background operation and actual broker execution are not installed by this adaptation.
+The in-app comparison lists all eleven modules and these differences. This is not full behavioral parity with the original tools. Existing Practice Trading remains separate. Original US connectors, continuous background operation and actual broker execution are not installed by this adaptation.
 
 ## Boundaries and storage
 
@@ -70,3 +70,13 @@ Only saved plans (including validated entry/exit/scenario rules and hypothetical
 Rechecked upstream HEAD `3d0f4ef6986f4984b7c6bd46f7ff4f87744c3abd`. Regression tests cover both added daily patterns, volume/time confirmation, missing-bar/volume ambiguity, ATR lookahead prevention, hypothetical session gates, legacy and new Drive snapshots, entry-slot/flat-by resampling, deterministic counts/distributions, stale/pre-monitor notice suppression, headline boundaries and annual comparison denominators. The UI supports loading saved plans with their rule and risk settings.
 
 Financial tables are read from the explicitly labelled PSX Annual/Quarterly panels, preserving years/quarters and validating the stated thousands/EPS units. Bank Total Income is supported without requiring a Sales row. If that source is unavailable, a toolkit fallback displays unknown periods explicitly and disables automatic annual changes. PSX/Capital Stake standardized data can differ from issuer filings.
+
+## Full-market scans
+
+The lab defaults to all symbols in the current PSX Market Watch table, retaining unpriced and zero-volume listings. This is source coverage, not a guarantee that every listed/security instrument appears or has candle history. The personal, Drive-synced watchlist retains its 20-symbol limit; market scans never overwrite it.
+
+Daily and intraday opening-range modes scan up to three stocks concurrently. The intraday scan uses five-day, five-minute history, each stock’s own opening range, a configurable volume multiplier and entry window. Closed/missing sessions, delayed bars, and old confirmations are labelled. Friday morning is never substituted for missing afternoon candles. Results carry individual source dates/times, not a single claimed live timestamp. These are one-time scans, not unattended market monitoring or brokerage instructions.
+
+Cancel aborts in-flight client fetches and stops queued work. Partial results survive tab changes inside the lab. Retry requests only failed or unfinished stocks from the original scan configuration. Rate limiting or repeated transport failures pause work visibly. The bounded candle cache retains at most 80 symbols/modes; results retain summaries only. Search, sector/price/volume filters and 30-row pagination keep full-market results usable on mobile. Scan results/candles are not written to the user’s portfolio, Practice Trading or Drive journal.
+
+The default scanner mode is automatic intraday setups. Confirmed opening-range closes produce entry, range-low stop and a 2R target before costs; Review setup copies these into the trade plan. The selected-stock view also applies default rules when there is no edited/saved plan. No confirmation means no guessed levels. Rule editing, manual prices/budget/costs and session risk inputs are collapsed under optional advanced controls. Saved/manual plans are not overwritten by refresh.

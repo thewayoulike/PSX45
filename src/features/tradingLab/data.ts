@@ -1,5 +1,6 @@
 import { parseBars, type Bar } from './engine';
 import type { InsiderReport } from '../../services/marketReports';
+import {loadMarketUniverse,loadScanCandles} from './scannerData';
 
 export type CandleSet={symbol:string;bars:Bar[];source:string;retrievedAt:string};
 export type Headline={id:string;title:string;url:string;source:string;publishedAt?:string;indexedAt:string;topics?:string[]};
@@ -32,5 +33,5 @@ export async function loadResearch(symbol:string):Promise<Research>{
   if(company.status==='fulfilled'&&company.value.symbol===symbol)result.company=company.value;else result.errors.push('Company information unavailable.');
   return result;
 }
-export const labData={candles:loadCandles,research:loadResearch};
+export const labData={candles:loadCandles,research:loadResearch,universe:loadMarketUniverse,scanCandles:loadScanCandles};
 export type LabData=typeof labData;
