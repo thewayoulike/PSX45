@@ -40,3 +40,17 @@ describe('observed notices and research integrity',()=>{
  it('uses whole-word headline matches and literal user text',()=>{const items=['HBL profit grows','THBL results','Habib Bank dividend'].map((title,i)=>({id:String(i),title,url:'https://example.com',source:'test',indexedAt:''}));expect(matchHeadlines(items,'HBL, Habib Bank')).toHaveLength(2);expect(matchHeadlines(items,'[')).toHaveLength(0);expect(catalystTags(items[2].title)).toEqual(['Payout']);});
  it('compares only adjacent annual periods and does not give misleading growth for losses',()=>{const row=(year:string,eps:string)=>({year,eps,sales:'-',profitAfterTax:'-',totalIncome:'-'});expect(annualChanges([row('2026','2'),row('2025','(1)')])[0]).toMatchObject({previous:-1,current:2,changePct:null});expect(annualChanges([row('Q1 2026','2'),row('Q4 2025','1')])).toEqual([]);expect(annualChanges([row('2026','2'),row('2024','1')])).toEqual([]);});
 });
+
+
+describe('monitoring before an automatic plan is available',()=>{
+ it('still reports entries without inventing stop or target alerts',()=>{
+  const s=segment(),data={symbol:'HBL',bars:s.bars,source:'test',retrievedAt:''};
+  const notices=observedAlerts(data,{...plan,entry:0,stop:0,target:0},DEFAULT_RULES,at(s.day,'09:49'),at(s.day,'09:55'));
+  expect(notices.some(a=>a.text.includes('entry rules'))).toBe(true);
+  expect(notices.some(a=>a.text.includes('test stop')||a.text.includes('test target'))).toBe(false);
+ });
+ it('only watches levels belonging to the selected stock',()=>{
+  const s=segment(),data={symbol:'HBL',bars:s.bars,source:'test',retrievedAt:''};
+  expect(observedAlerts(data,{...plan,symbol:'OGDC'},DEFAULT_RULES,at(s.day,'09:49'),at(s.day,'09:55'))).toEqual([]);
+ });
+});

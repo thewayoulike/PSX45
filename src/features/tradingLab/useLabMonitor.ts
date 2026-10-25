@@ -4,10 +4,12 @@ import {checkEntry,type Rules} from './workflow';
 import {type LabData,type CandleSet} from './data';
 export type LabAlert={id:string;text:string;time:number};
 export function observedAlerts(candles:CandleSet,p:Plan,r:Rules,started:number,now:number):LabAlert[]{
+  if(candles.symbol!==p.symbol)return [];
   const s=intradaySegments(candles.bars,now).at(-1),last=s?.bars.at(-1);if(!s||!last||s.day!==pktDay(now)||now-last.time>15*60000||last.time+300000<started||now>s.end)return [];
   const events:LabAlert[]=[],add=(key:string,text:string,time:number)=>events.push({id:`${s.key}:${p.symbol}:${key}`,text,time});
-  if(last.low<=p.stop)add(`stop:${p.stop}`,`${p.symbol}: a completed candle touched/breached the test stop ${p.stop}. This is not a fill.`,last.time+300000);
-  if(last.high>=p.target)add(`target:${p.target}`,`${p.symbol}: a completed candle touched the test target ${p.target}. This is not a fill.`,last.time+300000);
+  const hasLevels=Number.isFinite(p.entry)&&Number.isFinite(p.stop)&&Number.isFinite(p.target)&&p.stop>0&&p.stop<p.entry&&p.target>p.entry;
+  if(hasLevels&&last.low<=p.stop)add(`stop:${p.stop}`,`${p.symbol}: a completed candle touched/breached the test stop ${p.stop}. This is not a fill.`,last.time+300000);
+  if(hasLevels&&last.high>=p.target)add(`target:${p.target}`,`${p.symbol}: a completed candle touched the test target ${p.target}. This is not a fill.`,last.time+300000);
   const entry=checkEntry(s,r,now);if(entry.trigger&&entry.trigger.time+300000>=started)add(`entry:${JSON.stringify(r)}`,`${p.symbol}: your entry rules matched a completed candle. Review the plan.`,entry.trigger.time+300000);
   return events;
 }

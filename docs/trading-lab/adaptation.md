@@ -46,7 +46,7 @@ Monitoring begins only after the user starts it. Stale, historical, unfinished a
 
 Replay and scenario R values use the entry-to-stop price distance as their denominator, with fees/slippage deducted from the numerator. Sizing's reward/risk also includes costs in its loss denominator; the two measures have explicitly different purposes.
 
-Default plan levels (2% stop, 5% target), capital, risk, position cap, fee/slippage estimates and lot size are editable testing inputs, not recommendations or verified broker charges. Capital gains tax is excluded. No universal current circuit band is hardcoded. Available cash, executable prices and actual lot sizes must be checked separately. [NCCPL's T+1 settlement transition](https://www.nccpl.com.pk/transition-to-t1-settlement-cycle) is market context, not a substitute for a broker's available-cash calculation.
+Entry, stop and target start empty until a confirmed setup supplies them. Capital, risk, position cap, fee/slippage estimates and lot size are editable testing inputs, not recommendations or verified broker charges. Capital gains tax is excluded. No universal current circuit band is hardcoded. Available cash, executable prices and actual lot sizes must be checked separately. [NCCPL's T+1 settlement transition](https://www.nccpl.com.pk/transition-to-t1-settlement-cycle) is market context, not a substitute for a broker's available-cash calculation.
 
 ## Verification
 
@@ -54,7 +54,7 @@ Automated coverage includes Pakistan session boundaries, unfinished candles, mis
 
 ## Beginner workflow and chart interaction
 
-An in-page beginner guide explains the six-step research workflow, OHLC candles, fees, position sizing, R, replay outcomes and separate Drive journal storage. The daily OHLC chart supports 30/60/90-session windows, pointer/touch inspection and keyboard navigation. Historical breakout levels may populate a hypothetical plan, retaining the original timestamp in the saved journal. Daily and intraday feeds publish independently so replay becomes available as soon as intraday data arrives; loading and unavailable states explain disabled actions.
+An in-page beginner guide explains the six-step research workflow, OHLC candles, fees, position sizing, R, replay outcomes and separate Drive journal storage. The Scanner embeds the existing StockChart with automatic loading, candle intervals, history ranges, indicators and drawing controls. It follows the selected symbol and retains the chart’s existing settings and access checks. Historical breakout levels may populate a hypothetical plan, retaining the original timestamp in the saved journal. Daily and intraday feeds publish independently so replay becomes available as soon as intraday data arrives; loading and unavailable states explain disabled actions.
 
 ## Drive sync safety
 
@@ -80,3 +80,12 @@ Daily and intraday opening-range modes scan up to three stocks concurrently. The
 Cancel aborts in-flight client fetches and stops queued work. Partial results survive tab changes inside the lab. Retry requests only failed or unfinished stocks from the original scan configuration. Rate limiting or repeated transport failures pause work visibly. The bounded candle cache retains at most 80 symbols/modes; results retain summaries only. Search, sector/price/volume filters and 30-row pagination keep full-market results usable on mobile. Scan results/candles are not written to the user’s portfolio, Practice Trading or Drive journal.
 
 The default scanner mode is automatic intraday setups. Confirmed opening-range closes produce entry, range-low stop and a 2R target before costs; Review setup copies these into the trade plan. The selected-stock view also applies default rules when there is no edited/saved plan. No confirmation means no guessed levels. Rule editing, manual prices/budget/costs and session risk inputs are collapsed under optional advanced controls. Saved/manual plans are not overwritten by refresh.
+
+
+## Inline research and comparison visibility
+
+Research shows all returned company-profile sections, automatically loads dated annual/quarterly financial tables, and reuses StockAnnouncements for filings, board meetings and payouts. Original document links remain for checking source PDFs; the two generic outbound company/announcements links are removed. No portfolio corporate-action recording callback is supplied to the lab.
+
+The GitHub comparison panel renders only for the two specified reviewer accounts, using the signed-in email already passed to TradingLab. This is a visibility rule for explanatory public-source content, not a restriction on Trading Lab itself or a server-data permission.
+
+The monitor button explains the 30-second refresh, completed five-minute candle checks, visible-page requirement, session reminders and absence of orders/email/push notifications. A plan without valid positive entry/stop/target levels can still receive entry-rule notices, but cannot produce stop/target notices. Candles from a different symbol cannot trigger plan notices.
