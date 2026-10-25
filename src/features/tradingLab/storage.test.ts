@@ -1,5 +1,5 @@
 import {it,expect,vi} from 'vitest';
-import {labKey,parseWatchlist,readLab,writeLab,mergeLabs,parseLab} from './storage';
+import {labKey,parseWatchlist,readLab,writeLab,mergeLabs,parseLab,deleteLabTicket,restoreLabTicket} from './storage';
 import {DEFAULT_PLAN,sizePlan} from './engine';
 it('keeps a historical plan with a low reward/risk warning after reload',()=>{const plan={...DEFAULT_PLAN,entry:100,stop:98,target:103},sizing=sizePlan(plan);let saved='';const ticket={id:'test',createdAt:'2026-10-24T15:00:00Z',plan,quantity:sizing.quantity,sourceDate:'2026-10-23',note:'Past setup',entrySource:'Historical breakout: 23 Oct 2026, 14:55 PKT'};writeLab('lab@example.test',{watchlist:'HBL',tickets:[ticket]},{setItem:(_key,value)=>{saved=value;}});const restored=readLab('lab@example.test',{getItem:()=>saved});expect(sizing.errors).toEqual([]);expect(sizing.warnings.length).toBe(1);expect(restored.tickets).toEqual([ticket]);});
 it('keeps test data under a distinct login-scoped key',()=>{expect(labKey(' A@EXAMPLE.COM ')).toBe(labKey('a@example.com'));expect(labKey('a@example.com')).not.toBe(labKey('b@example.com'));const setItem=vi.fn();writeLab('a@example.com',{watchlist:'HBL',tickets:[]},{setItem});expect(setItem.mock.calls[0][0]).toMatch(/^psx-trading-lab:v1:/);});
@@ -16,4 +16,33 @@ it('refuses conflicting IDs and malformed plans instead of silently dropping the
   const a={watchlist:'HBL',tickets:[ticket('one')]};
   expect(()=>mergeLabs(a,{...a,tickets:[{...a.tickets[0],note:'changed'}]})).toThrow('differ');
   expect(()=>parseLab({...a,tickets:[...a.tickets,{bad:true}]})).toThrow('could not be read');
+});
+it('persists deletion markers and never resurrects a plan from an older device',()=>{
+  const original={watchlist:'HBL',tickets:[ticket('one'),ticket('two')]};
+  const deleted=deleteLabTicket(original,'one');
+  expect(deleted.tickets.map(t=>t.id)).toEqual(['two']);expect(deleted.deletedTicketIds).toEqual(['one']);
+  let stored='';writeLab('a@example.test',deleted,{setItem:(_k,v)=>{stored=v;}});
+  const restored=readLab('a@example.test',{getItem:()=>stored});
+  expect(mergeLabs(original,restored)).toEqual(deleted);expect(mergeLabs(restored,original)).toEqual(deleted);
+  expect(original.tickets).toHaveLength(2);
+});
+it('merges independent deletions and new plans regardless of device order',()=>{
+  const original={watchlist:'HBL',tickets:[ticket('one'),ticket('two')]};
+  const a=deleteLabTicket(original,'one'),b={...deleteLabTicket(original,'two'),tickets:[ticket('three')]};
+  const merged=mergeLabs(a,b,original);
+  expect(merged.tickets.map(t=>t.id)).toEqual(['three']);expect(merged.deletedTicketIds).toEqual(['one','two']);
+  expect(mergeLabs(b,mergeLabs(original,a))).toEqual(merged);
+});
+it('undo restores a copy without erasing the deletion known to other devices',()=>{
+  const original={watchlist:'HBL',tickets:[ticket('one')]},deleted=deleteLabTicket(original,'one');
+  const restored=restoreLabTicket(deleted,original.tickets[0],'restored-one');
+  const merged=mergeLabs(original,deleted,restored);
+  expect(merged.tickets).toEqual([{...ticket('one'),id:'restored-one'}]);
+  expect(merged.deletedTicketIds).toEqual(['one']);
+  expect(()=>restoreLabTicket(deleted,ticket('one'),'one')).toThrow();
+  expect(()=>restoreLabTicket(restored,ticket('one'),'restored-one')).toThrow();
+});
+it('refuses malformed deletion metadata instead of silently reviving plans',()=>{
+  for(const deletedTicketIds of ['one',[null],[''],['  ']])expect(()=>parseLab({watchlist:'HBL',tickets:[],deletedTicketIds})).toThrow('deletion');
+  expect(parseLab({watchlist:'HBL',tickets:[],deletedTicketIds:['two','one','two']}).deletedTicketIds).toEqual(['one','two']);
 });

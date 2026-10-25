@@ -89,3 +89,22 @@ Research shows all returned company-profile sections, automatically loads dated 
 The GitHub comparison panel renders only for the two specified reviewer accounts, using the signed-in email already passed to TradingLab. This is a visibility rule for explanatory public-source content, not a restriction on Trading Lab itself or a server-data permission.
 
 The monitor button explains the 30-second refresh, completed five-minute candle checks, visible-page requirement, session reminders and absence of orders/email/push notifications. A plan without valid positive entry/stop/target levels can still receive entry-rule notices, but cannot produce stop/target notices. Candles from a different symbol cannot trigger plan notices.
+
+
+## Independent monitoring list and target profit
+
+Starting monitoring captures the selected stock's plan and rules. While any monitor is active, submitting another symbol in the search field adds a separate monitor, using default rules until that symbol has a confirmed setup. Viewing a monitored row restores its own plan. Editing a plan does not silently change its monitor; Update monitored plan restarts only that symbol with the edited snapshot. Each symbol has independent levels, notices, timestamps and stop control, plus a Stop all action.
+
+The visible-page monitor polls at most three stocks concurrently, refreshes every 30 seconds, deduplicates notices, and discards removed/restarted/paused request results. One stock's feed failure cannot replace another's state. Active monitors remain session-only: leaving or reloading Trading Lab clears them, while saved plans still use the separate Drive journal.
+
+Budget & risk now shows the total net profit if the modeled target fills, using the same whole-share quantity, entry/exit fees and slippage as the stop-loss and R calculations. A negative net target outcome is labelled as a loss. R is net target profit divided by modeled stop loss; these are estimates, not booked gains, and CGT remains excluded.
+
+### Saved plan deletion and sector news
+
+Saved plans have Delete and session Undo controls. Optional `deletedTicketIds` are retained in the same isolated Lab Drive document and unioned across devices; an older copy cannot restore a deleted ticket. Undo saves the original plan under a fresh ID while retaining its original date and all settings. Deletions made during an upload stay pending for the next sync. Existing journals without deletion metadata remain compatible. No portfolio or Practice Trading records are affected.
+
+Research adds Match sector beside Match symbol and All stock-market news. The sector comes from PSX Market Watch with the app’s existing symbol mapping as a fallback. Related headline terms are visible and editable, and sector searches include commodity and policy headlines across the feed. This is literal headline matching, not a claim that a story caused a stock move. Unknown sectors disable the shortcut; users can still type terms.
+
+### Scanner strength ratings
+
+Strong / Moderate / Weak is an explicit screening heuristic, not a win probability. Intraday ratings require volume at least 1.5 times the opening average, net target/stop reward at least 1.5R using the default fee/slippage assumptions, and the last close holding above the range inside the plan levels. A lost breakout, reached stop/target, or net reward below 1R caps the grade at Weak. Daily ratings compare a recovery/setup signal, the 20-day average and relative volume. Missing information never counts as confirmation. Every grade has reasons and a snapshot-age qualifier; historical and delayed ratings are not fresh entry calls. Users can filter by rating; rule matches sort by grade then liquidity.

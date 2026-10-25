@@ -27,3 +27,20 @@ describe('replay integrity',()=>{
  it('requires enough comparable history and rejects invalid costs',()=>{expect(()=>simulatePlan(session('2026-10-23',1),plan,at('2026-10-24','12:00'))).toThrow('Need 3');expect(()=>replayOpeningRange([],2,NaN,0)).toThrow();});
  it('uses only earlier matching sessions and produces repeatable totals',()=>{const rows=['2026-10-02','2026-10-09','2026-10-16','2026-10-23'].flatMap(d=>session(d,1));const now=at('2026-10-24','12:00'),a=simulatePlan(rows,plan,now,100,19),b=simulatePlan(rows,plan,now,100,19);expect(a).toEqual(b);expect(a.sessions).toBe(3);expect(a.before).toBe('2026-10-23');expect(Object.values(a.counts).reduce((x,y)=>x+y,0)).toBe(100);});
 });
+
+
+describe('target profit after costs',()=>{
+ it('uses both-side fees and slippage and agrees with the displayed R ratio',()=>{
+  const result=sizePlan({...DEFAULT_PLAN,symbol:'PPL',entry:210.15,stop:208.90,target:212.65});
+  expect(result.quantity).toBe(118);
+  const netTargetProceeds=118*212.65*0.999*0.998;
+  const totalEntryCost=118*210.15*1.001*1.002;
+  expect(result.reward).toBeCloseTo(netTargetProceeds-totalEntryCost,8);
+  expect(result.reward/result.loss).toBeCloseTo(result.rr,10);
+  expect(result.rr).toBeCloseTo(0.49,2);
+ });
+ it('retains a loss at the target when costs exceed the price gain',()=>{
+  const result=sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target:100.1});
+  expect(result.reward).toBeLessThan(0);expect(result.rr).toBeLessThan(0);
+ });
+});
