@@ -1,5 +1,6 @@
 // PSX testing equivalents of the MIT upstream entry, exit, risk and Time Machine tools.
 import {intradaySegments,openingRange,netReturn,sizePlan,walkTrade,type Bar,type Plan,type Segment} from './engine';
+import {assessTarget,type TargetContext} from './targets';
 const FIVE=300000;
 export type Rules={entryMode:'range'|'level';level:number;volumeX:number;entryMinutes:number;stopMode:'range-low'|'range-mid'|'percent'|'atr'|'manual';stopValue:number;targetR:number;flatMinutes:number;entryIndex:number;jitter:number;minimumSessions:number};
 export const DEFAULT_RULES:Rules={entryMode:'range',level:100,volumeX:0,entryMinutes:90,stopMode:'range-low',stopValue:2,targetR:2,flatMinutes:5,entryIndex:2,jitter:2,minimumSessions:3};
@@ -39,7 +40,7 @@ export function atr(bars:Bar[],period=14){
   const values=bars.slice(1).map((b,i)=>Math.max(b.high-b.low,Math.abs(b.high-bars[i].close),Math.abs(b.low-bars[i].close))).slice(-period);
   return {value:values.length?values.reduce((a,b)=>a+b,0)/values.length:null,count:values.length};
 }
-export function exitLevels(entry:number,s:Segment|null,throughIndex:number,r:Rules,manualStop:number){
+export function exitLevels(entry:number,s:Segment|null,throughIndex:number,r:Rules,manualStop:number,context:TargetContext={}){
   validateRules(r);const range=s?openingRange(s):null,volatility=atr(s?.bars.slice(0,throughIndex+1)||[]);
   let stop:number;
   switch(r.stopMode){
@@ -51,7 +52,9 @@ export function exitLevels(entry:number,s:Segment|null,throughIndex:number,r:Rul
   }
   stop=Math.floor((stop+1e-9)*100)/100;
   if(!(stop>0&&entry>stop))throw new Error('The selected stop must be positive and below entry.');
-  return {stop,target:Math.round((entry+(entry-stop)*r.targetR)*100)/100,atr:volatility};
+  const targetReview=assessTarget(entry,Math.round((entry+(entry-stop)*r.targetR)*100)/100,s,throughIndex,context);
+  if(targetReview.band&&stop<targetReview.band.lower)targetReview.warnings.push('Stop is below the daily lower limit and cannot fill there in this session.');
+  return {stop,target:targetReview.target,atr:volatility,targetReview};
 }
 export function riskReview(p:Plan,r:RiskContext){
   validateRisk(r);const sized=sizePlan(p),blocks=[...sized.errors,...sized.warnings];
@@ -64,15 +67,16 @@ export function riskReview(p:Plan,r:RiskContext){
   if(names(r.blockedSymbols).includes(p.symbol))blocks.push('This symbol is on your blocked list.');
   return {blocks,sized,remainingRisk:r.dailyLossLimit-r.lossSoFar-r.reservedRisk,ready:blocks.length===0};
 }
-export function replayRules(bars:Bar[],p:Plan,r:Rules,now=Date.now()){
+export function replayRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),context:TargetContext={}){
   validateRules(r);if(![p.feePct,p.slipPct].every(v=>Number.isFinite(v)&&v>=0&&v<=10))throw new Error('Check fees and slippage.');
   const segments=intradaySegments(bars,now),complete=segments.filter(s=>s.complete);let skipped=0;
   const trades=complete.flatMap(s=>{
     const signal=checkEntry(s,r,s.end);if(!signal.trigger)return [];
     const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=s.end-r.flatMinutes*60000);if(!after.length){skipped++;return [];}
-    let levels:ReturnType<typeof exitLevels>;try{levels=exitLevels(signal.trigger.close,s,signal.index,r,p.stop);}catch{skipped++;return [];}
+    let levels:ReturnType<typeof exitLevels>;try{levels=exitLevels(signal.trigger.close,s,signal.index,r,p.stop,{...context,intraday:bars});}catch{skipped++;return [];}
+    if(levels.target==null){skipped++;return [];}
     const entry=signal.trigger.close,result=walkTrade(after,entry,levels.stop,levels.target);
-    return [{day:s.day,session:s.family,entryTime:signal.trigger.time+FIVE,entry,stop:levels.stop,target:levels.target,...result,netR:netReturn(entry,result.exit,p.feePct,p.slipPct)/(entry-levels.stop)}];
+    return [{day:s.day,session:s.family,entryTime:signal.trigger.time+FIVE,entry,stop:levels.stop,target:levels.target,targetReview:levels.targetReview,...result,netR:netReturn(entry,result.exit,p.feePct,p.slipPct)/(entry-levels.stop)}];
   });
   return {sessions:complete.length,excluded:segments.length-complete.length,skipped,trades,averageR:trades.length?trades.reduce((a,t)=>a+t.netR,0)/trades.length:null};
 }

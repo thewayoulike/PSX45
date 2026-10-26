@@ -4,10 +4,10 @@ import {ScanFeedError} from './scanner';
 const bar={time:1792715700000,open:100,high:101,low:99,close:100,volume:100};
 afterEach(()=>vi.unstubAllGlobals());
 it('requests a short intraday window, validates identity and caches read-only data',async()=>{
-  const fetcher=vi.fn().mockResolvedValue(new Response(JSON.stringify({symbol:'ABC',bars:[bar],source:'pypsx'})));
+  const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({symbol:'ABC',bars:[bar],source:'pypsx'})));
   vi.stubGlobal('fetch',fetcher);const signal=new AbortController().signal;
   const result=await loadScanCandles('ABC','intraday',signal);await loadScanCandles('ABC','intraday',signal);
-  expect(fetcher).toHaveBeenCalledTimes(1);expect(fetcher.mock.calls[0][0]).toContain('period=5d');expect(result.bars).toEqual([bar]);
+  expect(fetcher).toHaveBeenCalledTimes(3);expect(result.targetContext?.daily).toEqual([bar]);expect(result.targetContext?.band).toBeUndefined();expect(fetcher.mock.calls[0][0]).toContain('period=5d');expect(result.bars).toEqual([bar]);
 });
 it('passes cancellation through to the network',async()=>{
   vi.stubGlobal('fetch',vi.fn((_url,{signal})=>new Promise((_resolve,reject)=>signal.addEventListener('abort',()=>reject(new DOMException('Aborted','AbortError'))))));

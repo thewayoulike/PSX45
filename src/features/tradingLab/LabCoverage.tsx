@@ -4,7 +4,7 @@ const coverage=[
  ['Scanner','Five original daily rules plus RSI recovery; price/volume filters.','Full PSX Market Watch list or saved watchlist; daily and 5-minute opening-range scans. Feed gaps are shown.'],
  ['News','Publisher links, keyword matching and headline catalyst tags.','No SEC feed or automatic news interpretation.'],
  ['Entry','Opening range/custom level, closing confirmation, volume and time window.','5-minute candles; feed latency and missing bars are shown.'],
- ['Exit','Range low/midpoint, percentage, ATR or manual stop; R target and flat-by.','ATR needs 14 past ranges; no live stop orders.'],
+ ['Exit','Range low/midpoint, percentage, ATR or manual stop; R benchmark limited by resistance, typical movement and price bands; flat-by.','ATR needs 14 past ranges; no live stop orders.'],
  ['Time Machine','Rule replay, entry-slot timing, sampling window, 10,000 paths and distributions.','Limited PSX history; minimum 3 configurable, upstream default 20.'],
  ['Budget','Whole-lot sizing, costs, capital and risk caps.','Editable costs and lot size, not broker-verified balances.'],
  ['Risk','Cash reserve, session loss/risk, entry count, duplicates and order limits.','Hypothetical session inputs; no US PDT rule or live account inspection.'],

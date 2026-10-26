@@ -4,9 +4,9 @@ import {intradayScan,type ScanRow} from './scanner';
 import {DEFAULT_RULES} from './workflow';
 import type {Bar} from './engine';
 const at=(time:string)=>Date.parse('2026-10-23T'+time+':00+05:00');
-const bar=(time:string,close=100,volume:number|null=100):Bar=>({time:at(time),open:100,high:Math.max(101,close),low:95,close,volume});
+const bar=(time:string,close=100,volume:number|null=100):Bar=>({time:at(time),open:100,high:Math.max(101,close),low:98,close,volume});
 const bars=[bar('14:35'),bar('14:40'),bar('14:45'),bar('14:50',102,200),bar('14:55',103,100)];
-const row=(now=at('15:00')):ScanRow=>({symbol:'HBL',name:'Habib Bank',sector:'Commercial Banks',volume:100000,checkedAt:now,entry:intradayScan(bars.map(value=>({...value})),DEFAULT_RULES,now)});
+const row=(now=at('15:00')):ScanRow=>({symbol:'HBL',name:'Habib Bank',sector:'Commercial Banks',volume:100000,checkedAt:now,entry:intradayScan(bars.map(value=>({...value})),DEFAULT_RULES,now,{daily:Array.from({length:20},(_,i)=>({time:Date.UTC(2026,9,i+1),open:100,high:110,low:90,close:100,volume:100})),band:{day:'2026-10-23',lower:90,upper:110,reference:100,source:'Test'}})});
 it('rates strong only when volume, net reward and price confirmation all pass',()=>{
   const rating=setupStrength(row());expect(rating.label).toBe('Strong');expect(rating.context).toBe('Recent at scan');
   expect(rating.reasons.join(' ')).toContain('2.00×');expect(rating.reasons.join(' ')).toContain('after estimated costs');
@@ -40,3 +40,5 @@ it('requires recovery, trend and volume for a strong daily rating',()=>{
   daily.daily!.setups=['RSI below 30'];expect(setupStrength(daily).label).toBe('Weak');
   daily.daily!.setups=[];expect(setupStrength(daily).label).toBe('No setup');
 });
+
+it('does not label missing target context Strong',()=>{const r=row();r.entry=intradayScan(bars,DEFAULT_RULES,at('15:00'));expect(setupStrength(r).label).toBe('Weak');});

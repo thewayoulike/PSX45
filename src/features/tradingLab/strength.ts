@@ -10,6 +10,7 @@ export function setupStrength(row:ScanRow):SetupStrength{
     const entry=row.entry,context=entry.status==='Session ended'?'Historical setup':!entry.fresh?'Delayed snapshot':entry.recent?'Recent at scan':'Earlier breakout';
     if(entry.check?.state==='incomplete'||!entry.check)return {label:'Incomplete',rank:-1,context,reasons:[entry.check?.reason||'Session candles unavailable.']};
     if(!entry.check.trigger)return {label:'No setup',rank:0,context:entry.status,reasons:[entry.check.reason]};
+    if(entry.targetReview?.target===null)return {label:'Weak',rank:1,context,reasons:[entry.targetReview.reason,...entry.targetReview.warnings]};
     if(!entry.levels||!entry.last)return {label:'Incomplete',rank:-1,context,reasons:['Confirmed entry needs valid stop and target levels to be rated.']};
     const reasons:string[]=['A completed candle confirmed the opening-range breakout.'];
     let points=0;
@@ -29,6 +30,11 @@ export function setupStrength(row:ScanRow):SetupStrength{
     else reasons.push(entry.last.close<=entry.levels.stop?'Last close is at or below the test stop.':entry.last.close>=entry.levels.target?'Last close is already at or above the test target.':'Last close no longer holds above the opening range.');
     // A lost breakout or low net reward cannot receive a strong grade from volume alone.
     if(!holds||!Number.isFinite(rr)||rr<1||sized.errors.length)points=Math.min(points,1);
+    if(entry.targetReview){
+      reasons.push(`Target basis: ${entry.targetReview.reason}.`,...entry.targetReview.warnings);
+      if(!entry.targetReview.complete)points=Math.min(points,1);
+      else if(entry.targetReview.warnings.length)points=Math.min(points,2);
+    }
     return grade(points,context,reasons);
   }
   if(row.daily){

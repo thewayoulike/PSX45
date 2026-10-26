@@ -1,6 +1,7 @@
 import {intradaySegments,pktDay,standardSessions,type Plan} from './engine';
 import {checkEntry,exitLevels,validateRules,type Rules} from './workflow';
 import type {CandleSet} from './data';
+import {targetSummary} from './targets';
 export type LabAlert={id:string;text:string;time:number};
 export function observedAlerts(candles:CandleSet,p:Plan,r:Rules,started:number,now:number):LabAlert[]{
   if(candles.symbol!==p.symbol)return [];
@@ -42,8 +43,10 @@ export function createLabMonitor(options:Options){
     if(!session)return;
     const signal=checkEntry(session,entry.value.rules,time);
     if(!signal.trigger)return;
-    const {stop,target}=exitLevels(signal.trigger.close,session,signal.index,entry.value.rules,entry.value.plan.stop);
-    entry.value={...entry.value,plan:{...entry.value.plan,entry:signal.trigger.close,stop,target},source:`${sessionNow?'Observed':'Historical'} rule-confirmed setup · ${stamp(signal.trigger.time+300000)}`};
+    const {stop,target,targetReview}=exitLevels(signal.trigger.close,session,signal.index,entry.value.rules,entry.value.plan.stop,{...data.targetContext,intraday:data.bars});
+    const source=`${sessionNow?'Observed':'Historical'} rule-confirmed setup · ${stamp(signal.trigger.time+300000)} · ${targetSummary(targetReview)}`;
+    if(target==null){entry.value={...entry.value,source};return;}
+    entry.value={...entry.value,plan:{...entry.value.plan,entry:signal.trigger.close,stop,target},rules:{...entry.value.rules,entryIndex:signal.index},source};
     entry.waitingForLevels=false;
   }
   function pump(){

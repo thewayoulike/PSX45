@@ -3,6 +3,7 @@ import {SECTOR_CODE_MAP} from '../../services/sectors';
 import {parseBars} from './engine';
 import {normalizeUniverse,ScanFeedError,type MarketUniverse,type ScanKind} from './scanner';
 import type {CandleSet} from './data';
+import {loadTargetContext} from './targetData';
 
 async function request(url:string,signal?:AbortSignal){
   const controller=new AbortController(),abort=()=>controller.abort();
@@ -57,7 +58,9 @@ export async function loadScanCandles(symbol:string,kind:ScanKind,signal:AbortSi
   if(raw?.error)throw new ScanFeedError('Market feed is temporarily unavailable.');
   if(raw.symbol&&raw.symbol!==symbol)throw new Error('The feed returned a different stock.');
   const bars=parseBars(raw.bars);if(!bars.length)throw new Error('No usable candle history returned.');
-  const value={symbol,bars,source:String(raw.source||'PSX market feed'),retrievedAt:new Date().toISOString()};
+  const targetContext=kind==='intraday'?await loadTargetContext(symbol,signal):undefined;
+  if(signal.aborted)throw new DOMException('Scan cancelled','AbortError');
+  const value={symbol,bars,source:String(raw.source||'PSX market feed'),retrievedAt:new Date().toISOString(),...(targetContext?{targetContext}:{})};
   cache.delete(key);cache.set(key,{expires:Date.now()+(kind==='daily'?300000:30000),value});
   while(cache.size>80)cache.delete(cache.keys().next().value!);
   return value;

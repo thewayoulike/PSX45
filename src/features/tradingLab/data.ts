@@ -1,8 +1,10 @@
 import { parseBars, type Bar } from './engine';
 import type { InsiderReport } from '../../services/marketReports';
 import {loadMarketUniverse,loadScanCandles} from './scannerData';
+import {loadTargetContext} from './targetData';
+import type {TargetContext} from './targets';
 
-export type CandleSet={symbol:string;bars:Bar[];source:string;retrievedAt:string};
+export type CandleSet={symbol:string;bars:Bar[];source:string;retrievedAt:string;targetContext?:TargetContext};
 export type Headline={id:string;title:string;url:string;source:string;publishedAt?:string;indexedAt:string;topics?:string[]};
 export type Research={news?:{items:Headline[];checkedAt:string;stale:boolean;failedFeeds?:string[]};insiders?:InsiderReport;company?:{businessDescription?:string;source?:string;fundamentals?:{category:string;items:{label:string;value:string}[]}[]};errors:string[]};
 const cache=new Map<string,{expires:number;promise:Promise<CandleSet>}>();
@@ -17,10 +19,10 @@ export function loadCandles(symbol:string,intraday=false,force=false):Promise<Ca
   const key=symbol+(intraday?':5m':':daily'),old=cache.get(key);
   if(!force&&old&&old.expires>Date.now())return old.promise;
   const url=intraday?`/api/pypsx?mode=intraday&symbol=${encodeURIComponent(symbol)}&interval=5m&period=1mo`:`/api/proxy?ohlc=${encodeURIComponent(symbol)}`;
-  const promise=json(url).then(raw=>{
+  const promise=Promise.all([json(url),intraday?loadTargetContext(symbol):Promise.resolve(undefined)]).then(([raw,targetContext])=>{
     const bars=parseBars(raw.bars);if(!bars.length)throw new Error('No usable candles were returned.');
     if(raw.symbol&&raw.symbol!==symbol)throw new Error('The feed returned a different symbol.');
-    return {symbol,bars,source:String(raw.source||'PSX market feed'),retrievedAt:new Date().toISOString()};
+    return {symbol,bars,source:String(raw.source||'PSX market feed'),retrievedAt:new Date().toISOString(),...(targetContext?{targetContext}:{})};
   }).catch(e=>{cache.delete(key);throw e;});
   cache.set(key,{expires:Date.now()+(intraday?60000:300000),promise});return promise;
 }

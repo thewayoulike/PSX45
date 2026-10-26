@@ -1,6 +1,7 @@
 import {dailyScan,intradaySegments,pktDay,standardSessions,type Bar} from './engine';
 import {checkEntry,exitLevels,type Rules} from './workflow';
 import type {CandleSet} from './data';
+import type {TargetContext,TargetReview} from './targets';
 
 export type ScanKind='daily'|'intraday';
 export type MarketSymbol={symbol:string;name:string;sector:string;volume:number|null;listedIn?:string};
@@ -25,18 +26,19 @@ export function normalizeUniverse(stocks:MarketSymbol[]):MarketSymbol[]{
 }
 
 /** A market scan is a dated observation, never an execution instruction. */
-export function intradayScan(bars:Bar[],rules:Rules,now=Date.now()){
+export function intradayScan(bars:Bar[],rules:Rules,now=Date.now(),context:TargetContext={}){
   const segments=intradaySegments(bars,now),active=standardSessions(pktDay(now)).find(s=>now>=s.start&&now<s.end);
   // Never substitute Friday morning (or yesterday) for a missing current session.
   const session=active?segments.find(s=>s.start===active.start):segments.at(-1);
   const last=session?.bars.at(-1),fresh=!!active&&!!last&&now-(last.time+300000)<=10*60000;
   const check=session?checkEntry(session,{...rules,entryMode:'range'},now):null;
   let levels:{entry:number;stop:number;target:number}|null=null;
+  let targetReview:TargetReview|null=null;
   if(session&&check?.trigger){
-    try{const exits=exitLevels(check.trigger.close,session,check.index,rules,0);levels={entry:check.trigger.close,stop:exits.stop,target:exits.target};}catch{/* No invented levels if the stop rule cannot be calculated. */}
+    try{const exits=exitLevels(check.trigger.close,session,check.index,rules,0,{...context,intraday:bars});targetReview=exits.targetReview;if(exits.target!=null)levels={entry:check.trigger.close,stop:exits.stop,target:exits.target};}catch{/* No invented levels if the stop rule cannot be calculated. */}
   }
   const status=!session?'No session data':!active?'Session ended':!fresh?'Delayed data':check?.state==='triggered'?'Breakout confirmed':check?.state==='waiting'?'Waiting':check?.state==='expired'?'Window expired':'Incomplete candles';
-  return {status,check,levels,fresh,date:session?.day??pktDay(now),family:session?.family??active?.family??'',last:last??null,
+  return {status,check,levels,targetReview,fresh,date:session?.day??pktDay(now),family:session?.family??active?.family??'',last:last??null,
     latestCloseAt:last?last.time+300000:null,triggerAt:check?.trigger?check.trigger.time+300000:null,
     // An old match remains visible with its time, but is never presented as a new call.
     recent:!!fresh&&!!check?.trigger&&now-(check.trigger.time+300000)<=10*60000};
@@ -60,7 +62,7 @@ export async function runMarketScan(options:{stocks:MarketSymbol[];kind:ScanKind
         const candles=await load(stock.symbol,kind,signal);if(signal.aborted)return;
         if(candles.symbol!==stock.symbol)throw new Error('The feed returned a different stock.');
         const checkedAt=options.now?.()??Date.now();
-        row={...stock,checkedAt,...(kind==='daily'?{daily:dailyScan(candles.bars,checkedAt)}:{entry:intradayScan(candles.bars,rules,checkedAt)})};
+        row={...stock,checkedAt,...(kind==='daily'?{daily:dailyScan(candles.bars,checkedAt)}:{entry:intradayScan(candles.bars,rules,checkedAt,candles.targetContext)})};
         failures=0;
       }catch(e){
         if(signal.aborted)return;
