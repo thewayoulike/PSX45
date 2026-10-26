@@ -107,7 +107,7 @@ Research adds Match sector beside Match symbol and All stock-market news. The se
 
 ### Scanner strength ratings
 
-Strong / Moderate / Weak is an explicit screening heuristic, not a win probability. Intraday ratings require volume at least 1.5 times the opening average, net target/stop reward at least 1.5R using the default fee/slippage assumptions, and the last close holding above the range inside the plan levels. A lost breakout, reached stop/target, or net reward below 1R caps the grade at Weak. Daily ratings compare a recovery/setup signal, the 20-day average and relative volume. Missing information never counts as confirmation. Every grade has reasons and a snapshot-age qualifier; historical and delayed ratings are not fresh entry calls. Users can filter by rating; rule matches sort by grade then liquidity.
+Strong / Moderate / Weak is an explicit screening heuristic, not a win probability. Intraday ratings require volume at least 1.5 times the opening average, net target/stop reward at least 1.5R using the default fee/slippage assumptions, and the last close holding above the range inside the plan levels. A lost breakout, reached stop/target, or positive net reward below 1R caps the grade at Weak. No positive net profit at the target is Skip, rather than Weak. Daily ratings compare a recovery/setup signal, the 20-day average and relative volume. Missing information never counts as confirmation. Every grade has reasons and a snapshot-age qualifier; historical and delayed ratings are not fresh entry calls. Users can filter by rating; rule matches sort by grade then liquidity.
 
 ## Intraday target constraints (October 2026)
 
@@ -118,3 +118,14 @@ Resistance candidates are the prior daily high and confirmed swing highs (two ea
 The dated regular-market circuit limits come from the PSX company quote through the existing public proxy; futures and odd-lot sections are ignored. Another date's quote is never applied to replay. When no matching quote exists, ordinary symbols from 22 July 2024 onward may use a labelled estimate of the prior close ± max(10%, Rs. 1), rounded to paisas. This estimate is disabled for ETF/contract-style symbols and requires a prior close within seven calendar days. Special bands, corporate actions, listings, holidays and actual exchange tick sizes can invalidate that estimate. Missing checks stay visible and cap strength at Weak; estimated bands and other target warnings cap it at Moderate. Source: [PSX regulations, 19.3](https://www.psx.com.pk/psx/themes/psx/uploads/PSX-Regulations-September-23-2026.pdf).
 
 Each stock's supplemental daily history and quote are cached for five minutes (failed/partial context for 30 seconds), with bounded scan workers and cancellation. Supplementary failures do not hide the breakout; the target is explicitly incomplete. Saved/manual prices are not silently rewritten: reapply exit rules to assess them. The adjusted target and explanation are retained in the existing journal's plan and entry source. Simulations use the selected plan target and still do not model order-book fills or locked-market execution.
+
+
+## Skipping targets that do not cover costs
+
+A valid plan with zero or negative target profit after both-side fees and slippage displays **Skip — target does not cover costs** prominently above its levels and in the budget status. Invalid inputs stay input errors, and a positive but low reward/risk remains a research warning. The target is never raised to pass this check.
+
+Intraday scanner results label these setups Skip using the documented default costs and hide them by default. Show skipped setups for research reveals them, with an Inspect skipped setup action. Setups with no usable target above entry are also Skip. Daily research ratings remain unchanged because they have no entry/exit price plan.
+
+The selected plan uses its editable costs, so its decision may differ from the scanner default. Monitoring reports Skip instead of an entry opportunity while still permitting price observation. Rule replay skips entries with non-positive net target reward using the replay cost settings. Manual resampling remains available for research with an explicit Skip notice.
+
+Skipped plans can be saved only through the clearly labelled Save skipped setup for research action. Existing journal entries remain readable and recalculate their Skip label from their saved prices and costs; no stored plans are deleted or silently changed.

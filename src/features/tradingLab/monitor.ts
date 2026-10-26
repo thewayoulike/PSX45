@@ -1,4 +1,4 @@
-import {intradaySegments,pktDay,standardSessions,type Plan} from './engine';
+import {intradaySegments,pktDay,sizePlan,standardSessions,type Plan} from './engine';
 import {checkEntry,exitLevels,validateRules,type Rules} from './workflow';
 import type {CandleSet} from './data';
 import {targetSummary,type TargetReview} from './targets';
@@ -10,7 +10,8 @@ export function observedAlerts(candles:CandleSet,p:Plan,r:Rules,started:number,n
   const hasLevels=Number.isFinite(p.entry)&&Number.isFinite(p.stop)&&Number.isFinite(p.target)&&p.stop>0&&p.stop<p.entry&&p.target>p.entry;
   if(hasLevels&&last.low<=p.stop)add(`stop:${p.stop}`,`${p.symbol}: a completed candle touched/breached the test stop ${p.stop}. This is not a fill.`,last.time+300000);
   if(hasLevels&&last.high>=p.target)add(`target:${p.target}`,`${p.symbol}: a completed candle touched the test target ${p.target}. This is not a fill.`,last.time+300000);
-  const entry=checkEntry(s,r,now);if(entry.trigger&&entry.trigger.time+300000>=started)add(`entry:${JSON.stringify(r)}`,`${p.symbol}: your entry rules matched a completed candle. Review the plan.`,entry.trigger.time+300000);
+  const skipReason=sizePlan(p).skipReason;
+  const entry=checkEntry(s,r,now);if(entry.trigger&&entry.trigger.time+300000>=started)add(`entry:${JSON.stringify(r)}`,skipReason?`${p.symbol}: ${skipReason}. Breakout recorded for research only.`:hasLevels?`${p.symbol}: your entry rules matched a completed candle. Review the plan.`:`${p.symbol}: entry rules matched, but usable exit levels are unavailable. No trade candidate.`,entry.trigger.time+300000);
   return events;
 }
 
@@ -63,7 +64,8 @@ export function createLabMonitor(options:Options){
           const time=now();
           try{fillLevels(entry,data,time);}catch{/* Keep entry monitoring active when exit levels cannot be calculated. */}
           const last=intradaySegments(data.bars,time).at(-1)?.bars.at(-1);
-          entry.value={...entry.value,status:'Updated · this visible page only',refreshedAt:time,candleAt:last?last.time+300000:null};
+          const skipReason=sizePlan(entry.value.plan).skipReason||(entry.value.targetReview?.target===null?`Skip — ${entry.value.targetReview.reason}`:null);
+          entry.value={...entry.value,status:skipReason?`${skipReason} · observing prices for research only`:'Updated · this visible page only',refreshedAt:time,candleAt:last?last.time+300000:null};
           notices(entry,observedAlerts(data,entry.value.plan,entry.value.rules,entry.value.started,time));
           emit();options.onData?.(data);
         }catch{

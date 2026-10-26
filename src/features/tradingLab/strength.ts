@@ -1,7 +1,7 @@
 import {DEFAULT_PLAN,sizePlan} from './engine';
 import type {ScanRow} from './scanner';
 
-export type SetupStrength={label:'Strong'|'Moderate'|'Weak'|'No setup'|'Incomplete'|'Unavailable';rank:number;context:string;reasons:string[]};
+export type SetupStrength={label:'Strong'|'Moderate'|'Weak'|'Skip'|'No setup'|'Incomplete'|'Unavailable';rank:number;context:string;reasons:string[]};
 const grade=(points:number,context:string,reasons:string[]):SetupStrength=>({label:points>=3?'Strong':points===2?'Moderate':'Weak',rank:points>=3?3:points===2?2:1,context,reasons});
 /** Transparent screening heuristic, not calibrated odds or a forecast. Uses only the scan snapshot. */
 export function setupStrength(row:ScanRow):SetupStrength{
@@ -10,7 +10,7 @@ export function setupStrength(row:ScanRow):SetupStrength{
     const entry=row.entry,context=entry.status==='Session ended'?'Historical setup':!entry.fresh?'Delayed snapshot':entry.recent?'Recent at scan':'Earlier breakout';
     if(entry.check?.state==='incomplete'||!entry.check)return {label:'Incomplete',rank:-1,context,reasons:[entry.check?.reason||'Session candles unavailable.']};
     if(!entry.check.trigger)return {label:'No setup',rank:0,context:entry.status,reasons:[entry.check.reason]};
-    if(entry.targetReview?.target===null)return {label:'Weak',rank:1,context,reasons:[entry.targetReview.reason,...entry.targetReview.warnings]};
+    if(entry.targetReview?.target===null)return {label:'Skip',rank:0,context,reasons:[`Skip — ${entry.targetReview.reason}`,...entry.targetReview.warnings]};
     if(!entry.levels||!entry.last)return {label:'Incomplete',rank:-1,context,reasons:['Confirmed entry needs valid stop and target levels to be rated.']};
     const reasons:string[]=['A completed candle confirmed the opening-range breakout.'];
     let points=0;
@@ -20,6 +20,7 @@ export function setupStrength(row:ScanRow):SetupStrength{
       if(volume>=1.5)points++;
     }else reasons.push('Breakout volume confirmation is unavailable.');
     const sized=sizePlan({...DEFAULT_PLAN,symbol:row.symbol,...entry.levels});
+    if(sized.skipReason)return {label:'Skip',rank:0,context,reasons:[sized.skipReason,'Even a fill at the target leaves no positive profit after estimated fees and slippage.']};
     reasons.push(...sized.errors);
     const rr=sized.rr;
     const rrOk=Number.isFinite(rr)&&rr>=1.5;

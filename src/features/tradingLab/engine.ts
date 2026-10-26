@@ -3,6 +3,9 @@
 export type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number | null };
 export type Plan = { symbol: string; entry: number; stop: number; target: number; capital: number; riskPct: number; capPct: number; feePct: number; slipPct: number; minRR: number; lot: number };
 export const DEFAULT_PLAN: Plan = { symbol: 'HBL', entry: 0, stop: 0, target: 0, capital: 100000, riskPct: 1, capPct: 25, feePct: 0.2, slipPct: 0.1, minRR: 1.5, lot: 1 };
+export const TARGET_COST_SKIP = 'Skip — target does not cover costs';
+// Treat floating-point dust at break-even as zero, not a profitable setup.
+export const coversTargetCosts = (entry:number,target:number,feePct:number,slipPct:number) => netReturn(entry,target,feePct,slipPct)>1e-9;
 const MINUTE = 60000, FIVE = 5 * MINUTE;
 export const PKT_OFFSET = 5 * 3600000;
 export const pktDay = (t: number) => new Date(t + PKT_OFFSET).toISOString().slice(0, 10);
@@ -96,7 +99,7 @@ export function sizePlan(p:Plan) {
   if(!(p.stop>0&&p.entry>p.stop&&p.target>p.entry))errors.push('For a long plan, use stop < entry < target.');
   if(!(p.capital>0&&p.riskPct>0&&p.riskPct<=100&&p.capPct>0&&p.capPct<=100&&p.minRR>0))errors.push('Check capital, risk limit and position cap.');
   if(!(p.feePct>=0&&p.feePct<=10&&p.slipPct>=0&&p.slipPct<=10&&Number.isInteger(p.lot)&&p.lot>=1))errors.push('Check fees, slippage and lot size.');
-  if(errors.length)return {errors,warnings,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:''};
+  if(errors.length)return {errors,warnings,skipReason:null as string|null,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:''};
   const slip=p.slipPct/100,fee=p.feePct/100,buy=p.entry*(1+slip),sellStop=p.stop*(1-slip),sellTarget=p.target*(1-slip);
   const unitCost=buy*(1+fee),unitLoss=unitCost-sellStop*(1-fee),unitReward=sellTarget*(1-fee)-unitCost;
   const riskBudget=p.capital*p.riskPct/100,cap=p.capital*p.capPct/100;
@@ -104,7 +107,8 @@ export function sizePlan(p:Plan) {
   const rawQuantity=Math.max(0,Math.min(byRisk,byCap)),quantity=Number.isSafeInteger(rawQuantity)?rawQuantity:0,rr=unitReward/unitLoss;
   if(!quantity)errors.push('The budget cannot fund one lot within these limits.');
   if(rr<p.minRR)warnings.push(`Estimated reward/risk is below ${p.minRR.toFixed(2)} after costs.`);
-  return {errors,warnings,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap'};
+  const skipReason=!errors.length&&!coversTargetCosts(p.entry,p.target,p.feePct,p.slipPct)?TARGET_COST_SKIP:null;
+  return {errors,warnings,skipReason,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap'};
 }
 
 // Stops are evaluated before targets for ambiguous candles. Gap stops use the worse open.

@@ -42,5 +42,19 @@ describe('target profit after costs',()=>{
  it('retains a loss at the target when costs exceed the price gain',()=>{
   const result=sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target:100.1});
   expect(result.reward).toBeLessThan(0);expect(result.rr).toBeLessThan(0);
+  expect(result.skipReason).toBe('Skip — target does not cover costs');
+  expect(result.errors).toEqual([]); // Still usable as a rejected research example.
+ });
+ it('marks the PRL example Skip and clears it only when the cost assumptions permit profit',()=>{
+  const prl={...DEFAULT_PLAN,symbol:'PRL',entry:93.99,stop:92.51,target:94.34};
+  expect(sizePlan(prl).skipReason).toBeTruthy();
+  expect(sizePlan({...prl,feePct:0,slipPct:0}).skipReason).toBeNull();
+  expect(sizePlan({...prl,target:96.95}).skipReason).toBeNull();
+  expect(sizePlan({...prl,capital:0}).skipReason).toBeNull();
+ });
+ it('skips break-even targets including floating-point roundoff, without conflating low positive R',()=>{
+  const target=100*1.001*1.002/(.999*.998);
+  expect(sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target}).skipReason).toBeTruthy();
+  expect(sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target:target+.01}).skipReason).toBeNull();
  });
 });

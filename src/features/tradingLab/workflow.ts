@@ -1,5 +1,5 @@
 // PSX testing equivalents of the MIT upstream entry, exit, risk and Time Machine tools.
-import {intradaySegments,openingRange,netReturn,sizePlan,walkTrade,type Bar,type Plan,type Segment} from './engine';
+import {intradaySegments,openingRange,netReturn,coversTargetCosts,sizePlan,walkTrade,type Bar,type Plan,type Segment} from './engine';
 import {assessTarget,type TargetContext} from './targets';
 const FIVE=300000;
 export type Rules={entryMode:'range'|'level';level:number;volumeX:number;entryMinutes:number;stopMode:'range-low'|'range-mid'|'percent'|'atr'|'manual';stopValue:number;targetR:number;flatMinutes:number;entryIndex:number;jitter:number;minimumSessions:number};
@@ -58,6 +58,7 @@ export function exitLevels(entry:number,s:Segment|null,throughIndex:number,r:Rul
 }
 export function riskReview(p:Plan,r:RiskContext){
   validateRisk(r);const sized=sizePlan(p),blocks=[...sized.errors,...sized.warnings];
+  if(sized.skipReason)blocks.unshift(sized.skipReason);
   if(sized.cost>r.cash-r.cashBuffer)blocks.push('Entry would use the reserved cash buffer.');
   if(r.lossSoFar+r.reservedRisk+sized.loss>r.dailyLossLimit)blocks.push('Losses, reserved risk and this plan exceed the session loss limit.');
   if(r.trades>=r.maxTrades)blocks.push('Maximum test entries for the session already reached.');
@@ -75,7 +76,9 @@ export function replayRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),context:Tar
     const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=s.end-r.flatMinutes*60000);if(!after.length){skipped++;return [];}
     let levels:ReturnType<typeof exitLevels>;try{levels=exitLevels(signal.trigger.close,s,signal.index,r,p.stop,{...context,intraday:bars});}catch{skipped++;return [];}
     if(levels.target==null){skipped++;return [];}
-    const entry=signal.trigger.close,result=walkTrade(after,entry,levels.stop,levels.target);
+    const entry=signal.trigger.close;
+    if(!coversTargetCosts(entry,levels.target,p.feePct,p.slipPct)){skipped++;return [];}
+    const result=walkTrade(after,entry,levels.stop,levels.target);
     return [{day:s.day,session:s.family,entryTime:signal.trigger.time+FIVE,entry,stop:levels.stop,target:levels.target,targetReview:levels.targetReview,...result,netR:netReturn(entry,result.exit,p.feePct,p.slipPct)/(entry-levels.stop)}];
   });
   return {sessions:complete.length,excluded:segments.length-complete.length,skipped,trades,averageR:trades.length?trades.reduce((a,t)=>a+t.netR,0)/trades.length:null};

@@ -83,6 +83,15 @@ describe('shared scanner, monitor and replay target calculation',()=>{
    const scan=intradayScan(bars,DEFAULT_RULES,now,{...context,daily:history(101,99)});
    expect(scan.check?.trigger).not.toBeNull();expect(scan.levels).toBeNull();expect(scan.targetReview?.reason).toContain('No remaining upside');
  });
+ it('skips replay entries whose constrained target loses money, but retains profitable research entries',()=>{
+   const daily=history();daily[daily.length-1]={...daily.at(-1)!,high:102.3};
+   const targetContext={...context,daily};
+   const complete=Array.from({length:71},(_,i)=>i<4?bars[i]:candle(bars[0].time+i*300000,102,101,103));
+   const replay=replayRules(complete,DEFAULT_PLAN,DEFAULT_RULES,at('2026-10-22','17:00'),targetContext);
+   expect(replay.trades).toEqual([]);expect(replay.skipped).toBe(1);
+   const noCosts=replayRules(complete,{...DEFAULT_PLAN,feePct:0,slipPct:0},DEFAULT_RULES,at('2026-10-22','17:00'),targetContext);
+   expect(noCosts.trades).toHaveLength(1);expect(noCosts.trades[0].target).toBe(102.29);
+ });
 });
 
 describe('target context feeds',()=>{

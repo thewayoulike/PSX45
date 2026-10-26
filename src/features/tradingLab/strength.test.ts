@@ -42,3 +42,10 @@ it('requires recovery, trend and volume for a strong daily rating',()=>{
 });
 
 it('does not label missing target context Strong',()=>{const r=row();r.entry=intradayScan(bars,DEFAULT_RULES,at('15:00'));expect(setupStrength(r).label).toBe('Weak');});
+it('separates a negative after-cost target from a weak but profitable setup',()=>{
+  const prl=row();prl.entry!.levels={entry:93.99,stop:92.51,target:94.34};
+  expect(setupStrength(prl)).toMatchObject({label:'Skip',rank:0});
+  expect(setupStrength(prl).reasons[0]).toBe('Skip — target does not cover costs');
+  prl.entry!.targetReview!.target=null;prl.entry!.levels=null;
+  expect(setupStrength(prl).label).toBe('Skip');
+});

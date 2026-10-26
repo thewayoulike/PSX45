@@ -1,5 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
-import {createLabMonitor} from './monitor';
+import {createLabMonitor,observedAlerts} from './monitor';
 import {DEFAULT_PLAN,type Plan} from './engine';
 import {DEFAULT_RULES} from './workflow';
 import type {CandleSet} from './data';
@@ -10,6 +10,15 @@ function deferred<T>(){let resolve!:(value:T)=>void,reject!:(reason:Error)=>void
 const flush=async()=>{await Promise.resolve();await Promise.resolve();await Promise.resolve();};
 
 describe('independent Trading Lab monitors',()=>{
+ it('reports Skip instead of an entry opportunity when the target cannot cover costs',async()=>{
+  const p={...plan('PRL'),target:102.1},time=at('09:55');
+  const alerts=observedAlerts(candles('PRL'),p,DEFAULT_RULES,time,time);
+  expect(alerts.some(a=>a.text.includes('Skip — target does not cover costs'))).toBe(true);
+  expect(alerts.some(a=>a.text.includes('Review the plan'))).toBe(false);
+  const monitor=createLabMonitor({load:async symbol=>candles(symbol),visible:()=>true,now:()=>time});
+  monitor.resume();monitor.start(p,DEFAULT_RULES);await flush();
+  expect(monitor.getSnapshot()[0].status).toContain('Skip — target does not cover costs');
+ });
  it('adds PPL without replacing CNERGY or taking references to the edited plan',async()=>{
   const load=vi.fn(async(symbol:string)=>candles(symbol)),monitor=createLabMonitor({load,visible:()=>true,now:()=>at('09:55')});monitor.resume();
   const original=plan('CNERGY'),rules={...DEFAULT_RULES};monitor.start(original,rules,'CNERGY saved levels');await flush();
