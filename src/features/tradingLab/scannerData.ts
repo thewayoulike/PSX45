@@ -30,7 +30,7 @@ export function parseMarketUniverse(html:string):MarketUniverse['stocks']{
     for(const tr of Array.from(table.querySelectorAll('tbody tr'))){
       const cells=Array.from(tr.querySelectorAll('td'));
       const value=(key:string)=>{const cell=cells[headers.indexOf(key)];return (cell?.getAttribute('data-order')??cell?.textContent??'').trim();};
-      stocks.push({symbol:value('symbol'),name:cells[symbolIndex]?.querySelector('a')?.getAttribute('data-title')||value('symbol'),sector:SECTOR_CODE_MAP[value('sector')]||value('sector')||'Unclassified',volume:marketNumber(value('volume'))});
+      stocks.push({symbol:value('symbol'),name:cells[symbolIndex]?.querySelector('a')?.getAttribute('data-title')||value('symbol'),sector:SECTOR_CODE_MAP[value('sector')]||value('sector')||'Unclassified',volume:marketNumber(value('volume')),listedIn:value('listed')});
     }
   }
   // Keep zero-volume and unpriced listings too; history availability is assessed per stock.

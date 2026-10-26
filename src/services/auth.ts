@@ -5,6 +5,7 @@
 import { createClient, Session } from '@supabase/supabase-js';
 import { beginStage } from '../utils/performance';
 import { readApiJson } from './apiResponse';
+import { trackSuccessfulSignup } from '../utils/signupConversion';
 import { getValidToken, getRememberedDriveConfig, installLinkedDriveSession, setDrivePasswordProviders, clearDriveSession, LinkedDriveSession } from './driveStorage';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -113,6 +114,11 @@ const fetchAccessStatus = async (email: string, name?: string, notify = false, r
     // Legacy API returned "expired"; treat as free.
     const raw = (d.status || d.accessStatus || (d.approved ? 'trial' : 'pending')) as string;
     const status = (raw === 'expired' ? 'free' : raw) as AccessState;
+    // request-access creates the account after either Google or email sign-in.
+    // check-access can return new:true for an unknown account without creating it.
+    if (notify && d.new === true && d.active === true && d.accountEmail === email) {
+      trackSuccessfulSignup(email);
+    }
     endMeasure();
     return {
       approved: !!d.approved,

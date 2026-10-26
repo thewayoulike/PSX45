@@ -16,5 +16,12 @@ PSX Tracker helps individual investors in Pakistan keep a personal ledger of PSX
 - Is PSX investing halal: https://www.psx-tracker.com/guides/is-psx-investing-halal
 - Tracking dividends: https://www.psx-tracker.com/guides/tracking-psx-dividends
 - Tools: https://www.psx-tracker.com/tools
+- Markets: https://www.psx-tracker.com/markets
+- PSX stock prices: https://www.psx-tracker.com/markets/stocks
+- Mutual fund NAVs: https://www.psx-tracker.com/markets/funds
+- Crypto prices: https://www.psx-tracker.com/markets/crypto
+- PKR exchange rates: https://www.psx-tracker.com/markets/forex
+- Gold and oil prices: https://www.psx-tracker.com/markets/commodities
+- Market news: https://www.psx-tracker.com/markets/news
 - Companies and funds: https://www.psx-tracker.com/markets
 - About: https://www.psx-tracker.com/about

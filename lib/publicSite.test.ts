@@ -268,6 +268,11 @@ it('expands the guides and publishes markets and calculators', () => {
     if (slug === 'best-psx-portfolio-tracker-excel-alternative') continue;
     expect(words(renderGuidePage(slug)), slug).toBeGreaterThanOrEqual(1100);
   }
+  for (const path of ['/markets/shares/ogdc', '/markets/funds/meezan-islamic-fund', '/tools', '/tools/fifo-vs-average', '/tools/trade-costs']) {
+    const title = (renderEditorialPage(path).match(/<title>([^<]*)<\/title>/) || [])[1]?.replaceAll('&amp;', '&') || '';
+    expect(title, path).toContain('PSX Tracker');
+    expect(title.length, title).toBeLessThanOrEqual(60);
+  }
   const ogdc = renderEditorialPage('/markets/shares/ogdc');
   expect(ogdc).toContain('No live price');
   expect(ogdc).toContain('Oil and Gas Development Company');
@@ -288,6 +293,8 @@ it('ships llms.txt, short titles, article schema, and real sitemap dates', () =>
   expect(llms).toContain('PSX Tracker');
   expect(llms).toContain('https://www.psx-tracker.com/guides/fifo-cost-basis-psx');
   expect(llms).toContain('https://www.psx-tracker.com/guides/start-investing-on-psx');
+  expect(llms).toContain('https://www.psx-tracker.com/markets/stocks');
+  expect(llms).toContain('https://www.psx-tracker.com/tools');
   const hub = renderGuideHub();
   const hubDescription = hub.match(/<meta name="description" content="([^"]*)"/)?.[1] || '';
   expect(hubDescription.length).toBeLessThanOrEqual(160);

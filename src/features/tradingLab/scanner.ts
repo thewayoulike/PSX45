@@ -3,7 +3,7 @@ import {checkEntry,exitLevels,type Rules} from './workflow';
 import type {CandleSet} from './data';
 
 export type ScanKind='daily'|'intraday';
-export type MarketSymbol={symbol:string;name:string;sector:string;volume:number|null};
+export type MarketSymbol={symbol:string;name:string;sector:string;volume:number|null;listedIn?:string};
 export type MarketUniverse={stocks:MarketSymbol[];retrievedAt:string;source:string};
 export type EntrySnapshot=ReturnType<typeof intradayScan>;
 export type ScanRow=MarketSymbol&{daily?:ReturnType<typeof dailyScan>;entry?:EntrySnapshot;error?:string;checkedAt:number};
@@ -19,7 +19,7 @@ export function normalizeUniverse(stocks:MarketSymbol[]):MarketSymbol[]{
   for(const stock of stocks){
     const symbol=String(stock.symbol||'').trim().toUpperCase();
     if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(symbol))continue;
-    unique.set(symbol,{symbol,name:stock.name||symbol,sector:stock.sector||'Unclassified',volume:typeof stock.volume==='number'&&Number.isFinite(stock.volume)&&stock.volume>=0?stock.volume:null});
+    unique.set(symbol,{symbol,name:stock.name||symbol,sector:stock.sector||'Unclassified',volume:typeof stock.volume==='number'&&Number.isFinite(stock.volume)&&stock.volume>=0?stock.volume:null,...(typeof stock.listedIn==='string'?{listedIn:stock.listedIn}: {})});
   }
   return [...unique.values()].sort((a,b)=>(b.volume??-1)-(a.volume??-1)||a.symbol.localeCompare(b.symbol));
 }

@@ -7,7 +7,7 @@ function share(symbol, name, sections) {
     kind: 'share',
     symbol,
     title: `${name} (${symbol})`,
-    seoTitle: `${symbol} share research notes`,
+    seoTitle: `${symbol} research notes for PSX investors | PSX Tracker`,
     description: `What ${name} does, what investors usually read in its filings, and how to record ${symbol} in a portfolio. No live price.`,
     eyebrow: 'Listed company',
     h1: `${name} (${symbol})`,
@@ -184,7 +184,7 @@ const baseEditorialPages = {
   '/markets/funds/meezan-islamic-fund': {
     kind: 'fund',
     title: 'Meezan Islamic Fund',
-    seoTitle: 'Meezan Islamic Fund units and NAV',
+    seoTitle: 'Meezan Islamic Fund units and NAV | PSX Tracker',
     description: 'How Meezan Islamic Fund units work, where the NAV comes from, and how to record them. No reprinted NAV.',
     eyebrow: 'Open-end fund',
     h1: 'Meezan Islamic Fund',
@@ -214,7 +214,7 @@ const baseEditorialPages = {
   '/markets/funds/al-meezan-mutual-fund': {
     kind: 'fund',
     title: 'Al Meezan Mutual Fund',
-    seoTitle: 'Al Meezan Mutual Fund units',
+    seoTitle: 'Al Meezan Mutual Fund units | PSX Tracker',
     description: 'How to read Al Meezan Mutual Fund’s mandate and record units, without a republished NAV.',
     eyebrow: 'Open-end fund',
     h1: 'Al Meezan Mutual Fund',
@@ -244,7 +244,7 @@ const baseEditorialPages = {
   '/markets/funds/ubl-stock-advantage-fund': {
     kind: 'fund',
     title: 'UBL Stock Advantage Fund',
-    seoTitle: 'UBL Stock Advantage Fund units',
+    seoTitle: 'UBL Stock Advantage Fund units | PSX Tracker',
     description: 'What UBL Stock Advantage Fund is, how equity-fund units differ from shares, and how to record them. No NAV reprint.',
     eyebrow: 'Open-end fund',
     h1: 'UBL Stock Advantage Fund',
@@ -274,8 +274,8 @@ const baseEditorialPages = {
 const baseToolPages = {
   '/tools': {
     title: 'PSX portfolio calculators',
-    seoTitle: 'PSX portfolio calculators',
-    description: 'Capital gain, SIP, zakat, FIFO, dividend yield, and trade charges. You type every number.',
+    seoTitle: 'PSX calculators: CGT, SIP, zakat, FIFO | PSX Tracker',
+    description: 'Work out PSX capital gains, SIP growth, zakat, FIFO versus average cost, dividend yield, and broker charges. You type every figure. No login required.',
     eyebrow: 'Calculators',
     h1: 'Calculators that use the numbers you type',
     intro: 'These tools do arithmetic for a Pakistan Stock Exchange ledger, a monthly investment plan, and a zakat estimate. They do not fetch a price or a NAV. NCCPL, your broker, and a scholar you trust remain the authorities for tax and zakat.',
@@ -323,7 +323,7 @@ const baseToolPages = {
   '/tools/fifo-vs-average': {
     form: 'fifo-vs-average',
     title: 'FIFO versus average cost',
-    seoTitle: 'FIFO vs average cost calculator',
+    seoTitle: 'FIFO vs average cost calculator | PSX Tracker',
     description: 'See how a partial PSX sale changes gain when oldest lots are sold first instead of a blended average.',
     eyebrow: 'Calculator',
     h1: 'FIFO versus average cost',
@@ -362,7 +362,7 @@ const baseToolPages = {
   '/tools/trade-costs': {
     form: 'trade-costs',
     title: 'Trade cost calculator',
-    seoTitle: 'PSX commission and CDC calculator',
+    seoTitle: 'PSX commission and CDC calculator | PSX Tracker',
     description: 'Add a commission, tax on that commission, and a CDC amount from your own broker schedule.',
     eyebrow: 'Calculator',
     h1: 'Commission and CDC charges',

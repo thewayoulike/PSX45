@@ -3101,7 +3101,7 @@ const App: React.FC = () => {
                               <LedgerCalculators />
                           </div>
                       )}
-                      {currentView === 'TRADING_LAB' && <TradingLab key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} />}
+                      {currentView === 'TRADING_LAB' && <TradingLab key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} holdings={scanHoldings} holdingsLabel={isCombinedView ? 'Combined portfolios' : 'Selected portfolio'} />}
                       {currentView === 'PRACTICE' && <PracticeTrading key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} />}
                       {currentView === 'SIMULATOR' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

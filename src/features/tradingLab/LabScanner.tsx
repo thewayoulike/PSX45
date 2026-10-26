@@ -4,21 +4,34 @@ import {parseWatchlist} from './storage';
 import {DEFAULT_RULES,type Rules} from './workflow';
 import {runMarketScan,remainingScanStocks,type MarketSymbol,type ScanKind,type ScanRow} from './scanner';
 import {setupStrength,type SetupStrength} from './strength';
+import {enrichWatchlist,matchesResultGroup,scanMembership,RESULT_GROUPS,type ResultGroup} from './resultGroups';
 
 function StrengthCell({rating}:{rating:SetupStrength}){return <td className="lab-strength"><span className={'lab-badge lab-strength-'+rating.label.toLowerCase().replace(' ','-')}>{rating.label}</span><small>{rating.context}</small><details><summary>Why this rating?</summary><ul>{rating.reasons.map(reason=><li key={reason}>{reason}</li>)}</ul></details></td>;}
+function StockTags({stock,held}:{stock:MarketSymbol;held:boolean}){
+  const membership=scanMembership(stock);
+  return <div className="lab-stock-tags" aria-label={`${stock.symbol} groups`}>
+    {membership.kse100&&<span className="lab-stock-tag lab-stock-index">KSE-100</span>}
+    {membership.kmi30&&<span className="lab-stock-tag lab-stock-index">KMI-30</span>}
+    {membership.shariah&&<span className="lab-stock-tag lab-stock-shariah" title="Listed in a Shariah-screened index in this scan’s PSX Market Watch snapshot">Shariah</span>}
+    {held&&<span className="lab-stock-tag lab-stock-held">My holding</span>}
+  </div>;
+}
 
-type Job={kind:ScanKind;rules:Rules;stocks:MarketSymbol[];label:string;source:string;retrievedAt:string};
+type Job={kind:ScanKind;rules:Rules;stocks:MarketSymbol[];label:string;source:string;retrievedAt:string;membershipNotice?:string};
 const number=(n:number|null|undefined)=>n==null?'—':n.toLocaleString('en-PK',{maximumFractionDigits:2});
 const timestamp=(n:number|null|undefined)=>n?new Date(n).toLocaleString('en-GB',{timeZone:'Asia/Karachi',day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'})+' PKT':'—';
 const matches=(r:ScanRow)=>!!r.daily?.setups.length||!!r.entry?.check?.trigger;
 const PAGE_SIZE=30;
+const EMPTY_HOLDINGS:string[]=[];
 
-export function LabScanner({data,watchlist,onWatchlist,onSaveWatchlist,onChoose,onPlan}:{data:LabData;watchlist:string;onWatchlist:(value:string)=>void;onSaveWatchlist:(value:string)=>boolean;onChoose:(symbol:string)=>void;onPlan?:(row:ScanRow,rules:Rules)=>void}){
+export function LabScanner({data,watchlist,onWatchlist,onSaveWatchlist,onChoose,onPlan,holdings=EMPTY_HOLDINGS,holdingsLabel='Selected portfolio'}:{data:LabData;watchlist:string;onWatchlist:(value:string)=>void;onSaveWatchlist:(value:string)=>boolean;onChoose:(symbol:string)=>void;onPlan?:(row:ScanRow,rules:Rules)=>void;holdings?:string[];holdingsLabel?:string}){
   const [scope,setScope]=useState<'market'|'watchlist'>('market'),[kind,setKind]=useState<ScanKind>('intraday');
   const [volumeX,setVolumeX]=useState(0),[entryMinutes,setEntryMinutes]=useState(90);
   const [rows,setRows]=useState<ScanRow[]>([]),[job,setJob]=useState<Job|null>(null),[busy,setBusy]=useState(false),[status,setStatus]=useState(''),[error,setError]=useState('');
   const [query,setQuery]=useState(''),[sector,setSector]=useState(''),[onlyMatches,setOnlyMatches]=useState(false),[minPrice,setMinPrice]=useState(0),[minVolume,setMinVolume]=useState(0),[page,setPage]=useState(0);
   const [strengthFilter,setStrengthFilter]=useState('');
+  const [group,setGroup]=useState<ResultGroup>('');
+  const heldSymbols=useMemo(()=>new Set(holdings.map(symbol=>symbol.trim().toUpperCase())),[holdings]);
   const controller=useRef<AbortController|null>(null),generation=useRef(0),running=useRef(false);
   useEffect(()=>()=>{generation.current++;controller.current?.abort();running.current=false;},[]);
   const retryStocks=job?remainingScanStocks(job.stocks,rows):[];
@@ -38,7 +51,16 @@ export function LabScanner({data,watchlist,onWatchlist,onSaveWatchlist,onChoose,
     try{
       let activeJob=job,stocks=retryStocks;
       if(!retry){
-        const universe=chosen?{stocks:chosen,source:'Your saved watchlist',retrievedAt:new Date().toISOString()}:await data.universe(abort.signal);
+        let universe:Awaited<ReturnType<LabData['universe']>>&{membershipNotice?:string};
+        if(chosen){
+          try{
+            const market=await data.universe(abort.signal);
+            universe={...market,stocks:enrichWatchlist(chosen,market.stocks)};
+          }catch(e){
+            if(abort.signal.aborted)throw e;
+            universe={stocks:chosen,source:'Your saved watchlist',retrievedAt:new Date().toISOString(),membershipNotice:'Index tags are unavailable because Market Watch could not load. Your watchlist scan can still continue.'};
+          }
+        }else universe=await data.universe(abort.signal);
         if(abort.signal.aborted||id!==generation.current)return;
         activeJob={...universe,kind,rules:{...DEFAULT_RULES,volumeX,entryMinutes},label:scope==='market'?'Full PSX market':'Watchlist'};
         stocks=universe.stocks;setJob(activeJob);
@@ -57,15 +79,17 @@ export function LabScanner({data,watchlist,onWatchlist,onSaveWatchlist,onChoose,
 
   const sectors=useMemo(()=>[...new Set(job?.stocks.map(s=>s.sector)||[])].sort(),[job]);
   const strengths=useMemo(()=>new Map(rows.map(row=>[row.symbol,setupStrength(row)])),[rows]);
+  const groupCounts=useMemo(()=>new Map(RESULT_GROUPS.map(option=>[option.value,rows.filter(row=>matchesResultGroup(row,option.value,heldSymbols)).length])),[rows,heldSymbols]);
   const filtered=useMemo(()=>rows.filter(r=>{
     if(query&&!`${r.symbol} ${r.name}`.toLowerCase().includes(query.trim().toLowerCase()))return false;
     if(sector&&r.sector!==sector)return false;
+    if(!matchesResultGroup(r,group,heldSymbols))return false;
     if(r.error)return true; // Failed feeds stay visible, even under numeric/match filters.
     if(strengthFilter&&strengths.get(r.symbol)?.label!==strengthFilter)return false;
     const price=r.daily?.last.close??r.entry?.last?.close,volume=r.daily?.avgVolume??r.volume;
     return (minPrice===0||(price!=null&&price>=minPrice))&&(minVolume===0||(volume!=null&&volume>=minVolume))&&(!onlyMatches||matches(r));
-  }).sort((a,b)=>Number(matches(b))-Number(matches(a))||(strengths.get(b.symbol)!.rank-strengths.get(a.symbol)!.rank)||((b.daily?.last.close??1)*(b.daily?.avgVolume??b.volume??0)-(a.daily?.last.close??1)*(a.daily?.avgVolume??a.volume??0))||a.symbol.localeCompare(b.symbol)),[rows,query,sector,minPrice,minVolume,onlyMatches,strengthFilter,strengths]);
-  useEffect(()=>setPage(0),[query,sector,minPrice,minVolume,onlyMatches,strengthFilter]);
+  }).sort((a,b)=>Number(matches(b))-Number(matches(a))||(strengths.get(b.symbol)!.rank-strengths.get(a.symbol)!.rank)||((b.daily?.last.close??1)*(b.daily?.avgVolume??b.volume??0)-(a.daily?.last.close??1)*(a.daily?.avgVolume??a.volume??0))||a.symbol.localeCompare(b.symbol)),[rows,query,sector,minPrice,minVolume,onlyMatches,strengthFilter,strengths,group,heldSymbols]);
+  useEffect(()=>setPage(0),[query,sector,minPrice,minVolume,onlyMatches,strengthFilter,group,heldSymbols]);
   const pages=Math.max(1,Math.ceil(filtered.length/PAGE_SIZE)),currentPage=Math.min(page,pages-1),shown=filtered.slice(currentPage*PAGE_SIZE,(currentPage+1)*PAGE_SIZE);
   const failed=rows.filter(r=>r.error).length,matched=rows.filter(matches).length,isIntraday=(job?.kind??kind)==='intraday';
   return <section className="lab-panel lab-market-scanner" aria-label="Market-wide PSX scanner">
@@ -84,16 +108,20 @@ export function LabScanner({data,watchlist,onWatchlist,onSaveWatchlist,onChoose,
       <div className="lab-scanner-controls lab-scanner-filters">
         <label className="lab-field"><span>Find a stock or company</span><input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Symbol or company name"/></label>
         <label className="lab-field"><span>Sector</span><select value={sector} onChange={e=>setSector(e.target.value)}><option value="">All sectors</option>{sectors.map(s=><option key={s}>{s}</option>)}</select></label>
+        <label className="lab-field"><span>Index / holdings</span><select value={group} onChange={e=>setGroup(e.target.value as ResultGroup)}><option value="">All stocks ({rows.length})</option>{RESULT_GROUPS.map(option=><option key={option.value} value={option.value}>{option.label} ({groupCounts.get(option.value)||0})</option>)}</select><small>Counts are from scanned results, before other filters. Holdings: {holdingsLabel.toLowerCase()}.</small></label>
         <label className="lab-field"><span>Setup strength</span><select value={strengthFilter} onChange={e=>setStrengthFilter(e.target.value)}><option value="">All ratings</option><option>Strong</option><option>Moderate</option><option>Weak</option><option>No setup</option><option>Incomplete</option></select></label>
         <label className="lab-field"><span>Minimum price · PKR</span><input type="number" min={0} value={minPrice} onChange={e=>setMinPrice(Math.max(0,Number(e.target.value)||0))}/></label>
         <label className="lab-field"><span>{isIntraday?'Minimum market snapshot volume':'Minimum 20-session average volume'}</span><input type="number" min={0} value={minVolume} onChange={e=>setMinVolume(Math.max(0,Number(e.target.value)||0))}/></label>
       </div>
+      {job.membershipNotice&&<p className="lab-warning" role="status">{job.membershipNotice}</p>}
+      <p className="lab-membership-help">Index and Shariah tags use the scan’s PSX Market Watch list. Shariah means membership in a Shariah-screened index; missing tags mean unverified membership. Filters update these results without rescanning.</p>
+      {group==='HOLDINGS'&&heldSymbols.size===0&&<p className="lab-warning" role="status">No current stock holdings in {holdingsLabel.toLowerCase()}. Load or select a portfolio with open stock positions to use this filter.</p>}
       <label className="lab-check"><input type="checkbox" checked={onlyMatches} onChange={e=>setOnlyMatches(e.target.checked)}/> Show rule matches only</label>
       <p>{filtered.length} of {rows.length} results · Matches first, then setup strength and liquidity. Feed failures stay visible. Click a symbol to inspect its candles. Review setup opens the automatically calculated levels; closed-session setups are for historical testing.</p>
       <details className="lab-advanced"><summary>How Strong / Moderate / Weak is rated</summary><p>These are rule-based comparisons, not probabilities of profit. Strong meets all three checks; Moderate meets two; Weak has fewer confirmations or a failed price/cost check. Historical ratings describe the saved scan snapshot, not a current entry.</p><p>{isIntraday?'Intraday checks: breakout volume at least 1.5× the opening-candle average, reward/risk at least 1.50R after costs, and last close above the opening range but below target and above stop. A lost breakout or net reward/risk below 1R is Weak. Cost assumptions: 0.2% fees and 0.1% slippage each side; CGT excluded. Review your own costs in Trade plan.':'Daily checks: a setup other than oversold alone, close above its 20-day average, and volume at least 1.5× the previous 20-session average. Oversold alone stays Weak. Daily ratings do not include an entry/stop/target cost check.'} Missing volume never counts as confirmation. Market conditions and liquidity can change after the scan.</p></details>
       {isIntraday&&<p className="lab-warning">This is a one-time scan, not a simultaneous live feed. Check each candle and confirmation time. Closed sessions and delayed data are labelled; an earlier breakout is not a new entry call. Use Trade plan → Monitor this stock for ongoing checks.</p>}
-      <div className="lab-table-wrap"><table><thead><tr><th>Stock / company</th><th>Setup strength</th><th>{isIntraday?'Last 5m close':'Daily close'} · PKR</th>{isIntraday?<><th>Opening high</th><th>Entry / stop / take profit</th></>:<><th>Daily move</th><th>RSI / volume</th></>}<th>{isIntraday?'Status when checked / candle time':'Setup / source date'}</th></tr></thead><tbody>{shown.map(r=><tr key={r.symbol}><td><button className="lab-link" onClick={()=>onChoose(r.symbol)}>{r.symbol}</button><small>{r.name}</small><small>{r.sector}</small></td><StrengthCell rating={strengths.get(r.symbol)!}/><td>{number(r.daily?.last.close??r.entry?.last?.close)}</td>{isIntraday?<><td>{number(r.entry?.check?.level)}</td><td>{r.entry?.levels?<><strong>{number(r.entry.levels.entry)}</strong><small>Stop: {number(r.entry.levels.stop)}</small><small>Take profit: {number(r.entry.levels.target)}</small><small>{timestamp(r.entry.triggerAt)}</small>{onPlan&&<button className="lab-link" onClick={()=>onPlan(r,job.rules)}>Review setup</button>}</>:<small>Waiting for confirmed levels</small>}</td></>:<><td className={(r.daily?.changePct??0)>=0?'lab-up':'lab-down'}>{r.daily?`${r.daily.changePct>=0?'+':''}${r.daily.changePct.toFixed(2)}%`:'—'}</td><td>{r.daily?.rsi?.toFixed(1)??'—'}<small>{r.daily?.relativeVolume!=null?`${r.daily.relativeVolume.toFixed(2)}× volume`:'Volume unavailable'}</small></td></>}<td>{r.error||r.daily?.setups.join(' · ')||r.entry?.status||'No rule matched'}{r.entry?.check?.trigger&&!r.entry.recent&&<small>Earlier breakout · review its time</small>}<small>{r.daily?.date??(r.entry?`${r.entry.date} · ${r.entry.family}`:'')}</small>{r.entry&&<><small>Last candle: {timestamp(r.entry.latestCloseAt)}</small><small>Checked: {timestamp(r.checkedAt)}</small></>}{r.entry?.check?.state==='incomplete'&&<small>{r.entry.check.reason}</small>}</td></tr>)}</tbody></table></div>
-      {!filtered.length&&<p className="lab-empty">{busy?'Waiting for results matching these filters…':'No results match these filters.'}</p>}
+      <div className="lab-table-wrap"><table><thead><tr><th>Stock / company</th><th>Setup strength</th><th>{isIntraday?'Last 5m close':'Daily close'} · PKR</th>{isIntraday?<><th>Opening high</th><th>Entry / stop / take profit</th></>:<><th>Daily move</th><th>RSI / volume</th></>}<th>{isIntraday?'Status when checked / candle time':'Setup / source date'}</th></tr></thead><tbody>{shown.map(r=><tr key={r.symbol}><td><button className="lab-link" onClick={()=>onChoose(r.symbol)}>{r.symbol}</button><small>{r.name}</small><small>{r.sector}</small><StockTags stock={r} held={heldSymbols.has(r.symbol)}/></td><StrengthCell rating={strengths.get(r.symbol)!}/><td>{number(r.daily?.last.close??r.entry?.last?.close)}</td>{isIntraday?<><td>{number(r.entry?.check?.level)}</td><td>{r.entry?.levels?<><strong>{number(r.entry.levels.entry)}</strong><small>Stop: {number(r.entry.levels.stop)}</small><small>Take profit: {number(r.entry.levels.target)}</small><small>{timestamp(r.entry.triggerAt)}</small>{onPlan&&<button className="lab-link" onClick={()=>onPlan(r,job.rules)}>Review setup</button>}</>:<small>Waiting for confirmed levels</small>}</td></>:<><td className={(r.daily?.changePct??0)>=0?'lab-up':'lab-down'}>{r.daily?`${r.daily.changePct>=0?'+':''}${r.daily.changePct.toFixed(2)}%`:'—'}</td><td>{r.daily?.rsi?.toFixed(1)??'—'}<small>{r.daily?.relativeVolume!=null?`${r.daily.relativeVolume.toFixed(2)}× volume`:'Volume unavailable'}</small></td></>}<td>{r.error||r.daily?.setups.join(' · ')||r.entry?.status||'No rule matched'}{r.entry?.check?.trigger&&!r.entry.recent&&<small>Earlier breakout · review its time</small>}<small>{r.daily?.date??(r.entry?`${r.entry.date} · ${r.entry.family}`:'')}</small>{r.entry&&<><small>Last candle: {timestamp(r.entry.latestCloseAt)}</small><small>Checked: {timestamp(r.checkedAt)}</small></>}{r.entry?.check?.state==='incomplete'&&<small>{r.entry.check.reason}</small>}</td></tr>)}</tbody></table></div>
+      {!filtered.length&&<p className="lab-empty">{busy?'Waiting for results matching these filters…':group==='HOLDINGS'&&heldSymbols.size?'None of your current holdings match these scan results and filters.':'No results match these filters.'}</p>}
       <div className="lab-scanner-pagination"><button disabled={currentPage===0} onClick={()=>setPage(currentPage-1)}>Previous</button><span>Page {currentPage+1} of {pages}</span><button disabled={currentPage>=pages-1} onClick={()=>setPage(currentPage+1)}>Next</button></div>
     </>}
   </section>;

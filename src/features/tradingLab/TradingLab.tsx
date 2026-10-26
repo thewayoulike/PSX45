@@ -27,7 +27,7 @@ type Tab=typeof tabs[number];
 function External({url,children}:{url:string;children:React.ReactNode}){const href=safeUrl(url);return href?<a href={href} target="_blank" rel="noopener noreferrer">{children}<ArrowUpRight size={13}/></a>:<span>{children}</span>;}
 function NumberField({label,value,onChange,step='any',suffix=''}:{label:string;value:number;onChange:(v:number)=>void;step?:string;suffix?:string}){return <label className="lab-field"><span>{label}{suffix&&<small>{suffix}</small>}</span><input type="number" step={step} value={Number.isFinite(value)?value:''} onChange={e=>onChange(e.target.value===''?NaN:Number(e.target.value))}/></label>;}
 
-export function TradingLab({email,data=labData,driveConnected=false,onConnectDrive}:{email:string;data?:LabData;driveConnected?:boolean;onConnectDrive?:()=>void}){
+export function TradingLab({email,data=labData,driveConnected=false,onConnectDrive,holdings,holdingsLabel}:{email:string;data?:LabData;driveConnected?:boolean;onConnectDrive?:()=>void;holdings?:string[];holdingsLabel?:string}){
   const cloud=useLabDrive(email,driveConnected);
   const [tab,setTab]=useState<Tab>('Scanner'),[book,setBook]=useState<LabBook>(()=>readLab(email)),[watchlist,setWatchlist]=useState(()=>readLab(email).watchlist);
   const [symbol,setSymbol]=useState('HBL'),[symbolInput,setSymbolInput]=useState('HBL'),[refresh,setRefresh]=useState(0);
@@ -145,7 +145,7 @@ export function TradingLab({email,data=labData,driveConnected=false,onConnectDri
     {error&&<p className="lab-warning" role="alert">{error}</p>}{message&&<p className="lab-success" role="status">{message}</p>}
     {deletedPlan?.email===email&&<div className="lab-success lab-actions" role="status"><span>{deletedPlan.ticket.plan.symbol} test plan deleted.</span><button onClick={undoDelete}>Undo deletion</button></div>}
 
-    <div hidden={tab!=='Scanner'}><LabScanner key={email} data={data} watchlist={watchlist} onWatchlist={setWatchlist} onSaveWatchlist={value=>persist({...book,watchlist:value})} onChoose={choose} onPlan={reviewSetup}/></div>
+    <div hidden={tab!=='Scanner'}><LabScanner key={email} data={data} holdings={holdings} holdingsLabel={holdingsLabel} watchlist={watchlist} onWatchlist={setWatchlist} onSaveWatchlist={value=>persist({...book,watchlist:value})} onChoose={choose} onPlan={reviewSetup}/></div>
     {tab==='Scanner'&&<>
       <section className="lab-app-panel lab-stock-chart" aria-label={`${symbol} stock chart`}><React.Suspense fallback={<p role="status">Loading stock chart…</p>}><StockChart key={symbol} symbol={symbol}/></React.Suspense></section><article className="lab-panel"><h2>What the scan checks</h2><dl className="lab-definitions"><dt>Closing breakout</dt><dd>Latest close above the previous 20 closes.</dd><dt>Bull flag</dt><dd>More than 10% rise over the preceding run, followed by a five-close range below 5% of the latest price.</dd><dt>Oversold bounce</dt><dd>Prior RSI below 30 and the latest close higher than the previous close. RSI below 30 is also listed on its own.</dd><dt>Reclaimed average</dt><dd>Close crosses above its 20-day average.</dd><dt>RSI recovery</dt><dd>Wilder RSI 14 crosses back above 30.</dd><dt>Volume context</dt><dd>Latest session volume ÷ the previous 20-session average.</dd></dl><p>A match is a research candidate. Check liquidity, spread, disclosures and current price limits before making a trading decision.</p><button className="lab-primary" onClick={()=>setTab('Trade plan')}>Build a test plan</button></article>
     </>}

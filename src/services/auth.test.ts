@@ -1,12 +1,15 @@
 import { beforeEach, afterEach, expect, it, vi } from 'vitest';
+vi.mock('../utils/signupConversion', () => ({ trackSuccessfulSignup: vi.fn() }));
+import { trackSuccessfulSignup } from '../utils/signupConversion';
 const mock = vi.hoisted(() => { vi.stubEnv('VITE_SUPABASE_URL','https://unit.example.invalid');vi.stubEnv('VITE_SUPABASE_ANON_KEY','unit-key');return {session:vi.fn(),reset:vi.fn(),update:vi.fn(),out:vi.fn(),otp:vi.fn(),login:vi.fn()}; });
 vi.mock('@supabase/supabase-js', () => ({createClient:() => ({auth:{getSession:mock.session,resetPasswordForEmail:mock.reset,updateUser:mock.update,signOut:mock.out,signInWithOtp:mock.otp,signInWithPassword:mock.login}})}));
-vi.mock('./driveStorage', () => ({ getValidToken:async () => null, getRememberedDriveConfig:vi.fn(), setDrivePasswordProviders:vi.fn(), installLinkedDriveSession:vi.fn(),clearDriveSession:vi.fn() }));
-import { getRememberedDriveConfig, installLinkedDriveSession } from './driveStorage';
+vi.mock('./driveStorage', () => ({ getValidToken:vi.fn(), getRememberedDriveConfig:vi.fn(), setDrivePasswordProviders:vi.fn(), installLinkedDriveSession:vi.fn(),clearDriveSession:vi.fn() }));
+import { getValidToken, getRememberedDriveConfig, installLinkedDriveSession } from './driveStorage';
 import { getAccessStatus, requestPasswordReset, completePasswordReset, requestPasswordSetup, changeAccountPassword, getPasswordAccountBackupStatus, restorePasswordDriveSession } from './auth';
 beforeEach(() => {
   vi.clearAllMocks(); mock.session.mockResolvedValue({data:{session:{access_token:'test-token',user:{email:'a@example.invalid'}}}});
   vi.mocked(getRememberedDriveConfig).mockResolvedValue({enabled:false});
+  vi.mocked(getValidToken).mockResolvedValue(null);
   mock.out.mockResolvedValue({error:null});
   vi.stubGlobal('localStorage',{getItem:() => null});
   vi.stubGlobal('window',{location:{origin:'https://app.example.invalid'}});
@@ -16,6 +19,45 @@ it('password reset uses the explicit recovery route',async()=>{mock.reset.mockRe
 it('wrong current password or account mismatch never changes a password',async()=>{mock.login.mockResolvedValue({data:{user:null},error:new Error('wrong')});await expect(changeAccountPassword('a@example.invalid','wrong','new-long-password')).rejects.toThrow('verified');mock.login.mockResolvedValue({data:{user:{email:'other@example.invalid'}},error:null});await expect(changeAccountPassword('a@example.invalid','current','new-long-password')).rejects.toThrow('verified');expect(mock.update).not.toHaveBeenCalled();});
 it('changes a password only after verifying the same email and removes the temporary session',async()=>{mock.login.mockResolvedValue({data:{user:{email:'a@example.invalid'}},error:null});mock.update.mockResolvedValue({error:null});await changeAccountPassword('a@example.invalid','current','new-long-password');expect(mock.update).toHaveBeenCalledWith({password:'new-long-password'});expect(mock.out).toHaveBeenCalledWith({scope:'local'});});
 afterEach(() => vi.unstubAllGlobals());
+it('reports a sign-up only after the server confirms a new active registration for the authenticated account', async () => {
+  const response = { status: 'trial', approved: true, active: true, new: true, accountEmail: 'a@example.invalid' };
+  vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(response))));
+  expect((await getAccessStatus(' A@example.invalid ', 'A', true)).active).toBe(true);
+  expect(trackSuccessfulSignup).toHaveBeenCalledOnce();
+  expect(trackSuccessfulSignup).toHaveBeenCalledWith('a@example.invalid');
+});
+it('does not count logins, read-only checks, pending accounts, failed responses or another identity as sign-ups', async () => {
+  const base = { status: 'trial', approved: true, active: true, new: true, accountEmail: 'a@example.invalid' };
+  for (const [data, notify, httpStatus] of [
+    [{ ...base, new: false }, true, 200],
+    [base, false, 200],
+    [{ ...base, status: 'pending', active: false }, true, 200],
+    [{ ...base, accountEmail: 'other@example.invalid' }, true, 200],
+    [{ ...base, new: 'true' }, true, 200],
+    [base, true, 503],
+  ] as const) {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(data), { status: httpStatus })));
+    await getAccessStatus('a@example.invalid', 'A', notify);
+  }
+  expect(trackSuccessfulSignup).not.toHaveBeenCalled();
+});
+it('tracks a new Google registration through the same verified account endpoint', async () => {
+  mock.session.mockResolvedValue({data:{session:null}});
+  vi.mocked(getValidToken).mockResolvedValue('google-test-token');
+  vi.stubGlobal('localStorage',{getItem:() => JSON.stringify({email:'a@example.invalid'})});
+  const request = vi.fn(async () => new Response(JSON.stringify({status:'trial',active:true,new:true,accountEmail:'a@example.invalid'})));
+  vi.stubGlobal('fetch',request);
+  expect((await getAccessStatus('a@example.invalid','A',true)).active).toBe(true);
+  expect(request).toHaveBeenCalledWith('/api/request-access',expect.objectContaining({headers:expect.objectContaining({Authorization:'Bearer google-test-token'})}));
+  expect(trackSuccessfulSignup).toHaveBeenCalledOnce();
+});
+it('does not count an email registration while confirmation has not produced an authenticated session', async () => {
+  mock.session.mockResolvedValue({data:{session:null}});
+  const request = vi.fn();vi.stubGlobal('fetch',request);
+  expect((await getAccessStatus('a@example.invalid','A',true)).status).toBe('unavailable');
+  expect(request).not.toHaveBeenCalled();
+  expect(trackSuccessfulSignup).not.toHaveBeenCalled();
+});
 it.each([429,503])('HTTP %s is unavailable, never pending approval', async status => {
   vi.stubGlobal('fetch',vi.fn().mockResolvedValue(new Response('{}',{status})));
   expect((await getAccessStatus('a@example.invalid')).status).toBe('unavailable');

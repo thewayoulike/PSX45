@@ -8,6 +8,8 @@ export const GOOGLE_SITE_VERIFICATION = '';
 export const GOOGLE_ANALYTICS_ID = 'G-Q82NMWSH9X';
 /** Google Ads destination, sharing the existing Google tag loader. */
 export const GOOGLE_ADS_ID = 'AW-18531621415';
+/** Sign-up action in Google Ads; fired only after a new app registration succeeds. */
+export const GOOGLE_ADS_SIGNUP_DESTINATION = 'AW-18531621415/7mBxCOjz3KkdEKe0yIRF';
 export const PUBLIC_LINKS = [
   ['How it works', '/how-it-works'], ['Video guide', '/how-to-use'], ['Guides', '/guides'], ['Markets', '/markets'], ['Tools', '/tools'], ['About', '/about'], ['Privacy', '/privacy'], ['Terms', '/terms'], ['Contact', '/contact'],
 ];
