@@ -1,7 +1,7 @@
 import {intradaySegments,pktDay,standardSessions,type Plan} from './engine';
 import {checkEntry,exitLevels,validateRules,type Rules} from './workflow';
 import type {CandleSet} from './data';
-import {targetSummary} from './targets';
+import {targetSummary,type TargetReview} from './targets';
 export type LabAlert={id:string;text:string;time:number};
 export function observedAlerts(candles:CandleSet,p:Plan,r:Rules,started:number,now:number):LabAlert[]{
   if(candles.symbol!==p.symbol)return [];
@@ -15,7 +15,7 @@ export function observedAlerts(candles:CandleSet,p:Plan,r:Rules,started:number,n
 }
 
 export type MonitoredStock={
-  symbol:string;plan:Plan;rules:Rules;source:string;started:number;
+  symbol:string;plan:Plan;rules:Rules;source:string;started:number;targetReview?:TargetReview;
   status:string;refreshedAt:number|null;candleAt:number|null;alerts:LabAlert[];
 };
 type Entry={value:MonitoredStock;seen:Set<string>;waitingForLevels:boolean};
@@ -45,8 +45,8 @@ export function createLabMonitor(options:Options){
     if(!signal.trigger)return;
     const {stop,target,targetReview}=exitLevels(signal.trigger.close,session,signal.index,entry.value.rules,entry.value.plan.stop,{...data.targetContext,intraday:data.bars});
     const source=`${sessionNow?'Observed':'Historical'} rule-confirmed setup · ${stamp(signal.trigger.time+300000)} · ${targetSummary(targetReview)}`;
-    if(target==null){entry.value={...entry.value,source};return;}
-    entry.value={...entry.value,plan:{...entry.value.plan,entry:signal.trigger.close,stop,target},rules:{...entry.value.rules,entryIndex:signal.index},source};
+    if(target==null){entry.value={...entry.value,source,targetReview};return;}
+    entry.value={...entry.value,plan:{...entry.value.plan,entry:signal.trigger.close,stop,target},rules:{...entry.value.rules,entryIndex:signal.index},source,targetReview};
     entry.waitingForLevels=false;
   }
   function pump(){
@@ -83,17 +83,17 @@ export function createLabMonitor(options:Options){
     for(const entry of entries.values())if(!inFlight.has(entry))pending.add(entry);
     pump();
   }
-  function create(plan:Plan,rules:Rules,source=''){
+  function create(plan:Plan,rules:Rules,source='',targetReview?:TargetReview){
     if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(plan.symbol))throw new Error('Enter a valid PSX symbol.');
     validateRules(rules);
-    const entry:Entry={value:{symbol:plan.symbol,plan:{...plan},rules:{...rules},source,started:now(),status:'Waiting for the first refresh…',refreshedAt:null,candleAt:null,alerts:[]},seen:new Set(),waitingForLevels:!validLevels(plan)};
+    const entry:Entry={value:{symbol:plan.symbol,plan:{...plan},rules:{...rules},source,...(targetReview?{targetReview:structuredClone(targetReview)}:{}),started:now(),status:'Waiting for the first refresh…',refreshedAt:null,candleAt:null,alerts:[]},seen:new Set(),waitingForLevels:!validLevels(plan)};
     entries.set(plan.symbol,entry);pending.add(entry);emit();pump();
   }
   return {
     getSnapshot:()=>snapshot,
     subscribe:(listener:()=>void)=>{listeners.add(listener);return()=>{listeners.delete(listener);};},
-    start:(plan:Plan,rules:Rules,source='')=>{if(!entries.has(plan.symbol))create(plan,rules,source);},
-    update:(plan:Plan,rules:Rules,source='')=>{if(entries.has(plan.symbol))create(plan,rules,source);},
+    start:(plan:Plan,rules:Rules,source='',targetReview?:TargetReview)=>{if(!entries.has(plan.symbol))create(plan,rules,source,targetReview);},
+    update:(plan:Plan,rules:Rules,source='',targetReview?:TargetReview)=>{if(entries.has(plan.symbol))create(plan,rules,source,targetReview);},
     stop:(symbol:string)=>{const entry=entries.get(symbol);if(!entry)return;pending.delete(entry);entries.delete(symbol);emit();},
     stopAll:()=>{pending.clear();entries.clear();emit();},
     resume:()=>{active=true;refresh();},

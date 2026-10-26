@@ -83,8 +83,8 @@ export function TradingLab({email,data=labData,driveConnected=false,onConnectDri
   const update=(k:keyof Plan,v:number)=>{setPlan(p=>({...p,[k]:v}));if(['entry','stop','target'].includes(k)){setEntrySource('Manually edited levels — reapply exit rules to check the target.');setTargetReview(null);}setMessage('');};
   function choose(s:string){
     if(s!==symbol){
-      setTargetReview(null);
       const tracked=monitor.items.find(item=>item.symbol===s);
+      setTargetReview(tracked?.targetReview??null);
       setPlan(p=>tracked?{...tracked.plan}:{...p,symbol:s,entry:0,stop:0,target:0});
       setRules(tracked?{...tracked.rules}:{...DEFAULT_RULES});setEntrySource(tracked?.source||'');
     }
@@ -92,11 +92,11 @@ export function TradingLab({email,data=labData,driveConnected=false,onConnectDri
   }
   function toggleMonitoring(){
     if(selectedMonitor){monitor.stop(symbol);return;}
-    try{monitor.start(plan,rules,entrySource);setError('');}catch(e){setError((e as Error).message);}
+    try{monitor.start(plan,rules,entrySource,targetReview??undefined);setError('');}catch(e){setError((e as Error).message);}
   }
-  function updateMonitoring(){try{monitor.update(plan,rules,entrySource);setMessage(`${symbol} monitor restarted with the current plan. Other monitors were kept.`);setError('');}catch(e){setError((e as Error).message);}}
+  function updateMonitoring(){try{monitor.update(plan,rules,entrySource,targetReview??undefined);setMessage(`${symbol} monitor restarted with the current plan. Other monitors were kept.`);setError('');}catch(e){setError((e as Error).message);}}
   useEffect(()=>{
-    if(selectedMonitor?.plan.entry&&plan.entry<=0){setPlan({...selectedMonitor.plan});setRules({...selectedMonitor.rules});setEntrySource(selectedMonitor.source);}
+    if(selectedMonitor?.plan.entry&&plan.entry<=0){setPlan({...selectedMonitor.plan});setRules({...selectedMonitor.rules});setEntrySource(selectedMonitor.source);setTargetReview(selectedMonitor.targetReview??null);}
   },[selectedMonitor?.plan]);
   function reviewSetup(row:ScanRow,scanRules:Rules){
     if(!row.entry?.levels)return;choose(row.symbol);
