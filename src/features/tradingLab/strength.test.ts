@@ -3,6 +3,7 @@ import {setupStrength} from './strength';
 import {intradayScan,type ScanRow} from './scanner';
 import {DEFAULT_RULES} from './workflow';
 import type {Bar} from './engine';
+import {DEFAULT_PLAN} from './engine';
 const at=(time:string)=>Date.parse('2026-10-23T'+time+':00+05:00');
 const bar=(time:string,close=100,volume:number|null=100):Bar=>({time:at(time),open:100,high:Math.max(101,close),low:98,close,volume});
 const bars=[bar('14:35'),bar('14:40'),bar('14:45'),bar('14:50',102,200),bar('14:55',103,100)];
@@ -11,18 +12,18 @@ it('rates strong only when volume, net reward and price confirmation all pass',(
   const rating=setupStrength(row());expect(rating.label).toBe('Strong');expect(rating.context).toBe('Recent at scan');
   expect(rating.reasons.join(' ')).toContain('2.00×');expect(rating.reasons.join(' ')).toContain('after estimated costs');
 });
-it('does not count missing volume and limits a failed breakout to weak',()=>{
+it('does not count missing volume or use later prices to rewrite entry quality',()=>{
   const missing=row();missing.entry!.check!.volumeRatio=null;
   expect(setupStrength(missing).label).toBe('Moderate');
   const lost=row();lost.entry!.last!.close=100;
-  expect(setupStrength(lost).label).toBe('Weak');
-  expect(setupStrength(lost).reasons.join(' ')).toContain('no longer holds');
+  expect(setupStrength(lost).label).toBe('Strong');
+  expect(setupStrength(lost).reasons.join(' ')).not.toContain('no longer holds');
 });
-it('caps thin after-cost reward and already-reached targets at weak',()=>{
+it('caps thin after-cost reward at weak but keeps target touches separate',()=>{
   const costly=row();costly.entry!.levels={entry:210.15,stop:208.90,target:212.65};costly.entry!.last!.close=211;costly.entry!.check!.level=210;
   expect(setupStrength(costly).label).toBe('Weak');expect(setupStrength(costly).reasons.join(' ')).toContain('0.49R');
   const reached=row();reached.entry!.last!.close=reached.entry!.levels!.target;
-  expect(setupStrength(reached).label).toBe('Weak');expect(setupStrength(reached).reasons.join(' ')).toContain('already at or above');
+  expect(setupStrength(reached).label).toBe('Strong');expect(setupStrength(reached).reasons.join(' ')).not.toContain('already at or above');
 });
 it('keeps historical and delayed qualifiers even when all setup checks pass',()=>{
   expect(setupStrength(row(at('17:00')))).toMatchObject({label:'Strong',context:'Historical setup'});
@@ -41,7 +42,16 @@ it('requires recovery, trend and volume for a strong daily rating',()=>{
   daily.daily!.setups=[];expect(setupStrength(daily).label).toBe('No setup');
 });
 
-it('does not label missing target context Strong',()=>{const r=row();r.entry=intradayScan(bars,DEFAULT_RULES,at('15:00'));expect(setupStrength(r).label).toBe('Weak');});
+it('separates missing target context from genuinely weak quality',()=>{const r=row();r.entry=intradayScan(bars,DEFAULT_RULES,at('15:00'));expect(setupStrength(r).label).toBe('Incomplete');});
+it('uses the chosen costs consistently and exposes net reward instead of hiding the reason',()=>{
+  const costly=row();costly.entry!.levels={entry:210.15,stop:208.90,target:212.65};
+  expect(setupStrength(costly)).toMatchObject({label:'Weak',netRR:expect.closeTo(.49,2)});
+  expect(setupStrength(costly).summary).toContain('Less than Rs. 1');
+  expect(setupStrength(costly,{feePct:0,slipPct:0})).toMatchObject({label:'Strong',netRR:2});
+  expect(setupStrength(costly,{feePct:NaN,slipPct:0}).label).toBe('Incomplete');
+  const unrelatedPlan={...DEFAULT_PLAN,capital:0};
+  expect(setupStrength(costly,unrelatedPlan)).toEqual(setupStrength(costly));
+});
 it('separates a negative after-cost target from a weak but profitable setup',()=>{
   const prl=row();prl.entry!.levels={entry:93.99,stop:92.51,target:94.34};
   expect(setupStrength(prl)).toMatchObject({label:'Skip',rank:0});

@@ -1,7 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
-import {normalizeUniverse,intradayScan,runMarketScan,remainingScanStocks,ScanFeedError,type MarketSymbol,type ScanRow} from './scanner';
+import {normalizeUniverse,intradayScan,setupProgress,runMarketScan,remainingScanStocks,ScanFeedError,type MarketSymbol,type ScanRow} from './scanner';
 import {DEFAULT_RULES} from './workflow';
-import {parseBars,type Bar} from './engine';
+import {parseBars,type Bar,type Segment} from './engine';
 
 const symbols=(n:number):MarketSymbol[]=>Array.from({length:n},(_,i)=>({symbol:`S${i}`,name:`Stock ${i}`,sector:'Test',volume:i}));
 const daily=Array.from({length:30},(_,i)=>({time:Date.UTC(2026,8,i+1),open:100,high:102,low:99,close:i===29?102:100,volume:100}));
@@ -44,6 +44,35 @@ describe('market-wide scanning',()=>{
    const rows:ScanRow[]=[];
    await runMarketScan({stocks:symbols(1),kind:'daily',rules:DEFAULT_RULES,signal:new AbortController().signal,load:async()=>({symbol:'WRONG',bars:daily,source:'test',retrievedAt:''}),onRow:r=>rows.push(r)});
    expect(rows[0].daily).toBeUndefined();expect(rows[0].error).toContain('different stock');
+ });
+});
+
+describe('first observed outcome after entry',()=>{
+ const candle=(time:string,low:number,high:number,close=103):Bar=>({...bar(time,close),open:103,low,high});
+ const progress=(after:Bar[],now=at('15:20'),end=at('16:30'))=>{
+   const session={start:at('14:35'),end,day:'2026-10-23',family:'Friday afternoon',bars:[candle('14:50',90,120,102),...after]} as Segment;
+   return setupProgress(session,0,{stop:99,target:108},101,DEFAULT_RULES,now);
+ };
+ it('keeps target-first even when price subsequently falls through the stop',()=>{
+   expect(progress([candle('14:55',102,109),candle('15:00',98,104)])).toMatchObject({state:'target',at:at('15:00')});
+ });
+ it('keeps stop-first even when price subsequently rallies through the target',()=>{
+   expect(progress([candle('14:55',98,104),candle('15:00',102,109)])).toMatchObject({state:'stop',at:at('15:00')});
+ });
+ it('marks both levels in a single candle ambiguous, never an assumed win',()=>{
+   expect(progress([candle('14:55',98,109)])).toMatchObject({state:'ambiguous'});
+ });
+ it('ignores the entry wick, forming bars and bars past the planned exit',()=>{
+   expect(progress([],at('14:55')).state).toBe('active');
+   expect(progress([candle('14:55',98,109)],at('14:59')).state).toBe('active');
+   expect(progress([candle('14:55',102,104),candle('15:00',98,109)],at('15:10'),at('15:05')).state).toBe('closed');
+ });
+ it('does not claim a first touch after missing candles or a complete outcome with a missing tail',()=>{
+   expect(progress([candle('15:00',102,109)]).state).toBe('unknown');
+   expect(progress([candle('14:55',102,104)],at('17:00')).state).toBe('unknown');
+ });
+ it('shows a faded breakout without rewriting its original setup quality',()=>{
+   expect(progress([candle('14:55',100,104,100)],at('15:00')).state).toBe('faded');
  });
 });
 

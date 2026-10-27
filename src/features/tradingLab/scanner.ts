@@ -1,4 +1,4 @@
-import {dailyScan,intradaySegments,pktDay,standardSessions,type Bar} from './engine';
+import {dailyScan,intradaySegments,pktDay,standardSessions,type Bar,type Segment} from './engine';
 import {checkEntry,exitLevels,type Rules} from './workflow';
 import type {CandleSet} from './data';
 import type {TargetContext,TargetReview} from './targets';
@@ -8,6 +8,29 @@ export type MarketSymbol={symbol:string;name:string;sector:string;volume:number|
 export type MarketUniverse={stocks:MarketSymbol[];retrievedAt:string;source:string};
 export type EntrySnapshot=ReturnType<typeof intradayScan>;
 export type ScanRow=MarketSymbol&{daily?:ReturnType<typeof dailyScan>;entry?:EntrySnapshot;error?:string;checkedAt:number};
+export type SetupProgress={state:'active'|'faded'|'target'|'stop'|'ambiguous'|'closed'|'unknown';label:string;reason:string;at:number|null};
+
+/** First observed touch after confirmation, never the final price or the entry candle's wick. */
+export function setupProgress(session:Segment,index:number,levels:{stop:number;target:number},rangeHigh:number,rules:Rules,now:number):SetupProgress{
+  const flatAt=session.end-rules.flatMinutes*60000;
+  const after=session.bars.slice(index+1).filter(b=>b.time+300000<=Math.min(now,flatAt));
+  let previous=session.bars[index].time;
+  for(const bar of after){
+    if(bar.time!==previous+300000)return {state:'unknown',label:'Outcome incomplete',reason:'Missing candles after entry prevent establishing which level was touched first.',at:null};
+    previous=bar.time;
+    const stop=bar.low<=levels.stop,target=bar.high>=levels.target,at=bar.time+300000;
+    if(stop&&target)return {state:'ambiguous',label:'Both levels touched',reason:'One candle touched stop and target; their order is unknown. Replay assumes the stop first. This is not a fill.',at};
+    if(stop)return {state:'stop',label:'Stop touched first',reason:'The first observed exit-level touch was the stop. A later recovery does not reset this setup. This is not a fill.',at};
+    if(target)return {state:'target',label:'Target touched first',reason:'The first observed exit-level touch was the target. A later decline does not reset this setup. This is not a fill.',at};
+  }
+  if(now>=flatAt){
+    if(previous+300000<flatAt)return {state:'unknown',label:'Outcome incomplete',reason:'Candles do not cover the remaining period up to the planned exit time.',at:null};
+    return {state:'closed',label:'Time window closed',reason:'Neither level was touched in the available continuous candles before the planned exit time.',at:flatAt};
+  }
+  const last=after.at(-1)??session.bars[index];
+  if(last.close<=rangeHigh)return {state:'faded',label:'Below breakout level',reason:'The latest completed close is back at or below the opening high; no exit level has been touched yet.',at:last.time+300000};
+  return {state:'active',label:'Between plan levels',reason:'No exit level has been touched in the continuous completed candles since entry. Check the age of this snapshot.',at:last.time+300000};
+}
 
 export function remainingScanStocks(stocks:MarketSymbol[],rows:ScanRow[]){
   const results=new Map(rows.map(row=>[row.symbol,row]));
@@ -38,7 +61,8 @@ export function intradayScan(bars:Bar[],rules:Rules,now=Date.now(),context:Targe
     try{const exits=exitLevels(check.trigger.close,session,check.index,rules,0,{...context,intraday:bars});targetReview=exits.targetReview;if(exits.target!=null)levels={entry:check.trigger.close,stop:exits.stop,target:exits.target};}catch{/* No invented levels if the stop rule cannot be calculated. */}
   }
   const status=!session?'No session data':!active?'Session ended':!fresh?'Delayed data':check?.state==='triggered'?'Breakout confirmed':check?.state==='waiting'?'Waiting':check?.state==='expired'?'Window expired':'Incomplete candles';
-  return {status,check,levels,targetReview,fresh,date:session?.day??pktDay(now),family:session?.family??active?.family??'',last:last??null,
+  const progress=session&&levels&&check?.trigger?setupProgress(session,check.index,levels,check.level!,rules,now):null;
+  return {status,check,levels,targetReview,progress,fresh,date:session?.day??pktDay(now),family:session?.family??active?.family??'',last:last??null,
     latestCloseAt:last?last.time+300000:null,triggerAt:check?.trigger?check.trigger.time+300000:null,
     // An old match remains visible with its time, but is never presented as a new call.
     recent:!!fresh&&!!check?.trigger&&now-(check.trigger.time+300000)<=10*60000};
