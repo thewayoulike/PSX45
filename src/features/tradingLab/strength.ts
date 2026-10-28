@@ -9,7 +9,7 @@ export function setupStrength(row:ScanRow,costs:ScanCosts=DEFAULT_PLAN):SetupStr
   if(row.error)return {label:'Unavailable',rank:-2,context:'Feed failed',reasons:[row.error]};
   if(row.entry){
     const entry=row.entry,context=entry.status==='Session ended'?'Historical setup':!entry.fresh?'Delayed snapshot':entry.recent?'Recent at scan':'Earlier breakout';
-    if(entry.check?.state==='incomplete'||!entry.check)return {label:'Incomplete',rank:-1,context,reasons:[entry.check?.reason||'Session candles unavailable.']};
+    if(entry.check?.state==='incomplete'||!entry.check)return {label:'Incomplete',rank:-1,context:'Entry unverified',reasons:[entry.check?.reason||'Session candles unavailable.']};
     if(!entry.check.trigger)return {label:'No setup',rank:0,context:entry.status,reasons:[entry.check.reason]};
     if(entry.targetReview?.target===null)return {label:'Skip',rank:0,context,reasons:[`Skip — ${entry.targetReview.reason}`,...entry.targetReview.warnings]};
     if(!entry.levels||!entry.last)return {label:'Incomplete',rank:-1,context,reasons:['Confirmed entry needs valid stop and target levels to be rated.']};

@@ -31,7 +31,9 @@ it('keeps historical and delayed qualifiers even when all setup checks pass',()=
 });
 it('does not rate failed, missing or unconfirmed data as a weak trade opportunity',()=>{
   expect(setupStrength({...row(),error:'Offline'}).label).toBe('Unavailable');
-  const missing=row();missing.entry!.check=null;expect(setupStrength(missing).label).toBe('Incomplete');
+  const missing=row();missing.entry!.check=null;expect(setupStrength(missing)).toMatchObject({label:'Incomplete',context:'Entry unverified'});
+  const openingGap=row();openingGap.entry=intradayScan(bars.slice(1),DEFAULT_RULES,at('15:00'));
+  expect(setupStrength(openingGap)).toMatchObject({label:'Incomplete',context:'Entry unverified'});
   const waiting=row();waiting.entry!.check!.trigger=null;waiting.entry!.check!.state='waiting';expect(setupStrength(waiting).label).toBe('No setup');
 });
 it('requires recovery, trend and volume for a strong daily rating',()=>{
