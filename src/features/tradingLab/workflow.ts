@@ -34,6 +34,11 @@ export function checkEntry(s:Segment,r:Rules,now=Date.now()){
     if(b.close>empty.level!&&(r.volumeX===0||(ratio!=null&&ratio>=r.volumeX)))return {...empty,trigger:b,index:i,volumeRatio:ratio,state:'triggered' as const,reason:'Completed close and selected volume rule matched.'};
   }
   if(r.volumeX>0&&(!avg||s.bars.some(b=>b.time+FIVE<=deadline&&b.volume===null)))return {...empty,state:'incomplete' as const,reason:'Volume confirmation needs reported opening and trigger volumes.'};
+  // An absent tail can hide a qualifying close. Only declare the window expired
+  // after every completed slot through its cutoff has actually been observed.
+  const lastRequired=Math.floor(Math.min(now,deadline)/FIVE)*FIVE-FIVE;
+  const lastObserved=s.bars.filter(b=>b.time+FIVE<=Math.min(now,deadline)).at(-1);
+  if(lastRequired>=s.bars[2].time+FIVE&&(!lastObserved||lastObserved.time<lastRequired))return {...empty,state:'incomplete' as const,reason:'The feed does not cover the entry window yet; missing candles could hide a match.'};
   return {...empty,state:now>=deadline?'expired' as const:'waiting' as const,reason:now>=deadline?'Entry window ended without a confirmed match.':'Waiting for a completed close that passes the rules.'};
 }
 export function atr(bars:Bar[],period=14){

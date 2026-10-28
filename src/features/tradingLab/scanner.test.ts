@@ -38,6 +38,13 @@ describe('market-wide scanning',()=>{
    const result=await runMarketScan({stocks:symbols(600),kind:'daily',rules:DEFAULT_RULES,signal:new AbortController().signal,load,onRow:r=>rows.push(r)});
    expect(result.pause).toContain('limiting requests');expect(load.mock.calls.length).toBeLessThanOrEqual(3);expect(rows.every(r=>r.error==='Busy')).toBe(true);
  });
+ it('pauses on a busy server asking for a cooldown and passes scan rules to the loader',async()=>{
+   const retryAt=at('15:01'),load=vi.fn(async()=>{throw new ScanFeedError('Busy',503,retryAt);});
+   const rules={...DEFAULT_RULES,entryMinutes:30};
+   const result=await runMarketScan({stocks:symbols(30),kind:'intraday',rules,signal:new AbortController().signal,load,onRow:()=>{}});
+   expect(result.pause).toContain('asked us to wait');expect(result.retryAt).toBe(retryAt);
+   expect(load.mock.calls.length).toBeLessThanOrEqual(3);expect((load.mock.calls[0] as unknown[])[3]).toEqual(rules);
+ });
  it('pauses on a sustained outage and rejects cross-stock history',async()=>{
    const failure=await runMarketScan({stocks:symbols(600),kind:'daily',rules:DEFAULT_RULES,signal:new AbortController().signal,load:async()=>{throw new ScanFeedError('Offline');},onRow:()=>{}});
    expect(failure.pause).toContain('repeatedly unavailable');expect(failure.done).toBeLessThanOrEqual(8);

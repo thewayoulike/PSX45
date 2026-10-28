@@ -69,21 +69,21 @@ export function intradayScan(bars:Bar[],rules:Rules,now=Date.now(),context:Targe
 }
 
 export class ScanFeedError extends Error{
-  constructor(message:string,public status=0){super(message);this.name='ScanFeedError';}
+  constructor(message:string,public status=0,public retryAt=0){super(message);this.name='ScanFeedError';}
 }
 
 /** Bounded workers, one result per stock; cancellation prevents further requests/updates. */
 export async function runMarketScan(options:{stocks:MarketSymbol[];kind:ScanKind;rules:Rules;signal:AbortSignal;
-  load:(symbol:string,kind:ScanKind,signal:AbortSignal)=>Promise<CandleSet>;
+  load:(symbol:string,kind:ScanKind,signal:AbortSignal,rules?:Rules)=>Promise<CandleSet>;
   onRow:(row:ScanRow)=>void;now?:()=>number;concurrency?:number}){
   const {stocks,signal,kind,rules,load,onRow}=options;
-  let cursor=0,done=0,failures=0,pause='';
+  let cursor=0,done=0,failures=0,failed=0,pause='',retryAt=0;
   await Promise.all(Array.from({length:Math.min(3,Math.max(1,options.concurrency??3),stocks.length)},async()=>{
     while(cursor<stocks.length&&!signal.aborted&&!pause){
       const stock=stocks[cursor++];
       let row:ScanRow;
       try{
-        const candles=await load(stock.symbol,kind,signal);if(signal.aborted)return;
+        const candles=await load(stock.symbol,kind,signal,rules);if(signal.aborted)return;
         if(candles.symbol!==stock.symbol)throw new Error('The feed returned a different stock.');
         const checkedAt=options.now?.()??Date.now();
         row={...stock,checkedAt,...(kind==='daily'?{daily:dailyScan(candles.bars,checkedAt)}:{entry:intradayScan(candles.bars,rules,checkedAt,candles.targetContext)})};
@@ -93,12 +93,14 @@ export async function runMarketScan(options:{stocks:MarketSymbol[];kind:ScanKind
         row={...stock,checkedAt:options.now?.()??Date.now(),error:e instanceof Error?e.message:'History unavailable.'};
         if(e instanceof ScanFeedError){
           failures++;
+          retryAt=Math.max(retryAt,e.retryAt);
           if(e.status===429)pause='The feed is limiting requests. Wait a few minutes, then retry unfinished stocks.';
+          else if(e.status===503&&e.retryAt)pause='The market-data service asked us to wait before sending more requests. Results are incomplete; retry after the countdown.';
           else if(failures>=6)pause='The feed is repeatedly unavailable. Completed results are kept; retry unfinished stocks later.';
         }
       }
-      if(!signal.aborted){done++;onRow(row);}
+      if(!signal.aborted){done++;if(row.error)failed++;onRow(row);}
     }
   }));
-  return {done,total:stocks.length,cancelled:signal.aborted,pause};
+  return {done,total:stocks.length,failed,cancelled:signal.aborted,pause,retryAt};
 }

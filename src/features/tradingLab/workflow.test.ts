@@ -18,6 +18,17 @@ describe('entry and exit rules',()=>{
  it('supports custom levels and waits before the deadline',()=>{const s=segment();expect(checkEntry(s,{...DEFAULT_RULES,entryMode:'level',level:103},at(s.day,'10:00')).state).toBe('waiting');expect(checkEntry(s,{...DEFAULT_RULES,entryMode:'level',level:103},now).state).toBe('expired');});
  it('does not skip a qualifying candle with missing volume',()=>{const s=segment();s.bars[3].volume=null;s.bars[4]=bar(s.bars[4].time,105);expect(checkEntry(s,{...DEFAULT_RULES,volumeX:1},now).state).toBe('incomplete');});
  it('does not infer confirmation after a data gap or before candle completion',()=>{const s=segment();expect(checkEntry(s,DEFAULT_RULES,at(s.day,'09:52')).trigger).toBeNull();s.bars.splice(3,1);s.bars[3]=bar(s.bars[3].time,105);expect(checkEntry(s,DEFAULT_RULES,now).state).toBe('incomplete');});
+ it('does not report no match when the feed ends before the entry cutoff',()=>{
+  const s=segment();s.bars=s.bars.slice(0,3);
+  expect(checkEntry(s,DEFAULT_RULES,at(s.day,'11:10')).state).toBe('incomplete');
+  expect(checkEntry(s,DEFAULT_RULES,at(s.day,'09:52')).state).toBe('waiting');
+ });
+ it('needs only completed slots through a cutoff that falls between candles',()=>{
+  const s=segment();s.bars=s.bars.slice(0,5).map(b=>({...b,close:100}));
+  const rules={...DEFAULT_RULES,entryMinutes:30}; // 10:02 cutoff, last eligible close 10:00
+  expect(checkEntry(s,rules,at(s.day,'10:03')).state).toBe('expired');
+  s.bars.pop();expect(checkEntry(s,rules,at(s.day,'10:03')).state).toBe('incomplete');
+ });
  it('builds midpoint, percentage and manual stops with R targets',()=>{const s=segment();expect(exitLevels(102,s,3,{...DEFAULT_RULES,stopMode:'range-mid'},99).stop).toBe(100);expect(exitLevels(100,s,3,{...DEFAULT_RULES,stopMode:'percent',stopValue:2},99)).toMatchObject({stop:98,target:104});expect(exitLevels(102,s,3,{...DEFAULT_RULES,stopMode:'manual'},98)).toMatchObject({stop:98,target:110});});
  it('never uses future candles to complete ATR history',()=>{const s=segment(),r={...DEFAULT_RULES,stopMode:'atr' as const};expect(()=>exitLevels(102,s,3,r,99)).toThrow('14 true ranges');expect(exitLevels(102,s,14,r,99).stop).toBeLessThan(102);});
  it('rejects unsafe or non-finite configurations',()=>{expect(()=>parseWorkflow({rules:{...DEFAULT_RULES,jitter:NaN},risk:DEFAULT_RISK})).toThrow();expect(()=>exitLevels(100,null,2,{...DEFAULT_RULES,stopMode:'percent',stopValue:110},99)).toThrow('positive');});

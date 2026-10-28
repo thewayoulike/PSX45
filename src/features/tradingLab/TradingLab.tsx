@@ -4,9 +4,10 @@ const StockChart=React.lazy(()=>import('../../components/StockChart').then(modul
 import {LabGuide} from './LabGuide';
 import {LabCoverage} from './LabCoverage';
 import {LabScanner} from './LabScanner';
+import {ScanExplainer} from './ScanExplainer';
 import {LabFinancials} from './LabFinancials';
 import {RulesPanel,RiskPanel,ScenarioControls,ScenarioCharts} from './LabWorkflow';
-import {intradayScan,type ScanRow} from './scanner';
+import {intradayScan,type ScanRow,type ScanKind} from './scanner';
 import {DEFAULT_RULES,DEFAULT_RISK,parseWorkflow,replayRules,simulateRules,type Rules,type RiskContext} from './workflow';
 import {useLabMonitor} from './useLabMonitor';
 import {LabMonitors} from './LabMonitors';
@@ -32,6 +33,7 @@ function NumberField({label,value,onChange,step='any',suffix=''}:{label:string;v
 export function TradingLab({email,data=labData,driveConnected=false,onConnectDrive,holdings,holdingsLabel}:{email:string;data?:LabData;driveConnected?:boolean;onConnectDrive?:()=>void;holdings?:string[];holdingsLabel?:string}){
   const cloud=useLabDrive(email,driveConnected);
   const [tab,setTab]=useState<Tab>('Scanner'),[book,setBook]=useState<LabBook>(()=>readLab(email)),[watchlist,setWatchlist]=useState(()=>readLab(email).watchlist);
+  const [scanKind,setScanKind]=useState<ScanKind>('intraday');
   const [symbol,setSymbol]=useState('HBL'),[symbolInput,setSymbolInput]=useState('HBL'),[refresh,setRefresh]=useState(0);
   const [daily,setDaily]=useState<CandleSet|null>(null),[intraday,setIntraday]=useState<CandleSet|null>(null),[loading,setLoading]=useState(false),[intradayLoading,setIntradayLoading]=useState(false),[dataErrors,setDataErrors]=useState<string[]>([]);
   const [plan,setPlan]=useState<Plan>({...DEFAULT_PLAN}),[entrySource,setEntrySource]=useState(''),[note,setNote]=useState(''),[message,setMessage]=useState(''),[error,setError]=useState('');
@@ -151,9 +153,9 @@ export function TradingLab({email,data=labData,driveConnected=false,onConnectDri
     {error&&<p className="lab-warning" role="alert">{error}</p>}{message&&<p className="lab-success" role="status">{message}</p>}
     {deletedPlan?.email===email&&<div className="lab-success lab-actions" role="status"><span>{deletedPlan.ticket.plan.symbol} test plan deleted.</span><button onClick={undoDelete}>Undo deletion</button></div>}
 
-    <div hidden={tab!=='Scanner'}><LabScanner key={email} data={data} costs={plan} onCosts={costs=>setPlan(p=>({...p,...costs}))} holdings={holdings} holdingsLabel={holdingsLabel} watchlist={watchlist} onWatchlist={setWatchlist} onSaveWatchlist={value=>persist({...book,watchlist:value})} onChoose={choose} onPlan={reviewSetup}/></div>
+    <div hidden={tab!=='Scanner'}><LabScanner key={email} data={data} onKind={setScanKind} costs={plan} onCosts={costs=>setPlan(p=>({...p,...costs}))} holdings={holdings} holdingsLabel={holdingsLabel} watchlist={watchlist} onWatchlist={setWatchlist} onSaveWatchlist={value=>persist({...book,watchlist:value})} onChoose={choose} onPlan={reviewSetup}/></div>
     {tab==='Scanner'&&<>
-      <section className="lab-app-panel lab-stock-chart" aria-label={`${symbol} stock chart`}><React.Suspense fallback={<p role="status">Loading stock chart…</p>}><StockChart key={symbol} symbol={symbol}/></React.Suspense></section><article className="lab-panel"><h2>What the scan checks</h2><dl className="lab-definitions"><dt>Closing breakout</dt><dd>Latest close above the previous 20 closes.</dd><dt>Bull flag</dt><dd>More than 10% rise over the preceding run, followed by a five-close range below 5% of the latest price.</dd><dt>Oversold bounce</dt><dd>Prior RSI below 30 and the latest close higher than the previous close. RSI below 30 is also listed on its own.</dd><dt>Reclaimed average</dt><dd>Close crosses above its 20-day average.</dd><dt>RSI recovery</dt><dd>Wilder RSI 14 crosses back above 30.</dd><dt>Volume context</dt><dd>Latest session volume ÷ the previous 20-session average.</dd></dl><p>A match is a research candidate. Check liquidity, spread, disclosures and current price limits before making a trading decision.</p><button className="lab-primary" onClick={()=>setTab('Trade plan')}>Build a test plan</button></article>
+      <section className="lab-app-panel lab-stock-chart" aria-label={`${symbol} stock chart`}><React.Suspense fallback={<p role="status">Loading stock chart…</p>}><StockChart key={symbol} symbol={symbol}/></React.Suspense></section><ScanExplainer kind={scanKind} onPlan={()=>setTab('Trade plan')}/>
     </>}
 
     {tab==='Trade plan'&&<>
