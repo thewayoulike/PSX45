@@ -1,4 +1,6 @@
+import {MobilePortfolioValue} from './MobilePortfolioValue';
 import { ResponsivePortfolioHeader, ResponsivePortfolioActions, ResponsivePlanNotice, MobileSectionNavigator } from './MobileLayout';
+import { MobileBottomNav } from './MobileBottomNav';
 import { PriceStaleNotice } from './PriceStaleNotice';
 import { SectionBoundary } from './SectionBoundary';
 import { setUnsavedLocalChanges, setRecoveryEditorOpen } from '../utils/chunkRecovery';
@@ -8,6 +10,7 @@ import { scrubSecretsFromRecoveryCopies } from '../utils/localAccount';
 import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspense } from 'react';
 import '../index.css';
 import '../mobile-layout.css';
+import '../mobile-clean-layout.css';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
 import { setCanSaveAlerts } from '../services/alertAccess';
 const Dashboard = lazy(() => import('./DashboardStats').then(m => ({ default: m.Dashboard })));
@@ -2641,11 +2644,11 @@ const App: React.FC = () => {
       entitledTickers={entitledTickerList}
       requestUpgrade={() => setShowUpgrade(true)}
     >
-    <div data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-[#f3f6f2] text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div data-design-variant={currentView === 'CALCS' || (currentView === 'DASHBOARD' && !isFundPortfolio) ? 'structured' : 'calm'} data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-[#f3f6f2] text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       <ResponsivePlanNotice label={sbStatus?.status === 'trial' ? `Trial · ${sbStatus.daysLeft} ${sbStatus.daysLeft === 1 ? 'day' : 'days'} left` : sbStatus?.status === 'paid' ? 'Renewal due' : 'Free plan'}>{trialBanner}</ResponsivePlanNotice>
 
-      <div className="flex flex-1 overflow-hidden relative">
+      <div className="flex flex-1 min-h-0 overflow-hidden relative">
 
           <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 hidden dark:block">
               <div className="absolute top-[-10%] left-[-10%] w-[50%] h-[50%] bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-[120px]"></div>
@@ -2900,6 +2903,7 @@ const App: React.FC = () => {
                                       <LayoutGrid size={14} /> Mutual Fund portfolio — NAV-based tracking (no PSX index, signals, or stock tools)
                                   </div>
                               )}
+                              {isNarrowViewport && <MobilePortfolioValue key={performanceKey+currentPortfolioId} rows={displayedPerformance} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
                               <DashboardGrid
                                   layout={isNarrowViewport ? effectiveDashboardLayout.mobile : effectiveDashboardLayout.web}
                                   device={isNarrowViewport ? 'mobile' : 'web'}
@@ -2935,6 +2939,7 @@ const App: React.FC = () => {
                                   listedInMap={listedInMap}
                                   displayNames={fundDisplayNames}
                                   onTickerClick={handleTickerClick}
+                                  onChartClick={ticker=>{localStorage.setItem('psx_charts_symbol',ticker);handleSidebarNav('CHARTS');}}
                                   onCorporateAction={(holding) => setCorporateDraft({
                                       ticker: holding.ticker,
                                       shares: holding.quantity,
@@ -3129,6 +3134,19 @@ const App: React.FC = () => {
               </div>
           </div>
       </div>
+
+      <MobileBottomNav
+        currentView={currentView}
+        isFundPortfolio={isFundPortfolio}
+        menuOpen={isMobileSidebarOpen}
+        onOpenMenu={() => setIsMobileSidebarOpen(true)}
+        onNavigate={view => {
+          setViewFundTicker(null);
+          setIsMobileSidebarOpen(false);
+          handleSidebarNav(view);
+          document.querySelector('.app-page-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
+        }}
+      />
 
       {isPortfolioModalOpen && (
           <div className="mobile-dialog-overlay mobile-dialog-full fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[70] flex items-center justify-center p-4">

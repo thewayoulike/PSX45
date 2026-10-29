@@ -65,6 +65,8 @@ const LoginEmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin?: () 
         {(['login', 'signup'] as const).map(t => (
           <button
             key={t}
+            type="button"
+            aria-pressed={tab === t && !resetMode}
             onClick={() => { setTab(t); setResetMode(false); setStatus('idle'); setMsg(''); }}
             className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${tab === t ? 'bg-white dark:bg-slate-700 text-emerald-700 dark:text-emerald-400 shadow-sm' : 'text-slate-600 dark:text-slate-400'}`}
           >
@@ -90,7 +92,7 @@ const LoginEmailAuth: React.FC<{ onAuthSuccess?: () => void; onGoogleLogin?: () 
         {tab === 'login' && <button type="button" className="text-sm underline py-2" onClick={() => { setResetMode(!resetMode); setMsg(''); setStatus('idle'); }}>{resetMode ? 'Back to password login' : 'Forgot password?'}</button>}
 
         {status === 'error' && (
-          <div className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400">
+          <div role="alert" className="p-3 rounded-xl bg-rose-50 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 flex items-start gap-2 text-rose-600 dark:text-rose-400">
             <AlertCircle size={16} className="shrink-0 mt-0.5" />
             <span className="text-sm font-medium">{msg}</span>
           </div>

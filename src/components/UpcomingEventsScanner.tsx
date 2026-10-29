@@ -188,7 +188,7 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
                       <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                         <h3 className="font-display text-base font-black tracking-tight text-slate-900 dark:text-white">
                           {item.ticker}
-                        </h3>
+                        </h3><span className="md:hidden text-[10px] font-semibold whitespace-nowrap text-blue-700 dark:text-blue-300">Ex-date {formatExDateLabel(item.bookClosure)}</span>
                         {due && (
                           <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
                             Due today
@@ -222,7 +222,7 @@ export const UpcomingEventsScanner: React.FC<UpcomingEventsScannerProps> = ({
                       </div>
                     </div>
                   </div>
-                  <div className="shrink-0 sm:text-right">
+                  <div className="hidden md:block shrink-0 sm:text-right">
                     <div className="mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       Ex-date
                     </div>

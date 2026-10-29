@@ -1,3 +1,4 @@
+import {MobileFitLine as FitLine} from './MobileFitLine';
 import { ResponsiveMetricPanels } from './MobileLayout';
 import { formatPriceTime } from './PriceStaleNotice';
 import React from 'react';
@@ -203,16 +204,16 @@ const HeroCard: React.FC<{
   return (
     <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
       <div className="relative z-10 flex items-start justify-between pointer-events-none">
-        <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{label}</span>
+        <span className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400"><FitLine max={12}>{label}</FitLine></span>
         <div className={`w-9 h-9 rounded-full flex items-center justify-center shadow-sm ${iconWrap}`}>
           {icon}
         </div>
       </div>
       <div className={`relative z-10 text-3xl md:text-4xl font-display font-black mt-3 tracking-tight tabular-nums pointer-events-none ${colorClass}`}>
-        {value}
+        <FitLine max={22}>{value}</FitLine>
       </div>
       <div className="relative z-10 mt-1.5 flex items-center gap-2 pointer-events-none">
-        {sub && <span className="text-sm font-medium text-slate-500 dark:text-slate-400">{sub}</span>}
+        {sub && <span className="text-sm font-medium text-slate-500 dark:text-slate-400"><FitLine max={11}>{sub}</FitLine></span>}
       </div>
 
       <div className="absolute bottom-0 left-0 right-0 h-24 z-20 group-hover:z-30 opacity-90 group-hover:opacity-100 transition-all duration-300">
@@ -243,7 +244,7 @@ const MetricPanel: React.FC<{ title: string; icon: React.ReactNode; colorClass: 
 const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.ReactNode; valueClass?: string; tooltip?: string; explain?: React.ReactNode }> = ({ label, value, sub, valueClass, tooltip, explain }) => (
   <div className="min-w-0 bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 sm:p-4 border border-slate-100 dark:border-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700/60 transition-all hover:shadow-sm flex flex-col justify-center">
     <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500 mb-1.5 flex items-center gap-1">
-      {label}
+      <FitLine max={11} className="preview-metric-label">{label}</FitLine>
       {explain}
       {tooltip && (
         <span tabIndex={0} className="relative group/tt inline-flex items-center">
@@ -255,9 +256,9 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
       )}
     </div>
     <div className={`break-words text-base sm:text-xl font-display font-black tabular-nums tracking-tight leading-snug ${valueClass || 'text-slate-800 dark:text-slate-100'}`}>
-      {value}
+      <FitLine max={18}>{value}</FitLine>
     </div>
-    {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none">{sub}</div>}
+    {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none"><FitLine max={10}>{sub}</FitLine></div>}
   </div>
 );
 export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, updateFailed = false, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], displayNames = {} }) => {

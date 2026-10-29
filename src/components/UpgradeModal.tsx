@@ -1,3 +1,4 @@
+import {MobileFitLine} from './MobileFitLine';
 import React, { useState } from 'react';
 import { Lock, RefreshCw, Loader2, Copy, Check, Mail, CreditCard, X } from 'lucide-react';
 import { PAID_PLAN_PRICES } from '../../config/product.js';
@@ -78,7 +79,7 @@ export const UpgradeModal: React.FC<Props> = ({
             <div key={p.label} className={`relative rounded-2xl border p-3 text-center ${p.best ? 'border-emerald-400 dark:border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-500/5' : 'border-slate-200 dark:border-slate-700'}`}>
               {p.best && <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2 py-0.5 rounded-full">Best value</span>}
               <div className="text-[11px] font-bold uppercase tracking-widest text-slate-400">{p.label}</div>
-              <div className="text-base font-display font-black text-slate-900 dark:text-white mt-1">{p.perMonth}<span className="text-[10px] font-bold text-slate-400">/mo</span></div>
+              <div className="text-base font-display font-black text-slate-900 dark:text-white mt-1"><MobileFitLine max={15}>{p.perMonth}<span className="text-[10px] font-bold text-slate-400">/mo</span></MobileFitLine></div>
               <div className="text-[10px] text-slate-400">{p.total} total</div>
             </div>
           ))}

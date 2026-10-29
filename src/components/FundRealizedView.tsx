@@ -1,3 +1,4 @@
+import {MobileDataTable} from './ui/MobileDataTable';
 import React, { useState, useMemo, useEffect } from 'react';
 import { RealizedTrade } from '../types';
 import {
@@ -516,41 +517,8 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
       )}
 
       <div className="bg-white dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/60 rounded-2xl overflow-hidden flex flex-col shadow-sm">
-        <div className="md:hidden p-3 space-y-2.5">
-          {paginatedTrades.length === 0 ? (
-            <div className="px-4 py-12 text-center text-slate-400 dark:text-slate-500 font-medium text-sm">{hasActiveFilters ? 'No events match your filters.' : fundTab === 'redemptions' && tabCounts.conversions > 0 ? 'No bank redemptions yet — your realized gain is from conversions. Switch to the Conversions or All tab.' : 'No realized gains yet.'}</div>
-          ) : (
-            paginatedTrades.map((trade) => {
-              const isProfit = trade.profit >= 0;
-              const totalCost = (trade.buyAvg || 0) * trade.quantity;
-              const plPct = totalCost > 0 ? (trade.profit / totalCost) * 100 : null;
-              return (
-                <div key={`${trade.id}-m`} className="rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/25 p-3.5">
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <button type="button" onClick={() => filterByTicker(trade.ticker === 'PREV-PNL' ? 'HISTORY' : trade.ticker)} className="font-display font-black text-slate-900 dark:text-white text-sm">{formatAssetLabel(trade.ticker, displayNames)}</button>
-                        <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border ${eventBadgeClass(trade)}`}>{eventLabel(trade)}</span>
-                      </div>
-                      <div className="text-[11px] font-mono text-slate-500 tabular-nums mt-0.5">{trade.date}{trade.holdDays != null ? ` · ${trade.holdDays}d held` : ''}</div>
-                    </div>
-                    <div className={`text-right font-mono font-bold tabular-nums text-sm ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500'}`}>
-                      {isProfit ? '+' : ''}{f0(trade.profit)}
-                      {plPct != null && <div className="text-[10px]">{plPct >= 0 ? '+' : ''}{plPct.toFixed(1)}%</div>}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-[11px]">
-                    <div><div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Qty</div><div className="font-mono font-bold tabular-nums text-slate-800 dark:text-slate-200">{trade.quantity.toLocaleString()}</div></div>
-                    <div><div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Cost NAV</div><div className="font-mono tabular-nums text-slate-600 dark:text-slate-300">{f2(trade.buyAvg || 0)}</div></div>
-                    <div><div className="text-[9px] uppercase tracking-widest text-slate-400 font-bold">Sell NAV</div><div className="font-mono font-bold tabular-nums text-slate-800 dark:text-slate-200">{f2(trade.sellPrice || 0)}</div></div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-        <div className="hidden md:block overflow-x-auto custom-scrollbar">
-          <table className="w-full text-sm min-w-[980px] whitespace-nowrap">
+        <div className="overflow-x-auto custom-scrollbar">
+          <MobileDataTable summaryColumns={[1,10,0,2]} className="w-full text-sm min-w-[980px] whitespace-nowrap">
             <thead className="bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-md text-left sticky top-0 z-10 border-b border-slate-200 dark:border-slate-800">
               <tr>
                 <Th label="Date" sortKey="date" />
@@ -605,7 +573,7 @@ export const FundRealizedView: React.FC<FundRealizedViewProps> = ({ trades, disp
                 </tr>
               </tfoot>
             )}
-          </table>
+          </MobileDataTable>
         </div>
 
         <div className="p-4 border-t border-slate-200/60 dark:border-slate-800 flex flex-col sm:flex-row justify-between items-center gap-4">

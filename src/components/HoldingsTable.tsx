@@ -1,3 +1,4 @@
+import {MobileHoldingRow} from './MobileHoldingRow';
 import React, { useState, useMemo, useEffect } from 'react';
 import { Holding, PortfolioType, Transaction } from '../types';
 import { isFundTicker } from '../utils/fundId';
@@ -36,6 +37,7 @@ interface HoldingsTableProps {
   ldcpMap?: Record<string, number>;
   listedInMap?: Record<string, string>;
   displayNames?: Record<string, string>;
+  onChartClick?: (ticker: string) => void;
   onTickerClick?: (ticker: string) => void;
   onCorporateAction?: (holding: Holding) => void;
   portfolioType?: PortfolioType;
@@ -82,7 +84,7 @@ const fundDayPL = (
   return { change, pct, base };
 };
 
-export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, onCorporateAction, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {}, fundPrevById = {} }) => {
+export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, onChartClick, onCorporateAction, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {}, fundPrevById = {} }) => {
   const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const isFund = portfolioType === 'MUTUAL_FUND';
   const today = todayPK();
@@ -271,89 +273,15 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
             </div>
           ) : (
             paginatedHoldings.map((holding, idx) => {
-              const roundedAvg = isFund ? fundAvgForCost(holding.avgPrice) : Math.round(holding.avgPrice * 100) / 100;
-              const costBasis = holding.quantity * roundedAvg;
-              const marketValue = holding.quantity * holding.currentPrice;
-              const pnl = marketValue - costBasis;
-              const pnlPercent = costBasis > 0 ? (pnl / costBasis) * 100 : 0;
-              const isProfit = pnl >= 0;
               const isFailed = failedTickers.has(holding.ticker);
               const ldcp = isFund ? fundLdcp(holding) : (ldcpMap[holding.ticker] || holding.currentPrice);
               const day = isFund
                 ? fundDayPL(holding, ldcp, dayTransactions, today)
                 : { change: (holding.currentPrice - ldcp) * holding.quantity, pct: ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0 };
-              const clickable = !!onTickerClick;
-              return (
-                <div
-                  key={`${holding.ticker}-${holding.broker || idx}-m`}
-                  role={clickable ? 'button' : undefined}
-                  tabIndex={clickable ? 0 : undefined}
-                  onClick={() => clickable && onTickerClick?.(holding.ticker)}
-                  className={`mobile-holding rounded-2xl border border-slate-200/70 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-800/30 p-4 active:scale-[0.99] transition-transform ${clickable ? 'cursor-pointer' : ''}`}
-                >
-                  <div className="flex items-start justify-between gap-3 mb-3">
-                    <div className="min-w-0 flex items-start gap-2.5">
-                      <div className="w-1 h-10 rounded-full shrink-0 mt-0.5" style={{ backgroundColor: COLORS[idx % COLORS.length] }} />
-                      <div className="min-w-0">
-                        <div className="font-display font-black text-slate-900 dark:text-white text-base flex items-center gap-1.5 truncate">
-                          {formatTransactionLabel(holding.ticker, displayNames)}
-                          {isFailed && <AlertTriangle size={14} className="text-amber-500 animate-pulse shrink-0" />}
-                        </div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest truncate mt-0.5">
-                          {holding.sector}{showBroker && holding.broker ? ` · ${holding.broker}` : ''}
-                        </div>
-                        {!isFund && onCorporateAction && (
-                          <button
-                            type="button"
-                            onClick={(event) => { event.stopPropagation(); onCorporateAction(holding); }}
-                            className="mt-1 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-300"
-                          >
-                            Bonus, split, rights
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                    <div className={`text-right shrink-0 ${isProfit ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                      <div className="font-mono font-bold tabular-nums text-sm">{isProfit ? '+' : ''}{pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                      <div className="text-[10px] font-bold tabular-nums">{isProfit ? '+' : ''}{pnlPercent.toFixed(1)}%</div>
-                    </div>
-                  </div>
-                  <div className="mobile-position-metrics grid grid-cols-2 gap-2 text-xs">
-                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'Units' : 'Qty'}</div>
-                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">{isFund ? fmtFundUnits(holding.quantity) : holding.quantity.toLocaleString()}</div>
-                    </div>
-                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'Current NAV' : 'Current Price'}</div>
-                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">
-                        {holding.currentPrice > 0 ? (isFund ? fmtFundNav(holding.currentPrice) : holding.currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '—'}
-                      </div>
-                    </div>
-                    <div className="min-w-0 rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">{isFund ? 'Avg NAV' : 'Avg Price'}</div>
-                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white break-words">
-                        {isFund ? fmtFundNav(roundedAvg) : roundedAvg.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </div>
-                    </div>
-                    <div className="min-w-0 rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Total Cost</div>
-                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white break-words">{costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                    </div>
-                    <div className="rounded-xl bg-white/80 dark:bg-slate-900/50 px-3 py-2 border border-slate-100 dark:border-slate-800">
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Market Value</div>
-                      <div className="font-mono font-bold tabular-nums text-slate-900 dark:text-white">{marketValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</div>
-                    </div>
-                    <div className={`rounded-xl px-3 py-2 border border-slate-100 dark:border-slate-800 ${day.change >= 0 ? 'bg-emerald-50/80 dark:bg-emerald-500/10' : 'bg-rose-50/80 dark:bg-rose-500/10'}`}>
-                      <div className="text-[9px] font-bold uppercase tracking-widest text-slate-400 mb-0.5">Daily P&L</div>
-                      <div className={`font-mono font-bold tabular-nums flex items-center gap-1 ${day.change >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}`}>
-                        {day.change >= 0 ? <TrendingUp size={12} /> : <TrendingDown size={12} />}
-                        {day.change >= 0 ? '+' : ''}{day.change.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                        <span className="text-[10px] opacity-80">({day.pct.toFixed(1)}%)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
+              return <MobileHoldingRow key={holding.ticker+'-'+(holding.broker||idx)} holding={holding} isFund={isFund}
+                showBroker={showBroker} displayName={formatTransactionLabel(holding.ticker,displayNames)}
+                listedIn={holding.listedIn || listedInMap[holding.ticker] || ''} failed={isFailed} day={day}
+                onTickerClick={onTickerClick} onChartClick={onChartClick} onCorporateAction={onCorporateAction}/>;
             })
           )}
           {filteredAndSortedHoldings.length > 0 && (

@@ -1,4 +1,6 @@
 import React from 'react';
+import { MobileFitLine } from './MobileFitLine';
+import { MobileDataTable } from './ui/MobileDataTable';
 import { Wallet, ShieldCheck, Building2, TrendingUp, Activity, Coins } from 'lucide-react';
 
 // A self-contained dashboard preview (no screenshot needed) — mirrors the real
@@ -18,8 +20,8 @@ const StatCard: React.FC<{ label: string; value: string; sub: string; Icon: any;
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="text-[9px] sm:text-[10px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400">{label}</div>
-          <div className="text-lg sm:text-2xl font-display font-black text-slate-900 dark:text-white tabular-nums mt-1">{value}</div>
-          <div className="text-[10px] sm:text-xs text-emerald-700 dark:text-emerald-400 font-bold tabular-nums">{sub}</div>
+          <div className="text-lg sm:text-2xl font-display font-black text-slate-900 dark:text-white tabular-nums mt-1"><MobileFitLine max={16}>{value}</MobileFitLine></div>
+          <div className="text-[10px] sm:text-xs text-emerald-700 dark:text-emerald-400 font-bold tabular-nums"><MobileFitLine max={10}>{sub}</MobileFitLine></div>
         </div>
         <div className="w-8 h-8 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 text-emerald-500 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center shrink-0"><Icon size={15} /></div>
       </div>
@@ -200,8 +202,8 @@ export const DashboardShot: React.FC = () => (
 const KpiMini: React.FC<{ label: string; value: string; sub?: string; tone?: 'up' | 'down' | 'neutral' }> = ({ label, value, sub, tone = 'neutral' }) => (
   <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-2.5 sm:p-3 shadow-sm min-w-0">
     <div className="text-[8px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 truncate">{label}</div>
-    <div className={`text-[11px] sm:text-sm font-display font-black tabular-nums mt-0.5 ${tone === 'up' ? 'text-emerald-700 dark:text-emerald-400' : tone === 'down' ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}>{value}</div>
-    {sub && <div className="text-[8px] text-slate-600 dark:text-slate-400 mt-0.5 truncate">{sub}</div>}
+    <div className={`text-[11px] sm:text-sm font-display font-black tabular-nums mt-0.5 ${tone === 'up' ? 'text-emerald-700 dark:text-emerald-400' : tone === 'down' ? 'text-rose-700 dark:text-rose-400' : 'text-slate-900 dark:text-white'}`}><MobileFitLine max={16}>{value}</MobileFitLine></div>
+    {sub && <div className="text-[8px] text-slate-600 dark:text-slate-400 mt-0.5 truncate"><MobileFitLine max={10}>{sub}</MobileFitLine></div>}
   </div>
 );
 
@@ -282,14 +284,14 @@ export const RealizedShot: React.FC = () => (
 
         <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 shadow-sm">
           <div className="text-[9px] font-bold uppercase tracking-widest text-slate-600 dark:text-slate-400 mb-2">2026 heatmap</div>
-          <div className="grid grid-cols-12 gap-1">
+          <div className="grid grid-cols-6 md:grid-cols-12 gap-1">
             {[
               { m: 'J', v: null }, { m: 'F', v: null }, { m: 'M', v: null },
               { m: 'A', v: 12400 }, { m: 'M', v: -8200 }, { m: 'J', v: 18650 },
               { m: 'J', v: 22100 }, { m: 'A', v: 15800 }, { m: 'S', v: null },
               { m: 'O', v: null }, { m: 'N', v: null }, { m: 'D', v: null },
-            ].map((c) => (
-              <div key={c.m} className={`rounded-md text-center py-1.5 ${c.v == null ? 'bg-slate-100 dark:bg-slate-800' : c.v < 0 ? 'bg-rose-100 dark:bg-rose-500/20' : 'bg-emerald-100 dark:bg-emerald-500/20'}`}>
+            ].map((c, index) => (
+              <div key={index} className={`rounded-md text-center py-1.5 ${c.v == null ? 'bg-slate-100 dark:bg-slate-800' : c.v < 0 ? 'bg-rose-100 dark:bg-rose-500/20' : 'bg-emerald-100 dark:bg-emerald-500/20'}`}>
                 <div className="text-[8px] font-bold text-slate-600 dark:text-slate-400">{c.m}</div>
                 {c.v != null && <div className={`text-[8px] font-black tabular-nums ${c.v < 0 ? 'text-rose-700 dark:text-rose-400' : 'text-emerald-700 dark:text-emerald-400'}`}>{c.v < 0 ? '−8.2K' : `${Math.round(c.v / 1000)}K`}</div>}
               </div>
@@ -299,7 +301,7 @@ export const RealizedShot: React.FC = () => (
 
         <div className="rounded-2xl border border-slate-200/60 dark:border-slate-800/60 bg-white dark:bg-slate-900 overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-[9px] sm:text-[10px]">
+            <MobileDataTable summaryColumns={[1, 6, 0, 2]} className="w-full text-[9px] sm:text-[10px]">
               <thead>
                 <tr className="text-slate-600 dark:text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-800">
                   {['Date', 'Ticker', 'Qty', 'Buy avg', 'Sell', 'P&L %', 'Net profit'].map(h => (
@@ -336,7 +338,7 @@ export const RealizedShot: React.FC = () => (
                   <td className="px-2 py-2 font-black text-rose-700 dark:text-rose-400">−4,560.00</td>
                 </tr>
               </tbody>
-            </table>
+            </MobileDataTable>
           </div>
         </div>
       </div>

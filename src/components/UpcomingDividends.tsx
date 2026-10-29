@@ -118,7 +118,7 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
           <div className="divide-y divide-slate-50 dark:divide-slate-800/60 flex-auto min-h-0 overflow-y-auto overscroll-contain custom-scrollbar">
             {rows.map((d: any, i: number) => (
               <div key={`${d.ticker}-${i}`} className="flex items-center gap-3 py-2.5">
-                <div className="flex flex-col min-w-0 flex-1">
+                <div className="upcoming-dividend-identity flex flex-col min-w-0 flex-1">
                   <span className="font-display font-black text-slate-800 dark:text-white text-sm truncate">{d.ticker}</span>
                   <span className="text-[10px] text-slate-400 font-semibold">Ex-date {d.ex.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} · in {d.daysTo}d</span>
                 </div>

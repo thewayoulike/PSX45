@@ -1,10 +1,30 @@
 @media (max-width: 767px) {
+  .mobile-auth { padding-inline: 16px; background: #f6f8f7; }
+  .dark .mobile-auth { background: #101b19; }
+  .mobile-auth .login-auth-header { flex-wrap: wrap; gap: 12px; }
+  .mobile-auth .login-auth-header > a { max-width: 100%; }
+  .mobile-auth .login-auth-header nav { width: 100%; gap: 8px; }
+  .mobile-auth .login-auth-header nav a { display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid #dce7e1; border-radius: 10px; text-decoration: none; font-size: 13px; }
+  .dark .mobile-auth .login-auth-header nav a { border-color: #2b4238; }
   .mobile-auth > div.max-w-md { margin-bottom: 14px; }
   .mobile-auth > div.max-w-md > div.mb-8 { margin-bottom: 16px; }
   .mobile-auth > div.max-w-md > h1 { font-size: 25px; line-height: 1.2; }
   .mobile-auth > div.max-w-md > p { font-size: 13px; margin-bottom: 14px; }
-  .mobile-auth > div.max-w-md:has(form) { padding: 18px; border-radius: 18px; box-shadow: none; }
+  .mobile-auth > div.max-w-md:has(form) { padding: 18px; border-radius: 18px; border-color: #e4ece7; box-shadow: 0 7px 24px #1c3e3010; }
+  .dark .mobile-auth > div.max-w-md:has(form) { background: #162622; border-color: #2b4238; }
+  .mobile-auth input { min-width: 0; font-size: 16px; }
+  .mobile-auth form label { font-size: 12px; font-weight: 600; }
+  .mobile-auth :is(h1,h2,h3,.font-black) { font-weight: 650; }
+  .mobile-auth button { min-height: 44px; }
   .landing-page > main > section { padding: 30px 16px; }
+  .landing-page > main > section h1 { font-size: 32px; }
+  .landing-page [data-hero-keepout] { font-size: 15px; }
+  .login-dashboard-preview { border: 1px solid var(--clean-line); border-radius: 16px; overflow: hidden; text-align: left; }
+  .login-preview-label { padding: 12px 14px; color: var(--clean-muted); border-bottom: 1px solid var(--clean-line); font-size: 11px; }
+  .login-dashboard-preview .portfolio-value-preview { margin-bottom: 20px; }
+  .login-dashboard-preview .app-page-scroll { overflow: visible; height: auto; }
+  .login-app-preview .mobile-records { --clean-ink: #183b34; --clean-muted: #617781; --clean-line: #d9e4e8; --clean-soft: #f0f5f6; }
+  .dark .login-app-preview .mobile-records { --clean-ink: #e4f2eb; --clean-muted: #a8bab1; --clean-line: #2b4238; --clean-soft: #20332c; }
 }
 
 /* Accessible wordmark colors on the public landing and sign-in surfaces. */
