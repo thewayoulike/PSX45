@@ -19,10 +19,6 @@
   .landing-page > main > section { padding: 30px 16px; }
   .landing-page > main > section h1 { font-size: 32px; }
   .landing-page [data-hero-keepout] { font-size: 15px; }
-  .login-dashboard-preview { border: 1px solid var(--clean-line); border-radius: 16px; overflow: hidden; text-align: left; }
-  .login-preview-label { padding: 12px 14px; color: var(--clean-muted); border-bottom: 1px solid var(--clean-line); font-size: 11px; }
-  .login-dashboard-preview .portfolio-value-preview { margin-bottom: 20px; }
-  .login-dashboard-preview .app-page-scroll { overflow: visible; height: auto; }
   .login-app-preview .mobile-records { --clean-ink: #183b34; --clean-muted: #617781; --clean-line: #d9e4e8; --clean-soft: #f0f5f6; }
   .dark .login-app-preview .mobile-records { --clean-ink: #e4f2eb; --clean-muted: #a8bab1; --clean-line: #2b4238; --clean-soft: #20332c; }
 }

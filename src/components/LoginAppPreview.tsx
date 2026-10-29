@@ -46,7 +46,7 @@ export const LoginAppPreview: React.FC = () => {
       {page === 'realized' && <RealizedShot />}
       {page === 'charts' && <ChartShot />}
 
-      <p className="text-[11px] text-slate-600 dark:text-slate-400 text-center mt-3 font-medium">{mobile && page === 'dashboard' ? 'The same chart and cards you use after logging in. Try the chart periods and Performance, Capital and Income tabs.' : PREVIEW_CAPTIONS[page]} {page !== 'dashboard' || !mobile ? 'Illustrative sample data.' : ''}</p>
+      <p className="text-[11px] text-slate-600 dark:text-slate-400 text-center mt-3 font-medium">{mobile && page === 'dashboard' ? 'A sample of every dashboard section, from portfolio returns to holdings and market updates.' : PREVIEW_CAPTIONS[page]} {page !== 'dashboard' || !mobile ? 'Illustrative sample data.' : ''}</p>
     </div>
   );
 };

@@ -11,6 +11,7 @@ import React, { useState, useEffect, useMemo, useRef, useCallback, lazy, Suspens
 import '../index.css';
 import '../mobile-layout.css';
 import '../mobile-clean-layout.css';
+import '../desktop-dashboard.css';
 import { Transaction, Holding, PortfolioStats, RealizedTrade, Portfolio, PortfolioType, Broker, FoundDividend, EditableTrade } from '../types';
 import { setCanSaveAlerts } from '../services/alertAccess';
 const Dashboard = lazy(() => import('./DashboardStats').then(m => ({ default: m.Dashboard })));
@@ -2644,7 +2645,7 @@ const App: React.FC = () => {
       entitledTickers={entitledTickerList}
       requestUpgrade={() => setShowUpgrade(true)}
     >
-    <div data-design-variant={currentView === 'CALCS' || (currentView === 'DASHBOARD' && !isFundPortfolio) ? 'structured' : 'calm'} data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-[#f3f6f2] text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div data-desktop-dashboard={currentView === 'DASHBOARD' && !isFundPortfolio ? 'calm' : undefined} data-design-variant={currentView === 'CALCS' || (currentView === 'DASHBOARD' && !isFundPortfolio) ? 'structured' : 'calm'} data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-[#f3f6f2] text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       <ResponsivePlanNotice label={sbStatus?.status === 'trial' ? `Trial · ${sbStatus.daysLeft} ${sbStatus.daysLeft === 1 ? 'day' : 'days'} left` : sbStatus?.status === 'paid' ? 'Renewal due' : 'Free plan'}>{trialBanner}</ResponsivePlanNotice>
 
@@ -2903,8 +2904,9 @@ const App: React.FC = () => {
                                       <LayoutGrid size={14} /> Mutual Fund portfolio — NAV-based tracking (no PSX index, signals, or stock tools)
                                   </div>
                               )}
-                              {isNarrowViewport && <MobilePortfolioValue key={performanceKey+currentPortfolioId} rows={displayedPerformance} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
+                              {(isNarrowViewport || !isFundPortfolio) && <MobilePortfolioValue key={performanceKey+currentPortfolioId} rows={displayedPerformance} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
                               <DashboardGrid
+                                  compactStats={!isFundPortfolio}
                                   layout={isNarrowViewport ? effectiveDashboardLayout.mobile : effectiveDashboardLayout.web}
                                   device={isNarrowViewport ? 'mobile' : 'web'}
                                   renderCard={renderDashCard}

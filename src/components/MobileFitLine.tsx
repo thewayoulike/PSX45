@@ -3,7 +3,7 @@ import React, { useLayoutEffect, useRef } from 'react';
 import './mobile-fit-line.css';
 
 /** Fit the complete value to its own card, including after resize or a tab change. */
-function FittedLine({children,max=20,className=''}:React.PropsWithChildren<{max?:number;className?:string}>){
+export function FittedLine({children,max=20,className=''}:React.PropsWithChildren<{max?:number;className?:string}>){
  const box=useRef<HTMLSpanElement>(null),text=useRef<HTMLSpanElement>(null);
  useLayoutEffect(()=>{
   const outer=box.current,inner=text.current;if(!outer||!inner)return;

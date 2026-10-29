@@ -1,4 +1,4 @@
-import {MobileFitLine as FitLine} from './MobileFitLine';
+import {FittedLine as FitLine} from './MobileFitLine';
 import { ResponsiveMetricPanels } from './MobileLayout';
 import { formatPriceTime } from './PriceStaleNotice';
 import React from 'react';
