@@ -127,6 +127,31 @@ afterEach(() => {
 });
 
 describe('login configuration readiness', () => {
+  it('recovers from a hosting checkpoint without caching it as settings, opening OAuth, or clearing saved work', async () => {
+    const requestAccessToken = vi.fn(), initTokenClient = vi.fn(() => ({ requestAccessToken }));
+    (window as any).google = { accounts: { oauth2: { initTokenClient } } };
+    const portfolio = JSON.stringify([{ id: 'local-trade', portfolioId: 'p1' }]);
+    const pending = JSON.stringify({ data: { transactions: [{ id: 'local-trade' }] } });
+    storage.set('psx_transactions', portfolio);
+    storage.set(pendingKey('a@example.com'), pending);
+    let blocked = true;
+    mockCloud(() => blocked
+      ? new Response('<html>Security checkpoint</html>', { status: 429, headers: { 'x-vercel-mitigated': 'challenge' } })
+      : response({ enabled: true, clientId: 'test.apps.googleusercontent.com' }));
+    await service.googleSignInReadiness.prepare();
+    expect(service.googleSignInReadiness.getSnapshot().recovery).toBe('hosting-check');
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(initTokenClient).not.toHaveBeenCalled();
+    blocked = false;
+    await service.googleSignInReadiness.prepare();
+    expect(service.googleSignInReadiness.getSnapshot()).toEqual({ status: 'ready', message: '' });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(requestAccessToken).not.toHaveBeenCalled();
+    service.signInWithDrive();
+    expect(requestAccessToken).toHaveBeenCalledOnce();
+    expect(storage.get('psx_transactions')).toBe(portfolio);
+    expect(storage.get(pendingKey('a@example.com'))).toBe(pending);
+  });
   it('restores an existing Drive session without downloading sign-in UI on the homepage', () => {
     vi.stubGlobal('window', { location: { origin: 'https://test.example' }, addEventListener: vi.fn(), removeEventListener: vi.fn() });
     const prepare = vi.spyOn(service.googleSignInReadiness, 'prepare');

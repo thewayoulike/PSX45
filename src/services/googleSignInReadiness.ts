@@ -1,5 +1,5 @@
 import { ApiResponseError } from './apiResponse';
-export type GoogleSignInState = { status: 'idle' | 'loading' | 'ready' | 'error'; message: string };
+export type GoogleSignInState = { status: 'idle' | 'loading' | 'ready' | 'error'; message: string; recovery?: 'hosting-check' };
 const SCRIPT_ID = 'google-gsi-script';
 let scriptRequest: Promise<void> | null = null;
 const libraryReady = () => !!window.google?.accounts?.oauth2;
@@ -69,7 +69,13 @@ export function createGoogleSignInReadiness(prepareConfig: () => Promise<unknown
       publish({ status: 'loading', message: 'Preparing Google sign-in…' });
       pending = Promise.all([loadGoogleIdentityScript(), configWithRetry()]).then(
         () => { publish({ status: 'ready', message: '' }); },
-        error => { publish({ status: 'error', message: error instanceof Error ? error.message : 'Google sign-in could not load. Please retry.' }); },
+        error => {
+          if (error instanceof ApiResponseError && error.kind === 'hosting-check') {
+            publish({ status: 'error', recovery: 'hosting-check', message: 'A security check is blocking sign-in. Open the check below; it will return you to sign-in when finished. Your saved portfolio stays on this device.' });
+          } else {
+            publish({ status: 'error', message: error instanceof Error ? error.message : 'Google sign-in could not load. Please retry.' });
+          }
+        },
       ).finally(() => { pending = null; });
       return pending;
     },

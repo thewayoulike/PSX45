@@ -24,9 +24,25 @@ describe('Google sign-in preparation', () => {
     const config = vi.fn().mockRejectedValue(new ApiResponseError('Hosting security check required. Open Chrome.', 429, 'hosting-check'));
     const flow = service.createGoogleSignInReadiness(config);
     await flow.prepare();
-    expect(flow.getSnapshot()).toMatchObject({status:'error',message:expect.stringContaining('Hosting security check')});
+    expect(flow.getSnapshot()).toMatchObject({status:'error', recovery:'hosting-check', message:expect.stringContaining('Open the check below')});
     expect(config).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(config).toHaveBeenCalledTimes(1);
+    config.mockResolvedValue({ enabled: true });
+    await flow.prepare();
+    expect(flow.getSnapshot()).toEqual({ status: 'ready', message: '' });
+    expect(window.google.accounts.oauth2.initTokenClient).not.toHaveBeenCalled();
+    expect(window.google.accounts.oauth2.initCodeClient).not.toHaveBeenCalled();
+  });
+  it('only offers the security check for a confirmed hosting challenge, not an ordinary rate limit', async () => {
+    sdk();
+    const { ApiResponseError } = await import('./apiResponse');
+    const flow = service.createGoogleSignInReadiness(vi.fn().mockRejectedValue(new ApiResponseError('Too many requests', 429)));
+    const request = flow.prepare();
+    await vi.advanceTimersByTimeAsync(600); await request;
+    expect(flow.getSnapshot().status).toBe('error');
+    expect(flow.getSnapshot().recovery).toBeUndefined();
   });
   it('waits for both settings and the delayed SDK, shares work, and never opens OAuth', async () => {
     let finish!: () => void;
