@@ -4,7 +4,8 @@
 
 /* Compact, predictable rows on phones; desktop retains its flexible toolbar. */
 @media (max-width: 767px) {
-  .mobile-layout-app[data-mobile-view="SIGNALS"] .app-sticky-actions { margin-bottom: 4px; }
+  .mobile-layout-app[data-mobile-view="SIGNALS"] .app-sticky-actions { margin-inline: 0; margin-bottom: 4px; }
+  .mobile-layout-app[data-mobile-view="SIGNALS"] .app-sticky-actions > div { padding-inline: 0; }
   .mobile-layout-app[data-mobile-view="SIGNALS"] .mobile-section-navigator { margin-bottom: 4px; }
   .mobile-layout-app[data-mobile-view="SIGNALS"] .mobile-section-chips button { min-height: 30px; padding: 4px 8px; font-size: 11px; }
   .market-signal-header { padding: clamp(12px, 3.5vw, 16px); }

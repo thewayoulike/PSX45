@@ -39,6 +39,7 @@
   .mk-news:not(.mk-news-preview) > .mk-table-top .mk-pagination > label { display: none; }
   .mk-news:not(.mk-news-preview) > .mk-table-top .mk-pagination > span { font-size: 10px; }
   .mk-news:not(.mk-news-preview) > .mk-table-top .mk-page-controls { gap: 5px; font-size: 10px; }
+  .mk-news:not(.mk-news-preview) > .mk-table-top .mk-page-controls > span { order: 0; flex-basis: auto; }
   .mk-page .mk-news > .mk-table-top .mk-page-controls button { min-height: 28px; padding: 3px 6px; font-size: 10px; }
   .mk-news:not(.mk-news-preview) .mk-news-stream { gap: 9px; }
   .mk-news:not(.mk-news-preview) .mk-news-stream .mk-news-card { padding: 12px; }
