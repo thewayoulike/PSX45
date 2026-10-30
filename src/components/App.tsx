@@ -102,7 +102,7 @@ import { stockDayPerformance, stockTransactions, withLivePerformance, performanc
 import { usePortfolioHistory } from '../hooks/usePortfolioHistory';
 import { PORTFOLIO_HISTORY_PREFIX } from '../utils/portfolioHistoryCache';
 import { oversellCashCredit } from '../utils/oversellCash';
-import { peakNetInvested } from '../utils/peakCapital';
+import { investedCapitalHistory, netInvestedBalance, type NetInvestedPoint } from '../utils/peakCapital';
 import { cardSparklines } from '../utils/cardHistory';
 import { principalAndCash } from '../utils/cashFlows';
 import { fifoTransferSlices } from '../utils/transferLots';
@@ -1654,7 +1654,7 @@ const App: React.FC = () => {
       });
   }, [portfolioTransactionsRaw, entitledTickers]);
 
-  const stats: PortfolioStats = useMemo(() => {
+  const stats: PortfolioStats & { netInvestedHistory: NetInvestedPoint[] } = useMemo(() => {
     let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let transferInValue = 0; let transferOutValue = 0; let historyPnL = 0; let totalReinvest = 0;
     let operationalExpenses = 0;
     let fundReinvestIncome = 0;
@@ -1795,6 +1795,9 @@ const App: React.FC = () => {
         else if (t.type === 'HISTORY') {
             totalCGT += (t.tax || 0);
             historyPnL += t.price;
+            // Historical realized profit is added via realizedTrades below; its CGT
+            // also belongs in the dated capital balance, as it does in the card.
+            if (t.tax) events.push({ date: t.date, type: 'LOSS', amount: t.tax, originalIndex: idx, bucket: 'realized' });
 
             if (t.price >= 0) events.push({ date: t.date, type: 'PROFIT', amount: t.price, originalIndex: idx });
             else events.push({ date: t.date, type: 'LOSS', amount: Math.abs(t.price), originalIndex: idx });
@@ -1832,21 +1835,14 @@ const App: React.FC = () => {
     // here. Fund withholding deducted from a dividend is reported under Total CGT but
     // must not show up as a realized loss on a position you never sold.
     const netRealizedPL = realizedPL - (totalCGT - fundTaxWithheld);
-    const peakInvested = peakNetInvested(events, fundPortfolio);
+    const capitalHistory = investedCapitalHistory(events, fundPortfolio);
+    const peakInvested = capitalHistory.peak;
     // Net Invested = capital − withdrawals, where a withdrawal is funded first from
     // TOTAL realized gain (net of CGT), then reinvested dividends, then capital.
     // Only the capital-funded portion of withdrawals reduces Net Invested — so
     // cashing out your gains leaves Net Invested unchanged.
     const flows = principalAndCash({ deposits: totalDeposits, withdrawals: totalWithdrawals, transferIn: transferInValue, transferOut: transferOutValue });
-    let wLeft = flows.principalOut;
-    wLeft -= Math.min(wLeft, Math.max(0, netRealizedPL));            // realized gain first
-    const reinvestUsed = Math.min(wLeft, Math.max(0, totalReinvest));
-    wLeft -= reinvestUsed;                                           // then reinvested dividends
-    const capitalRemaining = flows.principalIn - wLeft;              // then capital
-    const reinvestRemaining = Math.max(0, totalReinvest - reinvestUsed);
-    // Withdrawals still draw down reinvested profit before capital above; funds just
-    // never count that profit as principal in the first place.
-    const netPrincipal = Math.max(0, fundPortfolio ? capitalRemaining : capitalRemaining + reinvestRemaining);
+    const { netPrincipal, reinvestRemaining } = netInvestedBalance(flows.principalIn, flows.principalOut, netRealizedPL, totalReinvest, fundPortfolio);
     const peakNetPrincipal = Math.max(peakInvested, netPrincipal);
     const dividendReinvested = reinvestRemaining;
     let tradingCashFlow = 0;
@@ -1916,7 +1912,7 @@ const App: React.FC = () => {
         dailyUnavailableReason: sessionUnconfirmed ? 'Market session unavailable' : stockDay.corporateActions.length ? 'Corporate-action prices need verification' : dailyMissingPrevious ? 'Prices incomplete' : dailyPreviousValue <= 0 ? 'No exposure for this session' : undefined,
         totalCommission, totalSalesTax, totalCDC,
         totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
-        netPrincipal, peakNetPrincipal, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
+        netPrincipal, peakNetPrincipal, netInvestedHistory: capitalHistory.points, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
     };
   }, [holdings, realizedTrades, portfolioTransactions, ldcpMap, manualPrices, priceTimestamps, marketSessionDate, fundNavDayMap, fundCatalog, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds]);
 
@@ -2915,7 +2911,7 @@ const App: React.FC = () => {
                                       <LayoutGrid size={14} /> Mutual Fund portfolio — NAV-based tracking (no PSX index, signals, or stock tools)
                                   </div>
                               )}
-                              {(isNarrowViewport || !isFundPortfolio) && <MobilePortfolioValue key={historyScope.account+performanceKey+perfKey} rows={hasFundHistory ? [] : portfolioHistory.rows} scope={historyScope} loading={portfolioHistory.loading} error={portfolioHistory.error} onRefresh={portfolioHistory.refresh} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
+                              {(isNarrowViewport || !isFundPortfolio) && <MobilePortfolioValue key={historyScope.account+performanceKey+perfKey} rows={hasFundHistory ? [] : portfolioHistory.rows} netInvestedHistory={stats.netInvestedHistory} scope={historyScope} loading={portfolioHistory.loading} error={portfolioHistory.error} onRefresh={portfolioHistory.refresh} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
                               <DashboardGrid
                                   compactStats={!isFundPortfolio}
                                   layout={isNarrowViewport ? effectiveDashboardLayout.mobile : effectiveDashboardLayout.web}

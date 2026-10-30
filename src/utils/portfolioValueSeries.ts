@@ -1,11 +1,12 @@
 import type { HistoryRow } from './cardHistory';
+import { netInvestedOnDate, type NetInvestedPoint } from './peakCapital';
 
 export const valueRanges = ['1D', '1W', '1M', '6M', 'YTD', '1Y', 'MAX'] as const;
 export type ValueRange = typeof valueRanges[number];
-export type ValuePoint = { date: string; value: number };
+export type ValuePoint = { date: string; value: number; netInvested?: number };
 
 /** Saved account valuations only; missing prices are never substituted with zero. */
-export function portfolioValueSeries(rows: HistoryRow[], range: ValueRange, asOf: string): ValuePoint[] {
+export function portfolioValueSeries(rows: HistoryRow[], range: ValueRange, asOf: string, invested?: readonly NetInvestedPoint[]): ValuePoint[] {
   const end = Date.parse(asOf + 'T12:00:00Z');
   if (!Number.isFinite(end)) return [];
   const start = new Date(end);
@@ -20,7 +21,8 @@ export function portfolioValueSeries(rows: HistoryRow[], range: ValueRange, asOf
     const date = row.rawDate;
     if (!date || typeof row.netWorth !== 'number' || !Number.isFinite(row.netWorth)) continue;
     const time = Date.parse(date + 'T12:00:00Z');
-    if (time >= from && time <= end) unique.set(date, { date, value: row.netWorth });
+    if (time >= from && time <= end) unique.set(date, { date, value: row.netWorth,
+      ...(invested ? { netInvested: netInvestedOnDate(invested, date) } : {}) });
   }
   return [...unique.values()].sort((a, b) => a.date.localeCompare(b.date));
 }
