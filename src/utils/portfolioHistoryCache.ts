@@ -45,6 +45,7 @@ export const writePortfolioHistory = (scope: HistoryScope, rows: PerformanceRow[
 export function readObservations(scope: HistoryScope, date: string): Observation[] {
   const entry = read(scope, 'intraday');
   return entry?.date === date && Array.isArray(entry.points) ? entry.points.filter((p: Observation) =>
-    Number.isFinite(p.time) && Number.isFinite(p.value) && new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(p.time) === date).slice(-500) : [];
+    p && Number.isFinite(p.time) && Number.isFinite(new Date(p.time).getTime()) && Number.isFinite(p.value) &&
+    new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Karachi' }).format(p.time) === date).slice(-500) : [];
 }
 export const writeObservations = (scope: HistoryScope, date: string, points: Observation[]) => write(scope, 'intraday', { date, points: points.slice(-500) });

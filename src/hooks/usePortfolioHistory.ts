@@ -35,7 +35,8 @@ export function usePortfolioHistory(scope: HistoryScope, transactions: Transacti
           } catch { history[ticker] = []; }
         }
       }));
-      if (generation.current !== run) return;
+      if (generation.current !== run || inputs.current.scope.account !== input.scope.account ||
+        inputs.current.scope.portfolio !== input.scope.portfolio || inputs.current.scope.sourceKey !== input.scope.sourceKey) return;
       if ((history.KSE100 || []).length < 2) throw new Error('History refresh is unavailable. Saved values are still shown; try Refresh history again.');
       const fresh = buildPerformanceHistory(input.transactions, history, new Date(), null);
       if (!fresh.some(row => row.netWorth != null)) throw new Error('Prices needed for portfolio history are unavailable. Keeping your saved values.');
