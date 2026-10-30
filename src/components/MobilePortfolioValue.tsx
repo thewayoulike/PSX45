@@ -1,5 +1,5 @@
 import React, { useEffect, useId, useMemo, useState } from 'react';
-import { Area, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Area, CartesianGrid, ComposedChart, Customized, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { MobileFitLine } from './MobileFitLine';
 import type { HistoryRow } from '../utils/cardHistory';
 import { portfolioValueSeries, valueRanges, type ValueRange } from '../utils/portfolioValueSeries';
@@ -7,11 +7,13 @@ import { todayPK } from '../utils/dates';
 import { readObservations, writeObservations, type HistoryScope } from '../utils/portfolioHistoryCache';
 import { netInvestedOnDate, type NetInvestedPoint } from '../utils/peakCapital';
 import './PortfolioValue.css';
+import { PortfolioInvestedComparison } from './PortfolioInvestedComparison';
 
 type Props = { rows: HistoryRow[]; netInvestedHistory?: readonly NetInvestedPoint[]; value: number; dayChange: number | null; sessionDate?: string; quoteTime?: string | null;
   scope?: HistoryScope; loading?: boolean; error?: string; onRefresh?: () => void };
 const money = (n: number) => n.toLocaleString('en-PK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const dateLabel = (date: string) => new Date(date + 'T12:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' });
+const axisMoney = (amount: number) => `Rs. ${new Intl.NumberFormat('en-GB', { notation: 'compact', maximumFractionDigits: 1 }).format(amount)}`;
 export function MobilePortfolioValue({ rows, netInvestedHistory, value, dayChange, sessionDate, quoteTime, scope, loading, error, onRefresh }: Props) {
   const [range, setRange] = useState<ValueRange>('1M');
   const id = useId().replace(/:/g, '');
@@ -43,12 +45,18 @@ export function MobilePortfolioValue({ rows, netInvestedHistory, value, dayChang
       <div className="portfolio-value-asof">{quoteTime ? `Updated ${new Date(quoteTime).toLocaleString('en-GB', { timeZone: 'Asia/Karachi', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} PKT` : 'Latest saved portfolio'}</div>
     </div></div>
     <div className="portfolio-value-legend" aria-label="Chart lines">
-      <span><i aria-hidden="true" style={{ borderColor: color }}/>Portfolio value</span>
-      {netInvestedHistory && <span><i aria-hidden="true" className="portfolio-invested-key"/>Net invested</span>}
+      {netInvestedHistory ? <>
+        <span><i aria-hidden="true" style={{ borderColor: 'var(--clean-up)' }}/>Above invested</span>
+        <span><i aria-hidden="true" style={{ borderColor: 'var(--clean-down)' }}/>Below invested</span>
+        <span><i aria-hidden="true" className="portfolio-invested-key"/>Net invested</span>
+      </> : <span><i aria-hidden="true" style={{ borderColor: color }}/>Portfolio value</span>}
     </div>
     {data.length > 1 ? <div className="portfolio-value-plot" aria-label={`${range} portfolio value compared with net invested; use arrow keys to inspect dates`}><ResponsiveContainer width="100%" height="100%"><ComposedChart accessibilityLayer data={data} margin={{ top: 12, right: 6, bottom: 0, left: 6 }}>
       <defs><linearGradient id={id} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={color} stopOpacity={.23}/><stop offset="100%" stopColor={color} stopOpacity={0}/></linearGradient></defs>
-      <XAxis dataKey="label" hide/><YAxis domain={['auto', 'auto']} hide/>
+      <CartesianGrid vertical={false} stroke="var(--clean-line)" strokeDasharray="3 5"/>
+      <XAxis dataKey="label" hide/>
+      <YAxis domain={['auto', 'auto']} orientation="right" width={66} tickCount={4} interval="preserveStartEnd" tickLine={false} axisLine={false} tickMargin={8}
+        tick={({ x, y, payload }) => <text x={x} y={y} textAnchor="start" dominantBaseline="central" fill="var(--clean-muted)" fontSize={10}>{axisMoney(payload.value)}</text>}/>
       <Tooltip content={({ active, label, payload }) => {
         const point = payload?.[0]?.payload as { value: number; netInvested?: number } | undefined;
         if (!active || !point) return null;
@@ -62,7 +70,9 @@ export function MobilePortfolioValue({ rows, netInvestedHistory, value, dayChang
           </p>}
         </div>;
       }}/>
-      <Area name="Portfolio value" dataKey="value" type="linear" stroke={color} strokeWidth={2} fill={`url(#${id})`} isAnimationActive={false}/>
+      {netInvestedHistory && <Customized component={PortfolioInvestedComparison}/>}
+      <Area name="Portfolio value" dataKey="value" type="linear" stroke={netInvestedHistory ? 'none' : color} strokeWidth={2} fill={netInvestedHistory ? 'none' : `url(#${id})`} isAnimationActive={false}
+        activeDot={props => <circle cx={props.cx} cy={props.cy} r={4} fill={typeof props.payload?.netInvested === 'number' ? props.payload.value >= props.payload.netInvested ? 'var(--clean-up)' : 'var(--clean-down)' : color} stroke="var(--clean-surface)" strokeWidth={2}/>}/>
       {netInvestedHistory && <Line name="Net invested" dataKey="netInvested" type="stepAfter" stroke="var(--portfolio-invested-color)" strokeDasharray="6 4" strokeWidth={2} dot={false} activeDot={{ r: 3 }} isAnimationActive={false}/>}
     </ComposedChart></ResponsiveContainer></div> : <p className="portfolio-value-empty" role="status">{range === '1D' ? 'Intraday values are saved as prices update while this page is open. Choose 1M for daily history.' : loading ? 'Loading portfolio history…' : 'Not enough portfolio values are available for this period yet.'}</p>}
     <div className="portfolio-value-ranges" aria-label="Portfolio chart period">{valueRanges.map(period => <button key={period} type="button" aria-pressed={range === period} onClick={() => setRange(period)}>{period}</button>)}</div>
