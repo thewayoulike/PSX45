@@ -6,7 +6,7 @@ import { clipHistory } from '../utils/historyRange';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'LISTED IN'];
 
-export type TimeRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y';
+export type TimeRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y' | 'MAX';
 
 // --- KEY STORAGE (legacy no-ops; scraper providers removed — Gemini only in Settings) ---
 export const setScrapingApiKey = (_key: string | null) => {};

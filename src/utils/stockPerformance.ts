@@ -89,11 +89,13 @@ export type PerformanceRow = {
   missing?: string[]; corporateActions?: string[]; netWorth?: number | null; totalReturn?: number | null;
   live?: boolean; quoteTime?: string | null;
 };
-export function buildPerformanceHistory(transactions: Transaction[], history: Record<string, HistoryPoint[]>, now = new Date()): PerformanceRow[] {
+export function buildPerformanceHistory(transactions: Transaction[], history: Record<string, HistoryPoint[]>, now = new Date(), days: number | null = 30): PerformanceRow[] {
   const sourceKey = performanceSourceKey(transactions);
   const lookup = Object.fromEntries(Object.entries(history).map(([ticker, points]) => [ticker, new Map(points.map(p => [p.dateStr, p.price]))]));
   const sessions = [...new Map((history.KSE100 || []).map(point => [point.dateStr, point])).values()].sort((a, b) => a.dateStr.localeCompare(b.dateStr));
-  return sessions.slice(1).filter(point => point.time >= now.getTime() - 30 * 86400000).map(point => {
+  const firstTransaction = transactions.map(t => t.date).sort()[0];
+  return sessions.slice(1).filter(point => point.time <= now.getTime() &&
+    (days == null ? !!firstTransaction && point.dateStr >= firstTransaction : point.time >= now.getTime() - days * 86400000)).map(point => {
     const previousDate = sessions[sessions.indexOf(point) - 1].dateStr;
     const previous = Object.fromEntries(Object.entries(lookup).map(([t, days]) => [t, days.get(previousDate)!]));
     const current = Object.fromEntries(Object.entries(lookup).map(([t, days]) => [t, days.get(point.dateStr)!]));

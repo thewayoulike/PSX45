@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   LineChart,
   Line,
@@ -10,75 +10,32 @@ import {
   Legend,
   ReferenceLine
 } from 'recharts';
-import { Transaction } from '../types';
-import { fetchStockHistory } from '../services/psxData';
-import { formatDatePK } from '../utils/dates';
-import { buildPerformanceHistory, PERFORMANCE_METHOD, stockTransactions, performanceSourceKey, type PerformanceRow, type LiveDay, type HistoryPoint } from '../utils/stockPerformance';
+import { type PerformanceRow, type LiveDay } from '../utils/stockPerformance';
 import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide-react';
 import { Card } from './ui/Card';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
 interface PerformanceChartProps {
-  transactions: Transaction[];
   savedData: PerformanceRow[];
-  onSaveData: (data: PerformanceRow[]) => void;
+  onRefreshHistory: () => Promise<void>;
+  loading: boolean;
+  errorMsg?: string;
   liveDay?: LiveDay;
   onRefreshPrices?: () => void | Promise<void>;
 }
 
-export const PerformanceChart: React.FC<PerformanceChartProps> = ({ transactions, savedData, onSaveData, liveDay, onRefreshPrices }) => {
+export const PerformanceChart: React.FC<PerformanceChartProps> = ({ savedData, liveDay, onRefreshPrices, onRefreshHistory, loading, errorMsg }) => {
   const compact = useMediaQuery('(max-width: 639px)');
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
-  const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showKSE100, setShowKSE100] = useState(true);
   const [showKMI30, setShowKMI30] = useState(true);
-  const generation = useRef(0);
-  const save = useRef(onSaveData);
-  save.current = onSaveData;
-  const sourceKey = performanceSourceKey(transactions);
-  const chartData = (savedData || []).filter(row => row.method === PERFORMANCE_METHOD && row.sourceKey === sourceKey);
+  const chartData = savedData || [];
   const lastUpdated = chartData.at(-1)?.fetchedAt;
   const gaps = chartData.filter(row => row.Portfolio == null);
   const formatTime = (value: string) => new Date(value).toLocaleString('en-US', { timeZone: 'Asia/Karachi', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' PKT';
 
-  const handleFetchAndCalculate = async () => {
-    const run = ++generation.current;
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const tickers = [...new Set(['KSE100', 'KMI30', ...stockTransactions(transactions).map(t => t.ticker)])];
-      const history: Record<string, HistoryPoint[]> = {};
-      let next = 0;
-      // Limit concurrent requests on mobile and discard work for an old portfolio.
-      await Promise.all(Array.from({ length: Math.min(4, tickers.length) }, async () => {
-        while (next < tickers.length && generation.current === run) {
-          const ticker = tickers[next++];
-          try {
-            const data = await fetchStockHistory(ticker, '1M');
-            history[ticker] = data.length > 1 ? data.map(d => ({ ...d, dateStr: formatDatePK(new Date(d.time)) })) : [];
-          } catch { history[ticker] = []; }
-        }
-      }));
-      if (generation.current !== run) return;
-      if ((history.KSE100 || []).length < 2) throw new Error('History is temporarily unavailable. Please retry. Today’s P&L still uses your current quotes.');
-      save.current(buildPerformanceHistory(transactions, history));
-    } catch (error) {
-      if (generation.current === run) setErrorMsg(error instanceof Error ? error.message : 'Unable to calculate history.');
-    } finally {
-      if (generation.current === run) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (stockTransactions(transactions).length) void handleFetchAndCalculate();
-    return () => { generation.current++; };
-    // Rebuild on edits as well as additions; saved results do not trigger another fetch.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceKey]);
-
   const refresh = async () => {
-    await Promise.allSettled([handleFetchAndCalculate(), Promise.resolve().then(() => onRefreshPrices?.())]);
+    await Promise.allSettled([onRefreshHistory(), Promise.resolve().then(() => onRefreshPrices?.())]);
   };
 
   return (

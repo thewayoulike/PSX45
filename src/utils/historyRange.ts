@@ -1,6 +1,6 @@
 const DAY = 86400000;
 
-export type HistoryRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y';
+export type HistoryRange = '1D' | '1M' | '6M' | 'YTD' | '1Y' | '3Y' | '5Y' | 'MAX';
 
 export function historyStart(range: HistoryRange, now: Date): number | null {
   if (range === '1D') return null;

@@ -1,12 +1,31 @@
 import { describe, expect, it } from 'vitest';
 import type { Transaction } from '../types';
 import { buildPerformanceHistory, compoundPerformance, performanceSourceKey, stockBalances, stockDayPerformance, withLivePerformance, type HistoryPoint } from './stockPerformance';
+import { portfolioValueSeries } from './portfolioValueSeries';
+import { clipHistory } from './historyRange';
 
 const date = '2026-10-19';
 const tx = (overrides: Partial<Transaction> = {}): Transaction => ({ id: 'trade', portfolioId: 'p', ticker: 'PSO', type: 'BUY', date: '2026-10-15', quantity: 100, price: 10, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0, ...overrides });
 const point = (dateStr: string, price: number): HistoryPoint => ({ dateStr, price, time: Date.parse(`${dateStr}T12:00:00+05:00`) });
 const history = { KSE100: [point('2026-10-16', 1000), point(date, 997.3)], KMI30: [point('2026-10-16', 2000), point(date, 1994.8)], PSO: [point('2026-10-16', 10), point(date, 9.92)] };
 const now = new Date('2026-10-19T14:00:00+05:00');
+
+it('builds all available account values for long ranges while retaining the 30-day default', () => {
+  const dates = ['2024-12-30', '2024-12-31', '2025-06-01', '2025-12-31', '2026-01-01', '2026-05-01', '2026-09-01', '2026-10-18', '2026-10-19', '2026-10-20'];
+  const prices = dates.map(d => point(d, 12));
+  const txs = [tx({ date: '2024-12-31', type: 'DEPOSIT', ticker: '', price: 10000 }), tx({ date: '2024-12-31' })];
+  const inputs = { KSE100: prices, KMI30: prices, PSO: prices };
+  const all = buildPerformanceHistory(txs, inputs, now, null);
+  expect(all).toHaveLength(8);
+  expect(all.every(r => r.netWorth === 10200)).toBe(true);
+  expect(all.at(-1)?.rawDate).toBe('2026-10-19'); // no future prices
+  expect(buildPerformanceHistory(txs, inputs, now)).toHaveLength(2);
+  expect(portfolioValueSeries(all, '6M', date)).toHaveLength(4);
+  expect(portfolioValueSeries(all, 'YTD', date)).toHaveLength(5);
+  expect(portfolioValueSeries(all, '1Y', date)).toHaveLength(6);
+  expect(portfolioValueSeries(all, 'MAX', date)).toHaveLength(8);
+  expect(clipHistory(prices, 'MAX', now)).toHaveLength(dates.length);
+});
 
 describe('shared daily trading P&L', () => {
   it('uses opening market value, not purchase cost', () => {

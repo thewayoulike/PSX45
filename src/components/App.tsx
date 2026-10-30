@@ -99,6 +99,8 @@ import * as Popover from '@radix-ui/react-popover';
 import { initDriveAuth, signInWithDrive, clearDriveSession, saveToDrive, readLatestFromDrive, preserveCloudDraft, hasCloudConflict, type CloudReadMode, getGoogleSheetId, DriveUser, hasValidSession, setDriveSessionExpiredHandler, downloadPendingCloudBackup, getPendingCloud, PendingCloud, retrySheetExport, getSheetExportState, getCachedGoogleSheetId } from '../services/driveStorage';
 import { applyDrivePanelCache, exportPanelCacheForDrive, PANEL_CACHE_EVENT } from '../services/panelCache';
 import { stockDayPerformance, stockTransactions, withLivePerformance, performanceSourceKey } from '../utils/stockPerformance';
+import { usePortfolioHistory } from '../hooks/usePortfolioHistory';
+import { PORTFOLIO_HISTORY_PREFIX } from '../utils/portfolioHistoryCache';
 import { oversellCashCredit } from '../utils/oversellCash';
 import { peakNetInvested } from '../utils/peakCapital';
 import { cardSparklines } from '../utils/cardHistory';
@@ -151,7 +153,7 @@ const clearPortfolioLocalStorage = () => {
         const toRemove: string[] = [];
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
-            if (k && k.startsWith('psx_') && !keep.has(k) && !k.startsWith('psx_pending_cloud_v1:') && !k.startsWith('psx_cloud_recovery:') && !k.startsWith('psx_password_prompt:')) toRemove.push(k);
+            if (k && k.startsWith('psx_') && !keep.has(k) && !k.startsWith(PORTFOLIO_HISTORY_PREFIX) && !k.startsWith('psx_pending_cloud_v1:') && !k.startsWith('psx_cloud_recovery:') && !k.startsWith('psx_password_prompt:')) toRemove.push(k);
         }
         toRemove.forEach(k => localStorage.removeItem(k));
         scrubSecretsFromRecoveryCopies();
@@ -1925,7 +1927,15 @@ const App: React.FC = () => {
       quoteTime: lastPriceUpdate,
   };
   const performanceKey = useMemo(() => performanceSourceKey(portfolioTransactions), [portfolioTransactions]);
-  const displayedPerformance = withLivePerformance(performanceHistory[isCombinedView ? 'combined' : currentPortfolioId] || [], livePerformanceDay, performanceKey);
+  const historyPortfolioId = isCombinedView ? 'combined' : currentPortfolioId;
+  const historyScope = { account: driveUser?.email || (sbApproved ? sbUser?.email : '') || '', portfolio: historyPortfolioId, sourceKey: performanceKey };
+  const hasFundHistory = portfolioTransactions.some(t => isFundTicker(t.ticker));
+  const portfolioHistory = usePortfolioHistory(historyScope, portfolioTransactions, performanceHistory[historyPortfolioId],
+      marketReady && currentView === 'DASHBOARD' && !hasFundHistory && portfolioTransactions.length > 0,
+      data => setPerformanceHistory(prev => ({ ...prev, [historyPortfolioId]: data })));
+  // The value chart uses full history; daily-return comparisons stay at 30 days.
+  const displayedPerformance = withLivePerformance(portfolioHistory.rows.filter(row =>
+      Date.parse(row.rawDate + 'T12:00:00+05:00') >= Date.now() - 30 * 86400000), livePerformanceDay, performanceKey);
 
   const getCloudSnapshot = () => ({
       transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps,
@@ -2079,7 +2089,7 @@ const App: React.FC = () => {
           }, 3000);
           return () => { clearTimeout(timer); cloudRevision.current++; };
       }
-  }, [transactions, portfolios, currentPortfolioId, manualPriceEditTick, brokers, sectorOverrides, fundCatalog, scannerState, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, chartSettingsTick, cloudRetryTick, panelCacheTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
+  }, [transactions, portfolios, currentPortfolioId, manualPriceEditTick, brokers, sectorOverrides, fundCatalog, scannerState, performanceHistory, fairValueCache, watchlist, dashboardLayouts, driveUser, userApiKey, chartSettingsTick, cloudRetryTick, panelCacheTick, sbApproved, sbChecking, isAuthChecking, sbUser, localOnlyEmail]);
 
   useEffect(() => {
       const tempHoldings: Record<string, Holding> = {};
@@ -2564,11 +2574,12 @@ const App: React.FC = () => {
               return (
                   <PerformanceChart
                       key={perfKey}
-                      transactions={portfolioTransactions}
                       savedData={displayedPerformance}
                       liveDay={livePerformanceDay}
                       onRefreshPrices={handleSyncMarket}
-                      onSaveData={(data) => setPerformanceHistory(prev => ({ ...prev, [perfKey]: data }))}
+                      onRefreshHistory={portfolioHistory.refresh}
+                      loading={portfolioHistory.loading}
+                      errorMsg={portfolioHistory.error}
                   />
               );
           case 'allocation':
@@ -2904,7 +2915,7 @@ const App: React.FC = () => {
                                       <LayoutGrid size={14} /> Mutual Fund portfolio — NAV-based tracking (no PSX index, signals, or stock tools)
                                   </div>
                               )}
-                              {(isNarrowViewport || !isFundPortfolio) && <MobilePortfolioValue key={performanceKey+currentPortfolioId} rows={displayedPerformance} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
+                              {(isNarrowViewport || !isFundPortfolio) && <MobilePortfolioValue key={historyScope.account+performanceKey+perfKey} rows={hasFundHistory ? [] : portfolioHistory.rows} scope={historyScope} loading={portfolioHistory.loading} error={portfolioHistory.error} onRefresh={portfolioHistory.refresh} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
                               <DashboardGrid
                                   compactStats={!isFundPortfolio}
                                   layout={isNarrowViewport ? effectiveDashboardLayout.mobile : effectiveDashboardLayout.web}
