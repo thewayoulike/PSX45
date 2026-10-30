@@ -20,6 +20,7 @@ export function usePortfolioHistory(scope: HistoryScope, transactions: Transacti
     if (!enabled || !scope.account) return;
     const run = ++generation.current;
     const input = inputs.current;
+    const savedNotice = input.rows.some(row => row.netWorth != null) ? ' Saved values are still shown.' : '';
     setResult(prev => ({ identity, rows: prev.identity === identity ? prev.rows : undefined, loading: true }));
     try {
       const tickers = [...new Set(['KSE100', 'KMI30', ...stockTransactions(input.transactions).map(t => t.ticker)])];
@@ -37,9 +38,9 @@ export function usePortfolioHistory(scope: HistoryScope, transactions: Transacti
       }));
       if (generation.current !== run || inputs.current.scope.account !== input.scope.account ||
         inputs.current.scope.portfolio !== input.scope.portfolio || inputs.current.scope.sourceKey !== input.scope.sourceKey) return;
-      if ((history.KSE100 || []).length < 2) throw new Error('History refresh is unavailable. Saved values are still shown; try Refresh history again.');
+      if ((history.KSE100 || []).length < 2) throw new Error(`History refresh is unavailable.${savedNotice} Try Refresh history again.`);
       const fresh = buildPerformanceHistory(input.transactions, history, new Date(), null);
-      if (!fresh.some(row => row.netWorth != null)) throw new Error('Prices needed for portfolio history are unavailable. Keeping your saved values.');
+      if (!fresh.some(row => row.netWorth != null)) throw new Error(`Prices needed for portfolio history are unavailable.${savedNotice}`);
       const merged = mergePortfolioHistory(input.scope.sourceKey, input.rows, inputs.current.rows, fresh);
       const stored = writePortfolioHistory(input.scope, merged);
       input.onSave(merged);
@@ -47,7 +48,7 @@ export function usePortfolioHistory(scope: HistoryScope, transactions: Transacti
       setResult({ identity, rows: merged, error: !stored ? 'This device could not save chart history. Your chart remains open; check available storage.' :
         missing ? 'Some historical prices are unavailable. Saved values are kept where available.' : undefined });
     } catch (e) {
-      if (generation.current === run) setResult(prev => ({ ...prev, identity, loading: false, error: e instanceof Error ? e.message : 'Could not refresh history. Saved values are still shown.' }));
+      if (generation.current === run) setResult(prev => ({ ...prev, identity, loading: false, error: e instanceof Error ? e.message : `Could not refresh history.${savedNotice}` }));
     }
   }, [identity, enabled]);
   useEffect(() => {
