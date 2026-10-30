@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock, Sparkles, Settings2, Download, X } from 'lucide-react';
+import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock, Sparkles, Settings2, Download, X, ChevronDown } from 'lucide-react';
+import './market-signal-scanner.css';
 import type { ScanSnapshot, SnapshotSection, SnapshotLayout } from '../utils/scanSnapshot';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
 import { fetchTechnicalScanBars } from '../services/technicalScanData';
@@ -685,7 +686,7 @@ export const MarketSignalScanner: React.FC<{
   };
 
   return (
-    <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6 w-full min-w-0">
+    <div className="market-signal-body animate-in fade-in slide-in-from-bottom-4 duration-500 flex flex-col gap-4 md:gap-6 w-full min-w-0">
       <dialog ref={snapshotDialog} aria-labelledby="scan-snapshot-title" onCancel={e => { if (snapshotBusy) e.preventDefault(); }} className="m-auto w-[calc(100%-2rem)] max-w-lg max-h-[85dvh] overflow-y-auto rounded-2xl p-6 bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xl backdrop:bg-slate-950/50">
         <div className="flex items-center justify-between gap-3 mb-4">
           <h3 id="scan-snapshot-title" className="text-xl font-bold">Download snapshot</h3>
@@ -712,10 +713,10 @@ export const MarketSignalScanner: React.FC<{
         <p role="status" aria-live="polite" className="text-sm mt-4">{snapshotMessage}</p>
       </dialog>
       {/* Header / controls */}
-      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark p-5">
+      <div className="market-signal-header bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-slate-200/60 dark:border-slate-800/60 rounded-3xl shadow-card dark:shadow-card-dark p-5">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
-          <div className="flex items-center gap-4">
-            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${
+          <div className="market-signal-heading flex items-center gap-4">
+            <div className={`market-signal-mark w-14 h-14 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${
               rsiMode
                 ? 'bg-teal-50 dark:bg-teal-500/10 border-teal-100 dark:border-teal-500/20'
                 : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
@@ -736,10 +737,12 @@ export const MarketSignalScanner: React.FC<{
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="market-signal-controls flex items-center gap-3 flex-wrap">
+            <div className="market-signal-utilities">
             <button
               type="button"
               onClick={() => setShowSettings((v) => !v)}
+              aria-expanded={showSettings}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
             >
               <Settings2 size={14} /> Settings
@@ -753,11 +756,14 @@ export const MarketSignalScanner: React.FC<{
                 <Sparkles size={14} /> Summarize
               </button>
             )}
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
+            </div>
+            <div className="market-signal-modes">
+            <div role="group" aria-label="Scan strategy" className="market-signal-strategy flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
               <button
                 type="button"
                 onClick={() => { if (strategy !== 'composite') { setStrategy('composite'); setResults([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
                 disabled={status === 'scanning'}
+                aria-pressed={strategy === 'composite'}
                 className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'composite' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                 All 26 indicators
@@ -766,28 +772,31 @@ export const MarketSignalScanner: React.FC<{
                 type="button"
                 onClick={() => { if (strategy !== 'rsi_oversold') { setStrategy('rsi_oversold'); setResults([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
                 disabled={status === 'scanning'}
+                aria-pressed={strategy === 'rsi_oversold'}
                 className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'rsi_oversold' ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                 RSI Oversold
               </button>
             </div>
 
-            <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
-              <button onClick={() => setView('cards')} title="Card view" className={`p-2 rounded-lg transition-all ${view === 'cards' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+            <div role="group" aria-label="Result view" className="market-signal-view flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
+              <button type="button" onClick={() => setView('cards')} title="Card view" aria-label="Card view" aria-pressed={view === 'cards'} className={`p-2 rounded-lg transition-all ${view === 'cards' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
                 <LayoutGrid size={16} />
               </button>
-              <button onClick={() => setView('table')} title="Table view" className={`p-2 rounded-lg transition-all ${view === 'table' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
+              <button type="button" onClick={() => setView('table')} title="Table view" aria-label="Table view" aria-pressed={view === 'table'} className={`p-2 rounded-lg transition-all ${view === 'table' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
                 <TableIcon size={16} />
               </button>
             </div>
+            </div>
 
-            <div className="relative">
+            <div className="market-signal-targets">
+            <div className="market-signal-universe relative">
                 <select
                 value={universe}
                 aria-label="Scan universe"
                 onChange={(e) => { setUniverse(e.target.value); if (e.target.value === 'HOLDINGS') setBuyOnly(false); }}
                 disabled={status === 'scanning'}
-                className="appearance-none glass-input rounded-xl pl-4 pr-9 py-2.5 text-sm font-bold outline-none shadow-sm disabled:opacity-50"
+                className="appearance-none glass-input rounded-xl pl-4 pr-9 py-2.5 text-base md:text-sm font-bold outline-none shadow-sm disabled:opacity-50"
                 >
                 <option value="KSE100">KSE-100 index</option>
                 <option value="KMI30">KMI-30 index</option>
@@ -800,6 +809,7 @@ export const MarketSignalScanner: React.FC<{
                 {!rsiMode && <option value="100">Top 100 by volume</option>}
                 {!rsiMode && <option value="ALL">All market (slow)</option>}
                 </select>
+                <ChevronDown size={16} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
             </div>
 
             {universe === 'SYMBOL' && (
@@ -808,25 +818,27 @@ export const MarketSignalScanner: React.FC<{
                 value={singleSymbol}
                 onChange={(e) => setSingleSymbol(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12))}
                 placeholder="e.g. OGDC"
+                aria-label="PSX ticker to scan"
                 disabled={status === 'scanning'}
-                className="glass-input rounded-xl px-3 py-2.5 text-sm font-bold uppercase w-28 outline-none shadow-sm disabled:opacity-50"
+                className="market-signal-symbol glass-input rounded-xl px-3 py-2.5 text-base md:text-sm font-bold uppercase w-28 outline-none shadow-sm disabled:opacity-50"
               />
             )}
 
             {!rsiMode && !symbolMode && (
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
+              <label className="market-signal-buy flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300" />
                 Buys Only
               </label>
             )}
+            </div>
 
             {results.length > 0 && (
-              <button onClick={copyAll} className="flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:-translate-y-0.5 active:translate-y-0 shrink-0">
+              <button onClick={copyAll} className="market-signal-export flex items-center gap-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm hover:-translate-y-0.5 active:translate-y-0 shrink-0">
                 {copied ? <CheckCircle2 size={16} className="text-emerald-500" /> : <Copy size={16} />} Copy
               </button>
             )}
             {snapshotResults.length > 0 && (
-              <button type="button" onClick={() => { setSnapshotScope('all'); setSnapshotMessage(''); snapshotDialog.current?.showModal(); }} className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+              <button type="button" onClick={() => { setSnapshotScope('all'); setSnapshotMessage(''); snapshotDialog.current?.showModal(); }} className="market-signal-export flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                 <Download size={16} /> Download snapshot
               </button>
             )}
@@ -834,7 +846,7 @@ export const MarketSignalScanner: React.FC<{
             <button
               onClick={runScan}
               disabled={status === 'scanning'}
-              className={`flex items-center gap-2 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
+              className={`market-signal-run flex items-center gap-2 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
                 rsiMode
                   ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'

@@ -2768,7 +2768,7 @@ const App: React.FC = () => {
                       )}
 
                       {!isChartsView && !driveBooting && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && currentView !== 'INSIDERS' && !['PRACTICE', 'TRADING_LAB'].includes(currentView) && (
-                      <div className="sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
+                      <div className="app-sticky-actions sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
                             <div className="market-strip min-w-0 overflow-hidden border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-1">
                               <IndexBar />
@@ -3149,9 +3149,15 @@ const App: React.FC = () => {
         isFundPortfolio={isFundPortfolio}
         menuOpen={isMobileSidebarOpen}
         onOpenMenu={() => setIsMobileSidebarOpen(true)}
-        onNavigate={view => {
+        onNavigate={(view, marketTab) => {
           setViewFundTicker(null);
           setIsMobileSidebarOpen(false);
+          if (view === 'MARKETS') {
+            const target = `${VIEW_TO_PATH.MARKETS}#${marketTab || 'overview'}`;
+            if (`${location.pathname}${location.hash}` !== target) window.history.pushState(null, '', target);
+            // Also switches the section when Markets is already mounted.
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }
           handleSidebarNav(view);
           document.querySelector('.app-page-scroll')?.scrollTo({ top: 0, behavior: 'instant' });
         }}

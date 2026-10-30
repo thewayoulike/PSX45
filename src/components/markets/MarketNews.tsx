@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowUpRight, Newspaper, RefreshCw, Search } from 'lucide-react';
+import { ArrowUpRight, Newspaper, RefreshCw, Search, SlidersHorizontal } from 'lucide-react';
 import { loadMarketData } from '../../services/marketOverview';
 import { MarketPagination, useMarketPagination } from './MarketPagination';
 
@@ -14,6 +14,8 @@ export function MarketNews({ preview = false, onBrowse }: { preview?: boolean; o
   const [data, setData] = useState<NewsFeed | null>(null), [loading, setLoading] = useState(true), [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0), [topic, setTopic] = useState<Topic>('all'), [search, setSearch] = useState('');
   const [region, setRegion] = useState('all'), [source, setSource] = useState('all'), [section, setSection] = useState('all');
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const filterCount = Number(region !== 'all') + Number(source !== 'all') + Number(section !== 'all');
   const resultsStart = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let active = true; setLoading(true); setError(false);
@@ -40,9 +42,12 @@ export function MarketNews({ preview = false, onBrowse }: { preview?: boolean; o
     </div>
     {!preview && <div className="mk-news-toolbar">
       <div className="mk-news-filters mk-news-topics" role="group" aria-label="News topic">{topics.map(([id, label]) => <button key={id} aria-pressed={topic === id} onClick={() => { setTopic(id); setSection('all'); }}>{label}</button>)}</div>
-      <div className="mk-news-controls">
-        <div className="mk-news-filters" role="group" aria-label="Publisher region">{[['all', 'All publishers'], ['Pakistan', 'Pakistan publishers'], ['Global', 'Global publishers']].map(([id, label]) => <button key={id} aria-pressed={region === id} onClick={() => setRegion(id)}>{label}</button>)}</div>
+      <div className="mk-news-search-row">
         <label className="mk-search"><Search size={16}/><input aria-label="Search news" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search headlines or publishers"/></label>
+        <button className="mk-news-filter-toggle" aria-expanded={filtersOpen} aria-controls="market-news-publisher-filters" onClick={() => setFiltersOpen(value => !value)}><SlidersHorizontal size={14}/>Filters{filterCount > 0 && ` (${filterCount})`}</button>
+      </div>
+      <div id="market-news-publisher-filters" className={'mk-news-controls' + (filtersOpen ? ' is-open' : '')}>
+        <div className="mk-news-filters" role="group" aria-label="Publisher region">{[['all', 'All publishers'], ['Pakistan', 'Pakistan publishers'], ['Global', 'Global publishers']].map(([id, label]) => <button key={id} aria-pressed={region === id} onClick={() => setRegion(id)}>{label}</button>)}</div>
         <select aria-label="News publisher" value={source} onChange={event => setSource(event.target.value)}><option value="all">All sources</option>{sources.map(name => <option key={name}>{name}</option>)}</select>
         {topic === 'all' && <select aria-label="Publisher section" value={section} onChange={event => setSection(event.target.value)}><option value="all">All sections</option>{sections.map(name => <option key={name}>{name}</option>)}</select>}
       </div>

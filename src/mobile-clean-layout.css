@@ -7,8 +7,9 @@
   .mobile-layout-app .app-page-scroll > div { padding:12px 16px 24px; }
   .mobile-layout-app .mobile-context-header { margin-bottom:8px; }
   .mobile-layout-app .mobile-context-row button, .mobile-layout-app .mobile-portfolio-selector { box-shadow:none; border-color:var(--clean-line); background:var(--clean-surface); }
-  .mobile-layout-app .mobile-primary-actions { gap:8px; }
-  .mobile-layout-app .mobile-primary-actions button { border-radius:12px; font-weight:600; }
+  .mobile-layout-app .mobile-primary-actions { gap:6px; }
+  .mobile-layout-app .mobile-primary-actions button { min-height:36px; padding:6px 10px; gap:6px; border-radius:10px; font-size:12px; line-height:1.25; font-weight:600; }
+  .mobile-layout-app .mobile-primary-actions button svg { width:15px; height:15px; }
   .mobile-layout-app .mobile-dashboard { gap:20px; }
   .mobile-layout-app .mobile-dashboard :is(.shadow-card,.shadow-card-dark,.shadow-sm) { box-shadow:none; }
   .mobile-layout-app .mobile-dashboard :is(.rounded-3xl,.rounded-2xl) { border-radius:16px; }
