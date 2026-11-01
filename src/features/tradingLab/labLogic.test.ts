@@ -159,3 +159,21 @@ describe('price-limit locks',()=>{
     expect(result.blocked).toBe(1);expect(result.trades.filter(t=>t.day==='2026-10-22')).toHaveLength(0);
   });
 });
+
+describe('session calendar',()=>{
+  it('has no session on fixed holidays and uses special hours in Ramadan',()=>{
+    expect(standardSessions('2026-11-09')).toEqual([]);         // Iqbal Day (Monday)
+    expect(standardSessions('2026-12-25')).toEqual([]);         // Quaid Day
+    const ramadan=standardSessions('2026-03-02');                // a Ramadan Monday
+    expect(ramadan).toHaveLength(1);expect(ramadan[0].end).toBe(at('2026-03-02','13:30'));
+    expect(standardSessions('2026-03-06')).toHaveLength(1);     // Ramadan Friday: one session
+    expect(standardSessions('2026-10-22')[0].end).toBe(at('2026-10-22','15:30'));
+  });
+  it('detects the KSE-30 market-wide halt: a whole 5-minute candle 5% from the previous close',async()=>{
+    const {detectHalt}=await import('./engine');
+    const prev=session('2026-10-21',0,50000),today=session('2026-10-22',0,50000).slice(0,8);
+    expect(detectHalt([...prev,...today],at('2026-10-22','10:30'))).toBeNull();
+    today[6]={time:today[6].time,open:47400,high:47490,low:47300,close:47350,volume:1};
+    expect(detectHalt([...prev,...today],at('2026-10-22','10:30'))).toMatchObject({direction:'down'});
+  });
+});

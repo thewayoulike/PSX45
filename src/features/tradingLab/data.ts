@@ -43,5 +43,13 @@ export async function loadResearch(symbol:string):Promise<Research>{
   if(company.status==='fulfilled'&&company.value.symbol===symbol)result.company={...company.value,fundamentals:Array.isArray(company.value.fundamentals)?company.value.fundamentals.filter((g:any)=>g&&text(g.category)&&Array.isArray(g.items)):undefined};else result.errors.push('Company information unavailable.');
   return result;
 }
-export const labData={candles:loadCandles,research:loadResearch,universe:loadMarketUniverse,scanCandles:loadScanCandles,scanBatch:loadScanBatch};
+/** KSE-30 5-minute candles for the market-halt check, cached for 5 minutes. */
+let indexCache:{expires:number;promise:Promise<Bar[]>}|null=null;
+export function loadHaltIndex():Promise<Bar[]>{
+  if(indexCache&&indexCache.expires>Date.now())return indexCache.promise;
+  const promise=json('/api/pypsx?mode=intraday&symbol=KSE30&interval=5m&period=5d').then(raw=>parseBars(raw.bars));
+  indexCache={expires:Date.now()+300000,promise};promise.catch(()=>{indexCache=null;});
+  return promise;
+}
+export const labData={candles:loadCandles,research:loadResearch,universe:loadMarketUniverse,scanCandles:loadScanCandles,scanBatch:loadScanBatch,haltIndex:loadHaltIndex};
 export type LabData=typeof labData;

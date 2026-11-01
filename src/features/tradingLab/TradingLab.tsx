@@ -18,7 +18,8 @@ import {useFreemium} from '../../components/FreemiumContext';
 import {consumeDailyQuota} from '../../utils/freemiumQuotas';
 import type {PracticeOrderDraft} from '../../components/PracticeTrading';
 import type {ScanScope} from './LabScanner';
-import {DEFAULT_PLAN,dailyScan,intradaySegments,sizePlan,type Plan} from './engine';
+import {DEFAULT_PLAN,dailyScan,intradaySegments,sizePlan,standardSessions,pktDay,detectHalt,type Plan} from './engine';
+import {visibleInterval} from '../../utils/visibleInterval';
 import {labData,safeUrl,type CandleSet,type LabData,type Research} from './data';
 import {readLab,writeLab,mergeLabs,deleteLabTicket,restoreLabTicket,readLabRaw,isLabDamaged,labKey,LAB_CHANGED,type LabBook,type LabTicket} from './storage';
 import {useLabDrive} from './useLabDrive';
@@ -100,6 +101,20 @@ export function TradingLab({email,altEmail,data=labData,driveConnected=false,onC
     setEntrySource(`${latestSetup.fresh?'Observed':'Historical'} opening-range setup · ${when(latestSetup.triggerAt!)} · range-low stop · ${latestSetup.targetReview?targetSummary(latestSetup.targetReview):'Exit checks unavailable'}`);
     setMessage('Practice levels applied from the latest confirmed setup. Check its time: an earlier breakout is not a current opportunity.');
   }
+  // Session status: closed days, missing trades during hours, and the KSE-30 market-wide halt.
+  const [halt,setHalt]=useState<ReturnType<typeof detectHalt>>(null),[clockNow,setClockNow]=useState(Date.now());
+  useEffect(()=>{
+    if(!data.haltIndex)return;
+    let active=true;
+    const check=()=>{setClockNow(Date.now());const today=standardSessions(pktDay(Date.now()));if(!today.length)return;data.haltIndex!().then(bars=>{if(active)setHalt(detectHalt(bars));}).catch(()=>{/* The check is advisory; candles still show their own times. */});};
+    check();const stop=visibleInterval(check,300000);return()=>{active=false;stop();};
+  },[data]);
+  const todaySessions=standardSessions(pktDay(clockNow)),inSession=todaySessions.find(s=>clockNow>=s.start&&clockNow<s.end);
+  const lastCandleEnd=intraday?.bars.at(-1)?(intraday.bars.at(-1)!.time+300000):null;
+  const sessionNotice=!todaySessions.length?'PSX is closed today (weekend or holiday). Results use the latest completed session.'
+    :halt?`Market-wide halt: the KSE-30 moved 5% ${halt.direction} from the previous close; PSX pauses all trading for this, then reopens after a 5-minute pre-open. Detected ${when(halt.at)}.`
+    :inSession&&clockNow-inSession.start>20*60000&&lastCandleEnd!=null&&clockNow-lastCandleEnd>20*60000?'No new trades in the last 20 minutes during market hours. PSX may be closed for a holiday not in the calendar, trading may be halted, or the stock may not be trading.'
+    :null;
   const sizing=useMemo(()=>sizePlan(plan,{worstExit:targetReview?.band?.lower,band:targetReview?.band}),[plan,targetReview]);
   const skipReason=sizing.skipReason||(targetReview?.target===null?`Skip — ${targetReview.reason}`:null);
   const latest=segment?.bars.at(-1);
@@ -181,6 +196,7 @@ export function TradingLab({email,altEmail,data=labData,driveConnected=false,onC
     <LabGuide onChoose={setTab}/>
     <div className="lab-toolbar"><form onSubmit={submitSymbol}><label htmlFor="lab-symbol">PSX symbol</label><div><input id="lab-symbol" value={symbolInput} maxLength={12} onChange={e=>setSymbolInput(e.target.value)} placeholder="e.g. HBL"/><button type="submit" aria-label="Open stock"><Search size={17}/></button></div></form><div className="lab-feed"><strong>{symbol} <span>PKR {money(stats?.last.close??NaN)}</span></strong><small>{stats?`Daily close: ${stats.date} · ${daily?.source}`:loading?'Loading PSX candles…':'No completed daily candle available'}</small><small>{intraday?`${intraday.bars.length.toLocaleString()} intraday candles · ${intraday.source}`:intradayLoading?'Loading 5-minute history…':'Intraday history unavailable'}</small></div><button type="button" disabled={loading} onClick={()=>{setError('');setRefresh(x=>x+1);}}><RefreshCw size={16} className={loading?'lab-spin':''}/> Refresh</button></div>
     <LabMonitors items={monitor.items} onView={s=>{choose(s);setTab('Trade plan');}} onStop={monitor.stop} onStopAll={monitor.stopAll}/>
+    {sessionNotice&&<p className="lab-warning" role="status">{sessionNotice}</p>}
     {dataErrors.map(e=><p key={e} className="lab-warning" role="status">{e}</p>)}
     <div className="lab-tabs" role="tablist" aria-label="Trading Lab sections">{visibleTabs.map(t=><button key={t} type="button" role="tab" id={`lab-tab-${t}`} aria-selected={tab===t} onClick={()=>{setTab(t);setError('');setMessage('');}}>{t}{t==='Saved plans'&&<span>{book.tickets.length}</span>}</button>)}</div>
     {error&&<p className="lab-warning" role="alert">{error}</p>}{message&&<p className="lab-success" role="status">{message}</p>}

@@ -39,6 +39,7 @@ export function sellProceeds(price:number,feePct:number,slipPct:number,oneSide=f
 export const coversTargetCosts = (entry:number,target:number,feePct:number,slipPct:number,oneSide=false) => netReturn(entry,target,feePct,slipPct,oneSide)>1e-9;
 const MINUTE = 60000, FIVE = 5 * MINUTE;
 export const PKT_OFFSET = 5 * 3600000;
+import { isHoliday, specialHours } from './psxCalendar';
 export const pktDay = (t: number) => new Date(t + PKT_OFFSET).toISOString().slice(0, 10);
 const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
 
@@ -56,7 +57,11 @@ export function parseBars(raw: unknown): Bar[] {
 export function standardSessions(day: string) {
   const midnight = Date.parse(day + 'T00:00:00+05:00');
   const weekday = new Date(midnight + PKT_OFFSET).getUTCDay();
-  const windows = weekday === 5 ? [[557,720,'Friday morning'],[872,990,'Friday afternoon']] : weekday > 0 && weekday < 5 ? [[572,930,'Monday–Thursday']] : [];
+  if (isHoliday(day)) return []; // PSX closed: no session, so nothing is treated as missing data
+  const special = specialHours(day);
+  const windows = special && weekday > 0 && weekday < 6
+    ? (weekday === 5 ? special.hours.friday : special.hours.weekday).map(([start,end],i,all) => [start,end,`${special.label} ${weekday===5?'Friday':'Monday–Thursday'}${all.length>1?` ${i+1}`:''}`])
+    : weekday === 5 ? [[557,720,'Friday morning'],[872,990,'Friday afternoon']] : weekday > 0 && weekday < 5 ? [[572,930,'Monday–Thursday']] : [];
   return windows.map(([start,end,family]) => ({ start: midnight + Number(start)*MINUTE, end: midnight + Number(end)*MINUTE, family: String(family) }));
 }
 
@@ -121,6 +126,21 @@ export function openingRange(g:Segment) {
     if(g.bars[i].close>high){trigger=g.bars[i];index=i;break;}
   }
   return {high,low,trigger,index,rangeEnd:range[2].time+FIVE};
+}
+
+/**
+ * Market-wide halt check (PSX Regulations 19.4): the KSE-30 staying 5% or more from the previous
+ * close for 5 minutes halts all equity trading. A whole 5-minute candle beyond 5% meets that test.
+ */
+export function detectHalt(indexBars:Bar[],now=Date.now()){
+  const segments=intradaySegments(indexBars,now),today=pktDay(now);
+  const current=segments.filter(s=>s.day===today),previous=segments.filter(s=>s.day<today).at(-1)?.bars.at(-1)?.close;
+  if(!previous||!current.length)return null;
+  for(const b of current.flatMap(s=>s.bars)){
+    if(b.low>=previous*1.05)return {at:b.time+FIVE,direction:'up' as const,previous};
+    if(b.high<=previous*0.95)return {at:b.time+FIVE,direction:'down' as const,previous};
+  }
+  return null;
 }
 
 export function sizePlan(p:Plan,opts:{worstExit?:number;band?:DailyBand|null}={}) {
