@@ -210,3 +210,17 @@ describe('closing-price exit',()=>{
     expect(parseWorkflow({rules:legacy,risk:DEFAULT_RISK}).rules.exitAt).toBe('flat');
   });
 });
+
+describe('after-tax view and order-size limits',()=>{
+  it('taxes net gains only',async()=>{
+    const {afterTax}=await import('./engine');
+    expect(afterTax(1000,15)).toBe(850);expect(afterTax(-500,15)).toBe(-500);
+  });
+  it('keeps a cash buffer, respects a largest order and warns on tiny orders',()=>{
+    const base={...DEFAULT_PLAN,entry:100,stop:98,target:106,capPct:100,riskPct:100};
+    expect(sizePlan({...base,cashBufferPct:10}).cost).toBeLessThanOrEqual(90000);
+    const capped=sizePlan({...base,maxOrder:20000});
+    expect(capped.cost).toBeLessThanOrEqual(20000);expect(capped.binding).toBe('Maximum order');
+    expect(sizePlan({...base,capital:3000,minOrder:5000}).warnings.some(w=>w.includes('below your minimum'))).toBe(true);
+  });
+});

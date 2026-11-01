@@ -32,6 +32,11 @@ export function writeLab(email:string,book:LabBook,storage:Pick<Storage,'setItem
   notifyLab();
 }
 
+// Optional plan settings added later; kept only when present and valid.
+const optionalPlanFields=(p:any)=>({
+  ...(typeof p.oneSideCommission==='boolean'?{oneSideCommission:p.oneSideCommission}:{}),
+  ...(['cashBufferPct','maxOrder','minOrder'] as const).reduce((o,k)=>Number.isFinite(p[k])?{...o,[k]:p[k]}:o,{}),
+});
 /** Strict cloud validation: never silently discard records from a damaged file. */
 export function parseLab(raw:any):LabBook{
   if(!raw||typeof raw.watchlist!=='string'||!Array.isArray(raw.tickets))throw new Error('The Trading Lab file is invalid. Your existing copies have been kept.');
@@ -44,7 +49,7 @@ export function parseLab(raw:any):LabBook{
     if(!t||typeof t.id!=='string'||!t.id||ids.has(t.id)||typeof t.createdAt!=='string'||!Number.isFinite(Date.parse(t.createdAt))||typeof t.sourceDate!=='string'||typeof t.note!=='string'||(t.entrySource!==undefined&&typeof t.entrySource!=='string')||!t.plan||sizePlan(t.plan).errors.length||!Number.isSafeInteger(t.quantity)||t.quantity<=0)throw new Error('A saved lab plan could not be read. Your existing copies have been kept.');
     ids.add(t.id);
     const p=t.plan;
-    return {id:t.id,createdAt:t.createdAt,plan:{symbol:p.symbol,entry:p.entry,stop:p.stop,target:p.target,capital:p.capital,riskPct:p.riskPct,capPct:p.capPct,feePct:p.feePct,slipPct:p.slipPct,minRR:p.minRR,lot:p.lot},quantity:t.quantity,sourceDate:t.sourceDate,note:t.note,...(t.entrySource===undefined?{}:{entrySource:t.entrySource}),...(t.workflow===undefined?{}:{workflow:parseWorkflow(t.workflow)})};
+    return {id:t.id,createdAt:t.createdAt,plan:{symbol:p.symbol,entry:p.entry,stop:p.stop,target:p.target,capital:p.capital,riskPct:p.riskPct,capPct:p.capPct,feePct:p.feePct,slipPct:p.slipPct,minRR:p.minRR,lot:p.lot,...optionalPlanFields(p)},quantity:t.quantity,sourceDate:t.sourceDate,note:t.note,...(t.entrySource===undefined?{}:{entrySource:t.entrySource}),...(t.workflow===undefined?{}:{workflow:parseWorkflow(t.workflow)})};
   }).sort((a:LabTicket,b:LabTicket)=>b.createdAt.localeCompare(a.createdAt)||a.id.localeCompare(b.id));
   if(raw.watchlistUpdatedAt!==undefined&&!Number.isFinite(Date.parse(raw.watchlistUpdatedAt)))throw new Error('The saved watchlist date is invalid.');
   return {watchlist:raw.watchlist,tickets:tickets.filter((ticket:LabTicket)=>!deleted.has(ticket.id)),...(raw.watchlistUpdatedAt?{watchlistUpdatedAt:raw.watchlistUpdatedAt}:{}),...(deletedTicketIds.length?{deletedTicketIds}:{})};

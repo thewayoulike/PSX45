@@ -3,11 +3,16 @@
 export type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number | null };
 export type Plan = { symbol: string; entry: number; stop: number; target: number; capital: number; riskPct: number; capPct: number; feePct: number; slipPct: number; minRR: number; lot: number;
   /** Some brokers charge commission on one side only when shares are bought and sold the same day. */
-  oneSideCommission?: boolean };
+  oneSideCommission?: boolean;
+  /** Order-size limits: % of capital kept as cash, largest order (0 = none) and smallest sensible order. */
+  cashBufferPct?: number; maxOrder?: number; minOrder?: number };
+export const DEFAULT_ORDER_LIMITS = { cashBufferPct: 10, maxOrder: 0, minOrder: 5000 };
+/** Capital gains tax on a net gain; losses are not taxed (they may offset other gains). */
+export const afterTax = (amount: number, taxPct: number) => amount > 0 ? amount * (1 - Math.max(0, Math.min(100, taxPct)) / 100) : amount;
 // feePct is the broker commission rate. Commission per share: Rs 0.03 at Rs 5 or below, Rs 0.05 below Rs 10,
 // otherwise the greater of Rs 0.05 or the rate. Plus 15% sales tax on commission and a Rs 0.005-a-share CDC fee,
 // each side. Slippage defaults to about one price step.
-export const DEFAULT_PLAN: Plan = { symbol: 'HBL', entry: 0, stop: 0, target: 0, capital: 100000, riskPct: 1, capPct: 25, feePct: 0.15, slipPct: 0.01, minRR: 1.5, lot: 1 };
+export const DEFAULT_PLAN: Plan = { symbol: 'HBL', entry: 0, stop: 0, target: 0, capital: 100000, riskPct: 1, capPct: 25, feePct: 0.15, slipPct: 0.01, minRR: 1.5, lot: 1, cashBufferPct: 10, maxOrder: 0, minOrder: 5000 };
 export const TARGET_COST_SKIP = 'Skip — target does not cover costs';
 // Percentage costs alone understate trading cheap stocks. When fees or slippage are set, each side
 // costs at least a broker minimum per share and one price tick. Both are editable-style estimates.
@@ -153,19 +158,23 @@ export function minimumStopDistance(p:Pick<Plan,'entry'|'stop'|'feePct'|'slipPct
 export function sizePlan(p:Plan,opts:{worstExit?:number;band?:DailyBand|null}={}) {
   const errors:string[]=[],warnings:string[]=[];
   if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(p.symbol))errors.push('Choose a valid PSX symbol.');
-  if(!Object.entries(p).filter(([k])=>k!=='symbol'&&k!=='oneSideCommission').every(([,v])=>typeof v==='number'&&Number.isFinite(v)))errors.push('All plan inputs must be valid numbers.');
+  if(!Object.entries(p).filter(([k,v])=>k!=='symbol'&&k!=='oneSideCommission'&&v!==undefined).every(([,v])=>typeof v==='number'&&Number.isFinite(v)))errors.push('All plan inputs must be valid numbers.');
   if(!(p.stop>0&&p.entry>p.stop&&p.target>p.entry))errors.push('For a long plan, use stop < entry < target.');
   if(!(p.capital>0&&p.riskPct>0&&p.riskPct<=100&&p.capPct>0&&p.capPct<=100&&p.minRR>0))errors.push('Check capital, risk limit and position cap.');
   if(!(p.feePct>=0&&p.feePct<=10&&p.slipPct>=0&&p.slipPct<=10&&Number.isInteger(p.lot)&&p.lot>=1))errors.push('Check fees, slippage and lot size.');
+  const buffer=p.cashBufferPct??0,maxOrder=p.maxOrder??0,minOrder=p.minOrder??0;
+  if(!(buffer>=0&&buffer<100&&maxOrder>=0&&minOrder>=0))errors.push('Check the cash buffer and order-size limits.');
   // A stop closer than two price steps or the round-trip cost per share loses to costs and normal wiggle.
   if(!errors.length){const minimum=minimumStopDistance(p);if(p.entry-p.stop<minimum-1e-9)errors.push(`${STOP_TOO_CLOSE}: at least Rs. ${minimum.toFixed(2)} below entry is needed (two price steps or the round-trip cost, whichever is larger).`);}
   if(errors.length)return {errors,warnings,skipReason:null as string|null,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:'',gapLoss:null as number|null};
   const one=!!p.oneSideCommission,unitCost=buyCost(p.entry,p.feePct,p.slipPct),unitLoss=unitCost-sellProceeds(p.stop,p.feePct,p.slipPct,one),unitReward=sellProceeds(p.target,p.feePct,p.slipPct,one)-unitCost;
-  const riskBudget=p.capital*p.riskPct/100,cap=p.capital*p.capPct/100;
+  // Spend at most the position cap, the cash left after the buffer, and the maximum order (if set).
+  const riskBudget=p.capital*p.riskPct/100,cap=Math.min(p.capital*p.capPct/100,p.capital*(1-buffer/100),maxOrder>0?maxOrder:Infinity);
   const byRisk=Math.floor(riskBudget/unitLoss/p.lot)*p.lot,byCap=Math.floor(cap/unitCost/p.lot)*p.lot;
   const rawQuantity=Math.max(0,Math.min(byRisk,byCap)),quantity=Number.isSafeInteger(rawQuantity)?rawQuantity:0,rr=unitReward/unitLoss;
   if(!quantity)errors.push('The budget cannot fund one lot within these limits.');
   if(rr<p.minRR)warnings.push(`Estimated reward/risk is below ${p.minRR.toFixed(2)} after costs.`);
+  if(quantity&&minOrder>0&&quantity*unitCost<minOrder)warnings.push(`Order value Rs. ${(quantity*unitCost).toLocaleString('en-PK',{maximumFractionDigits:0})} is below your minimum of Rs. ${minOrder.toLocaleString('en-PK')}: fixed per-share charges weigh more on small orders.`);
   const skipReason=!errors.length&&!coversTargetCosts(p.entry,p.target,p.feePct,p.slipPct,one)?TARGET_COST_SKIP:null;
   // A gap can open below the stop. Show the loss at the worst plausible exit (the daily lower limit).
   const worst=opts.worstExit,gapLoss=worst!=null&&worst>0&&worst<p.stop?quantity*(unitCost-sellProceeds(worst,p.feePct,p.slipPct,one)):null;
@@ -173,7 +182,7 @@ export function sizePlan(p:Plan,opts:{worstExit?:number;band?:DailyBand|null}={}
   if(opts.band&&p.entry>=opts.band.upper-2*PRICE_TICK)warnings.push('Entry is within two price steps of the upper limit: buy orders may queue there and not fill.');
   if(opts.band&&p.stop<=opts.band.lower+2*PRICE_TICK)warnings.push('Test stop is at or near the lower limit: if the stock locks there, the stop may not fill.');
   if(gapLoss!=null&&gapLoss>riskBudget*2)warnings.push(`A gap to the daily lower limit would lose Rs. ${gapLoss.toLocaleString('en-PK',{maximumFractionDigits:0})}, over twice the risk budget.`);
-  return {errors,warnings,skipReason,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap',gapLoss};
+  return {errors,warnings,skipReason,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':cap===maxOrder?'Maximum order':cap<p.capital*p.capPct/100?'Cash buffer':'Position cap',gapLoss};
 }
 
 /** PSX daily limit: 10% or Re 1 (whichever is larger) from the previous close, to the paisa. */
