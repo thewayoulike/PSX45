@@ -130,3 +130,32 @@ describe('liquidity by rupee value',()=>{
     expect(wideTick(3.5)).toBe(true);expect(wideTick(12)).toBe(false);
   });
 });
+
+describe('price-limit locks',()=>{
+  it('uses 10% or Re 1 from the previous close',async()=>{
+    const {standardBand}=await import('./engine');
+    expect(standardBand(100)).toEqual({lower:90,upper:110});
+    expect(standardBand(5)).toEqual({lower:4,upper:6}); // Re 1 is larger than 10% here
+  });
+  it('a stop cannot fill while the stock is locked at the lower limit',async()=>{
+    const {walkTrade}=await import('./engine');
+    const t=at('2026-10-22','10:00'),locked={time:t,open:90,high:90,low:90,close:90,volume:5};
+    const band={lower:90,upper:110};
+    expect(walkTrade([locked,{...locked,time:t+300000}],100,95,110,band).outcome).toBe('locked');
+    const unlocks=[locked,{time:t+300000,open:90.5,high:91,low:90.2,close:90.8,volume:9}];
+    expect(walkTrade(unlocks,100,95,110,band)).toMatchObject({outcome:'stop',exit:90.5});
+    expect(walkTrade([locked],100,95,110).outcome).toBe('stop'); // without band data: old behaviour
+  });
+  it('warns when a plan sits within two price steps of a limit',()=>{
+    const near=sizePlan({...DEFAULT_PLAN,entry:109.99,stop:105,target:115},{band:{lower:90,upper:110}});
+    expect(near.warnings.some(w=>w.includes('upper limit'))).toBe(true);
+    const stopAtLimit=sizePlan({...DEFAULT_PLAN,entry:95,stop:90.01,target:100},{band:{lower:90,upper:110}});
+    expect(stopAtLimit.warnings.some(w=>w.includes('lower limit'))).toBe(true);
+  });
+  it('replay does not enter when the next candle is locked at the upper limit',()=>{
+    const prev=session('2026-10-21'),day=session('2026-10-22');
+    day[3]=bar(day[3].time,102);day[4]={time:day[4].time,open:110,high:110,low:110,close:110,volume:1};
+    const result=replayRules([...prev,...day],{...DEFAULT_PLAN,entry:102,stop:99,target:110,feePct:0,slipPct:0},DEFAULT_RULES,at('2026-10-24','12:00'));
+    expect(result.blocked).toBe(1);expect(result.trades.filter(t=>t.day==='2026-10-22')).toHaveLength(0);
+  });
+});

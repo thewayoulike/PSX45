@@ -1,5 +1,5 @@
 // PSX testing equivalents of the MIT upstream entry, exit, risk and Time Machine tools.
-import {intradaySegments,openingRange,netReturn,coversTargetCosts,sizePlan,walkTrade,pktDay,type Bar,type Plan,type Segment} from './engine';
+import {intradaySegments,openingRange,netReturn,coversTargetCosts,sizePlan,walkTrade,pktDay,standardBand,lockedAt,type Bar,type Plan,type Segment,type DailyBand} from './engine';
 import {assessTarget,type TargetContext} from './targets';
 const FIVE=300000;
 export type Rules={entryMode:'range'|'level';level:number;volumeX:number;entryMinutes:number;stopMode:'range-low'|'range-mid'|'percent'|'atr'|'manual';stopValue:number;targetR:number;flatMinutes:number;entryIndex:number;jitter:number;minimumSessions:number};
@@ -92,21 +92,30 @@ export function riskReview(p:Plan,r:RiskContext){
 }
 export function replayRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),context:TargetContext={}){
   validateRules(r);if(![p.feePct,p.slipPct].every(v=>Number.isFinite(v)&&v>=0&&v<=10))throw new Error('Check fees and slippage.');
-  const segments=intradaySegments(bars,now),complete=segments.filter(s=>s.complete);let skipped=0;
+  const segments=intradaySegments(bars,now),complete=segments.filter(s=>s.complete);let skipped=0,blocked=0;
   const trades=complete.flatMap(s=>{
     const signal=checkEntry(s,r,s.end,comparableHistory(complete,s));if(!signal.trigger)return [];
     const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=s.end-r.flatMinutes*60000);if(!after.length){skipped++;return [];}
+    const band=sessionBand(s,segments,context.daily);
+    // Locked at the upper limit: sellers have gone, so a buy order queues and does not fill.
+    if(band&&lockedAt(after[0],band.upper)){blocked++;return [];}
     // A close confirms the breakout; a real order fills at the next candle's open.
     const entry=after[0].open;
     let levels:ReturnType<typeof exitLevels>;try{levels=exitLevels(entry,s,signal.index,r,p.stop,{...context,intraday:bars});}catch{skipped++;return [];}
     if(levels.target==null){skipped++;return [];}
     if(!coversTargetCosts(entry,levels.target,p.feePct,p.slipPct,p.oneSideCommission)){skipped++;return [];}
-    const result=walkTrade(after,entry,levels.stop,levels.target);
+    const result=walkTrade(after,entry,levels.stop,levels.target,band);
     return [{day:s.day,session:s.family,entryTime:signal.trigger.time+FIVE,entry,stop:levels.stop,target:levels.target,targetReview:levels.targetReview,...result,netR:netReturn(entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/(entry-levels.stop)}];
   });
   const wins=trades.filter(t=>t.netR>0).length;
-  return {sessions:complete.length,excluded:segments.length-complete.length,skipped,trades,wins,winRange:trades.length?wilson(wins,trades.length):null,
+  return {sessions:complete.length,excluded:segments.length-complete.length,skipped,blocked,locked:trades.filter(t=>t.outcome==='locked').length,trades,wins,winRange:trades.length?wilson(wins,trades.length):null,
     averageR:trades.length?trades.reduce((a,t)=>a+t.netR,0)/trades.length:null};
+}
+/** The day's PSX limit band from the previous close (daily history first, else the previous session's last candle). */
+export function sessionBand(s:Segment,segments:Segment[],daily?:Bar[]):DailyBand|null{
+  const prior=(daily||[]).filter(b=>pktDay(b.time)<s.day).at(-1)?.close
+    ??segments.filter(x=>x.day<s.day).at(-1)?.bars.at(-1)?.close;
+  return prior&&prior>0?standardBand(prior):null;
 }
 /** 95% Wilson score interval for a win rate: honest about small samples. */
 export function wilson(k:number,n:number,z=1.96){
@@ -129,16 +138,17 @@ export function simulateRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),replays=1
   const pool=earlier.flatMap(s=>{
     const signal=checkEntry(s,r,s.end,comparableHistory(earlier,s));if(!signal.trigger)return [];
     const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=s.end-r.flatMinutes*60000);
-    return after.length?[{day:s.day,base:after[0].open,bars:after}]:[];
+    return after.length?[{day:s.day,base:after[0].open,bars:after,band:sessionBand(s,segments)}]:[];
   });
   if(pool.length<r.minimumSessions)throw new Error(`Need ${r.minimumSessions} earlier ${latest.family} sessions where these entry rules triggered; found ${pool.length} of ${earlier.length} sessions checked.`);
   let state=seed>>>0;const random=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296;};
   const length=Math.max(...pool.map(x=>x.bars.length));
-  const counts={target:0,stop:0,close:0},pnl:number[]=[],risk=p.entry-p.stop,curves:number[][]=Array.from({length:length+1},()=>[]);
+  const counts={target:0,stop:0,close:0,locked:0},pnl:number[]=[],risk=p.entry-p.stop,curves:number[][]=Array.from({length:length+1},()=>[]);
   for(let n=0;n<replays;n++){
     const pick=pool[Math.floor(random()*pool.length)],scale=p.entry/pick.base;
     const path=pick.bars.map(b=>({...b,open:b.open*scale,high:b.high*scale,low:b.low*scale,close:b.close*scale}));
-    const result=walkTrade(path,p.entry,p.stop,p.target);counts[result.outcome]++;pnl.push(netReturn(p.entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/risk);
+    const band=pick.band?{lower:pick.band.lower*scale,upper:pick.band.upper*scale}:null;
+    const result=walkTrade(path,p.entry,p.stop,p.target,band);counts[result.outcome]++;pnl.push(netReturn(p.entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/risk);
     if(n<1000){curves[0].push(p.entry);for(let i=0;i<length;i++)curves[i+1].push((path[i]??path.at(-1)!).close);}
   }
   const quant=(xs:number[],q:number)=>xs[Math.min(xs.length-1,Math.floor(xs.length*q))];pnl.sort((a,b)=>a-b);

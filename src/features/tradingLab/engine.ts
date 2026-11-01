@@ -123,7 +123,7 @@ export function openingRange(g:Segment) {
   return {high,low,trigger,index,rangeEnd:range[2].time+FIVE};
 }
 
-export function sizePlan(p:Plan,opts:{worstExit?:number}={}) {
+export function sizePlan(p:Plan,opts:{worstExit?:number;band?:DailyBand|null}={}) {
   const errors:string[]=[],warnings:string[]=[];
   if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(p.symbol))errors.push('Choose a valid PSX symbol.');
   if(!Object.entries(p).filter(([k])=>k!=='symbol'&&k!=='oneSideCommission').every(([,v])=>typeof v==='number'&&Number.isFinite(v)))errors.push('All plan inputs must be valid numbers.');
@@ -140,18 +140,35 @@ export function sizePlan(p:Plan,opts:{worstExit?:number}={}) {
   const skipReason=!errors.length&&!coversTargetCosts(p.entry,p.target,p.feePct,p.slipPct,one)?TARGET_COST_SKIP:null;
   // A gap can open below the stop. Show the loss at the worst plausible exit (the daily lower limit).
   const worst=opts.worstExit,gapLoss=worst!=null&&worst>0&&worst<p.stop?quantity*(unitCost-sellProceeds(worst,p.feePct,p.slipPct,one)):null;
+  // Near a daily limit, orders queue behind others at the limit and may not fill at all.
+  if(opts.band&&p.entry>=opts.band.upper-2*PRICE_TICK)warnings.push('Entry is within two price steps of the upper limit: buy orders may queue there and not fill.');
+  if(opts.band&&p.stop<=opts.band.lower+2*PRICE_TICK)warnings.push('Test stop is at or near the lower limit: if the stock locks there, the stop may not fill.');
   if(gapLoss!=null&&gapLoss>riskBudget*2)warnings.push(`A gap to the daily lower limit would lose Rs. ${gapLoss.toLocaleString('en-PK',{maximumFractionDigits:0})}, over twice the risk budget.`);
   return {errors,warnings,skipReason,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap',gapLoss};
 }
 
+/** PSX daily limit: 10% or Re 1 (whichever is larger) from the previous close, to the paisa. */
+export type DailyBand={lower:number;upper:number};
+export function standardBand(previousClose:number):DailyBand{
+  const distance=Math.max(previousClose*0.10,1);
+  return {lower:Math.max(0.01,Math.round((previousClose-distance)*100)/100),upper:Math.round((previousClose+distance)*100)/100};
+}
+/** A candle that traded only at the limit price: the stock is locked there and the other side can't trade. */
+export const lockedAt=(b:Bar,limit:number)=>b.high-b.low<PRICE_TICK/2&&Math.abs(b.close-limit)<PRICE_TICK/2+1e-9;
+
 // Stops are evaluated before targets for ambiguous candles. Gap stops use the worse open.
-export function walkTrade(bars:Bar[], entry:number, stop:number, target:number) {
+// While a stock is locked at its lower limit there are no buyers, so a stop cannot fill until it unlocks.
+export function walkTrade(bars:Bar[], entry:number, stop:number, target:number, band?:DailyBand|null) {
   for(const b of bars){
+    if(band&&lockedAt(b,band.lower))continue;
     if(b.open<=stop)return {outcome:'stop' as const,exit:b.open,time:b.time};
     if(b.low<=stop)return {outcome:'stop' as const,exit:stop,time:b.time};
     if(b.high>=target)return {outcome:'target' as const,exit:target,time:b.time};
   }
-  return {outcome:'close' as const,exit:bars.at(-1)?.close??entry,time:bars.at(-1)?.time??0};
+  const last=bars.at(-1);
+  // Still locked at the lower limit when the position should close: the sale could not happen today.
+  if(band&&last&&lockedAt(last,band.lower))return {outcome:'locked' as const,exit:last.close,time:last.time};
+  return {outcome:'close' as const,exit:last?.close??entry,time:last?.time??0};
 }
 export function netReturn(entry:number,exit:number,feePct:number,slipPct:number,oneSide=false) {
   return sellProceeds(exit,feePct,slipPct,oneSide)-buyCost(entry,feePct,slipPct);
@@ -180,7 +197,7 @@ export function simulatePlan(bars:Bar[],p:Plan,now=Date.now(),replays=10000,seed
   const length=pool[0].bars.length;
   if(pool.some(s=>s.bars.length!==length)||length<5)throw new Error('Comparable session lengths are unavailable.');
   let state=seed>>>0;const random=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296;};
-  const counts={target:0,stop:0,close:0},pnl:number[]=[],risk=p.entry-p.stop;
+  const counts={target:0,stop:0,close:0,locked:0},pnl:number[]=[],risk=p.entry-p.stop;
   for(let n=0;n<replays;n++){
     let price=p.entry;const path:Bar[]=[];
     for(let i=3;i<length;i++){
