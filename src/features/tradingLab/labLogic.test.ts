@@ -1,5 +1,5 @@
 import {describe,expect,it,vi} from 'vitest';
-import {DEFAULT_PLAN,intradaySegments,netReturn,sizePlan,standardSessions,type Bar} from './engine';
+import {DEFAULT_PLAN,chargesPerShare,commissionPerShare,intradaySegments,netReturn,sizePlan,standardSessions,type Bar} from './engine';
 import {DEFAULT_RULES,checkEntry,exitLevels,replayRules,slotVolume,wilson} from './workflow';
 import {setupStrength} from './strength';
 import {intradayScan,type ScanRow} from './scanner';
@@ -14,10 +14,20 @@ describe('PSX trading costs',()=>{
     // KEL-style: entry 2.50, stop 2.45, target 2.60. Percentage costs alone suggested about 1.3R.
     const kel=sizePlan({...DEFAULT_PLAN,symbol:'KEL',entry:2.5,stop:2.45,target:2.6});
     expect(kel.rr).toBeLessThan(0.3);
-    // At normal prices the floors are not binding: Rs 100 trades cost the same as before.
-    expect(netReturn(100,110,0.2,0.1)).toBeCloseTo(110*0.999*0.998-100*1.001*1.002,6);
+    // KEL here: commission Rs 0.03 + 15% tax + Rs 0.005 CDC = Rs 0.0395 a share each side, plus a tick.
+    expect(kel.rr).toBeLessThan(0.05);
   });
-  it('default costs match the PSX fee schedule: about 0.38% for a same-price round trip at Rs 200',()=>{
+  it('uses the PSX commission tiers, 15% sales tax on commission and the CDC fee',()=>{
+    expect(commissionPerShare(5,0.15)).toBe(0.03);       // Rs 5 or below
+    expect(commissionPerShare(5.01,0.15)).toBe(0.05);    // below Rs 10
+    expect(commissionPerShare(9.99,1)).toBe(0.05);       // flat below Rs 10, whatever the rate
+    expect(commissionPerShare(20,0.15)).toBe(0.05);      // Rs 10+: greater of Rs 0.05 or 0.15%
+    expect(commissionPerShare(100,0.15)).toBeCloseTo(0.15,10);
+    expect(chargesPerShare(100,0.15)).toBeCloseTo(0.15*1.15+0.005,10);
+    expect(chargesPerShare(4,0.15)).toBeCloseTo(0.03*1.15+0.005,10);
+    expect(netReturn(100,110,0.15,0)).toBeCloseTo((110-(0.165*1.15+0.005))-(100+(0.15*1.15+0.005)),10);
+  });
+  it('default costs: about 0.37% for a same-price round trip at Rs 200',()=>{
     const pct=-netReturn(200,200,DEFAULT_PLAN.feePct,DEFAULT_PLAN.slipPct)/200*100;
     expect(pct).toBeGreaterThan(0.33);expect(pct).toBeLessThan(0.45);
   });

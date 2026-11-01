@@ -2,20 +2,33 @@
 // PSX implementation and assumptions: docs/trading-lab/adaptation.md.
 export type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number | null };
 export type Plan = { symbol: string; entry: number; stop: number; target: number; capital: number; riskPct: number; capPct: number; feePct: number; slipPct: number; minRR: number; lot: number };
-// Costs per side: commission (at least 0.15% or Rs 0.03 a share) plus sales tax and exchange fees is about
-// 0.18%; slippage defaults to about one price step. Both are editable estimates, not broker tariffs.
-export const DEFAULT_PLAN: Plan = { symbol: 'HBL', entry: 0, stop: 0, target: 0, capital: 100000, riskPct: 1, capPct: 25, feePct: 0.18, slipPct: 0.01, minRR: 1.5, lot: 1 };
+// feePct is the broker commission rate. Commission per share: Rs 0.03 at Rs 5 or below, Rs 0.05 below Rs 10,
+// otherwise the greater of Rs 0.05 or the rate. Plus 15% sales tax on commission and a Rs 0.005-a-share CDC fee,
+// each side. Slippage defaults to about one price step.
+export const DEFAULT_PLAN: Plan = { symbol: 'HBL', entry: 0, stop: 0, target: 0, capital: 100000, riskPct: 1, capPct: 25, feePct: 0.15, slipPct: 0.01, minRR: 1.5, lot: 1 };
 export const TARGET_COST_SKIP = 'Skip — target does not cover costs';
 // Percentage costs alone understate trading cheap stocks. When fees or slippage are set, each side
 // costs at least a broker minimum per share and one price tick. Both are editable-style estimates.
-export const MIN_FEE_PER_SHARE = 0.035, PRICE_TICK = 0.01; // Rs 0.03 commission floor plus sales tax
+export const SALES_TAX_ON_COMMISSION = 0.15, CDC_FEE_PER_SHARE = 0.005, PRICE_TICK = 0.01;
+/** Broker commission per share on one side, by share price. */
+export function commissionPerShare(price:number,feePct:number){
+  if(price<=5)return 0.03;
+  if(price<10)return 0.05;
+  return Math.max(0.05,price*feePct/100);
+}
+/** Charges per share on one side: commission, 15% sales tax on it, and the CDC fee. */
+export function chargesPerShare(price:number,feePct:number){
+  if(!(feePct>0))return 0; // 0 turns all charges off, for comparisons without costs
+  const commission=commissionPerShare(price,feePct);
+  return commission*(1+SALES_TAX_ON_COMMISSION)+CDC_FEE_PER_SHARE;
+}
 export function buyCost(price:number,feePct:number,slipPct:number){
   const px=price+(slipPct>0?Math.max(price*slipPct/100,PRICE_TICK):0);
-  return px+(feePct>0?Math.max(px*feePct/100,MIN_FEE_PER_SHARE):0);
+  return px+chargesPerShare(px,feePct);
 }
 export function sellProceeds(price:number,feePct:number,slipPct:number){
   const px=price-(slipPct>0?Math.max(price*slipPct/100,PRICE_TICK):0);
-  return px-(feePct>0?Math.max(px*feePct/100,MIN_FEE_PER_SHARE):0);
+  return px-chargesPerShare(px,feePct);
 }
 // Treat floating-point dust at break-even as zero, not a profitable setup.
 export const coversTargetCosts = (entry:number,target:number,feePct:number,slipPct:number) => netReturn(entry,target,feePct,slipPct)>1e-9;

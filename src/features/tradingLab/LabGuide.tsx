@@ -15,7 +15,7 @@ const terms:[string,string][]=[
   ['R','Your result measured in units of the risk to your stop. Entry Rs. 100 with a stop at Rs. 98 risks Rs. 2; finishing at Rs. 104 is +2R before costs.'],
   ['ATR','Average true range: how much the price usually moves in one 5-minute candle. An ATR stop sits a chosen multiple of that below entry.'],
   ['Closing time (“flat-by”)','How many minutes before the session ends the practice position is closed, so nothing is held overnight.'],
-  ['Costs','Broker commission (at least 0.15% or Rs. 0.03 a share), sales tax on it, exchange fees and slippage. They can turn a small win into a loss, especially on cheap stocks.'],
+  ['Costs','Broker commission (Rs. 0.03 a share at Rs. 5 or below, Rs. 0.05 below Rs. 10, otherwise the greater of Rs. 0.05 or 0.15%), 15% sales tax on that commission, a Rs. 0.005-a-share CDC fee, and slippage, on both buying and selling. They can turn a small win into a loss, especially on cheap stocks.'],
 ];
 
 export function LabGuide({onChoose}:{onChoose:(section:Section)=>void}){

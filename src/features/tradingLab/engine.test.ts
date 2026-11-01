@@ -33,11 +33,14 @@ describe('target profit after costs',()=>{
  it('uses both-side fees and slippage and agrees with the displayed R ratio',()=>{
   const result=sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,symbol:'PPL',entry:210.15,stop:208.90,target:212.65});
   expect(result.quantity).toBe(118);
-  const netTargetProceeds=118*212.65*0.999*0.998;
-  const totalEntryCost=118*210.15*1.001*1.002;
+  // PSX rule above Rs 10: commission max(Rs 0.05, rate) + 15% sales tax on it + Rs 0.005 CDC, each side.
+  const charges=(px:number)=>Math.max(0.05,px*0.002)*1.15+0.005;
+  const buyPx=210.15*1.001,sellPx=212.65*0.999;
+  const netTargetProceeds=118*(sellPx-charges(sellPx));
+  const totalEntryCost=118*(buyPx+charges(buyPx));
   expect(result.reward).toBeCloseTo(netTargetProceeds-totalEntryCost,8);
   expect(result.reward/result.loss).toBeCloseTo(result.rr,10);
-  expect(result.rr).toBeCloseTo(0.49,2);
+  expect(result.rr).toBeCloseTo(0.41,2);
  });
  it('retains a loss at the target when costs exceed the price gain',()=>{
   const result=sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target:100.1});
@@ -53,7 +56,8 @@ describe('target profit after costs',()=>{
   expect(sizePlan({...prl,capital:0}).skipReason).toBeNull();
  });
  it('skips break-even targets including floating-point roundoff, without conflating low positive R',()=>{
-  const target=100*1.001*1.002/(.999*.998);
+  // Break-even: sell proceeds equal entry cost, with 0.2% commission taxed at 15% and the CDC fee.
+  const buy=100*1.001*(1+0.002*1.15)+0.005,target=(buy+0.005)/(0.999*(1-0.002*1.15));
   expect(sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,entry:100,stop:98,target}).skipReason).toBeTruthy();
   expect(sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,entry:100,stop:98,target:target+.01}).skipReason).toBeNull();
  });
