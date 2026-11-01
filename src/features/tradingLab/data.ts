@@ -5,6 +5,7 @@ import {loadTargetContext} from './targetData';
 import type {TargetContext} from './targets';
 import {takeLabSlot,LAB_SYMBOL} from './labBudget';
 import {loadMarketData} from '../../services/marketOverview';
+import {loadStockEvents} from './events';
 
 export type CandleSet={symbol:string;bars:Bar[];source:string;retrievedAt:string;targetContext?:TargetContext};
 export type Headline={id:string;title:string;url:string;source:string;publishedAt?:string;indexedAt:string;topics?:string[]};
@@ -51,5 +52,7 @@ export function loadHaltIndex():Promise<Bar[]>{
   indexCache={expires:Date.now()+300000,promise};promise.catch(()=>{indexCache=null;});
   return promise;
 }
-export const labData={candles:loadCandles,research:loadResearch,universe:loadMarketUniverse,scanCandles:loadScanCandles,scanBatch:loadScanBatch,haltIndex:loadHaltIndex};
+/** Company profile JSON (dividend history and ex-dates) for the event check. */
+export const loadCompanyJson=(symbol:string)=>json(`/api/proxy?company=${encodeURIComponent(symbol)}`);
+export const labData={candles:loadCandles,research:loadResearch,universe:loadMarketUniverse,scanCandles:loadScanCandles,scanBatch:loadScanBatch,haltIndex:loadHaltIndex,events:(symbol:string)=>loadStockEvents(symbol,()=>loadCompanyJson(symbol))};
 export type LabData=typeof labData;
