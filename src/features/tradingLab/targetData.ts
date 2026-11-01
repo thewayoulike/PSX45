@@ -1,14 +1,15 @@
 import {parseBars} from './engine';
 import {parsePriceBand,type TargetContext} from './targets';
+import {takeLabSlot,LAB_SYMBOL} from './labBudget';
 
 const cache=new Map<string,{expires:number;value:TargetContext}>();
 /** Supplementary data may fail without hiding the breakout. Its missing checks remain visible. */
 export async function loadTargetContext(symbol:string,signal?:AbortSignal):Promise<TargetContext>{
-  if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(symbol))throw new Error('Invalid PSX symbol.');
+  if(!LAB_SYMBOL.test(symbol))throw new Error('Invalid PSX symbol.');
   const cached=cache.get(symbol);if(cached&&cached.expires>Date.now())return cached.value;
   const controller=new AbortController(),abort=()=>controller.abort(),timer=setTimeout(abort,25000);
   signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();
-  const read=async(url:string)=>{const response=await fetch(url,{signal:controller.signal});if(!response.ok)throw new Error('Target context unavailable');return response.text();};
+  const read=async(url:string)=>{await takeLabSlot(controller.signal);const response=await fetch(url,{signal:controller.signal});if(!response.ok)throw new Error('Target context unavailable');return response.text();};
   try{
     const [history,quote]=await Promise.allSettled([
       read('/api/proxy?ohlc='+encodeURIComponent(symbol)).then(text=>{const raw=JSON.parse(text);if(raw.symbol&&raw.symbol!==symbol)throw new Error('Wrong stock');return parseBars(raw.bars);}),

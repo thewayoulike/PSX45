@@ -149,7 +149,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return [
       { key: 'Menu', label: 'Menu', Icon: Compass, items: menuItems },
       ...(toolItems.length > 0 ? [{ key: 'Tools', label: 'Tools', Icon: Wrench, items: toolItems }] : []),
-      { key: 'Testing', label: 'Testing', Icon: FlaskConical, items: [{ id: 'TRADING_LAB', label: 'PSX Trading Lab', icon: <Beaker size={22} /> }] },
+      // An intraday stock-trading lab has nothing to test for mutual-fund portfolios.
+      ...(!isFundPortfolio ? [{ key: 'Testing', label: 'Testing', Icon: FlaskConical, items: [{ id: 'TRADING_LAB' as const, label: 'PSX Trading Lab', icon: <Beaker size={22} /> }] }] : []),
       {
         key: 'Reports', label: 'Reports', Icon: BarChart3, items: [
           { id: 'REALIZED', label: 'Realized P&L', icon: <CheckCircle2 size={22} /> },

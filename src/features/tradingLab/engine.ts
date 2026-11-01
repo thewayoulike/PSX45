@@ -2,8 +2,21 @@
 // PSX implementation and assumptions: docs/trading-lab/adaptation.md.
 export type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number | null };
 export type Plan = { symbol: string; entry: number; stop: number; target: number; capital: number; riskPct: number; capPct: number; feePct: number; slipPct: number; minRR: number; lot: number };
-export const DEFAULT_PLAN: Plan = { symbol: 'HBL', entry: 0, stop: 0, target: 0, capital: 100000, riskPct: 1, capPct: 25, feePct: 0.2, slipPct: 0.1, minRR: 1.5, lot: 1 };
+// Costs per side: commission (at least 0.15% or Rs 0.03 a share) plus sales tax and exchange fees is about
+// 0.18%; slippage defaults to about one price step. Both are editable estimates, not broker tariffs.
+export const DEFAULT_PLAN: Plan = { symbol: 'HBL', entry: 0, stop: 0, target: 0, capital: 100000, riskPct: 1, capPct: 25, feePct: 0.18, slipPct: 0.01, minRR: 1.5, lot: 1 };
 export const TARGET_COST_SKIP = 'Skip — target does not cover costs';
+// Percentage costs alone understate trading cheap stocks. When fees or slippage are set, each side
+// costs at least a broker minimum per share and one price tick. Both are editable-style estimates.
+export const MIN_FEE_PER_SHARE = 0.035, PRICE_TICK = 0.01; // Rs 0.03 commission floor plus sales tax
+export function buyCost(price:number,feePct:number,slipPct:number){
+  const px=price+(slipPct>0?Math.max(price*slipPct/100,PRICE_TICK):0);
+  return px+(feePct>0?Math.max(px*feePct/100,MIN_FEE_PER_SHARE):0);
+}
+export function sellProceeds(price:number,feePct:number,slipPct:number){
+  const px=price-(slipPct>0?Math.max(price*slipPct/100,PRICE_TICK):0);
+  return px-(feePct>0?Math.max(px*feePct/100,MIN_FEE_PER_SHARE):0);
+}
 // Treat floating-point dust at break-even as zero, not a profitable setup.
 export const coversTargetCosts = (entry:number,target:number,feePct:number,slipPct:number) => netReturn(entry,target,feePct,slipPct)>1e-9;
 const MINUTE = 60000, FIVE = 5 * MINUTE;
@@ -92,23 +105,25 @@ export function openingRange(g:Segment) {
   return {high,low,trigger,index,rangeEnd:range[2].time+FIVE};
 }
 
-export function sizePlan(p:Plan) {
+export function sizePlan(p:Plan,opts:{worstExit?:number}={}) {
   const errors:string[]=[],warnings:string[]=[];
   if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(p.symbol))errors.push('Choose a valid PSX symbol.');
   if(!Object.entries(p).filter(([k])=>k!=='symbol').every(([,v])=>typeof v==='number'&&Number.isFinite(v)))errors.push('All plan inputs must be valid numbers.');
   if(!(p.stop>0&&p.entry>p.stop&&p.target>p.entry))errors.push('For a long plan, use stop < entry < target.');
   if(!(p.capital>0&&p.riskPct>0&&p.riskPct<=100&&p.capPct>0&&p.capPct<=100&&p.minRR>0))errors.push('Check capital, risk limit and position cap.');
   if(!(p.feePct>=0&&p.feePct<=10&&p.slipPct>=0&&p.slipPct<=10&&Number.isInteger(p.lot)&&p.lot>=1))errors.push('Check fees, slippage and lot size.');
-  if(errors.length)return {errors,warnings,skipReason:null as string|null,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:''};
-  const slip=p.slipPct/100,fee=p.feePct/100,buy=p.entry*(1+slip),sellStop=p.stop*(1-slip),sellTarget=p.target*(1-slip);
-  const unitCost=buy*(1+fee),unitLoss=unitCost-sellStop*(1-fee),unitReward=sellTarget*(1-fee)-unitCost;
+  if(errors.length)return {errors,warnings,skipReason:null as string|null,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:'',gapLoss:null as number|null};
+  const unitCost=buyCost(p.entry,p.feePct,p.slipPct),unitLoss=unitCost-sellProceeds(p.stop,p.feePct,p.slipPct),unitReward=sellProceeds(p.target,p.feePct,p.slipPct)-unitCost;
   const riskBudget=p.capital*p.riskPct/100,cap=p.capital*p.capPct/100;
   const byRisk=Math.floor(riskBudget/unitLoss/p.lot)*p.lot,byCap=Math.floor(cap/unitCost/p.lot)*p.lot;
   const rawQuantity=Math.max(0,Math.min(byRisk,byCap)),quantity=Number.isSafeInteger(rawQuantity)?rawQuantity:0,rr=unitReward/unitLoss;
   if(!quantity)errors.push('The budget cannot fund one lot within these limits.');
   if(rr<p.minRR)warnings.push(`Estimated reward/risk is below ${p.minRR.toFixed(2)} after costs.`);
   const skipReason=!errors.length&&!coversTargetCosts(p.entry,p.target,p.feePct,p.slipPct)?TARGET_COST_SKIP:null;
-  return {errors,warnings,skipReason,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap'};
+  // A gap can open below the stop. Show the loss at the worst plausible exit (the daily lower limit).
+  const worst=opts.worstExit,gapLoss=worst!=null&&worst>0&&worst<p.stop?quantity*(unitCost-sellProceeds(worst,p.feePct,p.slipPct)):null;
+  if(gapLoss!=null&&gapLoss>riskBudget*2)warnings.push(`A gap to the daily lower limit would lose Rs. ${gapLoss.toLocaleString('en-PK',{maximumFractionDigits:0})}, over twice the risk budget.`);
+  return {errors,warnings,skipReason,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap',gapLoss};
 }
 
 // Stops are evaluated before targets for ambiguous candles. Gap stops use the worse open.
@@ -121,7 +136,7 @@ export function walkTrade(bars:Bar[], entry:number, stop:number, target:number) 
   return {outcome:'close' as const,exit:bars.at(-1)?.close??entry,time:bars.at(-1)?.time??0};
 }
 export function netReturn(entry:number,exit:number,feePct:number,slipPct:number) {
-  return exit*(1-slipPct/100)*(1-feePct/100)-entry*(1+slipPct/100)*(1+feePct/100);
+  return sellProceeds(exit,feePct,slipPct)-buyCost(entry,feePct,slipPct);
 }
 
 export function replayOpeningRange(bars:Bar[],targetR:number,feePct:number,slipPct:number,now=Date.now()) {

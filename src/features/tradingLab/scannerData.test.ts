@@ -1,9 +1,11 @@
-import {afterEach,it,expect,vi} from 'vitest';
+import {afterEach,beforeEach,it,expect,vi} from 'vitest';
+import {setLabRequestInterval,LAB_REQUEST_INTERVAL_MS} from './labBudget';
 import {loadScanCandles} from './scannerData';
 import {ScanFeedError} from './scanner';
 import {DEFAULT_RULES} from './workflow';
 const bar={time:1792715700000,open:100,high:101,low:99,close:100,volume:100};
-afterEach(()=>{vi.unstubAllGlobals();vi.useRealTimers();});
+beforeEach(()=>setLabRequestInterval(0));
+afterEach(()=>{vi.unstubAllGlobals();vi.useRealTimers();setLabRequestInterval(LAB_REQUEST_INTERVAL_MS);});
 it('requests a short intraday window, validates identity and caches read-only data',async()=>{
   const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({symbol:'ABC',bars:[bar],source:'pypsx'})));
   vi.stubGlobal('fetch',fetcher);const signal=new AbortController().signal;
@@ -15,7 +17,7 @@ it('loads target checks only for a confirmed entry, including when rules change 
   const bars=[0,1,2,3,4,5].map(i=>({...bar,time:Date.parse('2026-10-28T09:35:00+05:00')+i*300000,high:i===5?103:101,close:i===5?102:100}));
   const fetcher=vi.fn().mockImplementation(async()=>new Response(JSON.stringify({symbol:'CONTEXT',bars,source:'test'})));
   vi.stubGlobal('fetch',fetcher);const signal=new AbortController().signal;
-  const first=await loadScanCandles('CONTEXT','intraday',signal,{...DEFAULT_RULES,entryMinutes:30});
+  const first=await loadScanCandles('CONTEXT','intraday',signal,{...DEFAULT_RULES,entryMinutes:20});
   expect(first.targetContext).toBeUndefined();expect(fetcher).toHaveBeenCalledTimes(1);
   const second=await loadScanCandles('CONTEXT','intraday',signal,DEFAULT_RULES);
   expect(second.targetContext?.daily).toEqual(bars);expect(fetcher).toHaveBeenCalledTimes(3);

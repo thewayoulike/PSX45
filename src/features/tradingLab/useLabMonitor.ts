@@ -3,14 +3,15 @@ import type {LabData,CandleSet} from './data';
 import {createLabMonitor} from './monitor';
 export {observedAlerts,type LabAlert} from './monitor';
 
-export function useLabMonitor(data:LabData,symbol:string,onData:(data:CandleSet)=>void){
+export function useLabMonitor(data:LabData,symbol:string,onData:(data:CandleSet)=>void,maxItems=5){
   const selected=useRef({symbol,onData});selected.current={symbol,onData};
   const [now,setNow]=useState(Date.now());
   const controller=useMemo(()=>createLabMonitor({
-    load:stock=>data.candles(stock,true,true),
+    // Normal caching: refreshes are timed to new candles, so forcing a download every check is wasteful.
+    load:stock=>data.candles(stock,true,false),maxItems,
     visible:()=>document.visibilityState!=='hidden',
     onData:next=>{if(next.symbol===selected.current.symbol)selected.current.onData(next);}
-  }),[data]);
+  }),[data,maxItems]);
   const items=useSyncExternalStore(controller.subscribe,controller.getSnapshot,controller.getSnapshot);
   useEffect(()=>{
     controller.resume();

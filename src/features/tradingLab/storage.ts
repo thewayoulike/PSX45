@@ -20,6 +20,9 @@ export function readLab(email:string,storage:Pick<Storage,'getItem'>=localStorag
     return parseLab(raw);
   }catch{return fallback;}
 }
+/** The stored journal text, including a damaged one, so it can still be downloaded. */
+export function readLabRaw(email:string,storage:Pick<Storage,'getItem'>=localStorage){try{return email?storage.getItem(labKey(email)):null;}catch{return null;}}
+export function isLabDamaged(email:string){const raw=readLabRaw(email);if(!raw)return false;try{parseLab(JSON.parse(raw));return false;}catch{return true;}}
 export function writeLab(email:string,book:LabBook,storage:Pick<Storage,'setItem'>&Partial<Pick<Storage,'getItem'>>=localStorage){
   if(!email)throw new Error('Sign in before saving lab plans.');
   parseWatchlist(book.watchlist);
@@ -53,7 +56,13 @@ export function mergeLabs(...books:LabBook[]):LabBook{
   for(const book of valid)for(const ticket of book.tickets){
     if(deletedTicketIds.includes(ticket.id))continue;
     const previous=tickets.get(ticket.id);
-    if(previous&&JSON.stringify(previous)!==JSON.stringify(ticket))throw new Error('Two versions of a lab plan differ. Export your local journal before resolving the difference.');
+    // Copies written by different app versions can differ in optional fields. Keep the fuller copy
+    // (deterministically) rather than stopping every future sync.
+    if(previous&&JSON.stringify(previous)!==JSON.stringify(ticket)){
+      const a=JSON.stringify(previous),b=JSON.stringify(ticket);
+      if(b.length>a.length||(b.length===a.length&&b>a))tickets.set(ticket.id,ticket);
+      continue;
+    }
     tickets.set(ticket.id,ticket);
   }
   const newest=[...valid].sort((a,b)=>(b.watchlistUpdatedAt||'').localeCompare(a.watchlistUpdatedAt||'')||a.watchlist.localeCompare(b.watchlist))[0];

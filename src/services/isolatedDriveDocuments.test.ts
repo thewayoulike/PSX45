@@ -37,8 +37,16 @@ it('rejects files from another account or a malformed journal',async()=>{
   const fake=fakeDrive();fake.files.set('other',{...envelope({ids:[]}),owner:'other@example.test'});
   const drive=await openDriveDocuments(owner,kind,parse,fake.open);
   await expect(drive.read()).rejects.toThrow('different account');
-  fake.files.set('other',envelope({broken:true}));await expect(drive.read()).rejects.toThrow('Invalid journal');
+  fake.files.set('other',envelope({broken:true}));await expect(drive.read()).rejects.toThrow('could not be read by this version');
   expect(fake.retired).toEqual([]);
+});
+it('sets aside one unreadable copy so the readable copies still sync, and never trashes it',async()=>{
+  const fake=fakeDrive();fake.files.set('good',envelope({ids:['a']}));fake.files.set('newer-format',envelope({broken:true}));
+  const drive=await openDriveDocuments(owner,kind,parse,fake.open);
+  const copies=await drive.read();
+  expect(copies.map(c=>c.fileId)).toEqual(['good']);
+  await drive.save(copies[0].value,copies);
+  expect(fake.retired).not.toContain('newer-format');
 });
 it('reads every Drive listing page and keeps two prior practice backup files',async()=>{
   const fake=fakeDrive();for(const id of ['a','b','c'])fake.files.set(id,envelope({ids:[id]}));

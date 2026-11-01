@@ -14,7 +14,7 @@ describe('upstream daily scanner parity',()=>{
  it('distinguishes an oversold bounce from crossing RSI 30',()=>{const rows=Array.from({length:30},(_,i)=>bar(Date.UTC(2026,8,i+1),200-i*3));rows[29]=bar(rows[29].time,rows[28].close+.1);const scan=dailyScan(rows,now);expect(scan.setups).toContain('Oversold bounce');expect(scan.setups).not.toContain('RSI recovery');});
 });
 describe('entry and exit rules',()=>{
- it('requires close, volume confirmation and entry window together',()=>{const s=segment();expect(checkEntry(s,DEFAULT_RULES,now).index).toBe(3);expect(checkEntry(s,{...DEFAULT_RULES,volumeX:2},now).state).toBe('expired');s.bars[3].volume=200;expect(checkEntry(s,{...DEFAULT_RULES,volumeX:2},now).index).toBe(3);expect(checkEntry(s,{...DEFAULT_RULES,entryMinutes:20},now).state).toBe('expired');});
+ it('requires close, volume confirmation and entry window together',()=>{const s=segment();expect(checkEntry(s,DEFAULT_RULES,now).index).toBe(3);expect(checkEntry(s,{...DEFAULT_RULES,volumeX:2},now).state).toBe('expired');s.bars[3].volume=200;expect(checkEntry(s,{...DEFAULT_RULES,volumeX:2},now).index).toBe(3);expect(checkEntry(s,{...DEFAULT_RULES,entryMinutes:20},now).index).toBe(3);const late=segment();late.bars[3]=bar(late.bars[3].time,100);late.bars[4]=bar(late.bars[4].time,102);expect(checkEntry(late,{...DEFAULT_RULES,entryMinutes:20},now).state).toBe('expired');});
  it('supports custom levels and waits before the deadline',()=>{const s=segment();expect(checkEntry(s,{...DEFAULT_RULES,entryMode:'level',level:103},at(s.day,'10:00')).state).toBe('waiting');expect(checkEntry(s,{...DEFAULT_RULES,entryMode:'level',level:103},now).state).toBe('expired');});
  it('does not skip a qualifying candle with missing volume',()=>{const s=segment();s.bars[3].volume=null;s.bars[4]=bar(s.bars[4].time,105);expect(checkEntry(s,{...DEFAULT_RULES,volumeX:1},now).state).toBe('incomplete');});
  it('does not infer confirmation after a data gap or before candle completion',()=>{const s=segment();expect(checkEntry(s,DEFAULT_RULES,at(s.day,'09:52')).trigger).toBeNull();s.bars.splice(3,1);s.bars[3]=bar(s.bars[3].time,105);expect(checkEntry(s,DEFAULT_RULES,now).state).toBe('incomplete');});
@@ -24,13 +24,13 @@ describe('entry and exit rules',()=>{
   expect(checkEntry(s,DEFAULT_RULES,at(s.day,'09:52')).state).toBe('waiting');
  });
  it('needs only completed slots through a cutoff that falls between candles',()=>{
-  const s=segment();s.bars=s.bars.slice(0,5).map(b=>({...b,close:100}));
-  const rules={...DEFAULT_RULES,entryMinutes:30}; // 10:02 cutoff, last eligible close 10:00
-  expect(checkEntry(s,rules,at(s.day,'10:03')).state).toBe('expired');
-  s.bars.pop();expect(checkEntry(s,rules,at(s.day,'10:03')).state).toBe('incomplete');
+  const s=segment();s.bars=s.bars.slice(0,6).map(b=>({...b,close:100}));
+  const rules={...DEFAULT_RULES,entryMinutes:32}; // window from the 09:35 first candle: 10:07 cutoff, last eligible close 10:05
+  expect(checkEntry(s,rules,at(s.day,'10:08')).state).toBe('expired');
+  s.bars.pop();expect(checkEntry(s,rules,at(s.day,'10:08')).state).toBe('incomplete');
  });
  it('builds midpoint, percentage and manual stops with R targets',()=>{const s=segment();expect(exitLevels(102,s,3,{...DEFAULT_RULES,stopMode:'range-mid'},99).stop).toBe(100);expect(exitLevels(100,s,3,{...DEFAULT_RULES,stopMode:'percent',stopValue:2},99)).toMatchObject({stop:98,target:104});expect(exitLevels(102,s,3,{...DEFAULT_RULES,stopMode:'manual'},98)).toMatchObject({stop:98,target:110});});
- it('never uses future candles to complete ATR history',()=>{const s=segment(),r={...DEFAULT_RULES,stopMode:'atr' as const};expect(()=>exitLevels(102,s,3,r,99)).toThrow('14 true ranges');expect(exitLevels(102,s,14,r,99).stop).toBeLessThan(102);});
+ it('never uses future candles to complete ATR history',()=>{const s=segment(),r={...DEFAULT_RULES,stopMode:'atr' as const};expect(()=>exitLevels(102,s,3,r,99)).toThrow('14 earlier 5-minute candles');expect(exitLevels(102,s,14,r,99).stop).toBeLessThan(102);});
  it('rejects unsafe or non-finite configurations',()=>{expect(()=>parseWorkflow({rules:{...DEFAULT_RULES,jitter:NaN},risk:DEFAULT_RISK})).toThrow();expect(()=>exitLevels(100,null,2,{...DEFAULT_RULES,stopMode:'percent',stopValue:110},99)).toThrow('positive');});
 });
 describe('session risk gate and immutable Drive snapshots',()=>{
@@ -41,8 +41,10 @@ describe('session risk gate and immutable Drive snapshots',()=>{
 });
 describe('replay timing and sampled outcomes',()=>{
  const bars=['2026-10-02','2026-10-09','2026-10-16','2026-10-23'].flatMap(d=>session(d,1));
- it('uses selected entry slot and flat-by with complete earlier family sessions',()=>{const r={...DEFAULT_RULES,entryIndex:8,flatMinutes:10,jitter:0},a=simulateRules(bars,plan,r,now,100);expect(a.sessions).toBe(3);expect(a.entryTime).toBe(at('2026-10-23','15:20'));expect(a.flatBy).toBe(at('2026-10-23','16:20'));expect(a.barsPerPath).toBe(12);expect(a.histogram.reduce((n,b)=>n+b.count,0)).toBe(100);expect(a.fan).toHaveLength(13);expect(a).toEqual(simulateRules(bars,plan,r,now,100));});
- it('respects configured sample minimum and rejects entry after flat-by',()=>{expect(()=>simulateRules(bars,plan,{...DEFAULT_RULES,minimumSessions:20},now,10)).toThrow('Need 20');expect(()=>simulateRules(bars,plan,{...DEFAULT_RULES,entryIndex:24},now,10)).toThrow('leaves time');});
+ // Friday-afternoon sessions whose 4th candle closes above the opening range: the rules trigger.
+ const breakout=['2026-10-02','2026-10-09','2026-10-16','2026-10-23'].flatMap(d=>{const s=session(d,1);s[3]=bar(s[3].time,102);return s;});
+ it('replays the plan over earlier same-family sessions where the rules triggered, until flat-by',()=>{const r={...DEFAULT_RULES,flatMinutes:10},a=simulateRules(breakout,plan,r,now,100);expect(a.sessions).toBe(3);expect(a.checked).toBe(3);expect(a.barsPerPath).toBe(17);expect(a.histogram.reduce((n,b)=>n+b.count,0)).toBe(100);expect(a.fan).toHaveLength(18);expect(a).toEqual(simulateRules(breakout,plan,r,now,100));});
+ it('respects the sample minimum and only counts sessions where the entry rules triggered',()=>{expect(()=>simulateRules(breakout,plan,{...DEFAULT_RULES,minimumSessions:20},now,10)).toThrow('Need 20');expect(()=>simulateRules(bars,plan,DEFAULT_RULES,now,10)).toThrow('found 0 of 3 sessions checked');});
  it('replays selected rules without entry-candle lookahead and closes at flat-by',()=>{const s=segment();s.bars[3]={...s.bars[3],low:97};for(let i=4;i<s.bars.length;i++)s.bars[i]=bar(s.bars[i].time,102);const result=replayRules(s.bars,plan,{...DEFAULT_RULES,flatMinutes:10},now);expect(result.trades).toHaveLength(1);expect(result.trades[0].outcome).toBe('close');expect(result.trades[0].time+300000).toBe(at(s.day,'15:20'));});
  it('reports skipped ATR entries instead of borrowing later history',()=>{const s=segment();const result=replayRules(s.bars,plan,{...DEFAULT_RULES,stopMode:'atr'},now);expect(result.skipped).toBe(1);expect(result.trades).toHaveLength(0);});
 });

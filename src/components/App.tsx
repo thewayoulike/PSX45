@@ -54,6 +54,7 @@ const TransferModal = lazy(() => import('./TransferModal').then(m => ({ default:
 const TradingSimulator = lazy(() => import('./TradingSimulator').then(m => ({ default: m.TradingSimulator })));
 const TradingLab = lazy(() => import('../features/tradingLab/TradingLab').then(m => ({ default: m.TradingLab })));
 const PracticeTrading = lazy(() => import('./PracticeTrading').then(m => ({ default: m.PracticeTrading })));
+import type { PracticeOrderDraft } from './PracticeTrading';
 const FairValueCalculator = lazy(() => import('./FairValueCalculator').then(m => ({ default: m.FairValueCalculator })));
 const LedgerCalculators = lazy(() => import('./LedgerCalculators').then(m => ({ default: m.LedgerCalculators })));
 const AlertsPage = lazy(() => import('./AlertsPage').then(m => ({ default: m.AlertsPage })));
@@ -190,7 +191,7 @@ const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
     return { ...rest, type: rest.type || 'PSX' };
   });
 
-const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST'];
+const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST', 'TRADING_LAB'];
 
 const getPortfolioType = (p?: Portfolio): PortfolioType => p?.type || 'PSX';
 
@@ -533,6 +534,8 @@ const App: React.FC = () => {
 
   const [holdings, setHoldings] = useState<Holding[]>([]);
   const scanHoldings = useMemo(() => holdingScanSymbols(holdings), [holdings]);
+  // A Trading Lab plan handed to Practice Trading as a pre-filled order.
+  const [practiceDraft, setPracticeDraft] = useState<PracticeOrderDraft | null>(null);
   const [realizedTrades, setRealizedTrades] = useState<RealizedTrade[]>([]);
   const [totalDividends, setTotalDividends] = useState<number>(0);
   const [totalDividendTax, setTotalDividendTax] = useState<number>(0);
@@ -3115,8 +3118,8 @@ const App: React.FC = () => {
                               <LedgerCalculators />
                           </div>
                       )}
-                      {currentView === 'TRADING_LAB' && <TradingLab key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} holdings={scanHoldings} holdingsLabel={isCombinedView ? 'Combined portfolios' : 'Selected portfolio'} />}
-                      {currentView === 'PRACTICE' && <PracticeTrading key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} />}
+                      {currentView === 'TRADING_LAB' && <TradingLab key={sbUser?.email || driveUser?.email} email={sbUser?.email || driveUser?.email || ''} altEmail={driveUser?.email} driveConnected={!!driveUser} onConnectDrive={handleLogin} holdings={scanHoldings} holdingsLabel={isCombinedView ? 'Combined portfolios' : 'Selected portfolio'} watchlist={watchlist} onOpenWatchlist={() => setCurrentView('WATCHLIST')} onOpenInsiders={() => setCurrentView('INSIDERS')} onPractise={order => { setPracticeDraft(order); setCurrentView('PRACTICE'); }} />}
+                      {currentView === 'PRACTICE' && <PracticeTrading key={driveUser?.email || sbUser?.email} email={driveUser?.email || sbUser?.email || ''} driveConnected={!!driveUser} onConnectDrive={handleLogin} draft={practiceDraft} />}
                       {currentView === 'SIMULATOR' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               <TradingSimulator

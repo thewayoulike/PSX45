@@ -1,17 +1,20 @@
 import {intradaySegments,pktDay,sizePlan,standardSessions,type Plan} from './engine';
-import {checkEntry,exitLevels,validateRules,type Rules} from './workflow';
+import {checkEntry,exitLevels,validateRules,comparableHistory,type Rules} from './workflow';
 import type {CandleSet} from './data';
 import {targetSummary,type TargetReview} from './targets';
 export type LabAlert={id:string;text:string;time:number};
 export function observedAlerts(candles:CandleSet,p:Plan,r:Rules,started:number,now:number):LabAlert[]{
   if(candles.symbol!==p.symbol)return [];
-  const s=intradaySegments(candles.bars,now).at(-1),last=s?.bars.at(-1);if(!s||!last||s.day!==pktDay(now)||now-last.time>15*60000||last.time+300000<started||now>s.end)return [];
+  const segments=intradaySegments(candles.bars,now),s=segments.at(-1),last=s?.bars.at(-1);if(!s||!last||s.day!==pktDay(now)||now-last.time>15*60000||last.time+300000<started||now>s.end)return [];
   const events:LabAlert[]=[],add=(key:string,text:string,time:number)=>events.push({id:`${s.key}:${p.symbol}:${key}`,text,time});
   const hasLevels=Number.isFinite(p.entry)&&Number.isFinite(p.stop)&&Number.isFinite(p.target)&&p.stop>0&&p.stop<p.entry&&p.target>p.entry;
-  if(hasLevels&&last.low<=p.stop)add(`stop:${p.stop}`,`${p.symbol}: a completed candle touched/breached the test stop ${p.stop}. This is not a fill.`,last.time+300000);
-  if(hasLevels&&last.high>=p.target)add(`target:${p.target}`,`${p.symbol}: a completed candle touched the test target ${p.target}. This is not a fill.`,last.time+300000);
+  // Every completed candle since monitoring began, not only the newest: a late refresh must not hide a touch.
+  const observed=s.bars.filter(b=>b.time+300000>=started&&b.time+300000<=now);
+  const stopBar=hasLevels?observed.find(b=>b.low<=p.stop):undefined,targetBar=hasLevels?observed.find(b=>b.high>=p.target):undefined;
+  if(stopBar)add(`stop:${p.stop}`,`${p.symbol}: a completed candle touched/breached the test stop ${p.stop}. This is not a fill.`,stopBar.time+300000);
+  if(targetBar)add(`target:${p.target}`,`${p.symbol}: a completed candle touched the test exit ${p.target}. This is not a fill.`,targetBar.time+300000);
   const skipReason=sizePlan(p).skipReason;
-  const entry=checkEntry(s,r,now);if(entry.trigger&&entry.trigger.time+300000>=started)add(`entry:${JSON.stringify(r)}`,skipReason?`${p.symbol}: ${skipReason}. Breakout recorded for research only.`:hasLevels?`${p.symbol}: your entry rules matched a completed candle. Review the plan.`:`${p.symbol}: entry rules matched, but usable exit levels are unavailable. No trade candidate.`,entry.trigger.time+300000);
+  const entry=checkEntry(s,r,now,comparableHistory(segments,s));if(entry.trigger&&entry.trigger.time+300000>=started)add(`entry:${JSON.stringify(r)}`,skipReason?`${p.symbol}: ${skipReason}. Breakout recorded for research only.`:hasLevels?`${p.symbol}: your entry rules matched a completed candle. Review the plan.`:`${p.symbol}: entry rules matched, but usable exit levels are unavailable. No trade candidate.`,entry.trigger.time+300000);
   return events;
 }
 
@@ -20,7 +23,10 @@ export type MonitoredStock={
   status:string;refreshedAt:number|null;candleAt:number|null;alerts:LabAlert[];
 };
 type Entry={value:MonitoredStock;seen:Set<string>;waitingForLevels:boolean};
-type Options={load:(symbol:string)=>Promise<CandleSet>;visible:()=>boolean;now?:()=>number;onData?:(data:CandleSet)=>void};
+type Options={load:(symbol:string)=>Promise<CandleSet>;visible:()=>boolean;now?:()=>number;onData?:(data:CandleSet)=>void;maxItems?:number};
+/** A new completed 5-minute candle is due about 20 s after each close; refreshing sooner only repeats data. */
+export const monitorDue=(value:Pick<MonitoredStock,'refreshedAt'|'candleAt'>,time:number)=>
+  value.refreshedAt==null||(time-value.refreshedAt>=60000&&(value.candleAt==null||time>=value.candleAt+320000));
 const validLevels=(p:Plan)=>[p.entry,p.stop,p.target].every(Number.isFinite)&&p.stop>0&&p.stop<p.entry&&p.target>p.entry;
 const stamp=(time:number)=>new Date(time).toLocaleString('en-GB',{timeZone:'Asia/Karachi',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'})+' PKT';
 
@@ -80,14 +86,17 @@ export function createLabMonitor(options:Options){
       })();
     }
   }
-  function refresh(){
+  function refresh(force=false){
     if(!active||!options.visible())return;
-    for(const entry of entries.values())if(!inFlight.has(entry))pending.add(entry);
+    const time=now();
+    for(const entry of entries.values())if(!inFlight.has(entry)&&(force||monitorDue(entry.value,time)))pending.add(entry);
     pump();
   }
   function create(plan:Plan,rules:Rules,source='',targetReview?:TargetReview){
-    if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(plan.symbol))throw new Error('Enter a valid PSX symbol.');
+    if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(plan.symbol))throw new Error('Enter a valid PSX symbol.');
     validateRules(rules);
+    const max=options.maxItems??5;
+    if(!entries.has(plan.symbol)&&entries.size>=max)throw new Error(`You can watch up to ${max} ${max===1?'stock':'stocks'} at once on your plan. Stop one to add another.`);
     const entry:Entry={value:{symbol:plan.symbol,plan:{...plan},rules:{...rules},source,...(targetReview?{targetReview:structuredClone(targetReview)}:{}),started:now(),status:'Waiting for the first refresh…',refreshedAt:null,candleAt:null,alerts:[]},seen:new Set(),waitingForLevels:!validLevels(plan)};
     entries.set(plan.symbol,entry);pending.add(entry);emit();pump();
   }
@@ -98,9 +107,9 @@ export function createLabMonitor(options:Options){
     update:(plan:Plan,rules:Rules,source='',targetReview?:TargetReview)=>{if(entries.has(plan.symbol))create(plan,rules,source,targetReview);},
     stop:(symbol:string)=>{const entry=entries.get(symbol);if(!entry)return;pending.delete(entry);entries.delete(symbol);emit();},
     stopAll:()=>{pending.clear();entries.clear();emit();},
-    resume:()=>{active=true;refresh();},
+    resume:()=>{active=true;refresh(true);},
     pause:()=>{active=false;epoch++;pending.clear();},
-    refresh,
+    refresh:()=>refresh(),
     tick:()=>{
       if(!active||!options.visible())return;
       const time=now();let changed=false;

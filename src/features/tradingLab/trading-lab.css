@@ -25,3 +25,40 @@
 .lab-rating-metric{display:block;margin-top:8px}.lab-rating-counts{display:flex;flex-wrap:wrap;gap:8px 18px;padding:12px 0;font-size:12px}.lab-rating-counts strong{font-size:17px}.lab-outcome{padding:8px 10px;border-left:3px solid var(--lab-line);background:var(--lab-wash);margin-bottom:10px;min-width:170px}.lab-outcome-target{border-left-color:#059669}.lab-outcome-stop,.lab-outcome-ambiguous{border-left-color:#e05259}.lab-strength .lab-strength-incomplete,.lab-strength .lab-strength-unavailable{background:#edf1f5;color:#536574}.dark .lab-strength .lab-strength-incomplete,.dark .lab-strength .lab-strength-unavailable{background:#334155;color:#e2e8f0}
 .lab-outcome details{font-size:11px;line-height:1.5;margin-top:6px}.lab-outcome summary{cursor:pointer;color:var(--lab-muted)}.lab-market-scanner th{overflow-wrap:normal}
 .lab-scan-settings,.lab-scan-diagnostics{padding:12px 14px;border:1px solid var(--lab-line);border-radius:9px;background:var(--lab-wash);font-size:12px}.lab-scan-diagnostics{margin:8px 0 16px;line-height:1.6}.lab-scan-diagnostics p:last-child{margin-bottom:0}.lab-scan-diagnostics strong{color:var(--lab-ink)}
+
+/* Notice and first-visit acknowledgement */
+.trading-lab .lab-disclaimer{border-color:#edd8ad;background:#fff8e8;color:#6b4a0f}.trading-lab .lab-disclaimer svg{color:#b7791f}
+.lab-ack ul{padding-left:18px;color:var(--lab-muted);line-height:1.7}.lab-ack .lab-primary{margin-top:10px}
+/* Tabs are a real tab list */
+.lab-tabs button[aria-selected=true]{background:#e3f4ec;color:#047857;border-color:#b6ddcc}
+/* What-if chart colours follow the theme */
+.lab-chart-area{fill:#10b981;opacity:.18}.lab-chart-line{stroke:#059669}.lab-chart-text{fill:var(--lab-muted)}
+/* Touch targets: 44px minimum */
+.trading-lab button:not(.lab-app-panel *){min-height:44px}.trading-lab .lab-link{min-height:44px;padding:0 4px}.trading-lab .lab-guide-steps button{min-height:44px}
+.trading-lab .lab-check input,.trading-lab input[type=checkbox]{width:20px;height:20px;flex-shrink:0}.trading-lab .lab-check{min-height:44px}
+
+/* Dark mode for every state colour */
+.dark .trading-lab .lab-disclaimer{background:#3a2e14;border-color:#6b5524;color:#f6dfa6}
+.dark .trading-lab .lab-warning{background:#3a2e14;border-color:#6b5524;color:#f6dfa6}
+.dark .trading-lab .lab-success{background:#163a2d;color:#a8e6c5}
+.dark .lab-badge{background:#193f32;color:#a8e6c5}.dark .lab-badge.lab-caution{background:#3a2e14;color:#f6dfa6}
+.dark .lab-tabs button[aria-selected=true],.dark .lab-news-filters button[aria-pressed=true]{background:#193f32;color:#a8e6c5;border-color:#32604b}
+.dark .lab-strength .lab-strength-strong{background:#193f32;color:#a8e6c5}.dark .lab-strength .lab-strength-moderate{background:#3a2e14;color:#f6dfa6}.dark .lab-strength .lab-strength-weak{background:#3d1f26;color:#ffc3cd}
+.dark .lab-guide-number{background:#193f32;color:#a8e6c5}.dark .trading-lab .lab-guide-toggle{color:#6ee7b7}
+.dark .lab-up{color:#34d399}.dark .lab-down{color:#fb8a91}.dark .trading-lab .lab-delete-plan{color:#fb8a91}
+
+@media(max-width:600px){
+  /* Readable text: nothing below 12px on phones */
+  .trading-lab small:not(.lab-app-panel *),.lab-table-wrap th,.lab-field>span,.lab-feed small,.lab-footer,.lab-guide-body{font-size:12px}
+  /* One column forms */
+  .lab-fields{grid-template-columns:1fr}
+  .lab-toolbar>button{min-height:44px}
+  /* Tables become stacked cards: no sideways scrolling and no scroll box inside the page */
+  .lab-table-wrap table{min-width:0}.lab-market-scanner .lab-table-wrap{max-height:none}
+  .lab-table-wrap thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+  .lab-table-wrap table,.lab-table-wrap tbody,.lab-table-wrap tr,.lab-table-wrap td{display:block;width:100%;max-width:none}
+  .lab-table-wrap tr{border:1px solid var(--lab-line);border-radius:12px;padding:6px 12px;margin-bottom:12px;background:var(--lab-card)}
+  .lab-table-wrap td{border-bottom:1px solid var(--lab-line);padding:9px 0}.lab-table-wrap td:last-child{border-bottom:0}
+  .lab-table-wrap td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--lab-muted);margin-bottom:4px}
+  .lab-strength,.lab-market-scanner td:first-child,.lab-market-scanner td:last-child{max-width:none;min-width:0}
+}

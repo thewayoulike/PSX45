@@ -16,7 +16,7 @@ export function parseLabFinancials(html:string):FundamentalsData|null{
   const annual=read('Annual'),quarterly=read('Quarterly');return annual.length||quarterly.length?{annual:{financials:annual,ratios:[]},quarterly:{financials:quarterly,ratios:[]}}:null;
 }
 export async function loadLabFinancials(symbol:string){
-  if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(symbol))throw new Error('Invalid symbol.');
+  if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol))throw new Error('Invalid symbol.');
   const {fetchUrlWithFallback}=await import('../../services/psxData');
   const html=await fetchUrlWithFallback(`https://dps.psx.com.pk/company/${symbol}`),data=html?parseLabFinancials(html):null;
   if(data)return {data,dated:true,units:'Amounts in PKR thousands (000s); EPS in PKR per share. PSX / Capital Stake standardized figures.'};

@@ -1,5 +1,5 @@
 import {dailyScan,intradaySegments,pktDay,standardSessions,type Bar,type Segment} from './engine';
-import {checkEntry,exitLevels,type Rules} from './workflow';
+import {checkEntry,exitLevels,comparableHistory,type Rules} from './workflow';
 import type {CandleSet} from './data';
 import type {TargetContext,TargetReview} from './targets';
 
@@ -42,7 +42,7 @@ export function normalizeUniverse(stocks:MarketSymbol[]):MarketSymbol[]{
   const unique=new Map<string,MarketSymbol>();
   for(const stock of stocks){
     const symbol=String(stock.symbol||'').trim().toUpperCase();
-    if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(symbol))continue;
+    if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol))continue;
     unique.set(symbol,{symbol,name:stock.name||symbol,sector:stock.sector||'Unclassified',volume:typeof stock.volume==='number'&&Number.isFinite(stock.volume)&&stock.volume>=0?stock.volume:null,...(typeof stock.listedIn==='string'?{listedIn:stock.listedIn}: {})});
   }
   return [...unique.values()].sort((a,b)=>(b.volume??-1)-(a.volume??-1)||a.symbol.localeCompare(b.symbol));
@@ -54,7 +54,7 @@ export function intradayScan(bars:Bar[],rules:Rules,now=Date.now(),context:Targe
   // Never substitute Friday morning (or yesterday) for a missing current session.
   const session=active?segments.find(s=>s.start===active.start):segments.at(-1);
   const last=session?.bars.at(-1),fresh=!!active&&!!last&&now-(last.time+300000)<=10*60000;
-  const check=session?checkEntry(session,{...rules,entryMode:'range'},now):null;
+  const check=session?checkEntry(session,{...rules,entryMode:'range'},now,comparableHistory(segments,session)):null;
   let levels:{entry:number;stop:number;target:number}|null=null;
   let targetReview:TargetReview|null=null;
   if(session&&check?.trigger){
@@ -72,10 +72,58 @@ export class ScanFeedError extends Error{
   constructor(message:string,public status=0,public retryAt=0){super(message);this.name='ScanFeedError';}
 }
 
-/** Bounded workers, one result per stock; cancellation prevents further requests/updates. */
-export async function runMarketScan(options:{stocks:MarketSymbol[];kind:ScanKind;rules:Rules;signal:AbortSignal;
+export type BatchResult=Map<string,CandleSet|Error>;
+type ScanOptions={stocks:MarketSymbol[];kind:ScanKind;rules:Rules;signal:AbortSignal;
   load:(symbol:string,kind:ScanKind,signal:AbortSignal,rules?:Rules)=>Promise<CandleSet>;
-  onRow:(row:ScanRow)=>void;now?:()=>number;concurrency?:number}){
+  loadBatch?:(symbols:string[],kind:ScanKind,signal:AbortSignal,rules:Rules)=>Promise<BatchResult>;batchSize?:number;
+  wait?:(ms:number,signal:AbortSignal)=>Promise<void>;onWait?:(until:number)=>void;
+  onRow:(row:ScanRow)=>void;now?:()=>number;concurrency?:number};
+const scanRow=(stock:MarketSymbol,kind:ScanKind,rules:Rules,result:CandleSet|Error|undefined,checkedAt:number):ScanRow=>{
+  try{
+    if(!result)throw new Error('History unavailable.');
+    if(result instanceof Error)throw result;
+    if(result.symbol!==stock.symbol)throw new Error('The feed returned a different stock.');
+    return {...stock,checkedAt,...(kind==='daily'?{daily:dailyScan(result.bars,checkedAt)}:{entry:intradayScan(result.bars,rules,checkedAt,result.targetContext)})};
+  }catch(e){return {...stock,checkedAt,error:e instanceof Error?e.message:'History unavailable.'};}
+};
+
+/**
+ * Batched scan: one request per group of stocks, one group at a time. A busy or rate-limited
+ * reply waits for the server's Retry-After (up to 3 times per group) and continues by itself.
+ */
+async function runBatchedScan(options:ScanOptions&{loadBatch:NonNullable<ScanOptions['loadBatch']>}){
+  const {stocks,signal,kind,rules,onRow,loadBatch}=options,now=options.now??Date.now,size=Math.max(1,options.batchSize??8);
+  const wait=options.wait??((ms,s)=>new Promise<void>((resolve)=>{const t=setTimeout(resolve,ms);s.addEventListener('abort',()=>{clearTimeout(t);resolve();},{once:true});}));
+  let done=0,failed=0,failures=0,pause='',retryAt=0;
+  for(let i=0;i<stocks.length&&!signal.aborted&&!pause;){
+    const chunk=stocks.slice(i,i+size);let result:BatchResult|null=null;
+    for(let attempt=0;!signal.aborted;attempt++){
+      try{result=await loadBatch(chunk.map(s=>s.symbol),kind,signal,rules);failures=0;break;}
+      catch(e){
+        if(signal.aborted)break;
+        const feed=e instanceof ScanFeedError?e:null;
+        if(feed&&(feed.status===429||feed.status===503)&&attempt<3){
+          const until=Math.max(now()+5000,Math.min(feed.retryAt||now()+30000,now()+90000));
+          options.onWait?.(until);await wait(until-now(),signal);continue;
+        }
+        failures++;retryAt=Math.max(retryAt,feed?.retryAt||0);
+        if(feed?.status===429||feed?.status===503)pause='The market-data service is busy. Completed results are kept; retry unfinished stocks in a few minutes.';
+        else if(failures>=3)pause='The feed is repeatedly unavailable. Completed results are kept; retry unfinished stocks later.';
+        result=new Map(chunk.map(s=>[s.symbol,e instanceof Error?e:new Error('History unavailable.')]));
+        break;
+      }
+    }
+    if(signal.aborted||!result)break;
+    const checkedAt=now();
+    for(const stock of chunk){const row=scanRow(stock,kind,rules,result.get(stock.symbol),checkedAt);done++;if(row.error)failed++;onRow(row);}
+    i+=size;
+  }
+  return {done,total:stocks.length,failed,cancelled:signal.aborted,pause,retryAt};
+}
+
+/** Bounded workers, one result per stock; cancellation prevents further requests/updates. */
+export async function runMarketScan(options:ScanOptions){
+  if(options.loadBatch)return runBatchedScan(options as ScanOptions&{loadBatch:NonNullable<ScanOptions['loadBatch']>});
   const {stocks,signal,kind,rules,load,onRow}=options;
   let cursor=0,done=0,failures=0,failed=0,pause='',retryAt=0;
   await Promise.all(Array.from({length:Math.min(3,Math.max(1,options.concurrency??3),stocks.length)},async()=>{

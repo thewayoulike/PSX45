@@ -5,6 +5,7 @@ import {normalizeUniverse,intradayScan,ScanFeedError,type MarketUniverse,type Sc
 import {DEFAULT_RULES,type Rules} from './workflow';
 import type {CandleSet} from './data';
 import {loadTargetContext} from './targetData';
+import {takeLabSlot,LAB_SYMBOL} from './labBudget';
 
 async function request(url:string,signal?:AbortSignal){
   const controller=new AbortController(),abort=()=>controller.abort();
@@ -14,6 +15,8 @@ async function request(url:string,signal?:AbortSignal){
   // at 25 seconds and start more requests while it still occupies a server slot.
   const timer=setTimeout(abort,45000);
   try{
+    await takeLabSlot(controller.signal);
+    if(controller.signal.aborted)throw new DOMException('Scan cancelled','AbortError');
     const response=await fetch(url,{signal:controller.signal});
     if(!response.ok){
       const retry=response.headers.get('Retry-After');
@@ -46,17 +49,25 @@ export function parseMarketUniverse(html:string):MarketUniverse['stocks']{
   return normalizeUniverse(stocks);
 }
 
-export async function loadMarketUniverse(signal?:AbortSignal):Promise<MarketUniverse>{
-  const html=await request('/api/proxy?url='+encodeURIComponent('https://dps.psx.com.pk/market-watch'),signal);
-  const stocks=parseMarketUniverse(html);
-  if(!stocks.length)throw new Error('PSX Market Watch did not return a usable stock list. Retry the market scan.');
-  return {stocks,retrievedAt:new Date().toISOString(),source:'PSX Market Watch'};
+// Market Watch is shared by scans, watchlist tags and Research's sector lookup: fetch it once per 5 minutes.
+let universeCache:{expires:number;value:Promise<MarketUniverse>}|null=null;
+export function loadMarketUniverse(signal?:AbortSignal):Promise<MarketUniverse>{
+  if(universeCache&&universeCache.expires>Date.now())return universeCache.value;
+  const value=(async()=>{
+    const html=await request('/api/proxy?url='+encodeURIComponent('https://dps.psx.com.pk/market-watch'),signal);
+    const stocks=parseMarketUniverse(html);
+    if(!stocks.length)throw new Error('PSX Market Watch did not return a usable stock list. Retry the market scan.');
+    return {stocks,retrievedAt:new Date().toISOString(),source:'PSX Market Watch'};
+  })();
+  universeCache={expires:Date.now()+300000,value};
+  value.catch(()=>{if(universeCache?.value===value)universeCache=null;});
+  return value;
 }
 
 // A bounded cache avoids retaining years of candles for the entire exchange on mobile.
 const cache=new Map<string,{expires:number;value:CandleSet}>();
 export async function loadScanCandles(symbol:string,kind:ScanKind,signal:AbortSignal,rules:Rules=DEFAULT_RULES):Promise<CandleSet>{
-  if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(symbol))throw new Error('Invalid PSX symbol.');
+  if(!LAB_SYMBOL.test(symbol))throw new Error('Invalid PSX symbol.');
   if(signal.aborted)throw new DOMException('Scan cancelled','AbortError');
   const key=kind+':'+symbol,existing=cache.get(key);
   if(existing&&existing.expires>Date.now())return withTargetContext(existing.value,kind,signal,rules);
@@ -71,6 +82,47 @@ export async function loadScanCandles(symbol:string,kind:ScanKind,signal:AbortSi
   cache.delete(key);cache.set(key,{expires:Date.now()+(kind==='daily'?300000:30000),value});
   while(cache.size>80)cache.delete(cache.keys().next().value!);
   return withTargetContext(value,kind,signal,rules);
+}
+
+const parseScanPayload=(symbol:string,raw:any):CandleSet=>{
+  if(!raw||typeof raw!=='object')throw new Error('Market feed returned an unreadable response.');
+  if(raw.error)throw new Error('History unavailable for this stock.');
+  if(raw.symbol&&raw.symbol!==symbol)throw new Error('The feed returned a different stock.');
+  const bars=parseBars(raw.bars);if(!bars.length)throw new Error('No usable candle history returned.');
+  return {symbol,bars,source:String(raw.source||'PSX market feed'),retrievedAt:new Date().toISOString()};
+};
+// Intraday batches share one 35 s server worker; daily batches fetch PSX 4 at a time.
+export const SCAN_BATCH={daily:12,intraday:6} as const;
+
+/** One request for a group of stocks. Per-stock failures stay with that stock. */
+export async function loadScanBatch(symbols:string[],kind:ScanKind,signal:AbortSignal,rules:Rules=DEFAULT_RULES):Promise<Map<string,CandleSet|Error>>{
+  const result=new Map<string,CandleSet|Error>(),missing:string[]=[];
+  for(const symbol of symbols){
+    if(!LAB_SYMBOL.test(symbol)){result.set(symbol,new Error('Invalid PSX symbol.'));continue;}
+    const cached=cache.get(kind+':'+symbol);
+    if(cached&&cached.expires>Date.now())result.set(symbol,cached.value);else missing.push(symbol);
+  }
+  if(missing.length){
+    const list=encodeURIComponent(missing.join(','));
+    const url=kind==='daily'?`/api/proxy?ohlcBatch=${list}`:`/api/pypsx?mode=intraday&symbols=${list}&interval=5m&period=5d`;
+    let raw:any;try{raw=JSON.parse(await request(url,signal));}catch(e){if(e instanceof SyntaxError)throw new ScanFeedError('Market feed returned an unreadable response.');throw e;}
+    if(!raw||typeof raw.batch!=='object'||!raw.batch)throw new ScanFeedError(raw?.error?'Market feed is temporarily unavailable.':'Market feed returned an unreadable response.');
+    for(const symbol of missing){
+      try{
+        const value=parseScanPayload(symbol,raw.batch[symbol]);
+        cache.delete(kind+':'+symbol);cache.set(kind+':'+symbol,{expires:Date.now()+(kind==='daily'?300000:30000),value});
+        result.set(symbol,value);
+      }catch(e){result.set(symbol,e instanceof Error?e:new Error('History unavailable.'));}
+    }
+    while(cache.size>80)cache.delete(cache.keys().next().value!);
+  }
+  if(signal.aborted)throw new DOMException('Scan cancelled','AbortError');
+  // Target context only for real breakouts, one paced request each.
+  for(const [symbol,value] of result){
+    if(value instanceof Error)continue;
+    try{result.set(symbol,await withTargetContext(value,kind,signal,rules));}catch(e){if(signal.aborted)throw e;}
+  }
+  return result;
 }
 
 async function withTargetContext(value:CandleSet,kind:ScanKind,signal:AbortSignal,rules:Rules):Promise<CandleSet>{

@@ -17,7 +17,7 @@ it('distinguishes failed data, missing data and an expired no-match result',()=>
  const failed={...row(),error:'HTTP 503'};expect(missingLevelsReason(failed)).toContain('feed failed');
  const incomplete={...row(),entry:intradayScan(bars.slice(0,3),DEFAULT_RULES,at('11:10'))};
  expect(missingLevelsReason(incomplete)).toContain('incomplete');
- const expired={...row(),entry:intradayScan(bars.map(b=>({...b,close:100})),{...DEFAULT_RULES,entryMinutes:25},at('10:10'))};
+ const expired={...row(),entry:intradayScan(bars.map(b=>({...b,close:100})),{...DEFAULT_RULES,entryMinutes:20},at('10:10'))};
  expect(missingLevelsReason(expired)).toContain('window ended');
  const ratings=new Map([failed,incomplete,expired].map((r,i)=>[String(i),setupStrength(r)]));
  const rows=[failed,incomplete,expired].map((r,i)=>({...r,symbol:String(i)}));

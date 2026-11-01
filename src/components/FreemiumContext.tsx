@@ -27,6 +27,9 @@ const FREE_QUOTAS: FreemiumQuotas = {
   aiMessagesPerDay: 10,
   fairValuePerDay: 4,
   exportPerDay: 1,
+  // PSX Trading Lab: KSE-100 / KMI-30 / full-market scans per day, and stocks watched at once.
+  labScansPerDay: 2,
+  labMonitors: 1,
 };
 
 /**
@@ -51,6 +54,9 @@ const PAID_QUOTAS: FreemiumQuotas = {
   aiMessagesPerDay: Number.POSITIVE_INFINITY,
   fairValuePerDay: Number.POSITIVE_INFINITY,
   exportPerDay: Number.POSITIVE_INFINITY,
+  // Higher, but deliberately finite: each list scan is a large batch of market-data requests.
+  labScansPerDay: 15,
+  labMonitors: 5,
 };
 
 /** Merge API quotas; null/NaN mean unlimited when not Free (JSON dropped Infinity). */

@@ -3,6 +3,8 @@ import type {ScanRow} from './scanner';
 
 export type ScanCosts=Pick<Plan,'feePct'|'slipPct'>;
 export type SetupStrength={label:'Strong'|'Moderate'|'Weak'|'Skip'|'No setup'|'Incomplete'|'Unavailable';rank:number;context:string;reasons:string[];summary?:string;netRR?:number;volumeRatio?:number|null};
+/** What people see: how many checks passed, never a buy/sell grade. */
+export const RATING_TEXT:Record<SetupStrength['label'],string>={Strong:'3 of 3 checks',Moderate:'2 of 3 checks',Weak:'1 of 3 checks',Skip:'Skip · no net upside','No setup':'No setup',Incomplete:'Incomplete',Unavailable:'Unavailable'};
 const grade=(points:number,context:string,reasons:string[]):SetupStrength=>({label:points>=3?'Strong':points===2?'Moderate':'Weak',rank:points>=3?3:points===2?2:1,context,reasons});
 /** Transparent screening heuristic, not calibrated odds or a forecast. Uses only the scan snapshot. */
 export function setupStrength(row:ScanRow,costs:ScanCosts=DEFAULT_PLAN):SetupStrength{
@@ -18,10 +20,11 @@ export function setupStrength(row:ScanRow,costs:ScanCosts=DEFAULT_PLAN):SetupStr
     let points=1;
     const volume=Number.isFinite(entry.check.volumeRatio)?entry.check.volumeRatio:null;
     if(volume!=null&&Number.isFinite(volume)){
-      reasons.push(`Breakout volume: ${volume.toFixed(2)}× the opening-candle average${volume>=1.5?' (meets 1.5× check).':' (below 1.5× check).'}`);
+      reasons.push(`Breakout volume: ${volume.toFixed(2)}× ${entry.check.volumeBasis==='time-of-day'?'the usual volume at this time of day':'the opening-candle average'}${volume>=1.5?' (meets 1.5× check).':' (below 1.5× check).'}`);
       if(volume>=1.5)points++;
     }else reasons.push('Breakout volume confirmation is unavailable.');
-    const sized=sizePlan({...DEFAULT_PLAN,feePct:costs.feePct,slipPct:costs.slipPct,symbol:row.symbol,...entry.levels});
+    // Quality must not depend on account size: size against ample sample capital so only costs and R count.
+    const sized=sizePlan({...DEFAULT_PLAN,capital:Math.max(DEFAULT_PLAN.capital,entry.levels.entry*1000),capPct:100,riskPct:100,feePct:costs.feePct,slipPct:costs.slipPct,symbol:row.symbol,...entry.levels});
     if(sized.skipReason)return {label:'Skip',rank:0,context,netRR:sized.rr,volumeRatio:volume,reasons:[sized.skipReason,'Even a fill at the target leaves no positive profit after estimated fees and slippage.']};
     reasons.push(...sized.errors);
     const rr=sized.rr;

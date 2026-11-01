@@ -12,7 +12,9 @@ const label = (value = '') => value.replace(/_/g, ' ').toLowerCase();
 const pending = (status: string) => ['PENDING', 'PARTIALLY_FILLED', 'NEW', 'ACCEPTED', 'OPEN'].includes(status);
 type RequestFn = <T>(email: string, body: Record<string, unknown>) => Promise<T>;
 
-export const PracticeTrading: React.FC<{ email: string; request?: RequestFn;driveConnected?:boolean;onConnectDrive?:()=>void }> = ({ email, request = practiceRequest,driveConnected=false,onConnectDrive }) => {
+/** A plan sent from the PSX Trading Lab: pre-fills a limit order the person still reviews and places. */
+export type PracticeOrderDraft = { id: string; symbol: string; quantity: number; price: number; note?: string };
+export const PracticeTrading: React.FC<{ email: string; request?: RequestFn;driveConnected?:boolean;onConnectDrive?:()=>void;draft?:PracticeOrderDraft|null }> = ({ email, request = practiceRequest,driveConnected=false,onConnectDrive,draft=null }) => {
   const [backupRevision,setBackupRevision]=useState(0);
   const [data, setData] = useState<PracticeSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,6 +38,12 @@ export const PracticeTrading: React.FC<{ email: string; request?: RequestFn;driv
   const submitting = useRef(false);
   const quoteSequence = useRef(0);
   const [cancelId, setCancelId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!draft) return;
+    setSymbol(draft.symbol); setSide('BUY'); setOrderType('LIMIT');
+    setQuantity(String(draft.quantity)); setPrice(String(draft.price));
+    setMessage(draft.note || `Order form filled from your Trading Lab plan for ${draft.symbol}. Review it, then place it if you want to practise this trade.`);
+  }, [draft?.id]);
 
   const refresh = useCallback(async (quiet = false) => {
     if ((quiet && refreshing.current) || submitting.current) return;

@@ -14,7 +14,10 @@ it('combines concurrent devices without truncating journals at the creation limi
 });
 it('refuses conflicting IDs and malformed plans instead of silently dropping them',()=>{
   const a={watchlist:'HBL',tickets:[ticket('one')]};
-  expect(()=>mergeLabs(a,{...a,tickets:[{...a.tickets[0],note:'changed'}]})).toThrow('differ');
+  // Copies from different app versions can differ; keep the fuller copy instead of stopping sync.
+  const fuller={...a.tickets[0],note:'a longer research note'};
+  expect(mergeLabs(a,{...a,tickets:[fuller]}).tickets[0].note).toBe('a longer research note');
+  expect(mergeLabs({...a,tickets:[fuller]},a).tickets[0].note).toBe('a longer research note');
   expect(()=>parseLab({...a,tickets:[...a.tickets,{bad:true}]})).toThrow('could not be read');
 });
 it('persists deletion markers and never resurrects a plan from an older device',()=>{

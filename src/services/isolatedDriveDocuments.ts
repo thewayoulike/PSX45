@@ -40,11 +40,16 @@ export async function openDriveDocuments<T>(email: string, kind: DocumentKind, p
       if (files.length > 1000) throw new Error('Too many recovery files to sync safely. Export your journal and contact support.');
     } while (page);
     const documents: DriveDocument<T>[] = [];
+    let unreadable = 0;
     for (const file of files) {
       if (!/^[\w-]+$/.test(file.id)) throw new Error('Invalid Drive file reference.');
       const raw = await (await request(`${base}/${file.id}?alt=media`, { cache: 'no-store' })).json();
-      documents.push({ fileId: file.id, savedAt: file.createdTime, value: validate(raw) });
+      // A copy this version cannot read (e.g. written by a newer app) is left in Drive untouched and
+      // excluded from merging and cleanup, so it never blocks syncing the readable copies.
+      try { documents.push({ fileId: file.id, savedAt: file.createdTime, value: validate(raw) }); }
+      catch (error) { if (error instanceof Error && /different account/.test(error.message)) throw error; unreadable++; }
     }
+    if (!documents.length && unreadable) throw new Error('Your Drive copy could not be read by this version of the app. It has been kept unchanged; update the app and retry.');
     return documents;
   };
   const save = async (value: T, observed: DriveDocument<T>[], retain = 0): Promise<DriveDocument<T>> => {

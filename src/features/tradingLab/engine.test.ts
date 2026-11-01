@@ -31,7 +31,7 @@ describe('replay integrity',()=>{
 
 describe('target profit after costs',()=>{
  it('uses both-side fees and slippage and agrees with the displayed R ratio',()=>{
-  const result=sizePlan({...DEFAULT_PLAN,symbol:'PPL',entry:210.15,stop:208.90,target:212.65});
+  const result=sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,symbol:'PPL',entry:210.15,stop:208.90,target:212.65});
   expect(result.quantity).toBe(118);
   const netTargetProceeds=118*212.65*0.999*0.998;
   const totalEntryCost=118*210.15*1.001*1.002;
@@ -54,7 +54,7 @@ describe('target profit after costs',()=>{
  });
  it('skips break-even targets including floating-point roundoff, without conflating low positive R',()=>{
   const target=100*1.001*1.002/(.999*.998);
-  expect(sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target}).skipReason).toBeTruthy();
-  expect(sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target:target+.01}).skipReason).toBeNull();
+  expect(sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,entry:100,stop:98,target}).skipReason).toBeTruthy();
+  expect(sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,entry:100,stop:98,target:target+.01}).skipReason).toBeNull();
  });
 });
