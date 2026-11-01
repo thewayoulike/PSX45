@@ -188,3 +188,25 @@ describe('minimum stop distance',()=>{
     expect(sizePlan(plan).errors[0]).toContain('too close');
   });
 });
+
+describe('closing-price exit',()=>{
+  it('estimates PSX’s official close as the last 30 minutes’ volume-weighted price',async()=>{
+    const {closingPrice}=await import('./workflow');
+    const day='2026-10-22',end=at(day,'15:30');
+    const bars=session(day).map((b,i,all)=>i>=all.length-6?(c=>({...b,open:c,high:c,low:c,close:c,volume:i===all.length-1?500:100}))(i===all.length-1?106:100):b);
+    // 5 candles at 100 x 100 shares and one at 106 x 500: (50,000 + 53,000) / 1,000 = 103
+    expect(closingPrice(bars,end)).toBe(103);
+    expect(closingPrice(bars.map(b=>({...b,volume:1})),end)).toBe(106); // under 500 shares: last trade
+  });
+  it('replay sells at the official close when neither level is reached, on the day’s last session',()=>{
+    const bars=session('2026-10-22');bars[3]=bar(bars[3].time,102);
+    for(let i=4;i<bars.length;i++)bars[i]=bar(bars[i].time,103);
+    const result=replayRules(bars,{...DEFAULT_PLAN,entry:102,stop:99,target:110,feePct:0,slipPct:0},{...DEFAULT_RULES,exitAt:'closing-price'},at('2026-10-24','12:00'));
+    expect(result.trades[0]).toMatchObject({outcome:'closing-price',exit:103});
+  });
+  it('older saved settings without the new field still load with the default',async()=>{
+    const {parseWorkflow,DEFAULT_RISK}=await import('./workflow');
+    const {exitAt,...legacy}=DEFAULT_RULES;void exitAt;
+    expect(parseWorkflow({rules:legacy,risk:DEFAULT_RISK}).rules.exitAt).toBe('flat');
+  });
+});

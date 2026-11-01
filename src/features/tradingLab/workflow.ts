@@ -1,23 +1,27 @@
 // PSX testing equivalents of the MIT upstream entry, exit, risk and Time Machine tools.
-import {intradaySegments,openingRange,netReturn,coversTargetCosts,sizePlan,walkTrade,pktDay,standardBand,lockedAt,type Bar,type Plan,type Segment,type DailyBand} from './engine';
+import {intradaySegments,openingRange,netReturn,coversTargetCosts,sizePlan,walkTrade,pktDay,standardBand,lockedAt,standardSessions,type Bar,type Plan,type Segment,type DailyBand} from './engine';
 import {assessTarget,type TargetContext} from './targets';
 const FIVE=300000;
-export type Rules={entryMode:'range'|'level';level:number;volumeX:number;entryMinutes:number;stopMode:'range-low'|'range-mid'|'percent'|'atr'|'manual';stopValue:number;targetR:number;flatMinutes:number;entryIndex:number;jitter:number;minimumSessions:number};
-export const DEFAULT_RULES:Rules={entryMode:'range',level:100,volumeX:0,entryMinutes:90,stopMode:'range-low',stopValue:2,targetR:2,flatMinutes:5,entryIndex:2,jitter:2,minimumSessions:3};
+export type Rules={entryMode:'range'|'level';level:number;volumeX:number;entryMinutes:number;stopMode:'range-low'|'range-mid'|'percent'|'atr'|'manual';stopValue:number;targetR:number;flatMinutes:number;entryIndex:number;jitter:number;minimumSessions:number;
+  /** 'flat': close flatMinutes before the session ends. 'closing-price': sell at PSX's official close in the post-close session. */
+  exitAt:'flat'|'closing-price'};
+export const DEFAULT_RULES:Rules={entryMode:'range',level:100,volumeX:0,entryMinutes:90,stopMode:'range-low',stopValue:2,targetR:2,flatMinutes:5,entryIndex:2,jitter:2,minimumSessions:3,exitAt:'flat'};
 export type RiskContext={cash:number;cashBuffer:number;lossSoFar:number;reservedRisk:number;dailyLossLimit:number;trades:number;maxTrades:number;minOrder:number;maxOrder:number;heldSymbols:string;blockedSymbols:string};
 export const DEFAULT_RISK:RiskContext={cash:100000,cashBuffer:10000,lossSoFar:0,reservedRisk:0,dailyLossLimit:3000,trades:0,maxTrades:3,minOrder:0,maxOrder:25000,heldSymbols:'',blockedSymbols:''};
 export type WorkflowSnapshot={rules:Rules;risk:RiskContext};
 export function validateRules(r:Rules){
-  if(!r||!['range','level'].includes(r.entryMode)||!['range-low','range-mid','percent','atr','manual'].includes(r.stopMode))throw new Error('Choose valid entry and exit rules.');
+  if(!r||!['range','level'].includes(r.entryMode)||!['range-low','range-mid','percent','atr','manual'].includes(r.stopMode)||!['flat','closing-price'].includes(r.exitAt))throw new Error('Choose valid entry and exit rules.');
   if(![r.level,r.volumeX,r.entryMinutes,r.stopValue,r.targetR,r.flatMinutes,r.entryIndex,r.jitter,r.minimumSessions].every(Number.isFinite)||r.level<=0||r.volumeX<0||r.volumeX>100||r.entryMinutes<20||r.entryMinutes>360||r.stopValue<=0||r.targetR<=0||r.targetR>10||r.flatMinutes<0||r.flatMinutes>60||r.flatMinutes%5||r.entryIndex<2||r.entryIndex>70||!Number.isInteger(r.entryIndex)||!Number.isInteger(r.jitter)||r.jitter<0||r.jitter>6||!Number.isInteger(r.minimumSessions)||r.minimumSessions<3||r.minimumSessions>60)throw new Error('Check rule values, entry timing and sample size.');
 }
 export function validateRisk(r:RiskContext){
   if(!r||![r.cash,r.cashBuffer,r.lossSoFar,r.reservedRisk,r.dailyLossLimit,r.trades,r.maxTrades,r.minOrder,r.maxOrder].every(v=>typeof v==='number'&&Number.isFinite(v)&&v>=0)||!Number.isInteger(r.trades)||!Number.isInteger(r.maxTrades)||r.maxTrades<1||r.dailyLossLimit<=0||r.maxOrder<r.minOrder||typeof r.heldSymbols!=='string'||typeof r.blockedSymbols!=='string')throw new Error('Check the hypothetical session risk inputs.');
 }
 export function parseWorkflow(raw:any):WorkflowSnapshot{
-  validateRules(raw?.rules);validateRisk(raw?.risk);
+  // Fields added in later versions get their defaults, so older saved settings still load.
+  const filled={...raw,rules:raw?.rules?{exitAt:DEFAULT_RULES.exitAt,...raw.rules}:raw?.rules};
+  validateRules(filled.rules);validateRisk(raw?.risk);
   // Explicit fields keep immutable Drive records canonical across devices.
-  const rules=Object.fromEntries(Object.keys(DEFAULT_RULES).map(k=>[k,raw.rules[k]])) as Rules;
+  const rules=Object.fromEntries(Object.keys(DEFAULT_RULES).map(k=>[k,filled.rules[k]])) as Rules;
   const risk=Object.fromEntries(Object.keys(DEFAULT_RISK).map(k=>[k,raw.risk[k]])) as RiskContext;
   return {rules,risk};
 }
@@ -95,7 +99,8 @@ export function replayRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),context:Tar
   const segments=intradaySegments(bars,now),complete=segments.filter(s=>s.complete);let skipped=0,blocked=0;
   const trades=complete.flatMap(s=>{
     const signal=checkEntry(s,r,s.end,comparableHistory(complete,s));if(!signal.trigger)return [];
-    const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=s.end-r.flatMinutes*60000);if(!after.length){skipped++;return [];}
+    const atClose=r.exitAt==='closing-price'&&endsDay(s);
+    const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=(atClose?s.end:s.end-r.flatMinutes*60000));if(!after.length){skipped++;return [];}
     const band=sessionBand(s,segments,context.daily);
     // Locked at the upper limit: sellers have gone, so a buy order queues and does not fill.
     if(band&&lockedAt(after[0],band.upper)){blocked++;return [];}
@@ -104,13 +109,29 @@ export function replayRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),context:Tar
     let levels:ReturnType<typeof exitLevels>;try{levels=exitLevels(entry,s,signal.index,r,p.stop,{...context,intraday:bars});}catch{skipped++;return [];}
     if(levels.target==null){skipped++;return [];}
     if(!coversTargetCosts(entry,levels.target,p.feePct,p.slipPct,p.oneSideCommission)){skipped++;return [];}
-    const result=walkTrade(after,entry,levels.stop,levels.target,band);
+    const walked=walkTrade(after,entry,levels.stop,levels.target,band);
+    // Still open at the end: sold at the official closing price in the post-close session.
+    const official=atClose&&walked.outcome==='close'?closingPrice(s.bars,s.end):null;
+    const result=official!=null?{...walked,outcome:'closing-price' as const,exit:official}:walked;
     return [{day:s.day,session:s.family,entryTime:signal.trigger.time+FIVE,entry,stop:levels.stop,target:levels.target,targetReview:levels.targetReview,...result,netR:netReturn(entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/(entry-levels.stop)}];
   });
   const wins=trades.filter(t=>t.netR>0).length;
   return {sessions:complete.length,excluded:segments.length-complete.length,skipped,blocked,locked:trades.filter(t=>t.outcome==='locked').length,trades,wins,winRange:trades.length?wilson(wins,trades.length):null,
     averageR:trades.length?trades.reduce((a,t)=>a+t.netR,0)/trades.length:null};
 }
+/**
+ * PSX official closing price (Regulations 19.1): volume-weighted average of the last 30 minutes,
+ * estimated from 5-minute candles (typical price × volume). Falls back to the last close when the
+ * last 30 minutes traded under 500 shares, or volume is unknown.
+ */
+export function closingPrice(bars:Bar[],sessionEnd:number){
+  const last=bars.filter(b=>b.time>=sessionEnd-30*60000&&b.time+FIVE<=sessionEnd);
+  const volume=last.reduce((n,b)=>n+(b.volume??0),0);
+  if(!last.length||last.some(b=>b.volume==null)||volume<500)return bars.at(-1)?.close??null;
+  return Math.round(last.reduce((n,b)=>n+(b.high+b.low+b.close)/3*(b.volume as number),0)/volume*100)/100;
+}
+/** The closing-price exit applies only to a day's last session (Friday morning has no post-close). */
+const endsDay=(s:Segment)=>{const day=standardSessions(s.day);return day.at(-1)?.end===s.end;};
 /** The day's PSX limit band from the previous close (daily history first, else the previous session's last candle). */
 export function sessionBand(s:Segment,segments:Segment[],daily?:Bar[]):DailyBand|null{
   const prior=(daily||[]).filter(b=>pktDay(b.time)<s.day).at(-1)?.close
@@ -137,8 +158,9 @@ export function simulateRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),replays=1
   const earlier=segments.filter(s=>s.complete&&s.day<latest.day&&s.family===latest.family);
   const pool=earlier.flatMap(s=>{
     const signal=checkEntry(s,r,s.end,comparableHistory(earlier,s));if(!signal.trigger)return [];
-    const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=s.end-r.flatMinutes*60000);
-    return after.length?[{day:s.day,base:after[0].open,bars:after,band:sessionBand(s,segments)}]:[];
+    const atClose=r.exitAt==='closing-price'&&endsDay(s);
+    const after=s.bars.slice(signal.index+1).filter(b=>b.time+FIVE<=(atClose?s.end:s.end-r.flatMinutes*60000));
+    return after.length?[{day:s.day,base:after[0].open,bars:after,band:sessionBand(s,segments),official:atClose?closingPrice(s.bars,s.end):null}]:[];
   });
   if(pool.length<r.minimumSessions)throw new Error(`Need ${r.minimumSessions} earlier ${latest.family} sessions where these entry rules triggered; found ${pool.length} of ${earlier.length} sessions checked.`);
   let state=seed>>>0;const random=()=>{state=(Math.imul(1664525,state)+1013904223)>>>0;return state/4294967296;};
@@ -148,7 +170,8 @@ export function simulateRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),replays=1
     const pick=pool[Math.floor(random()*pool.length)],scale=p.entry/pick.base;
     const path=pick.bars.map(b=>({...b,open:b.open*scale,high:b.high*scale,low:b.low*scale,close:b.close*scale}));
     const band=pick.band?{lower:pick.band.lower*scale,upper:pick.band.upper*scale}:null;
-    const result=walkTrade(path,p.entry,p.stop,p.target,band);counts[result.outcome]++;pnl.push(netReturn(p.entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/risk);
+    const walked=walkTrade(path,p.entry,p.stop,p.target,band);
+    const result=pick.official!=null&&walked.outcome==='close'?{...walked,exit:pick.official*scale}:walked;counts[result.outcome]++;pnl.push(netReturn(p.entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/risk);
     if(n<1000){curves[0].push(p.entry);for(let i=0;i<length;i++)curves[i+1].push((path[i]??path.at(-1)!).close);}
   }
   const quant=(xs:number[],q:number)=>xs[Math.min(xs.length-1,Math.floor(xs.length*q))];pnl.sort((a,b)=>a-b);

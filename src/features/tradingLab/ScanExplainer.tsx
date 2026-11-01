@@ -10,7 +10,7 @@ export function ScanExplainer({kind,onPlan}:{kind:ScanKind;onPlan:()=>void}){
   ['Checks passed','Three checks: a completed closing breakout, volume at least 1.5× usual for that time, and reward at least 1.5× risk after costs. “3 of 3” passes all three. If costs would exceed the move to the test exit, the setup is marked Skip.'],
   ['Outcome and freshness','The outcome checks completed candles after entry up to the planned exit time. It records observed level touches, not actual trades. Each stock has its own timestamp; a one-off scan does not refresh itself.'],
  ]:[
-  ['Closing breakout','Latest completed daily close above the previous 20 closes.'],
+  ['Closing breakout','Latest completed daily close above the previous 20 closes. PSX’s daily close is the average price of the last 30 minutes, not the final trade.'],
   ['Bull flag','More than 10% rise over the preceding run, followed by a five-close range below 5% of the latest price.'],
   ['Oversold bounce','Prior RSI below 30 and the latest close higher than the previous close. RSI below 30 is also listed on its own.'],
   ['Reclaimed average','Close crosses above its 20-day average.'],
