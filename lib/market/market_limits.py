@@ -17,6 +17,11 @@ def validate_query(q):
         symbols = q.get("symbols", q.get("symbol", "")).split(",")
         if len(symbols) > 20 or any(not SYMBOL.fullmatch(s) for s in symbols):
             return "Use at most 20 valid stock symbols"
+    elif mode == "intraday" and q.get("symbols"):
+        # Batches share one 35 s worker; 8 stocks keep it well inside that limit.
+        symbols = q["symbols"].split(",")
+        if len(symbols) > 8 or any(not SYMBOL.fullmatch(s) for s in symbols):
+            return "Use at most 8 valid stock symbols per intraday batch"
     elif mode != "indices":
         if not SYMBOL.fullmatch(q.get("symbol", q.get(mode, ""))):
             return "Invalid stock symbol"

@@ -30,3 +30,19 @@ it('does not return internal fetch errors to the caller', async () => {
   const res = await call('https://docs.google.com/spreadsheets/d/x/export?format=csv');
   expect(res.code).toBe(502); expect(JSON.stringify(res.body)).not.toContain('internal-host');
 });
+
+it('serves daily candles for a batch of stocks in one call and isolates per-stock failures', async () => {
+  vi.resetModules();
+  vi.doMock('./psxOhlc.js', () => ({ fetchPsxOhlc: async (s: string) => { if (s === 'BAD') throw new Error('upstream'); return { symbol: s, bars: [] }; } }));
+  vi.spyOn(console, 'error').mockImplementation(() => {});
+  const { default: handler } = await import('../api/proxy.js');
+  const res: any = { headers: {}, code: 0, body: null, setHeader(k: string, v: string) { this.headers[k] = v; }, status(n: number) { this.code = n; return this; }, json(b: unknown) { this.body = b; return this; }, send(b: unknown) { this.body = b; return this; } };
+  await handler({ method: 'GET', query: { ohlcBatch: 'HBL,BAD,OGDC' }, headers: {} } as any, res);
+  expect(res.code).toBe(200);
+  expect(Object.keys(res.body.batch)).toEqual(expect.arrayContaining(['HBL', 'BAD', 'OGDC']));
+  expect(res.body.batch.HBL.symbol).toBe('HBL'); expect(res.body.batch.BAD.error).toBeTruthy();
+  const bad: any = { ...res, code: 0, body: null };
+  await handler({ method: 'GET', query: { ohlcBatch: Array.from({ length: 13 }, (_, i) => 'S' + i).join(',') }, headers: {} } as any, bad);
+  expect(bad.code).toBe(400);
+  vi.doUnmock('./psxOhlc.js');
+});

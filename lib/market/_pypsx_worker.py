@@ -1,7 +1,7 @@
 """Runs in a bounded subprocess so timed-out upstream SDK work is terminated."""
 import json
 import sys
-from pypsx_lib import get_chart_analysis, get_company_info, get_dividend_snapshot, get_intraday_ohlcv, get_quote, get_quotes, get_index_symbols_payload
+from pypsx_lib import get_chart_analysis, get_company_info, get_dividend_snapshot, get_intraday_batch, get_intraday_ohlcv, get_quote, get_quotes, get_index_symbols_payload
 
 def compute(q):
     mode = q["mode"]
@@ -9,6 +9,7 @@ def compute(q):
     if mode == "company": return get_company_info(symbol)
     if mode == "dividends": return get_dividend_snapshot(symbol)
     if mode == "analysis": return get_chart_analysis(symbol, q.get("period", "6mo"))
+    if mode == "intraday" and q.get("symbols"): return get_intraday_batch(q["symbols"], interval=q.get("interval", "5m"), period=q.get("period", "5d"))
     if mode == "intraday": return get_intraday_ohlcv(symbol, interval=q.get("interval", "5m"), period=q.get("period", "5d"))
     if mode == "quote": return get_quote(symbol)
     if mode == "quotes": return get_quotes(q.get("symbols", symbol))

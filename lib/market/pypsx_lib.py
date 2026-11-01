@@ -664,10 +664,10 @@ def _bars_from_df(df) -> list[dict[str, Any]]:
         h = _row_get(raw, "high", "HIGH", "High")
         lo = _row_get(raw, "low", "LOW", "Low")
         c = _row_get(raw, "close", "CLOSE", "Close")
-        v = _row_get(raw, "volume", "VOLUME", "Volume") or 0
+        v = _row_get(raw, "volume", "VOLUME", "Volume")
         try:
             o, h, lo, c = float(o), float(h), float(lo), float(c)
-            v = float(v) if v is not None else 0.0
+            v = float(v) if v is not None else None
         except (TypeError, ValueError):
             continue
         if not (t > 0 and c > 0 and o > 0 and h > 0 and lo > 0):
@@ -681,12 +681,19 @@ def _bars_from_df(df) -> list[dict[str, Any]]:
                 "high": h,
                 "low": lo,
                 "close": c,
-                "volume": v if not math.isnan(v) else 0,
+                **_volume_fields(v),
             }
         )
     bars.sort(key=lambda b: b["time"])
     by_t = {b["time"]: b for b in bars}
     return sorted(by_t.values(), key=lambda b: b["time"])
+
+
+def _volume_fields(v: Any) -> dict[str, Any]:
+    """Missing volume stays 0 for charts, flagged so volume checks treat it as unknown, not zero."""
+    if v is None or (isinstance(v, float) and math.isnan(v)):
+        return {"volume": 0, "volumeAvailable": False}
+    return {"volume": v}
 
 
 def _bars_from_historical_candles(candles: Any) -> list[dict[str, Any]]:
@@ -696,19 +703,19 @@ def _bars_from_historical_candles(candles: Any) -> list[dict[str, Any]]:
         try:
             if isinstance(row, (list, tuple)) and len(row) >= 5:
                 ts, o, h, lo, c = row[0], row[1], row[2], row[3], row[4]
-                v = row[5] if len(row) > 5 else 0
+                v = row[5] if len(row) > 5 else None
             elif isinstance(row, dict):
                 ts = _row_get(row, "datetime", "time", "timestamp", "ts")
                 o = _row_get(row, "open", "OPEN")
                 h = _row_get(row, "high", "HIGH")
                 lo = _row_get(row, "low", "LOW")
                 c = _row_get(row, "close", "CLOSE")
-                v = _row_get(row, "volume", "VOLUME") or 0
+                v = _row_get(row, "volume", "VOLUME")
             else:
                 continue
             t = _to_time_ms(ts)
             o, h, lo, c = float(o), float(h), float(lo), float(c)
-            v = float(v) if v is not None else 0.0
+            v = float(v) if v is not None else None
             if not (t > 0 and c > 0 and o > 0 and h > 0 and lo > 0):
                 continue
             if any(math.isnan(x) for x in (o, h, lo, c)):
@@ -720,7 +727,7 @@ def _bars_from_historical_candles(candles: Any) -> list[dict[str, Any]]:
                     "high": h,
                     "low": lo,
                     "close": c,
-                    "volume": v if not math.isnan(v) else 0,
+                    **_volume_fields(v),
                 }
             )
         except (TypeError, ValueError, IndexError):
@@ -871,3 +878,9 @@ def get_intraday_ohlcv(
         if recovered.get("bars"):
             return recovered
         return {"error": str(exc), "symbol": clean, "interval": interval, "period": period}
+
+
+def get_intraday_batch(symbols: Any, interval: str = "5m", period: str = "5d") -> dict[str, Any]:
+    """Several symbols in one process: the SDK and pandas load once instead of once per stock."""
+    names = [str(x).strip().upper() for x in (symbols.split(",") if isinstance(symbols, str) else symbols or []) if str(x).strip()]
+    return {"batch": {name: get_intraday_ohlcv(name, interval=interval, period=period) for name in dict.fromkeys(names)}}

@@ -52,6 +52,19 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'Market feed temporarily unavailable' });
     }
   }
+  // --- Daily candles for a batch of stocks: one function call per scan batch, not per stock ---
+  if (req.query.ohlcBatch !== undefined) {
+    const symbols = [...new Set(String(req.query.ohlcBatch).toUpperCase().split(','))];
+    const results = {};
+    for (let i = 0; i < symbols.length; i += 4) {
+      await Promise.all(symbols.slice(i, i + 4).map(async (symbol) => {
+        try { results[symbol] = await fetchPsxOhlc(symbol); }
+        catch (e) { console.error('[proxy] ohlc batch item failed', symbol, e?.message); results[symbol] = { error: 'OHLC fetch failed' }; }
+      }));
+    }
+    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=3600');
+    return res.status(200).json({ batch: results });
+  }
   // --- OHLCV mode (same as former /api/ohlc) ---
   const ohlcSymbol = String(req.query.ohlc || req.query.symbol || '').trim();
   const wantsOhlc = Boolean(req.query.ohlc) || String(req.query.mode || '') === 'ohlc';
