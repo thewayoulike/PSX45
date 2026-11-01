@@ -177,3 +177,14 @@ describe('session calendar',()=>{
     expect(detectHalt([...prev,...today],at('2026-10-22','10:30'))).toMatchObject({direction:'down'});
   });
 });
+
+describe('minimum stop distance',()=>{
+  it('refuses a stop closer than two price steps or the round-trip cost',async()=>{
+    const {minimumStopDistance}=await import('./engine');
+    expect(sizePlan({...DEFAULT_PLAN,entry:50,stop:49.99,target:52,feePct:0,slipPct:0}).errors[0]).toContain('too close');
+    expect(sizePlan({...DEFAULT_PLAN,entry:50,stop:49.98,target:52,feePct:0,slipPct:0}).errors).toEqual([]);
+    const plan={...DEFAULT_PLAN,entry:100,stop:99.9,target:105};
+    expect(minimumStopDistance(plan)).toBeGreaterThan(0.3); // fees both ways at Rs 100
+    expect(sizePlan(plan).errors[0]).toContain('too close');
+  });
+});

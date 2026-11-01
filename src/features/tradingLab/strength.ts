@@ -1,4 +1,4 @@
-import {DEFAULT_PLAN,sizePlan,type Plan} from './engine';
+import {DEFAULT_PLAN,sizePlan,STOP_TOO_CLOSE,type Plan} from './engine';
 import type {ScanRow} from './scanner';
 
 export type ScanCosts=Pick<Plan,'feePct'|'slipPct'|'oneSideCommission'>;
@@ -26,6 +26,8 @@ export function setupStrength(row:ScanRow,costs:ScanCosts=DEFAULT_PLAN):SetupStr
     // Quality must not depend on account size: size against ample sample capital so only costs and R count.
     const sized=sizePlan({...DEFAULT_PLAN,capital:Math.max(DEFAULT_PLAN.capital,entry.levels.entry*1000),capPct:100,riskPct:100,feePct:costs.feePct,slipPct:costs.slipPct,oneSideCommission:costs.oneSideCommission,symbol:row.symbol,...entry.levels});
     if(sized.skipReason)return {label:'Skip',rank:0,context,netRR:sized.rr,volumeRatio:volume,reasons:[sized.skipReason,'Even a fill at the target leaves no positive profit after estimated fees and slippage.']};
+    const tooClose=sized.errors.find(e=>e.startsWith(STOP_TOO_CLOSE));
+    if(tooClose)return {label:'Skip',rank:0,context,volumeRatio:volume,reasons:[`Skip — ${tooClose}`]};
     reasons.push(...sized.errors);
     const rr=sized.rr;
     const rrOk=Number.isFinite(rr)&&rr>=1.5;

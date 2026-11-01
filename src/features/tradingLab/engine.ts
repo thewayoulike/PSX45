@@ -143,6 +143,13 @@ export function detectHalt(indexBars:Bar[],now=Date.now()){
   return null;
 }
 
+export const STOP_TOO_CLOSE='Test stop is too close to entry';
+/** Smallest sensible stop distance: two price steps, or what a round trip costs per share. */
+export function minimumStopDistance(p:Pick<Plan,'entry'|'stop'|'feePct'|'slipPct'|'oneSideCommission'>){
+  const roundTrip=(buyCost(p.entry,p.feePct,p.slipPct)-p.entry)+(p.stop-sellProceeds(p.stop,p.feePct,p.slipPct,!!p.oneSideCommission));
+  return Math.max(2*PRICE_TICK,roundTrip);
+}
+
 export function sizePlan(p:Plan,opts:{worstExit?:number;band?:DailyBand|null}={}) {
   const errors:string[]=[],warnings:string[]=[];
   if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(p.symbol))errors.push('Choose a valid PSX symbol.');
@@ -150,6 +157,8 @@ export function sizePlan(p:Plan,opts:{worstExit?:number;band?:DailyBand|null}={}
   if(!(p.stop>0&&p.entry>p.stop&&p.target>p.entry))errors.push('For a long plan, use stop < entry < target.');
   if(!(p.capital>0&&p.riskPct>0&&p.riskPct<=100&&p.capPct>0&&p.capPct<=100&&p.minRR>0))errors.push('Check capital, risk limit and position cap.');
   if(!(p.feePct>=0&&p.feePct<=10&&p.slipPct>=0&&p.slipPct<=10&&Number.isInteger(p.lot)&&p.lot>=1))errors.push('Check fees, slippage and lot size.');
+  // A stop closer than two price steps or the round-trip cost per share loses to costs and normal wiggle.
+  if(!errors.length){const minimum=minimumStopDistance(p);if(p.entry-p.stop<minimum-1e-9)errors.push(`${STOP_TOO_CLOSE}: at least Rs. ${minimum.toFixed(2)} below entry is needed (two price steps or the round-trip cost, whichever is larger).`);}
   if(errors.length)return {errors,warnings,skipReason:null as string|null,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:'',gapLoss:null as number|null};
   const one=!!p.oneSideCommission,unitCost=buyCost(p.entry,p.feePct,p.slipPct),unitLoss=unitCost-sellProceeds(p.stop,p.feePct,p.slipPct,one),unitReward=sellProceeds(p.target,p.feePct,p.slipPct,one)-unitCost;
   const riskBudget=p.capital*p.riskPct/100,cap=p.capital*p.capPct/100;

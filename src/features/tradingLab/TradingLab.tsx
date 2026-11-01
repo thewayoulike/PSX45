@@ -127,7 +127,12 @@ export function TradingLab({email,altEmail,data=labData,driveConnected=false,onC
   const sizing=useMemo(()=>sizePlan(plan,{worstExit:targetReview?.band?.lower,band:targetReview?.band}),[plan,targetReview]);
   const skipReason=sizing.skipReason||(targetReview?.target===null?`Skip — ${targetReview.reason}`:null);
   const latest=segment?.bars.at(-1);
-  const update=(k:keyof Plan,v:number)=>{setPlan(p=>({...p,[k]:v}));if(['entry','stop','target'].includes(k)){setEntrySource('Manually edited levels — reapply exit rules to check the target.');setTargetReview(null);}setMessage('');};
+  // The stop a confirmed setup gave: it may be tightened (raised) but never widened (lowered).
+  const [originStop,setOriginStop]=useState<number|null>(null);
+  useEffect(()=>{setOriginStop(null);},[symbol]);
+  useEffect(()=>{if(entrySource&&!entrySource.startsWith('Manually')&&plan.stop>0)setOriginStop(plan.stop);},[entrySource]);
+  const update=(k:keyof Plan,v:number)=>{
+    if(k==='stop'&&originStop!=null&&Number.isFinite(v)&&v<originStop-1e-9){setError(`Stops can be tightened but not widened: this setup’s stop is Rs. ${money(originStop)}. A wider stop raises the loss you are risking.`);return;}setPlan(p=>({...p,[k]:v}));if(['entry','stop','target'].includes(k)){setEntrySource('Manually edited levels — reapply exit rules to check the target.');setTargetReview(null);}setMessage('');};
   function choose(s:string){
     if(s!==symbol){
       const tracked=monitor.items.find(item=>item.symbol===s);

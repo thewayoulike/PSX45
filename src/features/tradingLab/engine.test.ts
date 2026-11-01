@@ -31,17 +31,19 @@ describe('replay integrity',()=>{
 
 describe('target profit after costs',()=>{
  it('uses both-side fees and slippage and agrees with the displayed R ratio',()=>{
-  const result=sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,symbol:'PPL',entry:210.15,stop:208.90,target:212.65});
-  expect(result.quantity).toBe(118);
-  // PSX rule above Rs 10: commission max(Rs 0.05, rate) + 15% sales tax on it + Rs 0.005 CDC, each side.
-  // Plus PSX, SECP and NCCPL fees of Rs 5.26 per Rs 100,000.
-  const charges=(px:number)=>Math.max(0.05,px*0.002)*1.15+0.005+px*5.26e-5;
-  const buyPx=210.15*1.001,sellPx=212.65*0.999;
-  const netTargetProceeds=118*(sellPx-charges(sellPx));
-  const totalEntryCost=118*(buyPx+charges(buyPx));
+  const result=sizePlan({...DEFAULT_PLAN,symbol:'PPL',entry:210.15,stop:208.90,target:212.65});
+  const q=result.quantity;expect(q).toBeGreaterThan(0);
+  // PSX rule above Rs 10: commission max(Rs 0.05, 0.15%) + 15% sales tax on it + Rs 0.005 CDC, each side.
+  // Plus PSX, SECP and NCCPL fees of Rs 5.26 per Rs 100,000; slippage 0.01% (above one tick here).
+  const charges=(px:number)=>Math.max(0.05,px*0.0015)*1.15+0.005+px*5.26e-5;
+  const buyPx=210.15*1.0001,sellPx=212.65*0.9999;
+  const netTargetProceeds=q*(sellPx-charges(sellPx));
+  const totalEntryCost=q*(buyPx+charges(buyPx));
   expect(result.reward).toBeCloseTo(netTargetProceeds-totalEntryCost,8);
   expect(result.reward/result.loss).toBeCloseTo(result.rr,10);
-  expect(result.rr).toBeCloseTo(0.40,2);
+  expect(result.rr).toBeCloseTo(0.83,2);
+  // With 0.2% commission and 0.1% slippage the round trip (about Rs 1.38) exceeds the Rs 1.25 stop: refused.
+  expect(sizePlan({...DEFAULT_PLAN,feePct:0.2,slipPct:0.1,symbol:'PPL',entry:210.15,stop:208.90,target:212.65}).errors[0]).toContain('too close');
  });
  it('retains a loss at the target when costs exceed the price gain',()=>{
   const result=sizePlan({...DEFAULT_PLAN,entry:100,stop:98,target:100.1});
