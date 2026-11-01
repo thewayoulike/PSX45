@@ -1,7 +1,7 @@
 import {DEFAULT_PLAN,sizePlan,type Plan} from './engine';
 import type {ScanRow} from './scanner';
 
-export type ScanCosts=Pick<Plan,'feePct'|'slipPct'>;
+export type ScanCosts=Pick<Plan,'feePct'|'slipPct'|'oneSideCommission'>;
 export type SetupStrength={label:'Strong'|'Moderate'|'Weak'|'Skip'|'No setup'|'Incomplete'|'Unavailable';rank:number;context:string;reasons:string[];summary?:string;netRR?:number;volumeRatio?:number|null};
 /** What people see: how many checks passed, never a buy/sell grade. */
 export const RATING_TEXT:Record<SetupStrength['label'],string>={Strong:'3 of 3 checks',Moderate:'2 of 3 checks',Weak:'1 of 3 checks',Skip:'Skip · no net upside','No setup':'No setup',Incomplete:'Incomplete',Unavailable:'Unavailable'};
@@ -24,7 +24,7 @@ export function setupStrength(row:ScanRow,costs:ScanCosts=DEFAULT_PLAN):SetupStr
       if(volume>=1.5)points++;
     }else reasons.push('Breakout volume confirmation is unavailable.');
     // Quality must not depend on account size: size against ample sample capital so only costs and R count.
-    const sized=sizePlan({...DEFAULT_PLAN,capital:Math.max(DEFAULT_PLAN.capital,entry.levels.entry*1000),capPct:100,riskPct:100,feePct:costs.feePct,slipPct:costs.slipPct,symbol:row.symbol,...entry.levels});
+    const sized=sizePlan({...DEFAULT_PLAN,capital:Math.max(DEFAULT_PLAN.capital,entry.levels.entry*1000),capPct:100,riskPct:100,feePct:costs.feePct,slipPct:costs.slipPct,oneSideCommission:costs.oneSideCommission,symbol:row.symbol,...entry.levels});
     if(sized.skipReason)return {label:'Skip',rank:0,context,netRR:sized.rr,volumeRatio:volume,reasons:[sized.skipReason,'Even a fill at the target leaves no positive profit after estimated fees and slippage.']};
     reasons.push(...sized.errors);
     const rr=sized.rr;

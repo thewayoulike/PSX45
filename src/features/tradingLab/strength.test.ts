@@ -21,7 +21,7 @@ it('does not count missing volume or use later prices to rewrite entry quality',
 });
 it('caps thin after-cost reward at weak but keeps target touches separate',()=>{
   const costly=row();costly.entry!.levels={entry:210.15,stop:208.90,target:212.65};costly.entry!.last!.close=211;costly.entry!.check!.level=210;
-  const oldCosts={feePct:0.2,slipPct:0.1};expect(setupStrength(costly,oldCosts).label).toBe('Weak');expect(setupStrength(costly,oldCosts).reasons.join(' ')).toContain('0.41R');
+  const oldCosts={feePct:0.2,slipPct:0.1};expect(setupStrength(costly,oldCosts).label).toBe('Weak');expect(setupStrength(costly,oldCosts).reasons.join(' ')).toContain('0.40R');
   const reached=row();reached.entry!.last!.close=reached.entry!.levels!.target;
   expect(setupStrength(reached).label).toBe('Strong');expect(setupStrength(reached).reasons.join(' ')).not.toContain('already at or above');
 });
@@ -48,7 +48,7 @@ it('separates missing target context from genuinely weak quality',()=>{const r=r
 it('uses the chosen costs consistently and exposes net reward instead of hiding the reason',()=>{
   const costly=row();costly.entry!.levels={entry:210.15,stop:208.90,target:212.65};
   const oldCosts={feePct:0.2,slipPct:0.1};
-  expect(setupStrength(costly,oldCosts)).toMatchObject({label:'Weak',netRR:expect.closeTo(.41,2)});
+  expect(setupStrength(costly,oldCosts)).toMatchObject({label:'Weak',netRR:expect.closeTo(.40,2)});
   expect(setupStrength(costly,oldCosts).summary).toContain('Less than Rs. 1');
   expect(setupStrength(costly,{feePct:0,slipPct:0})).toMatchObject({label:'Strong',netRR:2});
   expect(setupStrength(costly,{feePct:NaN,slipPct:0}).label).toBe('Incomplete');

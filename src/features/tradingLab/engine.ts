@@ -1,7 +1,9 @@
 // Workflow adapted from Jake Schincariol's MIT day-trader-skill.
 // PSX implementation and assumptions: docs/trading-lab/adaptation.md.
 export type Bar = { time: number; open: number; high: number; low: number; close: number; volume: number | null };
-export type Plan = { symbol: string; entry: number; stop: number; target: number; capital: number; riskPct: number; capPct: number; feePct: number; slipPct: number; minRR: number; lot: number };
+export type Plan = { symbol: string; entry: number; stop: number; target: number; capital: number; riskPct: number; capPct: number; feePct: number; slipPct: number; minRR: number; lot: number;
+  /** Some brokers charge commission on one side only when shares are bought and sold the same day. */
+  oneSideCommission?: boolean };
 // feePct is the broker commission rate. Commission per share: Rs 0.03 at Rs 5 or below, Rs 0.05 below Rs 10,
 // otherwise the greater of Rs 0.05 or the rate. Plus 15% sales tax on commission and a Rs 0.005-a-share CDC fee,
 // each side. Slippage defaults to about one price step.
@@ -10,28 +12,31 @@ export const TARGET_COST_SKIP = 'Skip — target does not cover costs';
 // Percentage costs alone understate trading cheap stocks. When fees or slippage are set, each side
 // costs at least a broker minimum per share and one price tick. Both are editable-style estimates.
 export const SALES_TAX_ON_COMMISSION = 0.15, CDC_FEE_PER_SHARE = 0.005, PRICE_TICK = 0.01;
+// PSX trading fee Rs 3.50, SECP levy Rs 0.65 and NCCPL Rs 1.11 per Rs 100,000 traded, each side (PSX Schedule of Charges).
+export const EXCHANGE_FEE_RATE = (3.5 + 0.65 + 1.11) / 100000;
 /** Broker commission per share on one side, by share price. */
 export function commissionPerShare(price:number,feePct:number){
   if(price<=5)return 0.03;
   if(price<10)return 0.05;
   return Math.max(0.05,price*feePct/100);
 }
-/** Charges per share on one side: commission, 15% sales tax on it, and the CDC fee. */
-export function chargesPerShare(price:number,feePct:number){
+/** Charges per share on one side: commission with 15% sales tax (unless waived), the CDC fee and exchange fees. */
+export function chargesPerShare(price:number,feePct:number,withCommission=true){
   if(!(feePct>0))return 0; // 0 turns all charges off, for comparisons without costs
-  const commission=commissionPerShare(price,feePct);
-  return commission*(1+SALES_TAX_ON_COMMISSION)+CDC_FEE_PER_SHARE;
+  const commission=withCommission?commissionPerShare(price,feePct)*(1+SALES_TAX_ON_COMMISSION):0;
+  return commission+CDC_FEE_PER_SHARE+price*EXCHANGE_FEE_RATE;
 }
 export function buyCost(price:number,feePct:number,slipPct:number){
   const px=price+(slipPct>0?Math.max(price*slipPct/100,PRICE_TICK):0);
   return px+chargesPerShare(px,feePct);
 }
-export function sellProceeds(price:number,feePct:number,slipPct:number){
+/** With oneSide, the same-day sale pays no commission (the purchase already did). */
+export function sellProceeds(price:number,feePct:number,slipPct:number,oneSide=false){
   const px=price-(slipPct>0?Math.max(price*slipPct/100,PRICE_TICK):0);
-  return px-chargesPerShare(px,feePct);
+  return px-chargesPerShare(px,feePct,!oneSide);
 }
 // Treat floating-point dust at break-even as zero, not a profitable setup.
-export const coversTargetCosts = (entry:number,target:number,feePct:number,slipPct:number) => netReturn(entry,target,feePct,slipPct)>1e-9;
+export const coversTargetCosts = (entry:number,target:number,feePct:number,slipPct:number,oneSide=false) => netReturn(entry,target,feePct,slipPct,oneSide)>1e-9;
 const MINUTE = 60000, FIVE = 5 * MINUTE;
 export const PKT_OFFSET = 5 * 3600000;
 export const pktDay = (t: number) => new Date(t + PKT_OFFSET).toISOString().slice(0, 10);
@@ -121,20 +126,20 @@ export function openingRange(g:Segment) {
 export function sizePlan(p:Plan,opts:{worstExit?:number}={}) {
   const errors:string[]=[],warnings:string[]=[];
   if(!/^[A-Z][A-Z0-9.-]{0,19}$/.test(p.symbol))errors.push('Choose a valid PSX symbol.');
-  if(!Object.entries(p).filter(([k])=>k!=='symbol').every(([,v])=>typeof v==='number'&&Number.isFinite(v)))errors.push('All plan inputs must be valid numbers.');
+  if(!Object.entries(p).filter(([k])=>k!=='symbol'&&k!=='oneSideCommission').every(([,v])=>typeof v==='number'&&Number.isFinite(v)))errors.push('All plan inputs must be valid numbers.');
   if(!(p.stop>0&&p.entry>p.stop&&p.target>p.entry))errors.push('For a long plan, use stop < entry < target.');
   if(!(p.capital>0&&p.riskPct>0&&p.riskPct<=100&&p.capPct>0&&p.capPct<=100&&p.minRR>0))errors.push('Check capital, risk limit and position cap.');
   if(!(p.feePct>=0&&p.feePct<=10&&p.slipPct>=0&&p.slipPct<=10&&Number.isInteger(p.lot)&&p.lot>=1))errors.push('Check fees, slippage and lot size.');
   if(errors.length)return {errors,warnings,skipReason:null as string|null,quantity:0,cost:0,loss:0,reward:0,rr:0,riskBudget:0,binding:'',gapLoss:null as number|null};
-  const unitCost=buyCost(p.entry,p.feePct,p.slipPct),unitLoss=unitCost-sellProceeds(p.stop,p.feePct,p.slipPct),unitReward=sellProceeds(p.target,p.feePct,p.slipPct)-unitCost;
+  const one=!!p.oneSideCommission,unitCost=buyCost(p.entry,p.feePct,p.slipPct),unitLoss=unitCost-sellProceeds(p.stop,p.feePct,p.slipPct,one),unitReward=sellProceeds(p.target,p.feePct,p.slipPct,one)-unitCost;
   const riskBudget=p.capital*p.riskPct/100,cap=p.capital*p.capPct/100;
   const byRisk=Math.floor(riskBudget/unitLoss/p.lot)*p.lot,byCap=Math.floor(cap/unitCost/p.lot)*p.lot;
   const rawQuantity=Math.max(0,Math.min(byRisk,byCap)),quantity=Number.isSafeInteger(rawQuantity)?rawQuantity:0,rr=unitReward/unitLoss;
   if(!quantity)errors.push('The budget cannot fund one lot within these limits.');
   if(rr<p.minRR)warnings.push(`Estimated reward/risk is below ${p.minRR.toFixed(2)} after costs.`);
-  const skipReason=!errors.length&&!coversTargetCosts(p.entry,p.target,p.feePct,p.slipPct)?TARGET_COST_SKIP:null;
+  const skipReason=!errors.length&&!coversTargetCosts(p.entry,p.target,p.feePct,p.slipPct,one)?TARGET_COST_SKIP:null;
   // A gap can open below the stop. Show the loss at the worst plausible exit (the daily lower limit).
-  const worst=opts.worstExit,gapLoss=worst!=null&&worst>0&&worst<p.stop?quantity*(unitCost-sellProceeds(worst,p.feePct,p.slipPct)):null;
+  const worst=opts.worstExit,gapLoss=worst!=null&&worst>0&&worst<p.stop?quantity*(unitCost-sellProceeds(worst,p.feePct,p.slipPct,one)):null;
   if(gapLoss!=null&&gapLoss>riskBudget*2)warnings.push(`A gap to the daily lower limit would lose Rs. ${gapLoss.toLocaleString('en-PK',{maximumFractionDigits:0})}, over twice the risk budget.`);
   return {errors,warnings,skipReason,quantity,cost:quantity*unitCost,loss:quantity*unitLoss,reward:quantity*unitReward,rr,riskBudget,binding:byRisk<=byCap?'Risk budget':'Position cap',gapLoss};
 }
@@ -148,8 +153,8 @@ export function walkTrade(bars:Bar[], entry:number, stop:number, target:number) 
   }
   return {outcome:'close' as const,exit:bars.at(-1)?.close??entry,time:bars.at(-1)?.time??0};
 }
-export function netReturn(entry:number,exit:number,feePct:number,slipPct:number) {
-  return sellProceeds(exit,feePct,slipPct)-buyCost(entry,feePct,slipPct);
+export function netReturn(entry:number,exit:number,feePct:number,slipPct:number,oneSide=false) {
+  return sellProceeds(exit,feePct,slipPct,oneSide)-buyCost(entry,feePct,slipPct);
 }
 
 export function replayOpeningRange(bars:Bar[],targetR:number,feePct:number,slipPct:number,now=Date.now()) {

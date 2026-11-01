@@ -23,9 +23,12 @@ describe('PSX trading costs',()=>{
     expect(commissionPerShare(9.99,1)).toBe(0.05);       // flat below Rs 10, whatever the rate
     expect(commissionPerShare(20,0.15)).toBe(0.05);      // Rs 10+: greater of Rs 0.05 or 0.15%
     expect(commissionPerShare(100,0.15)).toBeCloseTo(0.15,10);
-    expect(chargesPerShare(100,0.15)).toBeCloseTo(0.15*1.15+0.005,10);
-    expect(chargesPerShare(4,0.15)).toBeCloseTo(0.03*1.15+0.005,10);
-    expect(netReturn(100,110,0.15,0)).toBeCloseTo((110-(0.165*1.15+0.005))-(100+(0.15*1.15+0.005)),10);
+    const fees=(px:number)=>px*5.26e-5; // PSX, SECP and NCCPL
+    expect(chargesPerShare(100,0.15)).toBeCloseTo(0.15*1.15+0.005+fees(100),10);
+    expect(chargesPerShare(4,0.15)).toBeCloseTo(0.03*1.15+0.005+fees(4),10);
+    expect(netReturn(100,110,0.15,0)).toBeCloseTo((110-(0.165*1.15+0.005+fees(110)))-(100+(0.15*1.15+0.005+fees(100))),10);
+    // One-side commission: the same-day sale pays only the CDC and exchange fees.
+    expect(netReturn(100,110,0.15,0,true)).toBeCloseTo((110-(0.005+fees(110)))-(100+(0.15*1.15+0.005+fees(100))),10);
   });
   it('default costs: about 0.37% for a same-price round trip at Rs 200',()=>{
     const pct=-netReturn(200,200,DEFAULT_PLAN.feePct,DEFAULT_PLAN.slipPct)/200*100;

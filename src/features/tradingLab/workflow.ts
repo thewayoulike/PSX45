@@ -100,9 +100,9 @@ export function replayRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),context:Tar
     const entry=after[0].open;
     let levels:ReturnType<typeof exitLevels>;try{levels=exitLevels(entry,s,signal.index,r,p.stop,{...context,intraday:bars});}catch{skipped++;return [];}
     if(levels.target==null){skipped++;return [];}
-    if(!coversTargetCosts(entry,levels.target,p.feePct,p.slipPct)){skipped++;return [];}
+    if(!coversTargetCosts(entry,levels.target,p.feePct,p.slipPct,p.oneSideCommission)){skipped++;return [];}
     const result=walkTrade(after,entry,levels.stop,levels.target);
-    return [{day:s.day,session:s.family,entryTime:signal.trigger.time+FIVE,entry,stop:levels.stop,target:levels.target,targetReview:levels.targetReview,...result,netR:netReturn(entry,result.exit,p.feePct,p.slipPct)/(entry-levels.stop)}];
+    return [{day:s.day,session:s.family,entryTime:signal.trigger.time+FIVE,entry,stop:levels.stop,target:levels.target,targetReview:levels.targetReview,...result,netR:netReturn(entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/(entry-levels.stop)}];
   });
   const wins=trades.filter(t=>t.netR>0).length;
   return {sessions:complete.length,excluded:segments.length-complete.length,skipped,trades,wins,winRange:trades.length?wilson(wins,trades.length):null,
@@ -138,7 +138,7 @@ export function simulateRules(bars:Bar[],p:Plan,r:Rules,now=Date.now(),replays=1
   for(let n=0;n<replays;n++){
     const pick=pool[Math.floor(random()*pool.length)],scale=p.entry/pick.base;
     const path=pick.bars.map(b=>({...b,open:b.open*scale,high:b.high*scale,low:b.low*scale,close:b.close*scale}));
-    const result=walkTrade(path,p.entry,p.stop,p.target);counts[result.outcome]++;pnl.push(netReturn(p.entry,result.exit,p.feePct,p.slipPct)/risk);
+    const result=walkTrade(path,p.entry,p.stop,p.target);counts[result.outcome]++;pnl.push(netReturn(p.entry,result.exit,p.feePct,p.slipPct,p.oneSideCommission)/risk);
     if(n<1000){curves[0].push(p.entry);for(let i=0;i<length;i++)curves[i+1].push((path[i]??path.at(-1)!).close);}
   }
   const quant=(xs:number[],q:number)=>xs[Math.min(xs.length-1,Math.floor(xs.length*q))];pnl.sort((a,b)=>a-b);
