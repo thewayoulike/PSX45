@@ -44,6 +44,23 @@ export async function loadResearch(symbol:string):Promise<Research>{
   if(company.status==='fulfilled'&&company.value.symbol===symbol)result.company={...company.value,fundamentals:Array.isArray(company.value.fundamentals)?company.value.fundamentals.filter((g:any)=>g&&text(g.category)&&Array.isArray(g.items)):undefined};else result.errors.push('Company information unavailable.');
   return result;
 }
+/**
+ * Full 5-minute history since October 2025 (about 250 sessions, ~1.7 MB) for replay and the what-if.
+ * Loaded only on request and kept for 30 minutes; at most 3 stocks are kept.
+ */
+const historyCache=new Map<string,{expires:number;promise:Promise<CandleSet>}>();
+export function loadFullHistory(symbol:string):Promise<CandleSet>{
+  if(!LAB_SYMBOL.test(symbol))return Promise.reject(new Error('Enter a valid PSX symbol.'));
+  const old=historyCache.get(symbol);if(old&&old.expires>Date.now())return old.promise;
+  const promise=json(`/api/pypsx?mode=intraday&symbol=${encodeURIComponent(symbol)}&interval=5m&period=all`).then(raw=>{
+    const bars=parseBars(raw.bars);if(!bars.length)throw new Error('No full history was returned.');
+    if(raw.symbol&&raw.symbol!==symbol)throw new Error('The feed returned a different symbol.');
+    return {symbol,bars,source:String(raw.source||'PSX market feed'),retrievedAt:new Date().toISOString()};
+  });
+  historyCache.set(symbol,{expires:Date.now()+1800000,promise});promise.catch(()=>historyCache.delete(symbol));
+  while(historyCache.size>3)historyCache.delete(historyCache.keys().next().value!);
+  return promise;
+}
 /** KSE-30 5-minute candles for the market-halt check, cached for 5 minutes. */
 let indexCache:{expires:number;promise:Promise<Bar[]>}|null=null;
 export function loadHaltIndex():Promise<Bar[]>{
@@ -54,5 +71,5 @@ export function loadHaltIndex():Promise<Bar[]>{
 }
 /** Company profile JSON (dividend history and ex-dates) for the event check. */
 export const loadCompanyJson=(symbol:string)=>json(`/api/proxy?company=${encodeURIComponent(symbol)}`);
-export const labData={candles:loadCandles,research:loadResearch,universe:loadMarketUniverse,scanCandles:loadScanCandles,scanBatch:loadScanBatch,haltIndex:loadHaltIndex,events:(symbol:string)=>loadStockEvents(symbol,()=>loadCompanyJson(symbol))};
+export const labData={candles:loadCandles,research:loadResearch,universe:loadMarketUniverse,scanCandles:loadScanCandles,scanBatch:loadScanBatch,haltIndex:loadHaltIndex,fullHistory:loadFullHistory,events:(symbol:string)=>loadStockEvents(symbol,()=>loadCompanyJson(symbol))};
 export type LabData=typeof labData;

@@ -50,3 +50,16 @@ describe('batched scans',()=>{
     expect((result.get('AAA') as {bars:unknown[]}).bars).toHaveLength(30);expect(result.get('BBB')).toBeInstanceOf(Error);
   });
 });
+
+describe('full history',()=>{
+  beforeEach(()=>setLabRequestInterval(0));
+  afterEach(()=>{vi.unstubAllGlobals();setLabRequestInterval(LAB_REQUEST_INTERVAL_MS);});
+  it('requests the whole period once and keeps it for later replays',async()=>{
+    const {loadFullHistory}=await import('./data');
+    const fetcher=vi.fn(async()=>new Response(JSON.stringify({symbol:'HBL',bars:dayBars,source:'pypsx:historical_intraday'})));
+    vi.stubGlobal('fetch',fetcher);
+    const first=await loadFullHistory('HBL');await loadFullHistory('HBL');
+    expect(fetcher).toHaveBeenCalledTimes(1);expect(String((fetcher.mock.calls[0] as unknown[])[0])).toContain('period=all');
+    expect(first.bars).toHaveLength(30);
+  });
+});
