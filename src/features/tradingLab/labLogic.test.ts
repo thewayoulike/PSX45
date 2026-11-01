@@ -115,3 +115,18 @@ describe('monitor',()=>{
     expect(monitorDue({refreshedAt:t,candleAt:t},t+330_000)).toBe(true);
   });
 });
+
+describe('liquidity by rupee value',()=>{
+  it('ranks by rupees traded and drops thinly traded or very cheap stocks',async()=>{
+    const {normalizeUniverse,liquidStocks,wideTick}=await import('./scanner');
+    const stocks=normalizeUniverse([
+      {symbol:'PENNY',name:'',sector:'',volume:50_000_000,price:0.9},  // Rs 45m but under Rs 1
+      {symbol:'BANK',name:'',sector:'',volume:500_000,price:250},      // Rs 125m
+      {symbol:'THIN',name:'',sector:'',volume:2_000,price:40},         // Rs 80k
+      {symbol:'MID',name:'',sector:'',volume:3_000_000,price:12},      // Rs 36m
+    ]);
+    expect(stocks.map(s=>s.symbol)).toEqual(['BANK','PENNY','MID','THIN']);
+    expect(liquidStocks(stocks,{minValue:1_000_000,minPrice:1}).map(s=>s.symbol)).toEqual(['BANK','MID']);
+    expect(wideTick(3.5)).toBe(true);expect(wideTick(12)).toBe(false);
+  });
+});

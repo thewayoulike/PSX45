@@ -4,7 +4,17 @@ import type {CandleSet} from './data';
 import type {TargetContext,TargetReview} from './targets';
 
 export type ScanKind='daily'|'intraday';
-export type MarketSymbol={symbol:string;name:string;sector:string;volume:number|null;listedIn?:string};
+export type MarketSymbol={symbol:string;name:string;sector:string;volume:number|null;listedIn?:string;price?:number|null};
+/** Rupees traded today (price × shares), the measure of how easy a stock is to buy and sell. */
+export const tradedValue=(s:Pick<MarketSymbol,'price'|'volume'>)=>s.price!=null&&s.volume!=null?s.price*s.volume:null;
+/** One Rs 0.01 step is more than 0.25% of the price below Rs 4: every tick of spread is costly. */
+export const wideTick=(price:number|null|undefined)=>price!=null&&price>0&&0.01/price>0.0025;
+export type LiquidityRules={minValue:number;minPrice:number};
+export const DEFAULT_LIQUIDITY:LiquidityRules={minValue:1_000_000,minPrice:1};
+/** Keep stocks that traded at least minValue rupees today at a price of at least minPrice. */
+export function liquidStocks(stocks:MarketSymbol[],rules:LiquidityRules){
+  return stocks.filter(s=>(s.price??0)>=rules.minPrice&&(tradedValue(s)??0)>=rules.minValue);
+}
 export type MarketUniverse={stocks:MarketSymbol[];retrievedAt:string;source:string};
 export type EntrySnapshot=ReturnType<typeof intradayScan>;
 export type ScanRow=MarketSymbol&{daily?:ReturnType<typeof dailyScan>;entry?:EntrySnapshot;error?:string;checkedAt:number};
@@ -43,9 +53,12 @@ export function normalizeUniverse(stocks:MarketSymbol[]):MarketSymbol[]{
   for(const stock of stocks){
     const symbol=String(stock.symbol||'').trim().toUpperCase();
     if(!/^[A-Z][A-Z0-9.-]{0,11}$/.test(symbol))continue;
-    unique.set(symbol,{symbol,name:stock.name||symbol,sector:stock.sector||'Unclassified',volume:typeof stock.volume==='number'&&Number.isFinite(stock.volume)&&stock.volume>=0?stock.volume:null,...(typeof stock.listedIn==='string'?{listedIn:stock.listedIn}: {})});
+    const price=typeof stock.price==='number'&&Number.isFinite(stock.price)&&stock.price>0?stock.price:null;
+    unique.set(symbol,{symbol,name:stock.name||symbol,sector:stock.sector||'Unclassified',volume:typeof stock.volume==='number'&&Number.isFinite(stock.volume)&&stock.volume>=0?stock.volume:null,...(typeof stock.listedIn==='string'?{listedIn:stock.listedIn}: {}),...(price!=null?{price}:{})});
   }
-  return [...unique.values()].sort((a,b)=>(b.volume??-1)-(a.volume??-1)||a.symbol.localeCompare(b.symbol));
+  // Rupees traded first: share volume alone puts penny stocks ahead of genuinely liquid ones.
+  const value=(s:MarketSymbol)=>tradedValue(s)??(s.volume!=null?s.volume*1e-9:-1);
+  return [...unique.values()].sort((a,b)=>value(b)-value(a)||a.symbol.localeCompare(b.symbol));
 }
 
 /** A market scan is a dated observation, never an execution instruction. */
