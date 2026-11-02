@@ -5,7 +5,7 @@ import { fetchCompanyFundamentals, fetchDividendsForScan } from './financials';
 import { fetchBalanceSheetViaSearch, BalanceSheetYear, generateWithFallback } from './gemini';
 import { computeSignal, computeTradePlan } from '../utils/indicators';
 import { formatDailyScanForAgent, loadDailyScan } from './scanBot';
-import { runStrategyBacktest, filterBarsByLookback, STRATEGY_LABELS, BacktestStrategy } from '../utils/strategyBacktest';
+import { runStrategyBacktest, compareStrategies, bestComparable, filterBarsByLookback, STRATEGY_LABELS, BACKTEST_STRATEGIES, MIN_COMPARABLE_TRADES, BacktestStrategy } from '../utils/strategyBacktest';
 
 /* =============================================================================
    PSX AI AGENT
@@ -37,7 +37,8 @@ prices, signals, dividends or fundamentals. Never guess a number you could look 
 and never invent a price, ticker or figure. If a tool returns nothing useful, say so plainly.
 
 For Market Signals summaries, call get_daily_scan first. For backtest questions on a single
-symbol, use run_strategy_backtest. These tools use deterministic PSX data — no guessing.
+symbol, use run_strategy_backtest; to find which approach has worked best on a symbol, use
+compare_strategies. These tools use deterministic PSX data — no guessing.
 
 STYLE
 - Be concise and specific. Lead with the answer, then the reasoning.
@@ -161,15 +162,27 @@ const functionDeclarations = [
   },
   {
     name: "run_strategy_backtest",
-    description: "Walk-forward backtest on PSX daily OHLC for one symbol. Returns trade count, win rate, compounded return, buy-and-hold comparison, and max drawdown. Uses deterministic rules — not live trading.",
+    description: "Walk-forward backtest on PSX daily OHLC for one symbol, after PSX trading charges. Returns trade count, win rate, compounded return, buy-and-hold comparison, max drawdown, profit factor and Sharpe. Uses deterministic rules — not live trading.",
     parameters: {
       type: Type.OBJECT,
       properties: {
         symbol: { type: Type.STRING, description: "PSX ticker, e.g. OGDC" },
         strategy: {
           type: Type.STRING,
-          description: "rsi_oversold | sma_cross | macd_cross | composite_buy. Default rsi_oversold.",
+          description: `${BACKTEST_STRATEGIES.join(' | ')}. Default rsi_oversold.`,
         },
+        lookback_days: { type: Type.NUMBER, description: "Days of history, default 365." },
+      },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "compare_strategies",
+    description: "Runs every backtest strategy on one PSX symbol with the same window, stop, target and PSX charges, and ranks them. Use when the user asks which strategy or approach works best on a stock.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: {
+        symbol: { type: Type.STRING, description: "PSX ticker, e.g. OGDC" },
         lookback_days: { type: Type.NUMBER, description: "Days of history, default 365." },
       },
       required: ["symbol"],
@@ -460,13 +473,12 @@ const executeTool = async (name: string, args: any, ctx: AgentContext): Promise<
       const sym = String(args?.symbol || '').trim().toUpperCase();
       if (!sym) return { error: "symbol is required" };
       const strat = (String(args?.strategy || 'rsi_oversold').trim().toLowerCase()) as BacktestStrategy;
-      const valid: BacktestStrategy[] = ['rsi_oversold', 'sma_cross', 'macd_cross', 'composite_buy'];
-      const strategy = valid.includes(strat) ? strat : 'rsi_oversold';
+      const strategy = BACKTEST_STRATEGIES.includes(strat) ? strat : 'rsi_oversold';
       const lookbackDays = Math.min(730, Math.max(90, Number(args?.lookback_days) || 365));
       const bars = await fetchOHLCV(sym);
       if (bars.length < 40) return { error: `Not enough OHLC history for ${sym}.` };
       const filtered = filterBarsByLookback(bars, lookbackDays);
-      const bt = runStrategyBacktest(sym, filtered, { strategy, commissionPct: 0.1 });
+      const bt = runStrategyBacktest(sym, filtered, { strategy, costs: 'psx' });
       return {
         symbol: sym,
         strategy: STRATEGY_LABELS[strategy],
@@ -481,12 +493,45 @@ const executeTool = async (name: string, args: any, ctx: AgentContext): Promise<
         alpha_vs_buy_hold_percent: r2(bt.metrics.alphaVsBuyHoldPct),
         max_drawdown_percent: r2(bt.metrics.maxDrawdownPct),
         avg_return_per_trade_percent: r2(bt.metrics.avgReturnPct),
+        profit_factor: bt.metrics.profitFactor == null ? null : r2(bt.metrics.profitFactor),
+        sharpe: bt.metrics.sharpe == null ? null : r2(bt.metrics.sharpe),
         recent_trades: bt.trades.slice(-5).map(t => ({
           entry_date: new Date(t.entryTime).toISOString().slice(0, 10),
           exit_date: new Date(t.exitTime).toISOString().slice(0, 10),
           return_percent: r2(t.retPct),
           reason: t.reason,
         })),
+        costs: "PSX charges: 0.15% commission with sales tax, CDC and exchange fees, both sides",
+        disclaimer: "Historical simulation on daily OHLC — not investment advice.",
+      };
+    }
+
+    case "compare_strategies": {
+      const sym = String(args?.symbol || '').trim().toUpperCase();
+      if (!sym) return { error: "symbol is required" };
+      const lookbackDays = Math.min(730, Math.max(90, Number(args?.lookback_days) || 365));
+      const bars = await fetchOHLCV(sym);
+      if (bars.length < 40) return { error: `Not enough OHLC history for ${sym}.` };
+      const results = compareStrategies(sym, filterBarsByLookback(bars, lookbackDays), { costs: 'psx' });
+      const best = bestComparable(results);
+      return {
+        symbol: sym,
+        lookback_days: lookbackDays,
+        best_strategy: best ? STRATEGY_LABELS[best.strategy] : null,
+        buy_hold_return_percent: r2(results[0].metrics.buyHoldReturnPct),
+        strategies: [...results]
+          .sort((a, b) => b.metrics.compoundedReturnPct - a.metrics.compoundedReturnPct)
+          .map(r => ({
+            strategy: STRATEGY_LABELS[r.strategy],
+            trades: r.metrics.trades,
+            too_few_trades: r.metrics.trades < MIN_COMPARABLE_TRADES,
+            win_rate_percent: r2(r.metrics.winRate),
+            compounded_return_percent: r2(r.metrics.compoundedReturnPct),
+            max_drawdown_percent: r2(r.metrics.maxDrawdownPct),
+            profit_factor: r.metrics.profitFactor == null ? null : r2(r.metrics.profitFactor),
+            sharpe: r.metrics.sharpe == null ? null : r2(r.metrics.sharpe),
+          })),
+        note: `Same stop (1.5%), target (4%) and PSX charges for every strategy. Results with fewer than ${MIN_COMPARABLE_TRADES} trades are not reliable.`,
         disclaimer: "Historical simulation on daily OHLC — not investment advice.",
       };
     }

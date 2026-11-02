@@ -34,6 +34,7 @@ const TOOL_LABEL: Record<string, string> = {
   get_market_movers: 'Market movers',
   get_daily_scan: 'Market scan',
   run_strategy_backtest: 'Strategy backtest',
+  compare_strategies: 'Strategy comparison',
 };
 
 /** Minimal, safe markdown-ish renderer: **bold**, bullets, and paragraphs. */
