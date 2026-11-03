@@ -8,6 +8,7 @@ import { computeTechnicalAnalysis, SCAN_DISCLAIMER, type TechnicalAnalysis } fro
 import { technicalSnapshotStock } from '../utils/technicalSnapshot';
 import { TechnicalScanResults, type TechnicalResult } from './TechnicalScanResults';
 import { CandlePatternResults, type CandleRow } from './CandlePatternResults';
+import { timeframeAgreement, type TimeframeAgreement } from '../utils/timeframeAgreement';
 import {
   CANDLE_PATTERN_FILTERS, MIN_PATTERN_SAMPLES, PATTERN_HORIZON_SESSIONS, scanCandlePatterns, type CandlePatternFilter,
 } from '../utils/candlePatternScan';
@@ -47,6 +48,7 @@ interface Result extends Candidate {
   plan: TradePlan | null;
   strategy?: StrategyMode;
   backtest?: RsiOversoldBacktest;
+  timeframes?: TimeframeAgreement;
 }
 
 const numv = (s?: string | null) => {
@@ -531,7 +533,7 @@ export const MarketSignalScanner: React.FC<{
           const bars = await fetchTechnicalScanBars(c.symbol);
           const technical = computeTechnicalAnalysis(bars);
           collected.push({ ...c, current: c.current > 0 ? c.current : technical.summary.lastPrice,
-            summary: technical.summary, technical, plan: technical.plan, strategy: 'composite' });
+            summary: technical.summary, technical, plan: technical.plan, strategy: 'composite', timeframes: timeframeAgreement(bars) });
           return;
         }
         const history = await fetchStockHistory(c.symbol, '1Y');
