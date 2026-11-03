@@ -3,7 +3,7 @@
 import { DOMParser, parseHTML } from 'linkedom';
 import { handleMcpBody } from './protocol';
 import { CONNECTOR_INSTRUCTIONS, callConnectorTool, connectorTools, type ConnectorSession } from './tools';
-import { listSavedPortfolios, loadPortfolioContext, type EntitlementLimits, type PriceSource, type SavedPortfolioFile } from './portfolio';
+import { listSavedPortfolios, loadPortfolioContext, portfolioGroups, type EntitlementLimits, type PriceSource, type SavedPortfolioFile } from './portfolio';
 import { fetchBatchPSXPrices } from '../services/psxData';
 import type { MutualFundRecord } from '../services/mufapData';
 
@@ -70,7 +70,10 @@ export async function handleConnectorRequest(req: ConnectorRequest) {
     plan: req.plan,
     sharePortfolio: req.sharePortfolio,
     listPortfolios: async () => listSavedPortfolios(await readFile()),
-    loadPortfolio: async (name) => loadPortfolioContext(await readFile(), prices, { name, limits: req.limits }),
+    loadPortfolios: async (name) => {
+      const file = await readFile();
+      return Promise.all(portfolioGroups(file, name).map((group) => loadPortfolioContext(file, prices, group, req.limits)));
+    },
     allowBacktest: req.allowBacktest,
   };
   return handleMcpBody(req.body, {

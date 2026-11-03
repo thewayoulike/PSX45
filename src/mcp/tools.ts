@@ -20,7 +20,7 @@ const TITLES: Record<string, string> = {
 
 const PORTFOLIO_ARG = {
   type: 'string',
-  description: 'Portfolio name. Leave out to use all PSX stock portfolios combined. Use list_portfolios to see the names.',
+  description: 'Portfolio name. Leave out to cover every portfolio: stock portfolios and mutual-fund portfolios are each combined and reported as separate groups. Use list_portfolios to see the names.',
 };
 
 function toJsonSchema(schema: any): any {
@@ -62,7 +62,8 @@ export interface ConnectorSession {
   plan: string;
   sharePortfolio: boolean;
   listPortfolios: () => Promise<unknown>;
-  loadPortfolio: (name?: string) => Promise<{ ctx: AgentContext; portfolio: string; unpriced: string[] }>;
+  /** One entry for a named portfolio; otherwise one per type (stocks, mutual funds). */
+  loadPortfolios: (name?: string) => Promise<{ ctx: AgentContext; portfolio: string; unpriced: string[] }[]>;
   /** False once a Free-plan user has used today's backtest. */
   allowBacktest: () => Promise<boolean>;
 }
@@ -87,10 +88,22 @@ export async function callConnectorTool(name: string, rawArgs: Record<string, un
       if (name !== 'get_upcoming_dividends') return toolResult({ error: SHARING_OFF }, true);
       args.only_my_holdings = false;
     } else {
-      const loaded = await session.loadPortfolio(typeof portfolioName === 'string' ? portfolioName : undefined);
-      const result = await executeTool(name, args, loaded.ctx);
-      const extra = loaded.unpriced.length ? { price_note: `No current price for ${loaded.unpriced.join(', ')}; their average cost is used.` } : {};
-      return toolResult({ portfolio: loaded.portfolio, ...result, ...extra }, !!result?.error);
+      const loaded = await session.loadPortfolios(typeof portfolioName === 'string' ? portfolioName : undefined);
+      const runs = await Promise.all(loaded.map(async (l) => ({ l, result: await executeTool(name, { ...args }, l.ctx) })));
+      const labelled = ({ l, result }: (typeof runs)[number]) => ({
+        portfolio: l.portfolio, ...result,
+        ...(l.unpriced.length ? { price_note: `No current price for ${l.unpriced.join(', ')}; their average cost is used.` } : {}),
+      });
+      if (runs.length === 1) return toolResult(labelled(runs[0]), !!runs[0].result?.error);
+      // One ticker lives in one group: answer from the group that has it.
+      if (name === 'get_holding_detail') {
+        const hit = runs.find((r) => !r.result?.error);
+        return hit ? toolResult(labelled(hit)) : toolResult(labelled(runs[0]), true);
+      }
+      return toolResult({
+        note: 'The user has stock and mutual-fund portfolios. They are calculated differently (FIFO for stocks, average cost for funds), so each group is reported separately; add the groups together for an overall total.',
+        groups: runs.map(labelled),
+      });
     }
   }
   const result = await executeTool(name, args, EMPTY_CONTEXT);
@@ -100,7 +113,7 @@ export async function callConnectorTool(name: string, rawArgs: Record<string, un
 export const CONNECTOR_INSTRUCTIONS = [
   'PSX Tracker gives read-only access to Pakistan Stock Exchange (PSX) market data and, when the user allows it, their own PSX Tracker portfolio.',
   'Use the tools for any price, holding, signal, backtest, dividend, result or news question instead of guessing. Amounts are in Pakistani rupees (PKR, Rs).',
-  'Portfolio tools combine all PSX stock portfolios unless a portfolio name is given; call list_portfolios for names.',
+  'Without a portfolio name, portfolio tools cover every portfolio, returning stock portfolios and mutual-fund portfolios as separate groups; mention both when answering about the whole portfolio. Call list_portfolios for names.',
   'Market data is unofficial and can be delayed. Technical signals, backtests and news mood are educational, not investment advice: describe what they show, do not tell the user to buy or sell.',
   'If a tool reports a plan limit, pass the message on as written.',
 ].join(' ');

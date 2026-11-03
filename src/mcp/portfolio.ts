@@ -36,41 +36,57 @@ export function listSavedPortfolios(file: SavedPortfolioFile) {
   }));
 }
 
-/** One named portfolio, or every PSX stock portfolio combined (the app's combined view). */
-export function selectPortfolios(file: SavedPortfolioFile, name?: string): { chosen: Portfolio[]; label: string } {
+export interface PortfolioGroup { chosen: Portfolio[]; label: string }
+
+const groupLabel = (list: Portfolio[], kind: string) =>
+  list.length === 1 ? list[0].name : `All ${kind} portfolios (${list.map((p) => p.name).join(', ')})`;
+
+/**
+ * One named portfolio, or every portfolio grouped by type: stock portfolios combined and
+ * mutual-fund portfolios combined, as the app's combined view does for each type.
+ */
+export function portfolioGroups(file: SavedPortfolioFile, name?: string): PortfolioGroup[] {
   const all = Array.isArray(file.portfolios) ? file.portfolios : [];
   if (!all.length) throw new Error('No portfolios were found in your PSX Tracker file.');
   if (name && name.trim()) {
     const wanted = name.trim().toLowerCase();
     const match = all.find((p) => p.name.trim().toLowerCase() === wanted) || all.find((p) => p.name.toLowerCase().includes(wanted));
     if (!match) throw new Error(`No portfolio called "${name}". Your portfolios: ${all.map((p) => p.name).join(', ')}.`);
-    return { chosen: [match], label: match.name };
+    return [{ chosen: [match], label: match.name }];
   }
   const stocks = all.filter((p) => getPortfolioType(p) !== 'MUTUAL_FUND');
-  const chosen = stocks.length ? stocks : [all[0]];
-  return { chosen, label: chosen.length === 1 ? chosen[0].name : `All stock portfolios (${chosen.map((p) => p.name).join(', ')})` };
+  const funds = all.filter((p) => getPortfolioType(p) === 'MUTUAL_FUND');
+  return [
+    ...(stocks.length ? [{ chosen: stocks, label: groupLabel(stocks, 'stock') }] : []),
+    ...(funds.length ? [{ chosen: funds, label: groupLabel(funds, 'mutual fund') }] : []),
+  ];
 }
 
 export async function loadPortfolioContext(
   file: SavedPortfolioFile,
   prices: PriceSource,
-  opts: { name?: string; limits?: EntitlementLimits | null } = {},
+  group: PortfolioGroup,
+  limits: EntitlementLimits | null = null,
 ): Promise<LoadedPortfolio> {
-  const { chosen, label } = selectPortfolios(file, opts.name);
+  const { chosen, label } = group;
   const ids = new Set(chosen.map((p) => p.id));
   let transactions = (Array.isArray(file.transactions) ? file.transactions : []).filter((t) => ids.has(t.portfolioId));
   // Free plan: the same first-N tickers the app shows.
-  if (opts.limits) {
+  if (limits) {
     const allowed = new Set([
-      ...firstEntitledTickers(transactions.filter((t) => t.ticker && !isFundTicker(t.ticker)), opts.limits.stockTickers),
-      ...firstEntitledTickers(transactions.filter((t) => t.ticker && isFundTicker(t.ticker)), opts.limits.fundTickers),
+      ...firstEntitledTickers(transactions.filter((t) => t.ticker && !isFundTicker(t.ticker)), limits.stockTickers),
+      ...firstEntitledTickers(transactions.filter((t) => t.ticker && isFundTicker(t.ticker)), limits.fundTickers),
     ]);
     transactions = transactions.filter((t) => !(t.ticker || '').trim() || allowed.has(t.ticker.trim().toUpperCase()));
   }
 
   const portfolios = file.portfolios || [];
   const sectorOverrides = file.sectorOverrides || {};
-  const tickers = [...new Set(transactions.map((t) => (t.ticker || '').trim().toUpperCase()).filter(Boolean))];
+  // Fund ids (MF:...) are case-sensitive catalog keys; only stock symbols are upper-cased.
+  const tickers = [...new Set(transactions.map((t) => {
+    const raw = (t.ticker || '').trim();
+    return isFundTicker(raw) ? raw : raw.toUpperCase();
+  }).filter(Boolean))];
   const stockTickers = tickers.filter((t) => !isFundTicker(t));
   const hasFunds = tickers.some(isFundTicker);
   const [quotes, liveFunds] = await Promise.all([
