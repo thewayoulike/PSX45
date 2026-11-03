@@ -35,6 +35,7 @@ const TOOL_LABEL: Record<string, string> = {
   get_daily_scan: 'Market scan',
   run_strategy_backtest: 'Strategy backtest',
   compare_strategies: 'Strategy comparison',
+  get_news_mood: 'News mood',
 };
 
 /** Minimal, safe markdown-ish renderer: **bold**, bullets, and paragraphs. */

@@ -36,6 +36,7 @@ import { Card } from './ui/Card';
 import { StockAnnouncements } from './StockAnnouncements';
 import { StockChart } from './StockChart';
 import { TimeframeAgreementCard } from './TimeframeAgreement';
+import { HeadlineMoodCard } from './HeadlineMood';
 import { exportToCSV } from '../utils/export';
 import { fetchCompanyFundamentals, fetchCompanyInfo, FundamentalsData, CompanyInfoData } from '../services/financials';
 import { CompanyInfoPanel } from './CompanyInfoPanel';
@@ -909,7 +910,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
                 )}
 
                 {detailTab === 'chart' && (
-                    <div className="mt-2 flex flex-col gap-3"><TimeframeAgreementCard symbol={selectedTicker} /><StockChart symbol={selectedTicker} /></div>
+                    <div className="mt-2 flex flex-col gap-3"><HeadlineMoodCard symbol={selectedTicker} /><TimeframeAgreementCard symbol={selectedTicker} /><StockChart symbol={selectedTicker} /></div>
                 )}
 
                 {detailTab === 'announcements' && (

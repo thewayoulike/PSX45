@@ -18,6 +18,8 @@ import {
 } from '../utils/chartExplorerSelection';
 import { peekChartViewsToday, tryRecordChartView } from '../utils/freemiumQuotas';
 import { StockChart } from './StockChart';
+import { HeadlineMoodCard } from './HeadlineMood';
+import { TimeframeAgreementCard } from './TimeframeAgreement';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
 const LAST_SYMBOL_KEY = 'psx_charts_symbol';
@@ -365,9 +367,14 @@ export const ChartsExplorer: React.FC<Props> = ({
           </div>
         )}
 
-        <div className={`${listOpen ? 'hidden sm:flex' : 'flex'} flex-1 min-w-0 min-h-0 flex-col`}>
+        <div className={`${listOpen ? 'hidden sm:flex' : 'flex'} flex-1 min-w-0 min-h-0 flex-col ${selected ? 'overflow-y-auto gap-3' : ''}`}>
           {selected ? (
-            <StockChart symbol={selected} layout="focus" />
+            <>
+              {/* Chart keeps its full-screen height; scroll down for news and trend. */}
+              <div className="shrink-0 h-full min-h-[520px] flex flex-col"><StockChart symbol={selected} layout="focus" /></div>
+              {!indexSelected && <HeadlineMoodCard key={`news-${selected}`} symbol={selected} />}
+              <TimeframeAgreementCard key={`tf-${selected}`} symbol={selected} />
+            </>
           ) : (
             <div className="flex-1 min-h-0 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-900/40 px-6 text-center">
               <Search size={28} className="text-slate-300 dark:text-slate-600 mb-3" />

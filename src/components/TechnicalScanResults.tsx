@@ -2,6 +2,8 @@ import React, { useRef, useState } from 'react';
 import { Download, ExternalLink, Lock } from 'lucide-react';
 import { SCAN_DISCLAIMER, technicalExplanation, technicalPlanExplanation, type TechnicalAnalysis } from '../utils/technicalRatings';
 import { TimeframeAgreementCard, TimeframeBadge } from './TimeframeAgreement';
+import { HeadlineMoodBadge, HeadlineMoodCard } from './HeadlineMood';
+import { useHeadlineMood } from '../services/headlineMood';
 import type { TimeframeAgreement } from '../utils/timeframeAgreement';
 import './technical-scan.css';
 
@@ -25,6 +27,7 @@ export function TechnicalScanResults({ results, view, visibleLimit = Infinity, o
   results: TechnicalResult[]; view: 'cards' | 'table'; visibleLimit?: number; onUpgrade: () => void; onChart?: (symbol: string) => void; onSnapshot: (symbol: string) => void;
 }) {
   const [selected, setSelected] = useState(''), [tab, setTab] = useState('all'), [filter, setFilter] = useState('all');
+  const news = useHeadlineMood().data?.index;
   const detail = useRef<HTMLElement>(null);
   const visible = results.slice(0, visibleLimit);
   const result = visible.find(r => r.symbol === selected) || visible[0];
@@ -36,13 +39,13 @@ export function TechnicalScanResults({ results, view, visibleLimit = Infinity, o
     <aside className="technical-list" aria-label="Scan results">
       <div className="technical-list-heading"><strong>{results.length} results</strong><span>Select a stock</span></div>
       <div className="technical-list-scroll">
-        {view === 'table' ? <table className="technical-results-table"><thead><tr><th>Stock</th><th>Daily close</th><th>Coverage</th><th>Trend D · W</th><th>Rating</th></tr></thead><tbody>
-          {results.map((r, i) => <tr key={r.symbol}>{i >= visibleLimit ? <td colSpan={5}><button onClick={onUpgrade}><Lock size={14} /> Upgrade to view result</button></td> : <><td><button aria-pressed={r.symbol === result.symbol} onClick={() => choose(r.symbol)}>{r.symbol}</button></td><td>{fmt(r.technical.summary.lastPrice)}</td><td>{r.technical.available}/26</td><td>{r.timeframes ? <TimeframeBadge agreement={r.timeframes} /> : '—'}</td><td><span className={`technical-pill ${tone(r.technical.rating)}`}>{r.technical.rating}</span></td></>}</tr>)}
+        {view === 'table' ? <table className="technical-results-table"><thead><tr><th>Stock</th><th>Daily close</th><th>Coverage</th><th>Trend D · W</th><th>News · 7 days</th><th>Rating</th></tr></thead><tbody>
+          {results.map((r, i) => <tr key={r.symbol}>{i >= visibleLimit ? <td colSpan={6}><button onClick={onUpgrade}><Lock size={14} /> Upgrade to view result</button></td> : <><td><button aria-pressed={r.symbol === result.symbol} onClick={() => choose(r.symbol)}>{r.symbol}</button></td><td>{fmt(r.technical.summary.lastPrice)}</td><td>{r.technical.available}/26</td><td>{r.timeframes ? <TimeframeBadge agreement={r.timeframes} /> : '—'}</td><td>{news?.get(r.symbol) ? <HeadlineMoodBadge mood={news.get(r.symbol)} /> : '—'}</td><td><span className={`technical-pill ${tone(r.technical.rating)}`}>{r.technical.rating}</span></td></>}</tr>)}
         </tbody></table> : results.map((r, i) => i >= visibleLimit ? <button key={r.symbol} onClick={onUpgrade} className="technical-result"><Lock size={16} /> Upgrade to view result</button> : <button className={`technical-result ${r.symbol === result.symbol ? 'selected' : ''}`} key={r.symbol} aria-pressed={r.symbol === result.symbol} onClick={() => choose(r.symbol)}>
           <span className="technical-result-top"><strong>{r.symbol}</strong><b>Rs. {fmt(r.technical.summary.lastPrice)}</b></span>
           <span className="technical-result-bottom"><span className={`technical-pill ${tone(r.technical.rating)}`}>{r.technical.rating}</span><span>{r.technical.available}/26 signals</span></span>
           <span className="technical-result-groups">Averages: {r.technical.groups[0].rating} · Oscillators: {r.technical.groups[1].rating}</span>
-          {r.timeframes && <span className="technical-result-groups"><TimeframeBadge agreement={r.timeframes} /></span>}
+          {(r.timeframes || news?.get(r.symbol)) && <span className="technical-result-groups flex flex-wrap gap-1">{r.timeframes && <TimeframeBadge agreement={r.timeframes} />}<HeadlineMoodBadge mood={news?.get(r.symbol)} /></span>}
         </button>)}
       </div>
     </aside>
@@ -55,6 +58,7 @@ export function TechnicalScanResults({ results, view, visibleLimit = Infinity, o
       <div className="technical-body">
         <div className="technical-rating"><div><p className="technical-eyebrow">Overall rating · {a.available}/26 available</p><h4 className={tone(a.rating)}>{a.rating}</h4><p>{a.score == null ? 'Overall rating withheld until all signals are available.' : 'Equal weight to moving averages and oscillators.'}</p><div className="technical-votes"><span className="sell"><b>{a.summary.sells}</b> Sell</span><span className="neutral"><b>{a.summary.neutrals}</b> Neutral</span><span className="buy"><b>{a.summary.buys}</b> Buy</span></div></div><RatingGauge score={a.score} /></div>
         <TimeframeAgreementCard key={result.symbol} symbol={result.symbol} />
+        <HeadlineMoodCard symbol={result.symbol} />
         <div className="technical-group-cards">{a.groups.map(g => <button key={g.key} onClick={() => { setTab(g.key); setFilter('all'); }}><span>{g.label}<small>{g.available}/{g.total} ↗</small></span><strong className={tone(g.rating)}>{g.rating}</strong><small>{g.sells} Sell · {g.neutrals} Neutral · {g.buys} Buy</small></button>)}</div>
         <div className="technical-tabs" role="group" aria-label="Indicator group">{[['all', 'All 26'], ['averages', 'Moving averages 15'], ['oscillators', 'Oscillators 11']].map(([key, label]) => <button key={key} aria-pressed={tab === key} onClick={() => setTab(key)}>{label}</button>)}</div>
         <div className="technical-filter"><span>{rows.length} readings · tap a name for its rule</span><select aria-label="Filter signals" value={filter} onChange={e => setFilter(e.target.value)}>{[['all', 'All signals'], ['BUY', 'Buy'], ['NEUTRAL', 'Neutral'], ['SELL', 'Sell'], ['Unavailable', 'Unavailable']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div>

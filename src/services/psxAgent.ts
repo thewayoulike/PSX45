@@ -1,4 +1,5 @@
 import { GoogleGenAI, Type } from "@google/genai";
+import { loadHeadlineMood } from './headlineMood';
 import { Holding, PortfolioStats, RealizedTrade, Transaction } from '../types';
 import { fetchStockHistory, fetchBatchPSXPrices, fetchTopVolumeStocks, fetchOHLCV } from './psxData';
 import { fetchCompanyFundamentals, fetchDividendsForScan } from './financials';
@@ -38,7 +39,8 @@ and never invent a price, ticker or figure. If a tool returns nothing useful, sa
 
 For Market Signals summaries, call get_daily_scan first. For backtest questions on a single
 symbol, use run_strategy_backtest; to find which approach has worked best on a symbol, use
-compare_strategies. These tools use deterministic PSX data — no guessing.
+compare_strategies. When asked why a stock moved or what the news says about it, call
+get_news_mood. These tools use deterministic PSX data — no guessing.
 
 STYLE
 - Be concise and specific. Lead with the answer, then the reasoning.
@@ -185,6 +187,15 @@ const functionDeclarations = [
         symbol: { type: Type.STRING, description: "PSX ticker, e.g. OGDC" },
         lookback_days: { type: Type.NUMBER, description: "Days of history, default 365." },
       },
+      required: ["symbol"],
+    },
+  },
+  {
+    name: "get_news_mood",
+    description: "Past 7 days of Pakistani news headlines about one PSX company, each marked good, bad or neutral by word rules, with an overall mood. Use when the user asks about news, or whether a price move came with news.",
+    parameters: {
+      type: Type.OBJECT,
+      properties: { symbol: { type: Type.STRING, description: "PSX ticker, e.g. OGDC" } },
       required: ["symbol"],
     },
   },
@@ -533,6 +544,21 @@ const executeTool = async (name: string, args: any, ctx: AgentContext): Promise<
           })),
         note: `Same stop (1.5%), target (4%) and PSX charges for every strategy. Results with fewer than ${MIN_COMPARABLE_TRADES} trades are not reliable.`,
         disclaimer: "Historical simulation on daily OHLC — not investment advice.",
+      };
+    }
+
+    case "get_news_mood": {
+      const sym = String(args?.symbol || '').trim().toUpperCase();
+      if (!sym) return { error: "symbol is required" };
+      const { index, windowDays } = await loadHeadlineMood();
+      const mood = index.get(sym);
+      return {
+        symbol: sym,
+        window_days: windowDays,
+        mood: mood ? mood.label : 'No news',
+        counts: mood ? { good: mood.positive, bad: mood.negative, neutral: mood.neutral } : { good: 0, bad: 0, neutral: 0 },
+        headlines: (mood?.headlines || []).slice(0, 10).map(h => ({ title: h.title, source: h.source, published_at: h.publishedAt, label: h.sentiment, url: h.url })),
+        note: "Labels come from word rules on the headline only, not the article, and can be wrong. No headlines means no company news was found in Pakistani publishers this week.",
       };
     }
 
