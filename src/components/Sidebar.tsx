@@ -8,7 +8,7 @@ import {
   LineChart, Settings, Briefcase, Key, X, ChevronDown,
   ChevronsLeft, ChevronsRight, LogOut, Save, Loader2, RefreshCw,
   FolderOpen, ChartCandlestick, CheckCircle2, Radar, TrendingUp, Sparkles, Star, Layers,
-  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical, Beaker, UserRound, MessageSquare, CirclePlay, Globe2
+  Compass, Wrench, BarChart3, LayoutGrid, UsersRound, FlaskConical, Beaker, UserRound, MessageSquare, CirclePlay, Globe2, Plug
 } from 'lucide-react';
 import { Logo } from './ui/Logo';
 import {
@@ -92,7 +92,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     TRADING_LAB: 'Testing', DASHBOARD: 'Menu', HOLDINGS: 'Menu', PRACTICE: 'Menu', STOCKS: 'Menu', SECTOR: 'Menu', MARKETS: 'Menu',
     CALCS: 'Tools', SIGNALS: 'Tools', INSIDERS: 'Tools', WATCHLIST: 'Tools', ALERTS: 'Tools', AI_AGENT: 'Tools', SIMULATOR: 'Tools', CALCULATOR: 'Tools', CHARTS: 'Tools', BACKTEST: 'Tools',
     REALIZED: 'Reports', HISTORY: 'Reports',
-    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', SUGGESTIONS: 'Settings', HOW_IT_WORKS: 'Settings',
+    BROKERS: 'Settings', API_KEYS: 'Settings', DASH_CUSTOMIZE: 'Settings', ADMIN_USERS: 'Settings', PROFILE_SETTINGS: 'Settings', AI_CONNECT: 'Settings', SUGGESTIONS: 'Settings', HOW_IT_WORKS: 'Settings',
   };
 
   // Everything collapsed by default — only the group holding the active view is open.
@@ -161,6 +161,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         key: 'Settings', label: 'Settings', Icon: Settings, gear: true, items: [
           { id: 'HOW_IT_WORKS', label: 'How it works', icon: <CirclePlay size={22} /> },
           { id: 'PROFILE_SETTINGS', label: 'Profile & Security', icon: <UserRound size={22} /> },
+          { id: 'AI_CONNECT', label: 'AI assistant (Claude, ChatGPT)', icon: <Plug size={22} /> },
           { id: 'SUGGESTIONS', label: 'Suggestions', icon: <MessageSquare size={22} /> },
           { id: 'DASH_CUSTOMIZE', label: 'Dashboard Layout', icon: <LayoutGrid size={22} /> },
           ...(isOwner ? [{ id: 'ADMIN_USERS' as AppView, label: 'Users', icon: <UsersRound size={22} /> }] : []),

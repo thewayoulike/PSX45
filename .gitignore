@@ -8,3 +8,5 @@ dist/
 .audit-tools/
 __pycache__/
 
+# Built connector bundle (npm run build)
+lib/generated/

@@ -46,6 +46,7 @@ import { LoginPage } from './LoginPage';
 import { GoogleAuthButton } from './GoogleAuthButton';
 import { DriveConnectionGate } from './DriveConnectionGate';
 const ProfilePage = lazy(() => import('./ProfilePage').then(m => ({ default: m.ProfilePage })));
+const AiConnectorPage = lazy(() => import('./AiConnectorPage').then(m => ({ default: m.AiConnectorPage })));
 const SuggestionsPage = lazy(() => import('./SuggestionsPage').then(m => ({ default: m.SuggestionsPage })));
 const TickerPerformanceList = lazy(() => import('./TickerPerformanceList').then(m => ({ default: m.TickerPerformanceList })));
 const FundProfile = lazy(() => import('./FundProfile').then(m => ({ default: m.FundProfile })));
@@ -195,7 +196,7 @@ const normalizePortfolios = (list: Portfolio[]): Portfolio[] =>
 const PSX_ONLY_VIEWS: AppView[] = ['STOCKS', 'SECTOR', 'SIGNALS', 'WATCHLIST', 'SIMULATOR', 'ALERTS', 'AI_AGENT', 'CALCULATOR', 'CHARTS', 'BACKTEST', 'TRADING_LAB'];
 
 
-type AppView = 'TRADING_LAB' | 'PRACTICE' | 'MARKETS' | 'INSIDERS' | 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
+type AppView = 'TRADING_LAB' | 'PRACTICE' | 'MARKETS' | 'INSIDERS' | 'DASHBOARD' | 'HOLDINGS' | 'REALIZED' | 'HISTORY' | 'STOCKS' | 'SECTOR' | 'SIMULATOR' | 'CALCULATOR' | 'CALCS' | 'ALERTS' | 'SIGNALS' | 'AI_AGENT' | 'WATCHLIST' | 'CHARTS' | 'BACKTEST' | 'DAILY_SCAN' | 'DASH_CUSTOMIZE' | 'ADMIN_USERS' | 'PROFILE_SETTINGS' | 'AI_CONNECT' | 'SUGGESTIONS' | 'HOW_IT_WORKS';
 
 // Give every view its own URL (History API — no router dependency).
 const VIEW_TO_PATH: Record<string, string> = {
@@ -224,6 +225,7 @@ const VIEW_TO_PATH: Record<string, string> = {
   BROKERS: '/settings/brokers',
   API_KEYS: '/settings/api-keys',
   PROFILE_SETTINGS: '/settings/profile',
+  AI_CONNECT: '/settings/ai-assistant',
   SUGGESTIONS: '/suggestions',
   HOW_IT_WORKS: '/settings/how-it-works',
 };
@@ -2449,6 +2451,7 @@ const App: React.FC = () => {
 
                       {currentView === 'ADMIN_USERS' && isOwner && <AdminUsers />}
                       {currentView === 'PROFILE_SETTINGS' && <ProfilePage email={driveUser?.email || sbUser?.email || ''} name={driveUser?.name || sbUser?.name} googleConnected={!!driveUser} onDriveDisconnected={() => { isReadyToSave.current = false; setDriveUser(null); setGoogleSheetId(null); setLocalOnlyEmail(null); setDriveRestoreError(null); }} />}
+                      {currentView === 'AI_CONNECT' && <AiConnectorPage />}
                       {currentView === 'SUGGESTIONS' && <SuggestionsPage />}
                       {currentView === 'HOW_IT_WORKS' && <HowItWorksPage />}
                       {currentView === 'MARKETS' && <MarketsPage embedded onOpenStock={symbol => { setStocksFocusTicker(symbol); setCurrentView('STOCKS'); }} />}

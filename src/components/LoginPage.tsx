@@ -9,7 +9,7 @@ import {
   Wallet, Sparkles, ShieldCheck, Receipt, Building2, TrendingUp, PieChart,
   Activity, CloudUpload, Smartphone, CheckCircle2, ArrowRight, Target,
   Star, Upload, FolderOpen, History, LayoutGrid,
-  CandlestickChart, FlaskConical, CirclePlay, Facebook
+  CandlestickChart, FlaskConical, CirclePlay, Facebook, Plug
 } from 'lucide-react';
 const EmailAuth = lazy(() => import('./LoginEmailAuth'));
 const LoginAppPreview = lazy(() => import('./LoginAppPreview').then(m => ({ default: m.LoginAppPreview })));
@@ -46,6 +46,7 @@ const FREE_VS_PAID: { feature: string; free: string; paid: string }[] = [
   { feature: 'Strategy Backtest', free: 'Results teaser · pay to unlock detail', paid: 'Full results' },
   { feature: 'Price Alerts', free: '3 tickers · 2 TP + 2 SL each', paid: '15 tickers · 4 TP + 4 SL each' },
   { feature: 'PSX Assistant (AI)', free: '10 messages / day', paid: 'Unlimited' },
+  { feature: 'Claude / ChatGPT connector', free: '30 lookups / day (300 in trial) · 1 backtest / day', paid: '1,000 lookups / day' },
   { feature: 'Trading Simulator', free: 'Unlimited', paid: 'Unlimited' },
   { feature: 'Fair Value Calc', free: '4 lookups / day', paid: 'Unlimited' },
   { feature: 'Import (CSV / Gemini / Gmail)', free: 'Unlimited runs · first 5 stocks and 3 funds', paid: 'All tickers' },
@@ -502,6 +503,45 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onGoogleLogin, onAuthSucce
             <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-4 leading-snug">
               Open, closed and dividend performance kept separate — so one number never hides another.
             </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ================= AI CONNECTOR ================= */}
+      <section id="ai-connector" className="px-5 py-20">
+        <div className="max-w-5xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-emerald-700 dark:text-emerald-400 mb-3">New · Works with Claude, ChatGPT and Cursor</div>
+            <h2 className="text-3xl md:text-4xl font-display font-black tracking-tight mb-4">Ask your AI about your PSX portfolio</h2>
+            <p className="text-slate-600 dark:text-slate-400 leading-relaxed mb-6">
+              Connect PSX Tracker to the AI app you already use. Ask in plain words and it answers from your
+              real holdings and live PSX data, not guesses.
+            </p>
+            <ul className="space-y-3">
+              <Check><strong className="text-slate-700 dark:text-slate-200">Your portfolio</strong>: value, gains, holdings and realised trades, with the same FIFO numbers as the app.</Check>
+              <Check><strong className="text-slate-700 dark:text-slate-200">Market tools</strong>: live prices, technical signals, backtests, dividends, results and news mood.</Check>
+              <Check><strong className="text-slate-700 dark:text-slate-200">Read-only and private</strong>: it can’t change your trades, and you can switch off portfolio sharing or disconnect anytime.</Check>
+              <Check><strong className="text-slate-700 dark:text-slate-200">On every plan</strong>: 30 lookups a day on Free, 300 in your trial and 1,000 on Paid.</Check>
+            </ul>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-6">After you sign in: Settings → AI assistant → copy your private link into Claude, ChatGPT or Cursor.</p>
+          </div>
+
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/70 dark:border-slate-800/70 p-6 shadow-lg" aria-label="Example conversation in Claude">
+            <div className="flex items-center justify-between mb-4">
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400">In Claude</span>
+              <span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Example</span>
+            </div>
+            <div className="ml-auto max-w-[90%] w-fit rounded-2xl bg-slate-100 dark:bg-slate-800 px-4 py-2.5 text-sm">How did my portfolio do this month? Any bad news on my stocks?</div>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {['get_portfolio_summary', 'get_holdings', 'get_news_mood'].map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 px-2 py-1 text-[11px] font-mono"><Plug size={11} aria-hidden="true" /> PSX Tracker · {t}</span>
+              ))}
+            </div>
+            <div className="mt-3 text-sm text-slate-700 dark:text-slate-200 space-y-2 leading-relaxed">
+              <p>Your portfolio is worth <strong>Rs. 2,418,300</strong>, <strong className="text-emerald-700 dark:text-emerald-400">up 3.4%</strong> this month against the KSE-100 at +2.1%.</p>
+              <p><strong>OGDC</strong> led with +8.2%, and its news this week is positive: two headlines on a 53% profit rise. None of your holdings has a negative news mood.</p>
+            </div>
+            <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-4 leading-snug">Illustrative figures. Answers are for research, not investment advice.</p>
           </div>
         </div>
       </section>
