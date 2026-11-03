@@ -38,6 +38,11 @@ const APPS: AppGuide[] = [
     check: 'psx-tracker shows a green dot with 15 tools enabled. In Cursor’s chat, ask “Use psx-tracker: how is my portfolio doing?”.',
   },
 ];
+const USE_EXAMPLES = [
+  { title: 'About my money', items: ['How is my portfolio doing?', 'Which of my stocks are in profit?', 'How much have I made from selling?'] },
+  { title: 'About the market', items: ['What is the price of OGDC?', 'How did the KSE-100 do today?', 'Is LUCK going up or down?'] },
+  { title: 'News and ideas', items: ['Any news about OGDC this week?', 'Do any of my stocks have bad news?', 'What would have worked best on HUBC last year?'] },
+];
 const cursorConfig = (link: string) => `{
   "mcpServers": {
     "psx-tracker": {
@@ -127,7 +132,26 @@ export function AiConnectorPage() {
         )}
         <p className="mt-3 text-sm rounded-xl p-3 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"><strong>Check it worked:</strong> {guide.check}</p>
         {guide.tip && <p className="mt-2 text-xs text-slate-500">{guide.tip}</p>}
-        <p className="mt-3 text-sm text-slate-500">Then try: “How did my portfolio do this month?”, “Is OGDC in the news?” or “Which strategy would have worked best on ENGROH?”</p>
+      </div>
+
+      <div className={card}>
+        <h2 className="text-xl font-bold">3. How to use it</h2>
+        <p className="mt-2 text-slate-600 dark:text-slate-300">Just type your question, like you would ask a friend. Here are some to try:</p>
+        <div className="mt-4 grid sm:grid-cols-3 gap-3">
+          {USE_EXAMPLES.map((group) => (
+            <div key={group.title} className="rounded-xl border border-slate-200 dark:border-slate-800 p-3">
+              <h3 className="text-sm font-bold">{group.title}</h3>
+              <ul className="mt-1.5 space-y-1 text-sm text-slate-600 dark:text-slate-300">{group.items.map((q) => <li key={q}>“{q}”</li>)}</ul>
+            </div>
+          ))}
+        </div>
+        <h3 className="mt-5 font-bold">If the answer looks wrong</h3>
+        <ul className="mt-2 space-y-2 text-sm text-slate-700 dark:text-slate-200">
+          <li>✅ <strong>Check PSX Tracker is turned on</strong> in that chat. You should see “PSX Tracker” appear while it answers.</li>
+          <li>✅ <strong>Start your question with “Use PSX Tracker:”</strong> so it doesn’t look anywhere else.</li>
+          <li>✅ <strong>Turn off Google Drive and Gmail</strong> in that chat. They aren’t needed; PSX Tracker brings your portfolio itself.</li>
+          <li>✅ <strong>Just added a trade?</strong> Wait a few seconds for the app to save it, then ask again.</li>
+        </ul>
       </div>
 
       <div className={card}>
