@@ -36,6 +36,7 @@ const APPS: AppGuide[] = [
       'Save the file and come back to Tools & MCP.',
     ],
     check: 'psx-tracker shows a green dot with 15 tools enabled. In Cursor’s chat, ask “Use psx-tracker: how is my portfolio doing?”.',
+    tip: 'Use a normal chat on your computer, not a Cloud or Background Agent: those run on Cursor’s servers and don’t load your own MCP connections.',
   },
 ];
 const USE_EXAMPLES = [
