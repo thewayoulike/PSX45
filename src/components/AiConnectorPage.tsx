@@ -3,11 +3,48 @@ import { Check, Copy, Loader2, Plug, ShieldCheck } from 'lucide-react';
 import { createConnectorLink, loadConnectorStatus, revokeConnectorLink, setConnectorSharing, type ConnectorStatus } from '../services/aiConnector';
 import { SiteFooter } from './SiteFooter';
 
-const APPS = [
-  { id: 'Claude', steps: ['Open Claude (claude.ai or the app) → Settings → Connectors.', 'Choose “Add custom connector”, name it PSX Tracker and paste your link.', 'In a chat, turn on PSX Tracker from the tools menu and ask about your portfolio.'] },
-  { id: 'ChatGPT', steps: ['Open ChatGPT → Settings → Apps & Connectors → Advanced, and turn on developer mode.', 'Choose “Create”, name it PSX Tracker, paste your link and choose “No authentication”.', 'In a chat, pick PSX Tracker from the tools menu.'] },
-  { id: 'Cursor', steps: ['Open Cursor → Settings → MCP → Add new MCP server.', 'Paste your link as the server URL (type: streamable HTTP).', 'Ask in the chat; Cursor shows each PSX Tracker lookup.'] },
+interface AppGuide { id: string; steps: string[]; check: string; tip?: string }
+const APPS: AppGuide[] = [
+  {
+    id: 'Claude',
+    steps: [
+      'Open Claude at claude.ai or in the Claude desktop app, then go to Settings → Connectors.',
+      'Click “Add custom connector”.',
+      'Name: PSX Tracker. Remote MCP server URL: paste your link. Leave the OAuth fields empty, then click Add.',
+      'Start a new chat, open the tools menu (the sliders icon under the message box) and turn PSX Tracker on.',
+    ],
+    check: 'PSX Tracker shows in the tools list with 15 tools. The first time Claude uses one, it asks for permission: choose “Always allow” for a smoother experience.',
+    tip: 'Custom connectors may need a paid Claude plan or be limited in number on the free plan. Menu names can change slightly between Claude versions.',
+  },
+  {
+    id: 'ChatGPT',
+    steps: [
+      'Open ChatGPT on the web, then go to Settings → Apps & Connectors → Advanced settings and turn on Developer mode.',
+      'Back in Apps & Connectors, click “Create”.',
+      'Name: PSX Tracker. MCP server URL: paste your link. Authentication: No authentication. Tick that you trust this app, then click Create.',
+      'In a new chat, click + (or the tools menu), choose Developer mode, and pick PSX Tracker.',
+    ],
+    check: 'ChatGPT lists PSX Tracker’s tools when you open it in Apps & Connectors. It may ask you to confirm each lookup.',
+    tip: 'Developer mode is available on paid ChatGPT plans. Menu names can change slightly between ChatGPT versions.',
+  },
+  {
+    id: 'Cursor',
+    steps: [
+      'Open Cursor → Settings (gear icon) → Tools & MCP (older versions: MCP).',
+      'Click “New MCP Server” and choose User, not a workspace. A workspace saves the link inside your project, where it could end up on GitHub.',
+      'Cursor opens mcp.json. Add the psx-tracker entry below. If the file already has "mcpServers" (for example GitHub), add only the "psx-tracker" part inside it, after a comma.',
+      'Save the file and come back to Tools & MCP.',
+    ],
+    check: 'psx-tracker shows a green dot with 15 tools enabled. In Cursor’s chat, ask “Use psx-tracker: how is my portfolio doing?”.',
+  },
 ];
+const cursorConfig = (link: string) => `{
+  "mcpServers": {
+    "psx-tracker": {
+      "url": "${link || 'https://www.psx-tracker.com/api/mcp/YOUR-LINK'}"
+    }
+  }
+}`;
 const PLAN_NAMES: Record<string, string> = { free: 'Free', trial: 'Trial', paid: 'Paid', lifetime: 'Lifetime' };
 const when = (iso: string | null) => iso ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Karachi' }) : 'Not used yet';
 
@@ -36,7 +73,12 @@ export function AiConnectorPage() {
     catch { setError('Copy was blocked. Select the link and copy it manually.'); }
   };
   const usedPct = status ? Math.min(100, (status.usedToday / Math.max(1, status.dailyLimit)) * 100) : 0;
-  const steps = APPS.find((a) => a.id === app)!.steps;
+  const guide = APPS.find((a) => a.id === app)!;
+  const [configCopied, setConfigCopied] = useState(false);
+  const copyConfig = async () => {
+    try { await navigator.clipboard.writeText(cursorConfig(newLink)); setConfigCopied(true); }
+    catch { setError('Copy was blocked. Select the text and copy it manually.'); }
+  };
   const card = 'rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5';
 
   return (
@@ -73,7 +115,18 @@ export function AiConnectorPage() {
 
       <div className={card}>
         <h2 className="text-xl font-bold">2. Add it in {app}</h2>
-        <ol className="mt-3 list-decimal pl-5 space-y-1.5 text-slate-700 dark:text-slate-200">{steps.map((s) => <li key={s}>{s}</li>)}</ol>
+        <ol className="mt-3 list-decimal pl-5 space-y-2 text-slate-700 dark:text-slate-200">{guide.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+        {app === 'Cursor' && (
+          <div className="mt-3">
+            <pre className="rounded-xl bg-slate-900 text-slate-100 p-4 text-xs overflow-x-auto"><code>{cursorConfig(newLink)}</code></pre>
+            <div className="mt-2 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={copyConfig} className="inline-flex items-center gap-2 rounded-xl border border-slate-300 dark:border-slate-700 px-3 py-2 text-sm font-bold">{configCopied ? <Check size={14} /> : <Copy size={14} />}{configCopied ? 'Copied' : 'Copy mcp.json'}</button>
+              <span className="text-xs text-slate-500">{newLink ? 'Your new link is already filled in.' : 'Create a link above and it is filled in here.'}</span>
+            </div>
+          </div>
+        )}
+        <p className="mt-3 text-sm rounded-xl p-3 bg-emerald-50 text-emerald-800 dark:bg-emerald-500/10 dark:text-emerald-300"><strong>Check it worked:</strong> {guide.check}</p>
+        {guide.tip && <p className="mt-2 text-xs text-slate-500">{guide.tip}</p>}
         <p className="mt-3 text-sm text-slate-500">Then try: “How did my portfolio do this month?”, “Is OGDC in the news?” or “Which strategy would have worked best on ENGROH?”</p>
       </div>
 
