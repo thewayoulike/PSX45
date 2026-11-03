@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock, Sparkles, Settings2, Download, X, ChevronDown } from 'lucide-react';
+import { Radar, Loader2, Copy, CheckCircle2, TrendingUp, Info, Activity, LayoutGrid, Table as TableIcon, Crosshair, Lock, Sparkles, Settings2, Download, X, ChevronDown, ChartCandlestick } from 'lucide-react';
 import './market-signal-scanner.css';
 import type { ScanSnapshot, SnapshotSection, SnapshotLayout } from '../utils/scanSnapshot';
 import { fetchUrlWithFallback, fetchStockHistory } from '../services/psxData';
@@ -7,6 +7,10 @@ import { fetchTechnicalScanBars } from '../services/technicalScanData';
 import { computeTechnicalAnalysis, SCAN_DISCLAIMER, type TechnicalAnalysis } from '../utils/technicalRatings';
 import { technicalSnapshotStock } from '../utils/technicalSnapshot';
 import { TechnicalScanResults, type TechnicalResult } from './TechnicalScanResults';
+import { CandlePatternResults, type CandleRow } from './CandlePatternResults';
+import {
+  CANDLE_PATTERN_FILTERS, MIN_PATTERN_SAMPLES, PATTERN_HORIZON_SESSIONS, scanCandlePatterns, type CandlePatternFilter,
+} from '../utils/candlePatternScan';
 import {
   computeSignal,
   computeTradePlan,
@@ -34,7 +38,7 @@ import { consumeDailyQuota, peekDailyQuota } from '../utils/freemiumQuotas';
 
 const TICKER_BLACKLIST = ['READY', 'FUTURE', 'OPEN', 'HIGH', 'LOW', 'CLOSE', 'VOLUME', 'CHANGE', 'SYMBOL', 'SCRIP', 'LDCP', 'MARKET', 'SUMMARY', 'CURRENT', 'SECTOR', 'INDEX', 'KSE'];
 
-type StrategyMode = 'composite' | 'rsi_oversold';
+type StrategyMode = 'composite' | 'rsi_oversold' | 'candles';
 
 interface Candidate { symbol: string; current: number; ldcp: number; changePct: number; volume: number; }
 interface Result extends Candidate {
@@ -420,6 +424,9 @@ export const MarketSignalScanner: React.FC<{
   const [snapshotBusy, setSnapshotBusy] = useState(false);
   const [snapshotMessage, setSnapshotMessage] = useState('');
   const [aggBacktest, setAggBacktest] = useState<RsiOversoldBacktest | null>(null);
+  const [candleRows, setCandleRows] = useState<CandleRow[]>([]);
+  const [patternFilter, setPatternFilter] = useState<CandlePatternFilter>('bullish');
+  const [patternWithin, setPatternWithin] = useState(1);
   const [settings, setSettings] = useState<ScanBotSettings>(() => loadScanBotSettings());
   const [showSettings, setShowSettings] = useState(false);
   const autoRan = useRef(false);
@@ -431,7 +438,7 @@ export const MarketSignalScanner: React.FC<{
     }
   }, [strategy, universe]);
 
-  const persistHits = useCallback((collected: Result[], univ: string, mode: StrategyMode, total: number, agg: RsiOversoldBacktest | null) => {
+  const persistHits = useCallback((collected: Result[], univ: string, mode: Exclude<StrategyMode, 'candles'>, total: number, agg: RsiOversoldBacktest | null) => {
     const hits: DailyScanHit[] = collected.filter(r => !r.technical || r.technical.score != null).map((r) => ({
       symbol: r.symbol,
       current: r.current,
@@ -476,9 +483,11 @@ export const MarketSignalScanner: React.FC<{
     setStatus('scanning');
     setError('');
     setResults([]);
+    setCandleRows([]);
     setAggBacktest(null);
     setProgress({ done: 0, total: 0 });
     const rsiMode = strategy === 'rsi_oversold';
+    const candleMode = strategy === 'candles';
     const symbolMode = universe === 'SYMBOL';
     try {
       if (symbolMode && !singleSymbol.trim()) {
@@ -506,8 +515,18 @@ export const MarketSignalScanner: React.FC<{
 
       const collected: Result[] = [];
       const btParts: RsiOversoldBacktest[] = [];
+      const patternHits: CandleRow[] = [];
 
       await mapPool(candidates, concurrency, async (c) => {
+        if (candleMode) {
+          const bars = await fetchTechnicalScanBars(c.symbol);
+          const scan = scanCandlePatterns(bars, { within: patternWithin, filter: patternFilter });
+          const last = bars[bars.length - 1]?.close ?? 0;
+          for (const hit of scan.hits) {
+            patternHits.push({ ...hit, symbol: c.symbol, current: c.current > 0 ? c.current : last, changePct: c.changePct, volume: c.volume, baseline: scan.baseline });
+          }
+          return;
+        }
         if (!rsiMode) {
           const bars = await fetchTechnicalScanBars(c.symbol);
           const technical = computeTechnicalAnalysis(bars);
@@ -545,6 +564,21 @@ export const MarketSignalScanner: React.FC<{
 
       }, (done) => setProgress((p) => ({ ...p, done })));
 
+      if (candleMode) {
+        // Newest first; then patterns with a usable record, best rise rate first.
+        const judged = (r: CandleRow) => r.record.samples >= MIN_PATTERN_SAMPLES;
+        patternHits.sort((a, b) => a.sessionsAgo - b.sessionsAgo
+          || Number(judged(b)) - Number(judged(a))
+          || (b.record.risePct ?? -1) - (a.record.risePct ?? -1)
+          || b.volume - a.volume);
+        const label = CANDLE_PATTERN_FILTERS.find((f) => f.value === patternFilter)?.label ?? 'Patterns';
+        setCandleRows(patternHits);
+        setScannedAt(new Date());
+        setScanContext(`${scanUniverse === 'HOLDINGS' ? 'My holdings' : scanUniverse === 'SYMBOL' ? singleSymbol.toUpperCase() : scanUniverse} · ${label} · ${patternWithin === 1 ? 'latest candle' : `last ${patternWithin} sessions`} · ${candidates.length} stocks scanned`);
+        setStatus('done');
+        return;
+      }
+
       let agg: RsiOversoldBacktest | null = null;
       if (rsiMode) {
         collected.sort((a, b) => a.summary.rsi - b.summary.rsi || b.volume - a.volume);
@@ -563,7 +597,7 @@ export const MarketSignalScanner: React.FC<{
       setError(e.message || 'Scan failed.');
       setStatus('idle');
     }
-  }, [universe, strategy, singleSymbol, watchlist, holdings, holdingsLabel, isFree, quotas.signalsPerDay, requestUpgrade, persistHits]);
+  }, [universe, strategy, singleSymbol, watchlist, holdings, holdingsLabel, isFree, quotas.signalsPerDay, requestUpgrade, persistHits, patternFilter, patternWithin]);
 
   useEffect(() => {
     if (autoRan.current || !settings.autoRunIfStale) return;
@@ -576,6 +610,7 @@ export const MarketSignalScanner: React.FC<{
   }, [settings.autoRunIfStale, settings.staleHours, runScan, isFree, quotas.signalsPerDay]);
 
   const rsiMode = strategy === 'rsi_oversold';
+  const candleMode = strategy === 'candles';
   const symbolMode = universe === 'SYMBOL';
 
   const shown = results.filter((r) => {
@@ -717,11 +752,15 @@ export const MarketSignalScanner: React.FC<{
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="market-signal-heading flex items-center gap-4">
             <div className={`market-signal-mark w-14 h-14 rounded-2xl flex items-center justify-center border shadow-sm shrink-0 ${
-              rsiMode
+              candleMode
+                ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-100 dark:border-amber-500/20'
+                : rsiMode
                 ? 'bg-teal-50 dark:bg-teal-500/10 border-teal-100 dark:border-teal-500/20'
                 : 'bg-indigo-50 dark:bg-indigo-500/10 border-indigo-100 dark:border-indigo-500/20'
             }`}>
-              {rsiMode
+              {candleMode
+                ? <ChartCandlestick size={24} className="text-amber-600 dark:text-amber-400" />
+                : rsiMode
                 ? <Crosshair size={24} className="text-teal-600 dark:text-teal-400" />
                 : <Radar size={24} className="text-indigo-600 dark:text-indigo-400" />}
             </div>
@@ -731,7 +770,7 @@ export const MarketSignalScanner: React.FC<{
               </h2>
               <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1">
                 {scannedAt
-                  ? `Scanned ${scannedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Found ${shown.length} ${rsiMode ? 'oversold' : 'signals'}`
+                  ? `Scanned ${scannedAt.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} · Found ${candleMode ? candleRows.length : shown.length} ${candleMode ? 'patterns' : rsiMode ? 'oversold' : 'signals'}`
                   : 'Scan indexes, watchlist, or one ticker — with support & resistance'}
               </p>
             </div>
@@ -761,7 +800,7 @@ export const MarketSignalScanner: React.FC<{
             <div role="group" aria-label="Scan strategy" className="market-signal-strategy flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
               <button
                 type="button"
-                onClick={() => { if (strategy !== 'composite') { setStrategy('composite'); setResults([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
+                onClick={() => { if (strategy !== 'composite') { setStrategy('composite'); setResults([]); setCandleRows([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
                 disabled={status === 'scanning'}
                 aria-pressed={strategy === 'composite'}
                 className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'composite' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
@@ -770,15 +809,25 @@ export const MarketSignalScanner: React.FC<{
               </button>
               <button
                 type="button"
-                onClick={() => { if (strategy !== 'rsi_oversold') { setStrategy('rsi_oversold'); setResults([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
+                onClick={() => { if (strategy !== 'rsi_oversold') { setStrategy('rsi_oversold'); setResults([]); setCandleRows([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
                 disabled={status === 'scanning'}
                 aria-pressed={strategy === 'rsi_oversold'}
                 className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'rsi_oversold' ? 'bg-white dark:bg-slate-700 text-teal-600 dark:text-teal-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
               >
                 RSI Oversold
               </button>
+              <button
+                type="button"
+                onClick={() => { if (strategy !== 'candles') { setStrategy('candles'); setResults([]); setCandleRows([]); setScannedAt(null); setStatus('idle'); setAggBacktest(null); } }}
+                disabled={status === 'scanning'}
+                aria-pressed={strategy === 'candles'}
+                className={`px-3 py-2 rounded-lg text-xs font-bold transition-all ${strategy === 'candles' ? 'bg-white dark:bg-slate-700 text-amber-600 dark:text-amber-400 shadow-sm' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                Candlestick patterns
+              </button>
             </div>
 
+            {!candleMode && (
             <div role="group" aria-label="Result view" className="market-signal-view flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-1 border border-slate-200 dark:border-slate-700 shadow-sm">
               <button type="button" onClick={() => setView('cards')} title="Card view" aria-label="Card view" aria-pressed={view === 'cards'} className={`p-2 rounded-lg transition-all ${view === 'cards' ? 'bg-white dark:bg-slate-700 text-emerald-600 dark:text-emerald-400 shadow-sm' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}`}>
                 <LayoutGrid size={16} />
@@ -787,6 +836,7 @@ export const MarketSignalScanner: React.FC<{
                 <TableIcon size={16} />
               </button>
             </div>
+            )}
             </div>
 
             <div className="market-signal-targets">
@@ -824,7 +874,37 @@ export const MarketSignalScanner: React.FC<{
               />
             )}
 
-            {!rsiMode && !symbolMode && (
+            {candleMode && (
+              <>
+                <div className="relative">
+                  <select
+                    value={patternFilter}
+                    aria-label="Candlestick pattern"
+                    onChange={(e) => setPatternFilter(e.target.value as CandlePatternFilter)}
+                    disabled={status === 'scanning'}
+                    className="appearance-none glass-input rounded-xl pl-4 pr-9 py-2.5 text-base md:text-sm font-bold outline-none shadow-sm disabled:opacity-50"
+                  >
+                    {CANDLE_PATTERN_FILTERS.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                </div>
+                <div className="relative">
+                  <select
+                    value={patternWithin}
+                    aria-label="How recent"
+                    onChange={(e) => setPatternWithin(Number(e.target.value))}
+                    disabled={status === 'scanning'}
+                    className="appearance-none glass-input rounded-xl pl-4 pr-9 py-2.5 text-base md:text-sm font-bold outline-none shadow-sm disabled:opacity-50"
+                  >
+                    <option value={1}>Latest candle</option>
+                    <option value={3}>Last 3 sessions</option>
+                  </select>
+                  <ChevronDown size={16} aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                </div>
+              </>
+            )}
+
+            {!rsiMode && !candleMode && !symbolMode && (
               <label className="market-signal-buy flex items-center gap-2 text-xs font-bold text-slate-600 dark:text-slate-300 cursor-pointer select-none bg-slate-50 dark:bg-slate-800/50 px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">
                 <input type="checkbox" checked={buyOnly} onChange={(e) => setBuyOnly(e.target.checked)} className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-slate-300" />
                 Buys Only
@@ -847,18 +927,20 @@ export const MarketSignalScanner: React.FC<{
               onClick={runScan}
               disabled={status === 'scanning'}
               className={`market-signal-run flex items-center gap-2 disabled:opacity-60 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all shadow-md hover:-translate-y-0.5 active:translate-y-0 shrink-0 ${
-                rsiMode
+                candleMode
+                  ? 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                  : rsiMode
                   ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/20'
                   : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
               }`}
             >
-              {status === 'scanning' ? <Loader2 size={18} className="animate-spin" /> : rsiMode ? <Crosshair size={18} /> : <Radar size={18} />}
-              {status === 'scanning' ? 'Scanning…' : symbolMode ? 'Scan ticker' : rsiMode ? 'Scan RSI < 30' : 'Scan Market'}
+              {status === 'scanning' ? <Loader2 size={18} className="animate-spin" /> : candleMode ? <ChartCandlestick size={18} /> : rsiMode ? <Crosshair size={18} /> : <Radar size={18} />}
+              {status === 'scanning' ? 'Scanning…' : symbolMode ? 'Scan ticker' : candleMode ? 'Scan patterns' : rsiMode ? 'Scan RSI < 30' : 'Scan Market'}
             </button>
           </div>
         </div>
 
-        {universe === 'HOLDINGS' && <p className="mt-3 text-xs text-slate-500">{holdingsLabel} · {holdings.length} open stock holdings. Closed positions and mutual funds are excluded. {rsiMode ? 'This strategy shows only holdings with RSI below 30.' : 'Buy, neutral and sell signals are shown by default.'}</p>}
+        {universe === 'HOLDINGS' && <p className="mt-3 text-xs text-slate-500">{holdingsLabel} · {holdings.length} open stock holdings. Closed positions and mutual funds are excluded. {candleMode ? 'Only holdings showing the chosen pattern are listed.' : rsiMode ? 'This strategy shows only holdings with RSI below 30.' : 'Buy, neutral and sell signals are shown by default.'}</p>}
 
         {showSettings && (
           <div className="mt-4 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-slate-50/80 dark:bg-slate-800/40 space-y-3">
@@ -896,6 +978,17 @@ export const MarketSignalScanner: React.FC<{
           </div>
         )}
 
+        {candleMode && status !== 'scanning' && (
+          <div className="mt-4 p-3 bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-xl text-xs font-medium text-amber-800 dark:text-amber-300 flex items-start gap-2 shadow-sm">
+            <Info size={16} className="shrink-0 mt-0.5" />
+            <p>
+              Finds the same patterns the charts mark (bullish and bearish engulfing, hammer, doji) on daily candles. For each hit it checks every time
+              that pattern appeared on that stock in the past year, and how often the close was higher {PATTERN_HORIZON_SESSIONS} sessions later, next to how often
+              that was true for any day on that stock. Fewer than {MIN_PATTERN_SAMPLES} past cases is too few to judge. Moves are before trading costs.
+            </p>
+          </div>
+        )}
+
         {isAll && status !== 'scanning' && !rsiMode && (
           <div className="mt-4 p-3 bg-amber-50/80 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-xl text-xs font-medium text-amber-700 dark:text-amber-400 flex items-start gap-2 shadow-sm">
             <Info size={16} className="shrink-0 mt-0.5" />
@@ -906,11 +999,11 @@ export const MarketSignalScanner: React.FC<{
         {status === 'scanning' && (
           <div className="mt-5 px-2 pb-2">
             <div className="flex justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">
-              <span>{rsiMode ? 'Scanning + backtesting' : 'Analyzing'} {progress.total} stocks…</span>
+              <span>{rsiMode ? 'Scanning + backtesting' : candleMode ? 'Checking candles of' : 'Analyzing'} {progress.total} stocks…</span>
               <span className="tabular-nums">{progress.done} / {progress.total}</span>
             </div>
             <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden shadow-inner">
-              <div className={`h-full transition-all duration-300 ease-out ${rsiMode ? 'bg-teal-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
+              <div className={`h-full transition-all duration-300 ease-out ${candleMode ? 'bg-amber-500' : rsiMode ? 'bg-teal-500' : 'bg-emerald-500'}`} style={{ width: `${pct}%` }} />
             </div>
           </div>
         )}
@@ -928,19 +1021,23 @@ export const MarketSignalScanner: React.FC<{
         <BacktestSummary bt={aggBacktest} symbols={progress.total || results.length} />
       )}
 
-      {status === 'idle' && results.length === 0 && !error && (
+      {status === 'idle' && results.length === 0 && candleRows.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center py-20 text-center px-4 border border-dashed border-slate-200 dark:border-slate-800 rounded-3xl bg-slate-50/50 dark:bg-slate-900/30">
           <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-5 shadow-inner">
              <TrendingUp size={36} className="text-slate-400 dark:text-slate-500" />
           </div>
           <h3 className="text-xl font-display font-black text-slate-800 dark:text-slate-100 mb-2 tracking-tight">Ready to Scan</h3>
           <p className="text-slate-500 dark:text-slate-400 font-medium mb-6">
-            {rsiMode
+            {candleMode
+              ? 'Pick a pattern and a universe, then hit “Scan patterns” to list stocks showing it on their latest candles.'
+              : rsiMode
               ? 'Hit “Scan RSI < 30” to find oversold KSE-100 / KMI-30 names and see a 1Y backtest.'
               : 'Choose your holdings, watchlist, an index or one stock, then scan all 26 technical readings.'}
           </p>
           <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 p-4 rounded-xl text-xs text-slate-500 dark:text-slate-400 max-w-md shadow-sm leading-relaxed">
-            {rsiMode
+            {candleMode
+              ? 'Each hit shows how that pattern played out on the same stock over the past year, so you can see whether it has meant anything there.'
+              : rsiMode
               ? 'Universe defaults to KSE-100. Live hits require RSI < 30; each name also gets a walk-forward +4% / −1.5% backtest on ~1 year of daily closes.'
               : 'See 15 moving-average readings, 11 oscillators, an equal-group rating, and an illustrative trade scenario with three take-profit levels. Save a complete Design 3 snapshot to your device.'}
           </div>
@@ -953,6 +1050,9 @@ export const MarketSignalScanner: React.FC<{
         visibleLimit={isFree ? signalsVisible : Infinity} onUpgrade={requestUpgrade} onChart={onSymbolClick}
         onSnapshot={symbol => { setSnapshotScope(symbol); setSnapshotMessage(''); snapshotDialog.current?.showModal(); }}
       />}
+      {candleMode && candleRows.length > 0 && (
+        <CandlePatternResults rows={candleRows} onChart={onSymbolClick} lockedFrom={isFree ? signalsVisible : Infinity} onUpgrade={requestUpgrade} />
+      )}
       {shown.length > 0 && rsiMode && view === 'table' && (
         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
            <ScreenerTable
@@ -990,7 +1090,14 @@ export const MarketSignalScanner: React.FC<{
         </div>
       )}
 
-      {status === 'done' && shown.length === 0 && !error && (
+      {status === 'done' && candleMode && candleRows.length === 0 && !error && (
+        <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl p-16 text-center shadow-sm">
+          <p className="text-slate-500 dark:text-slate-400 font-bold text-lg">No stocks show this pattern right now.</p>
+          <p className="text-slate-400 text-sm mt-2">Try “Last 3 sessions”, another pattern, or a larger universe.</p>
+        </div>
+      )}
+
+      {status === 'done' && !candleMode && shown.length === 0 && !error && (
         <div className="bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800/60 rounded-3xl p-16 text-center shadow-sm">
           <p className="text-slate-500 dark:text-slate-400 font-bold text-lg">
             {rsiMode ? 'No names with RSI below 30 right now.' : 'No buy signals in this batch.'}
@@ -1004,12 +1111,14 @@ export const MarketSignalScanner: React.FC<{
       )}
 
       {/* Disclaimer */}
-      {(results.length > 0 || (rsiMode && aggBacktest)) && (
+      {(results.length > 0 || candleRows.length > 0 || (rsiMode && aggBacktest)) && (
         <div className="flex items-start gap-3 bg-slate-50/80 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/60 p-4 rounded-2xl text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed shadow-sm">
           <Info size={16} className="mt-0.5 shrink-0 text-slate-400" />
           <p>
             <strong className="text-slate-700 dark:text-slate-300">Disclaimer:</strong> Mechanical technical signals, fixed RSI exits, and backtests are for educational purposes only and do not constitute investment advice.
-            {rsiMode
+            {candleMode
+              ? ' Candlestick patterns are a weak signal on their own. A past rise rate from a few cases can easily be luck, and past results are not a guarantee of future performance.'
+              : rsiMode
               ? ' The RSI < 30 / +4% / −1.5% rule is a common mean-reversion heuristic; 1Y walk-forward results use unofficial EOD closes and approximate commissions — past results are not a guarantee of future performance.'
               : ' The overall rating combines two equally weighted indicator groups. Long-position scenarios use historical true range and observed support; reaching a target is not guaranteed.'}
             {' '}Data is unofficial and may be delayed. Always perform your own due diligence.
