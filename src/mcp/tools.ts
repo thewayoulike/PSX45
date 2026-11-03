@@ -23,6 +23,17 @@ const PORTFOLIO_ARG = {
   description: 'Portfolio name. Leave out to cover every portfolio: stock portfolios and mutual-fund portfolios are each combined and reported as separate groups. Use list_portfolios to see the names.',
 };
 
+/**
+ * Names the app and the user's words in every description, so AI apps that search their tools
+ * by keyword find these when someone says "PSX Tracker", "psx-tracker" or "my portfolio".
+ */
+function describe(name: string, description: string): string {
+  const scope = PORTFOLIO_TOOLS.has(name)
+    ? "Reads the user's own PSX Tracker portfolio (stocks and mutual funds, synced by the psx-tracker.com app); it is not in files, email or Drive search. "
+    : 'Pakistan Stock Exchange (PSX, KSE-100) market data from PSX Tracker. ';
+  return `PSX Tracker (psx-tracker.com): ${description} ${scope}`.trim();
+}
+
 function toJsonSchema(schema: any): any {
   if (!schema || typeof schema !== 'object') return schema;
   const out: any = {};
@@ -46,12 +57,12 @@ export function connectorTools(): McpTool[] {
         const { include_balance_sheet: _skip, ...rest } = inputSchema.properties || {};
         inputSchema.properties = rest;
       }
-      return { name: d.name, title: TITLES[d.name], description: d.description, inputSchema, annotations: { readOnlyHint: true, openWorldHint: !PORTFOLIO_TOOLS.has(d.name) } };
+      return { name: d.name, title: TITLES[d.name], description: describe(d.name, d.description), inputSchema, annotations: { readOnlyHint: true, openWorldHint: !PORTFOLIO_TOOLS.has(d.name) } };
     });
   tools.push({
     name: 'list_portfolios',
     title: TITLES.list_portfolios,
-    description: "The user's PSX Tracker portfolios, with type and number of transactions. Use the names with the portfolio argument of other tools.",
+    description: "PSX Tracker (psx-tracker.com): the user's portfolios, stocks and mutual funds, with type and number of transactions. Use the names with the portfolio argument of other tools.",
     inputSchema: { type: 'object', properties: {} },
     annotations: { readOnlyHint: true, openWorldHint: false },
   });
@@ -111,7 +122,8 @@ export async function callConnectorTool(name: string, rawArgs: Record<string, un
 }
 
 export const CONNECTOR_INSTRUCTIONS = [
-  'PSX Tracker gives read-only access to Pakistan Stock Exchange (PSX) market data and, when the user allows it, their own PSX Tracker portfolio.',
+  'PSX Tracker (psx-tracker.com) gives read-only access to Pakistan Stock Exchange (PSX) market data and, when the user allows it, their own PSX Tracker portfolio of stocks and mutual funds.',
+  'When the user mentions PSX Tracker, psx-tracker, their portfolio, holdings, trades or gains, or any PSX stock, call these tools first. The portfolio comes from get_portfolio_summary and get_holdings; do not search files, email or Drive for it.',
   'Use the tools for any price, holding, signal, backtest, dividend, result or news question instead of guessing. Amounts are in Pakistani rupees (PKR, Rs).',
   'Without a portfolio name, portfolio tools cover every portfolio, returning stock portfolios and mutual-fund portfolios as separate groups; mention both when answering about the whole portfolio. Call list_portfolios for names.',
   'Market data is unofficial and can be delayed. Technical signals, backtests and news mood are educational, not investment advice: describe what they show, do not tell the user to buy or sell.',

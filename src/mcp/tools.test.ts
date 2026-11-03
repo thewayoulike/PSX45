@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { portfolioGroups } from './portfolio';
-import { callConnectorTool, type ConnectorSession } from './tools';
+import { callConnectorTool, connectorTools, type ConnectorSession } from './tools';
 import type { AgentContext } from '../services/psxAgent';
 
 const file = {
@@ -35,6 +35,15 @@ const session = (groups: { portfolio: string; holdings: AgentContext['holdings']
   loadPortfolios: async (name) => groups.filter((g) => !name || g.portfolio === name).map((g) => ({ portfolio: g.portfolio, ctx: ctx(g.holdings), unpriced: [] })),
 });
 const parse = (r: { content: { text: string }[] }) => JSON.parse(r.content[0].text);
+
+describe('tool catalogue', () => {
+  it('names PSX Tracker in every description so AI apps find the tools by keyword', () => {
+    const tools = connectorTools();
+    expect(tools).toHaveLength(15);
+    for (const t of tools) expect(t.description, t.name).toMatch(/^PSX Tracker \(psx-tracker\.com\)/);
+    expect(tools.find((t) => t.name === 'get_holdings')!.description).toMatch(/user's own PSX Tracker portfolio/);
+  });
+});
 
 describe('portfolio tools across groups', () => {
   const s = session([
