@@ -29,7 +29,7 @@ export interface AgentMessage {
   toolsUsed?: string[];
 }
 
-const SYSTEM_INSTRUCTION = `You are the PSX Assistant — an expert analyst for the Pakistan Stock Exchange, built into a user's own portfolio tracker.
+export const SYSTEM_INSTRUCTION = `You are the PSX Assistant — an expert analyst for the Pakistan Stock Exchange, built into a user's own portfolio tracker.
 
 TOOLS
 You have tools to read the user's real portfolio and fetch live PSX market data.
@@ -68,7 +68,7 @@ BOUNDARIES
 
 /* ------------------------------- tool schema ------------------------------- */
 
-const functionDeclarations = [
+export const functionDeclarations = [
   {
     name: "get_portfolio_summary",
     description: "Overall snapshot of the user's portfolio: market value, cost basis, unrealized/realized P&L, dividends, fees, free cash, sector mix and win rate.",
@@ -205,7 +205,7 @@ const functionDeclarations = [
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
-const executeTool = async (name: string, args: any, ctx: AgentContext): Promise<any> => {
+export const executeTool = async (name: string, args: any, ctx: AgentContext): Promise<any> => {
   const { holdings, stats, realizedTrades, transactions } = ctx;
   const totalValue = stats.totalValue || 0;
 

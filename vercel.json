@@ -3,7 +3,8 @@
   "trailingSlash": false,
   "functions": {
     "api/check-access.js": {
-      "maxDuration": 60
+      "maxDuration": 60,
+      "includeFiles": "lib/generated/**"
     },
     "api/pypsx.py": {
       "maxDuration": 45,
@@ -19,6 +20,18 @@
     {
       "source": "/api/practice-trading",
       "destination": "/api/check-access?service=practice-trading"
+    },
+    {
+      "source": "/api/mcp/:token",
+      "destination": "/api/check-access?service=mcp&token=:token"
+    },
+    {
+      "source": "/api/mcp",
+      "destination": "/api/check-access?service=mcp"
+    },
+    {
+      "source": "/api/connector-settings",
+      "destination": "/api/check-access?service=mcp-settings"
     },
     {
       "source": "/trading-lab/:path*",
