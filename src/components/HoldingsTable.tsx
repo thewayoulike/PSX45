@@ -84,6 +84,41 @@ const fundDayPL = (
   return { change, pct, base };
 };
 
+/**
+ * Stock daily P&L for one row. Shares bought today count from their buy price,
+ * shares sold today count up to their sale price, and shares held from before
+ * count from the previous close, matching the dashboard's daily total.
+ */
+export const stockDayPL = (
+  h: Holding,
+  ldcp: number,
+  dayTxs: Transaction[],
+  today: string
+): { change: number; pct: number; base: number } => {
+  const plain = () => {
+    const change = (h.currentPrice - ldcp) * h.quantity;
+    const base = ldcp * h.quantity;
+    return { change, base, pct: ldcp > 0 ? ((h.currentPrice - ldcp) / ldcp) * 100 : 0 };
+  };
+  const trades = dayTxs.filter(t => t.date === today
+    && (t.ticker || '').trim().toUpperCase() === h.ticker.toUpperCase()
+    && (!h.broker || (t.broker || 'Unknown') === h.broker));
+  if (!trades.length || trades.some(t => t.type === 'BONUS' || t.type === 'SPLIT' || t.type === 'RIGHTS')) return plain();
+  let netShares = 0, paid = 0, received = 0;
+  for (const t of trades) {
+    // Transfers move shares at the previous close, so they add no profit or loss.
+    const price = t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT' ? ldcp : t.price;
+    if (t.type === 'BUY' || t.type === 'TRANSFER_IN') { netShares += t.quantity; paid += t.quantity * price; }
+    if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') { netShares -= t.quantity; received += t.quantity * price; }
+  }
+  const startQty = h.quantity - netShares;
+  if (startQty < -1e-6 || !(ldcp > 0)) return plain();
+  const opening = Math.max(0, startQty) * ldcp;
+  const change = h.quantity * h.currentPrice + received - paid - opening;
+  const base = opening + paid;
+  return { change, base, pct: base > 0 ? (change / base) * 100 : 0 };
+};
+
 export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBroker = true, failedTickers = new Set(), ldcpMap = {}, listedInMap = {}, displayNames = {}, onTickerClick, onChartClick, onCorporateAction, portfolioType = 'PSX', dayTransactions = [], priceTimestamps = {}, fundNavDayMap = {}, fundValidityById = {}, fundPrevById = {} }) => {
   const { isFree, quotas, entitledTickers, requestUpgrade } = useFreemium();
   const isFund = portfolioType === 'MUTUAL_FUND';
@@ -132,7 +167,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   case 'pnlPercent': return cost > 0 ? ((mkt - cost) / cost) : 0;
                   case 'dailyPL': return isFund
                       ? fundDayPL(h, ldcp, dayTransactions, today).change
-                      : (h.currentPrice - ldcp) * h.quantity;
+                      : stockDayPL(h, ldcp, dayTransactions, today).change;
                   default: return h[key as keyof Holding];
               }
           };
@@ -155,7 +190,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
           const cost = h.quantity * roundedAvg;
           const marketVal = h.quantity * h.currentPrice;
           const ldcp = isFund ? fundLdcp(h) : (ldcpMap[h.ticker] || h.currentPrice);
-          const day = isFund ? fundDayPL(h, ldcp, dayTransactions, today) : { change: (h.currentPrice - ldcp) * h.quantity, base: ldcp * h.quantity };
+          const day = isFund ? fundDayPL(h, ldcp, dayTransactions, today) : stockDayPL(h, ldcp, dayTransactions, today);
           const missing = h.priceAvailable === false || (!isFund && !(ldcpMap[h.ticker] > 0));
           return { totalCost: acc.totalCost + cost, totalMarket: acc.totalMarket + marketVal, pnl: acc.pnl + (marketVal - cost), dailyPL: acc.dailyPL + day.change, previousValue: acc.previousValue + day.base, missing: acc.missing || missing };
       }, { totalCost: 0, totalMarket: 0, pnl: 0, dailyPL: 0, previousValue: 0, missing: false });
@@ -277,7 +312,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
               const ldcp = isFund ? fundLdcp(holding) : (ldcpMap[holding.ticker] || holding.currentPrice);
               const day = isFund
                 ? fundDayPL(holding, ldcp, dayTransactions, today)
-                : { change: (holding.currentPrice - ldcp) * holding.quantity, pct: ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0 };
+                : stockDayPL(holding, ldcp, dayTransactions, today);
               return <MobileHoldingRow key={holding.ticker+'-'+(holding.broker||idx)} holding={holding} isFund={isFund}
                 showBroker={showBroker} displayName={formatTransactionLabel(holding.ticker,displayNames)}
                 listedIn={holding.listedIn || listedInMap[holding.ticker] || ''} failed={isFailed} day={day}
@@ -350,7 +385,7 @@ export const HoldingsTable: React.FC<HoldingsTableProps> = ({ holdings, showBrok
                   const ldcp = isFund ? fundLdcp(holding) : (ldcpMap[holding.ticker] || holding.currentPrice);
                   const day = isFund
                       ? fundDayPL(holding, ldcp, dayTransactions, today)
-                      : { change: (holding.currentPrice - ldcp) * holding.quantity, pct: ldcp > 0 ? ((holding.currentPrice - ldcp) / ldcp) * 100 : 0 };
+                      : stockDayPL(holding, ldcp, dayTransactions, today);
                   const dailyChange = day.change;
                   const dailyPercent = day.pct;
                   const isDailyProfit = dailyChange >= 0;
