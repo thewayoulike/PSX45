@@ -13,7 +13,7 @@ import { normalizeScannedTrade } from '../utils/scanNormalize';
 import { FundPicker } from './FundPicker';
 import { MutualFundRecord } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
-import { buildCgtUnitsRefund, makeLinkId } from '../utils/fundCash';
+import { buildCgtUnitsRefund, makeLinkId, stockDividendRoomToReinvest } from '../utils/fundCash';
 import { formatTransactionLabel } from '../utils/fundDisplay';
 import { dpFundNav, dpFundUnits, fmtFundNav, fmtFundUnits, roundFundNav, roundFundUnits } from '../utils/fundFormat';
 import { attachEmailImportSource, emailAttachmentKey, emailImportHistory, isEmailRowSaved, type EmailAttachmentIdentity } from '../utils/emailImportHistory';
@@ -433,6 +433,16 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (needsFund && !cleanTicker) {
           setFormError('Please select a mutual fund.');
           return;
+      }
+      if (!isFundPortfolio && type === 'DIVIDEND_REINVEST') {
+          const scope = existingTransactions.filter(t => !portfolioId || t.portfolioId === portfolioId);
+          const room = stockDividendRoomToReinvest(scope, editingTransaction?.id);
+          if (Number(histAmount) > room + 0.5) {
+              setFormError(room > 0
+                  ? `You can reinvest at most Rs. ${room.toLocaleString(undefined, { maximumFractionDigits: 2 })} — that is the net dividend you have earned that is not already marked as reinvested. Add the Dividend first if it is missing.`
+                  : 'There is no dividend left to reinvest. Add the Dividend first, then mark it as reinvested.');
+              return;
+          }
       }
       if (fundTagged && !fromFund) {
           setFormError('Please pick which fund this is for.');

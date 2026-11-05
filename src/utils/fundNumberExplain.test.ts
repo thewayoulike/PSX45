@@ -71,3 +71,20 @@ describe('why this number for funds', () => {
     expect(explained.lines.find(line => line.label === 'Withdrawn from profit')?.amount).toBe(10_000);
   });
 });
+
+describe('net invested with reinvested stock dividends', () => {
+  it('shows reinvested dividends on their own line, not as a withdrawal', () => {
+    const explained = explainNetInvested(
+      [
+        { type: 'DEPOSIT', ticker: 'CASH', quantity: 1, price: 1_330_000 },
+        { type: 'DIVIDEND_REINVEST', ticker: 'DIV REINVEST', quantity: 1, price: 39_634.9 },
+      ],
+      1_369_634.9,
+      39_634.9,
+    );
+    expect(explained.total).toBeCloseTo(1_369_634.9);
+    expect(explained.lines.find(line => line.label === 'Dividends reinvested')?.amount).toBeCloseTo(39_634.9);
+    expect(explained.lines.some(line => line.label === 'Withdrawn from profit')).toBe(false);
+    expect(Object.is(explained.lines.find(line => line.label === 'Money taken out')?.amount, -0)).toBe(false);
+  });
+});

@@ -80,7 +80,7 @@ export function explainFundCash(txs: CashExplainTx[], book: 'fund' | 'stock' = '
 
   const matched = oversellCashCredit(txs.map(t => ({ ...t, date: t.date || '' })));
   const cashCgt = totalCgt - fundTaxWithheld;
-  const reinvestLeftInCash = totalReinvest - unitReinvestVal;
+  const reinvestLeftInCash = book === 'stock' ? 0 : totalReinvest - unitReinvestVal;
   const lines: ExplainLine[] = [];
   const push = (label: string, amount: number, note?: string) => {
     if (Math.abs(amount) < 0.005) return;
@@ -153,6 +153,8 @@ export function explainFundValue(
 export function explainNetInvested(
   txs: { type: string; quantity: number; price: number; ticker?: string }[],
   netInvested: number,
+  /** Reinvested dividends still counted in net invested (stocks; funds keep this at 0). */
+  reinvested = 0,
 ): { lines: ExplainLine[]; total: number } {
   let deposits = 0;
   let withdrawals = 0;
@@ -167,11 +169,20 @@ export function explainNetInvested(
   }
   const putIn = deposits + transferIn;
   const takenOut = withdrawals + transferOut;
-  const fromProfit = netInvested - (putIn - takenOut);
+  const reinvestLine = Math.max(0, reinvested);
+  const fromProfit = netInvested - (putIn - takenOut) - reinvestLine;
   const lines: ExplainLine[] = [
     { label: 'Money added', amount: putIn, countsInTotal: true },
-    { label: 'Money taken out', amount: -takenOut, countsInTotal: true },
+    { label: 'Money taken out', amount: takenOut ? -takenOut : 0, countsInTotal: true },
   ];
+  if (reinvestLine > 0.005) {
+    lines.push({
+      label: 'Dividends reinvested',
+      amount: reinvestLine,
+      countsInTotal: true,
+      note: 'Dividends you marked as reinvested stay invested, so they count like money you added.',
+    });
+  }
   if (Math.abs(fromProfit) > 0.005) {
     lines.push({
       label: 'Withdrawn from profit',

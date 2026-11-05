@@ -290,7 +290,7 @@ export type ComputedStats = PortfolioStats & { netInvestedHistory: NetInvestedPo
 /** Portfolio totals: value, cost, P/L, dividends, fees, cash, day P/L and returns. */
 export function computePortfolioStats(input: StatsInput): ComputedStats {
   const { holdings, realizedTrades, portfolioTransactions, ldcpMap, manualPrices, priceTimestamps, marketSessionDate, fundNavDayMap, fundCatalog, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds } = input;
-  let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let transferInValue = 0; let transferOutValue = 0; let historyPnL = 0; let totalReinvest = 0; let stockReinvestMarked = 0;
+  let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let transferInValue = 0; let transferOutValue = 0; let historyPnL = 0; let totalReinvest = 0; let stockReinvestMarked = 0; let stockDividendNet = 0;
   let operationalExpenses = 0;
   let fundReinvestIncome = 0;
   let fundTaxWithheld = 0;
@@ -400,6 +400,7 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
           dividendSum += netDiv;
           divTaxSum += (t.tax || 0);
           if (fundDiv) { totalCGT += (t.tax || 0); fundTaxWithheld += (t.tax || 0); }
+          else stockDividendNet += netDiv;
           if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv, originalIndex: idx });
       }
       else if (t.type === 'DIVIDEND_REINVEST') {
@@ -411,7 +412,7 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
           // so it must not count as income or cash a second time.
           const amt = reinvestAmount(t);
           totalReinvest += amt;
-          if (isUnitReinvest(t)) dividendSum += amt;
+          if (isUnitReinvest(t) || fundPortfolio) dividendSum += amt;
           else stockReinvestMarked += amt;
           // The units these bought carry zero cost, so their value already appears
           // as unrealized gain. Tracked separately so Total Return counts it once
@@ -479,6 +480,11 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
   // TOTAL realized gain (net of CGT), then reinvested dividends, then capital.
   // Only the capital-funded portion of withdrawals reduces Net Invested — so
   // cashing out your gains leaves Net Invested unchanged.
+  // A stock dividend can only be reinvested once: anything marked beyond the net
+  // dividends actually earned is a data-entry slip and is left out.
+  const stockReinvestOver = Math.max(0, stockReinvestMarked - Math.max(0, stockDividendNet));
+  totalReinvest -= stockReinvestOver;
+  stockReinvestMarked -= stockReinvestOver;
   const flows = principalAndCash({ deposits: totalDeposits, withdrawals: totalWithdrawals, transferIn: transferInValue, transferOut: transferOutValue });
   const { netPrincipal, reinvestRemaining } = netInvestedBalance(flows.principalIn, flows.principalOut, netRealizedPL, totalReinvest, fundPortfolio);
   const peakNetPrincipal = Math.max(peakInvested, netPrincipal);

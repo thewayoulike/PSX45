@@ -271,7 +271,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
   const totalReturnPercent = stats.roi;
   const isTotalReturnPositive = totalReturnRs >= 0;
   const dividendYield = stats.totalCost > 0 ? (stats.totalDividends / stats.totalCost) * 100 : 0;
-  const reinvestedDividends = dividendReinvestedTotal(transactions);
+  const reinvestedRecorded = dividendReinvestedTotal(transactions);
+  // You cannot reinvest more than you earned; show the extra as a check-your-entries note.
+  const reinvestedDividends = Math.min(reinvestedRecorded, Math.max(0, stats.totalDividends));
+  const reinvestedExtra = reinvestedRecorded - reinvestedDividends;
   const realizedGain = stats.netRealizedPL;
   const isDailyProfitable = stats.dailyPL >= 0;
   const H = computeHealth(stats, holdings, trend, benchmark);
@@ -290,7 +293,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
     nav: holding.currentPrice,
   })), book);
   const cashExplain = explainFundCash(transactions, book);
-  const investedExplain = explainNetInvested(transactions, stats.netPrincipal);
+  const investedExplain = explainNetInvested(transactions, stats.netPrincipal, book === 'stock' ? (stats.dividendReinvested || 0) : 0);
   const shown = (lines: ExplainLine[], driftLabel: string, drift: number) => {
     const rows = lines.map(line => ({
       label: line.label,
@@ -432,7 +435,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
             label="Dividends (Total)"
             value={<>+{rs0(stats.totalDividends)}</>}
             valueClass="text-purple-600 dark:text-purple-400"
-            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className="block mt-1">Reinvested: {rs0(reinvestedDividends)}</span></>}
+            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className="block mt-1">Reinvested: {rs0(reinvestedDividends)}</span>{reinvestedExtra >= 1 && <span className="block mt-1 text-amber-600 dark:text-amber-400" title="Reinvest Div entries add up to more than the net dividends you earned. Check them in Transactions, or add any missing Dividend.">{rs0(reinvestedExtra)} more marked reinvested than earned — check your Reinvest Div entries</span>}</>}
           />
           <PanelCell
             label="Dividend Yield"

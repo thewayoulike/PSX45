@@ -27,3 +27,15 @@ describe('CGT refund paid as units', () => {
     expect(isCgtUnitsPair(rows, 'L')).toBe(true);
   });
 });
+
+describe('stock dividend room to reinvest', () => {
+  it('is net dividends earned minus what is already marked reinvested', async () => {
+    const { stockDividendRoomToReinvest } = await import('./fundCash');
+    const rows = [
+      { id: 'd', type: 'DIVIDEND', ticker: 'OGDC', quantity: 1000, price: 46.63, tax: 6994.5, otherFees: 0 },
+      { id: 'r', type: 'DIVIDEND_REINVEST', ticker: 'DIV REINVEST', quantity: 1, price: 30000, tax: 0, otherFees: 0 },
+    ] as Transaction[];
+    expect(stockDividendRoomToReinvest(rows)).toBeCloseTo(9635.5);
+    expect(stockDividendRoomToReinvest(rows, 'r')).toBeCloseTo(39635.5);
+  });
+});

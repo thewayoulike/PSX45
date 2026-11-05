@@ -25,6 +25,25 @@ export const isUnitInflow = (t: Pick<Transaction, 'type' | 'ticker'>) =>
 export const reinvestAmount = (t: Pick<Transaction, 'type' | 'ticker' | 'quantity' | 'price'>) =>
   isUnitReinvest(t) ? (t.quantity || 0) * (t.price || 0) : t.price;
 
+/** Net dividend a stock row paid (gross minus withholding and other deductions). */
+const netStockDividend = (t: Pick<Transaction, 'quantity' | 'price' | 'tax' | 'otherFees'>) =>
+  (t.quantity || 0) * (t.price || 0) - (t.tax || 0) - (t.otherFees || 0);
+
+/**
+ * Stock dividends still free to mark as reinvested: net dividends earned minus
+ * what Reinvest Div rows already claimed. You cannot reinvest more than you earned.
+ */
+export function stockDividendRoomToReinvest(txs: Array<Pick<Transaction, 'id' | 'type' | 'ticker' | 'quantity' | 'price' | 'tax' | 'otherFees'>>, excludeId?: string): number {
+  let earned = 0;
+  let reinvested = 0;
+  for (const t of txs) {
+    if (t.id === excludeId) continue;
+    if (t.type === 'DIVIDEND' && !isFundTicker(t.ticker)) earned += netStockDividend(t);
+    else if (t.type === 'DIVIDEND_REINVEST' && !isUnitReinvest(t)) reinvested += t.price || 0;
+  }
+  return Math.max(0, Number((earned - reinvested).toFixed(2)));
+}
+
 /** Total rupees of dividend income that was reinvested instead of paid out as cash. */
 export const dividendReinvestedTotal = (txs: Array<Pick<Transaction, 'type' | 'ticker' | 'quantity' | 'price'>>): number =>
   txs.reduce((sum, t) => sum + (t.type === 'DIVIDEND_REINVEST' ? reinvestAmount(t) : 0), 0);
