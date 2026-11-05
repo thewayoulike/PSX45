@@ -388,14 +388,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
             value={stats.mwrr == null ? 'N/A' : spct(stats.mwrr)}
             valueClass={stats.mwrr == null ? 'text-slate-400' : stats.mwrr >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'}
             sub="Annualized"
-            tooltip="MWR (XIRR): your true, annualized personal return \u2014 it accounts for how much you invested and exactly when you deposited or withdrew. Because it is annualized, a gain earned over a short period can look large."
+            tooltip="MWR (XIRR): your true, annualized personal return — it accounts for how much you invested and exactly when you deposited or withdrew. Because it is annualized, a gain earned over a short period can look large."
           />
           <PanelCell
             label="ROI"
             value={spct(stats.roi)}
             valueClass={posNeg(stats.roi)}
             sub={<>Inc. div · Exc. <span className={posNeg(roiExcDiv)}>{spct(roiExcDiv)}</span></>}
-            tooltip="Return on Investment: total profit (realized + unrealized + dividends \u2212 fees) \u00f7 your peak capital invested. A simple period return, not annualized."
+            tooltip="Return on Investment: total profit (realized + unrealized + dividends − fees) ÷ the most of your own cash you ever had invested (reinvested profit and dividends not included). A simple period return, not annualized."
           />
           <PanelCell
             label="Realized Gain"
@@ -415,7 +415,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
           <PanelCell
             label="Net Invested"
             value={rs0(stats.netPrincipal)}
-            sub={`Peak: ${rs0(stats.peakNetPrincipal)}${(stats.dividendReinvested || 0) > 0 ? ` · ${isFund ? 'excl.' : 'incl.'} ${rs0(stats.dividendReinvested || 0)} reinvested` : ''}`}
+            sub={`Peak cash in: ${rs0(stats.peakNetPrincipal)}${(stats.dividendReinvested || 0) > 0 ? ` · ${isFund ? 'excl.' : 'net incl.'} ${rs0(stats.dividendReinvested || 0)} reinvested` : ''}`}
             explain={<ExplainHint label="Why this net invested" title="Net invested" total={rs0(stats.netPrincipal)} lines={shown(investedExplain.lines, 'Rounding', stats.netPrincipal - investedExplain.total)} />}
           />
           <PanelCell

@@ -38,7 +38,7 @@ describe('net invested history', () => {
       event('2026-01-01', 'OUT', 400, { originalIndex: 2 }),
       event('2026-01-01', 'IN', 1000, { originalIndex: 1 }),
     ], false);
-    expect(result).toEqual({ peak: 1000, points: [{ date: '2026-01-01', netInvested: 600 }] });
+    expect(result).toEqual({ peak: 1000, cashPeak: 1000, points: [{ date: '2026-01-01', netInvested: 600 }] });
   });
 
   it('does not turn ordinary cash dividends or expenses into new invested capital', () => {
@@ -55,6 +55,17 @@ describe('net invested history', () => {
     const events = [event('2026-01-01', 'IN', 1000), event('2026-01-02', 'IN', 100, { kind: 'reinvest' }), event('2026-01-03', 'OUT', 50)];
     expect(investedCapitalHistory(events, true).points.map(p => p.netInvested)).toEqual([1000, 1000, 1000]);
     expect(netInvestedBalance(1000, 2000, 0, 100, false).netPrincipal).toBe(0);
-    expect(investedCapitalHistory([], false)).toEqual({ peak: 0, points: [] });
+    expect(investedCapitalHistory([], false)).toEqual({ peak: 0, cashPeak: 0, points: [] });
+  });
+});
+
+describe('peak cash invested', () => {
+  it('leaves reinvested dividends out of the cash peak', () => {
+    const result = investedCapitalHistory([
+      { date: '2026-01-01', type: 'IN', amount: 1_330_000, originalIndex: 0 },
+      { date: '2026-11-05', type: 'IN', amount: 42_700, originalIndex: 1, kind: 'reinvest' },
+    ], false);
+    expect(result.peak).toBe(1_372_700);
+    expect(result.cashPeak).toBe(1_330_000);
   });
 });

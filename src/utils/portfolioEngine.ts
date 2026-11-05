@@ -474,14 +474,15 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
   // must not show up as a realized loss on a position you never sold.
   const netRealizedPL = realizedPL - (totalCGT - fundTaxWithheld);
   const capitalHistory = investedCapitalHistory(events, fundPortfolio);
-  const peakInvested = capitalHistory.peak;
+  // Peak = the most of your own cash you ever had in (no reinvested profit or dividends).
+  const peakInvested = capitalHistory.cashPeak;
   // Net Invested = capital − withdrawals, where a withdrawal is funded first from
   // TOTAL realized gain (net of CGT), then reinvested dividends, then capital.
   // Only the capital-funded portion of withdrawals reduces Net Invested — so
   // cashing out your gains leaves Net Invested unchanged.
   const flows = principalAndCash({ deposits: totalDeposits, withdrawals: totalWithdrawals, transferIn: transferInValue, transferOut: transferOutValue });
   const { netPrincipal, reinvestRemaining } = netInvestedBalance(flows.principalIn, flows.principalOut, netRealizedPL, totalReinvest, fundPortfolio);
-  const peakNetPrincipal = Math.max(peakInvested, netPrincipal);
+  const peakNetPrincipal = Math.max(peakInvested, netInvestedBalance(flows.principalIn, flows.principalOut, netRealizedPL, totalReinvest, true).netPrincipal);
   const dividendReinvested = reinvestRemaining;
   let tradingCashFlow = 0;
   portfolioTransactions.forEach(t => {

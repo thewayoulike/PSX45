@@ -30,6 +30,7 @@ export function investedCapitalHistory(events: CapitalEvent[], fundPortfolio: bo
   let realized = 0;
   let reinvest = 0;
   let peak = 0;
+  let cashPeak = 0;
   const daily = new Map<string, NetInvestedPoint>();
   for (const event of sorted) {
     if (event.type === 'IN') {
@@ -42,9 +43,12 @@ export function investedCapitalHistory(events: CapitalEvent[], fundPortfolio: bo
     }
     const { netPrincipal } = netInvestedBalance(deposits, withdrawals, realized, reinvest, fundPortfolio);
     peak = Math.max(peak, netPrincipal);
+    // Cash you put in yourself: reinvested profit and dividends are left out
+    // (they still absorb withdrawals before your own money does).
+    cashPeak = Math.max(cashPeak, netInvestedBalance(deposits, withdrawals, realized, reinvest, true).netPrincipal);
     daily.set(event.date, { date: event.date, netInvested: netPrincipal });
   }
-  return { peak, points: [...daily.values()] };
+  return { peak, cashPeak, points: [...daily.values()] };
 }
 
 /** High-water mark includes changes within a day, before same-day withdrawals. */
