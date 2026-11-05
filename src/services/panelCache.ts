@@ -6,6 +6,7 @@ const DEFAULT_LIMITS: Record<string, number> = {
   dividends: 8,
   profile: 24,
   filings: 24,
+  insiders: 24,
   meetings: 2,
   movers: 4,
 };
@@ -31,6 +32,9 @@ export const panelKeys = {
   },
   filings(ticker: string) {
     return `filings:${ticker.toUpperCase()}`;
+  },
+  insiders(ticker: string) {
+    return `insiders:${ticker.toUpperCase()}`;
   },
   meetings() {
     return 'meetings:market';

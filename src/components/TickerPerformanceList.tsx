@@ -41,6 +41,8 @@ import { exportToCSV } from '../utils/export';
 import { fetchCompanyFundamentals, fetchCompanyInfo, FundamentalsData, CompanyInfoData } from '../services/financials';
 import { CompanyInfoPanel } from './CompanyInfoPanel';
 import { StockFinancialsPanel } from './StockFinancialsPanel';
+import { withRealPeriods } from '../utils/periodNames';
+import { InsiderTrades } from './InsiderTrades';
 import { panelKeys, readPanel, savePanel } from '../services/panelCache';
 import { isShariahCompliant, SHARIAH_TAG_CLASS } from '../utils/shariah';
 
@@ -161,7 +163,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       try { localStorage.setItem('psx_watch_stocks', JSON.stringify(extraTickers)); } catch {}
   }, [extraTickers]);
 
-  const [detailTab, setDetailTab] = useState<'position' | 'chart' | 'companyInfo' | 'financials' | 'announcements'>('companyInfo');
+  const [detailTab, setDetailTab] = useState<'position' | 'chart' | 'companyInfo' | 'financials' | 'announcements' | 'insiders'>('companyInfo');
 
   const [selectedSector, setSelectedSector] = useState<string | null>(() => {
       return localStorage.getItem('psx_last_analyzed_sector') || null;
@@ -636,8 +638,28 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
       return `${val > 0 ? '+' : ''}${val.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
+  // Swap "FY / FY-1" column names for real periods (from the PSX page's own headers).
+  const financialsInfo = useMemo(() => {
+      const st = companyInfo?.statements;
+      if (!companyInfo || !st) return companyInfo;
+      const page = fundamentals;
+      return {
+          ...companyInfo,
+          statements: {
+              annual: {
+                  financials: withRealPeriods(st.annual?.financials, page?.annual?.financials),
+                  ratios: withRealPeriods(st.annual?.ratios, page?.annual?.ratios),
+              },
+              quarterly: {
+                  financials: withRealPeriods(st.quarterly?.financials, page?.quarterly?.financials, false),
+                  ratios: withRealPeriods(st.quarterly?.ratios, page?.quarterly?.ratios, false),
+              },
+          },
+      };
+  }, [companyInfo, fundamentals]);
+
   const displayFinancials = useMemo(() => {
-      const toolkit = companyInfo?.statements;
+      const toolkit = financialsInfo?.statements;
       const periodKey = financialPeriod === 'Annual' ? 'annual' : 'quarterly';
       const fromToolkit = toolkit?.[periodKey];
       const annualRatios = toolkit?.annual?.ratios?.length
@@ -656,7 +678,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
           financials: block.financials || [],
           ratios: annualRatios,
       };
-  }, [fundamentals, financialPeriod, companyInfo?.statements]);
+  }, [fundamentals, financialPeriod, financialsInfo?.statements]);
 
   const isSelectionNotFound = (analysisMode === 'STOCK' && selectedTicker && !selectedStockStats) || 
                               (analysisMode === 'SECTOR' && selectedSector && !selectedSectorStats);
@@ -781,7 +803,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {/* --- STOCK DETAIL TABS --- */}
                 <div className="stock-profile-tabs flex items-center gap-1.5 bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-2xl p-1.5 overflow-x-auto shadow-sm" role="group" aria-label="Stock profile sections">
-                    {([['companyInfo', 'Company Info'], ['position', 'Position & Gains'], ['financials', 'Financials'], ['chart', 'Chart'], ['announcements', 'Announcements']] as const).map(([id, label]) => (
+                    {([['companyInfo', 'Company Info'], ['position', 'Position & Gains'], ['financials', 'Financials'], ['chart', 'Chart'], ['announcements', 'Announcements'], ['insiders', 'Insider Trades']] as const).map(([id, label]) => (
                         <button
                           key={id}
                           type="button"
@@ -890,7 +912,7 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {detailTab === 'financials' && (
                     <StockFinancialsPanel
-                        companyInfo={companyInfo}
+                        companyInfo={financialsInfo}
                         displayFinancials={displayFinancials}
                         financialPeriod={financialPeriod}
                         onPeriodChange={setFinancialPeriod}
@@ -911,6 +933,10 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
                 {detailTab === 'chart' && (
                     <div className="mt-2 flex flex-col gap-3"><HeadlineMoodCard symbol={selectedTicker} /><TimeframeAgreementCard symbol={selectedTicker} /><StockChart symbol={selectedTicker} /></div>
+                )}
+
+                {detailTab === 'insiders' && (
+                    <div className="mt-2"><InsiderTrades ticker={selectedTicker} /></div>
                 )}
 
                 {detailTab === 'announcements' && (

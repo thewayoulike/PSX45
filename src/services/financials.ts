@@ -5,6 +5,7 @@ import { fetchUrlWithFallback } from './psxData';
 import { percentToRs } from '../utils/faceValues';
 import { formatDatePK } from '../utils/dates';
 import { isFundTicker } from '../utils/fundId';
+import { parseInsiderFilings, type InsiderFiling } from '../utils/insiderFilings';
 import {
   companyInfoToUpcomingPayouts,
   mergeXDatePayouts,
@@ -460,6 +461,18 @@ export const fetchCompanyAnnouncements = async (ticker: string): Promise<Company
   } catch (e) {
     console.warn(`Announcements parse failed for ${ticker}`, e);
     return [];
+  }
+};
+
+/** Director / CEO / big-shareholder share dealings filed with PSX for one company. */
+export const fetchInsiderFilings = async (ticker: string): Promise<InsiderFiling[] | null> => {
+  const html = await fetchUrlWithFallback(`https://dps.psx.com.pk/company/${ticker.toUpperCase()}`);
+  if (!html || html.length < 500) return null;
+  try {
+    return parseInsiderFilings(html);
+  } catch (e) {
+    console.warn(`Insider filings parse failed for ${ticker}`, e);
+    return null;
   }
 };
 

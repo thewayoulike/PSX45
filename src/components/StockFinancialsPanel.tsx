@@ -9,6 +9,10 @@ import {
   parsePercentValue,
 } from '../utils/companyInfoParse';
 import { PanelRefreshNote } from './PanelRefreshNote';
+import { todayPK } from '../utils/dates';
+import { normalizeExDateIso as parseDividendDate } from '../utils/xDateMerge';
+
+const HISTORY_PAGE = 10;
 
 interface StockStatsLite {
   ticker: string;
@@ -65,6 +69,78 @@ export const StockFinancialsPanel: React.FC<Props> = ({
     (companyInfo?.statements?.annual?.financials?.length ?? 0) > 0;
 
   const showBlocks = hasAny;
+
+  const latest = companyInfo?.latestDividend || null;
+  const exISO = parseDividendDate(latest?.exDividendDate);
+  const today = todayPK();
+  const dividendUpcoming = !!exISO && exISO >= today;
+  const daysLeft = exISO ? Math.round((Date.parse(exISO) - Date.parse(today)) / 86_400_000) : 0;
+
+  const latestDividendCard = latest && (
+    <Card className={`!p-0 overflow-hidden ${dividendUpcoming ? 'ring-2 ring-emerald-500/70 dark:ring-emerald-400/60' : ''}`}>
+      <div className={`px-5 py-4 border-b flex flex-wrap items-center justify-between gap-2 ${dividendUpcoming ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200/70 dark:border-emerald-500/20' : 'border-slate-200/60 dark:border-slate-800'}`}>
+        <h4 className={`text-[10px] font-bold uppercase tracking-widest ${dividendUpcoming ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}`}>
+          {dividendUpcoming ? 'Upcoming Dividend' : 'Latest Dividend'}
+        </h4>
+        {dividendUpcoming && (
+          <span className="text-[11px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-600 text-white">
+            {daysLeft === 0 ? 'Ex-date is today' : `${daysLeft} day${daysLeft === 1 ? '' : 's'} left`}
+          </span>
+        )}
+      </div>
+      {dividendUpcoming && (
+        <div className="px-5 pt-4 flex flex-wrap items-end gap-x-6 gap-y-2">
+          <div>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">Cash per share</div>
+            <div className="text-3xl font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">
+              {latest.cashAmount || companyInfo?.dividendHistory?.[0]?.cashAmount || '—'}
+            </div>
+          </div>
+          <p className="text-sm text-slate-700 dark:text-slate-200 leading-snug max-w-md pb-1">
+            {daysLeft === 0
+              ? <>Shares bought from today (<span className="font-bold">{latest.exDividendDate}</span>) do <span className="font-bold">not</span> get this dividend. Shares you already own do.</>
+              : <>To get this dividend, own the shares <span className="font-bold">before {latest.exDividendDate}</span> (the ex-date). Buying on or after that day does not qualify.</>}
+          </p>
+        </div>
+      )}
+      <div className="p-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
+        {(
+          [
+            ['Cash', latest.cashAmount || companyInfo?.dividendHistory?.[0]?.cashAmount || '—'],
+            ['Yield', latest.dividendYield],
+            ['Annual', latest.annualDividend],
+            ['Ex-date', latest.exDividendDate],
+            ['Frequency', latest.payoutFrequency],
+            ['Payout ratio', latest.payoutRatio],
+            ['Growth', latest.dividendGrowth],
+          ] as const
+        ).map(([label, value]) => (
+          <div key={label}>
+            <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
+              {label}
+            </div>
+            <div
+              className={`mt-1 text-sm font-bold font-mono tabular-nums ${
+                label === 'Cash' || (dividendUpcoming && label === 'Ex-date')
+                  ? 'text-emerald-600 dark:text-emerald-400'
+                  : 'text-slate-900 dark:text-white'
+              }`}
+            >
+              {value || '—'}
+            </div>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+
+  const history = companyInfo?.dividendHistory || [];
+  const historyPages = Math.max(1, Math.ceil(history.length / HISTORY_PAGE));
+  const [historyPage, setHistoryPage] = React.useState(1);
+  React.useEffect(() => setHistoryPage(1), [companyInfo?.symbol]);
+  const page = Math.min(historyPage, historyPages);
+  const historyRows = history.slice((page - 1) * HISTORY_PAGE, page * HISTORY_PAGE);
+
 
   const periodToggle = (
     <div className="flex items-center gap-2">
@@ -129,6 +205,8 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
+      {showBlocks && dividendUpcoming && latestDividendCard}
+
       {showBlocks && (equitySnap.marketCapRaw || companyInfo?.latestDividend || companyInfo?.statements?.annual?.financials?.[0]) && (
         <Card className="!p-0 overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
@@ -167,43 +245,7 @@ export const StockFinancialsPanel: React.FC<Props> = ({
         </Card>
       )}
 
-      {showBlocks && companyInfo?.latestDividend && (
-        <Card className="!p-0 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200/60 dark:border-slate-800">
-            <h4 className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
-              Latest Dividend
-            </h4>
-          </div>
-          <div className="p-5 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-4">
-            {(
-              [
-                ['Cash', companyInfo.latestDividend.cashAmount || companyInfo.dividendHistory?.[0]?.cashAmount || '—'],
-                ['Yield', companyInfo.latestDividend.dividendYield],
-                ['Annual', companyInfo.latestDividend.annualDividend],
-                ['Ex-date', companyInfo.latestDividend.exDividendDate],
-                ['Frequency', companyInfo.latestDividend.payoutFrequency],
-                ['Payout ratio', companyInfo.latestDividend.payoutRatio],
-                ['Growth', companyInfo.latestDividend.dividendGrowth],
-              ] as const
-            ).map(([label, value]) => (
-              <div key={label}>
-                <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">
-                  {label}
-                </div>
-                <div
-                  className={`mt-1 text-sm font-bold font-mono tabular-nums ${
-                    label === 'Cash'
-                      ? 'text-emerald-600 dark:text-emerald-400'
-                      : 'text-slate-900 dark:text-white'
-                  }`}
-                >
-                  {value || '—'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
+      {showBlocks && !dividendUpcoming && latestDividendCard}
 
       {showBlocks &&
         selectedStockStats &&
@@ -281,11 +323,11 @@ export const StockFinancialsPanel: React.FC<Props> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60 text-slate-800 dark:text-slate-200">
-                {companyInfo.dividendHistory.map((row, i) => (
+                {historyRows.map((row, i) => (
                   <tr
                     key={`${row.exDividendDate}-${i}`}
                     className={`hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors ${
-                      i === 0 ? 'bg-emerald-50/40 dark:bg-emerald-500/5' : ''
+                      page === 1 && i === 0 ? 'bg-emerald-50/40 dark:bg-emerald-500/5' : ''
                     }`}
                   >
                     <td className="px-5 py-3.5 font-medium">{row.exDividendDate}</td>
@@ -299,6 +341,16 @@ export const StockFinancialsPanel: React.FC<Props> = ({
               </tbody>
             </ResponsiveTable>
           </div>
+          {historyPages > 1 && (
+            <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2 text-xs font-bold text-slate-500 dark:text-slate-400">
+              <span className="tabular-nums">{(page - 1) * HISTORY_PAGE + 1}–{Math.min(page * HISTORY_PAGE, history.length)} of {history.length}</span>
+              <div className="flex items-center gap-2">
+                <button type="button" disabled={page <= 1} onClick={() => setHistoryPage(page - 1)} className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">Prev</button>
+                <span className="tabular-nums">Page {page} of {historyPages}</span>
+                <button type="button" disabled={page >= historyPages} onClick={() => setHistoryPage(page + 1)} className="px-2.5 py-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40">Next</button>
+              </div>
+            </div>
+          )}
         </Card>
       )}
 
