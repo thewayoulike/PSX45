@@ -414,7 +414,8 @@ export const TickerPerformanceList: React.FC<TickerPerformanceListProps> = ({
 
   const allTickerStats = useMemo(() => {
       const SYSTEM_TYPES = ['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'TAX', 'HISTORY', 'OTHER'];
-      const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE'];
+      // Internal labels for cash, tax and fee rows: never a company.
+      const SYSTEM_TICKERS = ['CASH', 'ANNUAL FEE', 'CGT', 'PREV-PNL', 'ADJUSTMENT', 'OTHER FEE', 'CDC CHARGE', 'DIV REINVEST'];
 
       const uniqueTickers = Array.from(new Set(
           transactions
