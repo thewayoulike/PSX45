@@ -81,3 +81,22 @@ describe('stock reinvest beyond dividends earned', () => {
     expect(over.totalDividends).toBeCloseTo(exact.totalDividends);
   });
 });
+
+describe('ROI parts', () => {
+  it('add up to total profit, and ROI divides it by peak cash only', () => {
+    const { stats } = run([
+      tx('DEPOSIT', 'CASH', 1, 100000, '2026-01-02'),
+      tx('BUY', 'OGDC', 500, 100, '2026-01-05'),
+      tx('SELL', 'OGDC', 200, 120, '2026-02-01'),
+      tx('TAX', 'CGT', 1, 600, '2026-02-01'),
+      tx('DIVIDEND', 'OGDC', 300, 10, '2026-03-01', { tax: 450 }),
+      tx('DIVIDEND_REINVEST', 'DIV REINVEST', 1, 2550, '2026-03-02'),
+    ], { OGDC: 90 });
+    const p = stats.roiParts!;
+    const profit = p.realized - p.cgt + p.unrealized + p.dividends - p.fees + p.adjustments;
+    expect(profit).toBeCloseTo(stats.totalNetReturn!);
+    expect(p).toMatchObject({ realized: 4000, cgt: 600, unrealized: -3000, dividends: 2550 });
+    expect(stats.peakNetPrincipal).toBe(100000);
+    expect(stats.roi).toBeCloseTo((profit / 100000) * 100);
+  });
+});

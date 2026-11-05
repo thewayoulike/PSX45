@@ -395,7 +395,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
             value={spct(stats.roi)}
             valueClass={posNeg(stats.roi)}
             sub={<>Inc. div · Exc. <span className={posNeg(roiExcDiv)}>{spct(roiExcDiv)}</span></>}
-            tooltip="Return on Investment: total profit (realized + unrealized + dividends − fees) ÷ the most of your own cash you ever had invested (reinvested profit and dividends not included). A simple period return, not annualized."
+            tooltip="Return on Investment: total profit (realized profit or loss after CGT + unrealized profit or loss + net dividends − fees) ÷ peak cash invested (only your own cash; reinvested profit and dividends not included). A simple period return, not annualized. Tap ? to see your numbers."
+            explain={stats.roiParts ? (() => {
+              const p = stats.roiParts!;
+              const profit = p.realized - p.cgt + p.unrealized + p.dividends - p.fees + p.adjustments;
+              const lines = [
+                { label: 'Realized profit / loss', amount: rs0(p.realized), note: 'From shares or units you sold, after selling charges.' },
+                { label: 'Capital gains tax (CGT)', amount: rs0(-p.cgt) },
+                { label: 'Unrealized profit / loss', amount: rs0(p.unrealized), note: 'What you hold now, at today’s price, minus what it cost.' },
+                { label: isFund ? 'Dividends (paid out)' : 'Net dividends', amount: rs0(p.dividends), note: 'After withholding tax.' },
+                ...(Math.abs(p.fees) >= 0.005 ? [{ label: 'Fees and charges', amount: rs0(-p.fees), note: 'Annual fees, CDC and other charges you entered separately.' }] : []),
+                ...(Math.abs(p.adjustments) >= 0.005 ? [{ label: 'Adjustments', amount: rs0(p.adjustments) }] : []),
+                { label: '= Total profit', amount: rs0(profit) },
+                { label: '÷ Peak cash invested', amount: rs0(roiDenom), note: 'The most of your own cash you ever had in. Reinvested profit and dividends are not included.' },
+              ];
+              return <ExplainHint label="How this ROI is worked out" title="ROI" total={spct(stats.roi)} detail={`${rs0(profit)} ÷ ${rs0(roiDenom)}`} lines={lines} />;
+            })() : undefined}
           />
           <PanelCell
             label="Realized Gain"

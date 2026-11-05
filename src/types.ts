@@ -131,6 +131,8 @@ export interface PortfolioStats {
   dividendReinvested?: number;
   roi: number;
   totalNetReturn?: number;
+  /** The parts of totalNetReturn, for the ROI breakdown. They add up to totalNetReturn. */
+  roiParts?: { realized: number; cgt: number; unrealized: number; dividends: number; fees: number; adjustments: number };
   
   mwrr: number | null;
 }

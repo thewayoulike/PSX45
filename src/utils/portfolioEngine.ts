@@ -549,6 +549,14 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
       dailyUnavailableReason: sessionUnconfirmed ? 'Market session unavailable' : stockDay.corporateActions.length ? 'Corporate-action prices need verification' : dailyMissingPrevious ? 'Prices incomplete' : dailyPreviousValue <= 0 ? 'No exposure for this session' : undefined,
       totalCommission, totalSalesTax, totalCDC,
       totalOtherFees, totalCGT, freeCash, cashInvestment: totalDeposits - totalWithdrawals,
-      netPrincipal, peakNetPrincipal, netInvestedHistory: capitalHistory.points, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn
+      netPrincipal, peakNetPrincipal, netInvestedHistory: capitalHistory.points, totalDeposits, reinvestedProfits, dividendReinvested, roi, mwrr, totalNetReturn,
+      roiParts: {
+          realized: realizedPL,
+          cgt: totalCGT - fundTaxWithheld,
+          unrealized: totalValue - totalCost,
+          dividends: dividendSum - fundReinvestIncome,
+          fees: operationalExpenses,
+          adjustments: totalAdjustments,
+      },
   };
 }
