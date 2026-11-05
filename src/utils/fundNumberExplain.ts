@@ -42,7 +42,6 @@ export function explainFundCash(txs: CashExplainTx[], book: 'fund' | 'stock' = '
   let buys = 0;
   let bonusQty = 0;
   let sawSplit = false;
-  let stockDividendNet = 0;
 
   for (const t of txs) {
     const val = (t.price || 0) * (t.quantity || 0);
@@ -57,7 +56,7 @@ export function explainFundCash(txs: CashExplainTx[], book: 'fund' | 'stock' = '
       if (isFundTicker(t.ticker)) {
         fundTaxWithheld += t.tax || 0;
         totalCgt += t.tax || 0;
-      } else stockDividendNet += val - (t.tax || 0) - (t.otherFees || 0);
+      }
     } else if (t.type === 'DIVIDEND_REINVEST') {
       const unitReinvest = isFundTicker(t.ticker);
       const amt = unitReinvest ? val : (t.price || 0);
@@ -81,10 +80,7 @@ export function explainFundCash(txs: CashExplainTx[], book: 'fund' | 'stock' = '
 
   const matched = oversellCashCredit(txs.map(t => ({ ...t, date: t.date || '' })));
   const cashCgt = totalCgt - fundTaxWithheld;
-  // Stocks: only as much as the net dividends earned can be brought in (same cap as the dashboard).
-  const reinvestLeftInCash = book === 'stock'
-    ? Math.min(totalReinvest - unitReinvestVal, Math.max(0, stockDividendNet))
-    : totalReinvest - unitReinvestVal;
+  const reinvestLeftInCash = totalReinvest - unitReinvestVal;
   const lines: ExplainLine[] = [];
   const push = (label: string, amount: number, note?: string) => {
     if (Math.abs(amount) < 0.005) return;

@@ -68,7 +68,7 @@ describe('stock dividend reinvest', () => {
 });
 
 describe('stock reinvest beyond dividends earned', () => {
-  it('ignores the part marked reinvested above net dividends', () => {
+  it('counts an advance reinvest in full (it is real money in the account)', () => {
     const base = [
       tx('DEPOSIT', 'CASH', 1, 100000, '2026-01-02'),
       tx('BUY', 'OGDC', 1000, 100, '2026-01-05'),
@@ -76,7 +76,8 @@ describe('stock reinvest beyond dividends earned', () => {
     ];
     const exact = run([...base, tx('DIVIDEND_REINVEST', 'DIV REINVEST', 1, 10000, '2026-03-02')], { OGDC: 100 }).stats;
     const over = run([...base, tx('DIVIDEND_REINVEST', 'DIV REINVEST', 1, 15000, '2026-03-02')], { OGDC: 100 }).stats;
-    expect(over.netPrincipal).toBeCloseTo(exact.netPrincipal);
-    expect(over.freeCash).toBeCloseTo(exact.freeCash);
+    expect(over.netPrincipal).toBeCloseTo(exact.netPrincipal + 5000);
+    expect(over.freeCash).toBeCloseTo(exact.freeCash + 5000);
+    expect(over.totalDividends).toBeCloseTo(exact.totalDividends);
   });
 });

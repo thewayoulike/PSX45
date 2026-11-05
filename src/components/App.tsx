@@ -2024,9 +2024,9 @@ const App: React.FC = () => {
       }
   };
 
-  // While auth runs, show the loader — never the cached "Saved portfolio · read only"
-  // preview (that confused refreshes with a stale book). Drive loading keeps the app
-  // shell; portfolio screens and edit controls wait for the latest backup.
+  // While auth runs, show the loader. Once signed in, portfolio screens show the last
+  // saved copy straight away (clearly labelled, read-only) and update when the latest
+  // Drive backup arrives; edit controls wait for that backup.
   if (isAuthChecking || sbChecking) return <AppLoading />;
   const driveBooting = isDriveBooting({
     restoringDrive,
@@ -2035,6 +2035,8 @@ const App: React.FC = () => {
     loadingLatestCloud: isLoadingLatestCloud.current,
     cloudSyncing: isCloudSyncing,
   });
+  // Portfolio screens show the last saved copy at once; they stay read-only until the latest Drive backup is in.
+  const waitsForDrive = viewWaitsForDrive(currentView, driveBooting);
   if (viewSavedOffline) return <OfflinePortfolio />;
   if (sbStatus?.status === 'unavailable' || pendingStatus?.status === 'unavailable') return <main className="min-h-screen p-6 bg-slate-50 text-slate-900"><h1 className="text-xl font-bold">Unable to check account access</h1><p className="my-4">Your connection or the service is temporarily unavailable. This does not mean your account is awaiting approval.</p><button className="p-3 underline" onClick={() => window.location.reload()}>Retry connection</button><button className="p-3 underline" onClick={() => setViewSavedOffline(true)}>View saved transactions</button><button className="p-3 underline" onClick={handlePendingSignOut}>Sign out</button></main>;
   if (showLogin) {
@@ -2252,9 +2254,10 @@ const App: React.FC = () => {
                          </button>}
                     guide={<VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />}
                     theme={<ThemeToggle />}
-                    selector={currentView === 'TRADING_LAB' ? <span className="text-sm font-semibold text-emerald-600">Independent testing lab</span> : currentView === 'PRACTICE' ? <span className="text-sm font-semibold text-emerald-600">Practice portfolio</span> : driveBooting ? null : <div className="relative group flex-1 min-w-0">
+                    selector={currentView === 'TRADING_LAB' ? <span className="text-sm font-semibold text-emerald-600">Independent testing lab</span> : currentView === 'PRACTICE' ? <span className="text-sm font-semibold text-emerald-600">Practice portfolio</span> : <div className="relative group flex-1 min-w-0">
                               <select
                                   value={currentPortfolioId}
+                                  disabled={driveBooting}
                                   aria-label="Current portfolio"
                                   onChange={(e) => setCurrentPortfolioId(e.target.value)}
                                   className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1.5 pl-2 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
@@ -2452,13 +2455,14 @@ const App: React.FC = () => {
                        </div>
                       )}
                       <MobileSectionNavigator view={currentView} />
-                      {viewWaitsForDrive(currentView, driveBooting) ? (
-                          <div role="status" className="flex flex-col items-center justify-center gap-3 py-24 text-center">
-                              <Loader2 size={28} className="animate-spin text-emerald-600" />
-                              <p className="font-display font-bold text-slate-800 dark:text-slate-100">Opening your Google Drive backup…</p>
-                              <p className="max-w-sm text-sm text-slate-500 dark:text-slate-400">This screen opens once your latest portfolio is loaded. Markets, Charts and Calculators work in the meantime.</p>
+                      {waitsForDrive && (
+                          <div role="status" className="mb-4 flex items-center gap-2.5 rounded-2xl border border-emerald-200/70 dark:border-emerald-500/20 bg-emerald-50/80 dark:bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+                              <Loader2 size={14} className="animate-spin shrink-0" />
+                              <span><span className="font-bold">{transactions.length ? 'Showing your last saved copy.' : 'Loading your portfolio…'}</span> {transactions.length ? 'Checking Google Drive for updates — numbers refresh by themselves. Editing unlocks in a moment.' : 'Opening your Google Drive backup.'}</span>
                           </div>
-                      ) : <>
+                      )}
+                      <div className={`contents ${waitsForDrive ? 'pointer-events-none select-none' : ''}`} ref={el => { if (el) el.toggleAttribute('inert', waitsForDrive); }} aria-busy={waitsForDrive || undefined}>
+                      <>
                       {currentView === 'DASHBOARD' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
                               {isFundPortfolio && (
@@ -2692,7 +2696,8 @@ const App: React.FC = () => {
                               />
                           </div>
                       )}
-                      </>}
+                      </>
+                      </div>
                       </Suspense>
                       </SectionBoundary>
                   </main>

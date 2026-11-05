@@ -437,11 +437,15 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       if (!isFundPortfolio && type === 'DIVIDEND_REINVEST') {
           const scope = existingTransactions.filter(t => !portfolioId || t.portfolioId === portfolioId);
           const room = stockDividendRoomToReinvest(scope, editingTransaction?.id);
-          if (Number(histAmount) > room + 0.5) {
-              setFormError(room > 0
-                  ? `You can reinvest at most Rs. ${room.toLocaleString(undefined, { maximumFractionDigits: 2 })} — that is the net dividend you have earned that is not already marked as reinvested. Add the Dividend first if it is missing.`
-                  : 'There is no dividend left to reinvest. Add the Dividend first, then mark it as reinvested.');
-              return;
+          const over = Number(histAmount) - room;
+          if (over > 0.5) {
+              const fmt = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+              const ok = window.confirm(
+                  `This is ${fmt(over)} more than the dividends you have recorded and not yet reinvested (${fmt(room)}).\n\n` +
+                  `Save it anyway as an advance on an upcoming dividend? It counts in your invested amount and cash now. Add the Dividend when it is paid.\n\n` +
+                  `If a dividend is missing, press Cancel and add the Dividend first.`
+              );
+              if (!ok) return;
           }
       }
       if (fundTagged && !fromFund) {

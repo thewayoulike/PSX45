@@ -275,9 +275,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
   const isTotalReturnPositive = totalReturnRs >= 0;
   const dividendYield = stats.totalCost > 0 ? (stats.totalDividends / stats.totalCost) * 100 : 0;
   const reinvestedRecorded = dividendReinvestedTotal(transactions);
-  // You cannot reinvest more than you earned; show the extra as a check-your-entries note.
-  const reinvestedDividends = Math.min(reinvestedRecorded, Math.max(0, stats.totalDividends));
-  const reinvestedExtra = reinvestedRecorded - reinvestedDividends;
+  // Reinvested counts in full. Any part above the dividends recorded so far is
+  // flagged: covered by an upcoming dividend (advance), or worth checking.
+  const reinvestedDividends = reinvestedRecorded;
+  const reinvestedExtra = Math.max(0, reinvestedRecorded - Math.max(0, stats.totalDividends));
   const pending = usePendingDividends(!isFund && reinvestedExtra >= 1, holdings || [], transactions);
   const pendingTotal = (pending || []).reduce((s, p) => s + p.expected, 0);
   const coveredByPending = reinvestedExtra >= 1 && pendingTotal >= reinvestedExtra;
@@ -442,7 +443,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
             label="Dividends (Total)"
             value={<>+{rs0(stats.totalDividends)}</>}
             valueClass="text-purple-600 dark:text-purple-400"
-            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className={`block mt-1 ${reinvestedExtra >= 1 ? (coveredByPending ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold') : ''}`}>Reinvested: {rs0(reinvestedDividends)}{reinvestedExtra >= 1 ? ` (+${rs0(reinvestedExtra)})` : ''}</span></>}
+            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className={`block mt-1 ${reinvestedExtra >= 1 ? (coveredByPending ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold') : ''}`}>Reinvested: {rs0(reinvestedDividends)}{reinvestedExtra >= 1 ? ` (${rs0(reinvestedExtra)} ${coveredByPending ? 'ahead' : 'over'})` : ''}</span></>}
             explain={reinvestedExtra >= 1 ? (
               <HoverPopover
                 label={coveredByPending ? 'Reinvested ahead of a dividend' : 'Reinvested more than earned'}
@@ -453,7 +454,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
                   <>
                     <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Reinvested ahead of time</div>
                     <div className="font-display font-black text-lg tabular-nums text-slate-900 dark:text-white">{rs0(reinvestedExtra)}</div>
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">You marked more as reinvested than the dividends recorded so far. That's fine — it will count against your upcoming {pending!.length > 1 ? 'dividends' : 'dividend'}:</p>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">You reinvested more than the dividends recorded so far. That's fine — it already counts in your invested amount and cash, and is an advance on your upcoming {pending!.length > 1 ? 'dividends' : 'dividend'}:</p>
                     <div className="mt-2 space-y-1.5">
                       {pending!.map(p => (
                         <div key={`${p.ticker}-${p.exDate}`} className="flex items-start justify-between gap-3 text-xs">
@@ -469,9 +470,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
                     <div className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Reinvested more than earned</div>
                     <div className="font-display font-black text-lg tabular-nums text-slate-900 dark:text-white">{rs0(reinvestedExtra)}</div>
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                      Your Reinvest Div entries add up to more than the dividends you earned{pending && pending.length ? `, and upcoming dividends only cover ${rs0(pendingTotal)}` : ', and no dividend is coming up on your shares'}. The extra is left out of your totals for now.
+                      Your Reinvest Div entries add up to more than the dividends you earned{pending && pending.length ? `, and upcoming dividends only cover ${rs0(pendingTotal)}` : ', and no dividend is coming up on your shares'}. It still counts in your invested amount and cash.
                     </p>
-                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed"><span className="font-bold">If a dividend is missing:</span> add it as a Dividend.</p>
+                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed"><span className="font-bold">If a dividend is missing:</span> add it as a Dividend. <span className="font-bold">If the amount is wrong:</span> edit that Reinvest Div entry.</p>
                     {onFixReinvestExtra && (
                       <>
                         <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed"><span className="font-bold">If you put this money in yourself:</span> fix it in one tap.</p>
