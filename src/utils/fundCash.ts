@@ -161,6 +161,25 @@ export type FundConvertParams = {
   tax?: number;
 };
 
+export const CGT_UNITS_NOTE = 'CGT refund paid as units';
+
+/** A CGT refund the AMC paid as units: a negative TAX row plus a BUY of those units, sharing a linkId. */
+export function isCgtUnitsPair(transactions: Transaction[], linkId: string): boolean {
+  const legs = transactions.filter(t => t.linkId === linkId);
+  return !!legs.find(l => l.type === 'TAX') && !!legs.find(l => l.type === 'BUY' && isFundTicker(l.ticker));
+}
+
+/** Builds the two linked rows for a CGT refund paid as units. Cash nets to zero; the refund counts and the units join the holding at that NAV. */
+export function buildCgtUnitsRefund(opts: { fundTicker: string; units: number; nav: number; date: string; linkId: string; notes?: string }) {
+  const amount = Number((opts.units * opts.nav).toFixed(2));
+  const zero = { commission: 0, tax: 0, cdcCharges: 0, otherFees: 0 };
+  const note = opts.notes ? `${CGT_UNITS_NOTE} — ${opts.notes}` : CGT_UNITS_NOTE;
+  return {
+    refund: { ...zero, type: 'TAX' as const, ticker: 'CGT', quantity: 1, price: -amount, date: opts.date, fundTicker: opts.fundTicker, linkId: opts.linkId, notes: note },
+    units: { ...zero, type: 'BUY' as const, ticker: opts.fundTicker, quantity: opts.units, price: opts.nav, date: opts.date, linkId: opts.linkId, notes: note },
+  };
+}
+
 export function isFundConversionPair(transactions: Transaction[], linkId: string): boolean {
   const legs = transactions.filter(t => t.linkId === linkId);
   if (legs.some(l => l.autoCash)) return false;

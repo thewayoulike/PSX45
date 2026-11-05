@@ -170,6 +170,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
 
   const getRowSubtext = (tx: Transaction, conv?: FundConversionLeg) => {
     if (conv) return formatConversionSubtext(conv.leg, conv.otherTicker, displayNames);
+    if (tx.type === 'BUY' && tx.linkId && /^CGT refund paid as units/i.test(tx.notes || '')) return 'Units from CGT refund';
     if (tx.fundTicker && !isFundTicker(tx.ticker)) {
       const fund = formatTransactionLabel(tx.fundTicker, displayNames);
       const prefix = tx.type === 'DEPOSIT' ? 'Into' : tx.type === 'WITHDRAWAL' ? 'From' : tx.type === 'TAX' && tx.price < 0 ? 'Refund from' : 'For';

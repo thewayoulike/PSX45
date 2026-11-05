@@ -52,3 +52,17 @@ describe('portfolio engine', () => {
     expect(stats.totalDividends).toBeCloseTo(42.5);
   });
 });
+
+describe('stock dividend reinvest', () => {
+  it('does not count the dividend as income or cash twice', () => {
+    const base = [
+      tx('DEPOSIT', 'CASH', 1, 100000, '2026-01-02'),
+      tx('BUY', 'OGDC', 1000, 100, '2026-01-05'),
+      tx('DIVIDEND', 'OGDC', 1000, 41, '2026-03-01'),
+    ];
+    const before = run(base, { OGDC: 100 }).stats;
+    const after = run([...base, tx('DIVIDEND_REINVEST', 'DIV REINVEST', 1, 41000, '2026-03-02')], { OGDC: 100 }).stats;
+    expect(after.totalDividends).toBeCloseTo(before.totalDividends);
+    expect(after.freeCash).toBeCloseTo(before.freeCash);
+  });
+});

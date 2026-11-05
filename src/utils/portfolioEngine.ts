@@ -290,7 +290,7 @@ export type ComputedStats = PortfolioStats & { netInvestedHistory: NetInvestedPo
 /** Portfolio totals: value, cost, P/L, dividends, fees, cash, day P/L and returns. */
 export function computePortfolioStats(input: StatsInput): ComputedStats {
   const { holdings, realizedTrades, portfolioTransactions, ldcpMap, manualPrices, priceTimestamps, marketSessionDate, fundNavDayMap, fundCatalog, portfolios, currentPortfolioId, isCombinedView, combinedPortfolioIds } = input;
-  let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let transferInValue = 0; let transferOutValue = 0; let historyPnL = 0; let totalReinvest = 0;
+  let totalValue = 0; let totalCost = 0; let totalCommission = 0; let totalSalesTax = 0; let dividendSum = 0; let divTaxSum = 0; let totalCDC = 0; let totalOtherFees = 0; let totalCGT = 0; let totalDeposits = 0; let totalWithdrawals = 0; let transferInValue = 0; let transferOutValue = 0; let historyPnL = 0; let totalReinvest = 0; let stockReinvestMarked = 0;
   let operationalExpenses = 0;
   let fundReinvestIncome = 0;
   let fundTaxWithheld = 0;
@@ -403,13 +403,16 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
           if (netDiv >= 0) events.push({ date: t.date, type: 'PROFIT', amount: netDiv, originalIndex: idx });
       }
       else if (t.type === 'DIVIDEND_REINVEST') {
-          // A dividend kept in the portfolio: still counts as dividend income,
-          // adds spendable cash, and is added to the invested base (reinvest bucket).
-          // For funds the dividend buys units, so the cash it adds is spent again
-          // in tradingCashFlow below and the net effect on the balance is zero.
+          // A dividend kept in the portfolio is added to the invested base (reinvest bucket).
+          // Funds: the row IS the dividend (paid as units), so it counts as income and
+          // the cash it adds is spent again in tradingCashFlow below.
+          // Stocks: the dividend itself is its own DIVIDEND row, which already counted
+          // the income and the cash. This row only marks that money as reinvested,
+          // so it must not count as income or cash a second time.
           const amt = reinvestAmount(t);
           totalReinvest += amt;
-          dividendSum += amt;
+          if (isUnitReinvest(t)) dividendSum += amt;
+          else stockReinvestMarked += amt;
           // The units these bought carry zero cost, so their value already appears
           // as unrealized gain. Tracked separately so Total Return counts it once
           // while the Dividends figure still reports the income received.
@@ -491,7 +494,7 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
       else if (isUnitReinvest(t)) tradingCashFlow -= val;
   });
 
-  let cashIn = flows.cashIn + totalReinvest;
+  let cashIn = flows.cashIn + totalReinvest - stockReinvestMarked;
   // Fund withholding is deducted at source, so it reduces CGT and return but was
   // never money sitting in the portfolio to pay out.
   let cashOut = flows.cashOut + (totalCGT - fundTaxWithheld) + operationalExpenses;

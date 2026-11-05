@@ -13,6 +13,7 @@ import { normalizeScannedTrade } from '../utils/scanNormalize';
 import { FundPicker } from './FundPicker';
 import { MutualFundRecord } from '../services/mufapData';
 import { isFundTicker } from '../utils/fundId';
+import { buildCgtUnitsRefund, makeLinkId } from '../utils/fundCash';
 import { formatTransactionLabel } from '../utils/fundDisplay';
 import { dpFundNav, dpFundUnits, fmtFundNav, fmtFundUnits, roundFundNav, roundFundUnits } from '../utils/fundFormat';
 import { attachEmailImportSource, emailAttachmentKey, emailImportHistory, isEmailRowSaved, type EmailAttachmentIdentity } from '../utils/emailImportHistory';
@@ -103,6 +104,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [notes, setNotes] = useState('');
   const [fromFund, setFromFund] = useState('');
   const [fromFundSearch, setFromFundSearch] = useState(false);
+  /** Fund CGT: a fixed rupee amount, or a refund the AMC paid as units. */
+  const [cgtMode, setCgtMode] = useState<'FIXED' | 'UNITS'>('FIXED');
+  const [cgtUnits, setCgtUnits] = useState<number | ''>('');
+  const [cgtNav, setCgtNav] = useState<number | ''>('');
   /**
    * Fund subscriptions/redemptions usually move money to or from the bank, so by
    * default we book the matching cash row too. Unticked, the trade settles
@@ -309,13 +314,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         if (editingTransaction) {
             setMode('MANUAL'); setType(editingTransaction.type); setDate(editingTransaction.date); setTicker(editingTransaction.ticker); setQuantity(editingTransaction.quantity); setPrice(editingTransaction.price); setCommission(editingTransaction.commission); setTax(editingTransaction.tax || 0); setCdcCharges(editingTransaction.cdcCharges || 0); setOtherFees(editingTransaction.otherFees || 0); setNotes(editingTransaction.notes || ''); setIsAutoCalc(false); if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             setSelectedFund(isFundTicker(editingTransaction.ticker) ? (fundCatalog[editingTransaction.ticker] || null) : null);
-            setFromFund(editingTransaction.fundTicker || ''); setFromFundSearch(false);
+            setFromFund(editingTransaction.fundTicker || ''); setFromFundSearch(false); setCgtMode('FIXED');
             if (editingTransaction.type === 'TAX') { setPrice(editingTransaction.price); setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'HISTORY') { setHistAmount(editingTransaction.price); setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX'); }
             if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'DIVIDEND_REINVEST'].includes(editingTransaction.type)) { setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'OTHER') { setCategory(editingTransaction.category || 'ADJUSTMENT'); setHistAmount(editingTransaction.price); }
         } else {
-            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); setSelectedFund(null); setFromFund(''); setFromFundSearch(false); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(!isFundPortfolio); setDate(todayPK()); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
+            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); setSelectedFund(null); setFromFund(''); setFromFundSearch(false); setCgtMode('FIXED'); setCgtUnits(''); setCgtNav(''); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(!isFundPortfolio); setDate(todayPK()); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
@@ -431,6 +436,19 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       }
       if (fundTagged && !fromFund) {
           setFormError('Please pick which fund this is for.');
+          return;
+      }
+      if (isFundPortfolio && type === 'TAX' && cgtMode === 'UNITS' && !editingTransaction) {
+          const units = roundFundUnits(Number(cgtUnits));
+          const nav = roundFundNav(Number(cgtNav));
+          if (!(units > 0) || !(nav > 0)) {
+              setFormError('Please enter the units you received and the NAV.');
+              return;
+          }
+          const rows = buildCgtUnitsRefund({ fundTicker: fromFund, units, nav, date, linkId: makeLinkId(), notes: notes.trim() || undefined });
+          onAddTransaction(rows.refund as any);
+          onAddTransaction(rows.units as any);
+          onClose();
           return;
       }
       if ((fundUnitReinvest || type === 'REFUND_OF_CAPITAL') && (!(Number(quantity) > 0) || !(Number(price) > 0))) {
@@ -964,9 +982,38 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (type === 'TAX') {
         return (
             <>
+                {isFundPortfolio && !editingTransaction && (
+                    <div className="flex bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl shadow-inner gap-1">
+                        <button type="button" onClick={() => setCgtMode('FIXED')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${cgtMode === 'FIXED' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}>Fixed amount</button>
+                        <button type="button" onClick={() => setCgtMode('UNITS')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${cgtMode === 'UNITS' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}>Refund paid in units</button>
+                    </div>
+                )}
+                {isFundPortfolio && cgtMode === 'UNITS' && !editingTransaction ? (
+                    <>
+                        <div className="bg-indigo-50/60 dark:bg-indigo-500/10 p-4 rounded-2xl border border-indigo-200/60 dark:border-indigo-500/20 text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                            <p className="font-bold mb-0.5">CGT refund paid in units</p>
+                            <p className="opacity-90">Use this when the fund gave your tax back as extra units instead of cash. Enter the units you received and the NAV they were issued at. The app records the refund and adds the units to your holding at that NAV, so your cash does not change.</p>
+                        </div>
+                <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4`}> {!isFundPortfolio && <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={14} /></div></div>} <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Units Received</label><input required type="number" step="any" min="0" value={cgtUnits} onChange={e => setCgtUnits(e.target.value === '' ? '' : Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0.0000"/></div>
+                            <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">NAV</label><input required type="number" step="any" min="0" value={cgtNav} onChange={e => setCgtNav(e.target.value === '' ? '' : Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="0.0000"/></div>
+                        </div>
+                        <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-200/70 dark:border-slate-700/60 rounded-2xl px-4 py-3">
+                            <div className="flex flex-col">
+                                <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Refund value</span>
+                                <span className="text-[10px] text-slate-400 tabular-nums">{fmtFundUnits(Number(cgtUnits) || 0)} units × Rs. {fmtFundNav(Number(cgtNav) || 0)}</span>
+                            </div>
+                            <span className="text-lg font-display font-black tabular-nums text-emerald-600 dark:text-emerald-400">Rs. {((Number(cgtUnits) || 0) * (Number(cgtNav) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                    </>
+                ) : (
+                    <>
                 <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 mb-4 shadow-sm"> <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed"> <strong>{isFundPortfolio ? 'Capital Gains Tax (CGT) or CGT refund' : 'Manual CGT Entry:'}</strong> <br/> • Enter a <strong>positive amount</strong> for tax paid, e.g. 1500. <br/> • Enter a <strong>minus amount</strong> for a tax refund, e.g. -500. </p> </div>
                 <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4`}> {!isFundPortfolio && <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={14} /></div></div>} <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> </div>
                 <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Tax Amount (PKR)</label><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="e.g. 1500 or -500"/></div>
+                    </>
+                )}
             </>
         );
     }
@@ -985,7 +1032,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     if (type === 'DEPOSIT' || type === 'WITHDRAWAL' || type === 'DIVIDEND_REINVEST') {
         return (
           <>
-              <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-200/60 dark:border-emerald-500/20 flex gap-3 items-start shadow-sm"><Wallet className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium"><p className="font-bold mb-0.5">{fundUnitReinvest ? 'Dividend Reinvestment' : 'Cash Management'}</p><p className="opacity-90">{type === 'DIVIDEND_REINVEST' ? (fundUnitReinvest ? 'The dividend is paid out as extra units at that day\u2019s NAV. Enter the units issued and the NAV — the income is counted and the units are added to your holding, with no separate buy needed.' : 'Reinvested dividends count as income and are added to your invested base. Withdrawals draw these down first. Record the buy separately.') : 'Track deposits and withdrawals for accurate principal calculation.'}</p></div></div>
+              <div className="bg-emerald-50/50 dark:bg-emerald-500/10 p-4 rounded-2xl border border-emerald-200/60 dark:border-emerald-500/20 flex gap-3 items-start shadow-sm"><Wallet className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" size={18} /><div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium"><p className="font-bold mb-0.5">{fundUnitReinvest ? 'Dividend Reinvestment' : 'Cash Management'}</p><p className="opacity-90">{type === 'DIVIDEND_REINVEST' ? (fundUnitReinvest ? 'The dividend is paid out as extra units at that day\u2019s NAV. Enter the units issued and the NAV — the income is counted and the units are added to your holding, with no separate buy needed.' : 'Record the dividend itself as Dividend first — that is what counts as income. Use this only to mark that you kept that money invested: it moves the amount into your invested base and is not counted as income or cash a second time. Record the shares you bought with it as a separate Buy.') : 'Track deposits and withdrawals for accurate principal calculation.'}</p></div></div>
               {fundUnitReinvest && renderFundDividendModeSwitch()}<div className={`${fundUnitReinvest ? 'hidden' : 'flex'} bg-slate-100 dark:bg-slate-800 p-1.5 rounded-xl mb-3 shadow-inner gap-1`}><button type="button" onClick={() => setType('DEPOSIT')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'DEPOSIT' ? 'bg-white dark:bg-slate-700 shadow-sm text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <Plus size={14} strokeWidth={3} /> Add Funds </button><button type="button" onClick={() => setType('WITHDRAWAL')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'WITHDRAWAL' ? 'bg-white dark:bg-slate-700 shadow-sm text-rose-600 dark:text-rose-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <ArrowRightLeft size={14} strokeWidth={3} /> Withdraw </button><button type="button" onClick={() => setType('DIVIDEND_REINVEST')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${type === 'DIVIDEND_REINVEST' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}> <Coins size={14} strokeWidth={3} /> Reinvest Div </button></div>
               <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4`}> {!isFundPortfolio && <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={14} /></div></div>} <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> </div>
               {fundUnitReinvest ? (

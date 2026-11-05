@@ -80,7 +80,7 @@ import { shouldPersistPortfolio } from '../utils/portfolioPersistence';
 import { createSliceWriter, mergeChanged } from '../utils/slicePersistence';
 import { markStartup, beginStage } from '../utils/performance';
 import { preparePortfolioAccount } from '../utils/localAccount';
-import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
+import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isCgtUnitsPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
 import { mergeFundHoldingsByCanon, computeFundBucketAverageCost } from '../utils/fundHoldings';
 import { applyOpeningCorporateActions } from '../utils/corporateActions';
@@ -1208,6 +1208,10 @@ const App: React.FC = () => {
               const amount = cashAmountForTrade(updatedTx);
               return amount > 0 ? { ...t, price: amount, date: updatedTx.date } : t;
           }
+          // CGT refund paid as units: the refund always equals the units' value.
+          if (updatedTx.linkId && t.linkId === updatedTx.linkId && t.type === 'TAX' && updatedTx.type === 'BUY') {
+              return { ...t, price: -Number((updatedTx.quantity * updatedTx.price).toFixed(2)), date: updatedTx.date, fundTicker: updatedTx.ticker };
+          }
           return t;
       }));
       setEditingTransaction(null);
@@ -1226,7 +1230,7 @@ const App: React.FC = () => {
           all.forEach(t => {
               if (!t.linkId || !links.has(t.linkId)) return;
               if (t.autoCash) out.add(t.id);
-              else if (isFundConversionPair(all, t.linkId)) out.add(t.id);
+              else if (isFundConversionPair(all, t.linkId) || isCgtUnitsPair(all, t.linkId)) out.add(t.id);
           });
       }
       return out;
