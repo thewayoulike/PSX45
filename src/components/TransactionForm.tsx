@@ -101,6 +101,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   const [otherFees, setOtherFees] = useState<number | ''>('');
   const [isAutoCalc, setIsAutoCalc] = useState(true);
   const [notes, setNotes] = useState('');
+  const [fromFund, setFromFund] = useState('');
+  const [fromFundSearch, setFromFundSearch] = useState(false);
   /**
    * Fund subscriptions/redemptions usually move money to or from the bank, so by
    * default we book the matching cash row too. Unticked, the trade settles
@@ -112,6 +114,8 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
   // In a fund, a reinvested dividend is paid as units at that day's NAV rather than
   // as a rupee amount, so it is captured like a trade (fund + units + NAV).
   const fundUnitReinvest = isFundPortfolio && type === 'DIVIDEND_REINVEST';
+  /** In a fund portfolio every row belongs to a fund. Trades carry it as their ticker; cash, tax, fee and history rows carry it in fundTicker. */
+  const fundTagged = isFundPortfolio && !(type === 'BUY' || type === 'SELL' || type === 'DIVIDEND' || fundUnitReinvest || type === 'REFUND_OF_CAPITAL');
 
   // Net cash the paired row would move: cost including fees on a buy, proceeds after fees on a sell.
   const pairAmount = (() => {
@@ -305,12 +309,13 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
         if (editingTransaction) {
             setMode('MANUAL'); setType(editingTransaction.type); setDate(editingTransaction.date); setTicker(editingTransaction.ticker); setQuantity(editingTransaction.quantity); setPrice(editingTransaction.price); setCommission(editingTransaction.commission); setTax(editingTransaction.tax || 0); setCdcCharges(editingTransaction.cdcCharges || 0); setOtherFees(editingTransaction.otherFees || 0); setNotes(editingTransaction.notes || ''); setIsAutoCalc(false); if (editingTransaction.brokerId) setSelectedBrokerId(editingTransaction.brokerId);
             setSelectedFund(isFundTicker(editingTransaction.ticker) ? (fundCatalog[editingTransaction.ticker] || null) : null);
+            setFromFund(editingTransaction.fundTicker || ''); setFromFundSearch(false);
             if (editingTransaction.type === 'TAX') { setPrice(editingTransaction.price); setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'HISTORY') { setHistAmount(editingTransaction.price); setHistTaxType(editingTransaction.tax > 0 ? 'BEFORE_TAX' : 'AFTER_TAX'); }
             if (['DEPOSIT', 'WITHDRAWAL', 'ANNUAL_FEE', 'DIVIDEND_REINVEST'].includes(editingTransaction.type)) { setHistAmount(editingTransaction.price); }
             if (editingTransaction.type === 'OTHER') { setCategory(editingTransaction.category || 'ADJUSTMENT'); setHistAmount(editingTransaction.price); }
         } else {
-            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); setSelectedFund(null); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(!isFundPortfolio); setDate(todayPK()); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
+            setTicker(''); setQuantity(''); setPrice(''); setCommission(''); setTax(''); setCdcCharges(''); setOtherFees(''); setNotes(''); setSelectedFund(null); setFromFund(''); setFromFundSearch(false); if (savedScannedTrades.length > 0) {} else { setMode('MANUAL'); } setIsAutoCalc(!isFundPortfolio); setDate(todayPK()); setHistAmount(''); setHistTaxType('AFTER_TAX'); setCategory('ADJUSTMENT'); setScanError(null); setSelectedFile(null); setEmailMessages([]); setEmailQuery('');
             if (portfolioDefaultBrokerId) setSelectedBrokerId(portfolioDefaultBrokerId);
         }
     }
@@ -392,6 +397,22 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       return map;
   }, [fundCatalog]);
 
+  /** Funds this portfolio has ever held, still-held first, for the withdrawal "from which fund" picker. */
+  const withdrawFundOptions = useMemo(() => {
+      if (!isFundPortfolio) return [];
+      const units = new Map<string, number>();
+      existingTransactions.forEach(t => {
+          if ((portfolioId && t.portfolioId !== portfolioId) || !isFundTicker(t.ticker)) return;
+          let q = units.get(t.ticker) || 0;
+          if (t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'DIVIDEND_REINVEST' || t.type === 'REFUND_OF_CAPITAL') q += t.quantity;
+          if (t.type === 'SELL' || t.type === 'TRANSFER_OUT') q -= t.quantity;
+          units.set(t.ticker, q);
+      });
+      return [...units.entries()]
+          .map(([id, q]) => ({ id, held: q > 0.0001, label: formatTransactionLabel(id, fundDisplayNames) }))
+          .sort((a, b) => Number(b.held) - Number(a.held) || a.label.localeCompare(b.label));
+  }, [isFundPortfolio, existingTransactions, portfolioId, fundDisplayNames]);
+
   const scanFundLabel = (t: EditableTrade) =>
       formatTransactionLabel(t.ticker, fundDisplayNames, t.notes);
 
@@ -406,6 +427,10 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
       const needsFund = isFundPortfolio && (type === 'BUY' || type === 'SELL' || type === 'DIVIDEND' || fundUnitReinvest || type === 'REFUND_OF_CAPITAL');
       if (needsFund && !cleanTicker) {
           setFormError('Please select a mutual fund.');
+          return;
+      }
+      if (fundTagged && !fromFund) {
+          setFormError('Please pick which fund this is for.');
           return;
       }
       if ((fundUnitReinvest || type === 'REFUND_OF_CAPITAL') && (!(Number(quantity) > 0) || !(Number(price) > 0))) {
@@ -511,6 +536,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
           otherFees: Number(otherFees) || 0,
           category: type === 'OTHER' ? category : undefined,
           notes: notes.trim() || undefined,
+          fundTicker: fundTagged && fromFund ? fromFund : undefined,
           pairCash: pairsCash || undefined,
       };
       if (editingTransaction && onUpdateTransaction) onUpdateTransaction({ ...editingTransaction, ...txData });
@@ -893,11 +919,52 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
     </div>
   );
 
+  const fundTagCopy = (): { label: string; help: string } => {
+      switch (type) {
+          case 'DEPOSIT': return { label: 'Into which fund', help: 'The fund this money was put in for.' };
+          case 'WITHDRAWAL': return { label: 'From which fund', help: 'The fund this money came out of. This only records where the cash came from — it does not sell any units. To sell units, use Redeem.' };
+          case 'TAX': return { label: 'Which fund', help: 'The fund this tax was charged on, or the fund the refund came from. Use a minus amount for a refund.' };
+          case 'HISTORY': return { label: 'Which fund', help: 'The fund this past profit or loss came from.' };
+          case 'ANNUAL_FEE': return { label: 'Which fund', help: 'The fund that charged this fee.' };
+          case 'DIVIDEND_REINVEST': return { label: 'Which fund', help: 'The fund that paid this dividend.' };
+          default: return { label: 'Which fund', help: 'The fund this entry belongs to.' };
+      }
+  };
+
+  /** Fund tag shown on every non-trade row in a fund portfolio. */
+  const renderFundLinkPicker = () => {
+      const { label, help } = fundTagCopy();
+      const known = withdrawFundOptions.some(f => f.id === fromFund);
+      const search = fromFundSearch || withdrawFundOptions.length === 0;
+      return (
+          <div>
+              {search ? (
+                  <FundPicker catalog={fundCatalog} value={fromFund} label={label} onChange={(id) => setFromFund(id)} />
+              ) : (
+                  <>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">{label}</label>
+                      <div className="relative">
+                          <select required value={fromFund} onChange={e => { if (e.target.value === '__search') { setFromFundSearch(true); setFromFund(''); } else setFromFund(e.target.value); }} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 pr-10 text-sm font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm appearance-none">
+                              <option value="" disabled>Choose a fund…</option>
+                              {withdrawFundOptions.some(f => f.held) && <optgroup label="Funds you hold">{withdrawFundOptions.filter(f => f.held).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}</optgroup>}
+                              {withdrawFundOptions.some(f => !f.held) && <optgroup label="Funds you sold">{withdrawFundOptions.filter(f => !f.held).map(f => <option key={f.id} value={f.id}>{f.label}</option>)}</optgroup>}
+                              {fromFund && !known && <option value={fromFund}>{formatTransactionLabel(fromFund, fundDisplayNames)}</option>}
+                              <option value="__search">Another fund… (search all funds)</option>
+                          </select>
+                          <ChevronDown className="absolute right-4 top-4 text-slate-400 pointer-events-none" size={16} />
+                      </div>
+                  </>
+              )}
+              <p className="text-[10px] text-slate-400 mt-1 ml-1 leading-snug">{help}</p>
+          </div>
+      );
+  };
+
   const renderFormContent = () => {
     if (type === 'TAX') {
         return (
             <>
-                <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 mb-4 shadow-sm"> <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed"> <strong>Manual CGT Entry:</strong> <br/> • Enter a <strong>positive amount</strong> for tax paid. <br/> • Enter a <strong>negative amount</strong> for tax refund/credit. </p> </div>
+                <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200/60 dark:border-slate-700/60 mb-4 shadow-sm"> <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed"> <strong>{isFundPortfolio ? 'Capital Gains Tax (CGT) or CGT refund' : 'Manual CGT Entry:'}</strong> <br/> • Enter a <strong>positive amount</strong> for tax paid, e.g. 1500. <br/> • Enter a <strong>minus amount</strong> for a tax refund, e.g. -500. </p> </div>
                 <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4`}> {!isFundPortfolio && <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Broker</label><div className="relative"><select disabled value={selectedBrokerId} className="w-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-3.5 text-sm font-bold text-slate-500 dark:text-slate-400 focus:outline-none appearance-none cursor-not-allowed">{brokers.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select><Lock className="absolute right-4 top-4 text-slate-400" size={14} /></div></div>} <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Date</label><input required type="date" value={date} onChange={e=>setDate(e.target.value)} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-medium dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm dark:color-scheme-dark"/></div> </div>
                 <div><label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Tax Amount (PKR)</label><input required type="number" value={histAmount} onChange={e=>setHistAmount(Number(e.target.value))} className="w-full bg-white dark:bg-slate-900/50 border border-slate-200/80 dark:border-slate-700/60 rounded-xl p-3.5 text-sm font-mono font-bold dark:text-slate-100 focus:ring-2 focus:ring-emerald-500/20 outline-none shadow-sm tabular-nums" placeholder="e.g. 1500 or -500"/></div>
             </>
@@ -1180,7 +1247,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                                 <option value="SELL">{isFundPortfolio ? 'Redeem (Sell Units)' : 'Sell'}</option>
                                 <option value="DIVIDEND">Dividend (DIV)</option>
                                 {isFundPortfolio && <option value="REFUND_OF_CAPITAL">Refund of Capital (Bonus Units)</option>}
-                                {!isFundPortfolio && <option value="TAX">Tax (CGT)</option>}
+                                <option value="TAX">{isFundPortfolio ? 'Tax (CGT) / CGT Refund' : 'Tax (CGT)'}</option>
                                 <option value="HISTORY">{isFundPortfolio ? 'History (Past Realized)' : 'History'}</option>
                                 <option value="DEPOSIT">Cash (Deposit / Withdrawal)</option>
                                 <option value="ANNUAL_FEE">Annual Fee</option>
@@ -1190,6 +1257,7 @@ export const TransactionForm: React.FC<TransactionFormProps> = ({
                         </div>
                     </div>
 
+                    {fundTagged && renderFundLinkPicker()}
                     {renderFormContent()}
 
                     {/* Live total incl. fees — for Buy / Sell / Dividend */}

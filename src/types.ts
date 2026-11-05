@@ -38,6 +38,8 @@ export interface Transaction {
   linkId?: string;
   /** True on the cash half of a linked pair, i.e. the row the app created itself. */
   autoCash?: boolean;
+  /** Fund portfolios: the fund a cash, tax, fee or history row belongs to (trades carry it as ticker). */
+  fundTicker?: string;
   importSource?: EmailImportSource;
 }
 

@@ -77,6 +77,7 @@ export function buildPairedCashTx(
     createdAt: opts.createdAt,
     linkId: opts.linkId,
     autoCash: true,
+    fundTicker: trade.ticker,
   };
 }
 

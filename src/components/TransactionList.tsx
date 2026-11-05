@@ -93,7 +93,7 @@ export const TransactionList: React.FC<TransactionListProps> = ({
   const filteredAndSortedTransactions = useMemo(() => {
     const filtered = transactions.filter(tx => {
         const searchLower = searchTerm.toLowerCase();
-        const label = formatTransactionLabel(tx.ticker, displayNames, tx.notes).toLowerCase();
+        const label = `${formatTransactionLabel(tx.ticker, displayNames, tx.notes)} ${tx.fundTicker ? formatTransactionLabel(tx.fundTicker, displayNames) : ''}`.toLowerCase();
         const matchesSearch = tx.ticker.toLowerCase().includes(searchLower)
           || label.includes(searchLower)
           || (tx.broker && tx.broker.toLowerCase().includes(searchLower))
@@ -170,6 +170,11 @@ export const TransactionList: React.FC<TransactionListProps> = ({
 
   const getRowSubtext = (tx: Transaction, conv?: FundConversionLeg) => {
     if (conv) return formatConversionSubtext(conv.leg, conv.otherTicker, displayNames);
+    if (tx.fundTicker && !isFundTicker(tx.ticker)) {
+      const fund = formatTransactionLabel(tx.fundTicker, displayNames);
+      const prefix = tx.type === 'DEPOSIT' ? 'Into' : tx.type === 'WITHDRAWAL' ? 'From' : tx.type === 'TAX' && tx.price < 0 ? 'Refund from' : 'For';
+      return `${prefix} ${fund}`;
+    }
     return formatTransactionSubtext(tx.ticker, tx.notes, displayNames);
   };
 
