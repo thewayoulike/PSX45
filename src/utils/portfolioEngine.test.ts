@@ -54,7 +54,7 @@ describe('portfolio engine', () => {
 });
 
 describe('stock dividend reinvest', () => {
-  it('does not count the dividend as income or cash twice', () => {
+  it('does not count the dividend as income twice, but brings it into cash', () => {
     const base = [
       tx('DEPOSIT', 'CASH', 1, 100000, '2026-01-02'),
       tx('BUY', 'OGDC', 1000, 100, '2026-01-05'),
@@ -63,7 +63,7 @@ describe('stock dividend reinvest', () => {
     const before = run(base, { OGDC: 100 }).stats;
     const after = run([...base, tx('DIVIDEND_REINVEST', 'DIV REINVEST', 1, 41000, '2026-03-02')], { OGDC: 100 }).stats;
     expect(after.totalDividends).toBeCloseTo(before.totalDividends);
-    expect(after.freeCash).toBeCloseTo(before.freeCash);
+    expect(after.freeCash).toBeCloseTo(before.freeCash + 41000);
   });
 });
 

@@ -408,8 +408,9 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
           // Funds: the row IS the dividend (paid as units), so it counts as income and
           // the cash it adds is spent again in tradingCashFlow below.
           // Stocks: the dividend itself is its own DIVIDEND row, which already counted
-          // the income and the cash. This row only marks that money as reinvested,
-          // so it must not count as income or cash a second time.
+          // the income (but not cash: stock dividends are paid to the bank). This row
+          // brings that money into the broker cash, so it adds cash but must not count
+          // as income a second time.
           const amt = reinvestAmount(t);
           totalReinvest += amt;
           if (isUnitReinvest(t) || fundPortfolio) dividendSum += amt;
@@ -500,7 +501,7 @@ export function computePortfolioStats(input: StatsInput): ComputedStats {
       else if (isUnitReinvest(t)) tradingCashFlow -= val;
   });
 
-  let cashIn = flows.cashIn + totalReinvest - stockReinvestMarked;
+  let cashIn = flows.cashIn + totalReinvest;
   // Fund withholding is deducted at source, so it reduces CGT and return but was
   // never money sitting in the portfolio to pay out.
   let cashOut = flows.cashOut + (totalCGT - fundTaxWithheld) + operationalExpenses;

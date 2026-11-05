@@ -80,7 +80,7 @@ import { shouldPersistPortfolio } from '../utils/portfolioPersistence';
 import { createSliceWriter, mergeChanged } from '../utils/slicePersistence';
 import { markStartup, beginStage } from '../utils/performance';
 import { preparePortfolioAccount } from '../utils/localAccount';
-import { buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isCgtUnitsPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
+import { planReinvestTrim, buildPairedCashTx, buildFundConversionMap, cashAmountForTrade, isFundConversionPair, isCgtUnitsPair, isFundConvertOut, isPairableFundTrade, isRefundOfCapital, isUnitInflow, isUnitReinvest, makeLinkId, reinvestAmount, type FundConvertParams } from '../utils/fundCash';
 import { resolveHeldFundTicker, buildFundTickerCanonicalMap, canonicalFundTicker } from '../utils/fundMatch';
 import { mergeFundHoldingsByCanon, computeFundBucketAverageCost } from '../utils/fundHoldings';
 import { applyOpeningCorporateActions } from '../utils/corporateActions';
@@ -1200,6 +1200,38 @@ const App: React.FC = () => {
       return true;
   };
 
+  /**
+   * Reinvest Div entries beyond the dividends earned: if the user put that money in
+   * themselves, move it out of the newest Reinvest Div rows into a Deposit.
+   */
+  const handleFixReinvestExtra = (extra: number) => {
+      const plan = planReinvestTrim(transactions.filter(t => t.portfolioId === currentPortfolioId), extra);
+      if (!plan) return;
+      const amt = plan.deposit.amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const ok = window.confirm(
+          `Count Rs. ${amt} as money you added?\n\n` +
+          `Your Reinvest Div entries are Rs. ${amt} more than the dividends you earned. ` +
+          `This lowers the newest Reinvest Div entr${plan.changes.length === 1 ? 'y' : 'ies'} by that amount and adds a Deposit of Rs. ${amt} on ${plan.deposit.date}.\n\n` +
+          `Only do this if you put that money in yourself. If a dividend is missing instead, add the Dividend.`
+      );
+      if (!ok) return;
+      const remove = new Set(plan.changes.filter(c => c.price <= 0).map(c => c.id));
+      const prices = new Map(plan.changes.map(c => [c.id, c.price]));
+      const portfolio = portfolios.find(p => p.id === currentPortfolioId);
+      const broker = brokers.find(b => b.id === portfolio?.defaultBrokerId);
+      const deposit: Transaction = {
+          id: (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : `${Date.now()}-dep`,
+          portfolioId: currentPortfolioId, type: 'DEPOSIT', ticker: 'CASH', quantity: 1, price: plan.deposit.amount,
+          date: plan.deposit.date, commission: 0, tax: 0, cdcCharges: 0, otherFees: 0,
+          brokerId: portfolio?.defaultBrokerId, broker: broker?.name,
+          notes: 'Moved from Reinvest Div (more than dividends earned)', createdAt: nextCreatedAt(),
+      };
+      setTransactions(prev => [
+          ...prev.filter(t => !remove.has(t.id)).map(t => (prices.has(t.id) ? { ...t, price: prices.get(t.id)! } : t)),
+          deposit,
+      ]);
+  };
+
   const handleUpdateTransaction = (updatedTx: Transaction) => {
       setTransactions(prev => prev.map(t => {
           if (t.id === updatedTx.id) return updatedTx;
@@ -2082,6 +2114,7 @@ const App: React.FC = () => {
                       transactions={portfolioTransactions}
                       realizedTrades={realizedTrades}
                       displayNames={fundDisplayNames}
+                      onFixReinvestExtra={isCombinedView || isFundPortfolio ? undefined : handleFixReinvestExtra}
                   />
                   </Suspense>
               );

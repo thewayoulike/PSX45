@@ -44,6 +44,33 @@ export function stockDividendRoomToReinvest(txs: Array<Pick<Transaction, 'id' | 
   return Math.max(0, Number((earned - reinvested).toFixed(2)));
 }
 
+/**
+ * Fix for stock Reinvest Div entries that add up to more than the dividends earned:
+ * trim the newest ones by `extra` (newest first) and move that money to a Deposit,
+ * so it counts as money you put in. Returns the new prices (0 = remove the row) and
+ * the deposit to add, dated like the newest trimmed row.
+ */
+export function planReinvestTrim(
+  txs: Array<Pick<Transaction, 'id' | 'type' | 'ticker' | 'price' | 'date' | 'createdAt'>>,
+  extra: number,
+): { changes: { id: string; price: number }[]; deposit: { date: string; amount: number } } | null {
+  let left = Number(extra.toFixed(2));
+  if (!(left > 0)) return null;
+  const rows = txs
+    .filter(t => t.type === 'DIVIDEND_REINVEST' && !isUnitReinvest(t))
+    .sort((a, b) => (b.date || '').localeCompare(a.date || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+  if (!rows.length) return null;
+  const changes: { id: string; price: number }[] = [];
+  for (const r of rows) {
+    if (left <= 0) break;
+    const take = Math.min(left, r.price || 0);
+    changes.push({ id: r.id, price: Number(((r.price || 0) - take).toFixed(2)) });
+    left = Number((left - take).toFixed(2));
+  }
+  const moved = Number((extra - left).toFixed(2));
+  return moved > 0 ? { changes, deposit: { date: rows[0].date, amount: moved } } : null;
+}
+
 /** Total rupees of dividend income that was reinvested instead of paid out as cash. */
 export const dividendReinvestedTotal = (txs: Array<Pick<Transaction, 'type' | 'ticker' | 'quantity' | 'price'>>): number =>
   txs.reduce((sum, t) => sum + (t.type === 'DIVIDEND_REINVEST' ? reinvestAmount(t) : 0), 0);

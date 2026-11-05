@@ -9,6 +9,7 @@ import { HoverPopover } from './HoverPopover';
 import { explainFundCash, explainFundValue, explainNetInvested, type ExplainLine } from '../utils/fundNumberExplain';
 import { healthReturnPct } from '../utils/healthScore';
 import { dividendReinvestedTotal } from '../utils/fundCash';
+import { usePendingDividends } from './usePendingDividends';
 import {
   Wallet, RefreshCw, ArrowDownRight, ArrowUpRight, DollarSign, CheckCircle2,
   Activity, Coins, Receipt, Building2, FileText, PiggyBank, Scale, TrendingUp, TrendingDown,
@@ -31,6 +32,8 @@ interface DashboardProps {
   transactions?: Transaction[];
   realizedTrades?: RealizedTrade[];
   displayNames?: Record<string, string>;
+  /** Moves Reinvest Div money beyond the dividends earned into a Deposit. Omitted in combined view. */
+  onFixReinvestExtra?: (extra: number) => void;
 }
 const rs = (n: number) => `Rs. ${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 // 2-decimals everywhere (kept the name so nothing else has to change)
@@ -261,7 +264,7 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none"><FitLine max={10}>{sub}</FitLine></div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, updateFailed = false, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], displayNames = {} }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, updateFailed = false, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], displayNames = {}, onFixReinvestExtra }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const totalNetWorth = stats.totalValue + stats.freeCash;
   // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
@@ -275,6 +278,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
   // You cannot reinvest more than you earned; show the extra as a check-your-entries note.
   const reinvestedDividends = Math.min(reinvestedRecorded, Math.max(0, stats.totalDividends));
   const reinvestedExtra = reinvestedRecorded - reinvestedDividends;
+  const pending = usePendingDividends(!isFund && reinvestedExtra >= 1, holdings || [], transactions);
+  const pendingTotal = (pending || []).reduce((s, p) => s + p.expected, 0);
+  const coveredByPending = reinvestedExtra >= 1 && pendingTotal >= reinvestedExtra;
+  const fmtEx = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
   const realizedGain = stats.netRealizedPL;
   const isDailyProfitable = stats.dailyPL >= 0;
   const H = computeHealth(stats, holdings, trend, benchmark);
@@ -435,7 +442,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
             label="Dividends (Total)"
             value={<>+{rs0(stats.totalDividends)}</>}
             valueClass="text-purple-600 dark:text-purple-400"
-            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className="block mt-1">Reinvested: {rs0(reinvestedDividends)}</span>{reinvestedExtra >= 1 && <span className="block mt-1 text-amber-600 dark:text-amber-400" title="Reinvest Div entries add up to more than the net dividends you earned. Check them in Transactions, or add any missing Dividend.">{rs0(reinvestedExtra)} more marked reinvested than earned — check your Reinvest Div entries</span>}</>}
+            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className="block mt-1">Reinvested: {rs0(reinvestedDividends)}</span>{reinvestedExtra >= 1 && (coveredByPending ? (
+              <span className="block mt-1 text-indigo-600 dark:text-indigo-400">
+                {rs0(reinvestedExtra)} reinvested ahead of time. It will count against your upcoming dividend{pending!.length > 1 ? 's' : ''}: {pending!.map(p => `${p.ticker} (${p.passed ? 'ex-date was' : 'ex-date'} ${fmtEx(p.exDate)}, about ${rs0(p.expected)} before tax)`).join(', ')}. Add the Dividend when it is paid.
+              </span>
+            ) : (
+              <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                {rs0(reinvestedExtra)} more marked reinvested than earned{pending && pending.length ? ` (upcoming dividends cover only ${rs0(pendingTotal)})` : ''}. Check your Reinvest Div entries{onFixReinvestExtra ? ', or if you put that money in yourself:' : '.'}
+                {onFixReinvestExtra && (
+                  <button type="button" onClick={() => onFixReinvestExtra(reinvestedExtra)} className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold hover:bg-amber-200 dark:hover:bg-amber-500/25">
+                    Fix: count it as money added
+                  </button>
+                )}
+              </span>
+            ))}</>}
           />
           <PanelCell
             label="Dividend Yield"
