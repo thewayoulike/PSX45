@@ -1717,7 +1717,8 @@ const App: React.FC = () => {
       data => setPerformanceHistory(prev => ({ ...prev, [historyPortfolioId]: data })));
   // The value chart uses full history; daily-return comparisons stay at 30 days.
   const displayedPerformance = withLivePerformance(portfolioHistory.rows.filter(row =>
-      Date.parse(row.rawDate + 'T12:00:00+05:00') >= Date.now() - 30 * 86400000), livePerformanceDay, performanceKey);
+      Date.parse(row.rawDate + 'T12:00:00+05:00') >= Date.now() - 30 * 86400000), livePerformanceDay,
+      portfolioHistory.stale ? (portfolioHistory.rows[0]?.sourceKey || performanceKey) : performanceKey);
 
   const getCloudSnapshot = () => ({
       transactions, portfolios, currentPortfolioId, manualPrices, ldcpMap, priceTimestamps,
@@ -2133,6 +2134,7 @@ const App: React.FC = () => {
                       onRefreshHistory={portfolioHistory.refresh}
                       loading={portfolioHistory.loading}
                       errorMsg={portfolioHistory.error}
+                      stale={portfolioHistory.stale}
                   />
               );
           case 'allocation':

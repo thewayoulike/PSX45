@@ -3,7 +3,7 @@ import type { Transaction } from '../types';
 import { fetchStockHistory } from '../services/psxData';
 import { formatDatePK } from '../utils/dates';
 import { buildPerformanceHistory, stockTransactions, type PerformanceRow, type HistoryPoint } from '../utils/stockPerformance';
-import { mergePortfolioHistory, readPortfolioHistory, writePortfolioHistory, type HistoryScope } from '../utils/portfolioHistoryCache';
+import { latestSavedHistory, mergePortfolioHistory, readAnyPortfolioHistory, readPortfolioHistory, writePortfolioHistory, type HistoryScope } from '../utils/portfolioHistoryCache';
 
 /** Shared by portfolio value, daily P&L and benchmark cards, even if a card is hidden. */
 export function usePortfolioHistory(scope: HistoryScope, transactions: Transaction[], saved: PerformanceRow[], enabled: boolean,
@@ -13,8 +13,14 @@ export function usePortfolioHistory(scope: HistoryScope, transactions: Transacti
   const [result, setResult] = useState<{ identity: string; rows?: PerformanceRow[]; loading?: boolean; error?: string }>({ identity });
   const rows = useMemo(() => scope.account ? mergePortfolioHistory(scope.sourceKey, cached, saved, result.identity === identity ? result.rows : []) : [],
     [identity, cached, saved, result]);
-  const inputs = useRef({ scope, transactions, rows, onSave });
-  inputs.current = { scope, transactions, rows, onSave };
+  // After an edit the saved chart no longer matches the ledger. Until a refresh
+  // succeeds, show the last saved chart rather than nothing.
+  const fallback = useMemo(() => (rows.length || !scope.account) ? [] : latestSavedHistory(readAnyPortfolioHistory(scope), saved),
+    [identity, rows, saved]);
+  const stale = rows.length === 0 && fallback.length > 0;
+  const shown = stale ? fallback : rows;
+  const inputs = useRef({ scope, transactions, rows: shown, onSave });
+  inputs.current = { scope, transactions, rows: shown, onSave };
   const generation = useRef(0);
   const refresh = useCallback(async () => {
     if (!enabled || !scope.account) return;
@@ -55,6 +61,6 @@ export function usePortfolioHistory(scope: HistoryScope, transactions: Transacti
     void refresh();
     return () => { generation.current++; };
   }, [refresh]);
-  return { rows, loading: enabled && result.identity === identity && !!result.loading,
+  return { rows: shown, stale, loading: enabled && result.identity === identity && !!result.loading,
     error: result.identity === identity ? result.error : undefined, refresh };
 }

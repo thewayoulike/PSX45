@@ -22,9 +22,11 @@ interface PerformanceChartProps {
   errorMsg?: string;
   liveDay?: LiveDay;
   onRefreshPrices?: () => void | Promise<void>;
+  /** Rows are the last saved chart, from before the latest transaction changes. */
+  stale?: boolean;
 }
 
-export const PerformanceChart: React.FC<PerformanceChartProps> = ({ savedData, liveDay, onRefreshPrices, onRefreshHistory, loading, errorMsg }) => {
+export const PerformanceChart: React.FC<PerformanceChartProps> = ({ savedData, liveDay, onRefreshPrices, onRefreshHistory, loading, errorMsg, stale }) => {
   const compact = useMediaQuery('(max-width: 639px)');
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [showKSE100, setShowKSE100] = useState(true);
@@ -99,6 +101,11 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ savedData, l
       )}
       {gaps.length > 0 && <p className="mb-4 text-xs text-slate-500">Gaps mean a price is missing, corporate-action prices need verification, or there was no stock exposure. Missing returns are excluded from comparisons.</p>}
 
+      {stale && chartData.length > 0 && (
+        <div className="mb-4 rounded-2xl border border-amber-200/70 dark:border-amber-500/20 bg-amber-50/80 dark:bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
+          <span className="font-bold">Showing your last saved chart.</span> It was made before your latest transaction changes, so recent days may be slightly off. It updates by itself once the history refresh works.
+        </div>
+      )}
       {errorMsg && (
         <div className="mb-6 bg-rose-50/80 dark:bg-rose-500/10 border border-rose-200/60 dark:border-rose-500/20 p-4 rounded-2xl flex items-center gap-3 text-rose-600 dark:text-rose-400 text-sm font-bold shadow-sm animate-in fade-in">
             <AlertCircle size={18} />

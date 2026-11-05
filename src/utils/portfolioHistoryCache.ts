@@ -25,6 +25,25 @@ export function mergePortfolioHistory(sourceKey: string, ...sets: unknown[]): Pe
   return [...rows.values()].sort((a, b) => a.rawDate.localeCompare(b.rawDate));
 }
 
+/**
+ * The newest saved chart for this portfolio, whatever ledger version it was built
+ * from. Shown (clearly labelled) after an edit until a fresh history refresh works,
+ * so the chart never goes blank just because a transaction changed.
+ */
+export function latestSavedHistory(...sets: unknown[]): PerformanceRow[] {
+  let bestKey = '';
+  let bestTime = -1;
+  for (const set of sets) {
+    if (!Array.isArray(set)) continue;
+    for (const r of set) {
+      if (!r || r.method !== PERFORMANCE_METHOD || typeof r.sourceKey !== 'string') continue;
+      const t = Date.parse(r.fetchedAt) || 0;
+      if (t > bestTime) { bestTime = t; bestKey = r.sourceKey; }
+    }
+  }
+  return bestKey ? mergePortfolioHistory(bestKey, ...sets) : [];
+}
+
 function read(scope: HistoryScope, kind: string) {
   try {
     const id = key(scope, kind);
@@ -39,6 +58,14 @@ function write(scope: HistoryScope, kind: string, data: object): boolean {
     localStorage.setItem(id, JSON.stringify({ sourceKey: scope.sourceKey, ...data }));
     return true;
   } catch { return false; }
+}
+/** This device's saved chart for the portfolio, from any ledger version. */
+export function readAnyPortfolioHistory(scope: HistoryScope): unknown[] {
+  try {
+    const id = key(scope, 'daily');
+    const entry = id ? JSON.parse(localStorage.getItem(id) || 'null') : null;
+    return Array.isArray(entry?.rows) ? entry.rows : [];
+  } catch { return []; }
 }
 export const readPortfolioHistory = (scope: HistoryScope) => matchingHistory(read(scope, 'daily')?.rows, scope.sourceKey);
 export const writePortfolioHistory = (scope: HistoryScope, rows: PerformanceRow[]) => write(scope, 'daily', { rows: matchingHistory(rows, scope.sourceKey) });
