@@ -442,20 +442,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
             label="Dividends (Total)"
             value={<>+{rs0(stats.totalDividends)}</>}
             valueClass="text-purple-600 dark:text-purple-400"
-            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className="block mt-1">Reinvested: {rs0(reinvestedDividends)}</span>{reinvestedExtra >= 1 && (coveredByPending ? (
-              <span className="block mt-1 text-indigo-600 dark:text-indigo-400">
-                {rs0(reinvestedExtra)} reinvested ahead of time. It will count against your upcoming dividend{pending!.length > 1 ? 's' : ''}: {pending!.map(p => `${p.ticker} (${p.passed ? 'ex-date was' : 'ex-date'} ${fmtEx(p.exDate)}, about ${rs0(p.expected)} before tax)`).join(', ')}. Add the Dividend when it is paid.
-              </span>
-            ) : (
-              <span className="block mt-1 text-amber-600 dark:text-amber-400">
-                {rs0(reinvestedExtra)} more marked reinvested than earned{pending && pending.length ? ` (upcoming dividends cover only ${rs0(pendingTotal)})` : ''}. Check your Reinvest Div entries{onFixReinvestExtra ? ', or if you put that money in yourself:' : '.'}
-                {onFixReinvestExtra && (
-                  <button type="button" onClick={() => onFixReinvestExtra(reinvestedExtra)} className="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-md bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold hover:bg-amber-200 dark:hover:bg-amber-500/25">
-                    Fix: count it as money added
-                  </button>
+            sub={<>Tax Paid: {rs0(stats.totalDividendTax)}<span className={`block mt-1 ${reinvestedExtra >= 1 ? (coveredByPending ? 'text-indigo-600 dark:text-indigo-400 font-bold' : 'text-amber-600 dark:text-amber-400 font-bold') : ''}`}>Reinvested: {rs0(reinvestedDividends)}{reinvestedExtra >= 1 ? ` (+${rs0(reinvestedExtra)})` : ''}</span></>}
+            explain={reinvestedExtra >= 1 ? (
+              <HoverPopover
+                label={coveredByPending ? 'Reinvested ahead of a dividend' : 'Reinvested more than earned'}
+                align="start"
+                triggerClassName={`relative inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[11px] font-black normal-case leading-none tracking-normal text-white ${coveredByPending ? 'bg-indigo-500 hover:bg-indigo-600' : 'bg-amber-500 hover:bg-amber-600'}`}
+                panelClassName="z-[200] w-80 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200/80 bg-white p-4 text-left normal-case tracking-normal shadow-xl dark:border-slate-700 dark:bg-slate-900"
+                panel={coveredByPending ? (
+                  <>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-indigo-500">Reinvested ahead of time</div>
+                    <div className="font-display font-black text-lg tabular-nums text-slate-900 dark:text-white">{rs0(reinvestedExtra)}</div>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">You marked more as reinvested than the dividends recorded so far. That's fine — it will count against your upcoming {pending!.length > 1 ? 'dividends' : 'dividend'}:</p>
+                    <div className="mt-2 space-y-1.5">
+                      {pending!.map(p => (
+                        <div key={`${p.ticker}-${p.exDate}`} className="flex items-start justify-between gap-3 text-xs">
+                          <span className="text-slate-700 dark:text-slate-200"><span className="font-bold">{p.ticker}</span> · {p.passed ? 'ex-date was' : 'ex-date'} {fmtEx(p.exDate)}</span>
+                          <span className="font-bold tabular-nums text-slate-800 dark:text-slate-100">~{rs0(p.expected)}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-slate-400">Amounts are before tax. Add the Dividend when it is paid and this note goes away.</p>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-[10px] font-bold uppercase tracking-widest text-amber-600">Reinvested more than earned</div>
+                    <div className="font-display font-black text-lg tabular-nums text-slate-900 dark:text-white">{rs0(reinvestedExtra)}</div>
+                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                      Your Reinvest Div entries add up to more than the dividends you earned{pending && pending.length ? `, and upcoming dividends only cover ${rs0(pendingTotal)}` : ', and no dividend is coming up on your shares'}. The extra is left out of your totals for now.
+                    </p>
+                    <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed"><span className="font-bold">If a dividend is missing:</span> add it as a Dividend.</p>
+                    {onFixReinvestExtra && (
+                      <>
+                        <p className="mt-1 text-xs text-slate-600 dark:text-slate-300 leading-relaxed"><span className="font-bold">If you put this money in yourself:</span> fix it in one tap.</p>
+                        <button type="button" onClick={() => onFixReinvestExtra(reinvestedExtra)} className="mt-3 w-full rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2.5">
+                          Fix: count it as money added
+                        </button>
+                      </>
+                    )}
+                  </>
                 )}
-              </span>
-            ))}</>}
+              >
+                <span className="absolute inset-0 rounded-full animate-ping opacity-40 bg-current" aria-hidden="true" />
+                <span className="relative">!</span>
+              </HoverPopover>
+            ) : undefined}
           />
           <PanelCell
             label="Dividend Yield"
