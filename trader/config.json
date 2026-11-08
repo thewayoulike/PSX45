@@ -1,0 +1,22 @@
+{
+  "_readme": "Copy to trader/config.json and edit. Rupees. Charges and the CGT rate are estimates: check your broker's schedule and your tax status.",
+  "server": "https://www.psx-tracker.com",
+  "capital": 150000,
+  "max_loss_per_trade": 01000,
+  "max_position_pct": 25,
+  "cash_buffer_pct": 10,
+  "daily_loss_limit": 02000,
+  "max_trades_per_day": 3,
+  "min_reward_risk": 1.2,
+  "fee_pct": 0.15,
+  "slip_pct": 0.05,
+  "one_side_commission": false,
+  "lot_size": 1,
+  "cgt_pct": 15,
+  "entry_window_minutes": [15, 120],
+  "flat_by_minutes": 5,
+  "min_price": 5,
+  "min_volume": 100000,
+  "extra_holidays": [],
+  "paper": true
+}
