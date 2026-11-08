@@ -1,0 +1,10 @@
+{
+  "name": "psx-day-trader",
+  "description": "11 Claude skills for day trading on the Pakistan Stock Exchange: scan PSX charts, track news and insider trades, time every entry and exit, size to PSX charges, and replay outcomes before you risk a rupee. Never places an order.",
+  "version": "0.1.0",
+  "author": { "name": "PSX Tracker", "url": "https://www.psx-tracker.com" },
+  "homepage": "https://www.psx-tracker.com",
+  "license": "MIT",
+  "keywords": ["claude-skills", "day-trading", "psx", "pakistan-stock-exchange", "kse-100", "opening-range-breakout"],
+  "skills": "./"
+}
