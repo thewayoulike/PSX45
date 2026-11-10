@@ -620,6 +620,64 @@ def cmd_record(a, cfg):
     return 0
 
 
+def backfill_symbol(sym, cfg, period, keep_days, overwrite=False):
+    """Save past sessions from the server's intraday history as trader/bars/SYM/DAY.json.
+    Days already recorded from PSX trades are kept unless overwrite. Returns (new days, bad days)."""
+    bars, bad = psx.history_bars(sym, period, cfg)
+    cutoff = (psx.now_pkt().date() - __import__("datetime").timedelta(days=keep_days)).isoformat() if keep_days else ""
+    by_day = {}
+    for b in bars:
+        if b["day"] >= cutoff:
+            by_day.setdefault(b["day"], []).append(b)
+    new = 0
+    for day, rows in sorted(by_day.items()):
+        p = psx.path("bars", sym, "%s.json" % day)
+        if os.path.exists(p) and not overwrite:
+            continue
+        psx.write_json(p, {"symbol": sym, "day": day, "minutes": 5,
+                           "source": "PSX Tracker intraday history (pypsx)", "bars": rows})
+        new += 1
+    return new, sorted(d for d in bad if d >= cutoff)
+
+
+def cmd_backfill(a, cfg):
+    symbols = record_universe(a, cfg) if a.all else [s for s in a.symbols.split(",") if s.strip()]
+    if not symbols:
+        raise psx.PsxError("Give symbols (backfill NPL,OGDC) or use --all.")
+    print("Back-filling %d symbol(s) from your PSX Tracker server's intraday history (period %s, keeping %s)."
+          % (len(symbols), a.period, "%d days" % a.keep_days if a.keep_days else "everything"), file=sys.stderr)
+    failed, total_new, empty = [], 0, []
+    for i, raw in enumerate(symbols, 1):
+        sym = psx.clean_symbol(raw)
+        try:
+            new, bad = backfill_symbol(sym, cfg, a.period, a.keep_days, a.overwrite)
+        except psx.PsxError as ex:
+            failed.append(sym)
+            print("[%d/%d] %s: could not read (%s)" % (i, len(symbols), sym, ex), file=sys.stderr)
+            continue
+        total_new += new
+        segs, _ = load_sessions(sym, cfg, use_latest=False)
+        fam = {}
+        for sg in segs:
+            if sg["complete"]:
+                fam[sg["family"]] = fam.get(sg["family"], 0) + 1
+        if not segs:
+            empty.append(sym)
+        line = "%s: +%d day(s); complete sessions now %s" % (
+            sym, new, ", ".join("%s %d" % kv for kv in sorted(fam.items())) or "none")
+        if bad:
+            line += "; skipped bad-data days %s" % ", ".join(bad)
+        print(("[%d/%d] " % (i, len(symbols)) + line) if a.all else line, file=sys.stderr if a.all else sys.stdout)
+    print("Back-filled %d new session day(s) for %d of %d symbol(s) into %s."
+          % (total_new, len(symbols) - len(failed), len(symbols), psx.path("bars")))
+    if empty:
+        print("No usable history for %d: %s" % (len(empty), ", ".join(empty[:20]) + (" ..." if len(empty) > 20 else "")))
+    if failed:
+        print("Could not read %d (run again to retry just these): backfill %s" % (len(failed), ",".join(failed)))
+    print("Keep it current with `record --all` after every close.")
+    return 0
+
+
 def cmd_run(a, cfg):
     plan = load_plan(a, cfg)
     if a.daily:
@@ -645,6 +703,14 @@ def main(argv=None):
     r.add_argument("--all", action="store_true", help="every PSX Market Watch symbol that traded in the latest session")
     r.add_argument("--min-volume", type=float, default=0, help="with --all: skip symbols that traded fewer shares")
     r.add_argument("--index", default=None, help="with --all: only symbols listed in this index, e.g. KSE100")
+    bf = sub.add_parser("backfill", help="save past sessions from your PSX Tracker server's intraday history")
+    bf.add_argument("symbols", nargs="?", default="", help="SYMBOL or SYMBOL,SYMBOL")
+    bf.add_argument("--all", action="store_true", help="every Market Watch symbol that traded in the latest session")
+    bf.add_argument("--min-volume", type=float, default=0, help="with --all: skip symbols that traded fewer shares")
+    bf.add_argument("--index", default=None, help="with --all: only symbols in this index, e.g. KSE100")
+    bf.add_argument("--period", choices=["1mo", "all"], default="all", help="1mo (about 16 sessions) or all (about a year)")
+    bf.add_argument("--keep-days", type=int, default=120, help="keep sessions from the last N calendar days (0 = all)")
+    bf.add_argument("--overwrite", action="store_true", help="replace days already recorded")
     p = sub.add_parser("run", help="replay the plan")
     p.add_argument("--plan", default=None, help="plan file (default trader/plan.json)")
     p.add_argument("--paths", type=int, default=10000)
@@ -666,6 +732,8 @@ def main(argv=None):
     cfg = psx.load_config()
     if a.cmd == "record":
         return cmd_record(a, cfg)
+    if a.cmd == "backfill":
+        return cmd_backfill(a, cfg)
     a.plan = a.plan or psx.path("plan.json")
     return cmd_run(a, cfg)
 

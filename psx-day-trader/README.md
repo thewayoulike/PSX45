@@ -51,10 +51,10 @@ PSX does not serve scripts directly, so every tool reads PSX data through your
 The server allows 120 requests a minute. Scans of the whole market take a
 while: the scanner paces itself and lets you limit how many stocks it checks.
 
-Because PSX keeps only the latest session's trades, the **Time Machine records
-each day's 5-minute candles** (`timemachine.py record`) to build its history.
-Run it after every close for the stocks you trade. Until about 20 sessions are
-saved, its replays are weak and it says so.
+PSX itself keeps only the latest session's trades, but your PSX Tracker server
+holds about a year of 5-minute history. Run **`timemachine.py backfill --all`
+once** (about 75 minutes for the whole market; it keeps the last 120 days), then
+**`timemachine.py record --all` after every close** to keep it current.
 
 ## The eleven
 

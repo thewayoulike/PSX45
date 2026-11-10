@@ -289,12 +289,12 @@ def _offline_file(name):
     raise PsxError("Offline mode: no saved response %s in %s." % (name, root))
 
 
-def _get(params, offline_name, cfg=None, retries=3, pause=0.6):
+def _get(params, offline_name, cfg=None, retries=3, pause=0.6, endpoint="/api/proxy", timeout=60):
     saved = _offline_file(offline_name)
     if saved is not None:
         return saved
     server = ((cfg or {}).get("server") or DEFAULT_SERVER).rstrip("/")
-    url = server + "/api/proxy?" + urllib.parse.urlencode(params)
+    url = server + endpoint + "?" + urllib.parse.urlencode(params)
     delay = 2.0
     for attempt in range(retries):
         wait = _last_call[0] + pause - time.time()
@@ -303,7 +303,7 @@ def _get(params, offline_name, cfg=None, retries=3, pause=0.6):
         _last_call[0] = time.time()
         try:
             req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "*/*"})
-            with urllib.request.urlopen(req, timeout=60) as r:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
                 return r.read()
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504) and attempt < retries - 1:
@@ -447,6 +447,49 @@ def segments(bars, minutes=5, cfg=None, now=None):
         g["complete"] = g["end"] <= now_ms and bool(seq) and seq[0]["t"] == first and seq[-1]["t"] == g["end"] - size
         out.append(g)
     return out
+
+
+def history_bars(symbol, period="all", cfg=None, now=None):
+    """Past 5-minute candles from your PSX Tracker server's intraday history (about a
+    year, from 20 Oct 2025), regular sessions only, plus the days the source marks as
+    bad data. Returns (bars in the same shape as ticks_to_bars, set of bad days)."""
+    s = clean_symbol(symbol)
+    if period not in ("1mo", "all"):
+        raise PsxError("History period must be 1mo or all.")
+    raw = _get({"mode": "intraday", "symbol": s, "interval": "5m", "period": period},
+               "hist-%s.json" % s, cfg, endpoint="/api/pypsx", timeout=150, pause=1.0)
+    data = _json(raw, "Intraday history for %s" % s)
+    if data.get("error"):
+        raise PsxError("Intraday history for %s: %s" % (s, data["error"]))
+    bad = set()
+    for g in data.get("gaps") or []:
+        try:
+            d = _dt.date.fromisoformat(g["start"])
+            end = _dt.date.fromisoformat(g.get("end") or g["start"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        while d <= end:
+            bad.add(d.isoformat())
+            d += _dt.timedelta(days=1)
+    now_ms = ms(now or now_pkt())
+    out = {}
+    for b in data.get("bars") or []:
+        try:
+            t, o, h, l, c = int(b["time"]), float(b["open"]), float(b["high"]), float(b["low"]), float(b["close"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if t % FIVE_MS or t + FIVE_MS > now_ms or min(o, h, l, c) <= 0 or h < max(o, c) or l > min(o, c):
+            continue
+        day = pkt_day(t)
+        if day in bad:
+            continue
+        win = next((x for x in sessions(day, cfg) if x["start"] <= t and t + FIVE_MS <= x["end"]), None)
+        if not win:
+            continue
+        v = b.get("volume")
+        out[t] = {"t": t, "o": o, "h": h, "l": l, "c": c, "v": float(v) if isinstance(v, (int, float)) else 0.0,
+                  "family": win["family"], "day": day}
+    return [out[k] for k in sorted(out)], bad
 
 
 def recorded_bars(symbol):

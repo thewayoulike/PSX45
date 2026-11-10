@@ -232,3 +232,39 @@ class RecordAllTests(unittest.TestCase):
                 os.environ.pop("PSX_TRADER_DIR", None)
             else:
                 os.environ["PSX_TRADER_DIR"] = old_dir
+
+
+class BackfillTests(unittest.TestCase):
+    def test_history_bars_and_backfill(self):
+        import io, tempfile
+        from contextlib import redirect_stdout
+        tm = _load.load("psx-trader-timemachine", "timemachine")
+        bars, bad = psx.history_bars("HUBC", "1mo")
+        days = sorted({b["day"] for b in bars})
+        self.assertGreaterEqual(len(days), 10)
+        self.assertEqual(days[-1], "2026-11-06")
+        self.assertTrue(all(b["t"] % psx.FIVE_MS == 0 for b in bars))
+        # Same candles as the ones built from Friday's PSX trades (volume matches exactly).
+        mine = {b["t"]: b for b in psx.ticks_to_bars(psx.ticks("HUBC"))}
+        hist = {b["t"]: b for b in bars if b["day"] == "2026-11-06"}
+        common = set(mine) & set(hist)
+        self.assertGreater(len(common), 40)
+        # Trades stamped right on a candle boundary can land in the neighbouring candle; totals agree.
+        vm, vh = sum(mine[t]["v"] for t in common), sum(hist[t]["v"] for t in common)
+        self.assertLess(abs(vm - vh) / vm, 0.01)
+        self.assertGreater(sum(1 for t in common if abs(mine[t]["v"] - hist[t]["v"]) < 1) / len(common), 0.8)
+        tmp = tempfile.mkdtemp()
+        old = os.environ.get("PSX_TRADER_DIR")
+        os.environ["PSX_TRADER_DIR"] = tmp
+        try:
+            with redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(tm.main(["backfill", "HUBC", "--period", "1mo", "--keep-days", "0"]), 0)
+            self.assertIn("HUBC: +%d day(s)" % len(days), out.getvalue())
+            with redirect_stdout(io.StringIO()) as out:                  # second run adds nothing
+                tm.main(["backfill", "HUBC", "--period", "1mo", "--keep-days", "0"])
+            self.assertIn("HUBC: +0 day(s)", out.getvalue())
+        finally:
+            if old is None:
+                os.environ.pop("PSX_TRADER_DIR", None)
+            else:
+                os.environ["PSX_TRADER_DIR"] = old

@@ -31,6 +31,8 @@ Run commands from the pack root (the folder holding `psx-trader-common/`):
 
 ```bash
 python3 psx-trader-timemachine/timemachine.py record OGDC,HUBC      # after EVERY close: save today's 5-minute candles
+python3 psx-trader-timemachine/timemachine.py backfill --all        # ONCE: last 120 days of 5-minute history for every traded symbol (~75 min)
+python3 psx-trader-timemachine/timemachine.py backfill NPL,OGDC     # same for a few symbols (~11 s each)
 python3 psx-trader-timemachine/timemachine.py record --all          # every symbol that traded (about 5-10 minutes)
 python3 psx-trader-timemachine/timemachine.py record --all --min-volume 100000 --index KSE100   # liquid KSE-100 only
 python3 psx-trader-timemachine/timemachine.py run                    # trader/plan.json, 10,000 paths, seed 19
@@ -42,6 +44,12 @@ python3 psx-trader-timemachine/timemachine.py run --json
 ```
 
 ## Why it needs recording first
+
+Your PSX Tracker server keeps about a year of 5-minute history (from
+20 October 2025), so start with `backfill`: it saves the last 120 days
+(`--keep-days`, `--period 1mo|all`) and skips days the source marks as bad
+data. Days already recorded are kept. After that, `record --all` after each
+close keeps it current. Without the backfill:
 
 PSX publishes intraday trades only for the LATEST session. Past 5-minute
 candles exist only if the user saved them. `record` saves the latest
