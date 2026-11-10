@@ -17,6 +17,9 @@
   "flat_by_minutes": 5,
   "min_price": 5,
   "min_volume": 100000,
+  "scan_index": null,
+  "scan_limit": 60,
+  "scan_min_volume": 100000,
   "extra_holidays": [],
   "paper": true
 }

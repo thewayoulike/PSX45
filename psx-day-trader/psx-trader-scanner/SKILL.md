@@ -110,3 +110,11 @@ about a minute; progress lines go to stderr. Use `--limit`, `--index` or
 It never places, sizes or checks an order, never says which stock to buy,
 and never promises that a setup works. Education and tooling, not financial
 advice. Long only: no short selling, margin or futures.
+
+## Default list (config)
+
+`scan_index` (e.g. "KSE100"), `scan_limit` (0 = every stock in it) and
+`scan_min_volume` in trader/config.json set what a plain `daily` or `orb` scan
+checks. Early in the session Market Watch volume is only what traded so far
+today, so keep `scan_min_volume` low (0) for morning breakout scans. Pass
+`--index all` or `--limit 60` to override for one run.

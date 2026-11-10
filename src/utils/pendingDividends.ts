@@ -17,6 +17,31 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const iso = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const dayStart = (d: Date) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
 
+const ADDS = new Set(['BUY', 'TRANSFER_IN', 'BONUS', 'RIGHTS']);
+const REMOVES = new Set(['SELL', 'TRANSFER_OUT']);
+
+/**
+ * Shares that earn a dividend: only those you held before the ex-date.
+ * Starts from what you hold now and undoes every buy or sell dated on or
+ * after the ex-date (shares bought on the ex-date or later do not qualify;
+ * shares sold on the ex-date or later still do).
+ */
+export function eligibleQtyForExDate(
+  currentQty: number,
+  ticker: string,
+  exDate: string,
+  transactions: (Pick<Transaction, 'type' | 'ticker' | 'date'> & { quantity?: number })[],
+): number {
+  const t = ticker.toUpperCase();
+  let q = currentQty;
+  for (const x of transactions) {
+    if (x.ticker?.toUpperCase() !== t || !(x.date >= exDate)) continue;
+    if (ADDS.has(x.type)) q -= x.quantity || 0;
+    else if (REMOVES.has(x.type)) q += x.quantity || 0;
+  }
+  return Math.max(0, q);
+}
+
 /**
  * Dividends on shares you hold that are coming soon, or whose ex-date passed
  * recently without a Dividend entry yet. Used to explain a Reinvest Div entered
@@ -26,7 +51,7 @@ export function pendingDividends(opts: {
   upcoming: CompanyPayout[];
   recent: DividendAnnouncement[];
   holdings: Pick<Holding, 'ticker' | 'quantity'>[];
-  transactions: Pick<Transaction, 'type' | 'ticker' | 'date'>[];
+  transactions: (Pick<Transaction, 'type' | 'ticker' | 'date'> & { quantity?: number })[];
   today?: Date;
   aheadDays?: number;
   backDays?: number;
@@ -42,11 +67,12 @@ export function pendingDividends(opts: {
   const out = new Map<string, PendingDividend>();
   const add = (ticker: string, ex: Date, perShare: number) => {
     const t = ticker.toUpperCase();
-    const qty = held[t] || 0;
-    if (!qty || !(perShare > 0) || isNaN(ex.getTime())) return;
+    if (!held[t] || !(perShare > 0) || isNaN(ex.getTime())) return;
     const days = Math.round((dayStart(ex).getTime() - today.getTime()) / DAY);
     if (days > ahead || days < -back) return;
     const exDate = iso(ex);
+    const qty = eligibleQtyForExDate(held[t], t, exDate, opts.transactions);
+    if (!qty) return;
     if (recorded(t, exDate)) return;
     out.set(`${t}|${exDate}`, { ticker: t, exDate, perShare, qty, expected: Number((perShare * qty).toFixed(2)), passed: days < 0 });
   };

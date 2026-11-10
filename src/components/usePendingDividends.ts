@@ -10,7 +10,7 @@ import { pendingDividends, type PendingDividend } from '../utils/pendingDividend
 export function usePendingDividends(enabled: boolean, holdings: Holding[], transactions: Transaction[]): PendingDividend[] | null {
   const [list, setList] = useState<PendingDividend[] | null>(null);
   const tickersKey = holdings.map(h => h.ticker).sort().join(',');
-  const txKey = transactions.filter(t => t.type === 'DIVIDEND').map(t => `${t.ticker}@${t.date}`).join(',');
+  const txKey = transactions.filter(t => ['DIVIDEND', 'BUY', 'SELL', 'TRANSFER_IN', 'TRANSFER_OUT', 'BONUS', 'RIGHTS'].includes(t.type)).map(t => `${t.type}:${t.ticker}@${t.date}x${t.quantity}`).join(',');
 
   useEffect(() => {
     if (!enabled || !tickersKey) { setList(null); return; }

@@ -1,5 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { Holding } from '../types';
+import { Holding, Transaction } from '../types';
+import { eligibleQtyForExDate } from '../utils/pendingDividends';
 import { fetchUpcomingXDates } from '../services/financials';
 import { panelKeys, readPanel, savePanel, PANEL_CACHE_HYDRATED_EVENT } from '../services/panelCache';
 import { PanelRefreshNote } from './PanelRefreshNote';
@@ -7,6 +8,8 @@ import { Coins, CalendarClock, Loader2 } from 'lucide-react';
 
 interface Props {
   holdings: Holding[];
+  /** This portfolio's transactions: shares bought on or after the ex-date do not earn the dividend. */
+  transactions?: Transaction[];
   watchlist?: string[];
   days?: number; // window, default 90
 }
@@ -14,7 +17,7 @@ interface Props {
 const rs0 = (n: number) => `Rs. ${n.toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
 const rs2 = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], days = 90 }) => {
+export const UpcomingDividends: React.FC<Props> = ({ holdings, transactions = [], watchlist = [], days = 90 }) => {
   const holdingTickersKey = useMemo(
     () => holdings.map((h) => h.ticker).sort().join(','),
     [holdings]
@@ -78,18 +81,21 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const list = (payouts || [])
       .map((p: any) => {
-        const qty = heldQty[p.ticker] || 0;
+        const held = heldQty[p.ticker] || 0;
         const ex = new Date(String(p.bookClosure || '').replace('Ex-Date:', '').trim());
         ex.setHours(0, 0, 0, 0);
         const daysTo = Math.ceil((ex.getTime() - today.getTime()) / 864e5);
         const m = String(p.details || '').match(/Rs\.?\s*([\d.,]+)/i);
         const perShare = m ? parseFloat(m[1].replace(/,/g, '')) : 0;
-        return { ticker: p.ticker, ex, daysTo, perShare, qty, expected: perShare * qty };
+        const exIso = isNaN(ex.getTime()) ? '' : `${ex.getFullYear()}-${String(ex.getMonth() + 1).padStart(2, '0')}-${String(ex.getDate()).padStart(2, '0')}`;
+        // Only shares held before the ex-date earn the dividend.
+        const qty = exIso ? eligibleQtyForExDate(held, p.ticker, exIso, transactions) : held;
+        return { ticker: p.ticker, ex, daysTo, perShare, held, qty, notEligible: held - qty, expected: perShare * qty };
       })
-      .filter((r: any) => r.qty > 0 && !isNaN(r.ex.getTime()) && r.daysTo >= 0 && r.daysTo <= days)
+      .filter((r: any) => r.held > 0 && !isNaN(r.ex.getTime()) && r.daysTo >= 0 && r.daysTo <= days)
       .sort((a: any, b: any) => a.ex.getTime() - b.ex.getTime());
     return { rows: list, total: list.reduce((s: number, r: any) => s + r.expected, 0) };
-  }, [payouts, heldQty, days]);
+  }, [payouts, heldQty, transactions, days]);
 
   return (
     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
@@ -123,8 +129,19 @@ export const UpcomingDividends: React.FC<Props> = ({ holdings, watchlist = [], d
                   <span className="text-[10px] text-slate-400 font-semibold">Ex-date {d.ex.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })} · in {d.daysTo}d</span>
                 </div>
                 <div className="text-right">
-                  <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+{rs0(d.expected)}</div>
-                  <div className="text-[10px] text-slate-400 tabular-nums">Rs. {rs2(d.perShare)}/sh × {d.qty.toLocaleString()}</div>
+                  {d.qty > 0 ? (
+                    <>
+                      <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">+{rs0(d.expected)}</div>
+                      <div className="text-[10px] text-slate-400 tabular-nums">Rs. {rs2(d.perShare)}/sh × {d.qty.toLocaleString()}</div>
+                    </>
+                  ) : (
+                    <div className="text-sm font-bold text-slate-400 tabular-nums">Not eligible</div>
+                  )}
+                  {d.notEligible > 0 && (
+                    <div className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold" title="Only shares you owned before the ex-date get this dividend. Shares bought on the ex-date or after do not.">
+                      {d.notEligible.toLocaleString()} bought on/after ex-date: no dividend
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

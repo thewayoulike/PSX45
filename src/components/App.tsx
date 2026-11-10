@@ -2155,7 +2155,7 @@ const App: React.FC = () => {
                   onViewReport={() => setCurrentView('REALIZED')}
                   onViewDividends={() => { setHistoryInitialFilter('DIVIDEND_INCOME'); setCurrentView('HISTORY'); }} />;
           case 'dividends':
-              return <UpcomingDividends holdings={holdings} watchlist={watchlist} days={90} />;
+              return <UpcomingDividends holdings={holdings} transactions={portfolioTransactions} watchlist={watchlist} days={90} />;
           case 'topMovers':
               return <TopMovers holdings={holdings} onSelectTicker={(t) => handleTickerClick(t)} />;
           case 'boardMeetings':

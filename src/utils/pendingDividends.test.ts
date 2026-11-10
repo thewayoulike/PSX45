@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pendingDividends } from './pendingDividends';
+import { pendingDividends, eligibleQtyForExDate } from './pendingDividends';
 import { planReinvestTrim } from './fundCash';
 import type { Transaction } from '../types';
 
@@ -39,5 +39,28 @@ describe('fix extra reinvest', () => {
       changes: [{ id: 'b', price: 0 }, { id: 'a', price: 28934.9 }],
       deposit: { date: '2026-10-01', amount: 3065.1 },
     });
+  });
+  it('does not count shares bought on or after the ex-date', () => {
+    const list = pendingDividends({
+      upcoming: [{ ticker: 'OGDC', announceDate: '', financialResult: '', details: 'Rs. 5.00 (Interim)', bookClosure: 'Ex-Date: 2026-11-20', isUpcoming: true }],
+      recent: [{ ticker: 'HUBC', amount: 5, exDate: '2026-10-25', type: 'Interim' }],
+      holdings,
+      transactions: [
+        { type: 'BUY', ticker: 'HUBC', date: '2026-10-25', quantity: 500 },
+        { type: 'BUY', ticker: 'OGDC', date: '2026-11-02', quantity: 400 },
+      ],
+      today,
+    });
+    expect(list.map(p => [p.ticker, p.qty])).toEqual([['OGDC', 1000]]);
+  });
+  it('eligible shares: undo buys on/after the ex-date, keep shares sold on/after it', () => {
+    const tx = [
+      { type: 'BUY' as const, ticker: 'OGDC', date: '2026-11-01', quantity: 300 },
+      { type: 'BUY' as const, ticker: 'OGDC', date: '2026-11-10', quantity: 500 },
+      { type: 'SELL' as const, ticker: 'OGDC', date: '2026-11-11', quantity: 100 },
+    ];
+    expect(eligibleQtyForExDate(700, 'OGDC', '2026-11-10', tx)).toBe(300);
+    expect(eligibleQtyForExDate(500, 'OGDC', '2026-11-10', [tx[1]])).toBe(0);
+    expect(eligibleQtyForExDate(700, 'OGDC', '2026-11-20', tx)).toBe(700);
   });
 });

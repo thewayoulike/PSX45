@@ -449,9 +449,13 @@ def main(argv=None):
                       ("orb", "opening-range breakouts in the latest session")):
         p = sub.add_parser(name, help=hlp)
         p.add_argument("--min-price", type=float, default=float(cfg.get("min_price", 5)))
-        p.add_argument("--min-volume", type=float, default=float(cfg.get("min_volume", 100000)))
+        # scan_min_volume (config) applies to daily/orb scans; early in the session Market Watch
+        # volume is only what traded so far today, so a whole-day volume filter drops good stocks.
+        vol_default = cfg.get("scan_min_volume", cfg.get("min_volume", 100000)) if name != "universe" else cfg.get("min_volume", 100000)
+        p.add_argument("--min-volume", type=float, default=float(vol_default))
         p.add_argument("--sector", help="sector code or a word in the company name")
-        p.add_argument("--index", help="only symbols listed in this index, e.g. KSE100, KSE30, KMI30")
+        p.add_argument("--index", default=cfg.get("scan_index") or None,
+                       help="only symbols listed in this index, e.g. KSE100, KSE30, KMI30 (config scan_index; 'all' = no index)")
         p.add_argument("--show", type=int, default=40, help="rows to print (all are written)")
         p.add_argument("--json", action="store_true")
         p.add_argument("--write", action="store_true", help="save trader/universe.txt or trader/scan.json")
@@ -459,13 +463,16 @@ def main(argv=None):
             g = p.add_mutually_exclusive_group()
             g.add_argument("--symbols", help="comma-separated symbols instead of Market Watch")
             g.add_argument("--watchlist", metavar="FILE", help="scan.json, universe.txt or a list of symbols")
-            p.add_argument("--limit", type=int, default=60, help="scan the N most traded (default 60, 0 = all)")
+            p.add_argument("--limit", type=int, default=int(cfg.get("scan_limit", 60)),
+                           help="scan the N most traded (config scan_limit, default 60, 0 = all)")
             p.add_argument("--now", help='pretend it is this time, "YYYY-MM-DD HH:MM" Pakistan time')
             p.add_argument("--quiet", action="store_true", help="no progress lines")
         if name == "orb":
             p.add_argument("--at", help="replay the latest session up to HH:MM (Pakistan time)")
             p.add_argument("--volume-x", type=float, default=0.0, help="trigger volume vs the range average")
     args = ap.parse_args(argv)
+    if getattr(args, "index", None) and str(args.index).lower() == "all":
+        args.index = None
     return {"universe": cmd_universe, "daily": cmd_daily, "orb": cmd_orb}[args.cmd](args, cfg)
 
 
