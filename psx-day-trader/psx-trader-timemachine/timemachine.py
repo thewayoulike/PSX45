@@ -564,15 +564,40 @@ def report(doc):
 
 # ---------------------------------------------------------------- commands
 
+def record_universe(a, cfg):
+    """Symbols for record --all: Market Watch rows that traded, most-traded first."""
+    rows = [r for r in psx.market_watch(cfg) if (r.get("volume") or 0) > max(0, a.min_volume)]
+    if a.index:
+        want = a.index.strip().upper()
+        rows = [r for r in rows if want in (r.get("listed_in") or "").upper().split(",")]
+    rows.sort(key=lambda r: -(r.get("volume") or 0))
+    return [r["symbol"] for r in rows]
+
+
 def cmd_record(a, cfg):
     clock = psx.market_clock(cfg=cfg)
     if clock["open"]:
         print("PSX is open now (%s): only finished candles are saved; record again after the close." % clock["session"])
-    for raw in a.symbols.split(","):
-        if not raw.strip():
-            continue
+    symbols = record_universe(a, cfg) if a.all else [s for s in a.symbols.split(",") if s.strip()]
+    if not symbols:
+        raise psx.PsxError("Give symbols (record NPL,OGDC) or use --all.")
+    if a.all:
+        print("Recording %d symbols that traded in the latest session (about %d minutes at the server's pace)."
+              % (len(symbols), max(1, round(len(symbols) * 0.7 / 60))), file=sys.stderr)
+    failed, quiet = [], []
+    for i, raw in enumerate(symbols, 1):
         sym = psx.clean_symbol(raw)
-        written = psx.record_session(sym, cfg)
+        if a.all:
+            print("[%d/%d] %s" % (i, len(symbols), sym), file=sys.stderr)
+        try:
+            written = psx.record_session(sym, cfg)
+        except psx.PsxError as ex:
+            if not a.all:
+                raise
+            (quiet if "No trades" in str(ex) else failed).append(sym)
+            continue
+        if a.all:
+            continue
         segs, _ = load_sessions(sym, cfg, use_latest=False)
         by_family = {}
         for s in segs:
@@ -582,6 +607,13 @@ def cmd_record(a, cfg):
         print("%s: saved %s. Stored: %d day(s); complete sessions: %s."
               % (sym, ", ".join("trader/bars/%s/%s" % (sym, os.path.basename(w)) for w in written), days,
                  ", ".join("%s %d" % kv for kv in sorted(by_family.items())) or "none yet"))
+    if a.all:
+        saved = len(symbols) - len(failed) - len(quiet)
+        print("Saved the latest session for %d of %d symbols into %s." % (saved, len(symbols), psx.path("bars")))
+        if quiet:
+            print("No regular-session trades for %d: %s" % (len(quiet), ", ".join(quiet[:20]) + (" ..." if len(quiet) > 20 else "")))
+        if failed:
+            print("Could not read %d (run again to retry just these): record %s" % (len(failed), ",".join(failed)))
     print("Run this after every close: Monday-Thursday after 15:30, Friday after 16:30 (one run saves both Friday "
           "sessions). For example a daily task at 16:45 PKT, Monday to Friday. The Time Machine needs 3 comparable "
           "sessions to run and 20 or more to be worth much.")
@@ -609,7 +641,10 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="PSX Time Machine: replay a planned day trade (psx-trader-timemachine).")
     sub = ap.add_subparsers(dest="cmd")
     r = sub.add_parser("record", help="save the latest session's 5-minute candles (run after every close)")
-    r.add_argument("symbols", help="SYMBOL or SYMBOL,SYMBOL")
+    r.add_argument("symbols", nargs="?", default="", help="SYMBOL or SYMBOL,SYMBOL")
+    r.add_argument("--all", action="store_true", help="every PSX Market Watch symbol that traded in the latest session")
+    r.add_argument("--min-volume", type=float, default=0, help="with --all: skip symbols that traded fewer shares")
+    r.add_argument("--index", default=None, help="with --all: only symbols listed in this index, e.g. KSE100")
     p = sub.add_parser("run", help="replay the plan")
     p.add_argument("--plan", default=None, help="plan file (default trader/plan.json)")
     p.add_argument("--paths", type=int, default=10000)

@@ -198,3 +198,37 @@ class WalkTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RecordAllTests(unittest.TestCase):
+    def test_record_all_saves_every_traded_symbol(self):
+        import io, tempfile
+        from contextlib import redirect_stdout, redirect_stderr
+        tm = _load.load("psx-trader-timemachine", "timemachine")
+        rows = [{"symbol": "HUBC", "volume": 2191687, "listed_in": "KSE100"},
+                {"symbol": "OGDC", "volume": 4692324, "listed_in": "KSE100"},
+                {"symbol": "ZZZQ", "volume": 0, "listed_in": ""},          # did not trade: skipped
+                {"symbol": "NOFIX", "volume": 50, "listed_in": ""}]        # no saved data offline: reported
+        tmp = tempfile.mkdtemp()
+        old_mw, old_dir = tm.psx.market_watch, os.environ.get("PSX_TRADER_DIR")
+        tm.psx.market_watch = lambda cfg=None: rows
+        os.environ["PSX_TRADER_DIR"] = tmp
+        try:
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                self.assertEqual(tm.main(["record", "--all"]), 0)
+            text = out.getvalue()
+            self.assertIn("Saved the latest session for 2 of 3 symbols", text)
+            self.assertIn("record NOFIX", text)
+            self.assertTrue(os.path.exists(os.path.join(tmp, "bars", "OGDC", "2026-11-06.json")))
+            self.assertTrue(os.path.exists(os.path.join(tmp, "bars", "HUBC", "2026-11-06.json")))
+            self.assertIn("[1/3] OGDC", err.getvalue())                       # most traded first
+            with redirect_stdout(io.StringIO()) as o2, redirect_stderr(io.StringIO()):
+                tm.main(["record", "--all", "--index", "KSE100", "--min-volume", "3000000"])
+            self.assertIn("for 1 of 1 symbols", o2.getvalue())
+        finally:
+            tm.psx.market_watch = old_mw
+            if old_dir is None:
+                os.environ.pop("PSX_TRADER_DIR", None)
+            else:
+                os.environ["PSX_TRADER_DIR"] = old_dir

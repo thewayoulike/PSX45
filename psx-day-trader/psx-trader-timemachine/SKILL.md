@@ -31,6 +31,8 @@ Run commands from the pack root (the folder holding `psx-trader-common/`):
 
 ```bash
 python3 psx-trader-timemachine/timemachine.py record OGDC,HUBC      # after EVERY close: save today's 5-minute candles
+python3 psx-trader-timemachine/timemachine.py record --all          # every symbol that traded (about 5-10 minutes)
+python3 psx-trader-timemachine/timemachine.py record --all --min-volume 100000 --index KSE100   # liquid KSE-100 only
 python3 psx-trader-timemachine/timemachine.py run                    # trader/plan.json, 10,000 paths, seed 19
 python3 psx-trader-timemachine/timemachine.py run --write            # also save trader/timemachine.json
 python3 psx-trader-timemachine/timemachine.py run --paths 20000 --seed 7 --jitter 1 --min-sessions 10
