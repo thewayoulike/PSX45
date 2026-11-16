@@ -1,5 +1,5 @@
 import {MobilePortfolioValue} from './MobilePortfolioValue';
-import { ResponsivePortfolioHeader, ResponsivePortfolioActions, ResponsivePlanNotice, MobileSectionNavigator } from './MobileLayout';
+import { ResponsivePortfolioHeader, ResponsivePortfolioActions, PortfolioSwitcherInline, DesktopOnly, ResponsivePlanNotice, MobileSectionNavigator } from './MobileLayout';
 import { MobileBottomNav } from './MobileBottomNav';
 import { PriceStaleNotice } from './PriceStaleNotice';
 import { SectionBoundary } from './SectionBoundary';
@@ -2203,6 +2203,32 @@ const App: React.FC = () => {
       return null;
   })();
 
+  // The portfolio action bar shows on these screens. On desktop it also holds
+  // the video guide and portfolio switcher, so the separate top row is hidden.
+  const showActionBar = !isChartsView && !driveBooting && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && currentView !== 'INSIDERS' && !['PRACTICE', 'TRADING_LAB'].includes(currentView);
+  const headerMenu = <button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
+                            <Menu size={20} />
+                         </button>;
+  const headerGuide = <VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />;
+  const headerSelector = currentView === 'TRADING_LAB' ? <span className="text-sm font-semibold text-emerald-600">Independent testing lab</span> : currentView === 'PRACTICE' ? <span className="text-sm font-semibold text-emerald-600">Practice portfolio</span> : <div className="relative group flex-1 min-w-0">
+                              <select
+                                  value={currentPortfolioId}
+                                  disabled={driveBooting}
+                                  aria-label="Current portfolio"
+                                  onChange={(e) => setCurrentPortfolioId(e.target.value)}
+                                  className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1.5 pl-2 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
+                              >
+                                  {portfolios.map(p => (
+                                      <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">
+                                          {p.name}{getPortfolioType(p) === 'MUTUAL_FUND' ? ' · Funds' : ''}
+                                      </option>
+                                  ))}
+                              </select>
+                              <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
+                          </div>;
+  const headerEdit = ['PRACTICE', 'TRADING_LAB'].includes(currentView) || driveBooting ? null : <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio" aria-label="Edit Portfolio"> <Pencil size={16} /> </button>;
+  const headerCreate = ['PRACTICE', 'TRADING_LAB'].includes(currentView) || driveBooting ? null : <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio" aria-label="New Portfolio"> <PlusCircle size={16} /> </button>;
+
   return (
     <ChartProjectionAccess.Provider value={canUseChartProjection(sbStatus, driveUser?.email || sbUser?.email)}>
     <FreemiumProvider
@@ -2251,29 +2277,13 @@ const App: React.FC = () => {
 
                   {!isChartsView && (
                   <ResponsivePortfolioHeader
-                    menu={<button onClick={() => setIsMobileSidebarOpen(true)} className="lg:hidden p-2.5 min-h-[44px] min-w-[44px] flex items-center justify-center bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700" aria-label="Open menu">
-                            <Menu size={20} />
-                         </button>}
-                    guide={<VideoGuideLink onClick={() => { setCurrentView('HOW_IT_WORKS'); document.getElementById('guide-video')?.scrollIntoView({ block: 'start' }); }} />}
+                    inActionBar={showActionBar}
+                    menu={headerMenu}
+                    guide={headerGuide}
                     theme={<ThemeToggle />}
-                    selector={currentView === 'TRADING_LAB' ? <span className="text-sm font-semibold text-emerald-600">Independent testing lab</span> : currentView === 'PRACTICE' ? <span className="text-sm font-semibold text-emerald-600">Practice portfolio</span> : <div className="relative group flex-1 min-w-0">
-                              <select
-                                  value={currentPortfolioId}
-                                  disabled={driveBooting}
-                                  aria-label="Current portfolio"
-                                  onChange={(e) => setCurrentPortfolioId(e.target.value)}
-                                  className="appearance-none bg-transparent border-none text-sm text-slate-700 dark:text-slate-200 font-bold py-1.5 pl-2 pr-6 cursor-pointer focus:ring-0 outline-none w-full dark:bg-transparent truncate"
-                              >
-                                  {portfolios.map(p => (
-                                      <option key={p.id} value={p.id} className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-200">
-                                          {p.name}{getPortfolioType(p) === 'MUTUAL_FUND' ? ' · Funds' : ''}
-                                      </option>
-                                  ))}
-                              </select>
-                              <ChevronDown size={14} className="absolute right-1 top-2 text-slate-400 pointer-events-none" />
-                          </div>}
-                    edit={['PRACTICE', 'TRADING_LAB'].includes(currentView) || driveBooting ? null : <button onClick={openEditPortfolioModal} className="p-1.5 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg transition-colors" title="Edit Portfolio" aria-label="Edit Portfolio"> <Pencil size={16} /> </button>}
-                    create={['PRACTICE', 'TRADING_LAB'].includes(currentView) || driveBooting ? null : <button onClick={openCreatePortfolioModal} className="p-1.5 text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 rounded-lg transition-colors" title="New Portfolio" aria-label="New Portfolio"> <PlusCircle size={16} /> </button>}
+                    selector={headerSelector}
+                    edit={headerEdit}
+                    create={headerCreate}
                   />
                   )}
 
@@ -2327,7 +2337,7 @@ const App: React.FC = () => {
                           </div>
                       )}
 
-                      {!isChartsView && !driveBooting && currentView !== 'HOW_IT_WORKS' && currentView !== 'MARKETS' && currentView !== 'INSIDERS' && !['PRACTICE', 'TRADING_LAB'].includes(currentView) && (
+                      {showActionBar && (
                       <div className="app-sticky-actions sticky top-0 z-50 -mx-4 sm:-mx-6 lg:-mx-8 xl:-mx-10 2xl:-mx-12 mb-5 border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm">
                           {!isFundPortfolio && (
                             <div className="market-strip min-w-0 overflow-hidden border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-1">
@@ -2337,6 +2347,7 @@ const App: React.FC = () => {
                           <div className="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5 px-4 sm:px-6 lg:px-8 xl:px-10 2xl:px-12 py-2.5">
                           <div className="w-full">
                               <ResponsivePortfolioActions primary={<>
+                                      <DesktopOnly>{headerMenu}</DesktopOnly>
                                       <button
                                           onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
                                           className="bg-emerald-600 hover:bg-emerald-700 text-white px-3 sm:px-5 py-2.5 sm:py-3 rounded-xl font-display font-bold shadow-lg shadow-emerald-600/20 transition-all active:scale-[0.98] flex items-center justify-center gap-2 whitespace-nowrap text-sm dark:shadow-emerald-900/40 flex-1 sm:flex-none min-h-[44px]"
@@ -2384,7 +2395,8 @@ const App: React.FC = () => {
                                           <Edit3 size={16} /> <span className="hidden md:inline">Manual Prices</span>
                                       </button>
 
-                                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 ml-auto">
+                                      <PortfolioSwitcherInline guide={headerGuide} theme={<ThemeToggle />} selector={headerSelector} edit={headerEdit} create={headerCreate} />
+                                      <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800/80 px-2.5 sm:px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm shrink-0 ml-auto md:ml-0">
                                           {isCombinedView && (
                                               <Popover.Root>
                                                   <Popover.Trigger asChild>

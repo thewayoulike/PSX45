@@ -6,7 +6,7 @@ const surface = 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-
 const control = 'rounded-xl min-h-[44px] border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300';
 
 // Both layouts receive the original controls and callbacks, including permissions.
-export function ResponsivePortfolioHeader({ menu, guide, theme, selector, edit, create }: Record<'menu' | 'guide' | 'theme' | 'selector' | 'edit' | 'create', React.ReactNode>) {
+export function ResponsivePortfolioHeader({ menu, guide, theme, selector, edit, create, inActionBar }: Record<'menu' | 'guide' | 'theme' | 'selector' | 'edit' | 'create', React.ReactNode> & { inActionBar?: boolean }) {
   const mobile = useMobileLayout();
   const [open, setOpen] = useState(false);
   const id = useId();
@@ -18,6 +18,8 @@ export function ResponsivePortfolioHeader({ menu, guide, theme, selector, edit, 
     document.addEventListener('pointerdown', outside);
     return () => document.removeEventListener('pointerdown', outside);
   }, [open]);
+  // On desktop these controls move into the action bar (PortfolioSwitcherInline).
+  if (!mobile && inActionBar) return null;
   if (!mobile) return <header className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-2 sm:gap-4 mb-1 animate-in fade-in slide-in-from-top-5 duration-500">
     <div className="flex items-center justify-between w-full sm:w-auto gap-3">{menu}{guide}</div>
     <div className="flex items-center gap-1 sm:gap-2 flex-1 min-w-0 md:flex-none md:w-auto bg-white/80 dark:bg-slate-900/80 p-1 sm:p-2 rounded-2xl border border-slate-200/60 dark:border-slate-800/60 shadow-sm backdrop-blur-md">
@@ -32,6 +34,21 @@ export function ResponsivePortfolioHeader({ menu, guide, theme, selector, edit, 
       <div className="mobile-context-tools"><div><span>Appearance</span>{theme}</div>{edit && <div><span>Edit portfolio</span>{edit}</div>}{create && <div><span>Create portfolio</span>{create}</div>}<div><span>How it works</span>{guide}</div></div>
     </div>}
   </header>;
+}
+
+export function DesktopOnly({ children }: React.PropsWithChildren) {
+  return useMobileLayout() ? null : <>{children}</>;
+}
+
+/** Desktop: video guide and portfolio switcher at the right of the action bar. */
+export function PortfolioSwitcherInline({ guide, theme, selector, edit, create }: Record<'guide' | 'theme' | 'selector' | 'edit' | 'create', React.ReactNode>) {
+  if (useMobileLayout()) return null;
+  return <div className="ml-auto flex items-center gap-2 min-w-0">
+    {guide}
+    <div className="flex items-center gap-1 min-w-0 max-w-[260px] bg-slate-50 dark:bg-slate-800/80 px-1.5 py-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm min-h-[44px]">
+      {theme}{selector}<div className="flex items-center gap-1 pl-1.5 border-l border-slate-200 dark:border-slate-700 shrink-0">{edit}{create}</div>
+    </div>
+  </div>;
 }
 
 export function ResponsivePortfolioActions({ primary, secondary }: { primary: React.ReactNode; secondary: React.ReactNode }) {

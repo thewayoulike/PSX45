@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Holding, Broker, Transaction } from '../types';
+import { applyOpeningCorporateActions } from '../utils/corporateActions';
 import { 
   Plus, 
   Trash2, 
@@ -95,7 +96,15 @@ export const TradingSimulator: React.FC<TradingSimulatorProps> = ({ holdings, br
 
     sortedDates.forEach(date => {
         const dayTxs = txsByDate[date];
-        const dayBuys = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN');
+        // Same as the portfolio: bonus shares arrive free, and a split rescales
+        // the shares already held (same rupee cost over more shares).
+        applyOpeningCorporateActions(
+            lots,
+            dayTxs
+                .filter(t => t.type === 'BONUS' || t.type === 'SPLIT')
+                .map(t => ({ id: t.id, type: t.type, quantity: t.quantity, price: t.price, date: t.date })),
+        );
+        const dayBuys = dayTxs.filter(t => t.type === 'BUY' || t.type === 'TRANSFER_IN' || t.type === 'RIGHTS');
         const daySells = dayTxs.filter(t => t.type === 'SELL' || t.type === 'TRANSFER_OUT');
 
         const dayBuyLots = dayBuys.map(t => {
