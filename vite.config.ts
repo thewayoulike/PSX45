@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react';
 import { TRIAL_DAYS } from './config/product.js';
 import { VitePWA } from 'vite-plugin-pwa';
 import { publicPagesPlugin } from './scripts/public-pages-plugin';
-import { homeJsonLdScriptTags, verificationMetaTag, analyticsScriptTags } from './lib/seoJsonLd.js';
+import { homeJsonLdScriptTags, verificationMetaTag, trackingScriptTags, withMetaPixelNoscript } from './lib/seoJsonLd.js';
 
 /** Local /api/proxy?ohlc|company|analysis|intraday and /api/pypsx for dev without Vercel. */
 function localPsxApi(): Plugin {
@@ -224,11 +224,11 @@ function localPsxApi(): Plugin {
 export default defineConfig({
   plugins: [
     publicPagesPlugin(),
-    { name: 'product-terms', transformIndexHtml: { order: 'pre', handler: (html) => html
+    { name: 'product-terms', transformIndexHtml: { order: 'pre', handler: (html) => withMetaPixelNoscript(html)
       .replaceAll('%TRIAL_DAYS%', String(TRIAL_DAYS))
       .replaceAll('%SEO_JSON_LD%', homeJsonLdScriptTags())
       .replaceAll('%GOOGLE_SITE_VERIFICATION_META%', verificationMetaTag())
-      .replaceAll('%GOOGLE_ANALYTICS%', analyticsScriptTags())
+      .replaceAll('%GOOGLE_ANALYTICS%', trackingScriptTags())
     } },
     localPsxApi(),
     react(),

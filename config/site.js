@@ -8,6 +8,8 @@ export const GOOGLE_SITE_VERIFICATION = '';
 export const GOOGLE_ANALYTICS_ID = 'G-Q82NMWSH9X';
 /** Google Ads destination, sharing the existing Google tag loader. */
 export const GOOGLE_ADS_ID = 'AW-18531621415';
+/** Meta (Facebook) Pixel for ad tracking. Empty string turns it off. */
+export const META_PIXEL_ID = '1434336788405586';
 /** Sign-up action in Google Ads; fired only after a new app registration succeeds. */
 export const GOOGLE_ADS_SIGNUP_DESTINATION = 'AW-18531621415/7mBxCOjz3KkdEKe0yIRF';
 /** Existing Markets page-visit action, verified against Google Ads Tag Assistant. */
