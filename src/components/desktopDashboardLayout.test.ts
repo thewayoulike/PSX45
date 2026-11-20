@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { desktopCards, normalizeDesktopLayout, serializeDesktopCards, placeDesktopCard } from './desktopDashboardModel';
+import { desktopCards, normalizeDesktopLayout, serializeDesktopCards, placeDesktopCard, resizeDesktopCard, type ResizeDirection } from './desktopDashboardModel';
 import { DEFAULT_LAYOUT, normalizeLayout, applyPortfolioToLayout } from './dashboard';
 describe('desktop Dashboard layout', () => {
   it('shares the reference composition and omits the duplicate net worth card', () => {
@@ -43,5 +43,34 @@ describe('moving and resizing desktop cards', () => {
   it('keeps resized width and height through saving and reopening', () => {
     const result=placeDesktopCard(desktopCards(),'benchmark',{width:3,height:400});
     expect(desktopCards(serializeDesktopCards(result)).find(c=>c.id==='benchmark')).toMatchObject({width:3,height:400});
+  });
+});
+
+describe('resizing from every edge and corner', () => {
+  it.each(['n','e','s','w','ne','nw','se','sw'] as ResizeDirection[])('anchors the opposite edges for %s', direction => {
+    const card={...desktopCards().find(card=>card.id==='benchmark')!,column:3,width:4,height:300,offsetY:0};
+    const resized={...card,...resizeDesktopCard(card,direction,1,20,300,100,-100)};
+    if(direction.includes('w'))expect(resized.column+resized.width).toBe(card.column+card.width);
+    else expect(resized.column).toBe(card.column);
+    if(direction.includes('n'))expect(resized.offsetY+resized.height).toBe(300);
+    else expect(resized.offsetY).toBe(card.offsetY);
+    if(direction==='e'||direction==='w')expect(resized.height).toBe(card.height);
+    if(direction==='n'||direction==='s')expect(resized.width).toBe(card.width);
+  });
+  it('retains the top resize position when saved and reopened', () => {
+    const cards=desktopCards();
+    const card=cards.find(card=>card.id==='benchmark')!;
+    const patch=resizeDesktopCard(card,'n',0,20,650,400,-100);
+    const saved=serializeDesktopCards(placeDesktopCard(cards,card.id,patch));
+    expect(desktopCards(saved).find(item=>item.id===card.id)).toMatchObject({height:630,offsetY:20});
+  });
+  it('resizes the selected card without changing neighbouring sizes', () => {
+    const cards=desktopCards();
+    const selected=cards.find(card=>card.id==='benchmark')!;
+    const result=placeDesktopCard(cards,selected.id,resizeDesktopCard(selected,'se',1,100,400,200,0));
+    for(const original of cards.filter(card=>card.id!==selected.id)) {
+      const after=result.find(card=>card.id===original.id)!;
+      expect({width:after.width,height:after.height,offsetY:after.offsetY}).toEqual({width:original.width,height:original.height,offsetY:original.offsetY});
+    }
   });
 });

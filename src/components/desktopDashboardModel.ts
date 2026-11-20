@@ -1,10 +1,10 @@
 import type { CardLayout } from './dashboard';
 
-export type DesktopPlacement = { column: number; width: number; row: number; rows: number; height: number; visible: boolean };
+export type DesktopPlacement = { column: number; width: number; row: number; rows: number; height: number; offsetY: number; visible: boolean };
 export type DesktopCard = DesktopPlacement & { id: string; label: string; selector: string };
 export type DesktopLayout = { version: 1; cards: Record<string, DesktopPlacement> };
 const card = (id: string, label: string, selector: string, column: number, width: number, row: number, rows = 1): DesktopCard =>
-  ({ id, label, selector, column, width, row, rows, height: 0, visible: true });
+  ({ id, label, selector, column, width, row, rows, height: 0, offsetY: 0, visible: true });
 export const DESKTOP_CARDS: DesktopCard[] = [
   card('greeting', 'Dashboard heading', '[data-dashboard-greeting]', 1, 12, 1),
   card('value', 'Portfolio value chart', '.portfolio-value-preview', 1, 8, 2, 3),
@@ -36,6 +36,7 @@ export function desktopCards(saved?: DesktopLayout, legacy: CardLayout[] = []): 
       row: clampPlacement(placement?.row, 1, 100, item.row),
       rows: clampPlacement(placement?.rows, 1, 10, item.rows),
       height: clampPlacement(placement?.height, 0, 1500, 0),
+      offsetY: clampPlacement(placement?.offsetY, -1500, 1500, 0),
       visible: typeof placement?.visible === 'boolean' ? placement.visible : legacy.find(c => c.id === item.id)?.visible !== false,
     };
   });
@@ -63,4 +64,27 @@ export function placeDesktopCard(cards: DesktopCard[], id: string, patch: Partia
     settled.push(card);
   }
   return next;
+}
+
+export type ResizeDirection = 'n' | 'e' | 's' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
+/** Resize from the chosen edge, keeping the opposite edge anchored. */
+export function resizeDesktopCard(card: DesktopCard, direction: ResizeDirection, columns: number, pixels: number,
+  initialHeight: number, minimumHeight: number, minimumOffset: number): Partial<DesktopPlacement> {
+  const patch: Partial<DesktopPlacement> = {};
+  if (direction.includes('w')) {
+    const right = card.column + card.width;
+    patch.column = clampPlacement(card.column + columns, 1, right - 1, card.column);
+    patch.width = right - patch.column;
+  } else if (direction.includes('e')) {
+    patch.width = clampPlacement(card.width + columns, 1, 13 - card.column, card.width);
+  }
+  const offset = card.offsetY || 0;
+  if (direction.includes('n')) {
+    patch.offsetY = clampPlacement(offset + pixels, Math.max(-1500, minimumOffset, offset + initialHeight - 1500),
+      Math.min(1500, offset + initialHeight - minimumHeight), offset);
+    patch.height = Math.round(initialHeight + offset - patch.offsetY);
+  } else if (direction.includes('s')) {
+    patch.height = clampPlacement(initialHeight + pixels, minimumHeight, Math.max(1500, minimumHeight), initialHeight);
+  }
+  return patch;
 }

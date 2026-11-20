@@ -30,7 +30,7 @@
   [data-desktop-dashboard="reference"] main :is(table,.tabular-nums) {font-variant-numeric:tabular-nums;}
   [data-desktop-dashboard="reference"] main :is(td,th):not([data-dashboard-preserved],[data-dashboard-preserved] *) {padding-block:9px;}
   [data-desktop-dashboard="reference"] main thead th:not([data-dashboard-preserved],[data-dashboard-preserved] *) {background:var(--clean-bg);border-bottom:1px solid var(--clean-line);}
-  [data-desktop-canvas] {display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto minmax(108px,auto) minmax(108px,auto) minmax(120px,auto);gap:14px;align-items:stretch;}
+  [data-desktop-canvas] {display:grid;grid-template-columns:repeat(12,minmax(0,1fr));grid-template-rows:auto minmax(108px,auto) minmax(108px,auto) minmax(120px,auto);gap:14px;align-items:start;}
   [data-desktop-canvas] > :not(.mobile-dashboard), [data-desktop-canvas] [data-dashboard-card],
   [data-desktop-canvas] [data-dashboard-stats] > *, [data-desktop-canvas] .mobile-hero-group > *,
   [data-desktop-canvas] [data-dashboard-stats-bottom] > * {grid-column:1/-1;min-width:0;margin:0!important;}

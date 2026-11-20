@@ -22,7 +22,7 @@ function Canvas({ editing, layout, legacyLayout, onSave, onDone, className, chil
   }, [restored, editing]);
 
   function change(patch: Partial<Placement>) {
-    setCards(items => placeDesktopCard(items, selected, patch));
+    setCards(items => placeDesktopCard(items, selected, patch.row === undefined ? patch : { ...patch, offsetY: 0 }));
     setDirty(true);
   }
 
@@ -40,14 +40,14 @@ function Canvas({ editing, layout, legacyLayout, onSave, onDone, className, chil
   const rules = cards.map(item => {
     const selector = '#' + canvasId + ' ' + item.selector;
     return selector + '{grid-column:' + item.column + '/span ' + item.width + '!important;grid-row:' + item.row + '/span ' + item.rows +
-      '!important;min-height:' + item.height + 'px!important;' + (!item.visible ? 'display:none!important;' : '') + '}' +
+      '!important;min-height:' + item.height + 'px!important;margin-top:' + (item.offsetY || 0) + 'px!important;' + (!item.visible ? 'display:none!important;' : '') + '}' +
       (editing && item.id === selected ? selector + '{outline:2px solid #168466;outline-offset:3px;}' : '');
   }).join('\n');
 
   return <>
     {editing && <section className="desktop-layout-controls" aria-label="Dashboard layout controls">
       <div className="desktop-layout-heading">
-        <div><h2>Dashboard Layout</h2><p>Drag cards to move them. Drag a bottom corner to resize.</p></div>
+        <div><h2>Dashboard Layout</h2><p>Drag cards to move them. Drag any edge or corner to resize.</p></div>
         <div className="desktop-layout-actions">
           <button type="button" onClick={() => { setCards(defaults.map(card => ({ ...card }))); setDirty(true); }}>Reset layout</button>
           <button type="button" onClick={cancel}>Cancel</button>

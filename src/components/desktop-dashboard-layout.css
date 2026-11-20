@@ -30,3 +30,17 @@
 .desktop-layout-move:active {cursor:grabbing;}
 .desktop-layout-move span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .desktop-layout-resize {bottom:-3px;right:-3px;padding:3px;border-radius:5px;cursor:nwse-resize;}
+
+.desktop-layout-move {left:24px;max-width:calc(50% - 44px);min-width:24px;}
+.desktop-layout-resize {display:flex;align-items:center;justify-content:center;padding:0;}
+.desktop-layout-resize-n {inset:-5px auto auto 50%;transform:translateX(-50%);width:36px;height:10px;cursor:ns-resize;}
+.desktop-layout-resize-s {inset:auto auto -5px 50%;transform:translateX(-50%);width:36px;height:10px;cursor:ns-resize;}
+.desktop-layout-resize-e {inset:50% -5px auto auto;transform:translateY(-50%);width:10px;height:36px;cursor:ew-resize;}
+.desktop-layout-resize-w {inset:50% auto auto -5px;transform:translateY(-50%);width:10px;height:36px;cursor:ew-resize;}
+.desktop-layout-resize-nw {inset:-5px auto auto -5px;width:22px;height:22px;cursor:nwse-resize;}
+.desktop-layout-resize-ne {inset:-5px -5px auto auto;width:22px;height:22px;cursor:nesw-resize;}
+.desktop-layout-resize-sw {inset:auto auto -5px -5px;width:22px;height:22px;cursor:nesw-resize;}
+.desktop-layout-resize-se {inset:auto -5px -5px auto;width:22px;height:22px;cursor:nwse-resize;}
+.desktop-layout-resize-nw svg {transform:rotate(180deg);}
+.desktop-layout-resize-ne svg {transform:rotate(-90deg);}
+.desktop-layout-resize-sw svg {transform:rotate(90deg);}
