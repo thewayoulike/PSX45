@@ -195,3 +195,15 @@
   [data-desktop-canvas] .top-holdings-summary > div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;align-items:center;}
   [data-desktop-canvas] .top-holdings-summary > div > div:first-child {text-align:left;justify-content:start;min-height:0;}
 }
+
+@media(min-width:1024px){
+  [data-desktop-canvas][data-free-layout] {display:block;}
+  [data-desktop-canvas][data-free-layout] [data-dashboard-card] {background:var(--clean-surface);border-radius:12px;}
+  [data-desktop-canvas][data-free-layout] [data-dashboard-card] > * {height:100%!important;width:100%;box-sizing:border-box;}
+  [data-desktop-canvas][data-free-layout] [data-dashboard-stats] > :has(.dashboard-metrics) > div {height:100%;}
+  [data-desktop-canvas][data-free-layout] .top-holdings-card > *,
+  [data-desktop-canvas][data-free-layout] .dashboard-benchmark > * {flex-shrink:0;}
+  [data-desktop-canvas][data-free-layout] .portfolio-value-preview {display:flex;flex-direction:column;}
+  [data-desktop-canvas][data-free-layout] .portfolio-value-preview > * {flex-shrink:0;}
+  [data-desktop-canvas][data-free-layout] .portfolio-value-plot {flex:1;min-height:180px;height:auto;}
+}

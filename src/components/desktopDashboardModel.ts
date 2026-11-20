@@ -2,7 +2,11 @@ import type { CardLayout } from './dashboard';
 
 export type DesktopPlacement = { column: number; width: number; row: number; rows: number; height: number; offsetY: number; visible: boolean };
 export type DesktopCard = DesktopPlacement & { id: string; label: string; selector: string };
-export type DesktopLayout = { version: 1; cards: Record<string, DesktopPlacement> };
+export type LegacyDesktopLayout = { version: 1; cards: Record<string, DesktopPlacement> };
+export type FreePlacement = { left: number; top: number; width: number; height: number; visible: boolean };
+export type FreeCard = FreePlacement & { id: string; label: string; selector: string };
+export type FreeDesktopLayout = { version: 2; canvasWidth: number; cards: Record<string, FreePlacement> };
+export type DesktopLayout = LegacyDesktopLayout | FreeDesktopLayout;
 const card = (id: string, label: string, selector: string, column: number, width: number, row: number, rows = 1): DesktopCard =>
   ({ id, label, selector, column, width, row, rows, height: 0, offsetY: 0, visible: true });
 export const DESKTOP_CARDS: DesktopCard[] = [
@@ -41,50 +45,53 @@ export function desktopCards(saved?: DesktopLayout, legacy: CardLayout[] = []): 
     };
   });
 }
-export function serializeDesktopCards(cards: DesktopCard[]): DesktopLayout {
+export function serializeDesktopCards(cards: DesktopCard[]): LegacyDesktopLayout {
   return { version: 1, cards: Object.fromEntries(cards.map(({ id, label, selector, ...placement }) => [id, placement])) };
 }
 export function normalizeDesktopLayout(saved: DesktopLayout): DesktopLayout | undefined {
-  return saved?.version === 1 && saved.cards && typeof saved.cards === 'object'
-    ? serializeDesktopCards(desktopCards(saved)) : undefined;
-}
-
-/** Push intersecting cards down when a card is moved or widened. Hidden cards do not block a move. */
-export function placeDesktopCard(cards: DesktopCard[], id: string, patch: Partial<DesktopPlacement>): DesktopCard[] {
-  const next = cards.map(card => ({ ...card, ...(card.id === id ? patch : {}) }));
-  const moving = next.find(card => card.id === id);
-  if (!moving || !moving.visible) return next;
-  const overlaps = (a: DesktopCard, b: DesktopCard) => a.visible && b.visible &&
-    a.column < b.column + b.width && b.column < a.column + a.width &&
-    a.row < b.row + b.rows && b.row < a.row + a.rows;
-  const settled: DesktopCard[] = [moving];
-  for (const card of next.filter(card => card.id !== id).sort((a,b) => a.row-b.row || a.column-b.column)) {
-    let collision: DesktopCard | undefined;
-    while ((collision = settled.find(other => overlaps(card, other)))) card.row = collision.row + collision.rows;
-    settled.push(card);
+  if(saved?.version===2 && saved.cards && typeof saved.cards==='object' && Number.isFinite(saved.canvasWidth)) {
+    const width=Math.max(320,Math.min(10000,saved.canvasWidth));
+    return serializeFreeCards(restoreFreeCards(saved,width),width);
   }
-  return next;
+  return saved?.version===1 && saved.cards && typeof saved.cards==='object' ? serializeDesktopCards(desktopCards(saved)) : undefined;
 }
 
 export type ResizeDirection = 'n' | 'e' | 's' | 'w' | 'ne' | 'nw' | 'se' | 'sw';
-/** Resize from the chosen edge, keeping the opposite edge anchored. */
-export function resizeDesktopCard(card: DesktopCard, direction: ResizeDirection, columns: number, pixels: number,
-  initialHeight: number, minimumHeight: number, minimumOffset: number): Partial<DesktopPlacement> {
-  const patch: Partial<DesktopPlacement> = {};
-  if (direction.includes('w')) {
-    const right = card.column + card.width;
-    patch.column = clampPlacement(card.column + columns, 1, right - 1, card.column);
-    patch.width = right - patch.column;
-  } else if (direction.includes('e')) {
-    patch.width = clampPlacement(card.width + columns, 1, 13 - card.column, card.width);
-  }
-  const offset = card.offsetY || 0;
-  if (direction.includes('n')) {
-    patch.offsetY = clampPlacement(offset + pixels, Math.max(-1500, minimumOffset, offset + initialHeight - 1500),
-      Math.min(1500, offset + initialHeight - minimumHeight), offset);
-    patch.height = Math.round(initialHeight + offset - patch.offsetY);
-  } else if (direction.includes('s')) {
-    patch.height = clampPlacement(initialHeight + pixels, minimumHeight, Math.max(1500, minimumHeight), initialHeight);
-  }
-  return patch;
+
+const finite = (value: number, fallback: number) => Number.isFinite(value) ? value : fallback;
+const between = (value: number, low: number, high: number) => Math.max(low,Math.min(high,value));
+const precision = (value: number) => Math.round(value*100)/100;
+export function restoreFreeCards(saved: FreeDesktopLayout, canvasWidth: number): FreeCard[] {
+  const sourceWidth=Math.max(320,finite(saved.canvasWidth,canvasWidth));
+  const scale=canvasWidth/sourceWidth;
+  let bottom=0;
+  return DESKTOP_CARDS.map(meta=>{
+    const item=saved.cards?.[meta.id];
+    const width=between(finite(item?.width,sourceWidth)*scale,80,canvasWidth);
+    const card:FreeCard={id:meta.id,label:meta.label,selector:meta.selector,
+      left:precision(between(finite(item?.left,0)*scale,0,canvasWidth-width)),
+      top:precision(between(finite(item?.top,bottom),0,100000)),width:precision(width),
+      height:precision(between(finite(item?.height,200),40,5000)),visible:item?.visible!==false};
+    bottom=Math.max(bottom,card.top+card.height+14);
+    return card;
+  });
+}
+export function serializeFreeCards(cards: FreeCard[], canvasWidth: number): FreeDesktopLayout {
+  return {version:2,canvasWidth:precision(canvasWidth),cards:Object.fromEntries(cards.map(({id,label,selector,...placement})=>
+    [id,Object.fromEntries(Object.entries(placement).map(([key,value])=>[key,typeof value==='number'?precision(value):value])) as FreePlacement]))};
+}
+export function scaleFreeCards(cards:FreeCard[],previousWidth:number,nextWidth:number):FreeCard[] {
+  return restoreFreeCards(serializeFreeCards(cards,previousWidth),nextWidth);
+}
+/** Moving one card never compacts or changes neighbouring cards. */
+export function moveFreeCard(card:FreeCard,left:number,top:number,canvasWidth:number):FreeCard {
+  return {...card,left:precision(between(left,0,canvasWidth-card.width)),top:precision(between(top,0,100000))};
+}
+export function resizeFreeCard(card:FreeCard,direction:ResizeDirection,dx:number,dy:number,canvasWidth:number):FreeCard {
+  const next={...card},right=card.left+card.width,bottom=card.top+card.height;
+  if(direction.includes('w')) {next.left=between(card.left+dx,0,right-80);next.width=right-next.left;}
+  else if(direction.includes('e'))next.width=between(card.width+dx,80,canvasWidth-card.left);
+  if(direction.includes('n')) {next.top=between(card.top+dy,Math.max(0,bottom-5000),bottom-40);next.height=bottom-next.top;}
+  else if(direction.includes('s'))next.height=between(card.height+dy,40,5000);
+  return {...next,left:precision(next.left),top:precision(next.top),width:precision(next.width),height:precision(next.height)};
 }
