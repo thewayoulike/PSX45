@@ -1,11 +1,13 @@
-import React, { useEffect, useId, useMemo, useState } from 'react';
-import { desktopCards, DESKTOP_CARDS, serializeDesktopCards, clampPlacement as clamp, type DesktopLayout, type DesktopPlacement as Placement } from './desktopDashboardModel';
+import { DesktopLayoutHandles } from './DesktopLayoutHandles';
+import React, { useEffect, useId, useMemo, useState, useRef } from 'react';
+import { desktopCards, DESKTOP_CARDS, serializeDesktopCards, clampPlacement as clamp, placeDesktopCard, type DesktopLayout, type DesktopPlacement as Placement } from './desktopDashboardModel';
 import type { CardLayout } from './dashboard';
 import './desktop-dashboard-layout.css';
 
 type Props = React.PropsWithChildren<{ enabled: boolean; editing: boolean; layout?: DesktopLayout; legacyLayout: CardLayout[]; onSave: (layout: DesktopLayout) => void; onDone: () => void; className?: string }>;
 
 function Canvas({ editing, layout, legacyLayout, onSave, onDone, className, children }: Omit<Props, 'enabled'>) {
+  const canvas = useRef<HTMLDivElement>(null);
   const defaults = DESKTOP_CARDS;
   const restored = useMemo(() => desktopCards(layout, legacyLayout), [layout, legacyLayout]);
   const [cards, setCards] = useState(restored);
@@ -20,7 +22,7 @@ function Canvas({ editing, layout, legacyLayout, onSave, onDone, className, chil
   }, [restored, editing]);
 
   function change(patch: Partial<Placement>) {
-    setCards(items => items.map(item => item.id === selected ? { ...item, ...patch } : item));
+    setCards(items => placeDesktopCard(items, selected, patch));
     setDirty(true);
   }
 
@@ -45,7 +47,7 @@ function Canvas({ editing, layout, legacyLayout, onSave, onDone, className, chil
   return <>
     {editing && <section className="desktop-layout-controls" aria-label="Dashboard layout controls">
       <div className="desktop-layout-heading">
-        <div><h2>Dashboard Layout</h2><p>Edit the cards shown on your current Dashboard.</p></div>
+        <div><h2>Dashboard Layout</h2><p>Drag cards to move them. Drag a bottom corner to resize.</p></div>
         <div className="desktop-layout-actions">
           <button type="button" onClick={() => { setCards(defaults.map(card => ({ ...card }))); setDirty(true); }}>Reset layout</button>
           <button type="button" onClick={cancel}>Cancel</button>
@@ -69,7 +71,7 @@ function Canvas({ editing, layout, legacyLayout, onSave, onDone, className, chil
       <p className="desktop-layout-status" role="status">12 columns across · 0 minimum height fits the content</p>
     </section>}
     <style>{'@media(min-width:1024px){' + rules + '}'}</style>
-    <div id={canvasId} data-desktop-canvas className={className} onClickCapture={editing ? event => {
+    <div ref={canvas} id={canvasId} data-desktop-canvas className={className} onClickCapture={editing ? event => {
       const target = event.target as HTMLElement;
       const item = cards.find(item => target.closest(item.selector));
       if (item) {
@@ -79,7 +81,7 @@ function Canvas({ editing, layout, legacyLayout, onSave, onDone, className, chil
           event.stopPropagation();
         }
       }
-    } : undefined}>{children}</div>
+    } : undefined}>{children}{editing && <DesktopLayoutHandles canvas={canvas} cards={cards} onSelect={setSelected} onChange={next => {setCards(next);setDirty(true);}}/>}</div>
   </>;
 }
 

@@ -47,3 +47,20 @@ export function normalizeDesktopLayout(saved: DesktopLayout): DesktopLayout | un
   return saved?.version === 1 && saved.cards && typeof saved.cards === 'object'
     ? serializeDesktopCards(desktopCards(saved)) : undefined;
 }
+
+/** Push intersecting cards down when a card is moved or widened. Hidden cards do not block a move. */
+export function placeDesktopCard(cards: DesktopCard[], id: string, patch: Partial<DesktopPlacement>): DesktopCard[] {
+  const next = cards.map(card => ({ ...card, ...(card.id === id ? patch : {}) }));
+  const moving = next.find(card => card.id === id);
+  if (!moving || !moving.visible) return next;
+  const overlaps = (a: DesktopCard, b: DesktopCard) => a.visible && b.visible &&
+    a.column < b.column + b.width && b.column < a.column + a.width &&
+    a.row < b.row + b.rows && b.row < a.row + a.rows;
+  const settled: DesktopCard[] = [moving];
+  for (const card of next.filter(card => card.id !== id).sort((a,b) => a.row-b.row || a.column-b.column)) {
+    let collision: DesktopCard | undefined;
+    while ((collision = settled.find(other => overlaps(card, other)))) card.row = collision.row + collision.rows;
+    settled.push(card);
+  }
+  return next;
+}

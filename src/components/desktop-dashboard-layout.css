@@ -20,3 +20,13 @@
 .desktop-layout-fields .desktop-layout-visible { display: flex; align-items: center; height: 34px; }
 .desktop-layout-fields input[type="checkbox"] { min-height: 0; accent-color: #14795a; }
 .desktop-layout-status { margin-top: 10px; }
+
+[data-desktop-canvas] {position:relative;}
+.desktop-layout-overlays {position:absolute;inset:0;pointer-events:none;z-index:30;}
+.desktop-layout-card-outline {position:absolute;border:1px dashed #16846680;border-radius:12px;pointer-events:none;}
+.desktop-layout-handle {position:absolute;pointer-events:auto;touch-action:none;user-select:none;display:flex;align-items:center;gap:3px;border:1px solid #168466;background:var(--clean-surface,#fff);color:var(--clean-ink,#183b34);box-shadow:0 2px 5px #0001;}
+.desktop-layout-handle:focus-visible {outline:3px solid #55cda2;outline-offset:3px;}
+.desktop-layout-move {top:-10px;left:8px;max-width:calc(100% - 16px);padding:2px 5px;border-radius:5px;font-size:10px;cursor:grab;}
+.desktop-layout-move:active {cursor:grabbing;}
+.desktop-layout-move span {overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.desktop-layout-resize {bottom:-3px;right:-3px;padding:3px;border-radius:5px;cursor:nwse-resize;}
