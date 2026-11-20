@@ -2,6 +2,7 @@
 // Layout is a true 2-D grid (react-grid-layout): each card has x, y, w, h.
 
 import type { PortfolioType } from '../types';
+import { normalizeDesktopLayout, type DesktopLayout } from './desktopDashboardModel';
 
 export interface CardMeta {
   id: string;
@@ -33,7 +34,7 @@ export const applyPortfolioToLayout = (layout: DashboardLayout, portfolioType: P
     ...c,
     visible: isFund && PSX_ONLY_CARD_IDS.has(c.id) ? false : (isCore(c.id) ? true : c.visible),
   }));
-  return { web: patch(layout.web), mobile: patch(layout.mobile) };
+  return { ...layout, web: patch(layout.web), mobile: patch(layout.mobile) };
 };
 
 export const CORE_IDS = CARD_META.filter(m => m.core).map(m => m.id);
@@ -52,6 +53,7 @@ export interface CardLayout {
 export type Device = 'web' | 'mobile';
 
 export interface DashboardLayout {
+  desktop?: DesktopLayout;
   web: CardLayout[];
   mobile: CardLayout[];
 }
@@ -214,6 +216,7 @@ const normalizeDevice = (saved: any[], device: Device): CardLayout[] => {
 export const normalizeLayout = (saved: any): DashboardLayout => {
   if (!saved || typeof saved !== 'object') return DEFAULT_LAYOUT;
   return {
+    ...(normalizeDesktopLayout(saved.desktop) ? { desktop: normalizeDesktopLayout(saved.desktop) } : {}),
     web: normalizeDevice(saved.web, 'web'),
     mobile: normalizeDevice(saved.mobile, 'mobile'),
   };

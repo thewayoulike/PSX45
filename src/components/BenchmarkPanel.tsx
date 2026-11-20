@@ -1,3 +1,4 @@
+import { FittedLine } from './MobileFitLine';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Trophy, TrendingDown } from 'lucide-react';
 import { todayPK } from '../utils/dates';
@@ -57,8 +58,8 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct, quote
   const chip = (active: boolean) => `px-3 py-1 rounded-lg text-[11px] font-bold transition-colors ${active ? 'bg-emerald-600 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'}`;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+    <div className="dashboard-benchmark bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 h-full flex flex-col min-h-0">
+      <div className="dashboard-benchmark-heading flex items-center justify-between mb-4 flex-wrap gap-3">
         <div>
           <h3 className="text-sm font-display font-black text-slate-900 dark:text-white uppercase tracking-widest">
             Performance vs Index
@@ -69,7 +70,7 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct, quote
             </div>
           )}
         </div>
-        <div className="flex gap-1.5">
+        <div className="dashboard-benchmark-periods flex gap-1.5">
           {(['1D', '1W', '1M'] as Win[]).map(w => (
             <button key={w} onClick={() => setWin(w)} className={chip(win === w)}>
               {w === '1M' ? '1 Month' : w === '1W' ? '1 Week' : 'Latest session'}
@@ -95,22 +96,22 @@ export const BenchmarkPanel: React.FC<Props> = ({ data, portfolioTodayPct, quote
           : <p className="mb-4 text-sm text-slate-500">Comparison unavailable: prices are incomplete or a corporate action needs verification.</p>}
 
           {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="dashboard-benchmark-metrics grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/50">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Your stock P&L</div>
-              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.port)}`}>{spct(stats.port)}</div>
+              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.port)}`}><FittedLine max={20}>{spct(stats.port)}</FittedLine></div>
             </div>
             <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/50">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">KSE-100</div>
-              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.kse)}`}>{spct(stats.kse)}</div>
+              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.kse)}`}><FittedLine max={20}>{spct(stats.kse)}</FittedLine></div>
             </div>
             <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/50">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">KMI-30</div>
-              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.kmi)}`}>{spct(stats.kmi)}</div>
+              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.kmi)}`}><FittedLine max={20}>{spct(stats.kmi)}</FittedLine></div>
             </div>
             <div className="bg-slate-50/60 dark:bg-slate-800/40 rounded-2xl p-3 border border-slate-100 dark:border-slate-700/50">
               <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Outperformance</div>
-              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.vsKse)}`}>{stats.vsKse == null ? '—' : `${stats.vsKse >= 0 ? '+' : ''}${stats.vsKse.toFixed(2)} pp`}</div>
+              <div className={`text-lg font-display font-black tabular-nums ${posNeg(stats.vsKse)}`}><FittedLine max={20}>{stats.vsKse == null ? '—' : `${stats.vsKse >= 0 ? '+' : ''}${stats.vsKse.toFixed(2)} pp`}</FittedLine></div>
             </div>
           </div>
           <p className="text-[10px] text-slate-400 mt-auto pt-3 leading-snug">

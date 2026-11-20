@@ -1,0 +1,22 @@
+.desktop-layout-controls {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--clean-line, #dce6e0);
+  border-radius: 12px;
+  background: var(--clean-surface, white);
+  color: var(--clean-ink, #183b34);
+}
+.desktop-layout-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+.desktop-layout-heading h2 { font-size: 20px; margin: 0; font-weight: 650; }
+.desktop-layout-heading p, .desktop-layout-status { font-size: 12px; color: var(--clean-muted, #697b73); margin: 4px 0 0; }
+.desktop-layout-actions { display: flex; gap: 8px; }
+.desktop-layout-controls button { font: inherit; font-size: 12px; padding: 8px 12px; border-radius: 6px; border: 1px solid var(--clean-line, #dce6e0); background: var(--clean-surface, white); }
+.desktop-layout-controls button:disabled { opacity: .45; cursor: default; }
+.desktop-layout-controls button.desktop-layout-save { background: #14795a; color: white; }
+.desktop-layout-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; margin-top: 14px; }
+.desktop-layout-fields label { display: grid; gap: 4px; font-size: 12px; }
+.desktop-layout-fields input, .desktop-layout-fields select { min-height: 34px; border: 1px solid var(--clean-line, #dce6e0); border-radius: 6px; padding: 5px 7px; font: inherit; background: var(--clean-surface, white); }
+.desktop-layout-fields input[type="number"] { width: 70px; }
+.desktop-layout-fields .desktop-layout-visible { display: flex; align-items: center; height: 34px; }
+.desktop-layout-fields input[type="checkbox"] { min-height: 0; accent-color: #14795a; }
+.desktop-layout-status { margin-top: 10px; }

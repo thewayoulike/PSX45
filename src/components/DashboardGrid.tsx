@@ -15,10 +15,11 @@ interface Props {
   device: Device;
   renderCard: (id: string) => React.ReactNode;
   compactStats?: boolean;
+  referenceDesktop?: boolean;
 }
 
-export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard, compactStats = false }) => {
-  const cards = useMemo(() => visibleOrdered(layout), [layout]);
+export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard, compactStats = false, referenceDesktop = false }) => {
+  const cards = useMemo(() => referenceDesktop ? layout : visibleOrdered(layout), [layout, referenceDesktop]);
   const stats = cards.find(c => c.id === 'stats');
   // Compact the full-width stats row without rewriting saved custom layouts.
   // Side-by-side custom arrangements retain their explicit dimensions.
@@ -56,10 +57,10 @@ export const DashboardGrid: React.FC<Props> = ({ layout, device, renderCard, com
 
   // Mobile is a reading flow, not a scaled desktop canvas. Preserve visibility
   // and order, but let content determine height so text never shrinks or clips.
-  if (device === 'mobile') {
+  if (device === 'mobile' || referenceDesktop) {
     const mobileCards = [...cards].sort((a, b) => a.y - b.y || a.x - b.x);
     return <div className="mobile-dashboard grid grid-cols-1 gap-4 min-w-0">
-      {mobileCards.map(c => <section key={c.id} className="min-w-0" data-dashboard-card={c.id}>
+      {mobileCards.map(c => <section key={c.id} className="min-w-0" data-dashboard-card={c.id} data-dashboard-preserved={referenceDesktop && ['allocation', 'insights', 'dividends', 'topMovers', 'summary'].includes(c.id) ? '' : undefined}>
         <SectionBoundary label="This card" compact>{renderCard(c.id)}</SectionBoundary>
       </section>)}
     </div>;

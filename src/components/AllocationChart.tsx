@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useLayoutEffect } from 'react';
 import { Holding, PortfolioType } from '../types';
 import { isFundTicker } from '../utils/fundId';
 import { formatFundShortLabel } from '../utils/fundDisplay';
@@ -8,6 +8,7 @@ import { useMediaQuery } from '../hooks/useMediaQuery';
 
 interface AllocationChartProps {
   holdings: Holding[];
+  fitToCard?: boolean;
   portfolioType?: PortfolioType;
   displayNames?: Record<string, string>;
 }
@@ -21,10 +22,22 @@ const COLORS = [
 
 const RADIAN = Math.PI / 180;
 
-export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, portfolioType = 'PSX', displayNames = {} }) => {
+export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, fitToCard = false, portfolioType = 'PSX', displayNames = {} }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const [chartMode, setChartMode] = useState<'asset' | 'sector'>(isFund ? 'asset' : 'sector');
   const isMobile = useMediaQuery('(max-width: 767px)');
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [plotWidth, setPlotWidth] = useState(400);
+  useLayoutEffect(() => {
+    const plot = plotRef.current;
+    if (!fitToCard || !plot) return;
+    const measure = () => setPlotWidth(plot.clientWidth);
+    const observer = new ResizeObserver(measure);
+    observer.observe(plot); measure();
+    return () => observer.disconnect();
+  }, [fitToCard]);
+  const outerRadius = fitToCard ? Math.min(135, Math.max(20, (plotWidth - 120) / 2)) : isMobile ? 90 : 135;
+  const innerRadius = fitToCard ? outerRadius * (95 / 135) : isMobile ? 65 : 95;
   const reduceMotion = useMediaQuery('(prefers-reduced-motion: reduce)');
   const [activeIndex, setActiveIndex] = useState<number>(-1);
 
@@ -188,10 +201,10 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-4 sm:p-6 flex flex-col w-full h-full min-h-0 lg:min-h-[550px]">
+    <div className="allocation-card bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-4 sm:p-6 flex flex-col w-full h-full min-h-0 lg:min-h-[550px]">
       
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+      <div className="allocation-heading flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
           <h2 className="text-xl font-display font-black text-slate-900 dark:text-white tracking-tight flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center border border-emerald-100 dark:border-emerald-500/20">
                 <Layers size={16} className="text-emerald-500 dark:text-emerald-400" />
@@ -215,10 +228,10 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-col lg:flex-row items-center gap-3 sm:gap-8 flex-1 min-w-0">
+      <div className="allocation-content flex flex-col lg:flex-row items-center gap-3 sm:gap-8 flex-1 min-w-0">
           
           {/* Left: Chart Container */}
-          <div className="w-full lg:w-3/5 h-[240px] sm:h-[350px] md:h-[400px] relative" role="img" aria-label={`Allocation across ${displayData.length} ${chartMode === 'asset' ? 'assets' : 'sectors'}. Values are listed below.`}>
+          <div ref={plotRef} className="allocation-plot w-full lg:w-3/5 h-[240px] sm:h-[350px] md:h-[400px] relative" role="img" aria-label={`Allocation across ${displayData.length} ${chartMode === 'asset' ? 'assets' : 'sectors'}. Values are listed below.`}>
             
             {/* Center Donut Text (Layer 0 - Background) */}
             {displayData.length > 0 && (
@@ -259,8 +272,8 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
                         data={displayData}
                         cx="50%"
                         cy="50%"
-                        innerRadius={isMobile ? 65 : 95}  
-                        outerRadius={isMobile ? 90 : 135} 
+                        innerRadius={innerRadius}
+                        outerRadius={outerRadius}
                         paddingAngle={3}
                         dataKey="value"
                         label={isMobile ? false : renderCustomizedLabel}
@@ -294,7 +307,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
           </div>
           
           {/* Right: Legend List */}
-          <div className="w-full lg:w-2/5 flex flex-col max-h-[320px] lg:h-[400px] lg:max-h-none overflow-y-auto overscroll-contain custom-scrollbar sm:pr-2 relative z-10">
+          <div className="allocation-legend w-full lg:w-2/5 flex flex-col max-h-[320px] lg:h-[400px] lg:max-h-none overflow-y-auto overscroll-contain custom-scrollbar sm:pr-2 relative z-10">
               <div className="space-y-2 pt-2">
                   {displayData.map((item, idx) => {
                       const percent = (item.value / totalValue) * 100;
@@ -310,7 +323,7 @@ export const AllocationChart: React.FC<AllocationChartProps> = ({ holdings, port
                                 style={{ backgroundColor: item.fill }}
                             ></div>
                             
-                            <div className="flex-1 flex justify-between items-center min-w-0">
+                            <div className="allocation-legend-main flex-1 flex justify-between items-center min-w-0">
                                 <span className={`text-xs font-display font-bold break-words min-w-0 pr-2 transition-colors ${isActive ? 'text-slate-900 dark:text-white' : 'text-slate-600 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100'}`} title={item.name}>
                                     {item.name}
                                     <span className="block sm:hidden text-xs font-normal text-slate-600 dark:text-slate-400 mt-1">Rs. {Math.round(item.value).toLocaleString()}</span>

@@ -1,3 +1,4 @@
+import { DesktopDashboardLayout } from './DesktopDashboardLayout';
 import {MobilePortfolioValue} from './MobilePortfolioValue';
 import { ResponsivePortfolioHeader, ResponsivePortfolioActions, PortfolioSwitcherInline, DesktopOnly, ResponsivePlanNotice, MobileSectionNavigator } from './MobileLayout';
 import { MobileBottomNav } from './MobileBottomNav';
@@ -1713,7 +1714,7 @@ const App: React.FC = () => {
   const historyScope = { account: driveUser?.email || (sbApproved ? sbUser?.email : '') || '', portfolio: historyPortfolioId, sourceKey: performanceKey };
   const hasFundHistory = portfolioTransactions.some(t => isFundTicker(t.ticker));
   const portfolioHistory = usePortfolioHistory(historyScope, portfolioTransactions, performanceHistory[historyPortfolioId],
-      marketReady && currentView === 'DASHBOARD' && !hasFundHistory && portfolioTransactions.length > 0,
+      marketReady && (currentView === 'DASHBOARD' || (currentView === 'DASH_CUSTOMIZE' && !isNarrowViewport)) && !hasFundHistory && portfolioTransactions.length > 0,
       data => setPerformanceHistory(prev => ({ ...prev, [historyPortfolioId]: data })));
   // The value chart uses full history; daily-return comparisons stay at 30 days.
   const displayedPerformance = withLivePerformance(portfolioHistory.rows.filter(row =>
@@ -2105,6 +2106,7 @@ const App: React.FC = () => {
                   <Dashboard
                       stats={stats}
                       lastUpdated={lastPriceUpdate}
+                      referenceDesktop={!isNarrowViewport && !isFundPortfolio}
                       updateFailed={priceError && !isSyncing}
                       userName={driveUser?.name?.split(' ')[0]}
                       onRefresh={handleSyncMarket}
@@ -2138,10 +2140,10 @@ const App: React.FC = () => {
                   />
               );
           case 'allocation':
-              return <AllocationChart holdings={holdings} portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'} displayNames={fundDisplayNames} />;
+              return <AllocationChart fitToCard={!isNarrowViewport && !isFundPortfolio} holdings={holdings} portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'} displayNames={fundDisplayNames} />;
           case 'topHoldings':
               return (
-                  <TopHoldings
+                  <TopHoldings fitToCard={!isNarrowViewport && !isFundPortfolio}
                       holdings={holdings}
                       stats={stats}
                       onTickerClick={handleTickerClick}
@@ -2237,7 +2239,7 @@ const App: React.FC = () => {
       entitledTickers={entitledTickerList}
       requestUpgrade={() => setShowUpgrade(true)}
     >
-    <div data-desktop-dashboard={currentView === 'DASHBOARD' && !isFundPortfolio ? 'calm' : undefined} data-design-variant={currentView === 'CALCS' || (currentView === 'DASHBOARD' && !isFundPortfolio) ? 'structured' : 'calm'} data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-[#f3f6f2] text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+    <div data-desktop-dashboard={(currentView === 'DASHBOARD' || currentView === 'DASH_CUSTOMIZE') && !isFundPortfolio && !isNarrowViewport ? 'reference' : undefined} data-design-variant={currentView === 'CALCS' || (currentView === 'DASHBOARD' && !isFundPortfolio) ? 'structured' : 'calm'} data-mobile-view={currentView} className="mobile-layout-app flex flex-col h-[100dvh] bg-[#f3f6f2] text-slate-900 font-sans selection:bg-emerald-200 dark:bg-[#0a0a0a] dark:text-slate-100 dark:selection:bg-emerald-900 overflow-hidden pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
 
       <ResponsivePlanNotice label={sbStatus?.status === 'trial' ? `Trial · ${sbStatus.daysLeft} ${sbStatus.daysLeft === 1 ? 'day' : 'days'} left` : sbStatus?.status === 'paid' ? 'Renewal due' : 'Free plan'}>{trialBanner}</ResponsivePlanNotice>
 
@@ -2477,8 +2479,14 @@ const App: React.FC = () => {
                       )}
                       <div className={`contents ${waitsForDrive ? 'pointer-events-none select-none' : ''}`} ref={el => { if (el) el.toggleAttribute('inert', waitsForDrive); }} aria-busy={waitsForDrive || undefined}>
                       <>
-                      {currentView === 'DASHBOARD' && (
-                          <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                      {(currentView === 'DASHBOARD' || (currentView === 'DASH_CUSTOMIZE' && !isNarrowViewport && !isFundPortfolio)) && (
+                          <DesktopDashboardLayout enabled={!isNarrowViewport && !isFundPortfolio}
+                              editing={currentView === 'DASH_CUSTOMIZE'} layout={effectiveDashboardLayout.desktop}
+                              legacyLayout={effectiveDashboardLayout.web}
+                              onSave={desktop => handleSaveDashboardLayout({ ...effectiveDashboardLayout, desktop })}
+                              onDone={() => setCurrentView('DASHBOARD')}
+                              className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+
                               {isFundPortfolio && (
                                   <div className="mb-4 flex items-center gap-2 text-xs font-bold text-violet-700 dark:text-violet-300 bg-violet-50 dark:bg-violet-500/10 border border-violet-200/60 dark:border-violet-500/20 rounded-2xl px-4 py-3">
                                       <LayoutGrid size={14} /> Mutual Fund portfolio — NAV-based tracking (no PSX index, signals, or stock tools)
@@ -2486,15 +2494,17 @@ const App: React.FC = () => {
                               )}
                               {(isNarrowViewport || !isFundPortfolio) && <MobilePortfolioValue key={historyScope.account+performanceKey+perfKey} rows={hasFundHistory ? [] : portfolioHistory.rows} netInvestedHistory={stats.netInvestedHistory} scope={historyScope} loading={portfolioHistory.loading} error={portfolioHistory.error} onRefresh={portfolioHistory.refresh} value={stats.totalValue+stats.freeCash} dayChange={stats.dailyMissingPrevious ? null : stats.dailyPL} sessionDate={marketSessionDate || undefined} quoteTime={lastPriceUpdate}/>}
                               <DashboardGrid
+                                  referenceDesktop={!isNarrowViewport && !isFundPortfolio}
                                   compactStats={!isFundPortfolio}
                                   layout={isNarrowViewport ? effectiveDashboardLayout.mobile : effectiveDashboardLayout.web}
                                   device={isNarrowViewport ? 'mobile' : 'web'}
                                   renderCard={renderDashCard}
                               />
-                          </div>
+
+                          </DesktopDashboardLayout>
                       )}
 
-                      {currentView === 'DASH_CUSTOMIZE' && (
+                      {currentView === 'DASH_CUSTOMIZE' && (isNarrowViewport || isFundPortfolio) && (
                           <DashboardCustomizer
                               layout={effectiveDashboardLayout}
                               portfolioType={isFundPortfolio ? 'MUTUAL_FUND' : 'PSX'}

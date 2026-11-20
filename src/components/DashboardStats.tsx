@@ -1,3 +1,5 @@
+import { DashboardHealthGauge } from './DashboardHealthGauge';
+import { DashboardChargesStrip } from './DashboardChargesStrip';
 import {FittedLine as FitLine} from './MobileFitLine';
 import { ResponsiveMetricPanels } from './MobileLayout';
 import { formatPriceTime } from './PriceStaleNotice';
@@ -16,6 +18,7 @@ import {
   Percent, BarChart3, History, Info, Stamp, ShieldCheck, Landmark, Briefcase, Zap, LayoutGrid
 } from 'lucide-react';
 interface DashboardProps {
+  referenceDesktop?: boolean;
   stats: PortfolioStats;
   lastUpdated?: string | null;
   /** The latest price update failed: show when the displayed prices are from. */
@@ -162,9 +165,9 @@ const computeHealth = (stats: PortfolioStats, holdings?: Holding[], trend?: numb
 };
 const pillarBar = (s: number) => (s >= 60 ? 'bg-emerald-500' : s <= 40 ? 'bg-rose-500' : 'bg-amber-500');
 const pillarText = (s: number) => (s >= 60 ? 'text-emerald-600 dark:text-emerald-400' : s <= 40 ? 'text-rose-500' : 'text-amber-600 dark:text-amber-400');
-const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: React.ReactNode }> = ({ pillars, score, children }) => (
+const HealthPopover: React.FC<{ pillars: Pillar[]; score: number; children: React.ReactNode; activation?: 'hover' | 'press' }> = ({ pillars, score, children, activation }) => (
   <HoverPopover
-    label="Score breakdown"
+    label="Score breakdown" activation={activation}
     align="end"
     triggerClassName="flex w-full items-baseline gap-2 border-0 bg-transparent p-0 text-left cursor-help"
     panelClassName="z-[200] w-72 max-w-[calc(100vw-1.5rem)] rounded-2xl border border-slate-200/80 bg-white p-4 text-left normal-case tracking-normal shadow-xl dark:border-slate-700 dark:bg-slate-900"
@@ -202,8 +205,19 @@ const HeroCard: React.FC<{
   label: string; value: React.ReactNode; sub?: React.ReactNode;
   colorClass: string; icon: React.ReactNode; iconWrap: string; trend: number[]; sparkColor: string;
   emptyTrendHint?: string;
-}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor, emptyTrendHint }) => {
+  reference?: boolean;
+}> = ({ label, value, sub, colorClass, icon, iconWrap, trend, sparkColor, emptyTrendHint, reference = false }) => {
   const hasTrend = trend.length >= 2 && trend.some((v) => v !== trend[0]);
+  if (reference) return (
+    <div className="dashboard-summary bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60" data-summary-card={label === 'Total Return' ? 'return' : 'daily'}>
+      <div className="dashboard-summary-copy">
+        <span>{label === 'Total Return' ? 'Total return' : 'Today’s P&L'}</span>
+        <strong className={colorClass}><FitLine max={25}>{value}</FitLine></strong>
+        {sub && <small>{sub}</small>}
+      </div>
+      {hasTrend && <div className="dashboard-summary-trend"><Spark data={trend} color={sparkColor} /></div>}
+    </div>
+  );
   return (
     <div className="relative bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-6 pb-24 transition-all hover:-translate-y-1 hover:shadow-card-hover duration-300 overflow-hidden group">
       <div className="relative z-10 flex items-start justify-between pointer-events-none">
@@ -264,7 +278,7 @@ const PanelCell: React.FC<{ label: string; value: React.ReactNode; sub?: React.R
     {sub && <div className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mt-1.5 leading-none"><FitLine max={10}>{sub}</FitLine></div>}
   </div>
 );
-export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, updateFailed = false, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], displayNames = {}, onFixReinvestExtra }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ stats, referenceDesktop = false, lastUpdated, updateFailed = false, userName, onRefresh, onCustomize, trend, returnSeries, dailySeries, benchmark, holdings, portfolioType = 'PSX', transactions = [], displayNames = {}, onFixReinvestExtra }) => {
   const isFund = portfolioType === 'MUTUAL_FUND';
   const totalNetWorth = stats.totalValue + stats.freeCash;
   // Lifetime P&L: realized + unrealized + dividends - fees (same basis as ROI and
@@ -316,9 +330,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
   const returnTrend = usable(returnSeries);
   const dailyPLTrend = usable(dailySeries);
   return (
-    <div className="space-y-6 mb-8">
+    <div data-dashboard-stats className="space-y-6 mb-8">
       {/* Greeting - Animated */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in-up">
+      <div data-dashboard-greeting className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in-up">
         <div>
           <h2 className="text-3xl font-display font-black text-slate-900 dark:text-white tracking-tight">
             {userName ? `Welcome back, ${userName}` : 'Your Portfolio'} <span className="align-middle ml-1">👋</span>
@@ -347,7 +361,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
       </div>
       {/* Top Hero Cards */}
       <div className="mobile-hero-group grid grid-cols-1 lg:grid-cols-3 gap-5 animate-fade-in-up" style={{ animationDelay: '100ms', animationFillMode: 'both' }}>
-        <HeroCard
+        {!referenceDesktop && <HeroCard
           label="Total Net Worth"
           value={rs(totalNetWorth)}
           colorClass="text-slate-900 dark:text-white"
@@ -356,8 +370,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
           iconWrap="bg-blue-50 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400"
           trend={netWorthTrend}
           sparkColor="#3b82f6"
-        />
+        />}
         <HeroCard
+          reference={referenceDesktop}
           label="Total Return"
           value={<>{spct(totalReturnPercent)} {isTotalReturnPositive ? <ArrowUpRight size={24} className="inline -mt-2 opacity-80" /> : <ArrowDownRight size={24} className="inline -mt-2 opacity-80" />}</>}
           colorClass={posNeg(totalReturnRs)}
@@ -368,6 +383,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
           sparkColor={isTotalReturnPositive ? '#10b981' : '#f43f5e'}
         />
         <HeroCard
+          reference={referenceDesktop}
           label="Today's P&L"
           value={stats.dailyMissingPrevious ? '—' : <>{isDailyProfitable ? '+' : '-'}{rs(Math.abs(stats.dailyPL))} {isDailyProfitable ? <ArrowUpRight size={24} className="inline -mt-2 opacity-80" /> : <ArrowDownRight size={24} className="inline -mt-2 opacity-80" />}</>}
           colorClass={stats.dailyMissingPrevious ? 'text-slate-500' : posNeg(stats.dailyPL)}
@@ -525,10 +541,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
         </MetricPanel>
       </ResponsiveMetricPanels>
       {/* Bottom Fees & Health Strip */}
-      <div className="flex flex-col lg:flex-row gap-5 animate-fade-in-up" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
+      <div data-dashboard-stats-bottom className="flex flex-col lg:flex-row gap-5 animate-fade-in-up" style={{ animationDelay: '300ms', animationFillMode: 'both' }}>
 
         {/* Fees Row */}
-        <div className="flex-1 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-3">
+        <div data-dashboard-fees className="flex-1 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-3">
+          {referenceDesktop ? <DashboardChargesStrip stats={stats} format={rs0} /> : <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 h-full">
             {[
               ...(isFund ? [] : [
@@ -548,10 +565,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
                 <div className="text-base font-display font-bold tabular-nums text-slate-800 dark:text-slate-200">{rs0(c.v)}</div>
               </div>
             ))}
-          </div>
+          </div></>}
         </div>
         {/* Health Score Card */}
-        <div className="w-full lg:w-72 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex items-center justify-between gap-4">
+        <div data-dashboard-health className="w-full lg:w-72 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200/60 dark:border-slate-800/60 shadow-card dark:shadow-card-dark p-5 flex items-center justify-between gap-4">
+          {referenceDesktop ? <DashboardHealthGauge score={H.score} status={H.label} statusColor={H.text} holdings={holdings}>
+            <HealthPopover pillars={H.pillars} score={H.score} activation="press">See breakdown</HealthPopover>
+          </DashboardHealthGauge> : <>
           <div className="w-12 h-12 rounded-2xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/20 flex items-center justify-center shrink-0 shadow-sm">
             <ShieldCheck size={24} className="text-emerald-600 dark:text-emerald-400" />
           </div>
@@ -568,7 +588,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ stats, lastUpdated, update
             <div className="h-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-full mt-2 overflow-hidden shadow-inner">
               <div className={`h-full rounded-full ${H.bar} transition-all duration-1000 ease-out`} style={{ width: `${H.score}%` }} />
             </div>
-          </div>
+          </div></>}
         </div>
       </div>
     </div>

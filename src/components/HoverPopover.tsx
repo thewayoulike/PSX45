@@ -4,12 +4,13 @@ import * as Popover from '@radix-ui/react-popover';
 /** Hover card rendered on the page, so a dashboard cell cannot clip it. */
 export const HoverPopover: React.FC<{
   label: string;
+  activation?: 'hover' | 'press';
   triggerClassName?: string;
   panelClassName?: string;
   align?: 'start' | 'center' | 'end';
   children: React.ReactNode;
   panel: React.ReactNode;
-}> = ({ label, triggerClassName, panelClassName, align = 'start', children, panel }) => {
+}> = ({ label, triggerClassName, panelClassName, align = 'start', activation = 'hover', children, panel }) => {
   const [open, setOpen] = useState(false);
   const timer = useRef<number | undefined>(undefined);
   const show = () => {
@@ -25,10 +26,10 @@ export const HoverPopover: React.FC<{
         <button
           type="button"
           aria-label={label}
-          onMouseEnter={show}
-          onMouseLeave={hide}
-          onFocus={show}
-          onBlur={hide}
+          onMouseEnter={activation === 'hover' ? show : undefined}
+          onMouseLeave={activation === 'hover' ? hide : undefined}
+          onFocus={activation === 'hover' ? show : undefined}
+          onBlur={activation === 'hover' ? hide : undefined}
           className={triggerClassName}
         >
           {children}
@@ -42,8 +43,8 @@ export const HoverPopover: React.FC<{
           collisionPadding={12}
           onOpenAutoFocus={event => event.preventDefault()}
           onCloseAutoFocus={event => event.preventDefault()}
-          onMouseEnter={show}
-          onMouseLeave={hide}
+          onMouseEnter={activation === 'hover' ? show : undefined}
+          onMouseLeave={activation === 'hover' ? hide : undefined}
           className={panelClassName}
         >
           {panel}
