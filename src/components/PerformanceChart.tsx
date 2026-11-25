@@ -15,6 +15,36 @@ import { Loader2, TrendingUp, RefreshCw, Save, AlertCircle, Clock } from 'lucide
 import { Card } from './ui/Card';
 import { useMediaQuery } from '../hooks/useMediaQuery';
 
+/** Plain reason a day has no stock P&L, from the saved row. */
+export function blankDayReason(row: Partial<PerformanceRow> | undefined): string | null {
+  if (!row || row.Portfolio != null) return null;
+  const list = (items?: string[]) => (items || []).slice(0, 3).join(', ') + ((items?.length || 0) > 3 ? ` and ${items!.length - 3} more` : '');
+  if (row.corporateActions?.length) return `Not shown: a split, bonus or rights entry for ${list(row.corporateActions)} is on this date, so the day's change can't be measured reliably.`;
+  if (row.missing?.length) return `Not shown: no PSX closing price for ${list(row.missing)} on this day or the day before.`;
+  if (row.live) return "Not shown yet: today's quotes are not complete.";
+  return 'Not shown: you held no shares on this day.';
+}
+
+const pct = (v: unknown) => typeof v === 'number' && Number.isFinite(v) ? `${v >= 0 ? '+' : ''}${v.toFixed(2)}%` : '—';
+
+function DayTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey?: string; color?: string; value?: unknown; payload?: PerformanceRow }>; label?: string }) {
+  if (!active || !payload?.length) return null;
+  const row = payload[0]?.payload;
+  const reason = blankDayReason(row);
+  const names: Record<string, string> = { Portfolio: 'Your daily P&L', KSE100: 'KSE-100', KMI30: 'KMI-30' };
+  return (
+    <div className="max-w-[260px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white/95 dark:bg-slate-900/95 px-3 py-2.5 shadow-lg text-xs">
+      <div className="font-bold text-slate-900 dark:text-white text-[13px] mb-1.5">{label}</div>
+      {payload.filter(p => p.dataKey !== 'Portfolio' || p.value != null).map(p => (
+        <div key={p.dataKey} className="flex justify-between gap-4 font-semibold" style={{ color: p.color }}>
+          <span>{names[p.dataKey || ''] || p.dataKey}</span><span className="font-mono tabular-nums">{pct(p.value)}</span>
+        </div>
+      ))}
+      {reason && <p className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 text-slate-600 dark:text-slate-300 leading-snug">{reason}</p>}
+    </div>
+  );
+}
+
 interface PerformanceChartProps {
   savedData: PerformanceRow[];
   onRefreshHistory: () => Promise<void>;
@@ -99,7 +129,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ savedData, l
           <span className="text-xs text-slate-500">Session {liveDay.date} · Same calculation as the P&amp;L card{liveDay.quoteTime ? ` · Quotes refreshed ${formatTime(liveDay.quoteTime)}` : ''}</span>
         </div>
       )}
-      {gaps.length > 0 && <p className="mb-4 text-xs text-slate-500">Gaps mean a price is missing, corporate-action prices need verification, or there was no stock exposure. Missing returns are excluded from comparisons.</p>}
+      {gaps.length > 0 && <p className="mb-4 text-xs text-slate-500">Gaps mean a price is missing, corporate-action prices need verification, or there was no stock exposure. Missing returns are excluded from comparisons. Point at a gap to see the reason.</p>}
 
       {stale && chartData.length > 0 && (
         <div className="mb-4 rounded-2xl border border-amber-200/70 dark:border-amber-500/20 bg-amber-50/80 dark:bg-amber-500/10 px-4 py-3 text-xs text-amber-800 dark:text-amber-300">
@@ -122,15 +152,7 @@ export const PerformanceChart: React.FC<PerformanceChartProps> = ({ savedData, l
               <XAxis dataKey="date" minTickGap={compact ? 36 : 20} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} axisLine={false} tickLine={false} />
               <YAxis domain={['auto', 'auto']} tickFormatter={(val) => `${val > 0 ? '+' : ''}${val}%`} tick={{ fontSize: 11, fill: '#64748b', fontWeight: 600 }} axisLine={false} tickLine={false} width={54} />
 
-              <Tooltip
-                contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)', backgroundColor: 'rgba(255, 255, 255, 0.95)' }}
-                formatter={(value: number, name: string) => [
-                  <span className="font-mono">{value >= 0 ? "+" : ""}{value.toFixed(2)}%</span>,
-                  name === 'Daily stock P&L' || name === 'Portfolio' ? 'Your daily P&L' : name === 'KSE100' ? 'KSE-100' : 'KMI-30'
-                ]}
-                labelStyle={{ fontWeight: '900', color: '#0f172a', marginBottom: '6px', fontSize: '13px' }}
-                itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-              />
+              <Tooltip content={<DayTooltip />} />
               <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', fontWeight: 'bold', paddingTop: '15px' }} />
 
               <Line isAnimationActive={!compact && !reduceMotion} type="linear" connectNulls={false} name="Daily stock P&L" dataKey="Portfolio" stroke="#10b981" strokeWidth={3} dot={false} activeDot={{ r: 6, fill: "#10b981", strokeWidth: 0 }} />

@@ -41,7 +41,7 @@ export type StockDayResult = {
 };
 
 /** Trading P&L before fees/dividends. Denominator: opening stock value + purchases/transfers in.
- * Never infer whether a provider's prior price was adjusted on a bonus/split/rights date.
+ * On a bonus/split date the prior price is read as adjusted or not by PSX's daily price band; rights days are skipped.
  */
 export function stockDayPerformance(transactions: Transaction[], date: string,
   previous: Record<string, number>, current: Record<string, number>): StockDayResult {
@@ -61,7 +61,24 @@ export function stockDayPerformance(transactions: Transaction[], date: string,
     const transferred = trades.some(t => t.type === 'TRANSFER_IN' || t.type === 'TRANSFER_OUT');
     if (!Number.isFinite(start) || !Number.isFinite(end) || start < -EPS || end < -EPS || ((start > EPS || transferred) && !(Number.isFinite(prev) && prev > 0))
       || (end > EPS && !(Number.isFinite(now) && now > 0))) { missing.push(ticker); continue; }
-    if (trades.some(t => actions.has(t.type) || t.type === 'RIGHTS')) { corporateActions.push(ticker); continue; }
+    if (trades.some(t => t.type === 'RIGHTS')) { corporateActions.push(ticker); continue; }
+    // Split or bonus on this date: the opening shares change, and the provider's
+    // previous close may or may not already be adjusted. PSX caps a day's move at
+    // about 10% (or Rs 1), so only one reading fits; if both or neither fit, skip.
+    let openingShares = start;
+    const dayActions = trades.filter(t => actions.has(t.type));
+    if (dayActions.length) {
+      let afterActions = start;
+      for (const t of dayActions) {
+        if (t.type === 'SPLIT') { if (t.price > 1) afterActions *= t.price; } else afterActions += t.quantity;
+      }
+      const factor = start > EPS ? afterActions / start : 0;
+      const withinBand = (ref: number) => Math.abs(now - ref) <= Math.max(ref * 0.105, 1.05);
+      const unadjusted = factor > 0 && withinBand(prev / factor), adjusted = withinBand(prev);
+      if (factor <= 0 || unadjusted === adjusted) { corporateActions.push(ticker); continue; }
+      // Unadjusted: old shares at the old close. Adjusted: new shares at the adjusted close.
+      if (adjusted) openingShares = afterActions;
+    }
     let paid = 0, received = 0, transferIn = 0, transferOut = 0;
     if (trades.some(t => !Number.isFinite(t.quantity) || t.quantity < 0 || !Number.isFinite(t.price) || t.price < 0)) { missing.push(ticker); continue; }
     for (const trade of trades) {
@@ -72,7 +89,7 @@ export function stockDayPerformance(transactions: Transaction[], date: string,
       if (trade.type === 'TRANSFER_IN') transferIn += trade.quantity * prev;
       if (trade.type === 'TRANSFER_OUT') transferOut += trade.quantity * prev;
     }
-    const openingValue = start > EPS ? start * prev : 0;
+    const openingValue = start > EPS ? openingShares * prev : 0;
     const change = (end > EPS ? end * now : 0) + received - paid - openingValue;
     if (!Number.isFinite(change) || !Number.isFinite(paid)) { missing.push(ticker); continue; }
     // Matched transfers inside the selected portfolios do not add new capital.

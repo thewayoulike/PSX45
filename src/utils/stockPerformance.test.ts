@@ -82,6 +82,19 @@ describe('corporate actions and dated history', () => {
     expect(stockDayPerformance(transactions, date, { PSO: 10 }, { PSO: 11 })).toMatchObject({ pnl: 330, capital: 3300, percent: 10 });
     expect(stockDayPerformance(transactions, '2026-10-16', { PSO: 20 }, { PSO: 10 })).toMatchObject({ percent: null, corporateActions: ['PSO'] });
   });
+  it('measures a split day whether or not the previous close was adjusted', () => {
+    const txs = [tx(), tx({ date, type: 'SPLIT', price: 2, quantity: 0 })];
+    // Unadjusted history: old close 20 for 100 shares, now 200 shares at 10.50.
+    expect(stockDayPerformance(txs, date, { PSO: 20 }, { PSO: 10.5 })).toMatchObject({ pnl: 100, capital: 2000, percent: 5, corporateActions: [] });
+    // Adjusted history: previous close already 10.
+    expect(stockDayPerformance(txs, date, { PSO: 10 }, { PSO: 10.5 })).toMatchObject({ pnl: 100, capital: 2000, percent: 5, corporateActions: [] });
+  });
+  it('measures a bonus day and still skips one it cannot tell apart', () => {
+    const big = [tx(), tx({ date, type: 'BONUS', quantity: 50, price: 0 })];
+    expect(stockDayPerformance(big, date, { PSO: 30 }, { PSO: 20.4 })).toMatchObject({ pnl: 60, percent: 2 });
+    const small = [tx(), tx({ date, type: 'BONUS', quantity: 5, price: 0 })];
+    expect(stockDayPerformance(small, date, { PSO: 10 }, { PSO: 10 })).toMatchObject({ percent: null, corporateActions: ['PSO'] });
+  });
   it('does not apply a split to purchases made on its effective day', () => {
     expect(stockBalances([tx(), tx({ date, type: 'SPLIT', price: 2 }), tx({ date, quantity: 50 })], date)).toEqual({ PSO: 250 });
   });
