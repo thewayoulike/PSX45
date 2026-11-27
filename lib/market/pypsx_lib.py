@@ -1,4 +1,6 @@
-"""Shared pypsx-toolkit helpers for Vercel Python function + local scripts."""
+"""Shared pyPSX helpers for the Vercel Python function + local scripts.
+
+Company info and dividends use pypsx-toolkit first and fall back to pypsx."""
 
 from __future__ import annotations
 
@@ -270,74 +272,264 @@ def normalize_reports(df, limit: int = 8) -> list[dict[str, str]]:
     return rows[:limit]
 
 
+def _toolkit():
+    """pypsx-toolkit (free, no key) when installed; None when it cannot load."""
+    try:
+        import pypsx_toolkit
+
+        return pypsx_toolkit
+    except Exception:
+        return None
+
+
+def _toolkit_dividends(toolkit, clean: str) -> dict[str, Any]:
+    div_info = toolkit.get_dividend_info(clean)
+    div_hist = toolkit.get_dividend_history(clean)
+    info_rows = df_records(div_info)
+    hist_norm = normalize_history(df_records(div_hist))
+    latest_cash = hist_norm[0]["cashAmount"] if hist_norm else None
+    return {
+        "symbol": clean,
+        "latestDividend": normalize_latest(info_rows[0] if info_rows else None, latest_cash),
+        "dividendHistory": hist_norm,
+        "source": "pypsx-toolkit",
+    }
+
+
+# ---------------------------------------------------------------- pypsx backup
+# Used when pypsx-toolkit is missing, fails or returns nothing. Needs the pypsx API keys.
+
+
+def _pypsx_archive():
+    _load_dotenv_quiet()
+    missing = _require_pypsx_keys()
+    if missing:
+        raise RuntimeError(missing["error"])
+    import pypsx
+
+    return pypsx
+
+
+def _iso_date(value: Any) -> str:
+    if value is None:
+        return "-"
+    if hasattr(value, "strftime"):
+        try:
+            return value.strftime("%Y-%m-%d")
+        except Exception:
+            return "-"
+    text = str(value).strip()
+    return text[:10] if len(text) >= 10 and text[4] == "-" else (text or "-")
+
+
+def _number(value: Any) -> float | None:
+    try:
+        num = float(str(value).replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+    return num if math.isfinite(num) else None
+
+
+def _cash_text(value: float) -> str:
+    return f"{value:,.2f}".rstrip("0").rstrip(".") + " PKR"
+
+
+def pypsx_dividend_rows(df) -> list[dict[str, str]]:
+    """pypsx.get_corporate_actions(kind="dividend") rows -> app history rows, newest first."""
+    if df is None or getattr(df, "empty", True):
+        return []
+    out = []
+    for row in df.to_dict(orient="records"):
+        cash = _number(row.get("dividend_rs"))
+        ex = _iso_date(row.get("ex_date"))
+        if cash is None or cash <= 0 or ex == "-":
+            continue
+        out.append({"exDividendDate": ex, "cashAmount": _cash_text(cash), "recordDate": "-", "payDate": "-"})
+    out.sort(key=lambda r: r["exDividendDate"], reverse=True)
+    return out
+
+
+def trailing_annual_dividend(history: list[dict[str, str]], today=None) -> str:
+    """Cash paid per share with ex-dates in the last 12 months; "-" when there were none."""
+    import datetime as dt
+
+    today = today or dt.date.today()
+    cutoff = (today - dt.timedelta(days=365)).isoformat()
+    total = 0.0
+    for row in history:
+        ex = row["exDividendDate"]
+        if cutoff < ex <= today.isoformat():
+            total += _number(row["cashAmount"].replace(" PKR", "")) or 0.0
+    return _cash_text(total) if total > 0 else "-"
+
+
+def _pypsx_dividends(clean: str) -> dict[str, Any]:
+    pypsx = _pypsx_archive()
+    history = pypsx_dividend_rows(pypsx.get_corporate_actions(clean, kind="dividend"))
+    latest = None
+    if history:
+        latest = {
+            "dividendYield": "-",
+            "annualDividend": trailing_annual_dividend(history),
+            "cashAmount": history[0]["cashAmount"],
+            "exDividendDate": history[0]["exDividendDate"],
+            "payoutFrequency": "-",
+            "payoutRatio": "-",
+            "dividendGrowth": "-",
+        }
+    return {"symbol": clean, "latestDividend": latest, "dividendHistory": history, "source": "pypsx"}
+
+
+_FIN_ITEMS = {
+    "sales": ["sales", "revenue", "turnover"],
+    "totalIncome": ["total income"],
+    "profitAfterTax": ["profit after tax", "profit after taxation", "net profit", "profit for the year"],
+    "eps": ["earnings per share", "eps"],
+}
+_FIN_KEYS = ("sales", "totalIncome", "profitAfterTax", "eps")
+
+
+def pypsx_statements(df, years: int = 6) -> dict[str, Any]:
+    """pypsx.get_fundamentals long table (statement, item, year, value) -> app statements."""
+    result = {"annual": {"financials": [], "ratios": []}, "quarterly": {"financials": [], "ratios": []}}
+    if df is None or getattr(df, "empty", True):
+        return result
+    by_year: dict[str, dict[str, str]] = {}
+    exact_hit: set[tuple[str, str]] = set()
+    for row in df.to_dict(orient="records"):
+        item = str(row.get("item", "")).strip().lower()
+        year = str(row.get("year", "")).strip()
+        value = _number(row.get("value"))
+        if not item or not year or value is None:
+            continue
+        for field, names in _FIN_ITEMS.items():
+            exact = item in names
+            if exact or any(n in item for n in names):
+                slot = by_year.setdefault(year, {})
+                # An exact item name wins over a looser match like "profit after tax (restated)".
+                if exact or (field not in slot and (year, field) not in exact_hit):
+                    slot[field] = f"{value:,.2f}" if field == "eps" else f"{value:,.0f}"
+                    if exact:
+                        exact_hit.add((year, field))
+                break
+    rows = []
+    for year in sorted(by_year, reverse=True)[:years]:
+        got = by_year[year]
+        rows.append({"year": year, **{k: got.get(k, "-") for k in _FIN_KEYS}})
+    result["annual"]["financials"] = rows
+    return result
+
+
+_PROFILE_FIELDS = [("name", "Company"), ("company_name", "Company"), ("sector", "Sector"), ("listing_date", "Listed since")]
+
+
+def pypsx_profile(df) -> list[dict[str, Any]]:
+    if df is None or getattr(df, "empty", True):
+        return []
+    row = df.to_dict(orient="records")[0]
+    items, seen = [], set()
+    for key, label in _PROFILE_FIELDS:
+        value = row.get(key)
+        if value is None or label in seen or str(value).strip() in ("", "nan", "None", "NaT"):
+            continue
+        seen.add(label)
+        items.append({"label": label, "value": _iso_date(value) if key == "listing_date" else str(value).strip()})
+    return [{"category": "Profile", "items": items}] if items else []
+
+
+def _pypsx_company(clean: str) -> dict[str, Any]:
+    pypsx = _pypsx_archive()
+    dividends = _pypsx_dividends(clean)
+    try:
+        statements = pypsx_statements(pypsx.get_fundamentals(clean))
+    except Exception:
+        statements = pypsx_statements(None)
+    try:
+        profile = pypsx_profile(pypsx.get_companies(clean))
+    except Exception:
+        profile = []
+    return {
+        "symbol": clean,
+        "businessDescription": "",
+        "fundamentals": profile,
+        "statements": statements,
+        "latestDividend": dividends["latestDividend"],
+        "dividendHistory": dividends["dividendHistory"],
+        "reports": [],
+        "source": "pypsx",
+    }
+
+
+def _has_data(payload: dict[str, Any]) -> bool:
+    return bool(
+        payload.get("dividendHistory")
+        or payload.get("latestDividend")
+        or payload.get("businessDescription")
+        or payload.get("statements", {}).get("annual", {}).get("financials")
+    )
+
+
+def _with_backup(clean: str, primary, backup) -> dict[str, Any]:
+    """Try pypsx-toolkit; if it is missing, errors or returns nothing, use pypsx."""
+    toolkit = _toolkit()
+    first_error = "pypsx-toolkit not installed"
+    if toolkit is not None:
+        try:
+            payload = primary(toolkit)
+            if _has_data(payload):
+                return payload
+            first_error = "pypsx-toolkit returned no data"
+        except Exception as exc:
+            first_error = f"pypsx-toolkit: {exc}"
+    try:
+        return backup(clean)
+    except Exception as exc:
+        return {"error": f"{first_error}; pypsx: {exc}", "symbol": clean}
+
+
 def get_dividend_snapshot(symbol: str) -> dict[str, Any]:
     """Lean dividends-only payload for Future X-Dates gap-fill (no fundamentals/reports)."""
     clean = (symbol or "").strip().upper()
     if not clean:
         return {"error": "symbol required"}
+    return _with_backup(clean, lambda tk: _toolkit_dividends(tk, clean), _pypsx_dividends)
 
-    try:
-        import pypsx_toolkit
-    except ImportError:
-        return {"error": "pypsx-toolkit not installed", "hint": "pip install pypsx-toolkit"}
 
+def _toolkit_company(toolkit, clean: str) -> dict[str, Any]:
+    div_info = toolkit.get_dividend_info(clean)
+    div_hist = toolkit.get_dividend_history(clean)
+    description = toolkit.get_business_description(clean) or ""
+    fund_df = toolkit.get_company_fundamentals(clean)
+
+    info_rows = df_records(div_info)
+    hist_norm = normalize_history(df_records(div_hist))
+    latest_cash = hist_norm[0]["cashAmount"] if hist_norm else None
+
+    reports_df = None
+    reports: list[dict[str, str]] = []
     try:
-        div_info = pypsx_toolkit.get_dividend_info(clean)
-        div_hist = pypsx_toolkit.get_dividend_history(clean)
-        info_rows = df_records(div_info)
-        hist_norm = normalize_history(df_records(div_hist))
-        latest_cash = hist_norm[0]["cashAmount"] if hist_norm else None
-        return {
-            "symbol": clean,
-            "latestDividend": normalize_latest(info_rows[0] if info_rows else None, latest_cash),
-            "dividendHistory": hist_norm,
-            "source": "pypsx",
-        }
-    except Exception as exc:
-        return {"error": str(exc), "symbol": clean}
+        reports_df = toolkit.get_reports(clean)
+        reports = normalize_reports(reports_df, limit=8)
+    except Exception:
+        reports = []
+
+    return {
+        "symbol": clean,
+        "businessDescription": description,
+        "fundamentals": fundamentals_sections(fund_df, description),
+        "statements": build_statements(fund_df, reports_df),
+        "latestDividend": normalize_latest(info_rows[0] if info_rows else None, latest_cash),
+        "dividendHistory": hist_norm,
+        "reports": reports,
+        "source": "pypsx-toolkit",
+    }
 
 
 def get_company_info(symbol: str) -> dict[str, Any]:
     clean = (symbol or "").strip().upper()
     if not clean:
         return {"error": "symbol required"}
-
-    try:
-        import pypsx_toolkit
-    except ImportError:
-        return {"error": "pypsx-toolkit not installed", "hint": "pip install pypsx-toolkit"}
-
-    try:
-        div_info = pypsx_toolkit.get_dividend_info(clean)
-        div_hist = pypsx_toolkit.get_dividend_history(clean)
-        description = pypsx_toolkit.get_business_description(clean) or ""
-        fund_df = pypsx_toolkit.get_company_fundamentals(clean)
-
-        info_rows = df_records(div_info)
-        hist_rows = df_records(div_hist)
-        hist_norm = normalize_history(hist_rows)
-        latest_cash = hist_norm[0]["cashAmount"] if hist_norm else None
-
-        reports_df = None
-        reports: list[dict[str, str]] = []
-        try:
-            reports_df = pypsx_toolkit.get_reports(clean)
-            reports = normalize_reports(reports_df, limit=8)
-        except Exception:
-            reports = []
-
-        return {
-            "symbol": clean,
-            "businessDescription": description,
-            "fundamentals": fundamentals_sections(fund_df, description),
-            "statements": build_statements(fund_df, reports_df),
-            "latestDividend": normalize_latest(info_rows[0] if info_rows else None, latest_cash),
-            "dividendHistory": hist_norm,
-            "reports": reports,
-            "source": "pypsx",
-        }
-    except Exception as exc:
-        return {"error": str(exc), "symbol": clean}
+    return _with_backup(clean, lambda tk: _toolkit_company(tk, clean), _pypsx_company)
 
 
 def flatten_columns(df):
