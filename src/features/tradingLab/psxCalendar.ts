@@ -6,6 +6,11 @@
 export const FIXED_HOLIDAYS = ['02-05', '03-23', '05-01', '05-28', '08-14', '11-09', '12-25'];
 /** Extra closures for specific dates (YYYY-MM-DD), e.g. Eid announced by PSX. */
 export const EXTRA_HOLIDAYS: string[] = [];
+/** Closures published by the exchange calendar (pyPSX), loaded at start-up. */
+const LOADED_HOLIDAYS = new Set<string>();
+export function setExtraHolidays(days: string[]) {
+  for (const day of days) if (/^\d{4}-\d{2}-\d{2}$/.test(day)) LOADED_HOLIDAYS.add(day);
+}
 
 /** Continuous-trading windows in minutes after midnight PKT. */
 export type SessionHours = { weekday: [number, number][]; friday: [number, number][] };
@@ -18,7 +23,7 @@ export const SPECIAL_HOURS: { from: string; to: string; label: string; hours: Se
 ];
 
 export function isHoliday(day: string) {
-  return FIXED_HOLIDAYS.includes(day.slice(5)) || EXTRA_HOLIDAYS.includes(day);
+  return FIXED_HOLIDAYS.includes(day.slice(5)) || EXTRA_HOLIDAYS.includes(day) || LOADED_HOLIDAYS.has(day);
 }
 export function specialHours(day: string) {
   return SPECIAL_HOURS.find(s => day >= s.from && day <= s.to) ?? null;

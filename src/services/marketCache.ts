@@ -24,7 +24,7 @@ export function marketCacheLifetime(url: string) {
   if (!/^\/api\/(?:proxy|pypsx)\?/.test(url)) return 0;
   const q = new URL(url, 'https://market.invalid').searchParams;
   if (q.has('force')) return 0;
-  if (q.get('mode') === 'indices') return 6 * 60 * 60 * 1000;
+  if (['indices', 'actions', 'calendar', 'resolve'].includes(q.get('mode') || '')) return 6 * 60 * 60 * 1000;
   if (['dividends', 'company'].includes(q.get('mode') || '')) return 5 * 60 * 1000;
   if (q.has('ohlc') || q.has('analysis') || q.get('mode') === 'history') return 5 * 60 * 1000;
   return q.get('mode')?.startsWith('quote') ? 15000 : 60000;

@@ -18,6 +18,9 @@ import { setCanSaveAlerts } from '../services/alertAccess';
 const Dashboard = lazy(() => import('./DashboardStats').then(m => ({ default: m.Dashboard })));
 import { HoldingsTable } from './HoldingsTable';
 import { CorporateActionModal } from './CorporateActionModal';
+import { CorporateActionSuggestions } from './CorporateActionSuggestions';
+import { loadPsxHolidays } from '../services/pypsxArchive';
+import { describeMissingAction, type MissingAction } from '../utils/missingCorporateActions';
 import type { CorporateActionDraft } from './corporateActionDraft';
 const AllocationChart = lazy(() => import('./AllocationChart').then(m => ({ default: m.AllocationChart })));
 const PerformanceChart = lazy(() => import('./PerformanceChart').then(m => ({ default: m.PerformanceChart })));
@@ -547,6 +550,8 @@ const App: React.FC = () => {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [corporateDraft, setCorporateDraft] = useState<CorporateActionDraft | null>(null);
+  // Exchange holidays from pyPSX, so the market clock knows about closures.
+  useEffect(() => { void loadPsxHolidays(); }, []);
   const [showPriceEditor, setShowPriceEditor] = useState(false);
   const [showDividendScanner, setShowDividendScanner] = useState(false);
   const [showUpcomingScanner, setShowUpcomingScanner] = useState(false);
@@ -2524,6 +2529,32 @@ const App: React.FC = () => {
 
                       {currentView === 'HOLDINGS' && (
                           <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                              {!isFundPortfolio && (
+                                  <CorporateActionSuggestions
+                                      transactions={portfolioTransactions}
+                                      failedTickers={failedTickers}
+                                      onAdd={(action: MissingAction) => {
+                                          const holding = holdings.find(h => h.ticker.toUpperCase() === action.ticker && (!action.broker || h.broker === action.broker));
+                                          setCorporateDraft({
+                                              ticker: action.ticker,
+                                              shares: action.sharesHeld,
+                                              cost: action.sharesHeld * (holding?.avgPrice || 0),
+                                              broker: action.broker,
+                                              brokerId: action.brokerId,
+                                              kind: action.kind,
+                                              bonusPercent: action.bonusPercent ?? null,
+                                              splitRatio: action.splitRatio,
+                                              rightsShares: action.kind === 'rights' && action.rightPercent ? Math.floor(action.sharesHeld * action.rightPercent / 100) : undefined,
+                                              rightsPrice: action.rightPrice,
+                                              date: action.exDate,
+                                              source: `From the exchange record: ${describeMissingAction(action)}, ex-date ${action.exDate}. Check the numbers before saving.`,
+                                          });
+                                      }}
+                                      onRename={(oldTicker, newTicker) => {
+                                          setTransactions(prev => prev.map(t => (t.ticker || '').toUpperCase() === oldTicker ? { ...t, ticker: newTicker } : t));
+                                      }}
+                                  />
+                              )}
                               <HoldingsTable
                                   holdings={holdings}
                                   showBroker={!isFundPortfolio}

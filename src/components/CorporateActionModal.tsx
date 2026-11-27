@@ -20,10 +20,10 @@ export const CorporateActionModal: React.FC<{
 }> = ({ draft, onClose, onConfirm }) => {
   const [kind, setKind] = useState(draft.kind || 'bonus');
   const [bonusPercent, setBonusPercent] = useState(draft.bonusPercent && draft.bonusPercent > 0 ? String(draft.bonusPercent) : '10');
-  const [ratio, setRatio] = useState('2');
-  const [rightsShares, setRightsShares] = useState('');
-  const [pricePaid, setPricePaid] = useState('');
-  const [date, setDate] = useState(todayPK());
+  const [ratio, setRatio] = useState(draft.splitRatio && draft.splitRatio > 1 ? String(draft.splitRatio) : '2');
+  const [rightsShares, setRightsShares] = useState(draft.rightsShares && draft.rightsShares > 0 ? String(draft.rightsShares) : '');
+  const [pricePaid, setPricePaid] = useState(draft.rightsPrice && draft.rightsPrice > 0 ? String(draft.rightsPrice) : '');
+  const [date, setDate] = useState(draft.date || todayPK());
 
   const preview = useMemo(() => {
     try {
@@ -71,6 +71,7 @@ export const CorporateActionModal: React.FC<{
         </div>
 
         <div className="px-5 pb-5 space-y-4">
+          {draft.source && <p className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">{draft.source}</p>}
           <div className="grid grid-cols-3 gap-2">
             {(['bonus', 'split', 'rights'] as const).map(option => (
               <button

@@ -11,8 +11,17 @@ INTERVALS = {"1m", "5m", "15m", "30m", "1h", "1d"}
 
 def validate_query(q):
     mode = q.get("mode", "")
-    if mode not in {"company", "dividends", "analysis", "intraday", "quote", "quotes", "indices"}:
+    if mode not in {"company", "dividends", "analysis", "intraday", "quote", "quotes", "indices", "actions", "calendar", "resolve"}:
         return "Invalid market-data mode"
+    if mode in ("actions", "resolve"):
+        symbols = q.get("symbols", "").split(",")
+        if len(symbols) > 10 or any(not SYMBOL.fullmatch(s) for s in symbols):
+            return "Use at most 10 valid stock symbols"
+        if q.get("since") and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", q["since"]):
+            return "Invalid since date"
+        return None
+    if mode == "calendar":
+        return None if re.fullmatch(r"(20\d\d)?", q.get("year", "")) else "Invalid year"
     if mode == "quotes":
         symbols = q.get("symbols", q.get("symbol", "")).split(",")
         if len(symbols) > 20 or any(not SYMBOL.fullmatch(s) for s in symbols):

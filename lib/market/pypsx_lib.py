@@ -1076,3 +1076,198 @@ def get_intraday_batch(symbols: Any, interval: str = "5m", period: str = "5d") -
     """Several symbols in one process: the SDK and pandas load once instead of once per stock."""
     names = [str(x).strip().upper() for x in (symbols.split(",") if isinstance(symbols, str) else symbols or []) if str(x).strip()]
     return {"batch": {name: get_intraday_ohlcv(name, interval=interval, period=period) for name in dict.fromkeys(names)}}
+
+
+# ---------------------------------------------------------------- corporate actions, calendar, renamed codes
+# All three need the pypsx API keys. Column names beyond the documented ones are
+# found defensively; each payload lists the raw columns so the app can be checked.
+
+
+def _symbols(value: Any, limit: int) -> list[str]:
+    raw = value if isinstance(value, list) else str(value or "").split(",")
+    out: list[str] = []
+    for item in raw:
+        clean = str(item).strip().upper().replace("PSX:", "")
+        if clean and clean not in out:
+            out.append(clean)
+    return out[:limit]
+
+
+def _first_number(row: dict[str, Any], *names: str) -> float | None:
+    for name in names:
+        if name in row:
+            value = _number(row.get(name))
+            if value is not None:
+                return value
+    return None
+
+
+def split_ratio_from_row(row: dict[str, Any]) -> float | None:
+    """New shares for each old share, e.g. 2 for a 2-for-1 split. None when unknown."""
+    direct = _first_number(row, "split_ratio", "ratio", "split", "split_factor", "shares_factor")
+    if direct is not None and direct > 1:
+        return round(direct, 6)
+    factor = _first_number(row, "price_factor", "adj_factor")
+    if factor is not None and 0 < factor < 1:
+        return round(1 / factor, 6)
+    return None
+
+
+def normalize_action_row(row: dict[str, Any]) -> dict[str, Any] | None:
+    kind = str(row.get("kind", "")).strip().lower()
+    ex = _iso_date(row.get("ex_date"))
+    if ex == "-" or not kind:
+        return None
+    parts = set(kind.replace(" ", "").split("+"))
+    out: dict[str, Any] = {"exDate": ex, "kind": sorted(parts)}
+    bonus = _first_number(row, "bonus_pct")
+    right = _first_number(row, "right_pct")
+    cash = _first_number(row, "dividend_rs")
+    if "bonus" in parts:
+        out["bonusPercent"] = bonus
+    if "right" in parts:
+        out["rightPercent"] = right
+        price = _first_number(row, "right_price", "rights_price", "issue_price", "price")
+        if price is not None and price > 0:
+            out["rightPrice"] = price
+    if "split" in parts:
+        out["splitRatio"] = split_ratio_from_row(row)
+    if "dividend" in parts and cash is not None:
+        out["dividendRs"] = cash
+    applied = row.get("applied")
+    if applied is not None and str(applied).lower() in ("false", "0"):
+        out["applied"] = False
+        reason = row.get("reject_reason")
+        if reason is not None and str(reason).strip() not in ("", "nan", "None"):
+            out["rejectReason"] = str(reason).strip()
+    return out
+
+
+def get_corporate_actions_batch(symbols: Any, since: str = "") -> dict[str, Any]:
+    """Bonus, split and rights events per symbol (dividend-only rows dropped)."""
+    tickers = _symbols(symbols, 10)
+    if not tickers:
+        return {"error": "symbols required"}
+    try:
+        pypsx = _pypsx_archive()
+    except Exception as exc:
+        return {"error": str(exc)}
+    actions: dict[str, list[dict[str, Any]]] = {}
+    columns: list[str] = []
+    errors: dict[str, str] = {}
+    for symbol in tickers:
+        try:
+            kwargs = {"start": since} if since else {}
+            df = pypsx.get_corporate_actions(symbol, **kwargs)
+            if df is None or getattr(df, "empty", True):
+                actions[symbol] = []
+                continue
+            if not columns:
+                columns = [str(c) for c in df.columns]
+            rows = [normalize_action_row(r) for r in df.to_dict(orient="records")]
+            actions[symbol] = sorted(
+                (r for r in rows if r and set(r["kind"]) & {"bonus", "split", "right"}),
+                key=lambda r: r["exDate"],
+            )
+        except Exception as exc:
+            errors[symbol] = str(exc)[:200]
+    if errors and not actions:
+        return {"error": "corporate actions unavailable", "errors": errors}
+    return {"actions": actions, "errors": errors, "columns": columns, "source": "pypsx"}
+
+
+_OPEN_WORDS = ("open", "trading", "is_trading", "is_open", "session", "trading_day", "is_trading_day")
+_NOTE_WORDS = ("holiday", "name", "description", "note", "reason", "event", "title", "status", "type")
+
+
+def calendar_holidays(df, start: str, end: str) -> list[dict[str, str]]:
+    """Weekday closures between start and end from pypsx.get_calendar, whatever its shape."""
+    import datetime as dt
+
+    if df is None or getattr(df, "empty", True):
+        return []
+    reset = df.reset_index()
+    cols = {str(c).lower(): c for c in reset.columns}
+    date_col = next((cols[c] for c in cols if c in ("date", "session_date", "day", "datetime")), None)
+    if date_col is None:
+        date_col = next((cols[c] for c in cols if "date" in c), None)
+    if date_col is None:
+        return []
+    open_col = next((cols[c] for c in cols if c in _OPEN_WORDS), None)
+    note_col = next((cols[c] for c in cols if c in _NOTE_WORDS), None)
+    rows = reset.to_dict(orient="records")
+    holidays: dict[str, str] = {}
+    if open_col is not None:
+        for r in rows:
+            flag = str(r.get(open_col)).strip().lower()
+            if flag in ("false", "0", "closed", "holiday", "no"):
+                day = _iso_date(r.get(date_col))
+                if day != "-":
+                    holidays[day] = str(r.get(note_col) or "Holiday").strip() if note_col is not None else "Holiday"
+    elif note_col is not None and any(w in str(note_col).lower() for w in ("holiday", "status", "type")):
+        for r in rows:
+            text = str(r.get(note_col) or "").strip()
+            if text and any(w in text.lower() for w in ("holiday", "closed")):
+                day = _iso_date(r.get(date_col))
+                if day != "-":
+                    holidays[day] = text
+    else:
+        # The calendar lists trading sessions: a weekday that is missing is a closure.
+        sessions = {_iso_date(r.get(date_col)) for r in rows}
+        sessions.discard("-")
+        if sessions:
+            first, last = max(start, min(sessions)), min(end, max(sessions))
+            day = dt.date.fromisoformat(first)
+            stop = dt.date.fromisoformat(last)
+            while day <= stop:
+                iso = day.isoformat()
+                if day.weekday() < 5 and iso not in sessions:
+                    holidays[iso] = "Market closed"
+                day += dt.timedelta(days=1)
+    return [{"date": d, "note": holidays[d]} for d in sorted(holidays) if start <= d <= end]
+
+
+def get_calendar_payload(year: str = "") -> dict[str, Any]:
+    import datetime as dt
+
+    today = dt.date.today()
+    y = int(year) if str(year).isdigit() else today.year
+    start, end = f"{y}-01-01", f"{y}-12-31"
+    try:
+        pypsx = _pypsx_archive()
+        df = pypsx.get_calendar(start, end)
+    except Exception as exc:
+        return {"error": str(exc)}
+    columns = [str(c) for c in getattr(df, "columns", [])]
+    return {"year": y, "holidays": calendar_holidays(df, start, end), "columns": columns, "source": "pypsx"}
+
+
+def resolve_symbols(symbols: Any) -> dict[str, Any]:
+    """Map old company codes to today's code using the archive's own resolution."""
+    import datetime as dt
+
+    tickers = _symbols(symbols, 10)
+    if not tickers:
+        return {"error": "symbols required"}
+    try:
+        pypsx = _pypsx_archive()
+    except Exception as exc:
+        return {"error": str(exc)}
+    start = (dt.date.today() - dt.timedelta(days=21)).isoformat()
+    resolved: dict[str, str] = {}
+    unknown: list[str] = []
+    for symbol in tickers:
+        try:
+            df = pypsx.get_historical(symbol, start=start)
+        except Exception:
+            unknown.append(symbol)
+            continue
+        meta = (getattr(df, "attrs", {}) or {}).get("meta") or {}
+        current = ""
+        if isinstance(meta, dict) and meta.get("resolved_from"):
+            current = str(meta.get("symbol") or "").strip().upper()
+            if not current and df is not None and not df.empty and "symbol" in df.columns:
+                current = str(df["symbol"].iloc[-1]).strip().upper()
+        if current and current != symbol:
+            resolved[symbol] = current
+    return {"resolved": resolved, "unknown": unknown, "source": "pypsx"}

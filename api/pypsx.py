@@ -41,7 +41,7 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.cache_seconds = 15
         params = parse_qs(urlparse(self.path).query)
-        keys = {'mode','symbol','symbols','company','dividends','analysis','intraday','quote','period','interval','index','name'}
+        keys = {'mode','symbol','symbols','company','dividends','analysis','intraday','quote','period','interval','index','name','since','year'}
         q = {k: v[0] for k, v in params.items() if k in keys}
         invalid = validate_query(q)
         if invalid:
@@ -54,7 +54,7 @@ class handler(BaseHTTPRequestHandler):
                 return self._json(429, {'error': 'Too many requests. Please retry shortly.'})
         except Exception:
             return self._json(503, {'error': 'Market-data service temporarily unavailable.'})
-        self.cache_seconds = 21600 if q['mode'] == 'indices' else 300 if q['mode'] in {'company', 'dividends', 'analysis'} else 15
+        self.cache_seconds = 21600 if q['mode'] in {'indices', 'actions', 'calendar', 'resolve'} else 300 if q['mode'] in {'company', 'dividends', 'analysis'} else 15
         key = json.dumps(q, sort_keys=True)
         with _LOCK:
             cached = _CACHE.get(key)
@@ -65,6 +65,9 @@ class handler(BaseHTTPRequestHandler):
         try:
             payload = run_market(q)
             if payload.get('error') and not payload.get('quotes'):
+                if q['mode'] in {'company', 'dividends', 'actions', 'calendar', 'resolve'}:
+                    # Say which source failed so a missing key or package is visible.
+                    return self._json(502, {'error': 'Market data is temporarily unavailable.', 'detail': str(payload.get('error'))[:300]})
                 return self._json(502, {'error': 'Market data is temporarily unavailable.'})
             with _LOCK:
                 _CACHE[key] = (time.monotonic() + self.cache_seconds, payload)

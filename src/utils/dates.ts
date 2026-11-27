@@ -1,3 +1,4 @@
+import { isHoliday } from '../features/tradingLab/psxCalendar';
 /** Pakistan Standard Time (Asia/Karachi, UTC+5, no DST). */
 export const PK_TIMEZONE = 'Asia/Karachi';
 
@@ -26,6 +27,7 @@ export const isPsxMarketHours = (now: Date = new Date()): boolean => {
   const minute = Number(parts.find((p) => p.type === 'minute')?.value);
   if (!Number.isFinite(hour) || !Number.isFinite(minute)) return false;
   if (weekday === 'Sat' || weekday === 'Sun') return false;
+  if (isHoliday(formatDatePK(now))) return false;
   const mins = hour * 60 + minute;
   if (weekday === 'Fri') return mins >= 9 * 60 && mins <= 12 * 60 + 30;
   return mins >= 9 * 60 + 15 && mins <= 15 * 60 + 45;
